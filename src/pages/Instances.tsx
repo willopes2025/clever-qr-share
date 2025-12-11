@@ -4,55 +4,90 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
-import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, RefreshCw, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
-
-interface Instance {
-  id: string;
-  name: string;
-  status: "connected" | "disconnected" | "connecting";
-}
+import { useWhatsAppInstances, WhatsAppInstance } from "@/hooks/useWhatsAppInstances";
 
 const Instances = () => {
-  const [instances, setInstances] = useState<Instance[]>([
-    { id: "1", name: "Vendas Principal", status: "connected" },
-    { id: "2", name: "Suporte", status: "connected" },
-    { id: "3", name: "Marketing", status: "disconnected" },
-  ]);
+  const {
+    instances,
+    isLoading,
+    refetch,
+    createInstance,
+    connectInstance,
+    checkStatus,
+    deleteInstance,
+  } = useWhatsAppInstances();
 
   const [newInstanceName, setNewInstanceName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
+  const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
 
-  const handleCreateInstance = () => {
+  // Polling para verificar status de instâncias "connecting"
+  useEffect(() => {
+    if (!instances) return;
+
+    const connectingInstances = instances.filter(i => i.status === 'connecting');
+    if (connectingInstances.length === 0) return;
+
+    const interval = setInterval(() => {
+      connectingInstances.forEach((instance) => {
+        checkStatus.mutate(instance.instance_name);
+      });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [instances]);
+
+  const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) {
-      toast.error("Por favor, insira um nome para a instância");
       return;
     }
 
-    const newInstance: Instance = {
-      id: Date.now().toString(),
-      name: newInstanceName,
-      status: "disconnected",
-    };
-
-    setInstances([...instances, newInstance]);
+    await createInstance.mutateAsync(newInstanceName);
     setNewInstanceName("");
     setDialogOpen(false);
-    toast.success("Instância criada com sucesso!");
   };
 
-  const handleDeleteInstance = (id: string) => {
-    setInstances(instances.filter((instance) => instance.id !== id));
-    toast.success("Instância removida");
+  const handleDeleteInstance = async (instanceName: string) => {
+    await deleteInstance.mutateAsync(instanceName);
   };
 
-  const handleShowQRCode = (instance: Instance) => {
+  const handleShowQRCode = async (instance: WhatsAppInstance) => {
     setSelectedInstance(instance);
     setQrDialogOpen(true);
+    setQrCodeData(null);
+    setQrLoading(true);
+
+    try {
+      const result = await connectInstance.mutateAsync(instance.instance_name);
+      setQrCodeData(result.base64);
+    } catch (error) {
+      console.error('Error getting QR code:', error);
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const handleRefreshQRCode = async () => {
+    if (!selectedInstance) return;
+    
+    setQrLoading(true);
+    setQrCodeData(null);
+
+    try {
+      const result = await connectInstance.mutateAsync(selectedInstance.instance_name);
+      setQrCodeData(result.base64);
+    } catch (error) {
+      console.error('Error refreshing QR code:', error);
+    } finally {
+      setQrLoading(false);
+    }
   };
 
   return (
@@ -68,67 +103,91 @@ const Instances = () => {
             </p>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="lg">
-                <Plus className="h-5 w-5 mr-2" />
-                Nova Instância
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Criar Nova Instância</DialogTitle>
-                <DialogDescription>
-                  Crie uma nova instância para conectar ao WhatsApp via QR Code.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome da Instância</Label>
-                  <Input
-                    id="name"
-                    placeholder="Ex: Vendas, Suporte, Marketing..."
-                    value={newInstanceName}
-                    onChange={(e) => setNewInstanceName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleCreateInstance();
-                      }
-                    }}
-                  />
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg">
+                  <Plus className="h-5 w-5 mr-2" />
+                  Nova Instância
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Nova Instância</DialogTitle>
+                  <DialogDescription>
+                    Crie uma nova instância para conectar ao WhatsApp via QR Code.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome da Instância</Label>
+                    <Input
+                      id="name"
+                      placeholder="Ex: Vendas, Suporte, Marketing..."
+                      value={newInstanceName}
+                      onChange={(e) => setNewInstanceName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleCreateInstance();
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
-                  Cancelar
-                </Button>
-                <Button onClick={handleCreateInstance} className="flex-1">
-                  Criar Instância
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={handleCreateInstance} 
+                    className="flex-1"
+                    disabled={createInstance.isPending}
+                  >
+                    {createInstance.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Criando...
+                      </>
+                    ) : (
+                      'Criar Instância'
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {instances.map((instance, index) => (
-            <motion.div
-              key={instance.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-            >
-              <InstanceCard
-                name={instance.name}
-                status={instance.status}
-                onQRCode={() => handleShowQRCode(instance)}
-                onDelete={() => handleDeleteInstance(instance.id)}
-              />
-            </motion.div>
-          ))}
-        </div>
-
-        {instances.length === 0 && (
+        {isLoading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-40 rounded-xl" />
+            ))}
+          </div>
+        ) : instances && instances.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {instances.map((instance, index) => (
+              <motion.div
+                key={instance.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+              >
+                <InstanceCard
+                  name={instance.instance_name}
+                  status={instance.status}
+                  onQRCode={() => handleShowQRCode(instance)}
+                  onDelete={() => handleDeleteInstance(instance.instance_name)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        ) : (
           <div className="text-center py-16">
             <p className="text-muted-foreground mb-4">
               Nenhuma instância criada ainda.
@@ -145,20 +204,46 @@ const Instances = () => {
             <DialogHeader>
               <DialogTitle>Conectar via QR Code</DialogTitle>
               <DialogDescription>
-                Escaneie o QR Code com seu WhatsApp para conectar a instância "{selectedInstance?.name}"
+                Escaneie o QR Code com seu WhatsApp para conectar a instância "{selectedInstance?.instance_name}"
               </DialogDescription>
             </DialogHeader>
-            <div className="py-8">
-              <div className="bg-muted rounded-xl p-8 flex items-center justify-center">
-                <div className="bg-background p-4 rounded-lg">
-                  <div className="h-64 w-64 bg-gradient-to-br from-whatsapp to-whatsapp-dark rounded-lg flex items-center justify-center">
-                    <p className="text-white text-center px-4">
-                      QR Code seria exibido aqui<br/>
-                      <span className="text-sm opacity-75">(integração com Evolution API)</span>
-                    </p>
+            <div className="py-4">
+              <div className="bg-muted rounded-xl p-6 flex items-center justify-center min-h-[280px]">
+                {qrLoading ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Gerando QR Code...</p>
                   </div>
-                </div>
+                ) : qrCodeData ? (
+                  <div className="bg-background p-4 rounded-lg">
+                    <img 
+                      src={qrCodeData} 
+                      alt="QR Code" 
+                      className="w-56 h-56 rounded-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-muted-foreground mb-4">
+                      Não foi possível gerar o QR Code.
+                    </p>
+                    <Button onClick={handleRefreshQRCode} variant="outline">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Tentar Novamente
+                    </Button>
+                  </div>
+                )}
               </div>
+              
+              {qrCodeData && (
+                <div className="flex justify-center mt-4">
+                  <Button onClick={handleRefreshQRCode} variant="outline" size="sm" disabled={qrLoading}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Gerar Novo QR Code
+                  </Button>
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground text-center mt-4">
                 Abra o WhatsApp no seu celular → Configurações → Aparelhos conectados → Conectar aparelho
               </p>
