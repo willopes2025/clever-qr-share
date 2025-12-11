@@ -50,6 +50,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           instanceName: instanceName,
+          integration: 'WHATSAPP-BAILEYS',
           token: crypto.randomUUID(),
           qrcode: true,
         }),
