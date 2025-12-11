@@ -11,9 +11,9 @@ import Instances from "./pages/Instances";
 import Campaigns from "./pages/Campaigns";
 import Contacts from "./pages/Contacts";
 import BroadcastLists from "./pages/BroadcastLists";
+import Templates from "./pages/Templates";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -48,6 +48,11 @@ const App = () => (
           <Route path="/broadcast-lists" element={
             <ProtectedRoute>
               <BroadcastLists />
+            </ProtectedRoute>
+          } />
+          <Route path="/templates" element={
+            <ProtectedRoute>
+              <Templates />
             </ProtectedRoute>
           } />
           <Route path="/settings" element={

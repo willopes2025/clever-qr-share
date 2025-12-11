@@ -214,6 +214,42 @@ export type Database = {
         }
         Relationships: []
       }
+      message_templates: {
+        Row: {
+          category: Database["public"]["Enums"]["template_category"]
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+          variables: Json | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["template_category"]
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+          variables?: Json | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["template_category"]
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+          variables?: Json | null
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           color: string
@@ -280,6 +316,13 @@ export type Database = {
     }
     Enums: {
       broadcast_list_type: "manual" | "dynamic"
+      template_category:
+        | "promotional"
+        | "transactional"
+        | "notification"
+        | "welcome"
+        | "reminder"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -408,6 +451,14 @@ export const Constants = {
   public: {
     Enums: {
       broadcast_list_type: ["manual", "dynamic"],
+      template_category: [
+        "promotional",
+        "transactional",
+        "notification",
+        "welcome",
+        "reminder",
+        "other",
+      ],
     },
   },
 } as const
