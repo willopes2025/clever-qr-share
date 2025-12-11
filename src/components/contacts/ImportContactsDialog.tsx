@@ -1,0 +1,264 @@
+import { useState, useCallback } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Upload, FileText, AlertCircle, CheckCircle2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+
+interface ImportContactsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onImport: (
+    contacts: { phone: string; name?: string; email?: string }[]
+  ) => void;
+  isLoading?: boolean;
+}
+
+interface ParsedContact {
+  phone: string;
+  name?: string;
+  email?: string;
+  isValid: boolean;
+  error?: string;
+}
+
+export const ImportContactsDialog = ({
+  open,
+  onOpenChange,
+  onImport,
+  isLoading,
+}: ImportContactsDialogProps) => {
+  const [parsedContacts, setParsedContacts] = useState<ParsedContact[]>([]);
+  const [fileName, setFileName] = useState<string>("");
+
+  const validatePhone = (phone: string): { isValid: boolean; error?: string } => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length < 10) {
+      return { isValid: false, error: "Número muito curto" };
+    }
+    if (cleaned.length > 15) {
+      return { isValid: false, error: "Número muito longo" };
+    }
+    return { isValid: true };
+  };
+
+  const parseCSV = useCallback((text: string) => {
+    const lines = text.split("\n").filter((line) => line.trim());
+    if (lines.length === 0) return [];
+
+    // Detect separator
+    const separator = lines[0].includes(";") ? ";" : ",";
+
+    // Parse header
+    const headerLine = lines[0].toLowerCase();
+    const headers = headerLine.split(separator).map((h) => h.trim());
+
+    const phoneIndex = headers.findIndex(
+      (h) => h.includes("phone") || h.includes("telefone") || h.includes("número") || h.includes("numero")
+    );
+    const nameIndex = headers.findIndex(
+      (h) => h.includes("name") || h.includes("nome")
+    );
+    const emailIndex = headers.findIndex(
+      (h) => h.includes("email") || h.includes("e-mail")
+    );
+
+    // If no header found, assume first column is phone
+    const hasHeader = phoneIndex !== -1 || nameIndex !== -1;
+    const startIndex = hasHeader ? 1 : 0;
+
+    const contacts: ParsedContact[] = [];
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const values = lines[i].split(separator).map((v) => v.trim().replace(/"/g, ""));
+      
+      const phone = phoneIndex !== -1 ? values[phoneIndex] : values[0];
+      if (!phone) continue;
+
+      const validation = validatePhone(phone);
+      
+      contacts.push({
+        phone: phone.replace(/\D/g, ""),
+        name: nameIndex !== -1 ? values[nameIndex] : values[1],
+        email: emailIndex !== -1 ? values[emailIndex] : values[2],
+        isValid: validation.isValid,
+        error: validation.error,
+      });
+    }
+
+    return contacts;
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
+      toast({
+        title: "Formato inválido",
+        description: "Por favor, envie um arquivo CSV ou TXT",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const contacts = parseCSV(text);
+      setParsedContacts(contacts);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = () => {
+    const validContacts = parsedContacts
+      .filter((c) => c.isValid)
+      .map(({ phone, name, email }) => ({ phone, name, email }));
+
+    if (validContacts.length === 0) {
+      toast({
+        title: "Nenhum contato válido",
+        description: "Verifique o formato dos números",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onImport(validContacts);
+    setParsedContacts([]);
+    setFileName("");
+  };
+
+  const validCount = parsedContacts.filter((c) => c.isValid).length;
+  const invalidCount = parsedContacts.filter((c) => !c.isValid).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Importar Contatos</DialogTitle>
+          <DialogDescription>
+            Envie um arquivo CSV com os contatos. O arquivo deve conter pelo menos uma coluna de telefone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Upload area */}
+          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-border">
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+              <p className="mb-1 text-sm text-muted-foreground">
+                <span className="font-semibold">Clique para enviar</span> ou arraste
+              </p>
+              <p className="text-xs text-muted-foreground">CSV ou TXT</p>
+            </div>
+            <input
+              type="file"
+              className="hidden"
+              accept=".csv,.txt"
+              onChange={handleFileChange}
+            />
+          </label>
+
+          {/* File info */}
+          {fileName && (
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              <FileText className="w-5 h-5 text-primary" />
+              <span className="text-sm font-medium">{fileName}</span>
+            </div>
+          )}
+
+          {/* Preview */}
+          {parsedContacts.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                  {validCount} válidos
+                </div>
+                {invalidCount > 0 && (
+                  <div className="flex items-center gap-1 text-destructive">
+                    <AlertCircle className="w-4 h-4" />
+                    {invalidCount} inválidos
+                  </div>
+                )}
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted sticky top-0">
+                    <tr>
+                      <th className="text-left p-2">Telefone</th>
+                      <th className="text-left p-2">Nome</th>
+                      <th className="text-left p-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedContacts.slice(0, 10).map((contact, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="p-2 font-mono text-xs">{contact.phone}</td>
+                        <td className="p-2">{contact.name || "-"}</td>
+                        <td className="p-2">
+                          {contact.isValid ? (
+                            <span className="text-green-600 text-xs">Válido</span>
+                          ) : (
+                            <span className="text-destructive text-xs">
+                              {contact.error}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {parsedContacts.length > 10 && (
+                  <p className="p-2 text-center text-xs text-muted-foreground border-t">
+                    ... e mais {parsedContacts.length - 10} contatos
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Format help */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p className="font-medium">Formato esperado:</p>
+            <code className="block p-2 bg-muted rounded text-xs">
+              telefone,nome,email<br />
+              5511999999999,João Silva,joao@email.com
+            </code>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setParsedContacts([]);
+                setFileName("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={validCount === 0 || isLoading}
+            >
+              {isLoading
+                ? "Importando..."
+                : `Importar ${validCount} contatos`}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
