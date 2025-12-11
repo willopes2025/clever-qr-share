@@ -14,6 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
+      contact_tags: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_tags_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          created_at: string
+          custom_fields: Json | null
+          email: string | null
+          id: string
+          last_message_at: string | null
+          name: string | null
+          notes: string | null
+          opted_out: boolean
+          opted_out_at: string | null
+          phone: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_fields?: Json | null
+          email?: string | null
+          id?: string
+          last_message_at?: string | null
+          name?: string | null
+          notes?: string | null
+          opted_out?: boolean
+          opted_out_at?: string | null
+          phone: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_fields?: Json | null
+          email?: string | null
+          id?: string
+          last_message_at?: string | null
+          name?: string | null
+          notes?: string | null
+          opted_out?: boolean
+          opted_out_at?: string | null
+          phone?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           created_at: string | null

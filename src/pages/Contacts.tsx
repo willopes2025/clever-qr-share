@@ -1,37 +1,394 @@
+import { useState, useMemo } from "react";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
-import { Plus, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Upload,
+  Search,
+  Tag as TagIcon,
+  Trash2,
+  Download,
+  Users,
+  Loader2,
+} from "lucide-react";
+import { useContacts, ContactWithTags } from "@/hooks/useContacts";
+import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
+import { ImportContactsDialog } from "@/components/contacts/ImportContactsDialog";
+import { TagManager } from "@/components/contacts/TagManager";
+import { ContactsTable } from "@/components/contacts/ContactsTable";
 
 const Contacts = () => {
+  const {
+    contacts,
+    tags,
+    isLoading,
+    createContact,
+    updateContact,
+    deleteContact,
+    deleteMultipleContacts,
+    importContacts,
+    toggleOptOut,
+    createTag,
+    deleteTag,
+    addTagToContact,
+    removeTagFromContact,
+  } = useContacts();
+
+  // Dialogs state
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [editingContact, setEditingContact] = useState<ContactWithTags | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
+
+  // Filtered contacts
+  const filteredContacts = useMemo(() => {
+    return contacts.filter((contact) => {
+      // Search filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        !searchQuery ||
+        contact.phone.includes(searchQuery) ||
+        contact.name?.toLowerCase().includes(searchLower) ||
+        contact.email?.toLowerCase().includes(searchLower);
+
+      // Status filter
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && !contact.opted_out) ||
+        (statusFilter === "blocked" && contact.opted_out);
+
+      // Tag filter
+      const matchesTag =
+        tagFilter === "all" ||
+        contact.contact_tags?.some((ct) => ct.tag_id === tagFilter);
+
+      return matchesSearch && matchesStatus && matchesTag;
+    });
+  }, [contacts, searchQuery, statusFilter, tagFilter]);
+
+  // Handlers
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredContacts.map((c) => c.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    }
+  };
+
+  const handleCreateContact = (data: {
+    phone: string;
+    name?: string;
+    email?: string;
+    notes?: string;
+  }) => {
+    createContact.mutate(data, {
+      onSuccess: () => setShowContactForm(false),
+    });
+  };
+
+  const handleUpdateContact = (data: {
+    phone: string;
+    name?: string;
+    email?: string;
+    notes?: string;
+  }) => {
+    if (!editingContact) return;
+    updateContact.mutate(
+      { id: editingContact.id, ...data },
+      {
+        onSuccess: () => {
+          setEditingContact(null);
+          setShowContactForm(false);
+        },
+      }
+    );
+  };
+
+  const handleDeleteContact = () => {
+    if (!deleteConfirm) return;
+    deleteContact.mutate(deleteConfirm, {
+      onSuccess: () => setDeleteConfirm(null),
+    });
+  };
+
+  const handleBulkDelete = () => {
+    deleteMultipleContacts.mutate(selectedIds, {
+      onSuccess: () => {
+        setSelectedIds([]);
+        setBulkDeleteConfirm(false);
+      },
+    });
+  };
+
+  const handleExport = () => {
+    const exportData = filteredContacts.map((c) => ({
+      telefone: c.phone,
+      nome: c.name || "",
+      email: c.email || "",
+      status: c.opted_out ? "bloqueado" : "ativo",
+      tags: c.contact_tags?.map((ct) => ct.tags.name).join(", ") || "",
+    }));
+
+    const csv = [
+      Object.keys(exportData[0] || {}).join(","),
+      ...exportData.map((row) => Object.values(row).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `contatos_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      
+
       <main className="ml-64 p-8">
+        {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Contatos</h1>
             <p className="text-muted-foreground">
-              Gerencie sua base de contatos
+              {contacts.length} contatos cadastrados
             </p>
           </div>
 
-          <Button size="lg">
-            <Plus className="h-5 w-5 mr-2" />
-            Importar Contatos
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowTagManager(true)}>
+              <TagIcon className="h-4 w-4 mr-2" />
+              Tags
+            </Button>
+            <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar
+            </Button>
+            <Button onClick={() => setShowContactForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Contato
+            </Button>
+          </div>
         </div>
 
-        <div className="text-center py-20">
-          <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-primary mb-6">
-            <Users className="h-10 w-10 text-primary-foreground" />
+        {/* Filters */}
+        <div className="mb-6 flex flex-wrap gap-4 items-center">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por telefone, nome ou email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
           </div>
-          <h2 className="text-2xl font-bold mb-2">Em breve!</h2>
-          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-            O gerenciamento de contatos está sendo desenvolvido e estará disponível em breve.
-          </p>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="active">Ativos</SelectItem>
+              <SelectItem value="blocked">Bloqueados</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={tagFilter} onValueChange={setTagFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Tag" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as tags</SelectItem>
+              {tags.map((tag) => (
+                <SelectItem key={tag.id} value={tag.id}>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    {tag.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.length} selecionado(s)
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Excluir
+              </Button>
+            </div>
+          )}
+
+          {filteredContacts.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleExport}>
+              <Download className="h-4 w-4 mr-1" />
+              Exportar
+            </Button>
+          )}
         </div>
+
+        {/* Content */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : contacts.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-primary/10 mb-6">
+              <Users className="h-10 w-10 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Nenhum contato ainda</h2>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+              Comece importando um arquivo CSV ou adicione contatos manualmente.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar CSV
+              </Button>
+              <Button onClick={() => setShowContactForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Contato
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <ContactsTable
+            contacts={filteredContacts}
+            tags={tags}
+            selectedIds={selectedIds}
+            onSelectAll={handleSelectAll}
+            onSelectOne={handleSelectOne}
+            onEdit={(contact) => {
+              setEditingContact(contact);
+              setShowContactForm(true);
+            }}
+            onDelete={(id) => setDeleteConfirm(id)}
+            onToggleOptOut={(id, opted_out) => toggleOptOut.mutate({ id, opted_out })}
+            onAddTag={(contactId, tagId) =>
+              addTagToContact.mutate({ contactId, tagId })
+            }
+            onRemoveTag={(contactId, tagId) =>
+              removeTagFromContact.mutate({ contactId, tagId })
+            }
+          />
+        )}
       </main>
+
+      {/* Dialogs */}
+      <ContactFormDialog
+        open={showContactForm}
+        onOpenChange={(open) => {
+          setShowContactForm(open);
+          if (!open) setEditingContact(null);
+        }}
+        onSubmit={editingContact ? handleUpdateContact : handleCreateContact}
+        contact={editingContact}
+        isLoading={createContact.isPending || updateContact.isPending}
+      />
+
+      <ImportContactsDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImport={(contacts) => {
+          importContacts.mutate(contacts, {
+            onSuccess: () => setShowImportDialog(false),
+          });
+        }}
+        isLoading={importContacts.isPending}
+      />
+
+      <TagManager
+        open={showTagManager}
+        onOpenChange={setShowTagManager}
+        tags={tags}
+        onCreateTag={(tag) => createTag.mutate(tag)}
+        onDeleteTag={(id) => deleteTag.mutate(id)}
+      />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O contato será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteContact}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.length} contatos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Todos os contatos selecionados serão removidos permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete}>
+              Excluir todos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
