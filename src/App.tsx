@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Instances from "./pages/Instances";
 import Campaigns from "./pages/Campaigns";
 import Contacts from "./pages/Contacts";
+import BroadcastLists from "./pages/BroadcastLists";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -42,6 +43,11 @@ const App = () => (
           <Route path="/contacts" element={
             <ProtectedRoute>
               <Contacts />
+            </ProtectedRoute>
+          } />
+          <Route path="/broadcast-lists" element={
+            <ProtectedRoute>
+              <BroadcastLists />
             </ProtectedRoute>
           } />
           <Route path="/settings" element={

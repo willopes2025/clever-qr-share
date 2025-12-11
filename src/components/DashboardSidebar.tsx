@@ -1,12 +1,13 @@
 import { NavLink } from "react-router-dom";
-import { MessageSquare, LayoutDashboard, QrCode, Send, Users, Settings } from "lucide-react";
+import { MessageSquare, LayoutDashboard, QrCode, Send, Users, List, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: QrCode, label: "Instâncias", path: "/instances" },
-  { icon: Send, label: "Disparos", path: "/campaigns" },
   { icon: Users, label: "Contatos", path: "/contacts" },
+  { icon: List, label: "Listas", path: "/broadcast-lists" },
+  { icon: Send, label: "Disparos", path: "/campaigns" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 

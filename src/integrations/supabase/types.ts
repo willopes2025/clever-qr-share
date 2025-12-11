@@ -14,6 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
+      broadcast_list_contacts: {
+        Row: {
+          added_at: string
+          contact_id: string
+          id: string
+          list_id: string
+        }
+        Insert: {
+          added_at?: string
+          contact_id: string
+          id?: string
+          list_id: string
+        }
+        Update: {
+          added_at?: string
+          contact_id?: string
+          id?: string
+          list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_list_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcast_list_contacts_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcast_lists: {
+        Row: {
+          created_at: string
+          description: string | null
+          filter_criteria: Json | null
+          id: string
+          name: string
+          type: Database["public"]["Enums"]["broadcast_list_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          filter_criteria?: Json | null
+          id?: string
+          name: string
+          type?: Database["public"]["Enums"]["broadcast_list_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          filter_criteria?: Json | null
+          id?: string
+          name?: string
+          type?: Database["public"]["Enums"]["broadcast_list_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      broadcast_sends: {
+        Row: {
+          completed_at: string | null
+          delivered: number
+          failed: number
+          id: string
+          list_id: string
+          message: string
+          sent_at: string
+          status: string
+          total_contacts: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          delivered?: number
+          failed?: number
+          id?: string
+          list_id: string
+          message: string
+          sent_at?: string
+          status?: string
+          total_contacts?: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          delivered?: number
+          failed?: number
+          id?: string
+          list_id?: string
+          message?: string
+          sent_at?: string
+          status?: string
+          total_contacts?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_sends_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_tags: {
         Row: {
           contact_id: string
@@ -163,7 +279,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      broadcast_list_type: "manual" | "dynamic"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -290,6 +406,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      broadcast_list_type: ["manual", "dynamic"],
+    },
   },
 } as const
