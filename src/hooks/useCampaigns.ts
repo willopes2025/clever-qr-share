@@ -4,6 +4,8 @@ import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 
+export type SendingMode = 'sequential' | 'random';
+
 export interface Campaign {
   id: string;
   user_id: string;
@@ -11,6 +13,8 @@ export interface Campaign {
   template_id: string | null;
   list_id: string | null;
   instance_id: string | null;
+  instance_ids: string[] | null;
+  sending_mode: SendingMode | null;
   status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'cancelled' | 'failed';
   scheduled_at: string | null;
   started_at: string | null;
@@ -249,9 +253,17 @@ export const useCampaignMutations = () => {
   });
 
   const startCampaign = useMutation({
-    mutationFn: async ({ campaignId, instanceId }: { campaignId: string; instanceId: string }) => {
+    mutationFn: async ({ 
+      campaignId, 
+      instanceIds, 
+      sendingMode 
+    }: { 
+      campaignId: string; 
+      instanceIds: string[]; 
+      sendingMode: SendingMode;
+    }) => {
       const { data, error } = await supabase.functions.invoke('start-campaign', {
-        body: { campaignId, instanceId }
+        body: { campaignId, instanceIds, sendingMode }
       });
 
       if (error) throw error;

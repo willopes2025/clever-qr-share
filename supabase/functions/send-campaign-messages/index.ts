@@ -26,6 +26,13 @@ interface CampaignMessage {
   created_at: string;
 }
 
+interface Instance {
+  id: string;
+  instance_name: string;
+}
+
+type SendingMode = 'sequential' | 'random';
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,13 +46,32 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { campaignId, instanceName } = await req.json();
+    const body = await req.json();
+    
+    // Support both old format (single instanceName) and new format (instances array)
+    let instances: Instance[] = [];
+    let sendingMode: SendingMode = 'sequential';
+    let campaignId: string;
 
-    if (!campaignId || !instanceName) {
-      throw new Error('Campaign ID and Instance Name are required');
+    if (body.instances && Array.isArray(body.instances)) {
+      // New format with multiple instances
+      campaignId = body.campaignId;
+      instances = body.instances;
+      sendingMode = body.sendingMode || 'sequential';
+    } else if (body.instanceName) {
+      // Old format for backwards compatibility
+      campaignId = body.campaignId;
+      instances = [{ id: 'legacy', instance_name: body.instanceName }];
+    } else {
+      throw new Error('Campaign ID and instances are required');
     }
 
-    console.log(`Processing campaign ${campaignId} with instance ${instanceName}`);
+    if (!campaignId || instances.length === 0) {
+      throw new Error('Campaign ID and at least one instance are required');
+    }
+
+    console.log(`Processing campaign ${campaignId} with ${instances.length} instance(s) in ${sendingMode} mode`);
+    console.log(`Instances: ${instances.map(i => i.instance_name).join(', ')}`);
 
     // Fetch all queued messages for this campaign
     const { data: messages, error: messagesError } = await supabase
@@ -67,9 +93,26 @@ serve(async (req) => {
     let deliveredCount = 0;
     let failedCount = 0;
 
+    // Function to get instance for a message based on sending mode
+    const getInstanceForMessage = (messageIndex: number): Instance => {
+      if (instances.length === 1) {
+        return instances[0];
+      }
+
+      if (sendingMode === 'sequential') {
+        // Round-robin: alternate between instances in order
+        return instances[messageIndex % instances.length];
+      } else {
+        // Random: pick a random instance
+        const randomIndex = Math.floor(Math.random() * instances.length);
+        return instances[randomIndex];
+      }
+    };
+
     // Process messages one by one with delay
     for (let i = 0; i < typedMessages.length; i++) {
       const message = typedMessages[i];
+      const instance = getInstanceForMessage(i);
 
       try {
         // Update status to 'sending'
@@ -84,11 +127,11 @@ serve(async (req) => {
           phone = '55' + phone;
         }
 
-        console.log(`Sending message ${i + 1}/${typedMessages.length} to ${phone}...`);
+        console.log(`Sending message ${i + 1}/${typedMessages.length} to ${phone} via ${instance.instance_name}...`);
 
         // Send via Evolution API
         const response = await fetch(
-          `${evolutionApiUrl}/message/sendText/${instanceName}`,
+          `${evolutionApiUrl}/message/sendText/${instance.instance_name}`,
           {
             method: 'POST',
             headers: {
@@ -118,7 +161,7 @@ serve(async (req) => {
           sentCount++;
           deliveredCount++; // Assume delivered for now (can be updated via webhook later)
 
-          console.log(`Message ${i + 1}/${typedMessages.length} sent successfully`);
+          console.log(`Message ${i + 1}/${typedMessages.length} sent successfully via ${instance.instance_name}`);
         } else {
           // Message failed
           const errorMessage = result.message || result.error || 'Unknown error';
@@ -131,7 +174,7 @@ serve(async (req) => {
             .eq('id', message.id);
 
           failedCount++;
-          console.log(`Message ${i + 1}/${typedMessages.length} failed: ${errorMessage}`);
+          console.log(`Message ${i + 1}/${typedMessages.length} failed via ${instance.instance_name}: ${errorMessage}`);
         }
 
       } catch (sendError) {
@@ -194,7 +237,9 @@ serve(async (req) => {
         success: true, 
         sent: sentCount,
         delivered: deliveredCount,
-        failed: failedCount
+        failed: failedCount,
+        instancesUsed: instances.length,
+        sendingMode
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
