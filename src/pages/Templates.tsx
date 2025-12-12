@@ -10,8 +10,10 @@ import {
   TemplateCategory,
   CATEGORY_LABELS 
 } from '@/hooks/useMessageTemplates';
+import { useTemplateVariationsCounts } from '@/hooks/useTemplateVariations';
 import { TemplateFormDialog } from '@/components/templates/TemplateFormDialog';
 import { TemplatePreviewDialog } from '@/components/templates/TemplatePreviewDialog';
+import { TemplateVariationsDialog } from '@/components/templates/TemplateVariationsDialog';
 import { TemplateCard } from '@/components/templates/TemplateCard';
 import { Plus, Search, FileText, Filter } from 'lucide-react';
 import {
@@ -37,8 +39,13 @@ const Templates = () => {
     isUpdating 
   } = useMessageTemplates();
 
+  // Get variation counts for all templates
+  const templateIds = templates.map(t => t.id);
+  const { data: variationsCounts } = useTemplateVariationsCounts(templateIds);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isVariationsOpen, setIsVariationsOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +59,11 @@ const Templates = () => {
   const handlePreview = (template: MessageTemplate) => {
     setSelectedTemplate(template);
     setIsPreviewOpen(true);
+  };
+
+  const handleManageVariations = (template: MessageTemplate) => {
+    setSelectedTemplate(template);
+    setIsVariationsOpen(true);
   };
 
   const handleSubmit = (data: CreateTemplateData) => {
@@ -152,10 +164,12 @@ const Templates = () => {
                   <TemplateCard
                     key={template.id}
                     template={template}
+                    variationsCount={variationsCounts?.[template.id] || 0}
                     onEdit={handleEdit}
                     onDelete={setDeleteId}
                     onPreview={handlePreview}
                     onToggleActive={(id, is_active) => toggleActive({ id, is_active })}
+                    onManageVariations={handleManageVariations}
                   />
                 ))}
               </div>
@@ -175,6 +189,13 @@ const Templates = () => {
       <TemplatePreviewDialog
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
+        template={selectedTemplate}
+      />
+
+      {/* Variations Dialog */}
+      <TemplateVariationsDialog
+        open={isVariationsOpen}
+        onOpenChange={setIsVariationsOpen}
         template={selectedTemplate}
       />
 

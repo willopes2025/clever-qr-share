@@ -9,24 +9,28 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2, Eye, Variable, FileText } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface TemplateCardProps {
   template: MessageTemplate;
+  variationsCount?: number;
   onEdit: (template: MessageTemplate) => void;
   onDelete: (id: string) => void;
   onPreview: (template: MessageTemplate) => void;
   onToggleActive: (id: string, is_active: boolean) => void;
+  onManageVariations: (template: MessageTemplate) => void;
 }
 
 export const TemplateCard = ({
   template,
+  variationsCount = 0,
   onEdit,
   onDelete,
   onPreview,
-  onToggleActive
+  onToggleActive,
+  onManageVariations
 }: TemplateCardProps) => {
   const truncatedContent = template.content.length > 150 
     ? template.content.substring(0, 150) + '...' 
@@ -83,6 +87,13 @@ export const TemplateCard = ({
               {template.variables.length} variáveis
             </Badge>
           )}
+          
+          {variationsCount > 0 && (
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+              <Sparkles className="h-3 w-3 mr-1" />
+              {variationsCount} variações
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
@@ -106,6 +117,17 @@ export const TemplateCard = ({
             ))}
           </div>
         )}
+
+        {/* Variations button */}
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full"
+          onClick={() => onManageVariations(template)}
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          {variationsCount > 0 ? `Gerenciar ${variationsCount} Variações` : 'Gerar Variações com IA'}
+        </Button>
 
         <div className="flex items-center justify-between pt-2 border-t border-border">
           <div className="flex items-center gap-2">
