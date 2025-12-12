@@ -36,7 +36,7 @@ export const BroadcastListFormDialog = ({
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"manual" | "dynamic">("manual");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<string>("all");
   const [excludeOptedOut, setExcludeOptedOut] = useState(true);
 
   useEffect(() => {
@@ -45,14 +45,14 @@ export const BroadcastListFormDialog = ({
       setDescription(list.description || "");
       setType(list.type);
       setSelectedTags(list.filter_criteria?.tags || []);
-      setStatus(list.filter_criteria?.status || "");
+      setStatus(list.filter_criteria?.status || "all");
       setExcludeOptedOut(list.filter_criteria?.optedOut === false);
     } else {
       setName("");
       setDescription("");
       setType("manual");
       setSelectedTags([]);
-      setStatus("");
+      setStatus("all");
       setExcludeOptedOut(true);
     }
   }, [list, open]);
@@ -63,7 +63,7 @@ export const BroadcastListFormDialog = ({
     const filterCriteria: FilterCriteria = {};
     if (type === "dynamic") {
       if (selectedTags.length > 0) filterCriteria.tags = selectedTags;
-      if (status) filterCriteria.status = status;
+      if (status && status !== "all") filterCriteria.status = status;
       if (excludeOptedOut) filterCriteria.optedOut = false;
     }
 
@@ -171,7 +171,7 @@ export const BroadcastListFormDialog = ({
                     <SelectValue placeholder="Todos os status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos os status</SelectItem>
+                    <SelectItem value="all">Todos os status</SelectItem>
                     <SelectItem value="active">Ativo</SelectItem>
                     <SelectItem value="inactive">Inativo</SelectItem>
                   </SelectContent>
