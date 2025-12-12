@@ -1,40 +1,82 @@
 import { DashboardSidebar } from "@/components/DashboardSidebar";
-import { Card } from "@/components/ui/card";
-import { MessageSquare, QrCode, Send, TrendingUp } from "lucide-react";
-import { motion } from "framer-motion";
-
-const stats = [
-  {
-    icon: QrCode,
-    label: "Instâncias Ativas",
-    value: "3",
-    change: "+2 este mês",
-    color: "text-whatsapp"
-  },
-  {
-    icon: MessageSquare,
-    label: "Mensagens Enviadas",
-    value: "1,234",
-    change: "+180 hoje",
-    color: "text-primary"
-  },
-  {
-    icon: Send,
-    label: "Campanhas Ativas",
-    value: "5",
-    change: "2 em andamento",
-    color: "text-accent"
-  },
-  {
-    icon: TrendingUp,
-    label: "Taxa de Entrega",
-    value: "98.5%",
-    change: "+2.3% vs. semana passada",
-    color: "text-whatsapp"
-  }
-];
+import { MetricCard } from "@/components/dashboard/MetricCard";
+import { CampaignChart } from "@/components/dashboard/CampaignChart";
+import { RecentCampaigns } from "@/components/dashboard/RecentCampaigns";
+import { ScheduledCampaigns } from "@/components/dashboard/ScheduledCampaigns";
+import { InstancesOverview } from "@/components/dashboard/InstancesOverview";
+import { 
+  useDashboardMetrics, 
+  useRecentCampaigns, 
+  useScheduledCampaigns,
+  useCampaignChartData 
+} from "@/hooks/useDashboardMetrics";
+import { 
+  QrCode, 
+  Users, 
+  Send, 
+  TrendingUp, 
+  MessageSquare, 
+  CheckCircle,
+  Clock,
+  XCircle
+} from "lucide-react";
 
 const Dashboard = () => {
+  const { metrics, isLoading: metricsLoading } = useDashboardMetrics();
+  const { data: recentCampaigns, isLoading: campaignsLoading } = useRecentCampaigns();
+  const { data: scheduledCampaigns, isLoading: scheduledLoading } = useScheduledCampaigns();
+  const { data: chartData, isLoading: chartLoading } = useCampaignChartData();
+
+  const mainStats = [
+    {
+      icon: QrCode,
+      label: "Instâncias Conectadas",
+      value: metrics?.instances.connected ?? 0,
+      change: `${metrics?.instances.total ?? 0} total`,
+    },
+    {
+      icon: Users,
+      label: "Contatos Ativos",
+      value: metrics?.contacts.active ?? 0,
+      change: `${metrics?.contacts.total ?? 0} total`,
+    },
+    {
+      icon: Send,
+      label: "Campanhas",
+      value: metrics?.campaigns.total ?? 0,
+      change: `${metrics?.campaigns.sending ?? 0} em andamento`,
+    },
+    {
+      icon: TrendingUp,
+      label: "Taxa de Entrega",
+      value: `${(metrics?.deliveryRate ?? 0).toFixed(1)}%`,
+      change: "Baseado em todas campanhas",
+    },
+  ];
+
+  const campaignStats = [
+    {
+      icon: Clock,
+      label: "Agendadas",
+      value: metrics?.campaigns.scheduled ?? 0,
+    },
+    {
+      icon: MessageSquare,
+      label: "Enviando",
+      value: metrics?.campaigns.sending ?? 0,
+    },
+    {
+      icon: CheckCircle,
+      label: "Concluídas",
+      value: metrics?.campaigns.completed ?? 0,
+    },
+    {
+      icon: XCircle,
+      label: "Falharam",
+      value: metrics?.campaigns.failed ?? 0,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
@@ -43,70 +85,54 @@ const Dashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
           <p className="text-muted-foreground">
-            Bem-vindo de volta! Aqui está um resumo das suas atividades.
+            Bem-vindo de volta! Aqui está um resumo das suas atividades em tempo real.
           </p>
         </div>
 
+        {/* Main Metrics */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
-            <motion.div
+          {mainStats.map((stat, index) => (
+            <MetricCard
               key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-            >
-              <Card className="p-6 shadow-medium hover:shadow-large transition-all">
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`h-12 w-12 rounded-xl bg-gradient-primary flex items-center justify-center`}>
-                    <stat.icon className="h-6 w-6 text-primary-foreground" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                  <p className="text-3xl font-bold mb-1">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground">{stat.change}</p>
-                </div>
-              </Card>
-            </motion.div>
+              icon={stat.icon}
+              label={stat.label}
+              value={stat.value}
+              change={stat.change}
+              index={index}
+              isLoading={metricsLoading}
+            />
           ))}
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="p-6 shadow-medium">
-            <h3 className="text-xl font-semibold mb-4">Atividade Recente</h3>
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((_, index) => (
-                <div key={index} className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0">
-                  <div className="h-2 w-2 rounded-full bg-whatsapp mt-2" />
-                  <div className="flex-1">
-                    <p className="font-medium mb-1">Nova mensagem enviada</p>
-                    <p className="text-sm text-muted-foreground">
-                      Campanha "Promoção Black Friday" - há {index + 1} minutos
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+        {/* Campaign Status Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {campaignStats.map((stat, index) => (
+            <MetricCard
+              key={index}
+              icon={stat.icon}
+              label={stat.label}
+              value={stat.value}
+              index={index + 4}
+              isLoading={metricsLoading}
+            />
+          ))}
+        </div>
 
-          <Card className="p-6 shadow-medium">
-            <h3 className="text-xl font-semibold mb-4">Próximas Campanhas</h3>
-            <div className="space-y-4">
-              {[1, 2, 3].map((_, index) => (
-                <div key={index} className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0">
-                  <div className="h-10 w-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-                    <Send className="h-5 w-5 text-primary-foreground" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium mb-1">Campanha {index + 1}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Programada para amanhã às 10:00
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+        {/* Charts and Lists */}
+        <div className="grid lg:grid-cols-2 gap-6 mb-8">
+          <CampaignChart data={chartData || []} isLoading={chartLoading} />
+          <InstancesOverview />
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          <RecentCampaigns 
+            campaigns={recentCampaigns || []} 
+            isLoading={campaignsLoading} 
+          />
+          <ScheduledCampaigns 
+            campaigns={scheduledCampaigns || []} 
+            isLoading={scheduledLoading} 
+          />
         </div>
       </main>
     </div>
