@@ -410,6 +410,63 @@ export type Database = {
         }
         Relationships: []
       }
+      user_settings: {
+        Row: {
+          allowed_days: string[]
+          allowed_end_hour: number
+          allowed_start_hour: number
+          auto_retry: boolean
+          created_at: string
+          daily_limit: number
+          email_notifications: boolean
+          id: string
+          max_retries: number
+          message_interval_max: number
+          message_interval_min: number
+          notify_on_complete: boolean
+          stop_on_error: boolean
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_days?: string[]
+          allowed_end_hour?: number
+          allowed_start_hour?: number
+          auto_retry?: boolean
+          created_at?: string
+          daily_limit?: number
+          email_notifications?: boolean
+          id?: string
+          max_retries?: number
+          message_interval_max?: number
+          message_interval_min?: number
+          notify_on_complete?: boolean
+          stop_on_error?: boolean
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_days?: string[]
+          allowed_end_hour?: number
+          allowed_start_hour?: number
+          auto_retry?: boolean
+          created_at?: string
+          daily_limit?: number
+          email_notifications?: boolean
+          id?: string
+          max_retries?: number
+          message_interval_max?: number
+          message_interval_min?: number
+          notify_on_complete?: boolean
+          stop_on_error?: boolean
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           created_at: string | null
