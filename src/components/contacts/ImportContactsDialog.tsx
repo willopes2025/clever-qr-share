@@ -14,7 +14,7 @@ interface ImportContactsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string }[]
+    contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[]
   ) => void;
   isLoading?: boolean;
 }
@@ -24,6 +24,7 @@ interface ParsedContact {
   name?: string;
   email?: string;
   notes?: string;
+  custom_fields?: Record<string, string>;
   isValid: boolean;
   error?: string;
 }
@@ -49,11 +50,11 @@ export const ImportContactsDialog = ({
   };
 
   const downloadTemplate = () => {
-    const headers = "telefone,nome,email,notas";
+    const headers = "telefone,nome,email,notas,empresa,produto,valor,data,link";
     const examples = [
-      "5511999999999,João Silva,joao@email.com,Cliente VIP",
-      "5521988888888,Maria Santos,maria@email.com,Lead quente",
-      "5531977777777,Pedro Oliveira,,Contato novo"
+      "5511999999999,João Silva,joao@email.com,Cliente VIP,TechCorp,Plano Pro,R$ 99,2024-01-15,https://loja.com",
+      "5521988888888,Maria Santos,maria@email.com,Lead quente,StartupXYZ,Básico,R$ 49,2024-02-01,https://site.com",
+      "5531977777777,Pedro Oliveira,,,Empresa ABC,Premium,R$ 199,,"
     ].join("\n");
     
     const csvContent = `${headers}\n${examples}`;
@@ -89,6 +90,11 @@ export const ImportContactsDialog = ({
     const notesIndex = headers.findIndex(
       (h) => h.includes("notes") || h.includes("notas") || h.includes("observações") || h.includes("observacoes")
     );
+    const empresaIndex = headers.findIndex((h) => h.includes("empresa") || h.includes("company"));
+    const produtoIndex = headers.findIndex((h) => h.includes("produto") || h.includes("product"));
+    const valorIndex = headers.findIndex((h) => h.includes("valor") || h.includes("value") || h.includes("preco") || h.includes("price"));
+    const dataIndex = headers.findIndex((h) => h === "data" || h === "date" || h.includes("vencimento"));
+    const linkIndex = headers.findIndex((h) => h.includes("link") || h.includes("url"));
 
     // If no header found, assume first column is phone
     const hasHeader = phoneIndex !== -1 || nameIndex !== -1;
@@ -104,11 +110,20 @@ export const ImportContactsDialog = ({
 
       const validation = validatePhone(phone);
       
+      // Build custom_fields from extra columns
+      const custom_fields: Record<string, string> = {};
+      if (empresaIndex !== -1 && values[empresaIndex]?.trim()) custom_fields.empresa = values[empresaIndex].trim();
+      if (produtoIndex !== -1 && values[produtoIndex]?.trim()) custom_fields.produto = values[produtoIndex].trim();
+      if (valorIndex !== -1 && values[valorIndex]?.trim()) custom_fields.valor = values[valorIndex].trim();
+      if (dataIndex !== -1 && values[dataIndex]?.trim()) custom_fields.data = values[dataIndex].trim();
+      if (linkIndex !== -1 && values[linkIndex]?.trim()) custom_fields.link = values[linkIndex].trim();
+
       contacts.push({
         phone: phone.replace(/\D/g, ""),
         name: nameIndex !== -1 ? values[nameIndex] : values[1],
         email: emailIndex !== -1 ? values[emailIndex] : values[2],
         notes: notesIndex !== -1 ? values[notesIndex] : values[3],
+        custom_fields: Object.keys(custom_fields).length > 0 ? custom_fields : undefined,
         isValid: validation.isValid,
         error: validation.error,
       });
@@ -144,7 +159,7 @@ export const ImportContactsDialog = ({
   const handleImport = () => {
     const validContacts = parsedContacts
       .filter((c) => c.isValid)
-      .map(({ phone, name, email, notes }) => ({ phone, name, email, notes }));
+      .map(({ phone, name, email, notes, custom_fields }) => ({ phone, name, email, notes, custom_fields }));
 
     if (validContacts.length === 0) {
       toast({
