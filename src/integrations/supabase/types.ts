@@ -416,6 +416,38 @@ export type Database = {
         }
         Relationships: []
       }
+      template_variations: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          template_id: string
+          variation_index: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          template_id: string
+          variation_index: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          template_id?: string
+          variation_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_variations_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_settings: {
         Row: {
           allowed_days: string[]

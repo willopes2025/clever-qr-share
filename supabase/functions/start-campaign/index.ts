@@ -152,10 +152,25 @@ serve(async (req) => {
       throw new Error('Failed to update campaign status');
     }
 
+    // Fetch template variations if any
+    const { data: variations } = await supabase
+      .from('template_variations')
+      .select('content')
+      .eq('template_id', campaign.template_id);
+
+    // Build array of message options (original + variations)
+    const messageOptions: string[] = [campaign.template.content];
+    if (variations && variations.length > 0) {
+      messageOptions.push(...variations.map(v => v.content));
+    }
+
+    console.log(`Using ${messageOptions.length} message variations (1 original + ${variations?.length || 0} variations)`);
+
     // Create campaign_messages records
-    const messageRecords = contacts.map((contact: Contact) => {
-      // Replace template variables
-      let messageContent = campaign.template.content;
+    const messageRecords = contacts.map((contact: Contact, index: number) => {
+      // Select a random message option for this contact
+      const randomIndex = Math.floor(Math.random() * messageOptions.length);
+      let messageContent = messageOptions[randomIndex];
       
       // Replace standard variables
       messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
