@@ -25,6 +25,7 @@ interface CampaignCardProps {
   onDelete: () => void;
   onStart: () => void;
   onCancel: () => void;
+  onTrack?: () => void;
 }
 
 const statusConfig = {
@@ -41,6 +42,7 @@ export const CampaignCard = ({
   onDelete,
   onStart,
   onCancel,
+  onTrack,
 }: CampaignCardProps) => {
   const status = statusConfig[campaign.status] || statusConfig.draft;
   const StatusIcon = status.icon;
@@ -127,6 +129,11 @@ export const CampaignCard = ({
           <Button size="sm" variant="destructive" onClick={onCancel} className="flex-1">
             <Pause className="h-4 w-4 mr-2" />
             Pausar
+          </Button>
+        )}
+        {(campaign.status === 'sending' || campaign.status === 'completed') && onTrack && (
+          <Button size="sm" variant="outline" onClick={onTrack} className="flex-1">
+            Acompanhar
           </Button>
         )}
         {canEdit && (

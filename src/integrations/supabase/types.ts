@@ -130,6 +130,63 @@ export type Database = {
           },
         ]
       }
+      campaign_messages: {
+        Row: {
+          campaign_id: string
+          contact_id: string
+          contact_name: string | null
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message_content: string
+          phone: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          contact_id: string
+          contact_name?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content: string
+          phone: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string
+          contact_name?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string
+          phone?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           completed_at: string | null
@@ -137,6 +194,7 @@ export type Database = {
           delivered: number
           failed: number
           id: string
+          instance_id: string | null
           list_id: string | null
           name: string
           scheduled_at: string | null
@@ -154,6 +212,7 @@ export type Database = {
           delivered?: number
           failed?: number
           id?: string
+          instance_id?: string | null
           list_id?: string | null
           name: string
           scheduled_at?: string | null
@@ -171,6 +230,7 @@ export type Database = {
           delivered?: number
           failed?: number
           id?: string
+          instance_id?: string | null
           list_id?: string | null
           name?: string
           scheduled_at?: string | null
@@ -183,6 +243,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "campaigns_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campaigns_list_id_fkey"
             columns: ["list_id"]
