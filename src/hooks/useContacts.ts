@@ -174,7 +174,7 @@ export const useContacts = () => {
 
   const importContacts = useMutation({
     mutationFn: async (
-      contacts: { phone: string; name?: string; email?: string; notes?: string }[]
+      contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[]
     ) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
@@ -184,6 +184,7 @@ export const useContacts = () => {
         name: c.name || null,
         email: c.email || null,
         notes: c.notes || null,
+        custom_fields: c.custom_fields || {},
         user_id: userData.user!.id,
       }));
 

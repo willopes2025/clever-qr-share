@@ -10,6 +10,8 @@ interface Contact {
   id: string;
   name: string | null;
   phone: string;
+  email: string | null;
+  custom_fields: Record<string, string> | null;
 }
 
 serve(async (req) => {
@@ -86,7 +88,7 @@ serve(async (req) => {
     const { data: listContacts, error: contactsError } = await supabase
       .from('broadcast_list_contacts')
       .select(`
-        contact:contacts(id, name, phone)
+        contact:contacts(id, name, phone, email, custom_fields)
       `)
       .eq('list_id', campaign.list_id);
 
@@ -133,10 +135,23 @@ serve(async (req) => {
     const messageRecords = contacts.map((contact: Contact) => {
       // Replace template variables
       let messageContent = campaign.template.content;
+      
+      // Replace standard variables
       messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
       messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
       messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
       messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
+      messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
+      
+      // Replace custom_fields variables dynamically
+      const customFields = contact.custom_fields || {};
+      for (const [key, value] of Object.entries(customFields)) {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+        messageContent = messageContent.replace(regex, value || '');
+      }
+      
+      // Clean up any remaining unreplaced variables
+      messageContent = messageContent.replace(/\{\{[^}]+\}\}/g, '');
 
       return {
         campaign_id: campaignId,
