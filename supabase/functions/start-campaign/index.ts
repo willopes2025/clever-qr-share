@@ -14,6 +14,11 @@ interface Contact {
   custom_fields: Record<string, string> | null;
 }
 
+interface Instance {
+  id: string;
+  instance_name: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -38,13 +43,13 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { campaignId, instanceId } = await req.json();
+    const { campaignId, instanceIds, sendingMode = 'sequential' } = await req.json();
 
-    if (!campaignId || !instanceId) {
-      throw new Error('Campaign ID and Instance ID are required');
+    if (!campaignId || !instanceIds || !Array.isArray(instanceIds) || instanceIds.length === 0) {
+      throw new Error('Campaign ID and at least one Instance ID are required');
     }
 
-    console.log(`Starting campaign ${campaignId} with instance ${instanceId}`);
+    console.log(`Starting campaign ${campaignId} with ${instanceIds.length} instances in ${sendingMode} mode`);
 
     // Fetch campaign with template and list
     const { data: campaign, error: campaignError } = await supabase
@@ -67,22 +72,34 @@ serve(async (req) => {
       throw new Error(`Campaign is already ${campaign.status}`);
     }
 
-    // Verify instance exists and is connected
-    const { data: instance, error: instanceError } = await supabase
+    // Verify all instances exist and are connected
+    const { data: instances, error: instancesError } = await supabase
       .from('whatsapp_instances')
-      .select('*')
-      .eq('id', instanceId)
-      .eq('user_id', user.id)
-      .single();
+      .select('id, instance_name, status')
+      .in('id', instanceIds)
+      .eq('user_id', user.id);
 
-    if (instanceError || !instance) {
-      console.error('Instance fetch error:', instanceError);
-      throw new Error('WhatsApp instance not found');
+    if (instancesError) {
+      console.error('Instances fetch error:', instancesError);
+      throw new Error('Failed to fetch WhatsApp instances');
     }
 
-    if (instance.status !== 'connected') {
-      throw new Error('WhatsApp instance is not connected');
+    if (!instances || instances.length !== instanceIds.length) {
+      throw new Error('One or more WhatsApp instances not found');
     }
+
+    const disconnectedInstances = instances.filter(i => i.status !== 'connected');
+    if (disconnectedInstances.length > 0) {
+      throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
+    }
+
+    // Create instances array with id and name
+    const validInstances: Instance[] = instances.map(i => ({
+      id: i.id,
+      instance_name: i.instance_name
+    }));
+
+    console.log(`Validated ${validInstances.length} connected instances`);
 
     // Fetch contacts from the broadcast list
     const { data: listContacts, error: contactsError } = await supabase
@@ -112,13 +129,15 @@ serve(async (req) => {
 
     console.log(`Found ${contacts.length} contacts to send messages to`);
 
-    // Update campaign status to sending
+    // Update campaign status to sending with multiple instance IDs
     const { error: updateError } = await supabase
       .from('campaigns')
       .update({
         status: 'sending',
         started_at: new Date().toISOString(),
-        instance_id: instanceId,
+        instance_id: instanceIds[0], // Keep first instance for backwards compatibility
+        instance_ids: instanceIds,
+        sending_mode: sendingMode,
         total_contacts: contacts.length,
         sent: 0,
         delivered: 0,
@@ -174,7 +193,7 @@ serve(async (req) => {
 
     console.log(`Created ${messageRecords.length} message records`);
 
-    // Call send-campaign-messages function in background
+    // Call send-campaign-messages function in background with multiple instances
     const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
     
     // Fire and forget - don't await
@@ -186,7 +205,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         campaignId,
-        instanceName: instance.instance_name
+        instances: validInstances,
+        sendingMode
       })
     }).catch(err => console.error('Background send error:', err));
 
@@ -194,7 +214,9 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Campaign started',
-        totalContacts: contacts.length 
+        totalContacts: contacts.length,
+        instanceCount: validInstances.length,
+        sendingMode
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

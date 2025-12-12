@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, Send, Loader2 } from "lucide-react";
-import { useCampaigns, useCampaignMutations, Campaign } from "@/hooks/useCampaigns";
+import { useCampaigns, useCampaignMutations, Campaign, SendingMode } from "@/hooks/useCampaigns";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignFormDialog } from "@/components/campaigns/CampaignFormDialog";
 import { CampaignTracker } from "@/components/campaigns/CampaignTracker";
@@ -56,11 +56,12 @@ const Campaigns = () => {
     setDeletingCampaign(null);
   };
 
-  const handleStartWithInstance = async (instanceId: string) => {
+  const handleStartWithInstances = async (data: { instanceIds: string[]; sendingMode: SendingMode }) => {
     if (!startingCampaign) return;
     await startCampaign.mutateAsync({ 
       campaignId: startingCampaign.id, 
-      instanceId 
+      instanceIds: data.instanceIds,
+      sendingMode: data.sendingMode
     });
     setStartingCampaign(null);
     // Open tracker to show progress
@@ -179,7 +180,7 @@ const Campaigns = () => {
       <SelectInstanceDialog
         open={!!startingCampaign}
         onOpenChange={(open) => !open && setStartingCampaign(null)}
-        onConfirm={handleStartWithInstance}
+        onConfirm={handleStartWithInstances}
         isLoading={startCampaign.isPending}
         campaignName={startingCampaign?.name}
       />

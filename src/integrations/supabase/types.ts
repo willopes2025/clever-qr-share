@@ -195,9 +195,11 @@ export type Database = {
           failed: number
           id: string
           instance_id: string | null
+          instance_ids: string[] | null
           list_id: string | null
           name: string
           scheduled_at: string | null
+          sending_mode: string | null
           sent: number
           started_at: string | null
           status: string
@@ -213,9 +215,11 @@ export type Database = {
           failed?: number
           id?: string
           instance_id?: string | null
+          instance_ids?: string[] | null
           list_id?: string | null
           name: string
           scheduled_at?: string | null
+          sending_mode?: string | null
           sent?: number
           started_at?: string | null
           status?: string
@@ -231,9 +235,11 @@ export type Database = {
           failed?: number
           id?: string
           instance_id?: string | null
+          instance_ids?: string[] | null
           list_id?: string | null
           name?: string
           scheduled_at?: string | null
+          sending_mode?: string | null
           sent?: number
           started_at?: string | null
           status?: string
