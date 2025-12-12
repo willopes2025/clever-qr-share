@@ -29,9 +29,10 @@ interface CampaignMessage {
 interface Instance {
   id: string;
   instance_name: string;
+  warming_level: number;
 }
 
-type SendingMode = 'sequential' | 'random';
+type SendingMode = 'sequential' | 'random' | 'warming';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -56,12 +57,16 @@ serve(async (req) => {
     if (body.instances && Array.isArray(body.instances)) {
       // New format with multiple instances
       campaignId = body.campaignId;
-      instances = body.instances;
-      sendingMode = body.sendingMode || 'sequential';
+      instances = body.instances.map((i: any) => ({
+        id: i.id,
+        instance_name: i.instance_name,
+        warming_level: i.warming_level || 1
+      }));
+      sendingMode = body.sendingMode || 'warming';
     } else if (body.instanceName) {
       // Old format for backwards compatibility
       campaignId = body.campaignId;
-      instances = [{ id: 'legacy', instance_name: body.instanceName }];
+      instances = [{ id: 'legacy', instance_name: body.instanceName, warming_level: 1 }];
     } else {
       throw new Error('Campaign ID and instances are required');
     }
@@ -93,19 +98,42 @@ serve(async (req) => {
     let deliveredCount = 0;
     let failedCount = 0;
 
+    // Calculate total weight for warming mode
+    const totalWeight = instances.reduce((sum, i) => sum + i.warming_level, 0);
+    console.log(`Total warming weight: ${totalWeight} (${instances.map(i => `${i.instance_name}:${i.warming_level}`).join(', ')})`);
+
+    // Function to get instance based on warming level (weighted random selection)
+    const getInstanceByWarming = (): Instance => {
+      const random = Math.random() * totalWeight;
+      let cumulative = 0;
+      
+      for (const instance of instances) {
+        cumulative += instance.warming_level;
+        if (random < cumulative) {
+          return instance;
+        }
+      }
+      return instances[instances.length - 1];
+    };
+
     // Function to get instance for a message based on sending mode
     const getInstanceForMessage = (messageIndex: number): Instance => {
       if (instances.length === 1) {
         return instances[0];
       }
 
-      if (sendingMode === 'sequential') {
-        // Round-robin: alternate between instances in order
-        return instances[messageIndex % instances.length];
-      } else {
-        // Random: pick a random instance
-        const randomIndex = Math.floor(Math.random() * instances.length);
-        return instances[randomIndex];
+      switch (sendingMode) {
+        case 'warming':
+          // Weighted random selection based on warming level
+          return getInstanceByWarming();
+        case 'sequential':
+          // Round-robin: alternate between instances in order
+          return instances[messageIndex % instances.length];
+        case 'random':
+        default:
+          // Pure random: pick a random instance with equal probability
+          const randomIndex = Math.floor(Math.random() * instances.length);
+          return instances[randomIndex];
       }
     };
 

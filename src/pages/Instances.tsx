@@ -19,6 +19,7 @@ const Instances = () => {
     connectInstance,
     checkStatus,
     deleteInstance,
+    updateWarmingLevel,
   } = useWhatsAppInstances();
 
   const [newInstanceName, setNewInstanceName] = useState("");
@@ -56,6 +57,10 @@ const Instances = () => {
 
   const handleDeleteInstance = async (instanceName: string) => {
     await deleteInstance.mutateAsync(instanceName);
+  };
+
+  const handleWarmingChange = (instanceId: string, level: number) => {
+    updateWarmingLevel.mutate({ instanceId, warmingLevel: level });
   };
 
   const handleShowQRCode = async (instance: WhatsAppInstance) => {
@@ -181,8 +186,10 @@ const Instances = () => {
                 <InstanceCard
                   name={instance.instance_name}
                   status={instance.status}
+                  warmingLevel={instance.warming_level}
                   onQRCode={() => handleShowQRCode(instance)}
                   onDelete={() => handleDeleteInstance(instance.instance_name)}
+                  onWarmingChange={(level) => handleWarmingChange(instance.id, level)}
                 />
               </motion.div>
             ))}
