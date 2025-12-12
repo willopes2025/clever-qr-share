@@ -3,7 +3,6 @@ import { DashboardSidebar } from '@/components/DashboardSidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { 
   useMessageTemplates, 
   MessageTemplate, 
@@ -79,11 +78,9 @@ const Templates = () => {
   });
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <DashboardSidebar />
-        <SidebarInset className="flex-1">
-          <div className="p-6 space-y-6">
+    <div className="flex min-h-screen bg-background">
+      <DashboardSidebar />
+      <main className="flex-1 ml-64 p-8 space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -163,9 +160,7 @@ const Templates = () => {
                 ))}
               </div>
             )}
-          </div>
-        </SidebarInset>
-      </div>
+      </main>
 
       {/* Form Dialog */}
       <TemplateFormDialog
@@ -200,7 +195,7 @@ const Templates = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarProvider>
+    </div>
   );
 };
 
