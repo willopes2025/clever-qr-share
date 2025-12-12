@@ -9,6 +9,7 @@ import { useCampaigns, useCampaignMutations, Campaign } from "@/hooks/useCampaig
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignFormDialog } from "@/components/campaigns/CampaignFormDialog";
 import { CampaignTracker } from "@/components/campaigns/CampaignTracker";
+import { SelectInstanceDialog } from "@/components/campaigns/SelectInstanceDialog";
 
 const Campaigns = () => {
   const [search, setSearch] = useState('');
@@ -17,6 +18,7 @@ const Campaigns = () => {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
   const [trackingCampaign, setTrackingCampaign] = useState<Campaign | null>(null);
+  const [startingCampaign, setStartingCampaign] = useState<Campaign | null>(null);
 
   const { data: campaigns, isLoading } = useCampaigns();
   const { createCampaign, updateCampaign, deleteCampaign, startCampaign, cancelCampaign } = useCampaignMutations();
@@ -54,9 +56,15 @@ const Campaigns = () => {
     setDeletingCampaign(null);
   };
 
-  const handleStart = async (campaign: Campaign) => {
-    await startCampaign.mutateAsync(campaign.id);
-    setTrackingCampaign({ ...campaign, status: 'sending' });
+  const handleStartWithInstance = async (instanceId: string) => {
+    if (!startingCampaign) return;
+    await startCampaign.mutateAsync({ 
+      campaignId: startingCampaign.id, 
+      instanceId 
+    });
+    setStartingCampaign(null);
+    // Open tracker to show progress
+    setTrackingCampaign({ ...startingCampaign, status: 'sending' });
   };
 
   const handleCancel = async (campaign: Campaign) => {
@@ -141,8 +149,9 @@ const Campaigns = () => {
                 campaign={campaign}
                 onEdit={() => setEditingCampaign(campaign)}
                 onDelete={() => setDeletingCampaign(campaign)}
-                onStart={() => handleStart(campaign)}
+                onStart={() => setStartingCampaign(campaign)}
                 onCancel={() => handleCancel(campaign)}
+                onTrack={() => setTrackingCampaign(campaign)}
               />
             ))}
           </div>
@@ -164,6 +173,15 @@ const Campaigns = () => {
         campaign={editingCampaign}
         onSubmit={handleUpdate}
         isLoading={updateCampaign.isPending}
+      />
+
+      {/* Select Instance Dialog */}
+      <SelectInstanceDialog
+        open={!!startingCampaign}
+        onOpenChange={(open) => !open && setStartingCampaign(null)}
+        onConfirm={handleStartWithInstance}
+        isLoading={startCampaign.isPending}
+        campaignName={startingCampaign?.name}
       />
 
       {/* Delete Confirmation */}

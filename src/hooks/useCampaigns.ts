@@ -10,7 +10,8 @@ export interface Campaign {
   name: string;
   template_id: string | null;
   list_id: string | null;
-  status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'cancelled';
+  instance_id: string | null;
+  status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'cancelled' | 'failed';
   scheduled_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -29,6 +30,20 @@ export interface Campaign {
     id: string;
     name: string;
   } | null;
+}
+
+export interface CampaignMessage {
+  id: string;
+  campaign_id: string;
+  contact_id: string;
+  phone: string;
+  contact_name: string | null;
+  message_content: string;
+  status: 'pending' | 'queued' | 'sending' | 'sent' | 'delivered' | 'failed';
+  error_message: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
 }
 
 export const useCampaigns = () => {
@@ -56,6 +71,25 @@ export const useCampaigns = () => {
   });
 };
 
+export const useCampaignMessages = (campaignId: string | null) => {
+  return useQuery({
+    queryKey: ['campaign-messages', campaignId],
+    queryFn: async () => {
+      if (!campaignId) return [];
+      
+      const { data, error } = await supabase
+        .from('campaign_messages')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return data as CampaignMessage[];
+    },
+    enabled: !!campaignId,
+  });
+};
+
 export const useCampaignRealtime = (campaignId: string | null) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -63,7 +97,8 @@ export const useCampaignRealtime = (campaignId: string | null) => {
   useEffect(() => {
     if (!campaignId) return;
 
-    const channel = supabase
+    // Subscribe to campaign updates
+    const campaignChannel = supabase
       .channel(`campaign-${campaignId}`)
       .on(
         'postgres_changes',
@@ -82,8 +117,27 @@ export const useCampaignRealtime = (campaignId: string | null) => {
       )
       .subscribe();
 
+    // Subscribe to campaign messages updates
+    const messagesChannel = supabase
+      .channel(`campaign-messages-${campaignId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'campaign_messages',
+          filter: `campaign_id=eq.${campaignId}`,
+        },
+        () => {
+          // Invalidate to refetch messages
+          queryClient.invalidateQueries({ queryKey: ['campaign-messages', campaignId] });
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(campaignChannel);
+      supabase.removeChannel(messagesChannel);
     };
   }, [campaignId, queryClient, user?.id]);
 };
@@ -195,23 +249,19 @@ export const useCampaignMutations = () => {
   });
 
   const startCampaign = useMutation({
-    mutationFn: async (id: string) => {
-      const { data: campaign, error } = await supabase
-        .from('campaigns')
-        .update({
-          status: 'sending',
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
+    mutationFn: async ({ campaignId, instanceId }: { campaignId: string; instanceId: string }) => {
+      const { data, error } = await supabase.functions.invoke('start-campaign', {
+        body: { campaignId, instanceId }
+      });
 
       if (error) throw error;
-      return campaign;
+      if (!data.success) throw new Error(data.error || 'Failed to start campaign');
+      
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success('Campanha iniciada!');
+      toast.success('Campanha iniciada! Acompanhe o progresso em tempo real.');
     },
     onError: (error) => {
       toast.error('Erro ao iniciar campanha: ' + error.message);

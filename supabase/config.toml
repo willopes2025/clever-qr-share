@@ -1,1 +1,19 @@
 project_id = "fgbenetdksqnvwkgnips"
+
+[functions.create-instance]
+verify_jwt = false
+
+[functions.connect-instance]
+verify_jwt = false
+
+[functions.check-connection-status]
+verify_jwt = false
+
+[functions.delete-instance]
+verify_jwt = false
+
+[functions.start-campaign]
+verify_jwt = false
+
+[functions.send-campaign-messages]
+verify_jwt = false
