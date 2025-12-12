@@ -11,7 +11,16 @@ export interface WhatsAppInstance {
   qr_code_updated_at: string | null;
   created_at: string;
   updated_at: string;
+  warming_level: number;
 }
+
+export const WARMING_LEVELS = [
+  { level: 1, name: 'Frio', icon: '🧊', color: 'text-blue-500', bgColor: 'bg-blue-500' },
+  { level: 2, name: 'Morno', icon: '❄️', color: 'text-cyan-500', bgColor: 'bg-cyan-500' },
+  { level: 3, name: 'Aquecendo', icon: '🌡️', color: 'text-yellow-500', bgColor: 'bg-yellow-500' },
+  { level: 4, name: 'Quente', icon: '🔥', color: 'text-orange-500', bgColor: 'bg-orange-500' },
+  { level: 5, name: 'Muito Quente', icon: '🔥🔥', color: 'text-red-500', bgColor: 'bg-red-500' },
+] as const;
 
 export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
@@ -101,6 +110,24 @@ export const useWhatsAppInstances = () => {
     },
   });
 
+  // Atualizar warming level
+  const updateWarmingLevel = useMutation({
+    mutationFn: async ({ instanceId, warmingLevel }: { instanceId: string; warmingLevel: number }) => {
+      const { error } = await supabase
+        .from('whatsapp_instances')
+        .update({ warming_level: warmingLevel })
+        .eq('id', instanceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+      toast.success('Nível de aquecimento atualizado!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao atualizar aquecimento: ${error.message}`);
+    },
+  });
+
   return {
     instances,
     isLoading,
@@ -109,5 +136,6 @@ export const useWhatsAppInstances = () => {
     connectInstance,
     checkStatus,
     deleteInstance,
+    updateWarmingLevel,
   };
 };

@@ -17,6 +17,7 @@ interface Contact {
 interface Instance {
   id: string;
   instance_name: string;
+  warming_level: number;
 }
 
 serve(async (req) => {
@@ -75,7 +76,7 @@ serve(async (req) => {
     // Verify all instances exist and are connected
     const { data: instances, error: instancesError } = await supabase
       .from('whatsapp_instances')
-      .select('id, instance_name, status')
+      .select('id, instance_name, status, warming_level')
       .in('id', instanceIds)
       .eq('user_id', user.id);
 
@@ -93,10 +94,11 @@ serve(async (req) => {
       throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
     }
 
-    // Create instances array with id and name
+    // Create instances array with id, name, and warming_level
     const validInstances: Instance[] = instances.map(i => ({
       id: i.id,
-      instance_name: i.instance_name
+      instance_name: i.instance_name,
+      warming_level: i.warming_level || 1
     }));
 
     console.log(`Validated ${validInstances.length} connected instances`);

@@ -483,6 +483,7 @@ export type Database = {
           status: string | null
           updated_at: string | null
           user_id: string
+          warming_level: number
         }
         Insert: {
           created_at?: string | null
@@ -493,6 +494,7 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id: string
+          warming_level?: number
         }
         Update: {
           created_at?: string | null
@@ -503,6 +505,7 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           user_id?: string
+          warming_level?: number
         }
         Relationships: []
       }
