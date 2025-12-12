@@ -7,14 +7,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, FileText, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface ImportContactsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string }[]
+    contacts: { phone: string; name?: string; email?: string; notes?: string }[]
   ) => void;
   isLoading?: boolean;
 }
@@ -23,6 +23,7 @@ interface ParsedContact {
   phone: string;
   name?: string;
   email?: string;
+  notes?: string;
   isValid: boolean;
   error?: string;
 }
@@ -47,6 +48,24 @@ export const ImportContactsDialog = ({
     return { isValid: true };
   };
 
+  const downloadTemplate = () => {
+    const headers = "telefone,nome,email,notas";
+    const examples = [
+      "5511999999999,João Silva,joao@email.com,Cliente VIP",
+      "5521988888888,Maria Santos,maria@email.com,Lead quente",
+      "5531977777777,Pedro Oliveira,,Contato novo"
+    ].join("\n");
+    
+    const csvContent = `${headers}\n${examples}`;
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "modelo_contatos.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const parseCSV = useCallback((text: string) => {
     const lines = text.split("\n").filter((line) => line.trim());
     if (lines.length === 0) return [];
@@ -67,6 +86,9 @@ export const ImportContactsDialog = ({
     const emailIndex = headers.findIndex(
       (h) => h.includes("email") || h.includes("e-mail")
     );
+    const notesIndex = headers.findIndex(
+      (h) => h.includes("notes") || h.includes("notas") || h.includes("observações") || h.includes("observacoes")
+    );
 
     // If no header found, assume first column is phone
     const hasHeader = phoneIndex !== -1 || nameIndex !== -1;
@@ -86,6 +108,7 @@ export const ImportContactsDialog = ({
         phone: phone.replace(/\D/g, ""),
         name: nameIndex !== -1 ? values[nameIndex] : values[1],
         email: emailIndex !== -1 ? values[emailIndex] : values[2],
+        notes: notesIndex !== -1 ? values[notesIndex] : values[3],
         isValid: validation.isValid,
         error: validation.error,
       });
@@ -121,7 +144,7 @@ export const ImportContactsDialog = ({
   const handleImport = () => {
     const validContacts = parsedContacts
       .filter((c) => c.isValid)
-      .map(({ phone, name, email }) => ({ phone, name, email }));
+      .map(({ phone, name, email, notes }) => ({ phone, name, email, notes }));
 
     if (validContacts.length === 0) {
       toast({
@@ -151,6 +174,17 @@ export const ImportContactsDialog = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Download template button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadTemplate}
+            className="w-full"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Baixar Modelo de Planilha
+          </Button>
+
           {/* Upload area */}
           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-border">
             <div className="flex flex-col items-center justify-center pt-5 pb-6">

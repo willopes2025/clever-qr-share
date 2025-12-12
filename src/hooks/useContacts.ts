@@ -174,14 +174,16 @@ export const useContacts = () => {
 
   const importContacts = useMutation({
     mutationFn: async (
-      contacts: { phone: string; name?: string; email?: string }[]
+      contacts: { phone: string; name?: string; email?: string; notes?: string }[]
     ) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
 
       const normalizedContacts = contacts.map((c) => ({
-        ...c,
         phone: c.phone.replace(/\D/g, ""),
+        name: c.name || null,
+        email: c.email || null,
+        notes: c.notes || null,
         user_id: userData.user!.id,
       }));
 
