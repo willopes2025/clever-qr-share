@@ -130,6 +130,75 @@ export type Database = {
           },
         ]
       }
+      campaigns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          delivered: number
+          failed: number
+          id: string
+          list_id: string | null
+          name: string
+          scheduled_at: string | null
+          sent: number
+          started_at: string | null
+          status: string
+          template_id: string | null
+          total_contacts: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          delivered?: number
+          failed?: number
+          id?: string
+          list_id?: string | null
+          name: string
+          scheduled_at?: string | null
+          sent?: number
+          started_at?: string | null
+          status?: string
+          template_id?: string | null
+          total_contacts?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          delivered?: number
+          failed?: number
+          id?: string
+          list_id?: string | null
+          name?: string
+          scheduled_at?: string | null
+          sent?: number
+          started_at?: string | null
+          status?: string
+          template_id?: string | null
+          total_contacts?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_tags: {
         Row: {
           contact_id: string
