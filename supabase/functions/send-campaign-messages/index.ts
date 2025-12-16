@@ -6,11 +6,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Rate limiting configuration
-const DELAY_BETWEEN_MESSAGES_MS = 2000; // 2 seconds between messages
+// Default rate limiting configuration (used when user settings are not available)
+const DEFAULT_INTERVAL_MIN_MS = 3000; // 3 seconds minimum
+const DEFAULT_INTERVAL_MAX_MS = 10000; // 10 seconds maximum
 const BATCH_SIZE = 10; // Process 10 messages at a time before updating counters
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Generate a random delay between min and max (inclusive)
+const getRandomDelay = (minMs: number, maxMs: number): number => {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+};
 
 interface CampaignMessage {
   id: string;
@@ -30,6 +36,11 @@ interface Instance {
   id: string;
   instance_name: string;
   warming_level: number;
+}
+
+interface UserSettings {
+  message_interval_min: number;
+  message_interval_max: number;
 }
 
 type SendingMode = 'sequential' | 'random' | 'warming';
@@ -77,6 +88,35 @@ serve(async (req) => {
 
     console.log(`Processing campaign ${campaignId} with ${instances.length} instance(s) in ${sendingMode} mode`);
     console.log(`Instances: ${instances.map(i => i.instance_name).join(', ')}`);
+
+    // Fetch campaign to get user_id
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('user_id')
+      .eq('id', campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      console.error('Campaign fetch error:', campaignError);
+      throw new Error('Failed to fetch campaign');
+    }
+
+    // Fetch user settings for sending intervals
+    const { data: userSettings, error: settingsError } = await supabase
+      .from('user_settings')
+      .select('message_interval_min, message_interval_max')
+      .eq('user_id', campaign.user_id)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error('User settings fetch error:', settingsError);
+    }
+
+    // Convert seconds to milliseconds, use defaults if not set
+    const intervalMinMs = ((userSettings?.message_interval_min) || 3) * 1000;
+    const intervalMaxMs = ((userSettings?.message_interval_max) || 10) * 1000;
+
+    console.log(`Using message intervals: ${intervalMinMs/1000}s - ${intervalMaxMs/1000}s`);
 
     // Fetch all queued messages for this campaign
     const { data: messages, error: messagesError } = await supabase
@@ -236,9 +276,11 @@ serve(async (req) => {
         }
       }
 
-      // Rate limiting delay (except for the last message)
+      // Dynamic rate limiting delay based on user settings (except for the last message)
       if (i < typedMessages.length - 1) {
-        await delay(DELAY_BETWEEN_MESSAGES_MS);
+        const randomDelay = getRandomDelay(intervalMinMs, intervalMaxMs);
+        console.log(`Waiting ${(randomDelay/1000).toFixed(1)}s before next message...`);
+        await delay(randomDelay);
       }
     }
 
@@ -267,7 +309,11 @@ serve(async (req) => {
         delivered: deliveredCount,
         failed: failedCount,
         instancesUsed: instances.length,
-        sendingMode
+        sendingMode,
+        intervalConfig: {
+          minSeconds: intervalMinMs / 1000,
+          maxSeconds: intervalMaxMs / 1000
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
