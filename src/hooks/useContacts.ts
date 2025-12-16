@@ -318,6 +318,39 @@ export const useContacts = () => {
     },
   });
 
+  const bulkAddTags = useMutation({
+    mutationFn: async ({
+      contactIds,
+      tagIds,
+    }: {
+      contactIds: string[];
+      tagIds: string[];
+    }) => {
+      // Create all combinations of contact-tag pairs
+      const inserts = contactIds.flatMap((contactId) =>
+        tagIds.map((tagId) => ({ contact_id: contactId, tag_id: tagId }))
+      );
+
+      // Use upsert to avoid duplicates
+      const { error } = await supabase
+        .from("contact_tags")
+        .upsert(inserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { contactIds, tagIds }) => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast({ title: `${tagIds.length} tag(s) adicionada(s) a ${contactIds.length} contato(s)!` });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao adicionar tags",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     contacts,
     tags,
@@ -334,5 +367,6 @@ export const useContacts = () => {
     deleteTag,
     addTagToContact,
     removeTagFromContact,
+    bulkAddTags,
   };
 };

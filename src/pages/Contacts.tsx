@@ -34,6 +34,7 @@ import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import { ImportContactsDialog } from "@/components/contacts/ImportContactsDialog";
 import { TagManager } from "@/components/contacts/TagManager";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
+import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 
 const Contacts = () => {
   const {
@@ -50,12 +51,14 @@ const Contacts = () => {
     deleteTag,
     addTagToContact,
     removeTagFromContact,
+    bulkAddTags,
   } = useContacts();
 
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
+  const [showBulkTagDialog, setShowBulkTagDialog] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithTags | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -257,6 +260,14 @@ const Contacts = () => {
                 {selectedIds.length} selecionado(s)
               </span>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkTagDialog(true)}
+              >
+                <TagIcon className="h-4 w-4 mr-1" />
+                Taguear
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => setBulkDeleteConfirm(true)}
@@ -352,6 +363,28 @@ const Contacts = () => {
         tags={tags}
         onCreateTag={(tag) => createTag.mutate(tag)}
         onDeleteTag={(id) => deleteTag.mutate(id)}
+      />
+
+      <BulkTagDialog
+        open={showBulkTagDialog}
+        onOpenChange={(open) => {
+          setShowBulkTagDialog(open);
+          if (!open) setSelectedIds([]);
+        }}
+        tags={tags}
+        selectedCount={selectedIds.length}
+        onApplyTags={(tagIds) => {
+          bulkAddTags.mutate(
+            { contactIds: selectedIds, tagIds },
+            {
+              onSuccess: () => {
+                setShowBulkTagDialog(false);
+                setSelectedIds([]);
+              },
+            }
+          );
+        }}
+        isLoading={bulkAddTags.isPending}
       />
 
       {/* Delete confirmation */}
