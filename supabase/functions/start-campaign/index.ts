@@ -103,25 +103,97 @@ serve(async (req) => {
 
     console.log(`Validated ${validInstances.length} connected instances`);
 
-    // Fetch contacts from the broadcast list
-    const { data: listContacts, error: contactsError } = await supabase
-      .from('broadcast_list_contacts')
-      .select(`
-        contact:contacts(id, name, phone, email, custom_fields)
-      `)
-      .eq('list_id', campaign.list_id);
+    // Fetch contacts based on list type
+    let contacts: Contact[] = [];
+    
+    if (campaign.list?.type === 'manual') {
+      // Manual list: fetch from broadcast_list_contacts junction table
+      const { data: listContacts, error: contactsError } = await supabase
+        .from('broadcast_list_contacts')
+        .select(`
+          contact:contacts(id, name, phone, email, custom_fields, opted_out)
+        `)
+        .eq('list_id', campaign.list_id);
 
-    if (contactsError) {
-      console.error('Contacts fetch error:', contactsError);
-      throw new Error('Failed to fetch contacts');
-    }
+      if (contactsError) {
+        console.error('Contacts fetch error:', contactsError);
+        throw new Error('Failed to fetch contacts');
+      }
 
-    // Extract contacts and filter those with valid phone numbers
-    const contacts: Contact[] = [];
-    for (const lc of listContacts || []) {
-      const contact = lc.contact as unknown as Contact;
-      if (contact && contact.phone) {
-        contacts.push(contact);
+      for (const lc of listContacts || []) {
+        const contact = lc.contact as unknown as Contact & { opted_out?: boolean };
+        if (contact && contact.phone && !contact.opted_out) {
+          contacts.push({
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            email: contact.email,
+            custom_fields: contact.custom_fields
+          });
+        }
+      }
+    } else if (campaign.list?.type === 'dynamic') {
+      // Dynamic list: fetch contacts based on filter_criteria
+      const filterCriteria = campaign.list.filter_criteria as {
+        status?: string;
+        optedOut?: boolean;
+        tags?: string[];
+      } || {};
+
+      let query = supabase
+        .from('contacts')
+        .select('id, name, phone, email, custom_fields')
+        .eq('user_id', user.id);
+
+      // Apply status filter
+      if (filterCriteria.status) {
+        query = query.eq('status', filterCriteria.status);
+      }
+
+      // Apply opted_out filter (usually false for active contacts)
+      if (typeof filterCriteria.optedOut === 'boolean') {
+        query = query.eq('opted_out', filterCriteria.optedOut);
+      }
+
+      const { data: filteredContacts, error: contactsError } = await query;
+
+      if (contactsError) {
+        console.error('Contacts fetch error:', contactsError);
+        throw new Error('Failed to fetch contacts');
+      }
+
+      // If tags filter exists, filter contacts that have those tags
+      if (filterCriteria.tags && filterCriteria.tags.length > 0) {
+        const { data: taggedContactIds, error: tagsError } = await supabase
+          .from('contact_tags')
+          .select('contact_id')
+          .in('tag_id', filterCriteria.tags);
+
+        if (tagsError) {
+          console.error('Tags fetch error:', tagsError);
+          throw new Error('Failed to fetch contact tags');
+        }
+
+        const taggedIds = new Set(taggedContactIds?.map(tc => tc.contact_id) || []);
+        contacts = (filteredContacts || [])
+          .filter(c => c.phone && taggedIds.has(c.id))
+          .map(c => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            custom_fields: c.custom_fields as Record<string, string> | null
+          }));
+      } else {
+        contacts = (filteredContacts || [])
+          .filter(c => c.phone)
+          .map(c => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            custom_fields: c.custom_fields as Record<string, string> | null
+          }));
       }
     }
 
