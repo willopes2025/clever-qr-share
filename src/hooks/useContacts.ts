@@ -351,6 +351,71 @@ export const useContacts = () => {
     },
   });
 
+  const bulkRemoveTags = useMutation({
+    mutationFn: async ({
+      contactIds,
+      tagIds,
+    }: {
+      contactIds: string[];
+      tagIds: string[];
+    }) => {
+      // Delete all combinations of contact-tag pairs
+      const { error } = await supabase
+        .from("contact_tags")
+        .delete()
+        .in("contact_id", contactIds)
+        .in("tag_id", tagIds);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { contactIds, tagIds }) => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast({ title: `${tagIds.length} tag(s) removida(s) de ${contactIds.length} contato(s)!` });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao remover tags",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkOptOut = useMutation({
+    mutationFn: async ({
+      contactIds,
+      opted_out,
+    }: {
+      contactIds: string[];
+      opted_out: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          opted_out,
+          opted_out_at: opted_out ? new Date().toISOString() : null,
+        })
+        .in("id", contactIds);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { contactIds, opted_out }) => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast({
+        title: opted_out
+          ? `${contactIds.length} contato(s) marcado(s) como saído(s)`
+          : `${contactIds.length} contato(s) reativado(s)`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar contatos",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     contacts,
     tags,
@@ -368,5 +433,7 @@ export const useContacts = () => {
     addTagToContact,
     removeTagFromContact,
     bulkAddTags,
+    bulkRemoveTags,
+    bulkOptOut,
   };
 };

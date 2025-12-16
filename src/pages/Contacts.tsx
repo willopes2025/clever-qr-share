@@ -28,6 +28,8 @@ import {
   Download,
   Users,
   Loader2,
+  UserX,
+  TagsIcon,
 } from "lucide-react";
 import { useContacts, ContactWithTags } from "@/hooks/useContacts";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
@@ -35,6 +37,7 @@ import { ImportContactsDialog } from "@/components/contacts/ImportContactsDialog
 import { TagManager } from "@/components/contacts/TagManager";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
+import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
 
 const Contacts = () => {
   const {
@@ -52,6 +55,8 @@ const Contacts = () => {
     addTagToContact,
     removeTagFromContact,
     bulkAddTags,
+    bulkRemoveTags,
+    bulkOptOut,
   } = useContacts();
 
   // Dialogs state
@@ -59,6 +64,8 @@ const Contacts = () => {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [showBulkTagDialog, setShowBulkTagDialog] = useState(false);
+  const [showBulkRemoveTagDialog, setShowBulkRemoveTagDialog] = useState(false);
+  const [showBulkOptOutConfirm, setShowBulkOptOutConfirm] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithTags | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -268,6 +275,22 @@ const Contacts = () => {
                 Taguear
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkRemoveTagDialog(true)}
+              >
+                <TagsIcon className="h-4 w-4 mr-1" />
+                Remover Tags
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBulkOptOutConfirm(true)}
+              >
+                <UserX className="h-4 w-4 mr-1" />
+                Marcar Saída
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => setBulkDeleteConfirm(true)}
@@ -387,6 +410,28 @@ const Contacts = () => {
         isLoading={bulkAddTags.isPending}
       />
 
+      <BulkRemoveTagDialog
+        open={showBulkRemoveTagDialog}
+        onOpenChange={(open) => {
+          setShowBulkRemoveTagDialog(open);
+          if (!open) setSelectedIds([]);
+        }}
+        tags={tags}
+        selectedCount={selectedIds.length}
+        onRemoveTags={(tagIds) => {
+          bulkRemoveTags.mutate(
+            { contactIds: selectedIds, tagIds },
+            {
+              onSuccess: () => {
+                setShowBulkRemoveTagDialog(false);
+                setSelectedIds([]);
+              },
+            }
+          );
+        }}
+        isLoading={bulkRemoveTags.isPending}
+      />
+
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>
@@ -418,6 +463,43 @@ const Contacts = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleBulkDelete}>
               Excluir todos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk opt-out confirmation */}
+      <AlertDialog open={showBulkOptOutConfirm} onOpenChange={setShowBulkOptOutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar {selectedIds.length} contatos como saídos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os contatos selecionados serão marcados como "saídos do programa" e não receberão mais mensagens em campanhas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                bulkOptOut.mutate(
+                  { contactIds: selectedIds, opted_out: true },
+                  {
+                    onSuccess: () => {
+                      setShowBulkOptOutConfirm(false);
+                      setSelectedIds([]);
+                    },
+                  }
+                );
+              }}
+            >
+              {bulkOptOut.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                "Confirmar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
