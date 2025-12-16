@@ -18,6 +18,14 @@ const DAYS_OF_WEEK = [
   { id: 'sun', label: 'Dom' },
 ];
 
+const formatInterval = (seconds: number): string => {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (remainingSeconds === 0) return `${minutes}min`;
+  return `${minutes}min ${remainingSeconds}s`;
+};
+
 export const SendingSettings = () => {
   const { settings, updateSettings, defaultSettings } = useUserSettings();
   
@@ -73,29 +81,29 @@ export const SendingSettings = () => {
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div>
-              <Label>Intervalo Mínimo: {intervalMin}s</Label>
+              <Label>Intervalo Mínimo: {formatInterval(intervalMin)}</Label>
               <Slider
                 value={[intervalMin]}
                 onValueChange={([value]) => setIntervalMin(value)}
                 min={1}
-                max={30}
+                max={90}
                 step={1}
                 className="mt-2"
               />
             </div>
             <div>
-              <Label>Intervalo Máximo: {intervalMax}s</Label>
+              <Label>Intervalo Máximo: {formatInterval(intervalMax)}</Label>
               <Slider
                 value={[intervalMax]}
                 onValueChange={([value]) => setIntervalMax(Math.max(value, intervalMin))}
                 min={1}
-                max={60}
+                max={1200}
                 step={1}
                 className="mt-2"
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              As mensagens serão enviadas com um intervalo aleatório entre {intervalMin}s e {intervalMax}s
+              As mensagens serão enviadas com um intervalo aleatório entre {formatInterval(intervalMin)} e {formatInterval(intervalMax)}
             </p>
           </div>
         </CardContent>
