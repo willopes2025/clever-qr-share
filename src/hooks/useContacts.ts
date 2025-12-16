@@ -188,9 +188,17 @@ export const useContacts = () => {
         user_id: userData.user!.id,
       }));
 
+      // Deduplicate by phone number (keep last occurrence)
+      const uniqueContacts = Array.from(
+        normalizedContacts.reduce((map, contact) => {
+          map.set(contact.phone, contact);
+          return map;
+        }, new Map<string, typeof normalizedContacts[0]>()).values()
+      );
+
       const { data, error } = await supabase
         .from("contacts")
-        .upsert(normalizedContacts, {
+        .upsert(uniqueContacts, {
           onConflict: "user_id,phone",
           ignoreDuplicates: false,
         })
