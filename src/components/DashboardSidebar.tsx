@@ -1,6 +1,9 @@
-import { NavLink } from "react-router-dom";
-import { MessageSquare, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { MessageSquare, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -13,6 +16,19 @@ const navItems = [
 ];
 
 export const DashboardSidebar = () => {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast.error("Erro ao sair: " + error.message);
+    } else {
+      toast.success("Logout realizado com sucesso");
+      navigate("/login");
+    }
+  };
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="h-16 flex items-center gap-2 px-6 border-b border-sidebar-border">
@@ -42,11 +58,20 @@ export const DashboardSidebar = () => {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-3">
         <div className="bg-sidebar-accent rounded-lg p-4">
           <p className="text-xs text-sidebar-foreground/70 mb-2">Plano Gratuito</p>
           <p className="text-sm font-medium text-sidebar-foreground">QR Codes Ilimitados</p>
         </div>
+        
+        <Button 
+          variant="ghost" 
+          onClick={handleLogout}
+          className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+        >
+          <LogOut className="h-5 w-5" />
+          Sair do Sistema
+        </Button>
       </div>
     </aside>
   );
