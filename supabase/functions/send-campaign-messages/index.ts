@@ -1,21 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Declare EdgeRuntime for Supabase Edge Functions
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 // Default rate limiting configuration (used when user settings are not available)
-const DEFAULT_INTERVAL_MIN_MS = 3000; // 3 seconds minimum
-const DEFAULT_INTERVAL_MAX_MS = 10000; // 10 seconds maximum
-const BATCH_SIZE = 10; // Process 10 messages at a time before updating counters
+const DEFAULT_INTERVAL_MIN_S = 3; // 3 seconds minimum
+const DEFAULT_INTERVAL_MAX_S = 10; // 10 seconds maximum
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Generate a random delay between min and max (inclusive)
-const getRandomDelay = (minMs: number, maxMs: number): number => {
-  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+// Generate a random delay between min and max (inclusive) in seconds
+const getRandomDelay = (minS: number, maxS: number): number => {
+  return Math.floor(Math.random() * (maxS - minS + 1)) + minS;
 };
 
 interface CampaignMessage {
@@ -45,6 +47,49 @@ interface UserSettings {
 
 type SendingMode = 'sequential' | 'random' | 'warming';
 
+// Function to schedule the next message execution
+const scheduleNextMessage = async (
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  campaignId: string,
+  instances: Instance[],
+  sendingMode: SendingMode,
+  messageIndex: number,
+  delaySeconds: number
+) => {
+  console.log(`Scheduling next message (index ${messageIndex}) in ${delaySeconds} seconds...`);
+  
+  // Wait for the delay before invoking the next call
+  await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+  
+  // Re-invoke this function for the next message
+  const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+  
+  try {
+    const response = await fetch(sendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`
+      },
+      body: JSON.stringify({
+        campaignId,
+        instances,
+        sendingMode,
+        messageIndex
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to schedule next message: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`Successfully scheduled next message for campaign ${campaignId}`);
+    }
+  } catch (error) {
+    console.error('Error scheduling next message:', error);
+  }
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -64,6 +109,7 @@ serve(async (req) => {
     let instances: Instance[] = [];
     let sendingMode: SendingMode = 'sequential';
     let campaignId: string;
+    let messageIndex: number = body.messageIndex || 0;
 
     if (body.instances && Array.isArray(body.instances)) {
       // New format with multiple instances
@@ -86,19 +132,31 @@ serve(async (req) => {
       throw new Error('Campaign ID and at least one instance are required');
     }
 
-    console.log(`Processing campaign ${campaignId} with ${instances.length} instance(s) in ${sendingMode} mode`);
-    console.log(`Instances: ${instances.map(i => i.instance_name).join(', ')}`);
+    console.log(`Processing campaign ${campaignId}, message index ${messageIndex}, with ${instances.length} instance(s) in ${sendingMode} mode`);
 
-    // Fetch campaign to get user_id
+    // Fetch campaign to check status and get user_id
     const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
-      .select('user_id')
+      .select('user_id, status, sent, delivered, failed, total_contacts')
       .eq('id', campaignId)
       .single();
 
     if (campaignError || !campaign) {
       console.error('Campaign fetch error:', campaignError);
       throw new Error('Failed to fetch campaign');
+    }
+
+    // Check if campaign was cancelled or already completed
+    if (campaign.status !== 'sending') {
+      console.log(`Campaign ${campaignId} is no longer in 'sending' status (current: ${campaign.status}). Stopping.`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Campaign stopped - status is ${campaign.status}`,
+          stopped: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Fetch user settings for sending intervals
@@ -112,19 +170,20 @@ serve(async (req) => {
       console.error('User settings fetch error:', settingsError);
     }
 
-    // Convert seconds to milliseconds, use defaults if not set
-    const intervalMinMs = ((userSettings?.message_interval_min) || 3) * 1000;
-    const intervalMaxMs = ((userSettings?.message_interval_max) || 10) * 1000;
+    // Use user settings or defaults (in seconds)
+    const intervalMinS = userSettings?.message_interval_min || DEFAULT_INTERVAL_MIN_S;
+    const intervalMaxS = userSettings?.message_interval_max || DEFAULT_INTERVAL_MAX_S;
 
-    console.log(`Using message intervals: ${intervalMinMs/1000}s - ${intervalMaxMs/1000}s`);
+    console.log(`Using message intervals: ${intervalMinS}s - ${intervalMaxS}s`);
 
-    // Fetch all queued messages for this campaign
+    // Fetch ONLY ONE queued message for this campaign (LIMIT 1)
     const { data: messages, error: messagesError } = await supabase
       .from('campaign_messages')
       .select('*')
       .eq('campaign_id', campaignId)
       .eq('status', 'queued')
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(1);
 
     if (messagesError) {
       console.error('Messages fetch error:', messagesError);
@@ -132,15 +191,41 @@ serve(async (req) => {
     }
 
     const typedMessages = (messages || []) as CampaignMessage[];
-    console.log(`Found ${typedMessages.length} queued messages`);
+    
+    // If no more queued messages, campaign is complete
+    if (typedMessages.length === 0) {
+      console.log(`No more queued messages for campaign ${campaignId}. Marking as completed.`);
+      
+      // Mark campaign as completed
+      const { error: completeError } = await supabase
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', campaignId);
 
-    let sentCount = 0;
-    let deliveredCount = 0;
-    let failedCount = 0;
+      if (completeError) {
+        console.error('Campaign completion error:', completeError);
+      }
 
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Campaign completed',
+          completed: true,
+          sent: campaign.sent,
+          delivered: campaign.delivered,
+          failed: campaign.failed
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const message = typedMessages[0];
+    
     // Calculate total weight for warming mode
     const totalWeight = instances.reduce((sum, i) => sum + i.warming_level, 0);
-    console.log(`Total warming weight: ${totalWeight} (${instances.map(i => `${i.instance_name}:${i.warming_level}`).join(', ')})`);
 
     // Function to get instance based on warming level (weighted random selection)
     const getInstanceByWarming = (): Instance => {
@@ -157,98 +242,79 @@ serve(async (req) => {
     };
 
     // Function to get instance for a message based on sending mode
-    const getInstanceForMessage = (messageIndex: number): Instance => {
+    const getInstanceForMessage = (msgIndex: number): Instance => {
       if (instances.length === 1) {
         return instances[0];
       }
 
       switch (sendingMode) {
         case 'warming':
-          // Weighted random selection based on warming level
           return getInstanceByWarming();
         case 'sequential':
-          // Round-robin: alternate between instances in order
-          return instances[messageIndex % instances.length];
+          return instances[msgIndex % instances.length];
         case 'random':
         default:
-          // Pure random: pick a random instance with equal probability
           const randomIndex = Math.floor(Math.random() * instances.length);
           return instances[randomIndex];
       }
     };
 
-    // Process messages one by one with delay
-    for (let i = 0; i < typedMessages.length; i++) {
-      const message = typedMessages[i];
-      const instance = getInstanceForMessage(i);
+    const instance = getInstanceForMessage(messageIndex);
+    let sentCount = campaign.sent;
+    let deliveredCount = campaign.delivered;
+    let failedCount = campaign.failed;
 
-      try {
-        // Update status to 'sending'
+    try {
+      // Update status to 'sending'
+      await supabase
+        .from('campaign_messages')
+        .update({ status: 'sending' })
+        .eq('id', message.id);
+
+      // Format phone number (remove non-digits and ensure country code)
+      let phone = message.phone.replace(/\D/g, '');
+      if (!phone.startsWith('55')) {
+        phone = '55' + phone;
+      }
+
+      console.log(`Sending message ${messageIndex + 1} to ${phone} via ${instance.instance_name}...`);
+
+      // Send via Evolution API
+      const response = await fetch(
+        `${evolutionApiUrl}/message/sendText/${instance.instance_name}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evolutionApiKey
+          },
+          body: JSON.stringify({
+            number: phone,
+            text: message.message_content
+          })
+        }
+      );
+
+      const result = await response.json();
+      console.log(`Evolution API response for message ${messageIndex + 1}:`, JSON.stringify(result));
+
+      if (response.ok && result.key) {
+        // Message sent successfully
         await supabase
           .from('campaign_messages')
-          .update({ status: 'sending' })
+          .update({ 
+            status: 'sent',
+            sent_at: new Date().toISOString()
+          })
           .eq('id', message.id);
 
-        // Format phone number (remove non-digits and ensure country code)
-        let phone = message.phone.replace(/\D/g, '');
-        if (!phone.startsWith('55')) {
-          phone = '55' + phone;
-        }
+        sentCount++;
+        deliveredCount++; // Assume delivered for now
 
-        console.log(`Sending message ${i + 1}/${typedMessages.length} to ${phone} via ${instance.instance_name}...`);
-
-        // Send via Evolution API
-        const response = await fetch(
-          `${evolutionApiUrl}/message/sendText/${instance.instance_name}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': evolutionApiKey
-            },
-            body: JSON.stringify({
-              number: phone,
-              text: message.message_content
-            })
-          }
-        );
-
-        const result = await response.json();
-        console.log(`Evolution API response for message ${i + 1}:`, JSON.stringify(result));
-
-        if (response.ok && result.key) {
-          // Message sent successfully
-          await supabase
-            .from('campaign_messages')
-            .update({ 
-              status: 'sent',
-              sent_at: new Date().toISOString()
-            })
-            .eq('id', message.id);
-
-          sentCount++;
-          deliveredCount++; // Assume delivered for now (can be updated via webhook later)
-
-          console.log(`Message ${i + 1}/${typedMessages.length} sent successfully via ${instance.instance_name}`);
-        } else {
-          // Message failed
-          const errorMessage = result.message || result.error || 'Unknown error';
-          await supabase
-            .from('campaign_messages')
-            .update({ 
-              status: 'failed',
-              error_message: errorMessage
-            })
-            .eq('id', message.id);
-
-          failedCount++;
-          console.log(`Message ${i + 1}/${typedMessages.length} failed via ${instance.instance_name}: ${errorMessage}`);
-        }
-
-      } catch (sendError) {
-        console.error(`Error sending message ${message.id}:`, sendError);
-        
-        const errorMessage = sendError instanceof Error ? sendError.message : 'Network error';
+        console.log(`Message ${messageIndex + 1} sent successfully via ${instance.instance_name}`);
+      } else {
+        // Message failed
+        const errorMessage = result.message || result.error || 'Unknown error';
         await supabase
           .from('campaign_messages')
           .update({ 
@@ -258,62 +324,92 @@ serve(async (req) => {
           .eq('id', message.id);
 
         failedCount++;
+        console.log(`Message ${messageIndex + 1} failed via ${instance.instance_name}: ${errorMessage}`);
       }
 
-      // Update campaign counters every BATCH_SIZE messages or at the end
-      if ((i + 1) % BATCH_SIZE === 0 || i === typedMessages.length - 1) {
-        const { error: updateError } = await supabase
-          .from('campaigns')
-          .update({
-            sent: sentCount,
-            delivered: deliveredCount,
-            failed: failedCount
-          })
-          .eq('id', campaignId);
+    } catch (sendError) {
+      console.error(`Error sending message ${message.id}:`, sendError);
+      
+      const errorMessage = sendError instanceof Error ? sendError.message : 'Network error';
+      await supabase
+        .from('campaign_messages')
+        .update({ 
+          status: 'failed',
+          error_message: errorMessage
+        })
+        .eq('id', message.id);
 
-        if (updateError) {
-          console.error('Campaign counter update error:', updateError);
-        }
-      }
-
-      // Dynamic rate limiting delay based on user settings (except for the last message)
-      if (i < typedMessages.length - 1) {
-        const randomDelay = getRandomDelay(intervalMinMs, intervalMaxMs);
-        console.log(`Waiting ${(randomDelay/1000).toFixed(1)}s before next message...`);
-        await delay(randomDelay);
-      }
+      failedCount++;
     }
 
-    // Mark campaign as completed
-    const { error: completeError } = await supabase
+    // Update campaign counters
+    const { error: updateError } = await supabase
       .from('campaigns')
       .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
         sent: sentCount,
         delivered: deliveredCount,
         failed: failedCount
       })
       .eq('id', campaignId);
 
-    if (completeError) {
-      console.error('Campaign completion error:', completeError);
+    if (updateError) {
+      console.error('Campaign counter update error:', updateError);
     }
 
-    console.log(`Campaign ${campaignId} completed. Sent: ${sentCount}, Delivered: ${deliveredCount}, Failed: ${failedCount}`);
+    // Check if there are more messages to send
+    const { count: remainingCount, error: countError } = await supabase
+      .from('campaign_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('status', 'queued');
+
+    if (countError) {
+      console.error('Count error:', countError);
+    }
+
+    const hasMoreMessages = (remainingCount || 0) > 0;
+
+    if (hasMoreMessages) {
+      // Calculate random delay for next message
+      const delaySeconds = getRandomDelay(intervalMinS, intervalMaxS);
+      
+      console.log(`${remainingCount} messages remaining. Scheduling next in ${delaySeconds}s...`);
+      
+      // Use EdgeRuntime.waitUntil to schedule next message in background
+      // This allows the current request to return immediately
+      EdgeRuntime.waitUntil(
+        scheduleNextMessage(
+          supabaseUrl,
+          supabaseServiceKey,
+          campaignId,
+          instances,
+          sendingMode,
+          messageIndex + 1,
+          delaySeconds
+        )
+      );
+    } else {
+      // No more messages - mark campaign as completed
+      console.log(`All messages processed for campaign ${campaignId}. Marking as completed.`);
+      
+      await supabase
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', campaignId);
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
+        messageIndex,
         sent: sentCount,
         delivered: deliveredCount,
         failed: failedCount,
-        instancesUsed: instances.length,
-        sendingMode,
-        intervalConfig: {
-          minSeconds: intervalMinMs / 1000,
-          maxSeconds: intervalMaxMs / 1000
-        }
+        hasMoreMessages,
+        instanceUsed: instance.instance_name
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
