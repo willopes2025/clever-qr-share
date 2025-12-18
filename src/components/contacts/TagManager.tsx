@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,9 @@ export const TagManager = ({
             <TagIcon className="w-5 h-5" />
             Gerenciar Tags
           </DialogTitle>
+          <DialogDescription>
+            Crie e gerencie as tags para organizar seus contatos.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

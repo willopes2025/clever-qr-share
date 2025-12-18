@@ -12,10 +12,9 @@ import { BroadcastListCard } from "@/components/broadcasts/BroadcastListCard";
 import { ListContactsDialog } from "@/components/broadcasts/ListContactsDialog";
 import { AddContactsDialog } from "@/components/broadcasts/AddContactsDialog";
 import { SendHistoryDialog } from "@/components/broadcasts/SendHistoryDialog";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const BroadcastLists = () => {
-  const { toast } = useToast();
   const {
     lists,
     isLoading,
@@ -79,25 +78,24 @@ const BroadcastLists = () => {
   };
 
   const handleSendMessage = (list: BroadcastListWithContacts) => {
-    toast({
-      title: "Em breve",
+    toast.info("Em breve", {
       description: "O módulo de envio de mensagens será implementado em seguida.",
     });
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background cyber-grid">
       <DashboardSidebar />
       <main className="flex-1 ml-64 p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Listas de Transmissão</h1>
+            <h1 className="text-2xl font-display font-bold text-glow-cyan">Listas de Transmissão</h1>
             <p className="text-muted-foreground">
               {lists.length} {lists.length === 1 ? "lista" : "listas"} criadas
             </p>
           </div>
-          <Button onClick={() => setFormDialogOpen(true)}>
+          <Button onClick={() => setFormDialogOpen(true)} className="bg-gradient-neon hover:opacity-90">
             <Plus className="h-4 w-4 mr-2" />
             Nova Lista
           </Button>
@@ -111,11 +109,11 @@ const BroadcastLists = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar listas..."
-              className="pl-10"
+              className="pl-10 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
             />
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
               <SelectValue placeholder="Tipo de lista" />
             </SelectTrigger>
             <SelectContent>
@@ -129,11 +127,13 @@ const BroadcastLists = () => {
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
           </div>
         ) : filteredLists.length === 0 ? (
           <div className="text-center py-12">
-            <List className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-neon mb-4 pulse-neon">
+              <List className="h-8 w-8 text-dark-900" />
+            </div>
             <h3 className="text-lg font-medium mb-2">
               {lists.length === 0 ? "Nenhuma lista criada" : "Nenhuma lista encontrada"}
             </h3>
@@ -143,7 +143,7 @@ const BroadcastLists = () => {
                 : "Tente ajustar os filtros de busca."}
             </p>
             {lists.length === 0 && (
-              <Button onClick={() => setFormDialogOpen(true)}>
+              <Button onClick={() => setFormDialogOpen(true)} className="bg-gradient-neon">
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Lista
               </Button>
@@ -212,7 +212,7 @@ const BroadcastLists = () => {
         )}
 
         <AlertDialog open={!!deleteConfirmList} onOpenChange={(open) => !open && setDeleteConfirmList(null)}>
-          <AlertDialogContent>
+          <AlertDialogContent className="glass-card border-neon-magenta/30">
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir lista?</AlertDialogTitle>
               <AlertDialogDescription>

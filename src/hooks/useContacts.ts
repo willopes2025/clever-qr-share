@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export interface Contact {
   id: string;
@@ -95,15 +95,13 @@ export const useContacts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: "Contato criado com sucesso!" });
+      toast.success("Contato criado com sucesso!");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao criar contato",
+      toast.error("Erro ao criar contato", {
         description: error.message.includes("unique_phone_per_user")
           ? "Este número já está cadastrado"
           : error.message,
-        variant: "destructive",
       });
     },
   });
@@ -125,13 +123,11 @@ export const useContacts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: "Contato atualizado!" });
+      toast.success("Contato atualizado!");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar contato",
+      toast.error("Erro ao atualizar contato", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -143,13 +139,11 @@ export const useContacts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: "Contato excluído!" });
+      toast.success("Contato excluído!");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao excluir contato",
+      toast.error("Erro ao excluir contato", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -161,13 +155,11 @@ export const useContacts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: "Contatos excluídos!" });
+      toast.success("Contatos excluídos!");
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao excluir contatos",
+      toast.error("Erro ao excluir contatos", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -209,13 +201,11 @@ export const useContacts = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: `${data.length} contatos importados!` });
+      toast.success(`${data.length} contatos importados!`);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao importar contatos",
+      toast.error("Erro ao importar contatos", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -237,11 +227,9 @@ export const useContacts = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({
-        title: data.opted_out
-          ? "Contato adicionado à blacklist"
-          : "Contato removido da blacklist",
-      });
+      toast.success(data.opted_out
+        ? "Contato adicionado à blacklist"
+        : "Contato removido da blacklist");
     },
   });
 
@@ -262,7 +250,7 @@ export const useContacts = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tags"] });
-      toast({ title: "Tag criada!" });
+      toast.success("Tag criada!");
     },
   });
 
@@ -274,7 +262,7 @@ export const useContacts = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tags"] });
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: "Tag excluída!" });
+      toast.success("Tag excluída!");
     },
   });
 
@@ -340,13 +328,11 @@ export const useContacts = () => {
     },
     onSuccess: (_, { contactIds, tagIds }) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: `${tagIds.length} tag(s) adicionada(s) a ${contactIds.length} contato(s)!` });
+      toast.success(`${tagIds.length} tag(s) adicionada(s) a ${contactIds.length} contato(s)!`);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao adicionar tags",
+      toast.error("Erro ao adicionar tags", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -370,13 +356,11 @@ export const useContacts = () => {
     },
     onSuccess: (_, { contactIds, tagIds }) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({ title: `${tagIds.length} tag(s) removida(s) de ${contactIds.length} contato(s)!` });
+      toast.success(`${tagIds.length} tag(s) removida(s) de ${contactIds.length} contato(s)!`);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao remover tags",
+      toast.error("Erro ao remover tags", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });
@@ -401,17 +385,13 @@ export const useContacts = () => {
     },
     onSuccess: (_, { contactIds, opted_out }) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast({
-        title: opted_out
-          ? `${contactIds.length} contato(s) marcado(s) como saído(s)`
-          : `${contactIds.length} contato(s) reativado(s)`,
-      });
+      toast.success(opted_out
+        ? `${contactIds.length} contato(s) marcado(s) como saído(s)`
+        : `${contactIds.length} contato(s) reativado(s)`);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar contatos",
+      toast.error("Erro ao atualizar contatos", {
         description: error.message,
-        variant: "destructive",
       });
     },
   });

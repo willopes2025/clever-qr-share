@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, RefreshCw, Loader2, Smartphone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useWhatsAppInstances, WhatsAppInstance } from "@/hooks/useWhatsAppInstances";
@@ -96,34 +96,34 @@ const Instances = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background cyber-grid">
       <DashboardSidebar />
       
       <main className="ml-64 p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Instâncias</h1>
+            <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Instâncias</h1>
             <p className="text-muted-foreground">
               Gerencie suas conexões WhatsApp com QR Code ilimitado
             </p>
           </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => refetch()}>
+            <Button variant="outline" onClick={() => refetch()} className="neon-border">
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="lg">
+                <Button size="lg" className="bg-gradient-neon hover:opacity-90 transition-opacity">
                   <Plus className="h-5 w-5 mr-2" />
                   Nova Instância
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="glass-card border-neon-cyan/30">
                 <DialogHeader>
-                  <DialogTitle>Criar Nova Instância</DialogTitle>
+                  <DialogTitle className="text-glow-cyan">Criar Nova Instância</DialogTitle>
                   <DialogDescription>
                     Crie uma nova instância para conectar ao WhatsApp via QR Code.
                   </DialogDescription>
@@ -141,6 +141,7 @@ const Instances = () => {
                           handleCreateInstance();
                         }
                       }}
+                      className="bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
                     />
                   </div>
                 </div>
@@ -150,7 +151,7 @@ const Instances = () => {
                   </Button>
                   <Button 
                     onClick={handleCreateInstance} 
-                    className="flex-1"
+                    className="flex-1 bg-gradient-neon"
                     disabled={createInstance.isPending}
                   >
                     {createInstance.isPending ? (
@@ -171,7 +172,7 @@ const Instances = () => {
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-40 rounded-xl" />
+              <Skeleton key={i} className="h-40 rounded-xl bg-dark-800/50" />
             ))}
           </div>
         ) : instances && instances.length > 0 ? (
@@ -196,10 +197,13 @@ const Instances = () => {
           </div>
         ) : (
           <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-neon mb-6 pulse-neon">
+              <Smartphone className="h-10 w-10 text-dark-900" />
+            </div>
             <p className="text-muted-foreground mb-4">
               Nenhuma instância criada ainda.
             </p>
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button onClick={() => setDialogOpen(true)} className="bg-gradient-neon">
               <Plus className="h-5 w-5 mr-2" />
               Criar Primeira Instância
             </Button>
@@ -207,22 +211,22 @@ const Instances = () => {
         )}
 
         <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md glass-card border-neon-cyan/30">
             <DialogHeader>
-              <DialogTitle>Conectar via QR Code</DialogTitle>
+              <DialogTitle className="text-glow-cyan">Conectar via QR Code</DialogTitle>
               <DialogDescription>
                 Escaneie o QR Code com seu WhatsApp para conectar a instância "{selectedInstance?.instance_name}"
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <div className="bg-muted rounded-xl p-6 flex items-center justify-center min-h-[280px]">
+              <div className="bg-dark-800/50 rounded-xl p-6 flex items-center justify-center min-h-[280px] neon-border">
                 {qrLoading ? (
                   <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
                     <p className="text-sm text-muted-foreground">Gerando QR Code...</p>
                   </div>
                 ) : qrCodeData ? (
-                  <div className="bg-background p-4 rounded-lg">
+                  <div className="bg-white p-4 rounded-lg">
                     <img 
                       src={qrCodeData} 
                       alt="QR Code" 
@@ -234,7 +238,7 @@ const Instances = () => {
                     <p className="text-muted-foreground mb-4">
                       Não foi possível gerar o QR Code.
                     </p>
-                    <Button onClick={handleRefreshQRCode} variant="outline">
+                    <Button onClick={handleRefreshQRCode} variant="outline" className="neon-border">
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Tentar Novamente
                     </Button>
@@ -244,7 +248,7 @@ const Instances = () => {
               
               {qrCodeData && (
                 <div className="flex justify-center mt-4">
-                  <Button onClick={handleRefreshQRCode} variant="outline" size="sm" disabled={qrLoading}>
+                  <Button onClick={handleRefreshQRCode} variant="outline" size="sm" disabled={qrLoading} className="neon-border">
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Gerar Novo QR Code
                   </Button>

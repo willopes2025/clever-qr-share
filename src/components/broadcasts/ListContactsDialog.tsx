@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -73,6 +73,9 @@ export const ListContactsDialog = ({
               {list.type === "dynamic" ? "Dinâmica" : "Manual"}
             </Badge>
           </DialogTitle>
+          <DialogDescription>
+            Gerencie os contatos desta lista de transmissão.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

@@ -90,18 +90,18 @@ const Templates = () => {
   });
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background cyber-grid">
       <DashboardSidebar />
       <main className="flex-1 ml-64 p-8 space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Templates de Mensagem</h1>
+                <h1 className="text-2xl font-display font-bold text-glow-cyan">Templates de Mensagem</h1>
                 <p className="text-muted-foreground">
                   Crie e gerencie templates com variáveis dinâmicas
                 </p>
               </div>
-              <Button onClick={() => { setSelectedTemplate(null); setIsFormOpen(true); }}>
+              <Button onClick={() => { setSelectedTemplate(null); setIsFormOpen(true); }} className="bg-gradient-neon hover:opacity-90">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Template
               </Button>
@@ -115,12 +115,12 @@ const Templates = () => {
                   placeholder="Buscar templates..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-card border-border"
+                  className="pl-9 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
                 />
               </div>
 
               <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as TemplateCategory | 'all')}>
-                <SelectTrigger className="w-[180px] bg-card border-border">
+                <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
@@ -137,12 +137,14 @@ const Templates = () => {
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-64 bg-card border border-border rounded-lg animate-pulse" />
+                  <div key={i} className="h-64 bg-dark-800/50 border border-neon-cyan/20 rounded-lg animate-pulse" />
                 ))}
               </div>
             ) : filteredTemplates.length === 0 ? (
               <div className="text-center py-12">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-neon mb-4 pulse-neon">
+                  <FileText className="h-8 w-8 text-dark-900" />
+                </div>
                 <h3 className="text-lg font-medium text-foreground mb-2">
                   {searchQuery || categoryFilter !== 'all' ? 'Nenhum template encontrado' : 'Nenhum template criado'}
                 </h3>
@@ -152,7 +154,7 @@ const Templates = () => {
                     : 'Crie seu primeiro template de mensagem'}
                 </p>
                 {!searchQuery && categoryFilter === 'all' && (
-                  <Button onClick={() => { setSelectedTemplate(null); setIsFormOpen(true); }}>
+                  <Button onClick={() => { setSelectedTemplate(null); setIsFormOpen(true); }} className="bg-gradient-neon">
                     <Plus className="h-4 w-4 mr-2" />
                     Criar Template
                   </Button>
@@ -201,7 +203,7 @@ const Templates = () => {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-neon-magenta/30">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Template</AlertDialogTitle>
             <AlertDialogDescription>

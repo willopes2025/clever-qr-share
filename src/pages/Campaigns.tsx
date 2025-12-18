@@ -73,19 +73,19 @@ const Campaigns = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background cyber-grid">
       <DashboardSidebar />
       
       <main className="ml-64 p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Campanhas de Disparo</h1>
+            <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Campanhas de Disparo</h1>
             <p className="text-muted-foreground">
               Crie e gerencie suas campanhas de mensagens em massa
             </p>
           </div>
 
-          <Button size="lg" onClick={() => setIsFormOpen(true)}>
+          <Button size="lg" onClick={() => setIsFormOpen(true)} className="bg-gradient-neon hover:opacity-90">
             <Plus className="h-5 w-5 mr-2" />
             Nova Campanha
           </Button>
@@ -99,11 +99,11 @@ const Campaigns = () => {
               placeholder="Buscar campanhas..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -120,12 +120,12 @@ const Campaigns = () => {
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
           </div>
         ) : filteredCampaigns.length === 0 ? (
           <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-primary mb-6">
-              <Send className="h-10 w-10 text-primary-foreground" />
+            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-neon mb-6 pulse-neon">
+              <Send className="h-10 w-10 text-dark-900" />
             </div>
             <h2 className="text-2xl font-bold mb-2">
               {campaigns?.length === 0 ? 'Nenhuma campanha criada' : 'Nenhuma campanha encontrada'}
@@ -136,7 +136,7 @@ const Campaigns = () => {
                 : 'Tente ajustar os filtros de busca.'}
             </p>
             {campaigns?.length === 0 && (
-              <Button onClick={() => setIsFormOpen(true)}>
+              <Button onClick={() => setIsFormOpen(true)} className="bg-gradient-neon">
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Campanha
               </Button>
@@ -187,7 +187,7 @@ const Campaigns = () => {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deletingCampaign} onOpenChange={(open) => !open && setDeletingCampaign(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-neon-magenta/30">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Campanha</AlertDialogTitle>
             <AlertDialogDescription>

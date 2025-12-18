@@ -34,6 +34,7 @@ const statusConfig = {
   sending: { label: 'Enviando', variant: 'default' as const, icon: Loader2 },
   completed: { label: 'Concluída', variant: 'default' as const, icon: CheckCircle2 },
   cancelled: { label: 'Cancelada', variant: 'destructive' as const, icon: XCircle },
+  failed: { label: 'Falhou', variant: 'destructive' as const, icon: XCircle },
 };
 
 export const CampaignCard = ({

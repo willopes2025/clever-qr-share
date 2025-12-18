@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -70,6 +71,9 @@ export const ContactFormDialog = ({
           <DialogTitle>
             {contact ? "Editar Contato" : "Novo Contato"}
           </DialogTitle>
+          <DialogDescription>
+            {contact ? "Edite as informações do contato." : "Adicione um novo contato à sua base."}
+          </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>

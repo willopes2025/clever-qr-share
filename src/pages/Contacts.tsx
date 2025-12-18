@@ -81,7 +81,6 @@ const Contacts = () => {
   // Filtered contacts
   const filteredContacts = useMemo(() => {
     return contacts.filter((contact) => {
-      // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
@@ -89,13 +88,11 @@ const Contacts = () => {
         contact.name?.toLowerCase().includes(searchLower) ||
         contact.email?.toLowerCase().includes(searchLower);
 
-      // Status filter
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "active" && !contact.opted_out) ||
         (statusFilter === "blocked" && contact.opted_out);
 
-      // Tag filter
       const matchesTag =
         tagFilter === "all" ||
         contact.contact_tags?.some((ct) => ct.tag_id === tagFilter);
@@ -189,29 +186,29 @@ const Contacts = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background cyber-grid">
       <DashboardSidebar />
 
       <main className="ml-64 p-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Contatos</h1>
+            <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Contatos</h1>
             <p className="text-muted-foreground">
               {contacts.length} contatos cadastrados
             </p>
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowTagManager(true)}>
+            <Button variant="outline" onClick={() => setShowTagManager(true)} className="neon-border">
               <TagIcon className="h-4 w-4 mr-2" />
               Tags
             </Button>
-            <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+            <Button variant="outline" onClick={() => setShowImportDialog(true)} className="neon-border">
               <Upload className="h-4 w-4 mr-2" />
               Importar
             </Button>
-            <Button onClick={() => setShowContactForm(true)}>
+            <Button onClick={() => setShowContactForm(true)} className="bg-gradient-neon hover:opacity-90">
               <Plus className="h-4 w-4 mr-2" />
               Novo Contato
             </Button>
@@ -226,12 +223,12 @@ const Contacts = () => {
               placeholder="Buscar por telefone, nome ou email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
             />
           </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[150px] bg-dark-800/50 border-neon-cyan/30">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -242,7 +239,7 @@ const Contacts = () => {
           </Select>
 
           <Select value={tagFilter} onValueChange={setTagFilter}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[150px] bg-dark-800/50 border-neon-cyan/30">
               <SelectValue placeholder="Tag" />
             </SelectTrigger>
             <SelectContent>
@@ -266,35 +263,19 @@ const Contacts = () => {
               <span className="text-sm text-muted-foreground">
                 {selectedIds.length} selecionado(s)
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBulkTagDialog(true)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowBulkTagDialog(true)} className="neon-border">
                 <TagIcon className="h-4 w-4 mr-1" />
                 Taguear
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBulkRemoveTagDialog(true)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowBulkRemoveTagDialog(true)} className="neon-border">
                 <TagsIcon className="h-4 w-4 mr-1" />
                 Remover Tags
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBulkOptOutConfirm(true)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setShowBulkOptOutConfirm(true)} className="neon-border">
                 <UserX className="h-4 w-4 mr-1" />
                 Marcar Saída
               </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setBulkDeleteConfirm(true)}
-              >
+              <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirm(true)}>
                 <Trash2 className="h-4 w-4 mr-1" />
                 Excluir
               </Button>
@@ -312,23 +293,23 @@ const Contacts = () => {
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
           </div>
         ) : contacts.length === 0 ? (
           <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-primary/10 mb-6">
-              <Users className="h-10 w-10 text-primary" />
+            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-neon mb-6 pulse-neon">
+              <Users className="h-10 w-10 text-dark-900" />
             </div>
             <h2 className="text-2xl font-bold mb-2">Nenhum contato ainda</h2>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Comece importando um arquivo CSV ou adicione contatos manualmente.
             </p>
             <div className="flex gap-2 justify-center">
-              <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+              <Button variant="outline" onClick={() => setShowImportDialog(true)} className="neon-border">
                 <Upload className="h-4 w-4 mr-2" />
                 Importar CSV
               </Button>
-              <Button onClick={() => setShowContactForm(true)}>
+              <Button onClick={() => setShowContactForm(true)} className="bg-gradient-neon">
                 <Plus className="h-4 w-4 mr-2" />
                 Adicionar Contato
               </Button>
@@ -434,7 +415,7 @@ const Contacts = () => {
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-neon-magenta/30">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir contato?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -452,7 +433,7 @@ const Contacts = () => {
 
       {/* Bulk delete confirmation */}
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-neon-magenta/30">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir {selectedIds.length} contatos?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -470,7 +451,7 @@ const Contacts = () => {
 
       {/* Bulk opt-out confirmation */}
       <AlertDialog open={showBulkOptOutConfirm} onOpenChange={setShowBulkOptOutConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-neon-magenta/30">
           <AlertDialogHeader>
             <AlertDialogTitle>Marcar {selectedIds.length} contatos como saídos?</AlertDialogTitle>
             <AlertDialogDescription>
