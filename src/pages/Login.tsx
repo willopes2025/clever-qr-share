@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Zap, Loader2 } from 'lucide-react';
+import { Zap, Loader2, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
+import { Link } from 'react-router-dom';
+import { ParticlesBackground } from '@/components/landing/ParticlesBackground';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -17,10 +19,20 @@ const authSchema = z.object({
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn, signUp, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('login');
+
+  // Set active tab based on URL param
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'signup') {
+      setActiveTab('register');
+    }
+  }, [searchParams]);
 
   // Redirecionar se já estiver logado
   if (user) {
@@ -81,10 +93,25 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background animated-gradient cyber-grid p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background animated-gradient p-4 relative overflow-hidden">
+      {/* Particles Background */}
+      <ParticlesBackground />
+      
+      {/* Cyber Grid */}
+      <div className="fixed inset-0 cyber-grid pointer-events-none z-[1]" />
+      
       {/* Ambient glow effects */}
-      <div className="fixed top-1/4 left-1/4 w-96 h-96 bg-neon-cyan/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="fixed bottom-1/4 right-1/4 w-96 h-96 bg-neon-magenta/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="fixed top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none z-[2]" />
+      <div className="fixed bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-[100px] pointer-events-none z-[2]" />
+      
+      {/* Back to home button */}
+      <Link 
+        to="/" 
+        className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors z-20"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        <span className="font-body">Voltar</span>
+      </Link>
       
       <Card className="w-full max-w-md glass-card shadow-neon neon-border relative z-10">
         <CardHeader className="text-center">
@@ -102,13 +129,13 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-secondary/50">
               <TabsTrigger value="login" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-                Entrar
+                Sign In
               </TabsTrigger>
               <TabsTrigger value="register" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
-                Criar Conta
+                Sign Up
               </TabsTrigger>
             </TabsList>
 
