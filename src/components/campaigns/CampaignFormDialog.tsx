@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { Campaign } from '@/hooks/useCampaigns';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface CampaignFormDialogProps {
   open: boolean;
@@ -19,9 +21,26 @@ interface CampaignFormDialogProps {
     template_id: string | null;
     list_id: string | null;
     scheduled_at: string | null;
+    message_interval_min: number;
+    message_interval_max: number;
+    daily_limit: number;
+    allowed_start_hour: number;
+    allowed_end_hour: number;
+    allowed_days: string[];
+    timezone: string;
   }) => void;
   isLoading?: boolean;
 }
+
+const DAYS_OF_WEEK = [
+  { value: 'mon', label: 'Seg' },
+  { value: 'tue', label: 'Ter' },
+  { value: 'wed', label: 'Qua' },
+  { value: 'thu', label: 'Qui' },
+  { value: 'fri', label: 'Sex' },
+  { value: 'sat', label: 'Sáb' },
+  { value: 'sun', label: 'Dom' },
+];
 
 export const CampaignFormDialog = ({
   open,
@@ -36,6 +55,16 @@ export const CampaignFormDialog = ({
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  
+  // Sending settings
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [intervalMin, setIntervalMin] = useState(90);
+  const [intervalMax, setIntervalMax] = useState(180);
+  const [dailyLimit, setDailyLimit] = useState(1000);
+  const [startHour, setStartHour] = useState(8);
+  const [endHour, setEndHour] = useState(20);
+  const [allowedDays, setAllowedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri']);
+  const [timezone] = useState('America/Sao_Paulo');
 
   const { templates } = useMessageTemplates();
   const { lists } = useBroadcastLists();
@@ -57,6 +86,13 @@ export const CampaignFormDialog = ({
         setScheduledDate('');
         setScheduledTime('');
       }
+      // Load campaign-specific settings
+      setIntervalMin(campaign.message_interval_min ?? 90);
+      setIntervalMax(campaign.message_interval_max ?? 180);
+      setDailyLimit(campaign.daily_limit ?? 1000);
+      setStartHour(campaign.allowed_start_hour ?? 8);
+      setEndHour(campaign.allowed_end_hour ?? 20);
+      setAllowedDays(campaign.allowed_days ?? ['mon', 'tue', 'wed', 'thu', 'fri']);
     } else {
       setName('');
       setTemplateId('');
@@ -64,6 +100,12 @@ export const CampaignFormDialog = ({
       setIsScheduled(false);
       setScheduledDate('');
       setScheduledTime('');
+      setIntervalMin(90);
+      setIntervalMax(180);
+      setDailyLimit(1000);
+      setStartHour(8);
+      setEndHour(20);
+      setAllowedDays(['mon', 'tue', 'wed', 'thu', 'fri']);
     }
   }, [campaign, open]);
 
@@ -80,7 +122,22 @@ export const CampaignFormDialog = ({
       template_id: templateId || null,
       list_id: listId || null,
       scheduled_at: scheduledAt,
+      message_interval_min: intervalMin,
+      message_interval_max: intervalMax,
+      daily_limit: dailyLimit,
+      allowed_start_hour: startHour,
+      allowed_end_hour: endHour,
+      allowed_days: allowedDays,
+      timezone,
     });
+  };
+
+  const toggleDay = (day: string) => {
+    setAllowedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day) 
+        : [...prev, day]
+    );
   };
 
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
@@ -88,7 +145,7 @@ export const CampaignFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {campaign ? 'Editar Campanha' : 'Nova Campanha'}
@@ -197,6 +254,112 @@ export const CampaignFormDialog = ({
               </div>
             )}
           </div>
+
+          {/* Advanced Sending Settings */}
+          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="outline" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  Configurações de Envio
+                </span>
+                {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-4">
+              {/* Message Intervals */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="intervalMin">Intervalo Mínimo (seg)</Label>
+                  <Input
+                    id="intervalMin"
+                    type="number"
+                    min={1}
+                    value={intervalMin}
+                    onChange={(e) => setIntervalMin(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="intervalMax">Intervalo Máximo (seg)</Label>
+                  <Input
+                    id="intervalMax"
+                    type="number"
+                    min={1}
+                    value={intervalMax}
+                    onChange={(e) => setIntervalMax(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+
+              {/* Daily Limit */}
+              <div className="space-y-2">
+                <Label htmlFor="dailyLimit">Limite Diário de Mensagens</Label>
+                <Input
+                  id="dailyLimit"
+                  type="number"
+                  min={1}
+                  value={dailyLimit}
+                  onChange={(e) => setDailyLimit(parseInt(e.target.value) || 1)}
+                />
+              </div>
+
+              {/* Allowed Hours */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startHour">Hora Início</Label>
+                  <Select value={startHour.toString()} onValueChange={(v) => setStartHour(parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>
+                          {i.toString().padStart(2, '0')}:00
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endHour">Hora Fim</Label>
+                  <Select value={endHour.toString()} onValueChange={(v) => setEndHour(parseInt(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>
+                          {i.toString().padStart(2, '0')}:00
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Allowed Days */}
+              <div className="space-y-2">
+                <Label>Dias Permitidos</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS_OF_WEEK.map((day) => (
+                    <div
+                      key={day.value}
+                      className="flex items-center space-x-2"
+                    >
+                      <Checkbox
+                        id={day.value}
+                        checked={allowedDays.includes(day.value)}
+                        onCheckedChange={() => toggleDay(day.value)}
+                      />
+                      <Label htmlFor={day.value} className="text-sm cursor-pointer">
+                        {day.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="flex justify-end gap-3">
             <Button
