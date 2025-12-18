@@ -192,17 +192,17 @@ const Instances = () => {
                           handleCreateInstance();
                         }
                       }}
-                      className="bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
+                      className="bg-secondary/50 border-neon-cyan/30 focus:border-neon-cyan text-foreground relative z-50"
                     />
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
+                <div className="flex gap-3 relative z-50">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1 relative z-50">
                     Cancelar
                   </Button>
                   <Button 
                     onClick={handleCreateInstance} 
-                    className="flex-1 bg-gradient-neon"
+                    className="flex-1 bg-gradient-neon relative z-50"
                     disabled={createInstance.isPending}
                   >
                     {createInstance.isPending ? (
@@ -254,7 +254,7 @@ const Instances = () => {
             <p className="text-muted-foreground mb-4">
               Nenhuma instância criada ainda.
             </p>
-            <Button onClick={() => setDialogOpen(true)} className="bg-gradient-neon">
+            <Button onClick={() => setDialogOpen(true)} className="bg-gradient-neon relative z-50">
               <Plus className="h-5 w-5 mr-2" />
               Criar Primeira Instância
             </Button>

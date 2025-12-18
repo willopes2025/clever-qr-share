@@ -92,7 +92,7 @@ export const InstanceCard = ({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 relative z-50"
                 onClick={handleDecrease}
                 disabled={warmingLevel <= 1}
               >
@@ -115,7 +115,7 @@ export const InstanceCard = ({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 relative z-50"
                 onClick={handleIncrease}
                 disabled={warmingLevel >= 5}
               >
@@ -129,13 +129,13 @@ export const InstanceCard = ({
           </div>
         </TooltipProvider>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 relative z-50">
           <Button
             variant="outline"
             size="sm"
             onClick={onQRCode}
             disabled={status === "connected"}
-            className="flex-1"
+            className="flex-1 relative z-50"
           >
             <QrCode className="h-4 w-4 mr-2" />
             {status === "connected" ? "Conectado" : "Ver QR Code"}
@@ -144,6 +144,7 @@ export const InstanceCard = ({
             variant="destructive"
             size="sm"
             onClick={onDelete}
+            className="relative z-50"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
