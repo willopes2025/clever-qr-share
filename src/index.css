@@ -124,6 +124,24 @@
     font-family: 'Orbitron', sans-serif;
     letter-spacing: 0.02em;
   }
+
+  /* Fix for login form inputs - ensure they work with editing tools */
+  input[type="email"],
+  input[type="password"],
+  input[type="text"],
+  textarea {
+    position: relative;
+    z-index: 50 !important;
+    pointer-events: auto !important;
+  }
+
+  /* Ensure form elements are always interactive */
+  form input,
+  form textarea,
+  form button,
+  form select {
+    pointer-events: auto !important;
+  }
 }
 
 @layer components {
