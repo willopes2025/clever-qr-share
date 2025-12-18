@@ -139,8 +139,8 @@ const Login = () => {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login">
-              <form onSubmit={handleSignIn} className="space-y-4">
+            <TabsContent value="login" className="relative z-50">
+              <form onSubmit={handleSignIn} className="space-y-4 relative z-50">
                 <div className="space-y-2">
                   <Label htmlFor="login-email" className="text-foreground">Email</Label>
                   <Input
@@ -150,7 +150,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -162,10 +162,14 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
                   />
                 </div>
-                <Button type="submit" className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300 relative z-50" 
+                  disabled={loading}
+                >
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -178,8 +182,8 @@ const Login = () => {
               </form>
             </TabsContent>
 
-            <TabsContent value="register">
-              <form onSubmit={handleSignUp} className="space-y-4">
+            <TabsContent value="register" className="relative z-50">
+              <form onSubmit={handleSignUp} className="space-y-4 relative z-50">
                 <div className="space-y-2">
                   <Label htmlFor="register-email" className="text-foreground">Email</Label>
                   <Input
@@ -189,7 +193,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -201,10 +205,14 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
                   />
                 </div>
-                <Button type="submit" className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300 relative z-50" 
+                  disabled={loading}
+                >
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
