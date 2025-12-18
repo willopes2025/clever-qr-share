@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { MessageSquare, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut } from "lucide-react";
+import { Zap, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -30,14 +30,19 @@ export const DashboardSidebar = () => {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
-      <div className="h-16 flex items-center gap-2 px-6 border-b border-sidebar-border">
-        <div className="h-10 w-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-          <MessageSquare className="h-6 w-6 text-primary-foreground" />
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col glass-card">
+      {/* Logo */}
+      <div className="h-16 flex items-center gap-3 px-6 border-b border-sidebar-border">
+        <div className="relative h-10 w-10 rounded-lg bg-gradient-neon flex items-center justify-center shadow-glow-cyan">
+          <Zap className="h-6 w-6 text-background" />
+          <div className="absolute inset-0 rounded-lg bg-gradient-neon opacity-50 blur-sm" />
         </div>
-        <span className="text-xl font-bold text-sidebar-foreground">DisparaZap</span>
+        <span className="text-xl font-display font-bold tracking-wider text-primary text-glow-cyan">
+          WIDEZAP
+        </span>
       </div>
 
+      {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1">
         {navItems.map((item) => (
           <NavLink
@@ -45,10 +50,10 @@ export const DashboardSidebar = () => {
             to={item.path}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all",
+                "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-primary font-medium"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  ? "bg-primary/20 text-primary shadow-glow-cyan neon-border"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-primary hover:shadow-soft"
               )
             }
           >
@@ -58,16 +63,19 @@ export const DashboardSidebar = () => {
         ))}
       </nav>
 
+      {/* Bottom section */}
       <div className="p-4 border-t border-sidebar-border space-y-3">
-        <div className="bg-sidebar-accent rounded-lg p-4">
-          <p className="text-xs text-sidebar-foreground/70 mb-2">Plano Gratuito</p>
-          <p className="text-sm font-medium text-sidebar-foreground">QR Codes Ilimitados</p>
+        <div className="bg-gradient-cyber rounded-lg p-4 neon-border">
+          <p className="text-xs text-muted-foreground mb-1">Plano Ativo</p>
+          <p className="text-sm font-display font-bold text-primary text-glow-cyan">
+            QR CODES ILIMITADOS
+          </p>
         </div>
         
         <Button 
           variant="ghost" 
           onClick={handleLogout}
-          className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
         >
           <LogOut className="h-5 w-5" />
           Sair do Sistema

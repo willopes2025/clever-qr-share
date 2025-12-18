@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { Zap, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 
 const authSchema = z.object({
@@ -81,30 +81,41 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md shadow-large">
+    <div className="min-h-screen flex items-center justify-center bg-background animated-gradient cyber-grid p-4 relative overflow-hidden">
+      {/* Ambient glow effects */}
+      <div className="fixed top-1/4 left-1/4 w-96 h-96 bg-neon-cyan/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="fixed bottom-1/4 right-1/4 w-96 h-96 bg-neon-magenta/10 rounded-full blur-3xl pointer-events-none" />
+      
+      <Card className="w-full max-w-md glass-card shadow-neon neon-border relative z-10">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center">
-              <MessageSquare className="h-8 w-8 text-primary-foreground" />
+            <div className="relative h-16 w-16 rounded-2xl bg-gradient-neon flex items-center justify-center shadow-glow-cyan">
+              <Zap className="h-8 w-8 text-background" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-neon opacity-50 blur-sm" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">DisparaZap</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-display font-bold text-primary text-glow-cyan">
+            WIDEZAP
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
             Plataforma de disparos WhatsApp com QR Code ilimitado
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">Entrar</TabsTrigger>
-              <TabsTrigger value="register">Criar Conta</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-secondary/50">
+              <TabsTrigger value="login" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+                Entrar
+              </TabsTrigger>
+              <TabsTrigger value="register" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+                Criar Conta
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email" className="text-foreground">Email</Label>
                   <Input
                     id="login-email"
                     type="email"
@@ -112,10 +123,11 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Senha</Label>
+                  <Label htmlFor="login-password" className="text-foreground">Senha</Label>
                   <Input
                     id="login-password"
                     type="password"
@@ -123,9 +135,10 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300" disabled={loading}>
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -141,7 +154,7 @@ const Login = () => {
             <TabsContent value="register">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="register-email">Email</Label>
+                  <Label htmlFor="register-email" className="text-foreground">Email</Label>
                   <Input
                     id="register-email"
                     type="email"
@@ -149,10 +162,11 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="register-password">Senha</Label>
+                  <Label htmlFor="register-password" className="text-foreground">Senha</Label>
                   <Input
                     id="register-password"
                     type="password"
@@ -160,9 +174,10 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300" disabled={loading}>
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
