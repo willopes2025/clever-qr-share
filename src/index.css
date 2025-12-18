@@ -399,3 +399,33 @@
     color: hsl(120 100% 50%);
   }
 }
+
+/* Garantir clicabilidade em Dialogs e Cards */
+[role="dialog"] button,
+[role="dialog"] input,
+[role="dialog"] textarea,
+[role="dialog"] select {
+  position: relative;
+  z-index: 50 !important;
+  pointer-events: auto !important;
+}
+
+.card button,
+[data-slot="card"] button {
+  position: relative;
+  z-index: 50 !important;
+  pointer-events: auto !important;
+}
+
+/* Garantir inputs sempre clicáveis */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="search"],
+textarea {
+  position: relative;
+  z-index: 50 !important;
+  pointer-events: auto !important;
+}
