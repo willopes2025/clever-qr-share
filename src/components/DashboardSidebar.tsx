@@ -1,9 +1,10 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Zap, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut } from "lucide-react";
+import { Zap, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useSubscription, PLANS } from "@/hooks/useSubscription";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -12,12 +13,14 @@ const navItems = [
   { icon: List, label: "Listas", path: "/broadcast-lists" },
   { icon: FileText, label: "Templates", path: "/templates" },
   { icon: Send, label: "Disparos", path: "/campaigns" },
+  { icon: CreditCard, label: "Assinatura", path: "/subscription" },
   { icon: Settings, label: "Configurações", path: "/settings" },
 ];
 
 export const DashboardSidebar = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const { currentPlan, isSubscribed } = useSubscription();
 
   const handleLogout = async () => {
     const { error } = await signOut();
@@ -65,12 +68,14 @@ export const DashboardSidebar = () => {
 
       {/* Bottom section */}
       <div className="p-4 border-t border-sidebar-border space-y-3">
-        <div className="bg-gradient-cyber rounded-lg p-4 neon-border">
-          <p className="text-xs text-muted-foreground mb-1">Plano Ativo</p>
-          <p className="text-sm font-display font-bold text-primary text-glow-cyan">
-            QR CODES ILIMITADOS
-          </p>
-        </div>
+        <NavLink to="/subscription" className="block">
+          <div className="bg-gradient-cyber rounded-lg p-4 neon-border hover:shadow-glow-cyan transition-all cursor-pointer">
+            <p className="text-xs text-muted-foreground mb-1">Plano Ativo</p>
+            <p className="text-sm font-display font-bold text-primary text-glow-cyan">
+              {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
+            </p>
+          </div>
+        </NavLink>
         
         <Button 
           variant="ghost" 
