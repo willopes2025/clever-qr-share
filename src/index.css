@@ -231,6 +231,141 @@
     0%, 100% { box-shadow: 0 0 5px hsl(180 100% 50% / 0.5); }
     50% { box-shadow: 0 0 20px hsl(180 100% 50% / 0.8), 0 0 30px hsl(180 100% 50% / 0.4); }
   }
+
+  /* Glitch text effect */
+  .glitch-text {
+    position: relative;
+  }
+
+  .glitch-text-main {
+    position: relative;
+    z-index: 1;
+  }
+
+  .glitch-text-clone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .glitch-clone-1 {
+    color: hsl(180 100% 50%);
+    animation: glitch-1 2s infinite linear;
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+  }
+
+  .glitch-clone-2 {
+    color: hsl(320 100% 55%);
+    animation: glitch-2 3s infinite linear;
+    clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+  }
+
+  @keyframes glitch-1 {
+    0%, 100% { transform: translate(0); }
+    20% { transform: translate(-3px, 3px); }
+    40% { transform: translate(-3px, -3px); }
+    60% { transform: translate(3px, 3px); }
+    80% { transform: translate(3px, -3px); }
+  }
+
+  @keyframes glitch-2 {
+    0%, 100% { transform: translate(0); }
+    20% { transform: translate(3px, -3px); }
+    40% { transform: translate(3px, 3px); }
+    60% { transform: translate(-3px, -3px); }
+    80% { transform: translate(-3px, 3px); }
+  }
+
+  /* Holographic card */
+  .holographic-card {
+    @apply bg-card/60 backdrop-blur-xl border border-border/50;
+    background: linear-gradient(135deg, hsl(230 25% 15% / 0.6) 0%, hsl(230 25% 10% / 0.4) 100%);
+    transition: all 0.3s ease;
+  }
+
+  .holographic-card:hover {
+    border-color: hsl(180 100% 50% / 0.5);
+    box-shadow: 0 0 30px hsl(180 100% 50% / 0.2), 0 0 60px hsl(320 100% 55% / 0.1);
+  }
+
+  /* Pricing card highlighted */
+  .pricing-card-highlighted {
+    @apply bg-card/80 backdrop-blur-xl;
+    border: 2px solid transparent;
+    background-image: linear-gradient(hsl(230 25% 10%), hsl(230 25% 10%)), 
+                      linear-gradient(90deg, hsl(180 100% 50%), hsl(320 100% 55%), hsl(120 100% 50%));
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 0 40px hsl(180 100% 50% / 0.3), 0 0 80px hsl(320 100% 55% / 0.2);
+  }
+
+  .pricing-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(180 100% 50% / 0.1) 50%,
+      transparent 100%
+    );
+    animation: shimmer 3s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Stats glow */
+  .stat-glow {
+    position: relative;
+  }
+
+  .stat-glow::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    background: radial-gradient(circle, hsl(180 100% 50% / 0.2) 0%, transparent 70%);
+    z-index: -1;
+    animation: stat-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes stat-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+
+  /* Floating animation */
+  .floating {
+    animation: floating 3s ease-in-out infinite;
+  }
+
+  @keyframes floating {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Button shine effect */
+  .btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.3), transparent);
+    animation: btn-shine 3s infinite;
+  }
+
+  @keyframes btn-shine {
+    0% { left: -100%; }
+    50%, 100% { left: 100%; }
+  }
 }
 
 @layer utilities {
@@ -240,5 +375,9 @@
 
   .font-body {
     font-family: 'Rajdhani', sans-serif;
+  }
+
+  .text-neon-green {
+    color: hsl(120 100% 50%);
   }
 }
