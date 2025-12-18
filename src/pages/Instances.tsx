@@ -5,11 +5,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, RefreshCw, Loader2, Smartphone } from "lucide-react";
+import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useWhatsAppInstances, WhatsAppInstance } from "@/hooks/useWhatsAppInstances";
-
+import { useSubscription } from "@/hooks/useSubscription";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 const Instances = () => {
   const {
     instances,
@@ -21,6 +23,8 @@ const Instances = () => {
     deleteInstance,
     updateWarmingLevel,
   } = useWhatsAppInstances();
+  
+  const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
 
   const [newInstanceName, setNewInstanceName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,8 +49,16 @@ const Instances = () => {
     return () => clearInterval(interval);
   }, [instances]);
 
+  const instanceCount = instances?.length || 0;
+  const canCreate = canCreateInstance(instanceCount);
+  const maxInstances = subscription?.max_instances;
+
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) {
+      return;
+    }
+    
+    if (!canCreate) {
       return;
     }
 
@@ -100,11 +112,46 @@ const Instances = () => {
       <DashboardSidebar />
       
       <main className="ml-64 p-8">
+        {/* Subscription limit alert */}
+        {!isSubscribed && (
+          <Alert className="mb-6 border-yellow-500/50 bg-yellow-500/10">
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            <AlertTitle className="text-yellow-500">Assinatura necessária</AlertTitle>
+            <AlertDescription>
+              Você precisa de uma assinatura ativa para criar instâncias.{' '}
+              <Link to="/#pricing" className="text-primary hover:underline font-medium">
+                Ver planos
+              </Link>
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {isSubscribed && maxInstances !== null && !canCreate && (
+          <Alert className="mb-6 border-orange-500/50 bg-orange-500/10">
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <AlertTitle className="text-orange-500">Limite atingido</AlertTitle>
+            <AlertDescription>
+              Você atingiu o limite de {maxInstances} instância{maxInstances > 1 ? 's' : ''} do seu plano {currentPlan}.{' '}
+              <button 
+                onClick={() => createCheckout(currentPlan === 'starter' ? 'pro' : 'business')}
+                className="text-primary hover:underline font-medium"
+              >
+                Fazer upgrade
+              </button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Instâncias</h1>
             <p className="text-muted-foreground">
-              Gerencie suas conexões WhatsApp com QR Code ilimitado
+              Gerencie suas conexões WhatsApp 
+              {maxInstances !== null && (
+                <span className="ml-2 text-sm">
+                  ({instanceCount}/{maxInstances} usadas)
+                </span>
+              )}
             </p>
           </div>
 
@@ -116,7 +163,11 @@ const Instances = () => {
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="lg" className="bg-gradient-neon hover:opacity-90 transition-opacity">
+                <Button 
+                  size="lg" 
+                  className="bg-gradient-neon hover:opacity-90 transition-opacity"
+                  disabled={!canCreate}
+                >
                   <Plus className="h-5 w-5 mr-2" />
                   Nova Instância
                 </Button>

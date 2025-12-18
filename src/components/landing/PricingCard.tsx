@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Check, Zap, Crown, Rocket } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Check, Zap, Crown, Rocket, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useState } from 'react';
 
 interface PricingTier {
   name: string;
@@ -13,6 +16,7 @@ interface PricingTier {
   highlighted?: boolean;
   icon: 'zap' | 'crown' | 'rocket';
   cta: string;
+  planKey?: 'starter' | 'pro' | 'business';
 }
 
 interface PricingCardProps {
@@ -29,6 +33,33 @@ const icons = {
 
 export const PricingCard = ({ tier, index, isAnnual }: PricingCardProps) => {
   const Icon = icons[tier.icon];
+  const { user } = useAuth();
+  const { createCheckout, currentPlan } = useSubscription();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  
+  const isCurrentPlan = tier.planKey && currentPlan === tier.planKey;
+  
+  const handleClick = async () => {
+    if (!tier.planKey) {
+      navigate('/login?tab=signup');
+      return;
+    }
+    
+    if (!user) {
+      navigate('/login?tab=signup');
+      return;
+    }
+    
+    if (isCurrentPlan) return;
+    
+    setLoading(true);
+    try {
+      await createCheckout(tier.planKey);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   return (
     <motion.div
@@ -57,6 +88,14 @@ export const PricingCard = ({ tier, index, isAnnual }: PricingCardProps) => {
           <div className="absolute inset-0 pricing-shimmer pointer-events-none" />
         )}
         
+        {isCurrentPlan && (
+          <div className="absolute top-4 right-4 z-10">
+            <span className="px-3 py-1 rounded-full bg-neon-green/20 text-neon-green text-xs font-semibold border border-neon-green/30">
+              Seu Plano
+            </span>
+          </div>
+        )}
+        
         <div className="relative z-10">
           <div className={`h-14 w-14 rounded-xl flex items-center justify-center mb-6 ${
             tier.highlighted 
@@ -76,12 +115,10 @@ export const PricingCard = ({ tier, index, isAnnual }: PricingCardProps) => {
           
           <div className="mb-6">
             <span className="text-5xl font-display font-bold text-foreground">
-              {tier.price === 'Grátis' ? tier.price : `R$${tier.price}`}
+              R${tier.price}
             </span>
-            {tier.price !== 'Grátis' && (
-              <span className="text-muted-foreground ml-2">/{tier.period}</span>
-            )}
-            {isAnnual && tier.price !== 'Grátis' && (
+            <span className="text-muted-foreground ml-2">/{tier.period}</span>
+            {isAnnual && (
               <div className="text-sm text-neon-green mt-1">
                 Economize 20% no plano anual
               </div>
@@ -102,16 +139,23 @@ export const PricingCard = ({ tier, index, isAnnual }: PricingCardProps) => {
           </ul>
           
           <Button 
-            asChild 
+            onClick={handleClick}
+            disabled={loading || isCurrentPlan}
             className={`w-full h-12 font-semibold transition-all duration-300 ${
-              tier.highlighted 
-                ? 'bg-gradient-neon hover:shadow-glow-cyan text-background' 
-                : 'bg-secondary hover:bg-secondary/80 text-foreground'
+              isCurrentPlan
+                ? 'bg-neon-green/20 text-neon-green border border-neon-green/30 cursor-default'
+                : tier.highlighted 
+                  ? 'bg-gradient-neon hover:shadow-glow-cyan text-background' 
+                  : 'bg-secondary hover:bg-secondary/80 text-foreground'
             }`}
           >
-            <Link to="/login?tab=signup">
-              {tier.cta}
-            </Link>
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isCurrentPlan ? (
+              'Plano Atual'
+            ) : (
+              tier.cta
+            )}
           </Button>
         </div>
       </Card>
