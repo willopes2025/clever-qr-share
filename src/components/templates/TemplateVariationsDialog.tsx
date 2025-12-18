@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -72,9 +72,9 @@ export const TemplateVariationsDialog = ({
             <Sparkles className="h-5 w-5 text-primary" />
             Variações do Template
           </DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            {template.name}
-          </p>
+          <DialogDescription>
+            Gerencie variações do template "{template.name}" para evitar detecção de spam.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">

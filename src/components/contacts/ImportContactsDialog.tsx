@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, AlertCircle, CheckCircle2, Download } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface ImportContactsDialogProps {
   open: boolean;
@@ -137,10 +137,8 @@ export const ImportContactsDialog = ({
     if (!file) return;
 
     if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
-      toast({
-        title: "Formato inválido",
+      toast.error("Formato inválido", {
         description: "Por favor, envie um arquivo CSV ou TXT",
-        variant: "destructive",
       });
       return;
     }
@@ -162,10 +160,8 @@ export const ImportContactsDialog = ({
       .map(({ phone, name, email, notes, custom_fields }) => ({ phone, name, email, notes, custom_fields }));
 
     if (validContacts.length === 0) {
-      toast({
-        title: "Nenhum contato válido",
+      toast.error("Nenhum contato válido", {
         description: "Verifique o formato dos números",
-        variant: "destructive",
       });
       return;
     }

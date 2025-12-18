@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
 
 export interface FilterCriteria {
@@ -45,7 +45,6 @@ export interface BroadcastListWithContacts extends BroadcastList {
 }
 
 export const useBroadcastLists = () => {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch all broadcast lists with contact counts
@@ -218,10 +217,10 @@ export const useBroadcastLists = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["broadcast-lists"] });
-      toast({ title: "Lista criada com sucesso" });
+      toast.success("Lista criada com sucesso");
     },
     onError: (error) => {
-      toast({ title: "Erro ao criar lista", description: error.message, variant: "destructive" });
+      toast.error("Erro ao criar lista", { description: error.message });
     },
   });
 
@@ -248,10 +247,10 @@ export const useBroadcastLists = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["broadcast-lists"] });
-      toast({ title: "Lista atualizada com sucesso" });
+      toast.success("Lista atualizada com sucesso");
     },
     onError: (error) => {
-      toast({ title: "Erro ao atualizar lista", description: error.message, variant: "destructive" });
+      toast.error("Erro ao atualizar lista", { description: error.message });
     },
   });
 
@@ -267,10 +266,10 @@ export const useBroadcastLists = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["broadcast-lists"] });
-      toast({ title: "Lista excluída com sucesso" });
+      toast.success("Lista excluída com sucesso");
     },
     onError: (error) => {
-      toast({ title: "Erro ao excluir lista", description: error.message, variant: "destructive" });
+      toast.error("Erro ao excluir lista", { description: error.message });
     },
   });
 
@@ -291,10 +290,10 @@ export const useBroadcastLists = () => {
     onSuccess: (_, { listId }) => {
       queryClient.invalidateQueries({ queryKey: ["broadcast-lists"] });
       queryClient.invalidateQueries({ queryKey: ["broadcast-list-contacts", listId] });
-      toast({ title: "Contatos adicionados com sucesso" });
+      toast.success("Contatos adicionados com sucesso");
     },
     onError: (error) => {
-      toast({ title: "Erro ao adicionar contatos", description: error.message, variant: "destructive" });
+      toast.error("Erro ao adicionar contatos", { description: error.message });
     },
   });
 
@@ -312,10 +311,10 @@ export const useBroadcastLists = () => {
     onSuccess: (_, { listId }) => {
       queryClient.invalidateQueries({ queryKey: ["broadcast-lists"] });
       queryClient.invalidateQueries({ queryKey: ["broadcast-list-contacts", listId] });
-      toast({ title: "Contatos removidos com sucesso" });
+      toast.success("Contatos removidos com sucesso");
     },
     onError: (error) => {
-      toast({ title: "Erro ao remover contatos", description: error.message, variant: "destructive" });
+      toast.error("Erro ao remover contatos", { description: error.message });
     },
   });
 
@@ -350,10 +349,10 @@ export const useBroadcastLists = () => {
     },
     onSuccess: (_, { listId }) => {
       queryClient.invalidateQueries({ queryKey: ["broadcast-sends", listId] });
-      toast({ title: "Envio registrado com sucesso" });
+      toast.success("Envio registrado com sucesso");
     },
     onError: (error) => {
-      toast({ title: "Erro ao registrar envio", description: error.message, variant: "destructive" });
+      toast.error("Erro ao registrar envio", { description: error.message });
     },
   });
 

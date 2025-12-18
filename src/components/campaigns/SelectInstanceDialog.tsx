@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -97,6 +97,9 @@ export const SelectInstanceDialog = ({
             <Smartphone className="h-5 w-5 text-primary" />
             Selecionar Instâncias WhatsApp
           </DialogTitle>
+          <DialogDescription>
+            Escolha as instâncias que serão usadas para enviar as mensagens.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="py-4 space-y-6">
