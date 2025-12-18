@@ -79,6 +79,47 @@ export const useBroadcastLists = () => {
           } else {
             // For dynamic lists, count based on filter criteria
             const criteria = (list.filter_criteria || {}) as FilterCriteria;
+            
+            // If tags are defined, filter by tags first
+            if (criteria.tags && criteria.tags.length > 0) {
+              const { data: taggedContacts } = await supabase
+                .from("contact_tags")
+                .select("contact_id")
+                .in("tag_id", criteria.tags);
+
+              if (!taggedContacts || taggedContacts.length === 0) {
+                return { 
+                  ...list, 
+                  type: list.type as "manual" | "dynamic",
+                  filter_criteria: criteria,
+                  contact_count: 0 
+                };
+              }
+
+              const contactIds = [...new Set(taggedContacts.map(tc => tc.contact_id))];
+              
+              let query = supabase
+                .from("contacts")
+                .select("*", { count: "exact", head: true })
+                .in("id", contactIds);
+
+              if (criteria.status) {
+                query = query.eq("status", criteria.status);
+              }
+              if (criteria.optedOut !== undefined) {
+                query = query.eq("opted_out", criteria.optedOut);
+              }
+
+              const { count } = await query;
+              return { 
+                ...list, 
+                type: list.type as "manual" | "dynamic",
+                filter_criteria: criteria,
+                contact_count: count || 0 
+              };
+            }
+            
+            // No tags filter - use original query
             let query = supabase.from("contacts").select("*", { count: "exact", head: true });
             
             if (criteria.status) {
