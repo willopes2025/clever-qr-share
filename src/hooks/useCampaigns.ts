@@ -25,6 +25,14 @@ export interface Campaign {
   failed: number;
   created_at: string;
   updated_at: string;
+  // Campaign-specific sending settings
+  message_interval_min: number | null;
+  message_interval_max: number | null;
+  daily_limit: number | null;
+  allowed_start_hour: number | null;
+  allowed_end_hour: number | null;
+  allowed_days: string[] | null;
+  timezone: string | null;
   template?: {
     id: string;
     name: string;
@@ -156,6 +164,13 @@ export const useCampaignMutations = () => {
       template_id: string | null;
       list_id: string | null;
       scheduled_at: string | null;
+      message_interval_min?: number;
+      message_interval_max?: number;
+      daily_limit?: number;
+      allowed_start_hour?: number;
+      allowed_end_hour?: number;
+      allowed_days?: string[];
+      timezone?: string;
     }) => {
       if (!user?.id) throw new Error('User not authenticated');
 
@@ -179,6 +194,13 @@ export const useCampaignMutations = () => {
           scheduled_at: data.scheduled_at,
           status: data.scheduled_at ? 'scheduled' : 'draft',
           total_contacts: totalContacts,
+          message_interval_min: data.message_interval_min,
+          message_interval_max: data.message_interval_max,
+          daily_limit: data.daily_limit,
+          allowed_start_hour: data.allowed_start_hour,
+          allowed_end_hour: data.allowed_end_hour,
+          allowed_days: data.allowed_days,
+          timezone: data.timezone,
         })
         .select()
         .single();
@@ -203,6 +225,13 @@ export const useCampaignMutations = () => {
       list_id?: string | null;
       scheduled_at?: string | null;
       status?: string;
+      message_interval_min?: number;
+      message_interval_max?: number;
+      daily_limit?: number;
+      allowed_start_hour?: number;
+      allowed_end_hour?: number;
+      allowed_days?: string[];
+      timezone?: string;
     }) => {
       const updateData: Record<string, unknown> = { ...data };
       

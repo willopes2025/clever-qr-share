@@ -189,14 +189,20 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          allowed_days: string[] | null
+          allowed_end_hour: number | null
+          allowed_start_hour: number | null
           completed_at: string | null
           created_at: string
+          daily_limit: number | null
           delivered: number
           failed: number
           id: string
           instance_id: string | null
           instance_ids: string[] | null
           list_id: string | null
+          message_interval_max: number | null
+          message_interval_min: number | null
           name: string
           scheduled_at: string | null
           sending_mode: string | null
@@ -204,19 +210,26 @@ export type Database = {
           started_at: string | null
           status: string
           template_id: string | null
+          timezone: string | null
           total_contacts: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          allowed_days?: string[] | null
+          allowed_end_hour?: number | null
+          allowed_start_hour?: number | null
           completed_at?: string | null
           created_at?: string
+          daily_limit?: number | null
           delivered?: number
           failed?: number
           id?: string
           instance_id?: string | null
           instance_ids?: string[] | null
           list_id?: string | null
+          message_interval_max?: number | null
+          message_interval_min?: number | null
           name: string
           scheduled_at?: string | null
           sending_mode?: string | null
@@ -224,19 +237,26 @@ export type Database = {
           started_at?: string | null
           status?: string
           template_id?: string | null
+          timezone?: string | null
           total_contacts?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          allowed_days?: string[] | null
+          allowed_end_hour?: number | null
+          allowed_start_hour?: number | null
           completed_at?: string | null
           created_at?: string
+          daily_limit?: number | null
           delivered?: number
           failed?: number
           id?: string
           instance_id?: string | null
           instance_ids?: string[] | null
           list_id?: string | null
+          message_interval_max?: number | null
+          message_interval_min?: number | null
           name?: string
           scheduled_at?: string | null
           sending_mode?: string | null
@@ -244,6 +264,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           template_id?: string | null
+          timezone?: string | null
           total_contacts?: number
           updated_at?: string
           user_id?: string

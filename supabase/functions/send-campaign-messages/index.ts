@@ -11,13 +11,88 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Default rate limiting configuration (used when user settings are not available)
-const DEFAULT_INTERVAL_MIN_S = 3; // 3 seconds minimum
-const DEFAULT_INTERVAL_MAX_S = 10; // 10 seconds maximum
+// Default rate limiting configuration
+const DEFAULT_INTERVAL_MIN_S = 90;
+const DEFAULT_INTERVAL_MAX_S = 180;
+const DEFAULT_DAILY_LIMIT = 1000;
+const DEFAULT_START_HOUR = 8;
+const DEFAULT_END_HOUR = 20;
+const DEFAULT_ALLOWED_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri'];
+const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 
 // Generate a random delay between min and max (inclusive) in seconds
 const getRandomDelay = (minS: number, maxS: number): number => {
   return Math.floor(Math.random() * (maxS - minS + 1)) + minS;
+};
+
+// Get day abbreviation from date
+const getDayAbbreviation = (date: Date): string => {
+  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  return days[date.getDay()];
+};
+
+// Check if current time is within allowed sending hours
+const isWithinAllowedTime = (
+  startHour: number,
+  endHour: number,
+  allowedDays: string[],
+  timezone: string
+): { allowed: boolean; nextAllowedTime: Date | null } => {
+  // Get current time in the specified timezone
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: timezone,
+    hour: 'numeric',
+    hour12: false,
+  };
+  const formatter = new Intl.DateTimeFormat('en-US', options);
+  const currentHour = parseInt(formatter.format(now));
+  
+  const dayOptions: Intl.DateTimeFormatOptions = {
+    timeZone: timezone,
+    weekday: 'short',
+  };
+  const dayFormatter = new Intl.DateTimeFormat('en-US', dayOptions);
+  const currentDay = dayFormatter.format(now).toLowerCase().substring(0, 3);
+  
+  console.log(`Current time check: hour=${currentHour}, day=${currentDay}, allowed hours=${startHour}-${endHour}, allowed days=${allowedDays.join(',')}`);
+  
+  // Check if today is an allowed day
+  const isDayAllowed = allowedDays.includes(currentDay);
+  
+  // Check if current hour is within allowed range
+  const isHourAllowed = currentHour >= startHour && currentHour < endHour;
+  
+  if (isDayAllowed && isHourAllowed) {
+    return { allowed: true, nextAllowedTime: null };
+  }
+  
+  // Calculate next allowed time
+  const nextAllowed = new Date(now);
+  
+  if (isDayAllowed && currentHour < startHour) {
+    // Today is allowed, but before start hour - wait until start hour
+    nextAllowed.setHours(startHour, 0, 0, 0);
+  } else {
+    // Either today is not allowed or we're past end hour - find next allowed day
+    let daysToAdd = 1;
+    const maxDaysToCheck = 7;
+    
+    while (daysToAdd <= maxDaysToCheck) {
+      const checkDate = new Date(now);
+      checkDate.setDate(checkDate.getDate() + daysToAdd);
+      const checkDay = getDayAbbreviation(checkDate);
+      
+      if (allowedDays.includes(checkDay)) {
+        nextAllowed.setDate(now.getDate() + daysToAdd);
+        nextAllowed.setHours(startHour, 0, 0, 0);
+        break;
+      }
+      daysToAdd++;
+    }
+  }
+  
+  return { allowed: false, nextAllowedTime: nextAllowed };
 };
 
 interface CampaignMessage {
@@ -40,9 +115,14 @@ interface Instance {
   warming_level: number;
 }
 
-interface UserSettings {
+interface CampaignSettings {
   message_interval_min: number;
   message_interval_max: number;
+  daily_limit: number;
+  allowed_start_hour: number;
+  allowed_end_hour: number;
+  allowed_days: string[];
+  timezone: string;
 }
 
 type SendingMode = 'sequential' | 'random' | 'warming';
@@ -134,10 +214,14 @@ serve(async (req) => {
 
     console.log(`Processing campaign ${campaignId}, message index ${messageIndex}, with ${instances.length} instance(s) in ${sendingMode} mode`);
 
-    // Fetch campaign to check status and get user_id
+    // Fetch campaign to check status and get campaign-specific settings
     const { data: campaign, error: campaignError } = await supabase
       .from('campaigns')
-      .select('user_id, status, sent, delivered, failed, total_contacts')
+      .select(`
+        user_id, status, sent, delivered, failed, total_contacts,
+        message_interval_min, message_interval_max, daily_limit,
+        allowed_start_hour, allowed_end_hour, allowed_days, timezone
+      `)
       .eq('id', campaignId)
       .single();
 
@@ -159,22 +243,108 @@ serve(async (req) => {
       );
     }
 
-    // Fetch user settings for sending intervals
-    const { data: userSettings, error: settingsError } = await supabase
-      .from('user_settings')
-      .select('message_interval_min, message_interval_max')
-      .eq('user_id', campaign.user_id)
-      .maybeSingle();
+    // Get campaign-specific settings (with defaults)
+    const settings: CampaignSettings = {
+      message_interval_min: campaign.message_interval_min ?? DEFAULT_INTERVAL_MIN_S,
+      message_interval_max: campaign.message_interval_max ?? DEFAULT_INTERVAL_MAX_S,
+      daily_limit: campaign.daily_limit ?? DEFAULT_DAILY_LIMIT,
+      allowed_start_hour: campaign.allowed_start_hour ?? DEFAULT_START_HOUR,
+      allowed_end_hour: campaign.allowed_end_hour ?? DEFAULT_END_HOUR,
+      allowed_days: campaign.allowed_days ?? DEFAULT_ALLOWED_DAYS,
+      timezone: campaign.timezone ?? DEFAULT_TIMEZONE,
+    };
 
-    if (settingsError) {
-      console.error('User settings fetch error:', settingsError);
+    console.log(`Campaign settings: interval=${settings.message_interval_min}-${settings.message_interval_max}s, limit=${settings.daily_limit}, hours=${settings.allowed_start_hour}-${settings.allowed_end_hour}, days=${settings.allowed_days.join(',')}, tz=${settings.timezone}`);
+
+    // Check if we're within allowed sending time
+    const timeCheck = isWithinAllowedTime(
+      settings.allowed_start_hour,
+      settings.allowed_end_hour,
+      settings.allowed_days,
+      settings.timezone
+    );
+
+    if (!timeCheck.allowed && timeCheck.nextAllowedTime) {
+      // Calculate delay until next allowed time
+      const now = new Date();
+      const delayMs = timeCheck.nextAllowedTime.getTime() - now.getTime();
+      const delaySeconds = Math.ceil(delayMs / 1000);
+      
+      console.log(`Outside allowed sending time. Scheduling next attempt at ${timeCheck.nextAllowedTime.toISOString()} (${delaySeconds} seconds from now)`);
+      
+      // Schedule for next allowed time
+      EdgeRuntime.waitUntil(
+        scheduleNextMessage(
+          supabaseUrl,
+          supabaseServiceKey,
+          campaignId,
+          instances,
+          sendingMode,
+          messageIndex,
+          delaySeconds
+        )
+      );
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Outside allowed sending time. Scheduled for ${timeCheck.nextAllowedTime.toISOString()}`,
+          scheduledFor: timeCheck.nextAllowedTime.toISOString(),
+          delayed: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Use user settings or defaults (in seconds)
-    const intervalMinS = userSettings?.message_interval_min || DEFAULT_INTERVAL_MIN_S;
-    const intervalMaxS = userSettings?.message_interval_max || DEFAULT_INTERVAL_MAX_S;
+    // Check daily limit - count messages sent today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const { count: sentToday, error: countTodayError } = await supabase
+      .from('campaign_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('status', 'sent')
+      .gte('sent_at', todayStart.toISOString());
 
-    console.log(`Using message intervals: ${intervalMinS}s - ${intervalMaxS}s`);
+    if (countTodayError) {
+      console.error('Error counting today messages:', countTodayError);
+    }
+
+    const sentTodayCount = sentToday || 0;
+    
+    if (sentTodayCount >= settings.daily_limit) {
+      // Daily limit reached - schedule for tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(settings.allowed_start_hour, 0, 0, 0);
+      
+      const delaySeconds = Math.ceil((tomorrow.getTime() - Date.now()) / 1000);
+      
+      console.log(`Daily limit of ${settings.daily_limit} reached (sent: ${sentTodayCount}). Scheduling for tomorrow at ${tomorrow.toISOString()}`);
+      
+      EdgeRuntime.waitUntil(
+        scheduleNextMessage(
+          supabaseUrl,
+          supabaseServiceKey,
+          campaignId,
+          instances,
+          sendingMode,
+          messageIndex,
+          delaySeconds
+        )
+      );
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Daily limit reached. Scheduled for ${tomorrow.toISOString()}`,
+          scheduledFor: tomorrow.toISOString(),
+          dailyLimitReached: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Fetch ONLY ONE queued message for this campaign (LIMIT 1)
     const { data: messages, error: messagesError } = await supabase
@@ -370,13 +540,12 @@ serve(async (req) => {
     const hasMoreMessages = (remainingCount || 0) > 0;
 
     if (hasMoreMessages) {
-      // Calculate random delay for next message
-      const delaySeconds = getRandomDelay(intervalMinS, intervalMaxS);
+      // Calculate random delay for next message using campaign settings
+      const delaySeconds = getRandomDelay(settings.message_interval_min, settings.message_interval_max);
       
       console.log(`${remainingCount} messages remaining. Scheduling next in ${delaySeconds}s...`);
       
       // Use EdgeRuntime.waitUntil to schedule next message in background
-      // This allows the current request to return immediately
       EdgeRuntime.waitUntil(
         scheduleNextMessage(
           supabaseUrl,
