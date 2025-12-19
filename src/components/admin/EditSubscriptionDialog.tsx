@@ -90,8 +90,7 @@ export const EditSubscriptionDialog = ({
     if (planConfig) {
       setMaxInstances(planConfig.maxInstances ? String(planConfig.maxInstances) : "");
       setMaxMessages(planConfig.maxMessages ? String(planConfig.maxMessages) : "");
-      // maxContacts não existe em PLANS, manter vazio (ilimitado)
-      setMaxContacts("");
+      setMaxContacts(planConfig.maxContacts ? String(planConfig.maxContacts) : "");
     }
   };
 

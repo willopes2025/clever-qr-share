@@ -21,10 +21,11 @@ export const PLANS = {
     productId: null,
     maxInstances: 1,
     maxMessages: 300,
+    maxContacts: 1000,
     features: [
       '1 Instância WhatsApp',
       '300 mensagens/mês',
-      'Contatos ilimitados',
+      '1.000 contatos',
       'Templates básicos',
       'Campanhas simples',
     ],
@@ -36,6 +37,7 @@ export const PLANS = {
     productId: 'prod_Td6oCDIlCW9tXp',
     maxInstances: 1,
     maxMessages: null,
+    maxContacts: null,
     features: [
       '1 Instância WhatsApp',
       'Contatos ilimitados',
@@ -52,6 +54,7 @@ export const PLANS = {
     productId: 'prod_Td6oDKN8AXJsXf',
     maxInstances: 10,
     maxMessages: null,
+    maxContacts: null,
     features: [
       'Até 10 Instâncias WhatsApp',
       'Contatos ilimitados',
@@ -69,6 +72,7 @@ export const PLANS = {
     productId: 'prod_Td6otV5Ef9IHSt',
     maxInstances: null,
     maxMessages: null,
+    maxContacts: null,
     features: [
       'Instâncias ilimitadas',
       'Contatos ilimitados',
