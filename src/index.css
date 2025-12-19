@@ -429,3 +429,21 @@ textarea {
   z-index: 50 !important;
   pointer-events: auto !important;
 }
+
+/* Evitar que pseudo-elementos decorativos capturem cliques */
+*::before,
+*::after {
+  pointer-events: none !important;
+}
+
+/* Garantir que botões NÃO desabilitados continuem clicáveis */
+button:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="button"]:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[role="button"]:not([aria-disabled="true"]) {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10;
+}
+
