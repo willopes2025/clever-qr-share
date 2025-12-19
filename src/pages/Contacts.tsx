@@ -30,18 +30,14 @@ import {
   Loader2,
   UserX,
   TagsIcon,
-  Building2,
 } from "lucide-react";
 import { useContacts, ContactWithTags } from "@/hooks/useContacts";
-import { useScrapedLeads } from "@/hooks/useScrapedLeads";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import { ImportContactsDialog } from "@/components/contacts/ImportContactsDialog";
 import { TagManager } from "@/components/contacts/TagManager";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
-import { LeadScraperDialog } from "@/components/contacts/LeadScraperDialog";
-import { ScrapedLeadsTable } from "@/components/contacts/ScrapedLeadsTable";
 
 const Contacts = () => {
   const {
@@ -63,13 +59,6 @@ const Contacts = () => {
     bulkOptOut,
   } = useContacts();
 
-  const {
-    leads,
-    scrapeLeads,
-    importLeads,
-    deleteLeads,
-  } = useScrapedLeads();
-
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -77,8 +66,6 @@ const Contacts = () => {
   const [showBulkTagDialog, setShowBulkTagDialog] = useState(false);
   const [showBulkRemoveTagDialog, setShowBulkRemoveTagDialog] = useState(false);
   const [showBulkOptOutConfirm, setShowBulkOptOutConfirm] = useState(false);
-  const [showLeadScraper, setShowLeadScraper] = useState(false);
-  const [showScrapedLeads, setShowScrapedLeads] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithTags | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -216,10 +203,6 @@ const Contacts = () => {
             <Button variant="outline" onClick={() => setShowTagManager(true)} className="neon-border">
               <TagIcon className="h-4 w-4 mr-2" />
               Tags
-            </Button>
-            <Button variant="outline" onClick={() => setShowLeadScraper(true)} className="neon-border">
-              <Building2 className="h-4 w-4 mr-2" />
-              Buscar Leads
             </Button>
             <Button variant="outline" onClick={() => setShowImportDialog(true)} className="neon-border">
               <Upload className="h-4 w-4 mr-2" />
@@ -428,34 +411,6 @@ const Contacts = () => {
           );
         }}
         isLoading={bulkRemoveTags.isPending}
-      />
-
-      <LeadScraperDialog
-        open={showLeadScraper}
-        onOpenChange={setShowLeadScraper}
-        onSearch={(params) => {
-          scrapeLeads.mutate(params, {
-            onSuccess: () => {
-              setShowLeadScraper(false);
-              setShowScrapedLeads(true);
-            },
-          });
-        }}
-        isLoading={scrapeLeads.isPending}
-      />
-
-      <ScrapedLeadsTable
-        open={showScrapedLeads}
-        onOpenChange={setShowScrapedLeads}
-        leads={leads}
-        tags={tags}
-        onImport={(leadIds, tagId) => {
-          importLeads.mutate({ leadIds, tagId }, {
-            onSuccess: () => setShowScrapedLeads(false),
-          });
-        }}
-        onDelete={(leadIds) => deleteLeads.mutate(leadIds)}
-        isImporting={importLeads.isPending}
       />
 
       {/* Delete confirmation */}

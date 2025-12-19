@@ -35,6 +35,3 @@ verify_jwt = true
 
 [functions.list-invoices]
 verify_jwt = true
-
-[functions.scrape-leads]
-verify_jwt = true
