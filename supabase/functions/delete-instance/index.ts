@@ -69,6 +69,36 @@ serve(async (req) => {
       console.error('Evolution API delete error (continuing anyway):', evolutionError);
     }
 
+    // Limpar referência única em campaigns.instance_id
+    const { error: updateCampaignError } = await supabase
+      .from('campaigns')
+      .update({ instance_id: null })
+      .eq('instance_id', instance.id);
+
+    if (updateCampaignError) {
+      console.error('Error clearing campaign instance_id:', updateCampaignError);
+    }
+
+    // Remover do array instance_ids em campaigns
+    const { data: campaignsWithArray } = await supabase
+      .from('campaigns')
+      .select('id, instance_ids')
+      .contains('instance_ids', [instance.id]);
+
+    if (campaignsWithArray && campaignsWithArray.length > 0) {
+      for (const campaign of campaignsWithArray) {
+        const updatedIds = (campaign.instance_ids || []).filter(
+          (id: string) => id !== instance.id
+        );
+        await supabase
+          .from('campaigns')
+          .update({ instance_ids: updatedIds.length > 0 ? updatedIds : [] })
+          .eq('id', campaign.id);
+      }
+    }
+
+    console.log('Cleared campaign references for instance:', instance.id);
+
     // Deletar do banco de dados
     const { error: deleteError } = await supabase
       .from('whatsapp_instances')
