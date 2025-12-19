@@ -28,12 +28,16 @@ export interface ScrapedLead {
   created_at: string;
 }
 
-interface ScrapeParams {
-  estado_id: string;
+export interface ScrapeParams {
+  mode: 'search' | 'cnpj';
+  // For mode='search' (Premium)
+  estado_id?: string;
   cidade_id?: string;
-  cnae_id: string;
-  limite: number;
+  cnae_id?: string;
+  limite?: number;
   apenas_ativos?: boolean;
+  // For mode='cnpj' (Basic)
+  cnpjs?: string[];
 }
 
 export function useScrapedLeads() {
@@ -100,7 +104,16 @@ export function useScrapedLeads() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["scraped-leads"] });
-      toast.success(`${data.count} leads encontrados!`);
+      const errorCount = data.errors?.length || 0;
+      if (errorCount > 0 && data.count > 0) {
+        toast.success(`${data.count} leads encontrados! (${errorCount} CNPJs com erro)`);
+      } else if (data.count > 0) {
+        toast.success(`${data.count} leads encontrados!`);
+      } else if (errorCount > 0) {
+        toast.warning(`Nenhum lead encontrado. ${errorCount} CNPJs com erro.`);
+      } else {
+        toast.info("Nenhum lead encontrado.");
+      }
     },
     onError: (error: Error) => {
       console.error("Scrape error:", error);
