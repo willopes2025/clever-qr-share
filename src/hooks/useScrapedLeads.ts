@@ -65,7 +65,35 @@ export function useScrapedLeads() {
       });
 
       if (response.error) {
-        throw new Error(response.error.message || "Failed to scrape leads");
+        const err: any = response.error;
+        let message = err?.message || "Failed to scrape leads";
+
+        // If this is a FunctionsHttpError, `context` is the Response returned by the function.
+        try {
+          const ctx = err?.context;
+          if (ctx && typeof ctx.text === "function") {
+            const raw = await ctx.text();
+            try {
+              const parsed = JSON.parse(raw);
+              const hint = parsed?.hint ? ` ${parsed.hint}` : "";
+              const details = parsed?.details
+                ? typeof parsed.details === "string"
+                  ? parsed.details
+                  : JSON.stringify(parsed.details)
+                : "";
+
+              message = parsed?.error
+                ? `${parsed.error}${hint}${details ? ` (${details})` : ""}`
+                : raw;
+            } catch {
+              message = raw || message;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        throw new Error(message);
       }
 
       return response.data;
