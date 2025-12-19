@@ -1,7 +1,8 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Zap, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard } from "lucide-react";
+import { Zap, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
@@ -19,6 +20,7 @@ const navItems = [
 
 export const DashboardSidebar = () => {
   const { signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const { currentPlan, isSubscribed } = useSubscription();
 
@@ -64,6 +66,24 @@ export const DashboardSidebar = () => {
             {item.label}
           </NavLink>
         ))}
+        
+        {/* Admin Link - só visível para admins */}
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300",
+                isActive
+                  ? "bg-yellow-500/20 text-yellow-400 shadow-glow-cyan neon-border"
+                  : "text-yellow-400/70 hover:bg-yellow-500/10 hover:text-yellow-400 hover:shadow-soft"
+              )
+            }
+          >
+            <Shield className="h-5 w-5" />
+            Admin
+          </NavLink>
+        )}
       </nav>
 
       {/* Bottom section */}

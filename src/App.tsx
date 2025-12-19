@@ -14,6 +14,7 @@ import BroadcastLists from "./pages/BroadcastLists";
 import Templates from "./pages/Templates";
 import Settings from "./pages/Settings";
 import Subscription from "./pages/Subscription";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -64,6 +65,11 @@ const App = () => (
           <Route path="/subscription" element={
             <ProtectedRoute>
               <Subscription />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <Admin />
             </ProtectedRoute>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
