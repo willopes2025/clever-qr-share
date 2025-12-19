@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { useWhatsAppInstances, WhatsAppInstance } from "@/hooks/useWhatsAppInstances";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -55,10 +56,18 @@ const Instances = () => {
 
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) {
+      toast.error("Digite um nome para a instância");
       return;
     }
     
     if (!canCreate) {
+      if (!isSubscribed) {
+        toast.error("Você precisa de uma assinatura ativa para criar instâncias");
+      } else if (maxInstances !== null) {
+        toast.error(`Você atingiu o limite de ${maxInstances} instância${maxInstances > 1 ? "s" : ""} do seu plano ${currentPlan}`);
+      } else {
+        toast.error("Não foi possível criar instância no momento");
+      }
       return;
     }
 
@@ -111,7 +120,7 @@ const Instances = () => {
     <div className="min-h-screen bg-background cyber-grid">
       <DashboardSidebar />
       
-      <main className="ml-64 p-8">
+      <main className="ml-64 p-8 isolate">
         {/* Subscription limit alert */}
         {!isSubscribed && (
           <Alert className="mb-6 border-yellow-500/50 bg-yellow-500/10">
@@ -254,7 +263,27 @@ const Instances = () => {
             <p className="text-muted-foreground mb-4">
               Nenhuma instância criada ainda.
             </p>
-            <Button onClick={() => setDialogOpen(true)} className="bg-gradient-neon relative z-50">
+            <Button
+              onClick={() => {
+                if (canCreate) {
+                  setDialogOpen(true);
+                  return;
+                }
+
+                if (!isSubscribed) {
+                  toast.error("Você precisa de uma assinatura ativa para criar instâncias");
+                  return;
+                }
+
+                if (maxInstances !== null) {
+                  toast.error(`Você atingiu o limite de ${maxInstances} instância${maxInstances > 1 ? "s" : ""} do seu plano ${currentPlan}`);
+                  return;
+                }
+
+                toast.error("Não foi possível criar instância no momento");
+              }}
+              className="bg-gradient-neon relative z-50"
+            >
               <Plus className="h-5 w-5 mr-2" />
               Criar Primeira Instância
             </Button>

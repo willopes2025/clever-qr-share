@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from './useAuth';
 
 export interface WhatsAppInstance {
   id: string;
@@ -24,8 +25,13 @@ export const WARMING_LEVELS = [
 
 export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
+  const { session } = useAuth();
 
-  // Buscar instâncias do banco de dados
+  const requireAuthHeaders = () => {
+    const token = session?.access_token;
+    if (!token) throw new Error('Você precisa estar logado');
+    return { Authorization: `Bearer ${token}` };
+  };
   const { data: instances, isLoading, refetch } = useQuery({
     queryKey: ['whatsapp-instances'],
     queryFn: async () => {
@@ -44,6 +50,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('create-instance', {
         body: { instanceName },
+        headers: requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -63,6 +70,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('connect-instance', {
         body: { instanceName },
+        headers: requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -81,6 +89,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('check-connection-status', {
         body: { instanceName },
+        headers: requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -96,6 +105,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('delete-instance', {
         body: { instanceName },
+        headers: requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
