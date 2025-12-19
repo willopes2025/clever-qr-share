@@ -103,14 +103,34 @@ serve(async (req) => {
 
     if (!searchResponse.ok) {
       const errorText = await searchResponse.text();
-      console.error('CNPJ.ws API error:', searchResponse.status, errorText);
-      return new Response(JSON.stringify({ 
-        error: 'Failed to fetch data from CNPJ.ws',
-        details: errorText 
-      }), {
-        status: searchResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      let upstream: any = null;
+      try {
+        upstream = JSON.parse(errorText);
+      } catch {
+        // ignore
+      }
+
+      // CNPJ.ws /pesquisa is Premium-only (per docs). Give a clear hint when access is denied.
+      const hint =
+        upstream?.status === 403
+          ? 'The CNPJ.ws /pesquisa endpoint is Premium-only. Please use a Premium token (or switch to a data provider that supports search filters).'
+          : upstream?.status === 401
+            ? 'Your CNPJ.ws token was not accepted. Please verify the token value and that it matches the API you are calling.'
+            : undefined;
+
+      console.error('CNPJ.ws API error:', searchResponse.status, upstream ?? errorText);
+
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to fetch data from CNPJ.ws',
+          details: upstream ?? errorText,
+          hint,
+        }),
+        {
+          status: searchResponse.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     const searchResult = await searchResponse.json();
