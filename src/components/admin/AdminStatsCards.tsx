@@ -23,44 +23,44 @@ export const AdminStatsCards = ({ totalUsers, activeSubscriptions, planCounts }:
       title: "Total de Usuários",
       value: totalUsers,
       icon: Users,
-      color: "text-cyan-400",
-      bgColor: "bg-cyan-400/10"
+      color: "text-primary",
+      bgColor: "bg-primary/10"
     },
     {
       title: "Assinaturas Ativas",
       value: activeSubscriptions,
       icon: CreditCard,
-      color: "text-green-400",
-      bgColor: "bg-green-400/10"
+      color: "text-accent",
+      bgColor: "bg-accent/10"
     },
     {
       title: "Receita Mensal",
       value: `R$ ${estimatedRevenue.toFixed(2)}`,
       icon: TrendingUp,
-      color: "text-purple-400",
-      bgColor: "bg-purple-400/10"
+      color: "text-primary",
+      bgColor: "bg-primary/10"
     },
     {
       title: "Planos Premium",
       value: (planCounts['pro'] || 0) + (planCounts['business'] || 0),
       icon: Crown,
-      color: "text-yellow-400",
-      bgColor: "bg-yellow-400/10"
+      color: "text-accent",
+      bgColor: "bg-accent/10"
     }
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat, index) => (
-        <Card key={index} className="glass-card neon-border">
+        <Card key={index} className="depth-card hover:shadow-hover transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className={`h-12 w-12 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
+              <div className={`h-12 w-12 rounded-2xl ${stat.bgColor} flex items-center justify-center`}>
                 <stat.icon className={`h-6 w-6 ${stat.color}`} />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{stat.title}</p>
-                <p className="text-2xl font-display font-bold text-foreground">{stat.value}</p>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
               </div>
             </div>
           </CardContent>
