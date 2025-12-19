@@ -7,11 +7,15 @@ const corsHeaders = {
 };
 
 interface ScrapeRequest {
-  estado_id: string;
+  mode: 'search' | 'cnpj';
+  // For mode='search' (Premium)
+  estado_id?: string;
   cidade_id?: string;
-  cnae_id: string;
-  limite: number;
+  cnae_id?: string;
+  limite?: number;
   apenas_ativos?: boolean;
+  // For mode='cnpj' (Basic)
+  cnpjs?: string[];
 }
 
 interface CNPJWSCompany {
@@ -35,6 +39,17 @@ interface CNPJWSCompany {
   situacao_cadastral: string;
   capital_social: number;
   data_abertura: string;
+}
+
+// Helper to normalize CNPJ (remove non-digits)
+function normalizeCNPJ(cnpj: string): string {
+  return cnpj.replace(/\D/g, '');
+}
+
+// Validate CNPJ format (14 digits)
+function isValidCNPJ(cnpj: string): boolean {
+  const normalized = normalizeCNPJ(cnpj);
+  return normalized.length === 14 && /^\d+$/.test(normalized);
 }
 
 serve(async (req) => {
@@ -67,9 +82,10 @@ serve(async (req) => {
       });
     }
 
-    const { estado_id, cidade_id, cnae_id, limite = 20, apenas_ativos = true }: ScrapeRequest = await req.json();
+    const requestBody: ScrapeRequest = await req.json();
+    const mode = requestBody.mode || 'search';
 
-    console.log('Scrape request:', { estado_id, cidade_id, cnae_id, limite, apenas_ativos });
+    console.log('Scrape request:', requestBody);
 
     const cnpjwsApiKey = Deno.env.get('CNPJWS_API_KEY');
     if (!cnpjwsApiKey) {
@@ -79,80 +95,139 @@ serve(async (req) => {
       });
     }
 
-    // Build search URL for CNPJ.ws - using pesquisa endpoint with correct filters
-    const searchParams = new URLSearchParams();
-    searchParams.set('estado_id', estado_id);
-    if (cidade_id) {
-      searchParams.set('cidade_id', cidade_id);
-    }
-    searchParams.set('atividade_principal_id', cnae_id);
-    if (apenas_ativos) {
-      searchParams.set('situacao_cadastral', 'ATIVA');
-    }
-    searchParams.set('limite', String(Math.min(limite, 100)));
+    let cnpjsToFetch: string[] = [];
 
-    console.log('Calling CNPJ.ws API with params:', searchParams.toString());
-
-    // Call CNPJ.ws search API - use x_api_token header as per documentation
-    const searchResponse = await fetch(`https://comercial.cnpj.ws/pesquisa?${searchParams.toString()}`, {
-      headers: {
-        'x_api_token': cnpjwsApiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!searchResponse.ok) {
-      const errorText = await searchResponse.text();
-      let upstream: any = null;
-      try {
-        upstream = JSON.parse(errorText);
-      } catch {
-        // ignore
+    // ========== MODE: CNPJ (Direct lookup - works with basic plan) ==========
+    if (mode === 'cnpj') {
+      const { cnpjs = [] } = requestBody;
+      
+      if (!cnpjs.length) {
+        return new Response(JSON.stringify({ error: 'No CNPJs provided' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
-      // CNPJ.ws /pesquisa is Premium-only (per docs). Give a clear hint when access is denied.
-      const hint =
-        upstream?.status === 403
-          ? 'The CNPJ.ws /pesquisa endpoint is Premium-only. Please use a Premium token (or switch to a data provider that supports search filters).'
-          : upstream?.status === 401
-            ? 'Your CNPJ.ws token was not accepted. Please verify the token value and that it matches the API you are calling.'
-            : undefined;
-
-      console.error('CNPJ.ws API error:', searchResponse.status, upstream ?? errorText);
-
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to fetch data from CNPJ.ws',
-          details: upstream ?? errorText,
-          hint,
-        }),
-        {
-          status: searchResponse.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      // Validate and normalize CNPJs
+      const validCnpjs: string[] = [];
+      const invalidCnpjs: string[] = [];
+      
+      for (const cnpj of cnpjs) {
+        const normalized = normalizeCNPJ(cnpj);
+        if (isValidCNPJ(cnpj)) {
+          validCnpjs.push(normalized);
+        } else {
+          invalidCnpjs.push(cnpj);
         }
-      );
-    }
+      }
 
-    const searchResult = await searchResponse.json();
-    const cnpjList: string[] = searchResult.data || [];
-    console.log(`Found ${cnpjList.length} CNPJs from search`);
+      if (invalidCnpjs.length > 0) {
+        console.warn('Invalid CNPJs ignored:', invalidCnpjs);
+      }
 
-    if (cnpjList.length === 0) {
-      return new Response(JSON.stringify({ 
-        success: true,
-        leads: [],
-        count: 0 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      if (validCnpjs.length === 0) {
+        return new Response(JSON.stringify({ 
+          error: 'No valid CNPJs provided',
+          details: `Invalid CNPJs: ${invalidCnpjs.join(', ')}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Limit to 20 CNPJs to avoid rate limiting
+      cnpjsToFetch = validCnpjs.slice(0, 20);
+      console.log(`Processing ${cnpjsToFetch.length} CNPJs in direct mode`);
+
+    // ========== MODE: SEARCH (Premium only) ==========
+    } else {
+      const { estado_id, cidade_id, cnae_id, limite = 20, apenas_ativos = true } = requestBody;
+
+      if (!estado_id || !cnae_id) {
+        return new Response(JSON.stringify({ error: 'estado_id and cnae_id are required for search mode' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Build search URL for CNPJ.ws - using pesquisa endpoint with correct filters
+      const searchParams = new URLSearchParams();
+      searchParams.set('estado_id', estado_id);
+      if (cidade_id) {
+        searchParams.set('cidade_id', cidade_id);
+      }
+      searchParams.set('atividade_principal_id', cnae_id);
+      if (apenas_ativos) {
+        searchParams.set('situacao_cadastral', 'ATIVA');
+      }
+      searchParams.set('limite', String(Math.min(limite, 100)));
+
+      console.log('Calling CNPJ.ws search API with params:', searchParams.toString());
+
+      // Call CNPJ.ws search API - use x_api_token header as per documentation
+      const searchResponse = await fetch(`https://comercial.cnpj.ws/pesquisa?${searchParams.toString()}`, {
+        headers: {
+          'x_api_token': cnpjwsApiKey,
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (!searchResponse.ok) {
+        const errorText = await searchResponse.text();
+        let upstream: any = null;
+        try {
+          upstream = JSON.parse(errorText);
+        } catch {
+          // ignore
+        }
+
+        // CNPJ.ws /pesquisa is Premium-only (per docs). Give a clear hint when access is denied.
+        const hint =
+          upstream?.status === 403
+            ? 'O endpoint /pesquisa da CNPJ.ws requer plano Premium. Use a aba "Por CNPJ" para consultar CNPJs específicos (funciona com plano básico).'
+            : upstream?.status === 401
+              ? 'Seu token CNPJ.ws não foi aceito. Verifique se o token está correto.'
+              : undefined;
+
+        console.error('CNPJ.ws API error:', searchResponse.status, upstream ?? errorText);
+
+        return new Response(
+          JSON.stringify({
+            error: 'Falha ao buscar dados da CNPJ.ws',
+            details: upstream ?? errorText,
+            hint,
+          }),
+          {
+            status: searchResponse.status,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      const searchResult = await searchResponse.json();
+      const cnpjList: string[] = searchResult.data || [];
+      console.log(`Found ${cnpjList.length} CNPJs from search`);
+
+      if (cnpjList.length === 0) {
+        return new Response(JSON.stringify({ 
+          success: true,
+          leads: [],
+          count: 0 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      cnpjsToFetch = cnpjList.slice(0, Math.min(limite, 50));
     }
 
-    // Fetch details for each CNPJ (limit to avoid rate limiting)
+    // ========== FETCH DETAILS FOR EACH CNPJ ==========
     const companies: CNPJWSCompany[] = [];
-    const cnpjsToFetch = cnpjList.slice(0, Math.min(limite, 50));
+    const errors: { cnpj: string; error: string }[] = [];
     
     for (const cnpj of cnpjsToFetch) {
       try {
+        console.log(`Fetching details for CNPJ: ${cnpj}`);
         const detailResponse = await fetch(`https://comercial.cnpj.ws/cnpj/${cnpj}`, {
           headers: {
             'x_api_token': cnpjwsApiKey,
@@ -163,21 +238,38 @@ serve(async (req) => {
         if (detailResponse.ok) {
           const company = await detailResponse.json();
           companies.push(company);
+        } else {
+          const errText = await detailResponse.text();
+          console.error(`Error fetching CNPJ ${cnpj}:`, detailResponse.status, errText);
+          errors.push({ cnpj, error: `HTTP ${detailResponse.status}` });
         }
         
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 150));
       } catch (e) {
-        console.error(`Error fetching CNPJ ${cnpj}:`, e);
+        console.error(`Exception fetching CNPJ ${cnpj}:`, e);
+        errors.push({ cnpj, error: String(e) });
       }
     }
     
-    console.log(`Fetched details for ${companies.length} companies`);
+    console.log(`Fetched details for ${companies.length} companies, ${errors.length} errors`);
+
+    if (companies.length === 0) {
+      return new Response(JSON.stringify({ 
+        success: true,
+        leads: [],
+        count: 0,
+        errors: errors.length > 0 ? errors : undefined,
+        message: errors.length > 0 ? 'Nenhum CNPJ foi encontrado. Verifique se os CNPJs são válidos.' : 'Nenhum resultado encontrado.'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Transform and save leads
     const leads = companies.map(company => ({
       user_id: user.id,
-      cnpj: company.cnpj,
+      cnpj: normalizeCNPJ(company.cnpj),
       razao_social: company.razao_social,
       nome_fantasia: company.nome_fantasia || company.razao_social,
       phone: company.telefone?.replace(/\D/g, '') || null,
@@ -222,7 +314,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true,
       leads: savedLeads,
-      count: savedLeads?.length || 0 
+      count: savedLeads?.length || 0,
+      errors: errors.length > 0 ? errors : undefined,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
