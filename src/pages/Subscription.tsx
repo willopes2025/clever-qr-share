@@ -177,11 +177,17 @@ const Subscription = () => {
                     )}
 
                     {/* Usage stats */}
-                    <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-border/50">
+                    <div className="grid sm:grid-cols-3 gap-4 pt-4 border-t border-border/50">
                       <div className="p-4 rounded-lg bg-secondary/30">
                         <p className="text-sm text-muted-foreground">Instâncias</p>
                         <p className="text-2xl font-display font-bold text-primary">
                           {subscription?.max_instances === null ? 'Ilimitadas' : `${subscription?.max_instances || 0}`}
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-lg bg-secondary/30">
+                        <p className="text-sm text-muted-foreground">Mensagens/mês</p>
+                        <p className="text-2xl font-display font-bold text-primary">
+                          {subscription?.max_messages === null ? 'Ilimitadas' : `${subscription?.max_messages || 0}`}
                         </p>
                       </div>
                       <div className="p-4 rounded-lg bg-secondary/30">
@@ -256,7 +262,9 @@ const Subscription = () => {
           >
             <h2 className="text-xl font-display font-bold mb-4">Fazer Upgrade</h2>
             <div className="grid md:grid-cols-3 gap-4">
-              {Object.entries(PLANS).map(([key, plan]) => {
+              {Object.entries(PLANS)
+                .filter(([key]) => key !== 'free') // Don't show free plan in upgrade options
+                .map(([key, plan]) => {
                 const isCurrentPlan = key === currentPlan;
                 const PIcon = planIcons[key as keyof typeof planIcons] || Zap;
                 
@@ -282,6 +290,7 @@ const Subscription = () => {
                       
                       <p className="text-sm text-muted-foreground mb-4">
                         {plan.maxInstances === null ? 'Instâncias ilimitadas' : `Até ${plan.maxInstances} instância${plan.maxInstances > 1 ? 's' : ''}`}
+                        {plan.maxMessages === null ? ' • Mensagens ilimitadas' : ` • ${plan.maxMessages} msgs/mês`}
                       </p>
 
                       <Button 

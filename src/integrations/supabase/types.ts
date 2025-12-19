@@ -422,6 +422,7 @@ export type Database = {
           id: string
           max_contacts: number | null
           max_instances: number
+          max_messages: number | null
           plan: string
           status: string
           stripe_customer_id: string | null
@@ -438,6 +439,7 @@ export type Database = {
           id?: string
           max_contacts?: number | null
           max_instances?: number
+          max_messages?: number | null
           plan?: string
           status?: string
           stripe_customer_id?: string | null
@@ -454,6 +456,7 @@ export type Database = {
           id?: string
           max_contacts?: number | null
           max_instances?: number
+          max_messages?: number | null
           plan?: string
           status?: string
           stripe_customer_id?: string | null
