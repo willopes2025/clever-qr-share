@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Users, CreditCard, TrendingUp, RefreshCw } from "lucide-react";
+import { Shield, Users, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
@@ -108,11 +108,11 @@ const Admin = () => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-neon flex items-center justify-center shadow-glow-cyan">
-                <Shield className="h-6 w-6 text-background" />
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-medium">
+                <Shield className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-3xl font-display font-bold text-foreground">
+                <h1 className="text-3xl font-bold text-foreground">
                   Painel Administrativo
                 </h1>
                 <p className="text-muted-foreground">
@@ -120,7 +120,7 @@ const Admin = () => {
                 </p>
               </div>
             </div>
-            <Button onClick={fetchUsers} variant="outline" className="gap-2">
+            <Button onClick={fetchUsers} variant="outline" className="gap-2 rounded-xl">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
@@ -134,7 +134,7 @@ const Admin = () => {
           />
 
           {/* Users Table */}
-          <Card className="glass-card neon-border">
+          <Card className="depth-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />

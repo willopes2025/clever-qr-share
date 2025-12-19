@@ -45,18 +45,18 @@ interface UserSubscriptionsTableProps {
 }
 
 const planColors: Record<string, string> = {
-  free: "bg-gray-500/20 text-gray-400",
-  starter: "bg-blue-500/20 text-blue-400",
-  pro: "bg-purple-500/20 text-purple-400",
-  business: "bg-yellow-500/20 text-yellow-400",
-  none: "bg-red-500/20 text-red-400"
+  free: "bg-muted text-muted-foreground",
+  starter: "bg-primary/10 text-primary",
+  pro: "bg-accent/10 text-accent",
+  business: "bg-accent/20 text-accent",
+  none: "bg-destructive/10 text-destructive"
 };
 
 const statusColors: Record<string, string> = {
-  active: "bg-green-500/20 text-green-400",
-  inactive: "bg-gray-500/20 text-gray-400",
-  canceled: "bg-red-500/20 text-red-400",
-  past_due: "bg-orange-500/20 text-orange-400"
+  active: "bg-accent/10 text-accent",
+  inactive: "bg-muted text-muted-foreground",
+  canceled: "bg-destructive/10 text-destructive",
+  past_due: "bg-orange-500/10 text-orange-600"
 };
 
 export const UserSubscriptionsTable = ({
@@ -92,10 +92,10 @@ export const UserSubscriptionsTable = ({
           placeholder="Buscar por email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-xs bg-background/50"
+          className="max-w-xs rounded-xl"
         />
         <Select value={filterPlan} onValueChange={setFilterPlan}>
-          <SelectTrigger className="w-[150px] bg-background/50">
+          <SelectTrigger className="w-[150px] rounded-xl">
             <SelectValue placeholder="Plano" />
           </SelectTrigger>
           <SelectContent>
@@ -108,7 +108,7 @@ export const UserSubscriptionsTable = ({
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[150px] bg-background/50">
+          <SelectTrigger className="w-[150px] rounded-xl">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -121,7 +121,7 @@ export const UserSubscriptionsTable = ({
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-2xl border border-border overflow-hidden bg-card">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/30">
@@ -146,12 +146,12 @@ export const UserSubscriptionsTable = ({
                 <TableRow key={user.id} className="hover:bg-muted/20">
                   <TableCell className="font-medium">{user.email}</TableCell>
                   <TableCell>
-                    <Badge className={planColors[user.subscription?.plan || "none"]}>
+                    <Badge className={`${planColors[user.subscription?.plan || "none"]} rounded-lg`}>
                       {user.subscription?.plan?.toUpperCase() || "SEM PLANO"}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={statusColors[user.subscription?.status || "inactive"]}>
+                    <Badge className={`${statusColors[user.subscription?.status || "inactive"]} rounded-lg`}>
                       {user.subscription?.status?.toUpperCase() || "INATIVO"}
                     </Badge>
                   </TableCell>
@@ -172,7 +172,7 @@ export const UserSubscriptionsTable = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => onEditUser(user)}
-                        className="h-8 w-8 p-0"
+                        className="h-8 w-8 p-0 rounded-xl hover:bg-primary/10"
                       >
                         {user.subscription ? (
                           <Edit className="h-4 w-4" />
@@ -185,7 +185,7 @@ export const UserSubscriptionsTable = ({
                           variant="ghost"
                           size="sm"
                           onClick={() => onViewHistory(user.subscription!.id)}
-                          className="h-8 w-8 p-0"
+                          className="h-8 w-8 p-0 rounded-xl hover:bg-primary/10"
                         >
                           <History className="h-4 w-4" />
                         </Button>

@@ -140,7 +140,7 @@ export const EditSubscriptionDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] glass-card">
+      <DialogContent className="sm:max-w-[500px] rounded-2xl">
         <DialogHeader>
           <DialogTitle>
             {user?.subscription ? 'Editar Assinatura' : 'Criar Assinatura'}
@@ -155,7 +155,7 @@ export const EditSubscriptionDialog = ({
             <div className="space-y-2">
               <Label htmlFor="plan">Plano</Label>
               <Select value={plan} onValueChange={handlePlanChange}>
-                <SelectTrigger id="plan" className="bg-background/50">
+                <SelectTrigger id="plan" className="rounded-xl">
                   <SelectValue placeholder="Selecione o plano" />
                 </SelectTrigger>
                 <SelectContent>
@@ -170,7 +170,7 @@ export const EditSubscriptionDialog = ({
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger id="status" className="bg-background/50">
+                <SelectTrigger id="status" className="rounded-xl">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -191,7 +191,7 @@ export const EditSubscriptionDialog = ({
                 type="number"
                 value={maxInstances}
                 onChange={(e) => setMaxInstances(e.target.value)}
-                className="bg-background/50"
+                className="rounded-xl"
               />
             </div>
 
@@ -203,7 +203,7 @@ export const EditSubscriptionDialog = ({
                 placeholder="∞"
                 value={maxMessages}
                 onChange={(e) => setMaxMessages(e.target.value)}
-                className="bg-background/50"
+                className="rounded-xl"
               />
             </div>
 
@@ -215,7 +215,7 @@ export const EditSubscriptionDialog = ({
                 placeholder="∞"
                 value={maxContacts}
                 onChange={(e) => setMaxContacts(e.target.value)}
-                className="bg-background/50"
+                className="rounded-xl"
               />
             </div>
           </div>
@@ -227,7 +227,7 @@ export const EditSubscriptionDialog = ({
               type="date"
               value={periodEnd}
               onChange={(e) => setPeriodEnd(e.target.value)}
-              className="bg-background/50"
+              className="rounded-xl"
             />
           </div>
 
@@ -238,16 +238,20 @@ export const EditSubscriptionDialog = ({
               placeholder="Motivo da alteração..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="bg-background/50"
+              className="rounded-xl"
             />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading}
+            className="rounded-xl bg-gradient-to-r from-primary to-accent hover:shadow-hover"
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {user?.subscription ? 'Salvar' : 'Criar'}
           </Button>
