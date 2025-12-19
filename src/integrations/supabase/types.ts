@@ -534,6 +534,7 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          manual_override: boolean | null
           max_contacts: number | null
           max_instances: number
           max_messages: number | null
@@ -551,6 +552,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          manual_override?: boolean | null
           max_contacts?: number | null
           max_instances?: number
           max_messages?: number | null
@@ -568,6 +570,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          manual_override?: boolean | null
           max_contacts?: number | null
           max_instances?: number
           max_messages?: number | null

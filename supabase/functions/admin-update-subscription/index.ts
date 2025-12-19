@@ -127,11 +127,12 @@ serve(async (req) => {
       if (fetchError) throw fetchError;
       logStep("Current subscription fetched", currentSub);
 
-      // Atualizar assinatura
+      // Atualizar assinatura com manual_override = true
       const { data: updatedSub, error: updateError } = await supabaseClient
         .from('subscriptions')
         .update({
           ...updates,
+          manual_override: true,  // Marcar como alteração manual
           updated_at: new Date().toISOString()
         })
         .eq('id', subscriptionId)
@@ -139,7 +140,7 @@ serve(async (req) => {
         .single();
 
       if (updateError) throw updateError;
-      logStep("Subscription updated", updatedSub);
+      logStep("Subscription updated with manual_override", updatedSub);
 
       // Registrar no histórico
       const { error: historyError } = await supabaseClient
@@ -182,7 +183,7 @@ serve(async (req) => {
         throw new Error("User already has a subscription");
       }
 
-      // Criar nova assinatura
+      // Criar nova assinatura com manual_override = true
       const newSubscription = {
         user_id: userId,
         plan: updates?.plan || 'free',
@@ -191,7 +192,8 @@ serve(async (req) => {
         max_messages: updates?.max_messages || null,
         max_contacts: updates?.max_contacts || null,
         current_period_start: new Date().toISOString(),
-        current_period_end: updates?.current_period_end || null
+        current_period_end: updates?.current_period_end || null,
+        manual_override: true  // Marcar como criação manual
       };
 
       const { data: createdSub, error: createError } = await supabaseClient
@@ -201,7 +203,7 @@ serve(async (req) => {
         .single();
 
       if (createError) throw createError;
-      logStep("Subscription created", createdSub);
+      logStep("Subscription created with manual_override", createdSub);
 
       // Registrar no histórico
       await supabaseClient

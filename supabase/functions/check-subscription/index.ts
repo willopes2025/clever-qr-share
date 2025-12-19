@@ -59,13 +59,55 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    // PRIMEIRO: Verificar se existe assinatura manual válida
+    const { data: existingSub } = await supabaseClient
+      .from("subscriptions")
+      .select("*")
+      .eq("user_id", user.id)
+      .single();
+
+    // Se existe assinatura manual ativa, usar ela e NÃO sobrescrever com Stripe
+    if (existingSub?.manual_override && existingSub?.status === 'active') {
+      const periodEnd = existingSub.current_period_end 
+        ? new Date(existingSub.current_period_end) 
+        : null;
+      
+      // Verificar se não expirou
+      if (!periodEnd || periodEnd > new Date()) {
+        logStep("Using manual subscription override", { 
+          plan: existingSub.plan, 
+          periodEnd: existingSub.current_period_end 
+        });
+        
+        return new Response(JSON.stringify({
+          subscribed: true,
+          plan: existingSub.plan,
+          max_instances: existingSub.max_instances,
+          max_contacts: existingSub.max_contacts,
+          max_messages: existingSub.max_messages,
+          subscription_end: existingSub.current_period_end,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      } else {
+        // Assinatura manual expirou, remover flag e continuar com verificação Stripe
+        logStep("Manual subscription expired, removing override flag");
+        await supabaseClient
+          .from("subscriptions")
+          .update({ manual_override: false, status: 'expired' })
+          .eq("user_id", user.id);
+      }
+    }
+
+    // Continuar com verificação do Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
 
     if (customers.data.length === 0) {
       logStep("No customer found, returning free plan");
       
-      // Update local subscription record with free plan
+      // Update local subscription record with free plan (sem manual_override)
       await supabaseClient
         .from("subscriptions")
         .upsert({
@@ -75,6 +117,7 @@ serve(async (req) => {
           max_instances: FREE_PLAN.maxInstances,
           max_contacts: FREE_PLAN.maxContacts,
           max_messages: FREE_PLAN.maxMessages,
+          manual_override: false,
         }, { onConflict: "user_id" });
 
       return new Response(JSON.stringify({ 
@@ -122,7 +165,7 @@ serve(async (req) => {
       logStep("No active Stripe subscription, using free plan");
     }
 
-    // Update local subscription record
+    // Update local subscription record (sem manual_override para sincronização do Stripe)
     await supabaseClient
       .from("subscriptions")
       .upsert({
@@ -136,6 +179,7 @@ serve(async (req) => {
         max_contacts: planInfo.maxContacts,
         max_messages: planInfo.maxMessages,
         current_period_end: subscriptionEnd,
+        manual_override: false,
       }, { onConflict: "user_id" });
 
     logStep("Subscription record updated in database");
