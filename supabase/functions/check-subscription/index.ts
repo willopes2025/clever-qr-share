@@ -12,11 +12,22 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+// Plan type
+type PlanInfo = { plan: string; maxInstances: number | null; maxContacts: number | null; maxMessages: number | null };
+
 // Mapping from Stripe product IDs to plan names
-const PRODUCT_TO_PLAN: Record<string, { plan: string; maxInstances: number | null; maxContacts: number | null }> = {
-  "prod_Td6oCDIlCW9tXp": { plan: "starter", maxInstances: 1, maxContacts: null },
-  "prod_Td6oDKN8AXJsXf": { plan: "pro", maxInstances: 10, maxContacts: null },
-  "prod_Td6otV5Ef9IHSt": { plan: "business", maxInstances: null, maxContacts: null },
+const PRODUCT_TO_PLAN: Record<string, PlanInfo> = {
+  "prod_Td6oCDIlCW9tXp": { plan: "starter", maxInstances: 1, maxContacts: null, maxMessages: null },
+  "prod_Td6oDKN8AXJsXf": { plan: "pro", maxInstances: 10, maxContacts: null, maxMessages: null },
+  "prod_Td6otV5Ef9IHSt": { plan: "business", maxInstances: null, maxContacts: null, maxMessages: null },
+};
+
+// Free plan configuration
+const FREE_PLAN: PlanInfo = { 
+  plan: "free", 
+  maxInstances: 1, 
+  maxContacts: null, 
+  maxMessages: 300 
 };
 
 serve(async (req) => {
@@ -52,24 +63,27 @@ serve(async (req) => {
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
 
     if (customers.data.length === 0) {
-      logStep("No customer found, returning unsubscribed state");
+      logStep("No customer found, returning free plan");
       
-      // Update local subscription record
+      // Update local subscription record with free plan
       await supabaseClient
         .from("subscriptions")
         .upsert({
           user_id: user.id,
-          status: "inactive",
-          plan: "free",
-          max_instances: 0,
-          max_contacts: 0,
+          status: "active",
+          plan: FREE_PLAN.plan,
+          max_instances: FREE_PLAN.maxInstances,
+          max_contacts: FREE_PLAN.maxContacts,
+          max_messages: FREE_PLAN.maxMessages,
         }, { onConflict: "user_id" });
 
       return new Response(JSON.stringify({ 
-        subscribed: false,
-        plan: "free",
-        max_instances: 0,
-        max_contacts: 0,
+        subscribed: true,
+        plan: FREE_PLAN.plan,
+        max_instances: FREE_PLAN.maxInstances,
+        max_contacts: FREE_PLAN.maxContacts,
+        max_messages: FREE_PLAN.maxMessages,
+        subscription_end: null,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -86,7 +100,7 @@ serve(async (req) => {
     });
 
     const hasActiveSub = subscriptions.data.length > 0;
-    let planInfo: { plan: string; maxInstances: number | null; maxContacts: number | null } = { plan: "free", maxInstances: 0, maxContacts: 0 };
+    let planInfo: PlanInfo = FREE_PLAN;
     let subscriptionEnd = null;
     let stripeSubscriptionId = null;
     let stripePriceId = null;
@@ -105,7 +119,7 @@ serve(async (req) => {
         plan: planInfo.plan 
       });
     } else {
-      logStep("No active subscription found");
+      logStep("No active Stripe subscription, using free plan");
     }
 
     // Update local subscription record
@@ -116,20 +130,22 @@ serve(async (req) => {
         stripe_customer_id: customerId,
         stripe_subscription_id: stripeSubscriptionId,
         stripe_price_id: stripePriceId,
-        status: hasActiveSub ? "active" : "inactive",
+        status: "active",
         plan: planInfo.plan,
         max_instances: planInfo.maxInstances,
         max_contacts: planInfo.maxContacts,
+        max_messages: planInfo.maxMessages,
         current_period_end: subscriptionEnd,
       }, { onConflict: "user_id" });
 
     logStep("Subscription record updated in database");
 
     return new Response(JSON.stringify({
-      subscribed: hasActiveSub,
+      subscribed: true,
       plan: planInfo.plan,
       max_instances: planInfo.maxInstances,
       max_contacts: planInfo.maxContacts,
+      max_messages: planInfo.maxMessages,
       subscription_end: subscriptionEnd,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

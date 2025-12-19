@@ -8,17 +8,34 @@ export interface SubscriptionInfo {
   plan: string;
   max_instances: number | null;
   max_contacts: number | null;
+  max_messages: number | null;
   subscription_end: string | null;
 }
 
 // Plan configuration with Stripe IDs
 export const PLANS = {
+  free: {
+    name: 'Grátis',
+    price: 0,
+    priceId: null,
+    productId: null,
+    maxInstances: 1,
+    maxMessages: 300,
+    features: [
+      '1 Instância WhatsApp',
+      '300 mensagens/mês',
+      'Contatos ilimitados',
+      'Templates básicos',
+      'Campanhas simples',
+    ],
+  },
   starter: {
     name: 'Starter',
     price: 67,
     priceId: 'price_1SfqabIuIJFtamjKBREt4KzH',
     productId: 'prod_Td6oCDIlCW9tXp',
     maxInstances: 1,
+    maxMessages: null,
     features: [
       '1 Instância WhatsApp',
       'Contatos ilimitados',
@@ -34,6 +51,7 @@ export const PLANS = {
     priceId: 'price_1SfqaoIuIJFtamjKUw2Z0zdd',
     productId: 'prod_Td6oDKN8AXJsXf',
     maxInstances: 10,
+    maxMessages: null,
     features: [
       'Até 10 Instâncias WhatsApp',
       'Contatos ilimitados',
@@ -49,7 +67,8 @@ export const PLANS = {
     price: 297,
     priceId: 'price_1SfqazIuIJFtamjKBQLRF2AL',
     productId: 'prod_Td6otV5Ef9IHSt',
-    maxInstances: null, // unlimited
+    maxInstances: null,
+    maxMessages: null,
     features: [
       'Instâncias ilimitadas',
       'Contatos ilimitados',
