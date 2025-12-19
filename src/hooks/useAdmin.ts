@@ -3,12 +3,17 @@ import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useAdmin = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkAdmin = async () => {
+      // Wait for auth to finish loading
+      if (authLoading) {
+        return;
+      }
+
       if (!user) {
         setIsAdmin(false);
         setLoading(false);
@@ -16,7 +21,6 @@ export const useAdmin = () => {
       }
 
       try {
-        // Use the security definer function to check admin role
         const { data, error } = await supabase
           .rpc('has_role', {
             _user_id: user.id,
@@ -38,7 +42,7 @@ export const useAdmin = () => {
     };
 
     checkAdmin();
-  }, [user]);
+  }, [user, authLoading]);
 
   return { isAdmin, loading };
 };
