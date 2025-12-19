@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Rajdhani', 'sans-serif'],
-        display: ['Orbitron', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
+        display: ['Inter', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -61,39 +61,28 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        neon: {
-          cyan: "hsl(var(--neon-cyan))",
-          magenta: "hsl(var(--neon-magenta))",
-          green: "hsl(var(--neon-green))",
-          purple: "hsl(var(--neon-purple))",
-          yellow: "hsl(var(--neon-yellow))",
+        whatsapp: {
+          tealDark: "hsl(var(--whatsapp-teal-dark))",
+          tealMedium: "hsl(var(--whatsapp-teal-medium))",
+          lightGreen: "hsl(var(--whatsapp-light-green))",
+          chatBubble: "hsl(var(--whatsapp-chat-bubble))",
+          checkBlue: "hsl(var(--whatsapp-check-blue))",
+          chatBg: "hsl(var(--whatsapp-chat-bg))",
         },
-        dark: {
-          DEFAULT: "hsl(var(--dark))",
-          lighter: "hsl(var(--dark-lighter))",
-          card: "hsl(var(--dark-card))",
-        },
-      },
-      backgroundImage: {
-        'gradient-primary': 'var(--gradient-primary)',
-        'gradient-neon': 'var(--gradient-neon)',
-        'gradient-dark': 'var(--gradient-dark)',
-        'gradient-glass': 'var(--gradient-glass)',
-        'gradient-cyber': 'var(--gradient-cyber)',
+        info: "hsl(var(--info))",
       },
       boxShadow: {
         'soft': 'var(--shadow-soft)',
         'medium': 'var(--shadow-medium)',
-        'large': 'var(--shadow-large)',
-        'neon': 'var(--shadow-neon)',
-        'glow-cyan': 'var(--glow-cyan)',
-        'glow-magenta': 'var(--glow-magenta)',
-        'glow-green': 'var(--glow-green)',
+        'elevated': 'var(--shadow-elevated)',
+        'hover': 'var(--shadow-hover)',
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        card: "var(--radius-card)",
+        button: "var(--radius-button)",
       },
       keyframes: {
         "accordion-down": {
@@ -104,30 +93,20 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 5px hsl(180 100% 50% / 0.5)" },
-          "50%": { boxShadow: "0 0 20px hsl(180 100% 50% / 0.8), 0 0 30px hsl(180 100% 50% / 0.4)" },
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
         },
-        "neon-flow": {
-          "0%": { backgroundPosition: "0% 50%" },
-          "100%": { backgroundPosition: "300% 50%" },
-        },
-        "float": {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-10px)" },
-        },
-        "glow-pulse": {
-          "0%, 100%": { opacity: "0.5" },
-          "50%": { opacity: "1" },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(20px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
-        "neon-flow": "neon-flow 3s linear infinite",
-        "float": "float 3s ease-in-out infinite",
-        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "fade-in": "fade-in 0.3s ease-out",
+        "slide-up": "slide-up 0.4s ease-out",
       },
     },
   },

@@ -78,16 +78,12 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background animated-gradient cyber-grid relative">
-      {/* Ambient glow effects */}
-      <div className="fixed top-20 right-1/4 w-64 h-64 bg-neon-cyan/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="fixed bottom-20 left-1/3 w-64 h-64 bg-neon-magenta/5 rounded-full blur-3xl pointer-events-none" />
-      
+    <div className="min-h-screen bg-background">
       <DashboardSidebar />
       
-      <main className="ml-64 p-8 relative z-10">
+      <main className="ml-64 p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold mb-2 text-foreground">
+          <h1 className="text-3xl font-bold mb-2 text-foreground">
             Dashboard
           </h1>
           <p className="text-muted-foreground">
