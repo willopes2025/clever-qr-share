@@ -413,6 +413,84 @@ export type Database = {
         }
         Relationships: []
       }
+      scraped_leads: {
+        Row: {
+          address: string | null
+          capital_social: number | null
+          cep: string | null
+          city: string | null
+          cnae_code: string | null
+          cnae_description: string | null
+          cnpj: string
+          created_at: string | null
+          data_abertura: string | null
+          email: string | null
+          id: string
+          imported_at: string | null
+          neighborhood: string | null
+          nome_fantasia: string | null
+          phone: string | null
+          porte: string | null
+          raw_data: Json | null
+          razao_social: string | null
+          situacao_cadastral: string | null
+          source: string | null
+          state: string | null
+          user_id: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          capital_social?: number | null
+          cep?: string | null
+          city?: string | null
+          cnae_code?: string | null
+          cnae_description?: string | null
+          cnpj: string
+          created_at?: string | null
+          data_abertura?: string | null
+          email?: string | null
+          id?: string
+          imported_at?: string | null
+          neighborhood?: string | null
+          nome_fantasia?: string | null
+          phone?: string | null
+          porte?: string | null
+          raw_data?: Json | null
+          razao_social?: string | null
+          situacao_cadastral?: string | null
+          source?: string | null
+          state?: string | null
+          user_id: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          capital_social?: number | null
+          cep?: string | null
+          city?: string | null
+          cnae_code?: string | null
+          cnae_description?: string | null
+          cnpj?: string
+          created_at?: string | null
+          data_abertura?: string | null
+          email?: string | null
+          id?: string
+          imported_at?: string | null
+          neighborhood?: string | null
+          nome_fantasia?: string | null
+          phone?: string | null
+          porte?: string | null
+          raw_data?: Json | null
+          razao_social?: string | null
+          situacao_cadastral?: string | null
+          source?: string | null
+          state?: string | null
+          user_id?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           cancel_at_period_end: boolean | null
