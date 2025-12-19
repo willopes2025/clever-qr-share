@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 import { Zap, Loader2, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
-import { ParticlesBackground } from '@/components/landing/ParticlesBackground';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -26,7 +25,6 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
 
-  // Set active tab based on URL param
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'signup') {
@@ -34,7 +32,6 @@ const Login = () => {
     }
   }, [searchParams]);
 
-  // Redirecionar se já estiver logado
   if (user) {
     navigate('/instances');
     return null;
@@ -93,35 +90,24 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background animated-gradient p-4 relative overflow-hidden">
-      {/* Particles Background */}
-      <ParticlesBackground />
-      
-      {/* Cyber Grid */}
-      <div className="fixed inset-0 cyber-grid pointer-events-none z-[1]" />
-      
-      {/* Ambient glow effects */}
-      <div className="fixed top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none z-[2]" />
-      <div className="fixed bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-[100px] pointer-events-none z-[2]" />
-      
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
       {/* Back to home button */}
       <Link 
         to="/" 
         className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors z-20"
       >
         <ArrowLeft className="h-4 w-4" />
-        <span className="font-body">Voltar</span>
+        <span>Voltar</span>
       </Link>
       
-      <Card className="w-full max-w-md glass-card shadow-neon neon-border relative z-10">
+      <Card className="w-full max-w-md stacked-card shadow-elevated relative z-10">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="relative h-16 w-16 rounded-2xl bg-gradient-neon flex items-center justify-center shadow-glow-cyan">
-              <Zap className="h-8 w-8 text-background" />
-              <div className="absolute inset-0 rounded-2xl bg-gradient-neon opacity-50 blur-sm" />
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-medium">
+              <Zap className="h-8 w-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-display font-bold text-primary text-glow-cyan">
+          <CardTitle className="text-2xl font-bold text-primary">
             WIDEZAP
           </CardTitle>
           <CardDescription className="text-muted-foreground">
@@ -130,11 +116,11 @@ const Login = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 bg-secondary/50">
-              <TabsTrigger value="login" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted rounded-xl p-1">
+              <TabsTrigger value="login" className="rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-soft">
                 Sign In
               </TabsTrigger>
-              <TabsTrigger value="register" className="font-display data-[state=active]:bg-primary/20 data-[state=active]:text-primary">
+              <TabsTrigger value="register" className="rounded-lg data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-soft">
                 Sign Up
               </TabsTrigger>
             </TabsList>
@@ -150,7 +136,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
+                    className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -162,12 +148,12 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
+                    className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
                   />
                 </div>
                 <Button 
                   type="submit" 
-                  className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300 relative z-50" 
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:shadow-medium text-white font-semibold transition-all duration-300 rounded-xl relative z-50" 
                   disabled={loading}
                 >
                   {loading ? (
@@ -193,7 +179,7 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
+                    className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -205,12 +191,12 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-secondary/50 border-border focus:border-primary focus:ring-primary relative z-50"
+                    className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
                   />
                 </div>
                 <Button 
                   type="submit" 
-                  className="w-full bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300 relative z-50" 
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:shadow-medium text-white font-semibold transition-all duration-300 rounded-xl relative z-50" 
                   disabled={loading}
                 >
                   {loading ? (

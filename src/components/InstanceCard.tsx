@@ -24,7 +24,7 @@ export const InstanceCard = ({
   onWarmingChange 
 }: InstanceCardProps) => {
   const statusConfig = {
-    connected: { color: "bg-whatsapp", text: "Conectado", icon: Check },
+    connected: { color: "bg-accent", text: "Conectado", icon: Check },
     disconnected: { color: "bg-destructive", text: "Desconectado", icon: Power },
     connecting: { color: "bg-muted-foreground", text: "Conectando...", icon: Power },
   };
@@ -51,16 +51,19 @@ export const InstanceCard = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="p-6 shadow-medium hover:shadow-large transition-all">
+      <Card className="p-6 depth-card hover:shadow-hover transition-all">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
-            <h3 className="font-semibold text-lg mb-2">{name}</h3>
+            <h3 className="font-semibold text-lg mb-2 text-foreground">{name}</h3>
             <div className="flex items-center gap-2">
               <div className={`h-2 w-2 rounded-full ${config.color} animate-pulse`} />
               <span className="text-sm text-muted-foreground">{config.text}</span>
             </div>
           </div>
-          <Badge variant={status === "connected" ? "default" : "secondary"} className="gap-1">
+          <Badge 
+            variant={status === "connected" ? "default" : "secondary"} 
+            className={`gap-1 ${status === "connected" ? "bg-accent text-white" : ""}`}
+          >
             <StatusIcon className="h-3 w-3" />
             {config.text}
           </Badge>
@@ -68,7 +71,7 @@ export const InstanceCard = ({
 
         {/* Warming Level Section */}
         <TooltipProvider>
-          <div className="mb-4 p-3 rounded-lg bg-muted/50 border">
+          <div className="mb-4 p-3 rounded-xl bg-muted/30">
             <div className="flex items-center justify-between mb-2">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -92,7 +95,7 @@ export const InstanceCard = ({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-7 w-7 relative z-50"
+                className="h-7 w-7 relative z-50 rounded-lg"
                 onClick={handleDecrease}
                 disabled={warmingLevel <= 1}
               >
@@ -115,7 +118,7 @@ export const InstanceCard = ({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-7 w-7 relative z-50"
+                className="h-7 w-7 relative z-50 rounded-lg"
                 onClick={handleIncrease}
                 disabled={warmingLevel >= 5}
               >
@@ -135,7 +138,7 @@ export const InstanceCard = ({
             size="sm"
             onClick={onQRCode}
             disabled={status === "connected"}
-            className="flex-1 relative z-50"
+            className="flex-1 relative z-50 rounded-xl"
           >
             <QrCode className="h-4 w-4 mr-2" />
             {status === "connected" ? "Conectado" : "Ver QR Code"}
@@ -144,7 +147,7 @@ export const InstanceCard = ({
             variant="destructive"
             size="sm"
             onClick={onDelete}
-            className="relative z-50"
+            className="relative z-50 rounded-xl"
           >
             <Trash2 className="h-4 w-4" />
           </Button>

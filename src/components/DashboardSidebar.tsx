@@ -35,14 +35,13 @@ export const DashboardSidebar = () => {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col glass-card">
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col shadow-elevated">
       {/* Logo */}
-      <div className="h-16 flex items-center gap-3 px-6 border-b border-sidebar-border">
-        <div className="relative h-10 w-10 rounded-lg bg-gradient-neon flex items-center justify-center shadow-glow-cyan">
-          <Zap className="h-6 w-6 text-background" />
-          <div className="absolute inset-0 rounded-lg bg-gradient-neon opacity-50 blur-sm" />
+      <div className="h-16 flex items-center gap-3 px-6 border-b border-sidebar-border/30">
+        <div className="h-10 w-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
+          <Zap className="h-6 w-6 text-sidebar" />
         </div>
-        <span className="text-xl font-display font-bold tracking-wider text-primary text-glow-cyan">
+        <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
           WIDEZAP
         </span>
       </div>
@@ -55,10 +54,10 @@ export const DashboardSidebar = () => {
             to={item.path}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300",
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-primary/20 text-primary shadow-glow-cyan neon-border"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-primary hover:shadow-soft"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               )
             }
           >
@@ -67,16 +66,16 @@ export const DashboardSidebar = () => {
           </NavLink>
         ))}
         
-        {/* Admin Link - só visível para admins */}
+        {/* Admin Link */}
         {isAdmin && (
           <NavLink
             to="/admin"
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300",
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-yellow-500/20 text-yellow-400 shadow-glow-cyan neon-border"
-                  : "text-yellow-400/70 hover:bg-yellow-500/10 hover:text-yellow-400 hover:shadow-soft"
+                  ? "bg-amber-500/20 text-amber-300"
+                  : "text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-300"
               )
             }
           >
@@ -87,11 +86,11 @@ export const DashboardSidebar = () => {
       </nav>
 
       {/* Bottom section */}
-      <div className="p-4 border-t border-sidebar-border space-y-3">
+      <div className="p-4 border-t border-sidebar-border/30 space-y-3">
         <NavLink to="/subscription" className="block">
-          <div className="bg-gradient-cyber rounded-lg p-4 neon-border hover:shadow-glow-cyan transition-all cursor-pointer">
-            <p className="text-xs text-muted-foreground mb-1">Plano Ativo</p>
-            <p className="text-sm font-display font-bold text-primary text-glow-cyan">
+          <div className="bg-sidebar-accent/50 rounded-xl p-4 hover:bg-sidebar-accent transition-colors cursor-pointer">
+            <p className="text-xs text-sidebar-foreground/60 mb-1">Plano Ativo</p>
+            <p className="text-sm font-semibold text-sidebar-primary">
               {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
             </p>
           </div>
@@ -100,7 +99,7 @@ export const DashboardSidebar = () => {
         <Button 
           variant="ghost" 
           onClick={handleLogout}
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10 rounded-xl"
         >
           <LogOut className="h-5 w-5" />
           Sair do Sistema

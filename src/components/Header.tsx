@@ -8,14 +8,13 @@ export const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/60 backdrop-blur-xl border-b border-border/50">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b border-border/30 shadow-soft">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="relative h-10 w-10 rounded-lg bg-gradient-neon flex items-center justify-center shadow-glow-cyan group-hover:shadow-glow-magenta transition-all duration-300">
-            <Zap className="h-6 w-6 text-background" />
-            <div className="absolute inset-0 rounded-lg bg-gradient-neon opacity-50 blur-sm group-hover:opacity-75 transition-opacity" />
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-soft">
+            <Zap className="h-6 w-6 text-white" />
           </div>
-          <span className="text-xl font-display font-bold tracking-wider text-glow-cyan">
+          <span className="text-xl font-bold text-primary">
             WIDEZAP
           </span>
         </Link>
@@ -32,12 +31,11 @@ export const Header = () => {
           </a>
         </nav>
 
-        {/* Desktop Auth Buttons */}
         <div className="hidden md:flex items-center gap-3">
           <Button 
             variant="ghost" 
             asChild 
-            className="text-foreground hover:text-primary hover:bg-primary/10 gap-2"
+            className="text-foreground hover:text-primary hover:bg-primary/10 gap-2 rounded-xl"
           >
             <Link to="/login">
               <LogIn className="h-4 w-4" />
@@ -46,7 +44,7 @@ export const Header = () => {
           </Button>
           <Button 
             asChild 
-            className="bg-gradient-neon hover:shadow-glow-cyan text-background font-semibold transition-all duration-300 gap-2"
+            className="bg-gradient-to-r from-primary to-accent hover:shadow-medium text-white font-semibold transition-all duration-300 gap-2 rounded-xl"
           >
             <Link to="/login?tab=signup">
               <UserPlus className="h-4 w-4" />
@@ -55,14 +53,13 @@ export const Header = () => {
           </Button>
         </div>
 
-        {/* Mobile Menu */}
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon" className="text-foreground">
+            <Button variant="ghost" size="icon" className="text-foreground rounded-xl">
               <Menu className="h-6 w-6" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[300px] bg-background/95 backdrop-blur-xl border-border/50">
+          <SheetContent side="right" className="w-[300px] bg-card border-border/30">
             <div className="flex flex-col gap-6 mt-8">
               <Link 
                 to="/" 
@@ -91,7 +88,7 @@ export const Header = () => {
               <Button 
                 variant="outline" 
                 asChild 
-                className="w-full justify-center gap-2 border-primary/50 text-primary"
+                className="w-full justify-center gap-2 border-primary/30 text-primary rounded-xl"
                 onClick={() => setIsOpen(false)}
               >
                 <Link to="/login">
@@ -101,7 +98,7 @@ export const Header = () => {
               </Button>
               <Button 
                 asChild 
-                className="w-full justify-center gap-2 bg-gradient-neon text-background font-semibold"
+                className="w-full justify-center gap-2 bg-gradient-to-r from-primary to-accent text-white font-semibold rounded-xl"
                 onClick={() => setIsOpen(false)}
               >
                 <Link to="/login?tab=signup">
