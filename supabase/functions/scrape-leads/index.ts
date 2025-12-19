@@ -79,24 +79,24 @@ serve(async (req) => {
       });
     }
 
-    // Build search URL for CNPJ.ws
+    // Build search URL for CNPJ.ws - using pesquisa endpoint with correct filters
     const searchParams = new URLSearchParams();
-    searchParams.set('uf', estado_id);
+    searchParams.set('estado_id', estado_id);
     if (cidade_id) {
-      searchParams.set('municipio', cidade_id);
+      searchParams.set('cidade_id', cidade_id);
     }
-    searchParams.set('atividade_principal', cnae_id);
+    searchParams.set('atividade_principal_id', cnae_id);
     if (apenas_ativos) {
       searchParams.set('situacao_cadastral', 'ATIVA');
     }
-    searchParams.set('limit', String(Math.min(limite, 100)));
+    searchParams.set('limite', String(Math.min(limite, 100)));
 
     console.log('Calling CNPJ.ws API with params:', searchParams.toString());
 
-    // Call CNPJ.ws search API
-    const searchResponse = await fetch(`https://comercial.cnpj.ws/cnpj?${searchParams.toString()}`, {
+    // Call CNPJ.ws search API - use x_api_token header as per documentation
+    const searchResponse = await fetch(`https://comercial.cnpj.ws/pesquisa?${searchParams.toString()}`, {
       headers: {
-        'Authorization': `Bearer ${cnpjwsApiKey}`,
+        'x_api_token': cnpjwsApiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -113,8 +113,46 @@ serve(async (req) => {
       });
     }
 
-    const companies: CNPJWSCompany[] = await searchResponse.json();
-    console.log(`Found ${companies.length} companies from CNPJ.ws`);
+    const searchResult = await searchResponse.json();
+    const cnpjList: string[] = searchResult.data || [];
+    console.log(`Found ${cnpjList.length} CNPJs from search`);
+
+    if (cnpjList.length === 0) {
+      return new Response(JSON.stringify({ 
+        success: true,
+        leads: [],
+        count: 0 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Fetch details for each CNPJ (limit to avoid rate limiting)
+    const companies: CNPJWSCompany[] = [];
+    const cnpjsToFetch = cnpjList.slice(0, Math.min(limite, 50));
+    
+    for (const cnpj of cnpjsToFetch) {
+      try {
+        const detailResponse = await fetch(`https://comercial.cnpj.ws/cnpj/${cnpj}`, {
+          headers: {
+            'x_api_token': cnpjwsApiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (detailResponse.ok) {
+          const company = await detailResponse.json();
+          companies.push(company);
+        }
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (e) {
+        console.error(`Error fetching CNPJ ${cnpj}:`, e);
+      }
+    }
+    
+    console.log(`Fetched details for ${companies.length} companies`);
 
     // Transform and save leads
     const leads = companies.map(company => ({
