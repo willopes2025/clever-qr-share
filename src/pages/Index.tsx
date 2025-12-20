@@ -134,7 +134,7 @@ const Index = () => {
               <img 
                 src={wideLogo} 
                 alt="Widezap" 
-                className="h-20 md:h-28 lg:h-36 w-auto mx-auto" 
+                className="h-40 md:h-56 lg:h-72 w-auto mx-auto" 
               />
             </motion.div>
             
