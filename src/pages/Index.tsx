@@ -125,14 +125,18 @@ const Index = () => {
               </span>
             </motion.div>
             
-            <motion.h1
+            <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 leading-tight text-primary"
+              className="mb-6"
             >
-              WIDEZAP
-            </motion.h1>
+              <img 
+                src={wideLogo} 
+                alt="Widezap" 
+                className="h-20 md:h-28 lg:h-36 w-auto mx-auto" 
+              />
+            </motion.div>
             
             <motion.p
               initial={{ opacity: 0, y: 30 }}
