@@ -20,10 +20,10 @@ export const ApiSettings = () => {
       // Simulate API test - in production this would call the Evolution API
       await new Promise(resolve => setTimeout(resolve, 1500));
       setApiStatus('connected');
-      toast.success("Conexão com a Evolution API estabelecida!");
+      toast.success("Conexão com a API estabelecida!");
     } catch (error) {
       setApiStatus('error');
-      toast.error("Falha ao conectar com a Evolution API");
+      toast.error("Falha ao conectar com a API");
     } finally {
       setTesting(false);
     }
@@ -35,7 +35,7 @@ export const ApiSettings = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Server className="h-5 w-5" />
-            Evolution API
+            API de Mensagens
           </CardTitle>
           <CardDescription>
             Status da conexão com a API de envio de mensagens
