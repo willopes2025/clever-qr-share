@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Zap, LogIn, UserPlus, Menu } from "lucide-react";
+import { LogIn, UserPlus, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import wideLogo from "@/assets/wide-logo.png";
 
 export const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,13 +11,8 @@ export const Header = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-xl border-b border-border/30 shadow-soft">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-soft">
-            <Zap className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-xl font-bold text-primary">
-            WIDEZAP
-          </span>
+        <Link to="/" className="flex items-center group">
+          <img src={wideLogo} alt="Widezap" className="h-10 w-auto" />
         </Link>
         
         <nav className="hidden md:flex items-center gap-8">

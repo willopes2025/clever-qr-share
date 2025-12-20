@@ -3,9 +3,10 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Check, Zap, Shield, Smartphone, BarChart, Users, Sparkles, MessageSquare, Send, Target, ArrowRight, LogIn, UserPlus, Crown, Rocket } from "lucide-react";
+import { Check, Zap, Shield, Smartphone, BarChart, Users, Sparkles, ArrowRight, LogIn, UserPlus, Crown, Rocket } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import wideLogo from "@/assets/wide-logo.png";
 
 const features = [
   {
@@ -148,7 +149,7 @@ const Index = () => {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-3xl mx-auto"
             >
-              Plataforma completa para escalar seu marketing conversacional com QR Code ilimitado, Evolution API integrada e IA avançada.
+              Plataforma completa para escalar seu marketing conversacional com QR Code ilimitado e IA avançada.
             </motion.p>
             
             {/* CTA Buttons */}
@@ -375,13 +376,8 @@ const Index = () => {
       <footer className="py-12 px-4 border-t border-border">
         <div className="container mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <Zap className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-primary">
-                WIDEZAP
-              </span>
+            <div className="flex items-center">
+              <img src={wideLogo} alt="Widezap" className="h-10 w-auto" />
             </div>
             
             <nav className="flex items-center gap-8">

@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Zap, Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
+import wideLogo from "@/assets/wide-logo.png";
 
 const authSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -103,13 +104,8 @@ const Login = () => {
       <Card className="w-full max-w-md stacked-card shadow-elevated relative z-10">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-medium">
-              <Zap className="h-8 w-8 text-white" />
-            </div>
+            <img src={wideLogo} alt="Widezap" className="h-16 w-auto" />
           </div>
-          <CardTitle className="text-2xl font-bold text-primary">
-            WIDEZAP
-          </CardTitle>
           <CardDescription className="text-muted-foreground">
             Plataforma de disparos WhatsApp com QR Code ilimitado
           </CardDescription>

@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Zap, LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
+import wideLogo from "@/assets/wide-logo.png";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -37,13 +38,8 @@ export const DashboardSidebar = () => {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col shadow-elevated">
       {/* Logo */}
-      <div className="h-16 flex items-center gap-3 px-6 border-b border-sidebar-border/30">
-        <div className="h-10 w-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-          <Zap className="h-6 w-6 text-sidebar" />
-        </div>
-        <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
-          WIDEZAP
-        </span>
+      <div className="h-16 flex items-center px-6 border-b border-sidebar-border/30">
+        <img src={wideLogo} alt="Widezap" className="h-10 w-auto" />
       </div>
 
       {/* Navigation */}
