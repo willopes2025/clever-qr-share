@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { NotificationProvider } from "@/components/NotificationProvider";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -18,6 +19,7 @@ import Admin from "./pages/Admin";
 import Inbox from "./pages/Inbox";
 import Warming from "./pages/Warming";
 import NotFound from "./pages/NotFound";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -31,57 +33,79 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <Dashboard />
+              <NotificationProvider>
+                <Dashboard />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/instances" element={
             <ProtectedRoute>
-              <Instances />
+              <NotificationProvider>
+                <Instances />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/inbox" element={
             <ProtectedRoute>
-              <Inbox />
+              <NotificationProvider>
+                <Inbox />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/campaigns" element={
             <ProtectedRoute>
-              <Campaigns />
+              <NotificationProvider>
+                <Campaigns />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/contacts" element={
             <ProtectedRoute>
-              <Contacts />
+              <NotificationProvider>
+                <Contacts />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/broadcast-lists" element={
             <ProtectedRoute>
-              <BroadcastLists />
+              <NotificationProvider>
+                <BroadcastLists />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/templates" element={
             <ProtectedRoute>
-              <Templates />
+              <NotificationProvider>
+                <Templates />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
             <ProtectedRoute>
-              <Settings />
+              <NotificationProvider>
+                <Settings />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/subscription" element={
             <ProtectedRoute>
-              <Subscription />
+              <NotificationProvider>
+                <Subscription />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/admin" element={
             <ProtectedRoute>
-              <Admin />
+              <NotificationProvider>
+                <Admin />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/warming" element={
             <ProtectedRoute>
-              <Warming />
+              <NotificationProvider>
+                <Warming />
+              </NotificationProvider>
             </ProtectedRoute>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
