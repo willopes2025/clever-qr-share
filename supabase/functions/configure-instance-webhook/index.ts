@@ -38,6 +38,7 @@ serve(async (req) => {
     console.log('Webhook URL:', webhookUrl);
 
     const webhookConfig = {
+      enabled: true,
       url: webhookUrl,
       byEvents: false,
       base64: false,

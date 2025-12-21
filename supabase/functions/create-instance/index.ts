@@ -58,6 +58,7 @@ serve(async (req) => {
           token: crypto.randomUUID(),
           qrcode: true,
           webhook: {
+            enabled: true,
             url: webhookUrl,
             byEvents: false,
             base64: false,
