@@ -20,6 +20,7 @@ import {
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import wideLogo from "@/assets/wide-logo.png";
+import heroMockup from "@/assets/hero-mockup.png";
 import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { FAQSection } from "@/components/landing/FAQSection";
@@ -199,11 +200,25 @@ const Index = () => {
               </Button>
             </motion.div>
 
+            {/* Phone Mockups */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              className="mb-16"
+            >
+              <img 
+                src={heroMockup} 
+                alt="WhatsApp Marketing Dashboard - Interface de automação" 
+                className="w-full max-w-4xl mx-auto rounded-2xl shadow-hover"
+              />
+            </motion.div>
+
             {/* Stats */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
               className="grid grid-cols-2 md:grid-cols-4 gap-6"
             >
               {stats.map((stat, index) => (
