@@ -1,10 +1,53 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper functions for media handling
+function getExtension(messageType: string, mimeType?: string): string {
+  // Try to get extension from mimeType first
+  if (mimeType) {
+    const parts = mimeType.split('/');
+    if (parts.length === 2) {
+      const subtype = parts[1].split(';')[0].trim();
+      if (subtype === 'jpeg') return 'jpg';
+      if (subtype === 'png') return 'png';
+      if (subtype === 'webp') return 'webp';
+      if (subtype === 'gif') return 'gif';
+      if (subtype === 'mp4') return 'mp4';
+      if (subtype === 'ogg') return 'ogg';
+      if (subtype === 'mpeg') return 'mp3';
+      if (subtype === 'pdf') return 'pdf';
+    }
+  }
+  
+  // Fallback based on messageType
+  switch (messageType) {
+    case 'image': return 'jpg';
+    case 'audio': 
+    case 'voice': return 'ogg';
+    case 'video': return 'mp4';
+    case 'document': return 'pdf';
+    case 'sticker': return 'webp';
+    default: return 'bin';
+  }
+}
+
+function getMimeType(messageType: string): string {
+  switch (messageType) {
+    case 'image': return 'image/jpeg';
+    case 'audio': return 'audio/ogg';
+    case 'voice': return 'audio/ogg';
+    case 'video': return 'video/mp4';
+    case 'document': return 'application/pdf';
+    case 'sticker': return 'image/webp';
+    default: return 'application/octet-stream';
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,6 +57,8 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 
     // Use service role to bypass RLS
     // deno-lint-ignore no-explicit-any
@@ -63,7 +108,7 @@ serve(async (req) => {
     
     if (eventLower === 'messages.upsert' || eventLower === 'messages_upsert') {
       console.log('>>> Handling MESSAGES.UPSERT event');
-      await handleMessagesUpsert(supabase, userId, instanceId, data);
+      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey);
     } else if (eventLower === 'messages.update' || eventLower === 'messages_update') {
       console.log('>>> Handling MESSAGES.UPDATE event');
       await handleMessagesUpdate(supabase, data);
@@ -72,7 +117,7 @@ serve(async (req) => {
       await handleConnectionUpdate(supabase, instanceId, data);
     } else if (eventLower === 'send.message' || eventLower === 'send_message') {
       console.log('>>> Handling SEND.MESSAGE event');
-      await handleMessagesUpsert(supabase, userId, instanceId, data);
+      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey);
     } else {
       console.log(`Unhandled event type: ${event} (normalized: ${eventLower})`);
     }
@@ -91,7 +136,7 @@ serve(async (req) => {
 });
 
 // deno-lint-ignore no-explicit-any
-async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any) {
+async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any, instanceName: string, evolutionApiUrl: string, evolutionApiKey: string) {
   console.log('handleMessagesUpsert called with data:', JSON.stringify(data, null, 2));
   
   const messages = data.messages || data.message ? [data] : [];
@@ -230,6 +275,78 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.log('Message structure:', JSON.stringify(message));
       continue;
     }
+
+    // If there's media, download from Evolution API and upload to Supabase Storage
+    let persistedMediaUrl: string | null = null;
+    if (mediaUrl && messageType !== 'text') {
+      try {
+        console.log('Downloading media from Evolution API...');
+        
+        // Call Evolution API to get base64 of the media
+        const base64Response = await fetch(
+          `${evolutionApiUrl}/chat/getBase64FromMediaMessage/${instanceName}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey,
+            },
+            body: JSON.stringify({
+              message: { key },
+              convertToMp4: messageType === 'audio' || messageType === 'voice',
+            }),
+          }
+        );
+
+        if (base64Response.ok) {
+          const base64Data = await base64Response.json();
+          console.log('Base64 response received, has base64:', !!base64Data.base64);
+          
+          if (base64Data.base64) {
+            // Determine file extension and mime type
+            const mimeType = base64Data.mimetype || getMimeType(messageType);
+            const ext = getExtension(messageType, mimeType);
+            const fileName = `${Date.now()}-${key.id}.${ext}`;
+            const filePath = `${userId}/${fileName}`;
+            
+            console.log(`Uploading to storage: ${filePath}, mimeType: ${mimeType}`);
+            
+            // Decode base64 to binary
+            const binaryData = base64Decode(base64Data.base64);
+            
+            // Upload to Supabase Storage
+            const { data: uploadData, error: uploadError } = await supabase
+              .storage
+              .from('inbox-media')
+              .upload(filePath, binaryData, {
+                contentType: mimeType,
+                upsert: true,
+              });
+
+            if (uploadError) {
+              console.error('Error uploading to storage:', uploadError);
+            } else {
+              // Get public URL
+              const { data: publicUrlData } = supabase
+                .storage
+                .from('inbox-media')
+                .getPublicUrl(filePath);
+              
+              persistedMediaUrl = publicUrlData.publicUrl;
+              console.log('Media saved to storage:', persistedMediaUrl);
+            }
+          }
+        } else {
+          console.error('Error fetching base64 from Evolution API:', base64Response.status, await base64Response.text());
+        }
+      } catch (error) {
+        console.error('Error downloading/uploading media:', error);
+        // Keep original URL as fallback
+      }
+    }
+
+    // Use persisted URL if available, otherwise fallback to original
+    const finalMediaUrl = persistedMediaUrl || mediaUrl;
 
     const isFromMe = key.fromMe === true;
     const contactName = pushName || phone;
@@ -385,11 +502,11 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       .insert({
         user_id: userId,
         conversation_id: conversation.id,
-        content: content || (mediaUrl ? preview : ''),
+        content: content || (finalMediaUrl ? preview : ''),
         direction: isFromMe ? 'outbound' : 'inbound',
         status: isFromMe ? 'sent' : 'received',
         message_type: messageType,
-        media_url: mediaUrl,
+        media_url: finalMediaUrl,
         whatsapp_message_id: key.id,
         sent_at: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
       });
