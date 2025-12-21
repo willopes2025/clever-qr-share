@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -11,6 +11,7 @@ import wideLogo from "@/assets/wide-logo.png";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: QrCode, label: "Instâncias", path: "/instances" },
+  { icon: MessageSquare, label: "Inbox", path: "/inbox" },
   { icon: Users, label: "Contatos", path: "/contacts" },
   { icon: List, label: "Listas", path: "/broadcast-lists" },
   { icon: FileText, label: "Templates", path: "/templates" },
