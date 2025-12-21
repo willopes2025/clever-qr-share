@@ -18,6 +18,9 @@ import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
+import { VoiceRecorder } from "./VoiceRecorder";
+import { MediaUploadButton } from "./MediaUploadButton";
+import { AIAssistantButton } from "./AIAssistantButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -30,7 +33,7 @@ interface OptimisticMessage extends InboxMessage {
 }
 
 export const MessageView = ({ conversation }: MessageViewProps) => {
-  const { messages, isLoading, sendMessage, refetch } = useMessages(conversation.id);
+  const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -41,6 +44,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -130,12 +134,11 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     };
   }, [conversation.id, refetch]);
 
-  // Simulate typing indicator for demo (could be connected to real typing events)
+  // Simulate typing indicator for demo
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     
     if (isSending) {
-      // Show typing after message is sent (simulating recipient typing response)
       timeout = setTimeout(() => {
         setIsTyping(true);
         setTimeout(() => setIsTyping(false), 3000);
@@ -172,7 +175,6 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     setNewMessage("");
     setIsSending(true);
     
-    // Scroll to bottom to show new message
     setTimeout(() => scrollToBottom("smooth"), 50);
 
     try {
@@ -184,13 +186,57 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
       toast.success("Mensagem enviada!", { duration: 2000 });
     } catch (error) {
       toast.error("Erro ao enviar mensagem");
-      // Remove optimistic message on error
       setOptimisticMessages(prev => 
         prev.filter(m => m.id !== optimisticMessage.id)
       );
-      setNewMessage(messageContent); // Restore message
+      setNewMessage(messageContent);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio') => {
+    if (!selectedInstanceId) {
+      toast.error("Selecione uma instância primeiro");
+      return;
+    }
+
+    // Add optimistic message
+    const optimisticMessage: OptimisticMessage = {
+      id: `optimistic-${Date.now()}`,
+      conversation_id: conversation.id,
+      content: mediaType === 'image' ? '[Imagem]' : mediaType === 'audio' ? '[Áudio]' : '[Documento]',
+      direction: 'outbound',
+      status: 'sending',
+      message_type: mediaType,
+      media_url: mediaUrl,
+      created_at: new Date().toISOString(),
+      sent_at: null,
+      delivered_at: null,
+      read_at: null,
+      whatsapp_message_id: null,
+      user_id: '',
+      isOptimistic: true,
+    };
+    
+    setOptimisticMessages(prev => [...prev, optimisticMessage]);
+    setIsRecordingAudio(false);
+    
+    setTimeout(() => scrollToBottom("smooth"), 50);
+
+    try {
+      await sendMediaMessage.mutateAsync({
+        conversationId: conversation.id,
+        instanceId: selectedInstanceId,
+        mediaUrl,
+        mediaType,
+      });
+      toast.success("Mídia enviada!", { duration: 2000 });
+    } catch (error) {
+      toast.error("Erro ao enviar mídia");
+      setOptimisticMessages(prev => 
+        prev.filter(m => m.id !== optimisticMessage.id)
+      );
     }
   };
 
@@ -203,6 +249,11 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
+    inputRef.current?.focus();
+  };
+
+  const handleAISuggestion = (text: string) => {
+    setNewMessage(text);
     inputRef.current?.focus();
   };
 
@@ -347,6 +398,11 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
       {/* Input */}
       <div className="p-4 border-t border-border bg-card">
         <div className="flex gap-2 max-w-3xl mx-auto items-center">
+          <MediaUploadButton 
+            onUpload={(url, type) => handleSendMedia(url, type)} 
+            disabled={isSending || !selectedInstanceId}
+          />
+          
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           
           <Input
@@ -357,6 +413,17 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             onKeyPress={handleKeyPress}
             className="flex-1 bg-muted/50"
             disabled={isSending}
+          />
+
+          <AIAssistantButton
+            conversationId={conversation.id}
+            onSuggestion={handleAISuggestion}
+            disabled={isSending}
+          />
+
+          <VoiceRecorder
+            onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
+            disabled={isSending || !selectedInstanceId}
           />
           
           <Button 

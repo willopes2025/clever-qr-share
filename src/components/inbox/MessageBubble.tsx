@@ -3,6 +3,7 @@ import { Check, CheckCheck, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InboxMessage } from "@/hooks/useConversations";
 import { motion } from "framer-motion";
+import { MediaMessage } from "./MediaMessage";
 
 interface MessageBubbleProps {
   message: InboxMessage;
@@ -11,6 +12,8 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => {
   const isOutbound = message.direction === "outbound";
+  const hasMedia = message.media_url && message.message_type !== 'text';
+  const hasText = message.content && message.content.trim() !== '';
 
   const getStatusIcon = () => {
     if (!isOutbound) return null;
@@ -50,9 +53,26 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
           isOptimistic && "opacity-70"
         )}
       >
-        <p className="text-sm whitespace-pre-wrap break-words">
-          {message.content}
-        </p>
+        {/* Media content */}
+        {hasMedia && (
+          <div className={cn("mb-2", !hasText && "mb-0")}>
+            <MediaMessage 
+              mediaUrl={message.media_url!} 
+              messageType={message.message_type}
+              messageId={message.id}
+              transcription={message.transcription}
+            />
+          </div>
+        )}
+
+        {/* Text content */}
+        {hasText && (
+          <p className="text-sm whitespace-pre-wrap break-words">
+            {message.content}
+          </p>
+        )}
+
+        {/* Timestamp and status */}
         <div
           className={cn(
             "flex items-center gap-1 mt-1",
