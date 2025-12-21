@@ -15,6 +15,7 @@ import Templates from "./pages/Templates";
 import Settings from "./pages/Settings";
 import Subscription from "./pages/Subscription";
 import Admin from "./pages/Admin";
+import Inbox from "./pages/Inbox";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -35,6 +36,11 @@ const App = () => (
           <Route path="/instances" element={
             <ProtectedRoute>
               <Instances />
+            </ProtectedRoute>
+          } />
+          <Route path="/inbox" element={
+            <ProtectedRoute>
+              <Inbox />
             </ProtectedRoute>
           } />
           <Route path="/campaigns" element={
