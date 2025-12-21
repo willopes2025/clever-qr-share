@@ -897,6 +897,224 @@ export type Database = {
         }
         Relationships: []
       }
+      warming_activities: {
+        Row: {
+          activity_type: string
+          contact_phone: string | null
+          content_preview: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          instance_id: string
+          schedule_id: string
+          success: boolean
+        }
+        Insert: {
+          activity_type: string
+          contact_phone?: string | null
+          content_preview?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instance_id: string
+          schedule_id: string
+          success?: boolean
+        }
+        Update: {
+          activity_type?: string
+          contact_phone?: string | null
+          content_preview?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instance_id?: string
+          schedule_id?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warming_activities_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warming_activities_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "warming_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warming_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string | null
+          phone: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          phone: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          phone?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      warming_content: {
+        Row: {
+          category: string
+          content: string | null
+          content_type: string
+          created_at: string
+          id: string
+          is_active: boolean
+          media_url: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          content?: string | null
+          content_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          media_url?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string
+          content?: string | null
+          content_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          media_url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      warming_pairs: {
+        Row: {
+          created_at: string
+          id: string
+          instance_a_id: string
+          instance_b_id: string
+          is_active: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_a_id: string
+          instance_b_id: string
+          is_active?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_a_id?: string
+          instance_b_id?: string
+          is_active?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warming_pairs_instance_a_id_fkey"
+            columns: ["instance_a_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warming_pairs_instance_b_id_fkey"
+            columns: ["instance_b_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warming_schedules: {
+        Row: {
+          created_at: string
+          current_day: number
+          id: string
+          instance_id: string
+          last_activity_at: string | null
+          messages_received_today: number
+          messages_sent_today: number
+          messages_target_today: number
+          start_date: string | null
+          status: string
+          target_days: number
+          total_messages_received: number
+          total_messages_sent: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_day?: number
+          id?: string
+          instance_id: string
+          last_activity_at?: string | null
+          messages_received_today?: number
+          messages_sent_today?: number
+          messages_target_today?: number
+          start_date?: string | null
+          status?: string
+          target_days?: number
+          total_messages_received?: number
+          total_messages_sent?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_day?: number
+          id?: string
+          instance_id?: string
+          last_activity_at?: string | null
+          messages_received_today?: number
+          messages_sent_today?: number
+          messages_target_today?: number
+          start_date?: string | null
+          status?: string
+          target_days?: number
+          total_messages_received?: number
+          total_messages_sent?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warming_schedules_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_instances: {
         Row: {
           created_at: string | null
