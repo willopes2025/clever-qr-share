@@ -20,7 +20,6 @@ import {
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import wideLogo from "@/assets/wide-logo.png";
-import heroPhones from "@/assets/hero-phones.jpg";
 import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { FAQSection } from "@/components/landing/FAQSection";
@@ -129,29 +128,12 @@ const Index = () => {
       {/* Hero Section */}
       <section className="relative pt-32 pb-24 px-4 overflow-hidden">
         <div className="container mx-auto relative">
-          {/* Phone Mockup - Floating Left Side */}
-          <motion.div
-            initial={{ opacity: 0, x: -100, rotate: -15 }}
-            animate={{ opacity: 1, x: 0, rotate: -6 }}
-            transition={{ duration: 1, delay: 0.3, type: "spring", stiffness: 100 }}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/4 z-10 hidden lg:block pointer-events-none"
-          >
-            <img 
-              src={heroPhones} 
-              alt="WhatsApp Interface Preview" 
-              className="h-[550px] w-auto drop-shadow-[0_35px_60px_rgba(0,0,0,0.4)] hover:rotate-0 transition-transform duration-700"
-              style={{
-                filter: 'drop-shadow(0 30px 50px rgba(37, 211, 102, 0.2))'
-              }}
-            />
-          </motion.div>
-
-          <div className="max-w-5xl mx-auto lg:ml-auto lg:mr-0 lg:max-w-3xl text-center lg:text-right">
+          <div className="max-w-5xl mx-auto text-center">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="mb-6 lg:flex lg:justify-end"
+              className="mb-6"
             >
               <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent/10 text-accent font-medium">
                 <Sparkles className="h-4 w-4" />
@@ -165,7 +147,7 @@ const Index = () => {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="mb-6"
             >
-              <img src={wideLogo} alt="Widezap" className="h-47 md:h-60 lg:h-76 w-auto mx-auto lg:ml-auto lg:mr-0" />
+              <img src={wideLogo} alt="Widezap" className="h-47 md:h-60 lg:h-76 w-auto mx-auto" />
             </motion.div>
 
             <motion.p
@@ -181,7 +163,7 @@ const Index = () => {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-3xl lg:ml-auto"
+              className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-3xl mx-auto"
             >
               Plataforma completa para escalar seu marketing conversacional com QR Code ilimitado e IA avançada.
             </motion.p>
@@ -191,7 +173,7 @@ const Index = () => {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-end mb-16"
+              className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
             >
               <Button
                 size="lg"
@@ -217,25 +199,11 @@ const Index = () => {
               </Button>
             </motion.div>
 
-            {/* Mobile Phone - Only visible on smaller screens */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.5 }}
-              className="mb-16 lg:hidden"
-            >
-              <img 
-                src={heroPhones} 
-                alt="WhatsApp Marketing Dashboard - Interface de automação" 
-                className="w-full max-w-sm mx-auto drop-shadow-[0_25px_40px_rgba(0,0,0,0.3)]"
-              />
-            </motion.div>
-
             {/* Stats */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
               className="grid grid-cols-2 md:grid-cols-4 gap-6"
             >
               {stats.map((stat, index) => (
