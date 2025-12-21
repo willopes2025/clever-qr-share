@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Send, Phone, MoreVertical, Smartphone, Loader2 } from "lucide-react";
+import { Send, Smartphone, Loader2, Edit2, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,6 +23,7 @@ import { MediaUploadButton } from "./MediaUploadButton";
 import { AIAssistantButton } from "./AIAssistantButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface MessageViewProps {
   conversation: Conversation;
@@ -35,6 +36,7 @@ interface OptimisticMessage extends InboxMessage {
 export const MessageView = ({ conversation }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
+  const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
@@ -45,10 +47,13 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [newMessagesCount, setNewMessagesCount] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const isScrolledToBottom = useRef(true);
 
   // Get connected instances only
@@ -257,6 +262,30 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     inputRef.current?.focus();
   };
 
+  const startEditingName = () => {
+    setEditedName(conversation.contact?.name || "");
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveName = async () => {
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({ name: editedName.trim() || null })
+        .eq('id', conversation.contact_id);
+      
+      if (error) throw error;
+      
+      setIsEditingName(false);
+      toast.success("Nome atualizado");
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (error) {
+      toast.error("Erro ao atualizar nome");
+    }
+  };
+
   const selectedInstance = connectedInstances.find(i => i.id === selectedInstanceId);
   const allMessages = [...(messages || []), ...optimisticMessages];
 
@@ -273,9 +302,36 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
           </motion.div>
           <div>
-            <h3 className="font-semibold text-foreground">
-              {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
-            </h3>
+            {isEditingName ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  ref={nameInputRef}
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  className="h-7 w-40 text-sm font-semibold"
+                  placeholder="Nome do contato"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Escape') setIsEditingName(false);
+                  }}
+                />
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveName}>
+                  <Check className="h-4 w-4 text-primary" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <h3 className="font-semibold text-foreground">
+                  {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
+                </h3>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={startEditingName}>
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <AnimatePresence mode="wait">
               {isTyping ? (
                 <motion.p
@@ -322,12 +378,6 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
               )}
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
-            <Phone className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
-            <MoreVertical className="h-5 w-5" />
-          </Button>
         </div>
       </div>
 
