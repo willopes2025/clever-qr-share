@@ -47,11 +47,15 @@ function getRandomItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Check if current hour is within allowed warming hours (8h-22h)
+// Check if current hour is within allowed warming hours (8h-22h Brazil time)
 function isWithinWarmingHours(): boolean {
   const now = new Date();
-  const hour = now.getHours();
-  return hour >= 8 && hour < 22;
+  // Adjust to Brazil time (UTC-3)
+  const brazilOffset = -3;
+  const brazilHour = (now.getUTCHours() + brazilOffset + 24) % 24;
+  const brazilMinutes = now.getUTCMinutes();
+  console.log(`[WARMING] Current UTC: ${now.getUTCHours()}:${brazilMinutes}, Brazil time: ${brazilHour}:${brazilMinutes}`);
+  return brazilHour >= 8 && brazilHour < 22;
 }
 
 // Calculate warming level based on progress
@@ -79,12 +83,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Check if within allowed hours
-    if (!isWithinWarmingHours()) {
-      console.log('Outside warming hours (8h-22h), skipping...');
+    const withinHours = isWithinWarmingHours();
+    if (!withinHours) {
+      console.log('[WARMING] Outside warming hours (8h-22h Brazil time), skipping...');
       return new Response(JSON.stringify({ message: 'Outside warming hours' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    console.log('[WARMING] Within allowed hours, proceeding...');
 
     // Get all active warming schedules
     const { data: schedules, error: schedulesError } = await supabase
@@ -100,13 +106,14 @@ serve(async (req) => {
     }
 
     if (!schedules || schedules.length === 0) {
-      console.log('No active warming schedules found');
+      console.log('[WARMING] No active warming schedules found');
       return new Response(JSON.stringify({ message: 'No active schedules' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`Processing ${schedules.length} active warming schedules`);
+    console.log(`[WARMING] Processing ${schedules.length} active warming schedules`);
+    console.log(`[WARMING] Schedule IDs: ${schedules.map(s => s.id).join(', ')}`);
 
     const results = [];
 
@@ -177,8 +184,10 @@ serve(async (req) => {
           }
         }
 
+        console.log(`[WARMING] Found ${targets.length} targets for schedule ${schedule.id}: ${targets.map(t => t.phone).join(', ')}`);
+
         if (targets.length === 0) {
-          console.log(`No targets available for schedule ${schedule.id}`);
+          console.log(`[WARMING] No targets available for schedule ${schedule.id}`);
           continue;
         }
 
@@ -191,8 +200,10 @@ serve(async (req) => {
           .eq('is_active', true)
           .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`);
 
+        console.log(`[WARMING] Found ${contents?.length || 0} contents of type ${contentType}`);
+
         if (!contents || contents.length === 0) {
-          console.log(`No content available for type ${contentType}`);
+          console.log(`[WARMING] No content available for type ${contentType}`);
           continue;
         }
 
@@ -200,7 +211,7 @@ serve(async (req) => {
         const target = getRandomItem(targets);
 
         // Send message via Evolution API
-        console.log(`Sending ${contentType} to ${target.phone} from instance ${schedule.instance?.instance_name}`);
+        console.log(`[WARMING] Sending ${contentType} to ${target.phone} from instance ${schedule.instance?.instance_name}`);
 
         let sendSuccess = false;
         let errorMessage = '';
