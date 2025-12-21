@@ -377,12 +377,73 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_tag_assignments: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_tag_assignments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           contact_id: string
           created_at: string
           id: string
           instance_id: string | null
+          is_pinned: boolean | null
           last_message_at: string | null
           last_message_preview: string | null
           status: string
@@ -395,6 +456,7 @@ export type Database = {
           created_at?: string
           id?: string
           instance_id?: string | null
+          is_pinned?: boolean | null
           last_message_at?: string | null
           last_message_preview?: string | null
           status?: string
@@ -407,6 +469,7 @@ export type Database = {
           created_at?: string
           id?: string
           instance_id?: string | null
+          is_pinned?: boolean | null
           last_message_at?: string | null
           last_message_preview?: string | null
           status?: string
