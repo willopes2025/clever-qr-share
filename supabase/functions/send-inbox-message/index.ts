@@ -59,15 +59,15 @@ serve(async (req) => {
       throw new Error('Instance is not connected');
     }
 
-    // Type-safe access to contact
-    const contactData = conversation.contact;
-    if (!contactData || !Array.isArray(contactData) || contactData.length === 0) {
+    // Type-safe access to contact - cast through unknown first
+    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null } | null;
+    if (!contactData || !contactData.phone) {
+      console.error('Contact data:', JSON.stringify(conversation.contact));
       throw new Error('Contact not found');
     }
-    const contact = contactData[0] as { id: string; phone: string; name: string | null };
     
     // Format phone number
-    let phone = contact.phone.replace(/\D/g, '');
+    let phone = contactData.phone.replace(/\D/g, '');
     if (!phone.startsWith('55')) {
       phone = '55' + phone;
     }
