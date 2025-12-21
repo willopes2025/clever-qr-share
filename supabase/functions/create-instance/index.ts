@@ -39,6 +39,10 @@ serve(async (req) => {
 
     console.log(`Creating instance: ${instanceName} for user: ${user.id}`);
 
+    // Webhook URL for receiving messages
+    const webhookUrl = `${supabaseUrl}/functions/v1/receive-webhook`;
+    console.log('Webhook URL:', webhookUrl);
+
     // Chamar Evolution API para criar instância
     const evolutionResponse = await fetch(
       `${evolutionApiUrl}/instance/create`,
@@ -53,6 +57,17 @@ serve(async (req) => {
           integration: 'WHATSAPP-BAILEYS',
           token: crypto.randomUUID(),
           qrcode: true,
+          webhook: {
+            url: webhookUrl,
+            byEvents: false,
+            base64: false,
+            headers: {},
+            events: [
+              'MESSAGES_UPSERT',
+              'MESSAGES_UPDATE',
+              'CONNECTION_UPDATE',
+            ],
+          },
         }),
       }
     );

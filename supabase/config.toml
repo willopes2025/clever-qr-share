@@ -38,3 +38,9 @@ verify_jwt = true
 
 [functions.admin-update-subscription]
 verify_jwt = true
+
+[functions.send-inbox-message]
+verify_jwt = false
+
+[functions.receive-webhook]
+verify_jwt = false
