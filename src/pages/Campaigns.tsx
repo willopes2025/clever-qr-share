@@ -34,6 +34,13 @@ const Campaigns = () => {
     template_id: string | null;
     list_id: string | null;
     scheduled_at: string | null;
+    message_interval_min: number;
+    message_interval_max: number;
+    daily_limit: number;
+    allowed_start_hour: number;
+    allowed_end_hour: number;
+    allowed_days: string[];
+    timezone: string;
   }) => {
     await createCampaign.mutateAsync(data);
     setIsFormOpen(false);
@@ -44,6 +51,13 @@ const Campaigns = () => {
     template_id: string | null;
     list_id: string | null;
     scheduled_at: string | null;
+    message_interval_min: number;
+    message_interval_max: number;
+    daily_limit: number;
+    allowed_start_hour: number;
+    allowed_end_hour: number;
+    allowed_days: string[];
+    timezone: string;
   }) => {
     if (!editingCampaign) return;
     await updateCampaign.mutateAsync({ id: editingCampaign.id, ...data });
