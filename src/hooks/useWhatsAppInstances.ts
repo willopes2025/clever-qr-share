@@ -138,6 +138,30 @@ export const useWhatsAppInstances = () => {
     },
   });
 
+  // Configurar webhook para instância
+  const configureWebhook = useMutation({
+    mutationFn: async (params: { instanceName?: string; configureAll?: boolean }) => {
+      const { data, error } = await supabase.functions.invoke('configure-instance-webhook', {
+        body: params,
+        headers: requireAuthHeaders(),
+      });
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.results) {
+        const successCount = data.results.filter((r: { success: boolean }) => r.success).length;
+        toast.success(`Webhook configurado em ${successCount} instância(s)!`);
+      } else {
+        toast.success('Webhook configurado com sucesso!');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao configurar webhook: ${error.message}`);
+    },
+  });
+
   return {
     instances,
     isLoading,
@@ -147,5 +171,6 @@ export const useWhatsAppInstances = () => {
     checkStatus,
     deleteInstance,
     updateWarmingLevel,
+    configureWebhook,
   };
 };
