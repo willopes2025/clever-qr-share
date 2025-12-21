@@ -130,49 +130,49 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
-    // Extract phone from the correct JID:
-    // Priority: use remoteJid if it's a real phone number (@s.whatsapp.net or @c.us)
-    // Only use remoteJidAlt as fallback if remoteJid is a Label ID (@lid)
-    let jidToUse = remoteJid;
+    // Extract phone and label_id from JIDs
+    // remoteJid can be either a real phone (@s.whatsapp.net/@c.us) or a Label ID (@lid)
+    // remoteJidAlt usually contains the real phone when remoteJid is a Label ID
+    let phone = '';
+    let labelId: string | null = null;
     
-    // Check if remoteJid is a Label ID - if so, try to use remoteJidAlt
-    if (remoteJid.includes('@lid') && key.remoteJidAlt && !key.remoteJidAlt.includes('@lid')) {
-      jidToUse = key.remoteJidAlt;
-    }
-    // If remoteJid is @lid and remoteJidAlt is also @lid or not available, 
-    // check if there's a phone number in the regular format
-    else if (remoteJid.includes('@lid')) {
-      // Try to extract from remoteJidAlt if available and it's a real phone
+    const extractPhone = (jid: string): string => {
+      return jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+    };
+    
+    const isValidPhone = (p: string): boolean => {
+      return p.length >= 8 && p.length <= 15 && /^\d+$/.test(p);
+    };
+    
+    // Determine if remoteJid is a Label ID
+    if (remoteJid.includes('@lid')) {
+      labelId = extractPhone(remoteJid);
+      console.log('Detected Label ID:', labelId);
+      
+      // Try to get real phone from remoteJidAlt
       if (key.remoteJidAlt && (key.remoteJidAlt.includes('@s.whatsapp.net') || key.remoteJidAlt.includes('@c.us'))) {
-        jidToUse = key.remoteJidAlt;
-      } else {
-        console.warn('Warning: Only Label ID available, no real phone number found');
+        phone = extractPhone(key.remoteJidAlt);
+        console.log('Extracted real phone from remoteJidAlt:', phone);
+      }
+    } else {
+      // remoteJid is a real phone number
+      phone = extractPhone(remoteJid);
+      
+      // Check if remoteJidAlt is a Label ID
+      if (key.remoteJidAlt && key.remoteJidAlt.includes('@lid')) {
+        labelId = extractPhone(key.remoteJidAlt);
+        console.log('Detected Label ID from remoteJidAlt:', labelId);
       }
     }
     
-    console.log('Using JID:', jidToUse, '(remoteJid:', remoteJid, ', remoteJidAlt:', key.remoteJidAlt, ')');
-    
-    let phone = jidToUse
-      .replace('@s.whatsapp.net', '')
-      .replace('@c.us', '')
-      .replace('@lid', '');
-    
-    // Validate that we have a real phone number (not a Label ID)
-    // Label IDs are typically longer than 15 digits
-    if (phone.length > 15 || phone.length < 8) {
-      console.error(`Invalid phone extracted (likely Label ID): ${phone}`);
-      // Try to find the real phone from remoteJid if it wasn't a @lid
-      const altPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
-      if (altPhone.length >= 8 && altPhone.length <= 15) {
-        phone = altPhone;
-        console.log('Using phone from remoteJid instead:', phone);
-      } else {
-        console.error('Could not extract valid phone number, skipping message');
-        continue;
-      }
+    // Validate phone
+    if (!isValidPhone(phone)) {
+      console.error(`Invalid phone extracted: ${phone}, labelId: ${labelId}`);
+      console.error('Could not extract valid phone number, skipping message');
+      continue;
     }
     
-    console.log('Extracted phone:', phone);
+    console.log(`Extracted phone: ${phone}, labelId: ${labelId}`);
 
     // Get message content - support multiple formats
     const content = message?.conversation || 
@@ -190,20 +190,41 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     const isFromMe = key.fromMe === true;
     const contactName = pushName || phone;
     
-    console.log(`Processing: phone=${phone}, fromMe=${isFromMe}, content=${content.substring(0, 50)}...`);
+    console.log(`Processing: phone=${phone}, labelId=${labelId}, fromMe=${isFromMe}, content=${content.substring(0, 50)}...`);
 
-    console.log(`Processing message from ${phone}, fromMe: ${isFromMe}, content: ${content.substring(0, 50)}...`);
-
-    // Find or create contact
+    // Find contact by phone OR by label_id (to prevent duplicates)
     let { data: contact } = await supabase
       .from('contacts')
-      .select('id')
+      .select('id, label_id')
       .eq('user_id', userId)
       .eq('phone', phone)
       .single();
 
+    // If not found by phone, try to find by label_id
+    if (!contact && labelId) {
+      const { data: contactByLabel } = await supabase
+        .from('contacts')
+        .select('id, phone, label_id')
+        .eq('user_id', userId)
+        .eq('label_id', labelId)
+        .single();
+      
+      if (contactByLabel) {
+        console.log(`Found existing contact by label_id: ${contactByLabel.id} (phone: ${contactByLabel.phone})`);
+        // Update the contact's phone if it was a Label ID
+        if (contactByLabel.phone !== phone) {
+          console.log(`Updating contact phone from ${contactByLabel.phone} to ${phone}`);
+          await supabase
+            .from('contacts')
+            .update({ phone: phone })
+            .eq('id', contactByLabel.id);
+        }
+        contact = contactByLabel;
+      }
+    }
+
     if (!contact) {
-      // Create new contact
+      // Create new contact with label_id if available
       const { data: newContact, error: contactError } = await supabase
         .from('contacts')
         .insert({
@@ -211,6 +232,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           phone: phone,
           name: contactName,
           status: 'active',
+          label_id: labelId,
         })
         .select('id')
         .single();
@@ -220,7 +242,14 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         continue;
       }
       contact = newContact;
-      console.log('Created new contact:', contact?.id);
+      console.log('Created new contact:', contact?.id, 'with label_id:', labelId);
+    } else if (labelId && !contact.label_id) {
+      // Update existing contact to add label_id for future matching
+      console.log(`Updating contact ${contact.id} with label_id: ${labelId}`);
+      await supabase
+        .from('contacts')
+        .update({ label_id: labelId })
+        .eq('id', contact.id);
     }
 
     if (!contact) {
