@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.receive-webhook]
 verify_jwt = false
+
+[functions.configure-instance-webhook]
+verify_jwt = false

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle } from "lucide-react";
+import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle, Webhook } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ const Instances = () => {
     checkStatus,
     deleteInstance,
     updateWarmingLevel,
+    configureWebhook,
   } = useWhatsAppInstances();
   
   const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
@@ -165,6 +166,19 @@ const Instances = () => {
           </div>
 
           <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => configureWebhook.mutate({ configureAll: true })} 
+              className="neon-border"
+              disabled={configureWebhook.isPending || !instances?.length}
+            >
+              {configureWebhook.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Webhook className="h-4 w-4 mr-2" />
+              )}
+              Configurar Webhooks
+            </Button>
             <Button variant="outline" onClick={() => refetch()} className="neon-border">
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
