@@ -183,7 +183,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
         conversationId: conversation.id,
         instanceId: selectedInstanceId,
       });
-      toast.success("Mensagem enviada!", { duration: 2000 });
+      // Message sent successfully - no toast needed as user sees it in chat
     } catch (error) {
       toast.error("Erro ao enviar mensagem");
       setOptimisticMessages(prev => 
@@ -231,7 +231,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
         mediaUrl,
         mediaType,
       });
-      toast.success("Mídia enviada!", { duration: 2000 });
+      // Media sent successfully - no toast needed as user sees it in chat
     } catch (error) {
       toast.error("Erro ao enviar mídia");
       setOptimisticMessages(prev => 
