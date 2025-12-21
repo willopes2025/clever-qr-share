@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { format } from "date-fns";
-import { Send, Phone, MoreVertical, Check, CheckCheck, Smartphone } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Send, Phone, MoreVertical, Smartphone, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,9 +14,19 @@ import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { supabase } from "@/integrations/supabase/client";
+import { MessageBubble } from "./MessageBubble";
+import { TypingIndicator } from "./TypingIndicator";
+import { EmojiPicker } from "./EmojiPicker";
+import { ScrollToBottomButton } from "./ScrollToBottomButton";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 interface MessageViewProps {
   conversation: Conversation;
+}
+
+interface OptimisticMessage extends InboxMessage {
+  isOptimistic: true;
 }
 
 export const MessageView = ({ conversation }: MessageViewProps) => {
@@ -28,7 +37,15 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
   );
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
+  
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isScrolledToBottom = useRef(true);
 
   // Get connected instances only
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
@@ -42,12 +59,53 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     }
   }, [conversation.instance_id, connectedInstances, selectedInstanceId]);
 
-  // Scroll to bottom when messages change
+  // Clear optimistic messages when real messages arrive
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    if (messages?.length) {
+      setOptimisticMessages(prev => 
+        prev.filter(opt => 
+          !messages.some(m => m.content === opt.content && m.direction === 'outbound')
+        )
+      );
     }
   }, [messages]);
+
+  // Scroll handling
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (scrollEndRef.current) {
+      scrollEndRef.current.scrollIntoView({ behavior });
+      setNewMessagesCount(0);
+      isScrolledToBottom.current = true;
+    }
+  }, []);
+
+  // Check scroll position
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLDivElement;
+    const isAtBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
+    isScrolledToBottom.current = isAtBottom;
+    setShowScrollButton(!isAtBottom);
+    
+    if (isAtBottom) {
+      setNewMessagesCount(0);
+    }
+  }, []);
+
+  // Scroll to bottom when messages change (if already at bottom)
+  useEffect(() => {
+    if (isScrolledToBottom.current) {
+      scrollToBottom("smooth");
+    } else if (messages?.length) {
+      setNewMessagesCount(prev => prev + 1);
+    }
+  }, [messages, scrollToBottom]);
+
+  // Initial scroll on conversation change
+  useEffect(() => {
+    scrollToBottom("instant");
+    setNewMessagesCount(0);
+    setOptimisticMessages([]);
+  }, [conversation.id, scrollToBottom]);
 
   // Real-time subscription
   useEffect(() => {
@@ -72,17 +130,65 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     };
   }, [conversation.id, refetch]);
 
+  // Simulate typing indicator for demo (could be connected to real typing events)
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    
+    if (isSending) {
+      // Show typing after message is sent (simulating recipient typing response)
+      timeout = setTimeout(() => {
+        setIsTyping(true);
+        setTimeout(() => setIsTyping(false), 3000);
+      }, 1500);
+    }
+    
+    return () => clearTimeout(timeout);
+  }, [isSending]);
+
   const handleSend = async () => {
     if (!newMessage.trim() || isSending || !selectedInstanceId) return;
 
+    const messageContent = newMessage.trim();
+    
+    // Add optimistic message
+    const optimisticMessage: OptimisticMessage = {
+      id: `optimistic-${Date.now()}`,
+      conversation_id: conversation.id,
+      content: messageContent,
+      direction: 'outbound',
+      status: 'sending',
+      message_type: 'text',
+      created_at: new Date().toISOString(),
+      sent_at: null,
+      delivered_at: null,
+      read_at: null,
+      media_url: null,
+      whatsapp_message_id: null,
+      user_id: '',
+      isOptimistic: true,
+    };
+    
+    setOptimisticMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage("");
     setIsSending(true);
+    
+    // Scroll to bottom to show new message
+    setTimeout(() => scrollToBottom("smooth"), 50);
+
     try {
       await sendMessage.mutateAsync({
-        content: newMessage.trim(),
+        content: messageContent,
         conversationId: conversation.id,
         instanceId: selectedInstanceId,
       });
-      setNewMessage("");
+      toast.success("Mensagem enviada!", { duration: 2000 });
+    } catch (error) {
+      toast.error("Erro ao enviar mensagem");
+      // Remove optimistic message on error
+      setOptimisticMessages(prev => 
+        prev.filter(m => m.id !== optimisticMessage.id)
+      );
+      setNewMessage(messageContent); // Restore message
     } finally {
       setIsSending(false);
     }
@@ -95,35 +201,53 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     }
   };
 
-  const getStatusIcon = (message: InboxMessage) => {
-    if (message.direction === 'inbound') return null;
-    
-    if (message.read_at) {
-      return <CheckCheck className="h-4 w-4 text-blue-400" />;
-    }
-    if (message.delivered_at) {
-      return <CheckCheck className="h-4 w-4 text-muted-foreground" />;
-    }
-    return <Check className="h-4 w-4 text-muted-foreground" />;
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+    inputRef.current?.focus();
   };
 
   const selectedInstance = connectedInstances.find(i => i.id === selectedInstanceId);
+  const allMessages = [...(messages || []), ...optimisticMessages];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background">
+    <div className="flex-1 flex flex-col h-full bg-background relative">
       {/* Header */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium">
+          <motion.div 
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium"
+          >
             {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
-          </div>
+          </motion.div>
           <div>
             <h3 className="font-semibold text-foreground">
               {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
             </h3>
-            <p className="text-xs text-muted-foreground">
-              {conversation.contact?.phone}
-            </p>
+            <AnimatePresence mode="wait">
+              {isTyping ? (
+                <motion.p
+                  key="typing"
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="text-xs text-primary font-medium"
+                >
+                  digitando...
+                </motion.p>
+              ) : (
+                <motion.p
+                  key="phone"
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="text-xs text-muted-foreground"
+                >
+                  {conversation.contact?.phone}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -157,8 +281,12 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4 max-w-3xl mx-auto">
+      <ScrollArea 
+        className="flex-1 p-4" 
+        onScrollCapture={handleScroll}
+        ref={scrollAreaRef}
+      >
+        <div className="space-y-3 max-w-3xl mx-auto">
           {isLoading ? (
             <div className="space-y-4">
               {[...Array(5)].map((_, i) => (
@@ -171,62 +299,58 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
                 />
               ))}
             </div>
-          ) : messages?.length === 0 ? (
-            <div className="text-center py-12">
+          ) : allMessages.length === 0 ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-12"
+            >
               <p className="text-muted-foreground">
                 Nenhuma mensagem ainda. Inicie uma conversa!
               </p>
-            </div>
+            </motion.div>
           ) : (
-            messages?.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex",
-                  message.direction === "outbound" ? "justify-end" : "justify-start"
-                )}
-              >
-                <div
-                  className={cn(
-                    "max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm",
-                    message.direction === "outbound"
-                      ? "bg-primary text-primary-foreground rounded-br-md"
-                      : "bg-card border border-border rounded-bl-md"
-                  )}
-                >
-                  <p className="text-sm whitespace-pre-wrap break-words">
-                    {message.content}
-                  </p>
-                  <div
-                    className={cn(
-                      "flex items-center gap-1 mt-1",
-                      message.direction === "outbound" ? "justify-end" : "justify-start"
-                    )}
+            <>
+              {allMessages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  isOptimistic={'isOptimistic' in message}
+                />
+              ))}
+              
+              {/* Typing Indicator */}
+              <AnimatePresence>
+                {isTyping && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
                   >
-                    <span
-                      className={cn(
-                        "text-xs",
-                        message.direction === "outbound"
-                          ? "text-primary-foreground/70"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {message.sent_at && format(new Date(message.sent_at), "HH:mm")}
-                    </span>
-                    {getStatusIcon(message)}
-                  </div>
-                </div>
-              </div>
-            ))
+                    <TypingIndicator />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
           )}
-          <div ref={scrollRef} />
+          <div ref={scrollEndRef} />
         </div>
       </ScrollArea>
 
+      {/* Scroll to bottom button */}
+      <ScrollToBottomButton
+        show={showScrollButton}
+        onClick={() => scrollToBottom("smooth")}
+        newMessagesCount={newMessagesCount}
+      />
+
       {/* Input */}
       <div className="p-4 border-t border-border bg-card">
-        <div className="flex gap-3 max-w-3xl mx-auto">
+        <div className="flex gap-2 max-w-3xl mx-auto items-center">
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          
           <Input
+            ref={inputRef}
             placeholder="Digite sua mensagem..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -234,14 +358,29 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             className="flex-1 bg-muted/50"
             disabled={isSending}
           />
+          
           <Button 
             onClick={handleSend} 
-            disabled={!newMessage.trim() || isSending}
-            className="shrink-0"
+            disabled={!newMessage.trim() || isSending || !selectedInstanceId}
+            className="shrink-0 min-w-[44px]"
           >
-            <Send className="h-5 w-5" />
+            {isSending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
           </Button>
         </div>
+        
+        {!selectedInstanceId && connectedInstances.length > 0 && (
+          <motion.p
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-xs text-amber-500 mt-2 text-center"
+          >
+            Selecione uma instância para enviar mensagens
+          </motion.p>
+        )}
       </div>
     </div>
   );
