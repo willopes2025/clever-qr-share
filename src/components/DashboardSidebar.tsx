@@ -6,13 +6,15 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
+import { useConversations } from "@/hooks/useConversations";
+import { Badge } from "@/components/ui/badge";
 import wideLogo from "@/assets/wide-logo.png";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: QrCode, label: "Instâncias", path: "/instances" },
   { icon: Flame, label: "Aquecimento", path: "/warming" },
-  { icon: MessageSquare, label: "Inbox", path: "/inbox" },
+  { icon: MessageSquare, label: "Inbox", path: "/inbox", showBadge: true },
   { icon: Users, label: "Contatos", path: "/contacts" },
   { icon: List, label: "Listas", path: "/broadcast-lists" },
   { icon: FileText, label: "Templates", path: "/templates" },
@@ -26,6 +28,10 @@ export const DashboardSidebar = () => {
   const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const { currentPlan, isSubscribed } = useSubscription();
+  const { conversations } = useConversations();
+  
+  // Calculate total unread messages
+  const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
   const handleLogout = async () => {
     const { error } = await signOut();
@@ -52,7 +58,7 @@ export const DashboardSidebar = () => {
             to={item.path}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
                 isActive
                   ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
                   : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -60,7 +66,15 @@ export const DashboardSidebar = () => {
             }
           >
             <item.icon className="h-5 w-5" />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.showBadge && totalUnread > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
+              >
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </Badge>
+            )}
           </NavLink>
         ))}
         

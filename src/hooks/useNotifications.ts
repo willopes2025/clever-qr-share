@@ -1,14 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+// Notification sound URL (using a simple notification sound)
+const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 export const useNotifications = () => {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSupported, setIsSupported] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setIsSupported('Notification' in window);
     if ('Notification' in window) {
       setPermission(Notification.permission);
     }
+    
+    // Preload notification sound
+    audioRef.current = new Audio(NOTIFICATION_SOUND_URL);
+    audioRef.current.volume = 0.5;
+    audioRef.current.preload = 'auto';
   }, []);
 
   const requestPermission = useCallback(async () => {
@@ -24,11 +33,27 @@ export const useNotifications = () => {
     }
   }, [isSupported]);
 
+  const playNotificationSound = useCallback(() => {
+    try {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch((error) => {
+          console.log('Could not play notification sound:', error);
+        });
+      }
+    } catch (error) {
+      console.error('Error playing notification sound:', error);
+    }
+  }, []);
+
   const sendNotification = useCallback((title: string, options?: NotificationOptions) => {
-    if (!isSupported || permission !== 'granted') return null;
-    
     // Don't show notification if the page is focused
     if (document.hasFocus()) return null;
+
+    // Play sound regardless of notification permission
+    playNotificationSound();
+    
+    if (!isSupported || permission !== 'granted') return null;
     
     try {
       const notification = new Notification(title, {
@@ -50,7 +75,7 @@ export const useNotifications = () => {
       console.error('Error sending notification:', error);
       return null;
     }
-  }, [isSupported, permission]);
+  }, [isSupported, permission, playNotificationSound]);
 
   const notifyNewMessage = useCallback((contactName: string, messagePreview: string) => {
     return sendNotification(`Nova mensagem de ${contactName}`, {
@@ -65,7 +90,8 @@ export const useNotifications = () => {
     isSupported,
     requestPermission,
     sendNotification,
-    notifyNewMessage
+    notifyNewMessage,
+    playNotificationSound
   };
 };
 
