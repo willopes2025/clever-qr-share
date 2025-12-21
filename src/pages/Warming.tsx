@@ -19,7 +19,7 @@ export default function Warming() {
   const { instances } = useWhatsAppInstances();
   const {
     schedules, contacts, pairs, contents, activities, isLoading,
-    createSchedule, updateScheduleStatus, createContact, deleteContact,
+    createSchedule, updateScheduleStatus, deleteSchedule, createContact, deleteContact,
     createPair, deletePair, createContent, deleteContent, triggerWarming, refetch
   } = useWarming();
 
@@ -110,7 +110,9 @@ export default function Warming() {
                           key={schedule.id}
                           schedule={schedule}
                           onToggleStatus={(id, status) => updateScheduleStatus.mutate({ scheduleId: id, status })}
+                          onDelete={(id) => deleteSchedule.mutate(id)}
                           isToggling={updateScheduleStatus.isPending}
+                          isDeleting={deleteSchedule.isPending}
                         />
                       ))}
                     </div>

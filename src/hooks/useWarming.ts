@@ -346,6 +346,26 @@ export function useWarming() {
     },
   });
 
+  // Delete warming schedule
+  const deleteSchedule = useMutation({
+    mutationFn: async (scheduleId: string) => {
+      const { error } = await supabase
+        .from('warming_schedules')
+        .delete()
+        .eq('id', scheduleId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warming-schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['warming-activities'] });
+      toast({ title: "Aquecimento excluído", description: "O aquecimento foi removido com sucesso." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Trigger warming process manually
   const triggerWarming = useMutation({
     mutationFn: async () => {
@@ -372,6 +392,7 @@ export function useWarming() {
     isLoading: schedulesLoading || contactsLoading || pairsLoading || contentsLoading || activitiesLoading,
     createSchedule,
     updateScheduleStatus,
+    deleteSchedule,
     createContact,
     deleteContact,
     createPair,

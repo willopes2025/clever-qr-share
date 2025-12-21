@@ -2,13 +2,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Play, Pause, CheckCircle2, Flame, MessageSquare, ArrowDownUp } from "lucide-react";
+import { Play, Pause, CheckCircle2, Flame, MessageSquare, ArrowDownUp, Trash2 } from "lucide-react";
 import { WarmingSchedule } from "@/hooks/useWarming";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface WarmingProgressCardProps {
   schedule: WarmingSchedule;
   onToggleStatus: (scheduleId: string, status: 'active' | 'paused') => void;
+  onDelete: (scheduleId: string) => void;
   isToggling?: boolean;
+  isDeleting?: boolean;
 }
 
 const WARMING_LEVELS = [
@@ -19,7 +32,7 @@ const WARMING_LEVELS = [
   { name: 'Muito Quente', color: 'bg-red-700' },
 ];
 
-export function WarmingProgressCard({ schedule, onToggleStatus, isToggling }: WarmingProgressCardProps) {
+export function WarmingProgressCard({ schedule, onToggleStatus, onDelete, isToggling, isDeleting }: WarmingProgressCardProps) {
   const progress = (schedule.current_day / schedule.target_days) * 100;
   const dailyProgress = schedule.messages_target_today > 0 
     ? (schedule.messages_sent_today / schedule.messages_target_today) * 100 
@@ -100,30 +113,63 @@ export function WarmingProgressCard({ schedule, onToggleStatus, isToggling }: Wa
         </div>
 
         {/* Actions */}
-        {schedule.status !== 'completed' && (
-          <div className="flex gap-2">
-            {schedule.status === 'active' ? (
+        <div className="flex gap-2">
+          {schedule.status !== 'completed' && (
+            <>
+              {schedule.status === 'active' ? (
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => onToggleStatus(schedule.id, 'paused')}
+                  disabled={isToggling}
+                >
+                  <Pause className="h-4 w-4 mr-2" />
+                  Pausar
+                </Button>
+              ) : (
+                <Button 
+                  className="flex-1"
+                  onClick={() => onToggleStatus(schedule.id, 'active')}
+                  disabled={isToggling}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Retomar
+                </Button>
+              )}
+            </>
+          )}
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
               <Button 
                 variant="outline" 
-                className="flex-1"
-                onClick={() => onToggleStatus(schedule.id, 'paused')}
-                disabled={isToggling}
+                size="icon"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                disabled={isDeleting}
               >
-                <Pause className="h-4 w-4 mr-2" />
-                Pausar
+                <Trash2 className="h-4 w-4" />
               </Button>
-            ) : (
-              <Button 
-                className="flex-1"
-                onClick={() => onToggleStatus(schedule.id, 'active')}
-                disabled={isToggling}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Retomar
-              </Button>
-            )}
-          </div>
-        )}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir aquecimento?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja excluir o aquecimento de "{schedule.instance?.instance_name}"? 
+                  Todo o progresso será perdido e esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={() => onDelete(schedule.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
 
         {/* Last Activity */}
         {schedule.last_activity_at && (
