@@ -335,6 +335,7 @@ export type Database = {
           custom_fields: Json | null
           email: string | null
           id: string
+          label_id: string | null
           last_message_at: string | null
           name: string | null
           notes: string | null
@@ -350,6 +351,7 @@ export type Database = {
           custom_fields?: Json | null
           email?: string | null
           id?: string
+          label_id?: string | null
           last_message_at?: string | null
           name?: string | null
           notes?: string | null
@@ -365,6 +367,7 @@ export type Database = {
           custom_fields?: Json | null
           email?: string | null
           id?: string
+          label_id?: string | null
           last_message_at?: string | null
           name?: string | null
           notes?: string | null
