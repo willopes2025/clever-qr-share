@@ -35,6 +35,7 @@ export interface InboxMessage {
   delivered_at: string | null;
   read_at: string | null;
   created_at: string;
+  transcription?: string | null;
 }
 
 export const useConversations = () => {
@@ -149,10 +150,69 @@ export const useMessages = (conversationId: string | null) => {
     },
   });
 
+  const sendMediaMessage = useMutation({
+    mutationFn: async ({ 
+      conversationId, 
+      instanceId, 
+      mediaUrl, 
+      mediaType, 
+      caption 
+    }: { 
+      conversationId: string; 
+      instanceId: string; 
+      mediaUrl: string; 
+      mediaType: 'image' | 'document' | 'audio' | 'video';
+      caption?: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('send-inbox-media', {
+        body: {
+          conversationId,
+          instanceId,
+          mediaUrl,
+          mediaType,
+          caption,
+        },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to send media');
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao enviar mídia: " + error.message);
+    },
+  });
+
+  const transcribeAudio = useMutation({
+    mutationFn: async ({ messageId, audioUrl }: { messageId: string; audioUrl: string }) => {
+      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+        body: { messageId, audioUrl },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to transcribe audio');
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao transcrever áudio: " + error.message);
+    },
+  });
+
   return {
     messages,
     isLoading,
     refetch,
     sendMessage,
+    sendMediaMessage,
+    transcribeAudio,
   };
 };

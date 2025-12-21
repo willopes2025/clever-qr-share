@@ -510,6 +510,7 @@ export type Database = {
           read_at: string | null
           sent_at: string | null
           status: string
+          transcription: string | null
           user_id: string
           whatsapp_message_id: string | null
         }
@@ -525,6 +526,7 @@ export type Database = {
           read_at?: string | null
           sent_at?: string | null
           status?: string
+          transcription?: string | null
           user_id: string
           whatsapp_message_id?: string | null
         }
@@ -540,6 +542,7 @@ export type Database = {
           read_at?: string | null
           sent_at?: string | null
           status?: string
+          transcription?: string | null
           user_id?: string
           whatsapp_message_id?: string | null
         }
