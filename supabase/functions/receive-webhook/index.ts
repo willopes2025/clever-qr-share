@@ -131,15 +131,46 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     }
 
     // Extract phone from the correct JID:
-    // - remoteJidAlt contains the real phone number (e.g., 552720181290@s.whatsapp.net)
-    // - remoteJid might be a Label ID (e.g., 59992757506124@lid) in WhatsApp Business
-    const jidToUse = key.remoteJidAlt || remoteJid;
-    console.log('Using JID:', jidToUse, '(remoteJidAlt:', key.remoteJidAlt, ', remoteJid:', remoteJid, ')');
+    // Priority: use remoteJid if it's a real phone number (@s.whatsapp.net or @c.us)
+    // Only use remoteJidAlt as fallback if remoteJid is a Label ID (@lid)
+    let jidToUse = remoteJid;
+    
+    // Check if remoteJid is a Label ID - if so, try to use remoteJidAlt
+    if (remoteJid.includes('@lid') && key.remoteJidAlt && !key.remoteJidAlt.includes('@lid')) {
+      jidToUse = key.remoteJidAlt;
+    }
+    // If remoteJid is @lid and remoteJidAlt is also @lid or not available, 
+    // check if there's a phone number in the regular format
+    else if (remoteJid.includes('@lid')) {
+      // Try to extract from remoteJidAlt if available and it's a real phone
+      if (key.remoteJidAlt && (key.remoteJidAlt.includes('@s.whatsapp.net') || key.remoteJidAlt.includes('@c.us'))) {
+        jidToUse = key.remoteJidAlt;
+      } else {
+        console.warn('Warning: Only Label ID available, no real phone number found');
+      }
+    }
+    
+    console.log('Using JID:', jidToUse, '(remoteJid:', remoteJid, ', remoteJidAlt:', key.remoteJidAlt, ')');
     
     let phone = jidToUse
       .replace('@s.whatsapp.net', '')
       .replace('@c.us', '')
       .replace('@lid', '');
+    
+    // Validate that we have a real phone number (not a Label ID)
+    // Label IDs are typically longer than 15 digits
+    if (phone.length > 15 || phone.length < 8) {
+      console.error(`Invalid phone extracted (likely Label ID): ${phone}`);
+      // Try to find the real phone from remoteJid if it wasn't a @lid
+      const altPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+      if (altPhone.length >= 8 && altPhone.length <= 15) {
+        phone = altPhone;
+        console.log('Using phone from remoteJid instead:', phone);
+      } else {
+        console.error('Could not extract valid phone number, skipping message');
+        continue;
+      }
+    }
     
     console.log('Extracted phone:', phone);
 
