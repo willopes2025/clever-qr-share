@@ -174,15 +174,59 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     
     console.log(`Extracted phone: ${phone}, labelId: ${labelId}`);
 
-    // Get message content - support multiple formats
-    const content = message?.conversation || 
-                   message?.extendedTextMessage?.text || 
-                   message?.imageMessage?.caption ||
-                   message?.videoMessage?.caption ||
-                   '';
-    
-    if (!content) {
-      console.log('No text content found in message, skipping');
+    // Detect message type and extract content/media
+    let messageType = 'text';
+    let mediaUrl: string | null = null;
+    let content = '';
+
+    // Text message
+    if (message?.conversation) {
+      content = message.conversation;
+    } else if (message?.extendedTextMessage?.text) {
+      content = message.extendedTextMessage.text;
+    }
+
+    // Image message
+    if (message?.imageMessage) {
+      messageType = 'image';
+      mediaUrl = message.imageMessage.url || null;
+      content = message.imageMessage.caption || '';
+      console.log('Detected IMAGE message, url:', mediaUrl);
+    }
+
+    // Audio/Voice message
+    if (message?.audioMessage) {
+      messageType = message.audioMessage.ptt ? 'voice' : 'audio';
+      mediaUrl = message.audioMessage.url || null;
+      console.log('Detected AUDIO message, ptt:', message.audioMessage.ptt, 'url:', mediaUrl);
+    }
+
+    // Video message
+    if (message?.videoMessage) {
+      messageType = 'video';
+      mediaUrl = message.videoMessage.url || null;
+      content = message.videoMessage.caption || '';
+      console.log('Detected VIDEO message, url:', mediaUrl);
+    }
+
+    // Document message
+    if (message?.documentMessage) {
+      messageType = 'document';
+      mediaUrl = message.documentMessage.url || null;
+      content = message.documentMessage.fileName || 'Documento';
+      console.log('Detected DOCUMENT message, fileName:', content, 'url:', mediaUrl);
+    }
+
+    // Sticker message
+    if (message?.stickerMessage) {
+      messageType = 'sticker';
+      mediaUrl = message.stickerMessage.url || null;
+      console.log('Detected STICKER message, url:', mediaUrl);
+    }
+
+    // Skip if no content AND no media
+    if (!content && !mediaUrl) {
+      console.log('No content or media found in message, skipping');
       console.log('Message structure:', JSON.stringify(message));
       continue;
     }
@@ -190,7 +234,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     const isFromMe = key.fromMe === true;
     const contactName = pushName || phone;
     
-    console.log(`Processing: phone=${phone}, labelId=${labelId}, fromMe=${isFromMe}, content=${content.substring(0, 50)}...`);
+    console.log(`Processing: phone=${phone}, labelId=${labelId}, fromMe=${isFromMe}, type=${messageType}, hasMedia=${!!mediaUrl}, content=${content.substring(0, 50)}...`);
 
     // Find contact by phone OR by label_id (to prevent duplicates)
     let { data: contact } = await supabase
@@ -265,6 +309,16 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       .eq('contact_id', contact.id)
       .single();
 
+    // Generate preview for conversation list
+    let preview = content?.substring(0, 100) || '';
+    if (!preview) {
+      if (messageType === 'image') preview = '📷 Imagem';
+      else if (messageType === 'audio' || messageType === 'voice') preview = '🎵 Áudio';
+      else if (messageType === 'video') preview = '🎬 Vídeo';
+      else if (messageType === 'document') preview = '📄 Documento';
+      else if (messageType === 'sticker') preview = '🏷️ Figurinha';
+    }
+
     if (!conversation) {
       // Create new conversation
       const { data: newConversation, error: convError } = await supabase
@@ -276,7 +330,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           status: 'active',
           unread_count: isFromMe ? 0 : 1,
           last_message_at: new Date().toISOString(),
-          last_message_preview: content.substring(0, 100),
+          last_message_preview: preview,
         })
         .select('id')
         .single();
@@ -292,7 +346,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       // deno-lint-ignore no-explicit-any
       const updateData: any = {
         last_message_at: new Date().toISOString(),
-        last_message_preview: content.substring(0, 100),
+        last_message_preview: preview,
         instance_id: instanceId,
       };
       
@@ -324,17 +378,18 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
-    // Insert message
+    // Insert message with media support
     // Note: direction must be 'inbound' or 'outbound' per database constraint
     const { error: msgError } = await supabase
       .from('inbox_messages')
       .insert({
         user_id: userId,
         conversation_id: conversation.id,
-        content: content,
+        content: content || (mediaUrl ? preview : ''),
         direction: isFromMe ? 'outbound' : 'inbound',
         status: isFromMe ? 'sent' : 'received',
-        message_type: 'text',
+        message_type: messageType,
+        media_url: mediaUrl,
         whatsapp_message_id: key.id,
         sent_at: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
       });
