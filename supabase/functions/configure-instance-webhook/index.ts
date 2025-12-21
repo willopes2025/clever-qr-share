@@ -47,8 +47,11 @@ serve(async (req) => {
         'MESSAGES_UPSERT',
         'MESSAGES_UPDATE',
         'CONNECTION_UPDATE',
+        'SEND_MESSAGE',
       ],
     };
+    
+    console.log('Webhook config:', JSON.stringify(webhookConfig, null, 2));
 
     if (configureAll) {
       // Configure webhook for all user's instances
