@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Send, Smartphone, Loader2, Edit2, Check, X } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -38,7 +38,6 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const { instances } = useWhatsAppInstances();
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
   );
@@ -139,28 +138,24 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     };
   }, [conversation.id, refetch]);
 
-  // Simulate typing indicator for demo
+  // Typing indicator is now based on optimistic messages being sent
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    
-    if (isSending) {
-      timeout = setTimeout(() => {
-        setIsTyping(true);
-        setTimeout(() => setIsTyping(false), 3000);
-      }, 1500);
+    const hasPendingMessages = optimisticMessages.length > 0;
+    if (hasPendingMessages) {
+      const timeout = setTimeout(() => setIsTyping(false), 3000);
+      return () => clearTimeout(timeout);
     }
-    
-    return () => clearTimeout(timeout);
-  }, [isSending]);
+  }, [optimisticMessages.length]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || isSending || !selectedInstanceId) return;
+    if (!newMessage.trim() || !selectedInstanceId) return;
 
     const messageContent = newMessage.trim();
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     
     // Add optimistic message
     const optimisticMessage: OptimisticMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: optimisticId,
       conversation_id: conversation.id,
       content: messageContent,
       direction: 'outbound',
@@ -177,27 +172,24 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     };
     
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    setNewMessage("");
-    setIsSending(true);
+    setNewMessage(""); // Clear immediately
     
     setTimeout(() => scrollToBottom("smooth"), 50);
+    
+    // Focus back to input immediately
+    inputRef.current?.focus();
 
-    try {
-      await sendMessage.mutateAsync({
-        content: messageContent,
-        conversationId: conversation.id,
-        instanceId: selectedInstanceId,
-      });
-      // Message sent successfully - no toast needed as user sees it in chat
-    } catch (error) {
+    // Send in background - no await blocking
+    sendMessage.mutateAsync({
+      content: messageContent,
+      conversationId: conversation.id,
+      instanceId: selectedInstanceId,
+    }).catch((error) => {
       toast.error("Erro ao enviar mensagem");
       setOptimisticMessages(prev => 
-        prev.filter(m => m.id !== optimisticMessage.id)
+        prev.filter(m => m.id !== optimisticId)
       );
-      setNewMessage(messageContent);
-    } finally {
-      setIsSending(false);
-    }
+    });
   };
 
   const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio') => {
@@ -450,7 +442,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
         <div className="flex gap-2 max-w-3xl mx-auto items-center">
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
-            disabled={isSending || !selectedInstanceId}
+            disabled={!selectedInstanceId}
           />
           
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
@@ -462,30 +454,24 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             className="flex-1 bg-muted/50"
-            disabled={isSending}
           />
 
           <AIAssistantButton
             conversationId={conversation.id}
             onSuggestion={handleAISuggestion}
-            disabled={isSending}
           />
 
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
-            disabled={isSending || !selectedInstanceId}
+            disabled={!selectedInstanceId}
           />
           
           <Button 
             onClick={handleSend} 
-            disabled={!newMessage.trim() || isSending || !selectedInstanceId}
+            disabled={!newMessage.trim() || !selectedInstanceId}
             className="shrink-0 min-w-[44px]"
           >
-            {isSending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
+            <Send className="h-5 w-5" />
           </Button>
         </div>
         
