@@ -20,9 +20,16 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey) as any;
 
     const payload = await req.json();
-    console.log('Webhook received:', JSON.stringify(payload));
+    
+    // Enhanced logging
+    console.log('=== WEBHOOK RECEIVED ===');
+    console.log('Full payload:', JSON.stringify(payload, null, 2));
 
     const { event, instance, data } = payload;
+    
+    console.log('Event type:', event);
+    console.log('Instance:', instance);
+    console.log('Data keys:', data ? Object.keys(data) : 'no data');
 
     if (!instance) {
       console.log('No instance in payload, ignoring');
@@ -51,15 +58,23 @@ serve(async (req) => {
 
     console.log(`Processing event ${event} for instance ${instance} (user: ${userId})`);
 
-    // Handle different event types
-    if (event === 'messages.upsert') {
+    // Handle different event types - check multiple formats
+    const eventLower = event?.toLowerCase() || '';
+    
+    if (eventLower === 'messages.upsert' || eventLower === 'messages_upsert') {
+      console.log('>>> Handling MESSAGES.UPSERT event');
       await handleMessagesUpsert(supabase, userId, instanceId, data);
-    } else if (event === 'messages.update') {
+    } else if (eventLower === 'messages.update' || eventLower === 'messages_update') {
+      console.log('>>> Handling MESSAGES.UPDATE event');
       await handleMessagesUpdate(supabase, data);
-    } else if (event === 'connection.update') {
+    } else if (eventLower === 'connection.update' || eventLower === 'connection_update') {
+      console.log('>>> Handling CONNECTION.UPDATE event');
       await handleConnectionUpdate(supabase, instanceId, data);
+    } else if (eventLower === 'send.message' || eventLower === 'send_message') {
+      console.log('>>> Handling SEND.MESSAGE event');
+      await handleMessagesUpsert(supabase, userId, instanceId, data);
     } else {
-      console.log(`Unhandled event type: ${event}`);
+      console.log(`Unhandled event type: ${event} (normalized: ${eventLower})`);
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -77,41 +92,72 @@ serve(async (req) => {
 
 // deno-lint-ignore no-explicit-any
 async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any) {
-  const messages = data.messages || [];
+  console.log('handleMessagesUpsert called with data:', JSON.stringify(data, null, 2));
+  
+  const messages = data.messages || data.message ? [data] : [];
+  
+  console.log(`Processing ${messages.length} messages`);
   
   for (const msg of messages) {
-    const { key, message, pushName, messageTimestamp } = msg;
+    // Handle different payload formats
+    const key = msg.key || data.key;
+    const message = msg.message || data.message;
+    const pushName = msg.pushName || data.pushName;
+    const messageTimestamp = msg.messageTimestamp || data.messageTimestamp;
+    
+    console.log('Message key:', JSON.stringify(key));
+    console.log('Message content:', JSON.stringify(message));
+    console.log('PushName:', pushName);
     
     if (!key || !key.remoteJid) {
-      console.log('Invalid message format, skipping');
+      console.log('Invalid message format - no key or remoteJid, skipping');
+      console.log('Full msg object:', JSON.stringify(msg));
       continue;
     }
 
+    const remoteJid = key.remoteJid;
+    console.log('RemoteJid:', remoteJid);
+
     // Skip status messages
-    if (key.remoteJid === 'status@broadcast') {
+    if (remoteJid === 'status@broadcast') {
       console.log('Skipping status broadcast');
       continue;
     }
 
-    // Extract phone from remoteJid (format: 5511999999999@s.whatsapp.net)
-    const phone = key.remoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '');
-    
     // Skip group messages for now
-    if (key.remoteJid.includes('@g.us')) {
+    if (remoteJid.includes('@g.us')) {
       console.log('Skipping group message');
       continue;
     }
 
-    // Get message content
-    const content = message?.conversation || message?.extendedTextMessage?.text || '';
+    // Extract phone from remoteJid - support multiple formats:
+    // - 5511999999999@s.whatsapp.net (personal)
+    // - 5511999999999@c.us (old format)
+    // - 203710449844407@lid (Label ID - WhatsApp Business)
+    let phone = remoteJid
+      .replace('@s.whatsapp.net', '')
+      .replace('@c.us', '')
+      .replace('@lid', '');
+    
+    console.log('Extracted phone:', phone);
+
+    // Get message content - support multiple formats
+    const content = message?.conversation || 
+                   message?.extendedTextMessage?.text || 
+                   message?.imageMessage?.caption ||
+                   message?.videoMessage?.caption ||
+                   '';
     
     if (!content) {
-      console.log('No text content, skipping');
+      console.log('No text content found in message, skipping');
+      console.log('Message structure:', JSON.stringify(message));
       continue;
     }
 
     const isFromMe = key.fromMe === true;
     const contactName = pushName || phone;
+    
+    console.log(`Processing: phone=${phone}, fromMe=${isFromMe}, content=${content.substring(0, 50)}...`);
 
     console.log(`Processing message from ${phone}, fromMe: ${isFromMe}, content: ${content.substring(0, 50)}...`);
 
