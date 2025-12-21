@@ -66,10 +66,31 @@ serve(async (req) => {
       throw new Error('Contact not found');
     }
     
-    // Format phone number
+    // Format phone number - remove non-digits
     let phone = contactData.phone.replace(/\D/g, '');
+    
+    console.log(`Original phone from contact: ${contactData.phone}, cleaned: ${phone}`);
+    
+    // Validate phone number format
+    // Brazilian phones: 10-11 digits without country code, 12-13 with country code (55)
+    // If the number doesn't look like a valid Brazilian phone, it might be a Label ID
+    const isLikelyLabelId = phone.length > 13 || (phone.length < 10);
+    
+    if (isLikelyLabelId) {
+      console.error(`Invalid phone number format (likely a Label ID): ${phone}`);
+      throw new Error(`Número de telefone inválido: ${contactData.phone}. Este contato pode ter sido criado com um ID incorreto. Por favor, atualize o telefone do contato.`);
+    }
+    
+    // Add Brazil country code if missing
     if (!phone.startsWith('55')) {
       phone = '55' + phone;
+    }
+    
+    // Final validation: Brazilian phone with country code should be 12-13 digits
+    // 55 + DDD (2 digits) + number (8-9 digits) = 12-13 digits
+    if (phone.length < 12 || phone.length > 13) {
+      console.error(`Phone number has invalid length after formatting: ${phone} (${phone.length} digits)`);
+      throw new Error(`Número de telefone inválido: formato incorreto.`);
     }
 
     console.log(`Sending message to ${phone} via ${instance.instance_name}`);
