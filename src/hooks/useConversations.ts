@@ -126,31 +126,17 @@ export const useMessages = (conversationId: string | null) => {
   });
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, conversationId }: { content: string; conversationId: string }) => {
-      const { data, error } = await supabase
-        .from('inbox_messages')
-        .insert({
-          conversation_id: conversationId,
-          user_id: user!.id,
-          direction: 'outbound',
+    mutationFn: async ({ content, conversationId, instanceId }: { content: string; conversationId: string; instanceId: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-inbox-message', {
+        body: {
+          conversationId,
           content,
-          message_type: 'text',
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+          instanceId,
+        },
+      });
 
       if (error) throw error;
-
-      // Update conversation preview
-      await supabase
-        .from('conversations')
-        .update({
-          last_message_at: new Date().toISOString(),
-          last_message_preview: content.substring(0, 100),
-        })
-        .eq('id', conversationId);
+      if (!data.success) throw new Error(data.error || 'Failed to send message');
 
       return data;
     },

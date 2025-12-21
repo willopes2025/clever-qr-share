@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { Send, Phone, MoreVertical, Check, CheckCheck } from "lucide-react";
+import { Send, Phone, MoreVertical, Check, CheckCheck, Smartphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
+import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MessageViewProps {
@@ -14,9 +22,25 @@ interface MessageViewProps {
 
 export const MessageView = ({ conversation }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, refetch } = useMessages(conversation.id);
+  const { instances } = useWhatsAppInstances();
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
+    conversation.instance_id || ""
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Get connected instances only
+  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
+
+  // Set default instance when instances load or conversation changes
+  useEffect(() => {
+    if (conversation.instance_id) {
+      setSelectedInstanceId(conversation.instance_id);
+    } else if (connectedInstances.length > 0 && !selectedInstanceId) {
+      setSelectedInstanceId(connectedInstances[0].id);
+    }
+  }, [conversation.instance_id, connectedInstances, selectedInstanceId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -49,13 +73,14 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   }, [conversation.id, refetch]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || isSending) return;
+    if (!newMessage.trim() || isSending || !selectedInstanceId) return;
 
     setIsSending(true);
     try {
       await sendMessage.mutateAsync({
         content: newMessage.trim(),
         conversationId: conversation.id,
+        instanceId: selectedInstanceId,
       });
       setNewMessage("");
     } finally {
@@ -82,6 +107,8 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     return <Check className="h-4 w-4 text-muted-foreground" />;
   };
 
+  const selectedInstance = connectedInstances.find(i => i.id === selectedInstanceId);
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
       {/* Header */}
@@ -100,6 +127,26 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Instance Selector */}
+          <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
+            <SelectTrigger className="w-[180px] h-9">
+              <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Selecionar número" />
+            </SelectTrigger>
+            <SelectContent>
+              {connectedInstances.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground text-center">
+                  Nenhuma instância conectada
+                </div>
+              ) : (
+                connectedInstances.map((instance) => (
+                  <SelectItem key={instance.id} value={instance.id}>
+                    {instance.instance_name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
           <Button variant="ghost" size="icon" className="text-muted-foreground">
             <Phone className="h-5 w-5" />
           </Button>
