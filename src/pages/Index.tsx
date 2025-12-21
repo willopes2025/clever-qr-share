@@ -20,6 +20,9 @@ import {
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import wideLogo from "@/assets/wide-logo.png";
+import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
+import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
+import { FAQSection } from "@/components/landing/FAQSection";
 
 const features = [
   {
@@ -254,6 +257,12 @@ const Index = () => {
         </div>
       </section>
 
+      {/* How It Works Section */}
+      <HowItWorksSection />
+
+      {/* Testimonials Section */}
+      <TestimonialsSection />
+
       {/* Pricing Section */}
       <section className="py-24 px-4">
         <div className="container mx-auto">
@@ -342,6 +351,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* FAQ Section */}
+      <FAQSection />
 
       {/* CTA Section */}
       <section className="py-24 px-4">
