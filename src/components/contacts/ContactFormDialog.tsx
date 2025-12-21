@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -58,6 +58,15 @@ export const ContactFormDialog = ({
       notes: contact?.notes || "",
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      phone: contact?.phone || "",
+      name: contact?.name || "",
+      email: contact?.email || "",
+      notes: contact?.notes || "",
+    });
+  }, [contact, form]);
 
   const handleSubmit = (data: ContactFormValues) => {
     onSubmit(data);

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { X, Phone, Mail, StickyNote, Calendar, MessageSquare, Edit2 } from "lucide-react";
+import { X, Phone, StickyNote, Calendar, MessageSquare, Edit2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,10 +25,35 @@ interface ContactInfoPanelProps {
 export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoPanelProps) => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState("");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
   const queryClient = useQueryClient();
 
   const contactName = conversation.contact?.name;
   const contactPhone = conversation.contact?.phone || "";
+
+  const handleSaveName = async () => {
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({ name: editedName.trim() || null })
+        .eq('id', conversation.contact_id);
+      
+      if (error) throw error;
+      
+      setIsEditingName(false);
+      toast.success("Nome atualizado");
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (error) {
+      toast.error("Erro ao atualizar nome");
+    }
+  };
+
+  const startEditingName = () => {
+    setEditedName(contactName || "");
+    setIsEditingName(true);
+  };
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "?";
@@ -76,9 +102,36 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
                     {getInitials(contactName)}
                   </AvatarFallback>
                 </Avatar>
-                <h4 className="text-lg font-semibold text-center">
-                  {contactName || "Sem nome"}
-                </h4>
+                {isEditingName ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className="h-8 text-center w-40"
+                      placeholder="Nome do contato"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName();
+                        if (e.key === 'Escape') setIsEditingName(false);
+                      }}
+                    />
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveName}>
+                      <Check className="h-4 w-4 text-primary" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 mt-1">
+                    <h4 className="text-lg font-semibold text-center">
+                      {contactName || "Sem nome"}
+                    </h4>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={startEditingName}>
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
                 <Badge variant="secondary" className="mt-1">
                   {conversation.status === 'archived' ? 'Arquivada' : 'Ativa'}
                 </Badge>
