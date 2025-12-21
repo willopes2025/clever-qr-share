@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import Subscription from "./pages/Subscription";
 import Admin from "./pages/Admin";
 import Inbox from "./pages/Inbox";
+import Warming from "./pages/Warming";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -76,6 +77,11 @@ const App = () => (
           <Route path="/admin" element={
             <ProtectedRoute>
               <Admin />
+            </ProtectedRoute>
+          } />
+          <Route path="/warming" element={
+            <ProtectedRoute>
+              <Warming />
             </ProtectedRoute>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
