@@ -56,3 +56,9 @@ verify_jwt = false
 
 [functions.inbox-ai-assistant]
 verify_jwt = false
+
+[functions.process-warming]
+verify_jwt = false
+
+[functions.reset-warming-daily]
+verify_jwt = false
