@@ -71,7 +71,7 @@ serve(async (req) => {
                 'apikey': evolutionApiKey,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify(webhookConfig),
+              body: JSON.stringify({ webhook: webhookConfig }),
             }
           );
 
@@ -123,7 +123,7 @@ serve(async (req) => {
             'apikey': evolutionApiKey,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(webhookConfig),
+          body: JSON.stringify({ webhook: webhookConfig }),
         }
       );
 
