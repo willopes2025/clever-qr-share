@@ -1,9 +1,9 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useConversations } from "@/hooks/useConversations";
 import { useNotifications, useUnreadBadge } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import type { Conversation } from "@/hooks/useConversations";
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -11,12 +11,31 @@ interface NotificationProviderProps {
 
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
   const { user } = useAuth();
-  const { conversations } = useConversations();
-  const { permission, requestPermission, notifyNewMessage } = useNotifications();
   const queryClient = useQueryClient();
+  const { permission, requestPermission, notifyNewMessage } = useNotifications();
+
+  // Fetch conversations directly here to avoid hook order issues
+  const { data: conversations } = useQuery({
+    queryKey: ['conversations', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(`
+          *,
+          contact:contacts(id, name, phone)
+        `)
+        .order('last_message_at', { ascending: false });
+
+      if (error) throw error;
+      return data as Conversation[];
+    },
+    enabled: !!user,
+  });
 
   // Calculate total unread count
-  const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+  const totalUnread = useMemo(() => {
+    return conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+  }, [conversations]);
   
   // Update page title with unread badge
   useUnreadBadge(totalUnread);
@@ -24,7 +43,6 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   // Request notification permission on first load
   useEffect(() => {
     if (permission === 'default') {
-      // Small delay to not be too aggressive
       const timeout = setTimeout(() => {
         requestPermission();
       }, 2000);
@@ -32,7 +50,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, [permission, requestPermission]);
 
-  // Get contact name from conversation
+  // Get contact name from conversation - memoized callback
   const getContactName = useCallback(async (conversationId: string): Promise<string> => {
     // First check cached conversations
     const cachedConversation = conversations?.find(c => c.id === conversationId);
