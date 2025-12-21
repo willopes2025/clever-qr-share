@@ -130,11 +130,13 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
-    // Extract phone from remoteJid - support multiple formats:
-    // - 5511999999999@s.whatsapp.net (personal)
-    // - 5511999999999@c.us (old format)
-    // - 203710449844407@lid (Label ID - WhatsApp Business)
-    let phone = remoteJid
+    // Extract phone from the correct JID:
+    // - remoteJidAlt contains the real phone number (e.g., 552720181290@s.whatsapp.net)
+    // - remoteJid might be a Label ID (e.g., 59992757506124@lid) in WhatsApp Business
+    const jidToUse = key.remoteJidAlt || remoteJid;
+    console.log('Using JID:', jidToUse, '(remoteJidAlt:', key.remoteJidAlt, ', remoteJid:', remoteJid, ')');
+    
+    let phone = jidToUse
       .replace('@s.whatsapp.net', '')
       .replace('@c.us', '')
       .replace('@lid', '');
@@ -263,13 +265,14 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     }
 
     // Insert message
+    // Note: direction must be 'inbound' or 'outbound' per database constraint
     const { error: msgError } = await supabase
       .from('inbox_messages')
       .insert({
         user_id: userId,
         conversation_id: conversation.id,
         content: content,
-        direction: isFromMe ? 'outgoing' : 'incoming',
+        direction: isFromMe ? 'outbound' : 'inbound',
         status: isFromMe ? 'sent' : 'received',
         message_type: 'text',
         whatsapp_message_id: key.id,
