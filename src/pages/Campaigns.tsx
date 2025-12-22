@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -87,91 +87,87 @@ const Campaigns = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background cyber-grid">
-      <DashboardSidebar />
-      
-      <main className="ml-64 p-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Campanhas de Disparo</h1>
-            <p className="text-muted-foreground">
-              Crie e gerencie suas campanhas de mensagens em massa
-            </p>
-          </div>
-
-          <Button size="lg" onClick={() => setIsFormOpen(true)} className="bg-gradient-neon hover:opacity-90">
-            <Plus className="h-5 w-5 mr-2" />
-            Nova Campanha
-          </Button>
+    <DashboardLayout className="p-8 cyber-grid">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Campanhas de Disparo</h1>
+          <p className="text-muted-foreground">
+            Crie e gerencie suas campanhas de mensagens em massa
+          </p>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar campanhas..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
+        <Button size="lg" onClick={() => setIsFormOpen(true)} className="bg-gradient-neon hover:opacity-90">
+          <Plus className="h-5 w-5 mr-2" />
+          Nova Campanha
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar campanhas..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="draft">Rascunho</SelectItem>
+            <SelectItem value="scheduled">Agendada</SelectItem>
+            <SelectItem value="sending">Enviando</SelectItem>
+            <SelectItem value="completed">Concluída</SelectItem>
+            <SelectItem value="cancelled">Cancelada</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Content */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
+        </div>
+      ) : filteredCampaigns.length === 0 ? (
+        <div className="text-center py-20">
+          <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-neon mb-6 pulse-neon">
+            <Send className="h-10 w-10 text-dark-900" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">
+            {campaigns?.length === 0 ? 'Nenhuma campanha criada' : 'Nenhuma campanha encontrada'}
+          </h2>
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            {campaigns?.length === 0 
+              ? 'Crie sua primeira campanha para começar a enviar mensagens em massa.'
+              : 'Tente ajustar os filtros de busca.'}
+          </p>
+          {campaigns?.length === 0 && (
+            <Button onClick={() => setIsFormOpen(true)} className="bg-gradient-neon">
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Campanha
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredCampaigns.map((campaign) => (
+            <CampaignCard
+              key={campaign.id}
+              campaign={campaign}
+              onEdit={() => setEditingCampaign(campaign)}
+              onDelete={() => setDeletingCampaign(campaign)}
+              onStart={() => setStartingCampaign(campaign)}
+              onCancel={() => handleCancel(campaign)}
+              onTrack={() => setTrackingCampaign(campaign)}
             />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="draft">Rascunho</SelectItem>
-              <SelectItem value="scheduled">Agendada</SelectItem>
-              <SelectItem value="sending">Enviando</SelectItem>
-              <SelectItem value="completed">Concluída</SelectItem>
-              <SelectItem value="cancelled">Cancelada</SelectItem>
-            </SelectContent>
-          </Select>
+          ))}
         </div>
-
-        {/* Content */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-neon-cyan" />
-          </div>
-        ) : filteredCampaigns.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-neon mb-6 pulse-neon">
-              <Send className="h-10 w-10 text-dark-900" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">
-              {campaigns?.length === 0 ? 'Nenhuma campanha criada' : 'Nenhuma campanha encontrada'}
-            </h2>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              {campaigns?.length === 0 
-                ? 'Crie sua primeira campanha para começar a enviar mensagens em massa.'
-                : 'Tente ajustar os filtros de busca.'}
-            </p>
-            {campaigns?.length === 0 && (
-              <Button onClick={() => setIsFormOpen(true)} className="bg-gradient-neon">
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Campanha
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCampaigns.map((campaign) => (
-              <CampaignCard
-                key={campaign.id}
-                campaign={campaign}
-                onEdit={() => setEditingCampaign(campaign)}
-                onDelete={() => setDeletingCampaign(campaign)}
-                onStart={() => setStartingCampaign(campaign)}
-                onCancel={() => handleCancel(campaign)}
-                onTrack={() => setTrackingCampaign(campaign)}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+      )}
 
       {/* Form Dialog */}
       <CampaignFormDialog
@@ -224,7 +220,7 @@ const Campaigns = () => {
         onOpenChange={(open) => !open && setTrackingCampaign(null)}
         campaign={trackingCampaign}
       />
-    </div>
+    </DashboardLayout>
   );
 };
 
