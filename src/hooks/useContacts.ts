@@ -165,9 +165,13 @@ export const useContacts = () => {
   });
 
   const importContacts = useMutation({
-    mutationFn: async (
-      contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[]
-    ) => {
+    mutationFn: async ({
+      contacts,
+      tagIds = [],
+    }: {
+      contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[];
+      tagIds?: string[];
+    }) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
 
@@ -197,6 +201,19 @@ export const useContacts = () => {
         .select();
 
       if (error) throw error;
+
+      // Apply tags to imported contacts if any were selected
+      if (tagIds.length > 0 && data && data.length > 0) {
+        const contactIds = data.map((c) => c.id);
+        const tagInserts = contactIds.flatMap((contactId) =>
+          tagIds.map((tagId) => ({ contact_id: contactId, tag_id: tagId }))
+        );
+
+        await supabase
+          .from("contact_tags")
+          .upsert(tagInserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+      }
+
       return data;
     },
     onSuccess: (data) => {
