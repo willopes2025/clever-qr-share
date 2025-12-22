@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
@@ -100,61 +100,57 @@ const Admin = () => {
   }, {} as Record<string, number>);
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      
-      <main className="ml-64 p-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-medium">
-                <Shield className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">
-                  Painel Administrativo
-                </h1>
-                <p className="text-muted-foreground">
-                  Gerencie assinaturas e usuários do sistema
-                </p>
-              </div>
+    <DashboardLayout className="p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-medium">
+              <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
-            <Button onClick={fetchUsers} variant="outline" className="gap-2 rounded-xl">
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
-            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">
+                Painel Administrativo
+              </h1>
+              <p className="text-muted-foreground">
+                Gerencie assinaturas e usuários do sistema
+              </p>
+            </div>
           </div>
-
-          {/* Stats Cards */}
-          <AdminStatsCards
-            totalUsers={totalUsers}
-            activeSubscriptions={activeSubscriptions}
-            planCounts={planCounts}
-          />
-
-          {/* Users Table */}
-          <Card className="depth-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Usuários e Assinaturas
-              </CardTitle>
-              <CardDescription>
-                Lista de todos os usuários e suas assinaturas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UserSubscriptionsTable
-                users={users}
-                loading={loading}
-                onEditUser={handleEditUser}
-                onViewHistory={handleViewHistory}
-              />
-            </CardContent>
-          </Card>
+          <Button onClick={fetchUsers} variant="outline" className="gap-2 rounded-xl">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
         </div>
-      </main>
+
+        {/* Stats Cards */}
+        <AdminStatsCards
+          totalUsers={totalUsers}
+          activeSubscriptions={activeSubscriptions}
+          planCounts={planCounts}
+        />
+
+        {/* Users Table */}
+        <Card className="depth-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Usuários e Assinaturas
+            </CardTitle>
+            <CardDescription>
+              Lista de todos os usuários e suas assinaturas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UserSubscriptionsTable
+              users={users}
+              loading={loading}
+              onEditUser={handleEditUser}
+              onViewHistory={handleViewHistory}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Edit Dialog */}
       <EditSubscriptionDialog
@@ -170,7 +166,7 @@ const Admin = () => {
         onOpenChange={setHistoryDialogOpen}
         subscriptionId={historySubscriptionId}
       />
-    </div>
+    </DashboardLayout>
   );
 };
 

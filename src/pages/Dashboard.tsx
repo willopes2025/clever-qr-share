@@ -1,4 +1,4 @@
-import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CampaignChart } from "@/components/dashboard/CampaignChart";
 import { RecentCampaigns } from "@/components/dashboard/RecentCampaigns";
@@ -78,66 +78,62 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      
-      <main className="ml-64 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 text-foreground">
-            Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Bem-vindo de volta! Aqui está um resumo das suas atividades em tempo real.
-          </p>
-        </div>
+    <DashboardLayout className="p-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2 text-foreground">
+          Dashboard
+        </h1>
+        <p className="text-muted-foreground">
+          Bem-vindo de volta! Aqui está um resumo das suas atividades em tempo real.
+        </p>
+      </div>
 
-        {/* Main Metrics */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {mainStats.map((stat, index) => (
-            <MetricCard
-              key={index}
-              icon={stat.icon}
-              label={stat.label}
-              value={stat.value}
-              change={stat.change}
-              index={index}
-              isLoading={metricsLoading}
-            />
-          ))}
-        </div>
-
-        {/* Campaign Status Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {campaignStats.map((stat, index) => (
-            <MetricCard
-              key={index}
-              icon={stat.icon}
-              label={stat.label}
-              value={stat.value}
-              index={index + 4}
-              isLoading={metricsLoading}
-            />
-          ))}
-        </div>
-
-        {/* Charts and Lists */}
-        <div className="grid lg:grid-cols-2 gap-6 mb-8">
-          <CampaignChart data={chartData || []} isLoading={chartLoading} />
-          <InstancesOverview />
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-6">
-          <RecentCampaigns 
-            campaigns={recentCampaigns || []} 
-            isLoading={campaignsLoading} 
+      {/* Main Metrics */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {mainStats.map((stat, index) => (
+          <MetricCard
+            key={index}
+            icon={stat.icon}
+            label={stat.label}
+            value={stat.value}
+            change={stat.change}
+            index={index}
+            isLoading={metricsLoading}
           />
-          <ScheduledCampaigns 
-            campaigns={scheduledCampaigns || []} 
-            isLoading={scheduledLoading} 
+        ))}
+      </div>
+
+      {/* Campaign Status Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {campaignStats.map((stat, index) => (
+          <MetricCard
+            key={index}
+            icon={stat.icon}
+            label={stat.label}
+            value={stat.value}
+            index={index + 4}
+            isLoading={metricsLoading}
           />
-        </div>
-      </main>
-    </div>
+        ))}
+      </div>
+
+      {/* Charts and Lists */}
+      <div className="grid lg:grid-cols-2 gap-6 mb-8">
+        <CampaignChart data={chartData || []} isLoading={chartLoading} />
+        <InstancesOverview />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <RecentCampaigns 
+          campaigns={recentCampaigns || []} 
+          isLoading={campaignsLoading} 
+        />
+        <ScheduledCampaigns 
+          campaigns={scheduledCampaigns || []} 
+          isLoading={scheduledLoading} 
+        />
+      </div>
+    </DashboardLayout>
   );
 };
 
