@@ -19,9 +19,10 @@ const Campaigns = () => {
   const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
   const [trackingCampaign, setTrackingCampaign] = useState<Campaign | null>(null);
   const [startingCampaign, setStartingCampaign] = useState<Campaign | null>(null);
+  const [resumingCampaign, setResumingCampaign] = useState<Campaign | null>(null);
 
   const { data: campaigns, isLoading } = useCampaigns();
-  const { createCampaign, updateCampaign, deleteCampaign, startCampaign, cancelCampaign } = useCampaignMutations();
+  const { createCampaign, updateCampaign, deleteCampaign, startCampaign, cancelCampaign, resumeCampaign } = useCampaignMutations();
 
   const filteredCampaigns = campaigns?.filter(campaign => {
     const matchesSearch = campaign.name.toLowerCase().includes(search.toLowerCase());
@@ -84,6 +85,18 @@ const Campaigns = () => {
 
   const handleCancel = async (campaign: Campaign) => {
     await cancelCampaign.mutateAsync(campaign.id);
+  };
+
+  const handleResumeWithInstances = async (data: { instanceIds: string[]; sendingMode: SendingMode }) => {
+    if (!resumingCampaign) return;
+    await resumeCampaign.mutateAsync({ 
+      campaignId: resumingCampaign.id, 
+      instanceIds: data.instanceIds,
+      sendingMode: data.sendingMode
+    });
+    setResumingCampaign(null);
+    // Open tracker to show progress
+    setTrackingCampaign({ ...resumingCampaign, status: 'sending' });
   };
 
   return (
@@ -164,6 +177,7 @@ const Campaigns = () => {
               onStart={() => setStartingCampaign(campaign)}
               onCancel={() => handleCancel(campaign)}
               onTrack={() => setTrackingCampaign(campaign)}
+              onResume={() => setResumingCampaign(campaign)}
             />
           ))}
         </div>
@@ -186,13 +200,22 @@ const Campaigns = () => {
         isLoading={updateCampaign.isPending}
       />
 
-      {/* Select Instance Dialog */}
+      {/* Select Instance Dialog - Start */}
       <SelectInstanceDialog
         open={!!startingCampaign}
         onOpenChange={(open) => !open && setStartingCampaign(null)}
         onConfirm={handleStartWithInstances}
         isLoading={startCampaign.isPending}
         campaignName={startingCampaign?.name}
+      />
+
+      {/* Select Instance Dialog - Resume */}
+      <SelectInstanceDialog
+        open={!!resumingCampaign}
+        onOpenChange={(open) => !open && setResumingCampaign(null)}
+        onConfirm={handleResumeWithInstances}
+        isLoading={resumeCampaign.isPending}
+        campaignName={resumingCampaign?.name}
       />
 
       {/* Delete Confirmation */}

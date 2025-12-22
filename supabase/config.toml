@@ -18,6 +18,9 @@ verify_jwt = false
 [functions.send-campaign-messages]
 verify_jwt = false
 
+[functions.resume-campaign]
+verify_jwt = false
+
 [functions.process-scheduled-campaigns]
 verify_jwt = false
 

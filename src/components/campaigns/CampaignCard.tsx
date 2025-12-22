@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Calendar
+  Calendar,
+  RotateCcw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -26,6 +27,7 @@ interface CampaignCardProps {
   onStart: () => void;
   onCancel: () => void;
   onTrack?: () => void;
+  onResume?: () => void;
 }
 
 const statusConfig = {
@@ -44,6 +46,7 @@ export const CampaignCard = ({
   onStart,
   onCancel,
   onTrack,
+  onResume,
 }: CampaignCardProps) => {
   const status = statusConfig[campaign.status] || statusConfig.draft;
   const StatusIcon = status.icon;
@@ -55,6 +58,9 @@ export const CampaignCard = ({
   const canStart = campaign.status === 'draft' || campaign.status === 'scheduled';
   const canCancel = campaign.status === 'sending';
   const canDelete = campaign.status !== 'sending';
+  // Can resume if cancelled, failed, or completed with pending messages
+  const canResume = (campaign.status === 'cancelled' || campaign.status === 'failed' || 
+    (campaign.status === 'completed' && campaign.sent < campaign.total_contacts));
 
   return (
     <Card className="p-6">
@@ -126,13 +132,19 @@ export const CampaignCard = ({
             Iniciar
           </Button>
         )}
+        {canResume && onResume && (
+          <Button size="sm" variant="outline" onClick={onResume} className="flex-1">
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Retomar
+          </Button>
+        )}
         {canCancel && (
           <Button size="sm" variant="destructive" onClick={onCancel} className="flex-1">
             <Pause className="h-4 w-4 mr-2" />
             Pausar
           </Button>
         )}
-        {(campaign.status === 'sending' || campaign.status === 'completed') && onTrack && (
+        {(campaign.status === 'sending' || campaign.status === 'completed' || campaign.status === 'cancelled' || campaign.status === 'failed') && onTrack && (
           <Button size="sm" variant="outline" onClick={onTrack} className="flex-1">
             Acompanhar
           </Button>

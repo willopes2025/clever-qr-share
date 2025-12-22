@@ -333,11 +333,40 @@ export const useCampaignMutations = () => {
     },
   });
 
+  const resumeCampaign = useMutation({
+    mutationFn: async ({ 
+      campaignId, 
+      instanceIds, 
+      sendingMode 
+    }: { 
+      campaignId: string; 
+      instanceIds: string[]; 
+      sendingMode: SendingMode;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('resume-campaign', {
+        body: { campaignId, instanceIds, sendingMode }
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to resume campaign');
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success(data.message || 'Campanha retomada!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao retomar campanha: ' + error.message);
+    },
+  });
+
   return {
     createCampaign,
     updateCampaign,
     deleteCampaign,
     startCampaign,
     cancelCampaign,
+    resumeCampaign,
   };
 };
