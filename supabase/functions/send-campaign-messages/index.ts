@@ -37,17 +37,22 @@ const isWithinAllowedTime = (
   endHour: number,
   allowedDays: string[],
   timezone: string
-): { allowed: boolean; nextAllowedTime: Date | null } => {
-  // Get current time in the specified timezone
+): { allowed: boolean; nextAllowedTime: Date | null; delayMinutes: number } => {
   const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
+  
+  // Use Intl.DateTimeFormat to get current time parts in the specified timezone
+  const timeOptions: Intl.DateTimeFormatOptions = {
     timeZone: timezone,
     hour: 'numeric',
+    minute: 'numeric',
     hour12: false,
   };
-  const formatter = new Intl.DateTimeFormat('en-US', options);
-  const currentHour = parseInt(formatter.format(now));
+  const timeFormatter = new Intl.DateTimeFormat('en-US', timeOptions);
+  const timeParts = timeFormatter.formatToParts(now);
+  const currentHour = parseInt(timeParts.find(p => p.type === 'hour')?.value || '0');
+  const currentMinute = parseInt(timeParts.find(p => p.type === 'minute')?.value || '0');
   
+  // Get day of week in the specified timezone
   const dayOptions: Intl.DateTimeFormatOptions = {
     timeZone: timezone,
     weekday: 'short',
@@ -55,7 +60,7 @@ const isWithinAllowedTime = (
   const dayFormatter = new Intl.DateTimeFormat('en-US', dayOptions);
   const currentDay = dayFormatter.format(now).toLowerCase().substring(0, 3);
   
-  console.log(`Current time check: hour=${currentHour}, day=${currentDay}, allowed hours=${startHour}-${endHour}, allowed days=${allowedDays.join(',')}`);
+  console.log(`Current time check: hour=${currentHour}:${currentMinute}, day=${currentDay}, allowed hours=${startHour}-${endHour}, allowed days=${allowedDays.join(',')}, timezone=${timezone}`);
   
   // Check if today is an allowed day
   const isDayAllowed = allowedDays.includes(currentDay);
@@ -64,35 +69,48 @@ const isWithinAllowedTime = (
   const isHourAllowed = currentHour >= startHour && currentHour < endHour;
   
   if (isDayAllowed && isHourAllowed) {
-    return { allowed: true, nextAllowedTime: null };
+    return { allowed: true, nextAllowedTime: null, delayMinutes: 0 };
   }
   
-  // Calculate next allowed time
-  const nextAllowed = new Date(now);
+  // Calculate delay in minutes until next allowed time
+  let delayMinutes = 0;
   
   if (isDayAllowed && currentHour < startHour) {
-    // Today is allowed, but before start hour - wait until start hour
-    nextAllowed.setHours(startHour, 0, 0, 0);
+    // Today is allowed, but before start hour - calculate minutes until startHour
+    delayMinutes = (startHour - currentHour) * 60 - currentMinute;
   } else {
-    // Either today is not allowed or we're past end hour - find next allowed day
+    // Either today is not allowed or we're past end hour
+    // Calculate minutes remaining until midnight
+    const minutesUntilMidnight = (24 - currentHour) * 60 - currentMinute;
+    
+    // Find next allowed day
     let daysToAdd = 1;
     const maxDaysToCheck = 7;
     
-    while (daysToAdd <= maxDaysToCheck) {
+    for (let i = 1; i <= maxDaysToCheck; i++) {
       const checkDate = new Date(now);
-      checkDate.setDate(checkDate.getDate() + daysToAdd);
-      const checkDay = getDayAbbreviation(checkDate);
+      checkDate.setDate(checkDate.getDate() + i);
+      const checkDay = dayFormatter.format(checkDate).toLowerCase().substring(0, 3);
       
       if (allowedDays.includes(checkDay)) {
-        nextAllowed.setDate(now.getDate() + daysToAdd);
-        nextAllowed.setHours(startHour, 0, 0, 0);
+        daysToAdd = i;
         break;
       }
-      daysToAdd++;
     }
+    
+    // Total delay = minutes until midnight + (days - 1) * 24 hours + start hour
+    delayMinutes = minutesUntilMidnight + ((daysToAdd - 1) * 24 * 60) + (startHour * 60);
   }
   
-  return { allowed: false, nextAllowedTime: nextAllowed };
+  // Ensure delay is always positive and at least 1 minute
+  delayMinutes = Math.max(delayMinutes, 1);
+  
+  // Calculate next allowed time based on delay
+  const nextAllowed = new Date(now.getTime() + delayMinutes * 60 * 1000);
+  
+  console.log(`Calculated delay: ${delayMinutes} minutes until ${nextAllowed.toISOString()}`);
+  
+  return { allowed: false, nextAllowedTime: nextAllowed, delayMinutes };
 };
 
 interface CampaignMessage {
@@ -265,12 +283,11 @@ serve(async (req) => {
     );
 
     if (!timeCheck.allowed && timeCheck.nextAllowedTime) {
-      // Calculate delay until next allowed time
-      const now = new Date();
-      const delayMs = timeCheck.nextAllowedTime.getTime() - now.getTime();
-      const delaySeconds = Math.ceil(delayMs / 1000);
+      // Use the pre-calculated delay from isWithinAllowedTime (already in minutes)
+      // Convert to seconds and ensure it's always positive (minimum 60 seconds)
+      const delaySeconds = Math.max(timeCheck.delayMinutes * 60, 60);
       
-      console.log(`Outside allowed sending time. Scheduling next attempt at ${timeCheck.nextAllowedTime.toISOString()} (${delaySeconds} seconds from now)`);
+      console.log(`Outside allowed sending time. Scheduling next attempt at ${timeCheck.nextAllowedTime.toISOString()} (${delaySeconds} seconds / ${timeCheck.delayMinutes} minutes from now)`);
       
       // Schedule for next allowed time
       EdgeRuntime.waitUntil(
@@ -290,6 +307,7 @@ serve(async (req) => {
           success: true, 
           message: `Outside allowed sending time. Scheduled for ${timeCheck.nextAllowedTime.toISOString()}`,
           scheduledFor: timeCheck.nextAllowedTime.toISOString(),
+          delayMinutes: timeCheck.delayMinutes,
           delayed: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
