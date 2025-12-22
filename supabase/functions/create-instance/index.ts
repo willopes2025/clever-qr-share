@@ -37,7 +37,51 @@ serve(async (req) => {
       throw new Error('Nome da instância é obrigatório');
     }
 
-    console.log(`Creating instance: ${instanceName} for user: ${user.id}`);
+    // Sanitize and validate name
+    const sanitizedName = instanceName.trim();
+    if (sanitizedName.length < 3) {
+      throw new Error('O nome da instância deve ter pelo menos 3 caracteres');
+    }
+
+    console.log(`Creating instance: ${sanitizedName} for user: ${user.id}`);
+
+    // Check if instance already exists in local database for this user
+    const { data: existingLocal } = await supabase
+      .from('whatsapp_instances')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('instance_name', sanitizedName)
+      .maybeSingle();
+
+    if (existingLocal) {
+      throw new Error(`Você já possui uma instância chamada "${sanitizedName}"`);
+    }
+
+    // Check if instance already exists in Evolution API
+    console.log('Checking if instance exists in Evolution API...');
+    const fetchResponse = await fetch(
+      `${evolutionApiUrl}/instance/fetchInstances?instanceName=${encodeURIComponent(sanitizedName)}`,
+      {
+        method: 'GET',
+        headers: { 'apikey': evolutionApiKey },
+      }
+    );
+
+    if (fetchResponse.ok) {
+      const existingInstances = await fetchResponse.json();
+      console.log('Evolution API fetchInstances response:', JSON.stringify(existingInstances));
+      
+      // Evolution returns array of instances matching the name
+      if (Array.isArray(existingInstances) && existingInstances.length > 0) {
+        const exactMatch = existingInstances.find(
+          (inst: { name?: string; instanceName?: string }) => 
+            inst.name === sanitizedName || inst.instanceName === sanitizedName
+        );
+        if (exactMatch) {
+          throw new Error(`Já existe uma instância chamada "${sanitizedName}" na Evolution API. Escolha outro nome.`);
+        }
+      }
+    }
 
     // Webhook URL for receiving messages
     const webhookUrl = `${supabaseUrl}/functions/v1/receive-webhook`;
@@ -53,7 +97,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          instanceName: instanceName,
+          instanceName: sanitizedName,
           integration: 'WHATSAPP-BAILEYS',
           token: crypto.randomUUID(),
           qrcode: true,
@@ -93,7 +137,7 @@ serve(async (req) => {
       .from('whatsapp_instances')
       .insert({
         user_id: user.id,
-        instance_name: instanceName,
+        instance_name: sanitizedName,
         status: 'disconnected',
       })
       .select()
