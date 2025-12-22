@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageView } from "@/components/inbox/MessageView";
@@ -9,7 +9,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Inbox = () => {
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+
+  // Keep the selected conversation in sync with updated data
+  const selectedConversation = useMemo(() => {
+    if (!selectedConversationId) return null;
+    return conversations?.find(c => c.id === selectedConversationId) || null;
+  }, [conversations, selectedConversationId]);
 
   // Real-time subscription for conversations
   useEffect(() => {
@@ -34,19 +40,15 @@ const Inbox = () => {
   }, [refetch]);
 
   const handleSelectConversation = (conversation: Conversation) => {
-    setSelectedConversation(conversation);
+    setSelectedConversationId(conversation.id);
     if (conversation.unread_count > 0) {
       markAsRead.mutate(conversation.id);
     }
   };
 
   const handleConversationCreated = (conversationId: string) => {
-    refetch().then(() => {
-      const newConversation = conversations?.find(c => c.id === conversationId);
-      if (newConversation) {
-        setSelectedConversation(newConversation);
-      }
-    });
+    setSelectedConversationId(conversationId);
+    refetch();
   };
 
   return (

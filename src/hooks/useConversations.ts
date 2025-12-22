@@ -12,12 +12,15 @@ export interface Conversation {
   last_message_preview: string | null;
   unread_count: number;
   status: string;
+  is_pinned: boolean | null;
   created_at: string;
   updated_at: string;
   contact?: {
     id: string;
     name: string | null;
     phone: string;
+    notes?: string | null;
+    custom_fields?: Record<string, any> | null;
   };
 }
 
@@ -49,8 +52,9 @@ export const useConversations = () => {
         .from('conversations')
         .select(`
           *,
-          contact:contacts(id, name, phone)
+          contact:contacts(id, name, phone, notes, custom_fields)
         `)
+        .order('is_pinned', { ascending: false })
         .order('last_message_at', { ascending: false });
 
       if (error) throw error;
@@ -118,7 +122,7 @@ export const useMessages = (conversationId: string | null) => {
         .from('inbox_messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('sent_at', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       return data as InboxMessage[];

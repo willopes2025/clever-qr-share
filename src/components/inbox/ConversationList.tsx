@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ConversationContextMenu } from "./ConversationContextMenu";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -41,7 +42,14 @@ export const ConversationList = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
 
-  const filteredConversations = conversations.filter(conv => {
+  // Sort: pinned first, then by last_message_at
+  const sortedConversations = [...conversations].sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
+    return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+  });
+
+  const filteredConversations = sortedConversations.filter(conv => {
     const name = conv.contact?.name || "";
     const phone = conv.contact?.phone || "";
     const search = searchTerm.toLowerCase();
@@ -134,67 +142,76 @@ export const ConversationList = ({
           <div className="p-2">
             <AnimatePresence mode="popLayout">
               {filteredConversations.map((conversation, index) => (
-                <motion.button
+                <ConversationContextMenu
                   key={conversation.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2, delay: index * 0.02 }}
-                  onClick={() => onSelect(conversation)}
-                  className={cn(
-                    "w-full flex items-start gap-3 p-3 rounded-xl transition-all duration-200 text-left mb-1",
-                    selectedId === conversation.id
-                      ? "bg-primary/10 border border-primary/20 shadow-sm"
-                      : "hover:bg-muted/50 hover:scale-[1.01]"
-                  )}
+                  conversationId={conversation.id}
+                  isArchived={conversation.status === 'archived'}
+                  isPinned={conversation.is_pinned || false}
                 >
-                  {/* Avatar */}
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0">
-                      {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
-                    </div>
-                    {conversation.unread_count > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-card" />
+                  <motion.button
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2, delay: index * 0.02 }}
+                    onClick={() => onSelect(conversation)}
+                    className={cn(
+                      "w-full flex items-start gap-3 p-3 rounded-xl transition-all duration-200 text-left mb-1",
+                      selectedId === conversation.id
+                        ? "bg-primary/10 border border-primary/20 shadow-sm"
+                        : "hover:bg-muted/50 hover:scale-[1.01]"
                     )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={cn(
-                        "font-medium truncate",
-                        conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
-                      )}>
-                        {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
-                      </span>
-                      <span className={cn(
-                        "text-xs shrink-0 ml-2",
-                        conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
-                      )}>
-                        {formatMessageTime(conversation.last_message_at)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className={cn(
-                        "text-sm truncate flex-1",
-                        conversation.unread_count > 0 
-                          ? "text-foreground font-medium" 
-                          : "text-muted-foreground"
-                      )}>
-                        {conversation.last_message_preview || "Sem mensagens"}
-                      </p>
+                  >
+                    {/* Avatar */}
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0">
+                        {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
+                      </div>
                       {conversation.unread_count > 0 && (
-                        <Badge 
-                          variant="default" 
-                          className="bg-primary text-primary-foreground text-xs px-2 py-0.5 shrink-0 min-w-5 justify-center"
-                        >
-                          {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
-                        </Badge>
+                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-card" />
+                      )}
+                      {conversation.is_pinned && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center text-[8px] text-white">📌</span>
                       )}
                     </div>
-                  </div>
-                </motion.button>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={cn(
+                          "font-medium truncate",
+                          conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
+                        )}>
+                          {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
+                        </span>
+                        <span className={cn(
+                          "text-xs shrink-0 ml-2",
+                          conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
+                        )}>
+                          {formatMessageTime(conversation.last_message_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className={cn(
+                          "text-sm truncate flex-1",
+                          conversation.unread_count > 0 
+                            ? "text-foreground font-medium" 
+                            : "text-muted-foreground"
+                        )}>
+                          {conversation.last_message_preview || "Sem mensagens"}
+                        </p>
+                        {conversation.unread_count > 0 && (
+                          <Badge 
+                            variant="default" 
+                            className="bg-primary text-primary-foreground text-xs px-2 py-0.5 shrink-0 min-w-5 justify-center"
+                          >
+                            {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </motion.button>
+                </ConversationContextMenu>
               ))}
             </AnimatePresence>
           </div>

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { Send, Smartphone, Edit2, Check, X } from "lucide-react";
+import { useEffect, useRef, useState, useCallback, Fragment } from "react";
+import { Send, Smartphone, Edit2, Check, X, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,15 +15,18 @@ import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversation
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageBubble } from "./MessageBubble";
+import { DateSeparator } from "./DateSeparator";
 import { TypingIndicator } from "./TypingIndicator";
 import { EmojiPicker } from "./EmojiPicker";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { MediaUploadButton } from "./MediaUploadButton";
 import { AIAssistantButton } from "./AIAssistantButton";
+import { ContactInfoPanel } from "./ContactInfoPanel";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { isToday, isSameDay } from "date-fns";
 
 interface MessageViewProps {
   conversation: Conversation;
@@ -48,6 +51,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
+  const [showContactInfo, setShowContactInfo] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -278,11 +282,19 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     }
   };
 
+  const shouldShowDateSeparator = (prevMessage: InboxMessage | OptimisticMessage | null, currentMessage: InboxMessage | OptimisticMessage) => {
+    if (!prevMessage) return true;
+    const prevDate = new Date(prevMessage.created_at);
+    const currDate = new Date(currentMessage.created_at);
+    return !isSameDay(prevDate, currDate);
+  };
+
   const selectedInstance = connectedInstances.find(i => i.id === selectedInstanceId);
   const allMessages = [...(messages || []), ...optimisticMessages];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background relative">
+    <div className="flex-1 flex h-full">
+      <div className="flex-1 flex flex-col h-full bg-background relative">
       {/* Header */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card">
         <div className="flex items-center gap-3">
@@ -370,6 +382,16 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
               )}
             </SelectContent>
           </Select>
+          
+          {/* Contact Info Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => setShowContactInfo(!showContactInfo)}
+          >
+            <User className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
@@ -404,13 +426,22 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             </motion.div>
           ) : (
             <>
-              {allMessages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  isOptimistic={'isOptimistic' in message}
-                />
-              ))}
+              {allMessages.map((message, index) => {
+                const prevMessage = index > 0 ? allMessages[index - 1] : null;
+                const showDateSeparator = shouldShowDateSeparator(prevMessage, message);
+                
+                return (
+                  <Fragment key={message.id}>
+                    {showDateSeparator && (
+                      <DateSeparator date={message.created_at} />
+                    )}
+                    <MessageBubble
+                      message={message}
+                      isOptimistic={'isOptimistic' in message}
+                    />
+                  </Fragment>
+                );
+              })}
               
               {/* Typing Indicator */}
               <AnimatePresence>
@@ -485,6 +516,14 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           </motion.p>
         )}
       </div>
+      </div>
+      
+      {/* Contact Info Panel */}
+      <ContactInfoPanel
+        conversation={conversation}
+        isOpen={showContactInfo}
+        onClose={() => setShowContactInfo(false)}
+      />
     </div>
   );
 };
