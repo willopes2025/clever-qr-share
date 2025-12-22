@@ -145,7 +145,10 @@ interface CampaignSettings {
 
 type SendingMode = 'sequential' | 'random' | 'warming';
 
-// Function to schedule the next message execution
+// Maximum safe delay to avoid edge function timeout (50 seconds to have margin)
+const MAX_SAFE_DELAY_SECONDS = 50;
+
+// Function to schedule the next message execution with chunked delays
 const scheduleNextMessage = async (
   supabaseUrl: string,
   supabaseServiceKey: string,
@@ -153,16 +156,49 @@ const scheduleNextMessage = async (
   instances: Instance[],
   sendingMode: SendingMode,
   messageIndex: number,
-  delaySeconds: number
+  delaySeconds: number,
+  remainingDelay: number = 0
 ) => {
+  const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+  
+  // If delay is larger than safe limit, use chunked approach
+  if (delaySeconds > MAX_SAFE_DELAY_SECONDS) {
+    console.log(`Delay ${delaySeconds}s exceeds safe limit. Using chunked approach...`);
+    
+    // Invoke immediately with remainingDelay to continue waiting
+    try {
+      const response = await fetch(sendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`
+        },
+        body: JSON.stringify({
+          campaignId,
+          instances,
+          sendingMode,
+          messageIndex,
+          remainingDelay: delaySeconds // Pass full delay as remaining
+        })
+      });
+      
+      if (!response.ok) {
+        console.error(`Failed to schedule chunked delay: ${response.status}`);
+      } else {
+        console.log(`Scheduled chunked delay for campaign ${campaignId}`);
+      }
+    } catch (error) {
+      console.error('Error scheduling chunked delay:', error);
+    }
+    return;
+  }
+  
   console.log(`Scheduling next message (index ${messageIndex}) in ${delaySeconds} seconds...`);
   
   // Wait for the delay before invoking the next call
   await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
   
   // Re-invoke this function for the next message
-  const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
-  
   try {
     const response = await fetch(sendUrl, {
       method: 'POST',
@@ -202,6 +238,49 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
+    
+    // Handle chunked delay - if we're waiting for remaining delay
+    if (body.remainingDelay && body.remainingDelay > 0) {
+      const remainingDelay = body.remainingDelay;
+      const safeDelay = Math.min(remainingDelay, MAX_SAFE_DELAY_SECONDS);
+      
+      console.log(`Chunked delay: waiting ${safeDelay}s of remaining ${remainingDelay}s...`);
+      
+      // Wait for the safe portion of the delay
+      await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
+      
+      if (remainingDelay > MAX_SAFE_DELAY_SECONDS) {
+        // Still more delay needed - schedule another chunk
+        const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+        
+        EdgeRuntime.waitUntil(
+          fetch(sendUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`
+            },
+            body: JSON.stringify({
+              ...body,
+              remainingDelay: remainingDelay - MAX_SAFE_DELAY_SECONDS
+            })
+          }).then(r => console.log(`Scheduled next delay chunk: ${r.status}`))
+            .catch(e => console.error('Error scheduling delay chunk:', e))
+        );
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Delay chunk complete, ${remainingDelay - MAX_SAFE_DELAY_SECONDS}s remaining`,
+            delayChunk: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Delay complete, continue to normal execution
+      console.log('Chunked delay complete, proceeding to send message...');
+    }
     
     // Support both old format (single instanceName) and new format (instances array)
     let instances: Instance[] = [];
