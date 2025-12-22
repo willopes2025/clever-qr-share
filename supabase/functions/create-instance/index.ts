@@ -77,7 +77,15 @@ serve(async (req) => {
     console.log('Evolution API response:', JSON.stringify(evolutionData));
 
     if (!evolutionResponse.ok) {
-      throw new Error(evolutionData.message || 'Erro ao criar instância na Evolution API');
+      // Extract the actual error message from Evolution API response
+      let errorMessage = 'Erro ao criar instância na Evolution API';
+      if (evolutionData.response?.message) {
+        const messages = evolutionData.response.message;
+        errorMessage = Array.isArray(messages) ? messages.join(', ') : messages;
+      } else if (evolutionData.message) {
+        errorMessage = evolutionData.message;
+      }
+      throw new Error(errorMessage);
     }
 
     // Salvar no banco de dados
