@@ -70,27 +70,48 @@ serve(async (req) => {
     // Call Lovable AI to generate variations
     const prompt = `Você é um especialista em copywriting para WhatsApp e marketing digital.
 
-Gere exatamente ${variationCount} variações da mensagem abaixo, mantendo o mesmo significado e intenção, mas alterando:
-- Emojis (use alternativas similares ou adicione/remova levemente)
-- Palavras por sinônimos naturais
-- Estrutura das frases (sem mudar o tom ou formalidade)
-- Pontuação e formatação levemente diferente
+Sua tarefa: Criar exatamente ${variationCount} VARIAÇÕES COMPLETAS da mensagem abaixo.
+
+⚠️ IMPORTANTE - CADA VARIAÇÃO DEVE SER:
+- Uma mensagem COMPLETA e AUTÔNOMA (não linhas separadas!)
+- Uma STRING ÚNICA contendo TODO o texto da mensagem
+- Use \\n para representar quebras de linha DENTRO de cada variação
+- Mantendo o mesmo significado, tom e estrutura da original
+
+ALTERAÇÕES PERMITIDAS em cada variação:
+- Substituir emojis por alternativas similares
+- Trocar palavras por sinônimos naturais
+- Pequenas mudanças na estrutura das frases
+- Leve variação na pontuação
 
 REGRAS OBRIGATÓRIAS:
-1. MANTENHA TODAS as variáveis no formato {{variavel}} EXATAMENTE como estão (ex: {{nome}}, {{telefone}}, {{empresa}})
-2. Mantenha o mesmo tom (formal/informal) da mensagem original
-3. NÃO altere números, datas, valores monetários ou links específicos
-4. Cada variação DEVE ser única e diferente das outras
-5. Mantenha aproximadamente o mesmo tamanho da mensagem original
-6. NÃO adicione informações que não estavam no original
+1. MANTENHA TODAS as variáveis {{variavel}} EXATAMENTE como estão (ex: {{nome}}, {{telefone}})
+2. MANTENHA o mesmo tom (formal/informal) da mensagem original
+3. NÃO altere números, datas, valores monetários ou links
+4. Cada variação DEVE ter aproximadamente o mesmo tamanho da original
+5. NÃO adicione informações novas que não estavam no original
+6. Cada elemento do array DEVE conter a mensagem INTEIRA, não linhas separadas
 
-Mensagem original:
+EXEMPLO DE ENTRADA:
+"Olá {{nome}}! 👋
+Temos uma oferta especial para você.
+Responda SIM para saber mais!"
+
+EXEMPLO DE SAÍDA CORRETA:
+{
+  "variations": [
+    "Oi {{nome}}! 😊\\nPreparamos uma promoção exclusiva.\\nDigite SIM para conferir!",
+    "Olá {{nome}}! 🙋\\nHá uma condição especial esperando por você.\\nResponda SIM para detalhes!"
+  ]
+}
+
+MENSAGEM ORIGINAL:
 """
 ${content}
 """
 
 Responda APENAS com um JSON válido no formato:
-{"variations": ["variação 1", "variação 2", ...]}
+{"variations": ["variação completa 1 com \\n para quebras", "variação completa 2", ...]}
 
 Sem explicações, sem markdown, apenas o JSON.`;
 
@@ -155,16 +176,34 @@ Sem explicações, sem markdown, apenas o JSON.`;
       throw new Error('Invalid variations format');
     }
 
+    // Validate variations - must be complete messages with reasonable length
+    const originalLength = content.length;
+    const validVariations = variations.filter(v => {
+      if (typeof v !== 'string') return false;
+      const trimmed = v.trim();
+      const len = trimmed.length;
+      // Variation should be at least 40% of original and no more than 200%
+      // This helps filter out broken/partial responses
+      return len >= originalLength * 0.4 && len <= originalLength * 2;
+    });
+
+    console.log(`Validated ${validVariations.length}/${variations.length} variations (original length: ${originalLength})`);
+
+    if (validVariations.length === 0) {
+      console.error('All variations failed validation. Original variations:', variations);
+      throw new Error('Variações geradas estão em formato incorreto. Tente novamente.');
+    }
+
     // Delete existing variations for this template
     await supabase
       .from('template_variations')
       .delete()
       .eq('template_id', templateId);
 
-    // Insert new variations
-    const variationsToInsert = variations.slice(0, variationCount).map((content, index) => ({
+    // Insert new variations (use validVariations instead of original)
+    const variationsToInsert = validVariations.slice(0, variationCount).map((variationContent, index) => ({
       template_id: templateId,
-      content: content.trim(),
+      content: variationContent.trim().replace(/\\n/g, '\n'),
       variation_index: index + 1,
     }));
 
