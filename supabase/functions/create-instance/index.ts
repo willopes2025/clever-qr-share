@@ -32,7 +32,7 @@ serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const { instanceName } = await req.json();
+    const { instanceName, forceRecreate = false } = await req.json();
     if (!instanceName || typeof instanceName !== 'string') {
       throw new Error('Nome da instância é obrigatório');
     }
@@ -43,7 +43,7 @@ serve(async (req) => {
       throw new Error('O nome da instância deve ter pelo menos 3 caracteres');
     }
 
-    console.log(`Creating instance: ${sanitizedName} for user: ${user.id}`);
+    console.log(`Creating instance: ${sanitizedName} for user: ${user.id}, forceRecreate: ${forceRecreate}`);
 
     // Check if instance already exists in local database for this user
     const { data: existingLocal } = await supabase
@@ -67,6 +67,7 @@ serve(async (req) => {
       }
     );
 
+    let existsInEvolution = false;
     if (fetchResponse.ok) {
       const existingInstances = await fetchResponse.json();
       console.log('Evolution API fetchInstances response:', JSON.stringify(existingInstances));
@@ -78,8 +79,44 @@ serve(async (req) => {
             inst.name === sanitizedName || inst.instanceName === sanitizedName
         );
         if (exactMatch) {
-          throw new Error(`Já existe uma instância chamada "${sanitizedName}" na Evolution API. Escolha outro nome.`);
+          existsInEvolution = true;
         }
+      }
+    }
+
+    // If instance exists in Evolution API
+    if (existsInEvolution) {
+      if (forceRecreate) {
+        // Delete existing instance from Evolution API
+        console.log(`Deleting existing instance "${sanitizedName}" from Evolution API...`);
+        const deleteResponse = await fetch(
+          `${evolutionApiUrl}/instance/delete/${encodeURIComponent(sanitizedName)}`,
+          {
+            method: 'DELETE',
+            headers: { 'apikey': evolutionApiKey },
+          }
+        );
+        
+        if (!deleteResponse.ok) {
+          const deleteError = await deleteResponse.json().catch(() => ({}));
+          console.error('Failed to delete instance from Evolution API:', deleteError);
+          throw new Error('Não foi possível excluir a instância existente na Evolution API. Tente novamente.');
+        }
+        
+        console.log(`Instance "${sanitizedName}" deleted from Evolution API`);
+        
+        // Small delay to ensure Evolution API has processed the deletion
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        // Return special error code to indicate instance exists and can be recreated
+        return new Response(JSON.stringify({ 
+          error: `Já existe uma instância chamada "${sanitizedName}" na Evolution API.`,
+          code: 'INSTANCE_EXISTS_IN_EVOLUTION',
+          instanceName: sanitizedName
+        }), {
+          status: 409, // Conflict
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
     }
 

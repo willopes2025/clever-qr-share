@@ -35,6 +35,8 @@ const Instances = () => {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [confirmRecreateDialog, setConfirmRecreateDialog] = useState(false);
+  const [pendingInstanceName, setPendingInstanceName] = useState("");
 
   // Polling para verificar status de instâncias "connecting"
   useEffect(() => {
@@ -56,8 +58,10 @@ const Instances = () => {
   const canCreate = canCreateInstance(instanceCount);
   const maxInstances = subscription?.max_instances;
 
-  const handleCreateInstance = async () => {
-    if (!newInstanceName.trim()) {
+  const handleCreateInstance = async (forceRecreate = false) => {
+    const nameToUse = forceRecreate ? pendingInstanceName : newInstanceName;
+    
+    if (!nameToUse.trim()) {
       toast.error("Digite um nome para a instância");
       return;
     }
@@ -73,9 +77,20 @@ const Instances = () => {
       return;
     }
 
-    await createInstance.mutateAsync(newInstanceName);
-    setNewInstanceName("");
-    setDialogOpen(false);
+    try {
+      await createInstance.mutateAsync({ instanceName: nameToUse, forceRecreate });
+      setNewInstanceName("");
+      setPendingInstanceName("");
+      setDialogOpen(false);
+      setConfirmRecreateDialog(false);
+    } catch (error: unknown) {
+      const err = error as Error & { code?: string; instanceName?: string };
+      if (err.code === 'INSTANCE_EXISTS_IN_EVOLUTION') {
+        setPendingInstanceName(err.instanceName || nameToUse);
+        setDialogOpen(false);
+        setConfirmRecreateDialog(true);
+      }
+    }
   };
 
   const handleDeleteInstance = async (instanceName: string) => {
@@ -210,7 +225,7 @@ const Instances = () => {
                     onChange={(e) => setNewInstanceName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        handleCreateInstance();
+                        handleCreateInstance(false);
                       }
                     }}
                     className="bg-secondary/50 border-neon-cyan/30 focus:border-neon-cyan text-foreground relative z-50"
@@ -222,7 +237,7 @@ const Instances = () => {
                   Cancelar
                 </Button>
                 <Button 
-                  onClick={handleCreateInstance} 
+                  onClick={() => handleCreateInstance(false)} 
                   className="flex-1 bg-gradient-neon relative z-50"
                   disabled={createInstance.isPending}
                 >
@@ -233,6 +248,54 @@ const Instances = () => {
                     </>
                   ) : (
                     'Criar Instância'
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Confirm Recreate Dialog */}
+          <Dialog open={confirmRecreateDialog} onOpenChange={setConfirmRecreateDialog}>
+            <DialogContent className="glass-card border-orange-500/30">
+              <DialogHeader>
+                <DialogTitle className="text-orange-500 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Instância já existe
+                </DialogTitle>
+                <DialogDescription>
+                  Já existe uma instância chamada "<strong>{pendingInstanceName}</strong>" na Evolution API.
+                  Deseja excluí-la e criar uma nova?
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <p className="text-sm text-muted-foreground">
+                  ⚠️ Esta ação irá excluir a instância existente na Evolution API e criar uma nova. 
+                  Todas as conexões e configurações anteriores serão perdidas.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setConfirmRecreateDialog(false);
+                    setPendingInstanceName("");
+                  }} 
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => handleCreateInstance(true)} 
+                  className="flex-1 bg-orange-500 hover:bg-orange-600"
+                  disabled={createInstance.isPending}
+                >
+                  {createInstance.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Recriando...
+                    </>
+                  ) : (
+                    'Excluir e Recriar'
                   )}
                 </Button>
               </div>
