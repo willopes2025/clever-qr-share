@@ -47,21 +47,29 @@ export const useWhatsAppInstances = () => {
 
   // Criar nova instância
   const createInstance = useMutation({
-    mutationFn: async (instanceName: string) => {
+    mutationFn: async ({ instanceName, forceRecreate = false }: { instanceName: string; forceRecreate?: boolean }) => {
       const { data, error } = await supabase.functions.invoke('create-instance', {
-        body: { instanceName },
+        body: { instanceName, forceRecreate },
         headers: requireAuthHeaders(),
       });
       if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        const customError = new Error(data.error) as Error & { code?: string; instanceName?: string };
+        customError.code = data.code;
+        customError.instanceName = data.instanceName;
+        throw customError;
+      }
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
       toast.success('Instância criada com sucesso!');
     },
-    onError: (error: Error) => {
-      toast.error(`Erro ao criar instância: ${error.message}`);
+    onError: (error: Error & { code?: string }) => {
+      // Don't show toast for INSTANCE_EXISTS_IN_EVOLUTION - handled in UI
+      if (error.code !== 'INSTANCE_EXISTS_IN_EVOLUTION') {
+        toast.error(`Erro ao criar instância: ${error.message}`);
+      }
     },
   });
 
