@@ -108,6 +108,7 @@ const Contacts = () => {
 
       const matchesTag =
         tagFilter === "all" ||
+        (tagFilter === "no-tags" && (!contact.contact_tags || contact.contact_tags.length === 0)) ||
         contact.contact_tags?.some((ct) => ct.tag_id === tagFilter);
 
       // Date filter
@@ -290,6 +291,12 @@ const Contacts = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as tags</SelectItem>
+            <SelectItem value="no-tags">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+                Sem tags
+              </div>
+            </SelectItem>
             {tags.map((tag) => (
               <SelectItem key={tag.id} value={tag.id}>
                 <div className="flex items-center gap-2">
