@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, Phone, StickyNote, Calendar, MessageSquare, Edit2, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Phone, StickyNote, Calendar, MessageSquare, Edit2, Check, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -11,6 +11,8 @@ import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { Conversation } from "@/hooks/useConversations";
 import { TagSelector } from "./TagSelector";
+import { CustomFieldsEditor } from "./CustomFieldsEditor";
+import { CustomFieldsManager } from "./CustomFieldsManager";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,10 +26,15 @@ interface ContactInfoPanelProps {
 
 export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoPanelProps) => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(conversation.contact?.notes || "");
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const queryClient = useQueryClient();
+
+  // Update notes when conversation changes
+  useEffect(() => {
+    setNotes(conversation.contact?.notes || "");
+  }, [conversation.contact?.notes]);
 
   const contactName = conversation.contact?.name;
   const contactPhone = conversation.contact?.phone || "";
@@ -186,6 +193,23 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
                   <p className="text-sm font-medium">Tags</p>
                   <TagSelector conversationId={conversation.id} />
                 </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Custom Fields Section */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">Dados do Lead</p>
+                  </div>
+                  <CustomFieldsManager />
+                </div>
+                <CustomFieldsEditor 
+                  contactId={conversation.contact_id} 
+                  customFields={conversation.contact?.custom_fields || {}}
+                />
               </div>
 
               <Separator className="my-4" />

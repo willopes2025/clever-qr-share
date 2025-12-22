@@ -497,6 +497,42 @@ export type Database = {
           },
         ]
       }
+      custom_field_definitions: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          field_key: string
+          field_name: string
+          field_type: string
+          id: string
+          is_required: boolean | null
+          options: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          field_key: string
+          field_name: string
+          field_type: string
+          id?: string
+          is_required?: boolean | null
+          options?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          field_key?: string
+          field_name?: string
+          field_type?: string
+          id?: string
+          is_required?: boolean | null
+          options?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       inbox_messages: {
         Row: {
           content: string

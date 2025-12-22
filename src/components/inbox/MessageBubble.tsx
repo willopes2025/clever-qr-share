@@ -1,9 +1,22 @@
-import { format } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InboxMessage } from "@/hooks/useConversations";
 import { motion } from "framer-motion";
 import { MediaMessage } from "./MediaMessage";
+
+const formatMessageTime = (message: InboxMessage) => {
+  const date = new Date(message.created_at);
+
+  if (isToday(date)) {
+    return format(date, "HH:mm");
+  }
+  if (isYesterday(date)) {
+    return `Ontem, ${format(date, "HH:mm")}`;
+  }
+  return format(date, "dd/MM, HH:mm", { locale: ptBR });
+};
 
 interface MessageBubbleProps {
   message: InboxMessage;
@@ -81,15 +94,13 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
         >
           <span
             className={cn(
-              "text-[11px]",
+              "text-[10px]",
               isOutbound
                 ? "text-primary-foreground/70"
                 : "text-muted-foreground"
             )}
           >
-            {message.sent_at 
-              ? format(new Date(message.sent_at), "HH:mm")
-              : format(new Date(), "HH:mm")}
+            {formatMessageTime(message)}
           </span>
           {getStatusIcon()}
         </div>
