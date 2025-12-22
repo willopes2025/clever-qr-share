@@ -10,6 +10,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -30,7 +36,11 @@ import {
   Loader2,
   UserX,
   TagsIcon,
+  CalendarIcon,
 } from "lucide-react";
+import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { useContacts, ContactWithTags } from "@/hooks/useContacts";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import { ImportContactsDialog } from "@/components/contacts/ImportContactsDialog";
@@ -77,6 +87,9 @@ const Contacts = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
 
   // Filtered contacts
   const filteredContacts = useMemo(() => {
@@ -97,9 +110,45 @@ const Contacts = () => {
         tagFilter === "all" ||
         contact.contact_tags?.some((ct) => ct.tag_id === tagFilter);
 
-      return matchesSearch && matchesStatus && matchesTag;
+      // Date filter
+      const matchesDate = (() => {
+        if (dateFilter === "all") return true;
+        
+        const createdAt = new Date(contact.created_at);
+        const today = startOfDay(new Date());
+        
+        switch (dateFilter) {
+          case "today":
+            return isToday(createdAt);
+          case "yesterday":
+            return isYesterday(createdAt);
+          case "last7days":
+            return createdAt >= subDays(today, 7);
+          case "last30days":
+            return createdAt >= subDays(today, 30);
+          case "thisMonth":
+            return isSameMonth(createdAt, today);
+          case "lastMonth":
+            return isSameMonth(createdAt, subMonths(today, 1));
+          case "custom":
+            if (customDateFrom && customDateTo) {
+              return createdAt >= startOfDay(customDateFrom) && createdAt <= endOfDay(customDateTo);
+            }
+            if (customDateFrom) {
+              return createdAt >= startOfDay(customDateFrom);
+            }
+            if (customDateTo) {
+              return createdAt <= endOfDay(customDateTo);
+            }
+            return true;
+          default:
+            return true;
+        }
+      })();
+
+      return matchesSearch && matchesStatus && matchesTag && matchesDate;
     });
-  }, [contacts, searchQuery, statusFilter, tagFilter]);
+  }, [contacts, searchQuery, statusFilter, tagFilter, dateFilter, customDateFrom, customDateTo]);
 
   // Handlers
   const handleSelectAll = (checked: boolean) => {
@@ -255,6 +304,70 @@ const Contacts = () => {
           </SelectContent>
         </Select>
 
+        <Select value={dateFilter} onValueChange={setDateFilter}>
+          <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Data de criação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Qualquer data</SelectItem>
+            <SelectItem value="today">Hoje</SelectItem>
+            <SelectItem value="yesterday">Ontem</SelectItem>
+            <SelectItem value="last7days">Últimos 7 dias</SelectItem>
+            <SelectItem value="last30days">Últimos 30 dias</SelectItem>
+            <SelectItem value="thisMonth">Este mês</SelectItem>
+            <SelectItem value="lastMonth">Mês passado</SelectItem>
+            <SelectItem value="custom">Período customizado</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {dateFilter === "custom" && (
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn(
+                  "bg-dark-800/50 border-neon-cyan/30",
+                  !customDateFrom && "text-muted-foreground"
+                )}>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {customDateFrom ? format(customDateFrom, "dd/MM/yy", { locale: ptBR }) : "De"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={customDateFrom}
+                  onSelect={setCustomDateFrom}
+                  initialFocus
+                  className="pointer-events-auto"
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn(
+                  "bg-dark-800/50 border-neon-cyan/30",
+                  !customDateTo && "text-muted-foreground"
+                )}>
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {customDateTo ? format(customDateTo, "dd/MM/yy", { locale: ptBR }) : "Até"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={customDateTo}
+                  onSelect={setCustomDateTo}
+                  initialFocus
+                  className="pointer-events-auto"
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-sm text-muted-foreground">
@@ -349,12 +462,13 @@ const Contacts = () => {
       <ImportContactsDialog
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
-        onImport={(contacts) => {
-          importContacts.mutate(contacts, {
+        onImport={(contacts, tagIds) => {
+          importContacts.mutate({ contacts, tagIds }, {
             onSuccess: () => setShowImportDialog(false),
           });
         }}
         isLoading={importContacts.isPending}
+        tags={tags}
       />
 
       <TagManager

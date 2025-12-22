@@ -7,16 +7,26 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, AlertCircle, CheckCircle2, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Upload, FileText, AlertCircle, CheckCircle2, Download, Tag } from "lucide-react";
 import { toast } from "sonner";
+
+export interface TagOption {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface ImportContactsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[]
+    contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[],
+    tagIds?: string[]
   ) => void;
   isLoading?: boolean;
+  tags?: TagOption[];
 }
 
 interface ParsedContact {
@@ -34,9 +44,17 @@ export const ImportContactsDialog = ({
   onOpenChange,
   onImport,
   isLoading,
+  tags = [],
 }: ImportContactsDialogProps) => {
   const [parsedContacts, setParsedContacts] = useState<ParsedContact[]>([]);
   const [fileName, setFileName] = useState<string>("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+    );
+  };
 
   const validatePhone = (phone: string): { isValid: boolean; error?: string } => {
     const cleaned = phone.replace(/\D/g, "");
@@ -166,9 +184,10 @@ export const ImportContactsDialog = ({
       return;
     }
 
-    onImport(validContacts);
+    onImport(validContacts, selectedTagIds.length > 0 ? selectedTagIds : undefined);
     setParsedContacts([]);
     setFileName("");
+    setSelectedTagIds([]);
   };
 
   const validCount = parsedContacts.filter((c) => c.isValid).length;
@@ -273,6 +292,38 @@ export const ImportContactsDialog = ({
             </div>
           )}
 
+          {/* Tag selection */}
+          {parsedContacts.length > 0 && tags.length > 0 && (
+            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Aplicar tags aos contatos importados (opcional)
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <Badge
+                    key={tag.id}
+                    variant={selectedTagIds.includes(tag.id) ? "default" : "outline"}
+                    onClick={() => toggleTag(tag.id)}
+                    className="cursor-pointer transition-all hover:scale-105"
+                    style={{
+                      backgroundColor: selectedTagIds.includes(tag.id) ? tag.color : "transparent",
+                      borderColor: tag.color,
+                      color: selectedTagIds.includes(tag.id) ? "#fff" : undefined,
+                    }}
+                  >
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+              {selectedTagIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedTagIds.length} tag(s) serão aplicadas aos contatos importados
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Format help */}
           <div className="text-xs text-muted-foreground space-y-1">
             <p className="font-medium">Formato esperado:</p>
@@ -289,6 +340,7 @@ export const ImportContactsDialog = ({
                 onOpenChange(false);
                 setParsedContacts([]);
                 setFileName("");
+                setSelectedTagIds([]);
               }}
             >
               Cancelar
