@@ -1,6 +1,6 @@
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, MessageCircle, Inbox, Archive, Filter } from "lucide-react";
+import { Search, MessageCircle, Inbox, Archive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Conversation } from "@/hooks/useConversations";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConversationContextMenu } from "./ConversationContextMenu";
+import { formatForDisplay } from "@/lib/phone-utils";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -177,12 +178,12 @@ export const ConversationList = ({
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-0.5">
                         <span className={cn(
                           "font-medium truncate",
                           conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
                         )}>
-                          {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
+                          {conversation.contact?.name || "Contato Desconhecido"}
                         </span>
                         <span className={cn(
                           "text-xs shrink-0 ml-2",
@@ -191,6 +192,10 @@ export const ConversationList = ({
                           {formatMessageTime(conversation.last_message_at)}
                         </span>
                       </div>
+                      {/* Phone Number - Always visible */}
+                      <p className="text-xs text-muted-foreground truncate mb-1">
+                        {formatForDisplay(conversation.contact?.phone || "")}
+                      </p>
                       <div className="flex items-center gap-2">
                         <p className={cn(
                           "text-sm truncate flex-1",

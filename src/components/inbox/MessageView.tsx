@@ -363,7 +363,22 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
         </div>
         <div className="flex items-center gap-2">
           {/* Instance Selector */}
-          <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
+          <Select 
+            value={selectedInstanceId} 
+            onValueChange={async (value) => {
+              setSelectedInstanceId(value);
+              // Persist instance change to database
+              try {
+                await supabase
+                  .from('conversations')
+                  .update({ instance_id: value })
+                  .eq('id', conversation.id);
+                toast.success("Número de envio atualizado");
+              } catch (error) {
+                toast.error("Erro ao atualizar número");
+              }
+            }}
+          >
             <SelectTrigger className="w-[180px] h-9">
               <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Selecionar número" />
