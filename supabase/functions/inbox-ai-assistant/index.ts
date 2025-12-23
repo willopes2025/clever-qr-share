@@ -24,13 +24,13 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { conversationId, action, customPrompt } = await req.json();
+    const { conversationId, action, customPrompt, tone, originalMessage } = await req.json();
 
     if (!conversationId || !action) {
       throw new Error('conversationId and action are required');
     }
 
-    console.log(`AI Assistant: ${action} for conversation ${conversationId}`);
+    console.log(`AI Assistant: ${action} for conversation ${conversationId}`, { tone, hasOriginalMessage: !!originalMessage });
 
     // Get conversation with contact info
     const { data: conversation, error: convError } = await supabase
@@ -115,6 +115,31 @@ Retorne APENAS a tradução, sem explicações.`;
         systemPrompt = `Você é um assistente de atendimento ao cliente inteligente.
 Siga as instruções do usuário para ajudar com a conversa.`;
         userPrompt = `Conversa com ${contactName}:\n\n${conversationHistory}\n\nInstrução: ${customPrompt || 'Ajude com esta conversa'}`;
+        break;
+
+      case 'rewrite':
+        const toneDescriptions: Record<string, string> = {
+          'formal': 'profissional, corporativo e direto. Use linguagem formal e evite gírias.',
+          'friendly': 'amigável, casual e simpático. Use linguagem leve e acolhedora, pode incluir emojis moderadamente.',
+          'welcoming': 'acolhedora, empática e calorosa. Demonstre compreensão e cuidado genuíno.',
+          'correction': 'APENAS faça correções ortográficas e gramaticais. NÃO mude o tom, estilo ou sentido da mensagem.'
+        };
+        
+        const toneDescription = toneDescriptions[tone || 'formal'] || toneDescriptions['formal'];
+        
+        if (tone === 'correction') {
+          systemPrompt = `Você é um corretor ortográfico e gramatical profissional.
+Corrija APENAS erros de ortografia, gramática e pontuação da mensagem.
+NÃO altere o tom, estilo, palavras ou sentido da mensagem.
+Retorne APENAS a mensagem corrigida, sem explicações ou comentários.`;
+        } else {
+          systemPrompt = `Você é um assistente de escrita profissional especializado em comunicação empresarial.
+Reescreva a mensagem abaixo em tom ${toneDescription}
+Mantenha o significado e a intenção original da mensagem.
+Retorne APENAS a mensagem reescrita, sem explicações, comentários ou aspas.`;
+        }
+        
+        userPrompt = `Mensagem original: "${originalMessage}"`;
         break;
 
       default:
