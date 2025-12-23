@@ -52,13 +52,14 @@ export const useConversations = () => {
         .from('conversations')
         .select(`
           *,
-          contact:contacts(id, name, phone, notes, custom_fields)
+          contact:contacts(id, name, phone, notes, custom_fields),
+          tag_assignments:conversation_tag_assignments(tag_id)
         `)
         .order('is_pinned', { ascending: false })
         .order('last_message_at', { ascending: false });
 
       if (error) throw error;
-      return data as Conversation[];
+      return data as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
     enabled: !!user,
   });

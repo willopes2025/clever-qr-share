@@ -1,4 +1,4 @@
-import { format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, MessageCircle, Inbox, Archive } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,16 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConversationContextMenu } from "./ConversationContextMenu";
 import { formatForDisplay } from "@/lib/phone-utils";
+import { ConversationFiltersComponent, ConversationFilters } from "./ConversationFilters";
+
+interface ConversationWithTags extends Conversation {
+  tag_assignments?: { tag_id: string }[];
+}
 
 interface ConversationListProps {
-  conversations: Conversation[];
+  conversations: ConversationWithTags[];
   selectedId: string | null;
-  onSelect: (conversation: Conversation) => void;
+  onSelect: (conversation: ConversationWithTags) => void;
   isLoading: boolean;
 }
 
@@ -42,6 +47,11 @@ export const ConversationList = ({
 }: ConversationListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [filters, setFilters] = useState<ConversationFilters>({
+    instanceId: null,
+    tagId: null,
+    dateFilter: 'all',
+  });
 
   // Sort: pinned first, then by last_message_at
   const sortedConversations = [...conversations].sort((a, b) => {
@@ -58,12 +68,41 @@ export const ConversationList = ({
     
     // Apply tab filter
     if (activeTab === "unread") {
-      return matchesSearch && conv.unread_count > 0;
+      if (conv.unread_count <= 0) return false;
     }
     if (activeTab === "archived") {
-      return matchesSearch && conv.status === "archived";
+      if (conv.status !== "archived") return false;
     }
-    return matchesSearch && conv.status !== "archived";
+    if (activeTab === "all") {
+      if (conv.status === "archived") return false;
+    }
+
+    // Apply instance filter
+    if (filters.instanceId && conv.instance_id !== filters.instanceId) {
+      return false;
+    }
+
+    // Apply tag filter
+    if (filters.tagId) {
+      const hasTag = conv.tag_assignments?.some(ta => ta.tag_id === filters.tagId);
+      if (!hasTag) return false;
+    }
+
+    // Apply date filter
+    if (filters.dateFilter !== 'all' && conv.last_message_at) {
+      const messageDate = new Date(conv.last_message_at);
+      const now = new Date();
+      
+      if (filters.dateFilter === 'today') {
+        if (!isToday(messageDate)) return false;
+      } else if (filters.dateFilter === '7days') {
+        if (messageDate < subDays(now, 7)) return false;
+      } else if (filters.dateFilter === '30days') {
+        if (messageDate < subDays(now, 30)) return false;
+      }
+    }
+
+    return matchesSearch;
   });
 
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
@@ -85,7 +124,8 @@ export const ConversationList = ({
           />
         </div>
 
-        {/* Filter Tabs */}
+        {/* Filters */}
+        <ConversationFiltersComponent filters={filters} onFiltersChange={setFilters} />
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as FilterTab)}>
           <TabsList className="grid w-full grid-cols-3 h-9">
             <TabsTrigger value="all" className="text-xs gap-1.5">
