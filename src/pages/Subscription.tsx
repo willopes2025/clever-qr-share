@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { 
   CreditCard, 
   Crown, 
   Zap, 
@@ -15,7 +26,9 @@ import {
   ExternalLink,
   RefreshCw,
   Calendar,
-  Receipt
+  Receipt,
+  ArrowLeftRight,
+  X
 } from "lucide-react";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +36,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 interface Invoice {
   id: string;
@@ -57,6 +71,34 @@ const Subscription = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(true);
   const [upgradeLoading, setUpgradeLoading] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState<string | null>(null);
+
+  const openPortalWithFlow = async (flow: 'cancel' | 'update_plan' | 'payment_method') => {
+    if (!session?.access_token) {
+      toast.error("Você precisa estar logado");
+      return;
+    }
+    
+    setPortalLoading(flow);
+    try {
+      const { data, error } = await supabase.functions.invoke('customer-portal', {
+        body: { flow },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error opening portal:', error);
+      toast.error("Erro ao abrir o portal de gerenciamento");
+    } finally {
+      setPortalLoading(null);
+    }
+  };
 
   const fetchInvoices = async () => {
     if (!session?.access_token) return;
@@ -198,10 +240,73 @@ const Subscription = () => {
                   {/* Actions */}
                   <div className="flex flex-wrap gap-3 pt-4">
                     {isSubscribed && (
-                      <Button onClick={openCustomerPortal} variant="outline" className="neon-border">
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Gerenciar Pagamento
-                      </Button>
+                      <>
+                        {/* Trocar Plano */}
+                        <Button 
+                          onClick={() => openPortalWithFlow('update_plan')} 
+                          variant="outline" 
+                          className="neon-border"
+                          disabled={portalLoading === 'update_plan'}
+                        >
+                          {portalLoading === 'update_plan' ? (
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <ArrowLeftRight className="h-4 w-4 mr-2" />
+                          )}
+                          Trocar Plano
+                        </Button>
+                        
+                        {/* Atualizar Cartão */}
+                        <Button 
+                          onClick={() => openPortalWithFlow('payment_method')} 
+                          variant="outline"
+                          disabled={portalLoading === 'payment_method'}
+                        >
+                          {portalLoading === 'payment_method' ? (
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-4 w-4 mr-2" />
+                          )}
+                          Atualizar Cartão
+                        </Button>
+                        
+                        {/* Cancelar Assinatura */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              disabled={portalLoading === 'cancel'}
+                            >
+                              {portalLoading === 'cancel' ? (
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <X className="h-4 w-4 mr-2" />
+                              )}
+                              Cancelar Assinatura
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Sua assinatura continuará ativa até o final do período atual 
+                                ({subscription?.subscription_end ? format(new Date(subscription.subscription_end), "dd/MM/yyyy") : 'data de renovação'}). 
+                                Após isso, você será movido para o plano gratuito com limites reduzidos.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Voltar</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => openPortalWithFlow('cancel')}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Sim, cancelar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
                     )}
                     <Button onClick={() => checkSubscription()} variant="ghost" size="icon">
                       <RefreshCw className="h-4 w-4" />
