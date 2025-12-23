@@ -1,6 +1,6 @@
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, Loader2 } from "lucide-react";
+import { Check, CheckCheck, Clock, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InboxMessage } from "@/hooks/useConversations";
 import { motion } from "framer-motion";
@@ -35,15 +35,27 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
       return <Loader2 className="h-3 w-3 text-primary-foreground/70 animate-spin" />;
     }
     
+    // Erro - mensagem falhou
+    if (message.status === 'failed' || message.status === 'error') {
+      return <AlertCircle className="h-3.5 w-3.5 text-red-500" />;
+    }
+    
+    // Lida - double check azul
     if (message.read_at) {
       return <CheckCheck className="h-3.5 w-3.5 text-blue-400" />;
     }
+    
+    // Entregue - double check cinza
     if (message.delivered_at) {
       return <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />;
     }
+    
+    // Enviada - single check
     if (message.sent_at) {
       return <Check className="h-3.5 w-3.5 text-primary-foreground/70" />;
     }
+    
+    // Aguardando - relógio
     return <Clock className="h-3 w-3 text-primary-foreground/70" />;
   };
 

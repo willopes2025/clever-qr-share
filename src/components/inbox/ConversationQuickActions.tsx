@@ -40,7 +40,7 @@ export const ConversationQuickActions = ({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-60 hover:opacity-100 transition-opacity shrink-0"
+          className="h-6 w-6 text-muted-foreground hover:text-foreground transition-colors shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
           <MoreVertical className="h-3.5 w-3.5" />
