@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
 import { Send, Smartphone, Edit2, Check, X, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -55,7 +56,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isScrolledToBottom = useRef(true);
 
@@ -178,10 +179,15 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
     setNewMessage(""); // Clear immediately
     
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    
     setTimeout(() => scrollToBottom("smooth"), 50);
     
-    // Focus back to input immediately
-    inputRef.current?.focus();
+    // Focus back to textarea immediately
+    textareaRef.current?.focus();
 
     // Send in background - no await blocking
     sendMessage.mutateAsync({
@@ -241,21 +247,36 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    
+    // Auto-resize
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+  };
+
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   const handleAISuggestion = (text: string) => {
     setNewMessage(text);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
+    // Trigger resize after setting text
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      }
+    }, 0);
   };
 
   const startEditingName = () => {
@@ -485,7 +506,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
 
       {/* Input */}
       <div className="p-4 border-t border-border bg-card">
-        <div className="flex gap-2 max-w-3xl mx-auto items-center">
+        <div className="flex gap-2 max-w-3xl mx-auto items-end">
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
             disabled={!selectedInstanceId}
@@ -493,13 +514,14 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           
           <EmojiPicker onEmojiSelect={handleEmojiSelect} />
           
-          <Input
-            ref={inputRef}
+          <Textarea
+            ref={textareaRef}
             placeholder="Digite sua mensagem..."
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1 bg-muted/50"
+            onChange={handleMessageChange}
+            onKeyDown={handleKeyDown}
+            className="flex-1 bg-muted/50 min-h-[40px] max-h-[150px] resize-none py-2"
+            rows={1}
           />
 
           <AIAssistantButton
