@@ -197,14 +197,14 @@ export const ConversationList = ({
                         {formatForDisplay(conversation.contact?.phone || "")}
                       </p>
                       <div className="flex items-center gap-2">
-                        <p className={cn(
-                          "text-sm truncate flex-1",
-                          conversation.unread_count > 0 
-                            ? "text-foreground font-medium" 
-                            : "text-muted-foreground"
-                        )}>
-                          {conversation.last_message_preview || "Sem mensagens"}
-                        </p>
+                          <p className={cn(
+                            "text-sm truncate max-w-[180px]",
+                            conversation.unread_count > 0 
+                              ? "text-foreground font-medium" 
+                              : "text-muted-foreground"
+                          )}>
+                            {conversation.last_message_preview || "Sem mensagens"}
+                          </p>
                         {conversation.unread_count > 0 && (
                           <Badge 
                             variant="default" 
