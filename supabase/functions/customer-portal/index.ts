@@ -24,6 +24,17 @@ serve(async (req) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
 
+    // Parse request body for flow parameter
+    let flow: string | null = null;
+    try {
+      const body = await req.json();
+      flow = body?.flow || null;
+      logStep("Request body parsed", { flow });
+    } catch {
+      // No body or invalid JSON, continue without flow
+      logStep("No request body or invalid JSON");
+    }
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -52,10 +63,38 @@ serve(async (req) => {
     logStep("Found Stripe customer", { customerId });
 
     const origin = req.headers.get("origin") || "https://widezap.lovable.app";
-    const portalSession = await stripe.billingPortal.sessions.create({
+    
+    // Build portal session configuration based on flow
+    const portalConfig: any = {
       customer: customerId,
-      return_url: `${origin}/dashboard`,
-    });
+      return_url: `${origin}/subscription`,
+    };
+
+    // Add flow_data based on the requested flow
+    if (flow === 'cancel') {
+      portalConfig.flow_data = {
+        type: 'subscription_cancel',
+        subscription_cancel: {
+          subscription: await getActiveSubscriptionId(stripe, customerId),
+        },
+      };
+      logStep("Flow configured for subscription cancel");
+    } else if (flow === 'update_plan') {
+      portalConfig.flow_data = {
+        type: 'subscription_update',
+        subscription_update: {
+          subscription: await getActiveSubscriptionId(stripe, customerId),
+        },
+      };
+      logStep("Flow configured for subscription update");
+    } else if (flow === 'payment_method') {
+      portalConfig.flow_data = {
+        type: 'payment_method_update',
+      };
+      logStep("Flow configured for payment method update");
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create(portalConfig);
     
     logStep("Customer portal session created", { sessionId: portalSession.id, url: portalSession.url });
 
@@ -72,3 +111,18 @@ serve(async (req) => {
     });
   }
 });
+
+// Helper function to get the active subscription ID
+async function getActiveSubscriptionId(stripe: Stripe, customerId: string): Promise<string> {
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'active',
+    limit: 1,
+  });
+  
+  if (subscriptions.data.length === 0) {
+    throw new Error("No active subscription found");
+  }
+  
+  return subscriptions.data[0].id;
+}
