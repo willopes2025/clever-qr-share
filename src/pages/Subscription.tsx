@@ -89,6 +89,18 @@ const Subscription = () => {
       });
       
       if (error) throw error;
+      
+      // Handle special cases
+      if (data?.error === 'MANUAL_SUBSCRIPTION') {
+        toast.info(data.message || "Sua assinatura é gerenciada manualmente. Entre em contato com o suporte.");
+        return;
+      }
+      
+      if (data?.error === 'NO_CUSTOMER') {
+        toast.info(data.message || "Nenhuma assinatura ativa. Assine um plano primeiro.");
+        return;
+      }
+      
       if (data?.url) {
         window.open(data.url, '_blank');
       }

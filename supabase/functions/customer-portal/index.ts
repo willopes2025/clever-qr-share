@@ -52,11 +52,36 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    // Check if this is a manual override subscription
+    const { data: subscription } = await supabaseClient
+      .from('subscriptions')
+      .select('manual_override')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (subscription?.manual_override) {
+      logStep("Manual subscription detected - portal not available");
+      return new Response(JSON.stringify({ 
+        error: "MANUAL_SUBSCRIPTION",
+        message: "Sua assinatura é gerenciada manualmente. Entre em contato com o suporte para alterações."
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     
     if (customers.data.length === 0) {
-      throw new Error("No Stripe customer found for this user");
+      logStep("No Stripe customer found");
+      return new Response(JSON.stringify({ 
+        error: "NO_CUSTOMER",
+        message: "Nenhuma assinatura ativa encontrada no Stripe. Assine um plano primeiro."
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
     
     const customerId = customers.data[0].id;
