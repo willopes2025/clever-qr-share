@@ -505,6 +505,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           <AIAssistantButton
             conversationId={conversation.id}
             onSuggestion={handleAISuggestion}
+            currentMessage={newMessage}
           />
 
           <VoiceRecorder
