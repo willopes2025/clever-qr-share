@@ -2,8 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Play, Pause, CheckCircle2, Flame, MessageSquare, ArrowDownUp, Trash2 } from "lucide-react";
+import { Play, Pause, CheckCircle2, Flame, MessageSquare, ArrowDownUp, Trash2, Clock } from "lucide-react";
 import { WarmingSchedule } from "@/hooks/useWarming";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -171,12 +172,42 @@ export function WarmingProgressCard({ schedule, onToggleStatus, onDelete, isTogg
           </AlertDialog>
         </div>
 
-        {/* Last Activity */}
-        {schedule.last_activity_at && (
-          <p className="text-xs text-muted-foreground text-center">
-            Última atividade: {new Date(schedule.last_activity_at).toLocaleString('pt-BR')}
-          </p>
-        )}
+        {/* Status Info */}
+        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground border-t pt-3">
+          {schedule.last_activity_at ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    Última: {new Date(schedule.last_activity_at).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Última atividade de aquecimento</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <span className="flex items-center gap-1 text-yellow-600">
+              <Clock className="h-3 w-3" />
+              Aguardando primeira execução
+            </span>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Executa a cada 30min (8h-22h)
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>O aquecimento roda automaticamente a cada 30 minutos entre 8h e 22h (horário de Brasília)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </CardContent>
     </Card>
   );
