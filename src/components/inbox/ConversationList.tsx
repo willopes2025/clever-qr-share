@@ -10,6 +10,7 @@ import { Conversation } from "@/hooks/useConversations";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConversationContextMenu } from "./ConversationContextMenu";
+import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { ConversationFiltersComponent, ConversationFilters } from "./ConversationFilters";
 
@@ -189,19 +190,19 @@ export const ConversationList = ({
                   isArchived={conversation.status === 'archived'}
                   isPinned={conversation.is_pinned || false}
                 >
-                  <motion.button
+                  <motion.div
                     layout
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.2, delay: index * 0.02 }}
-                    onClick={() => onSelect(conversation)}
                     className={cn(
-                      "w-full flex items-start gap-3 p-3 rounded-xl transition-all duration-200 text-left mb-1",
+                      "group w-full flex items-start gap-3 p-3 rounded-xl transition-all duration-200 text-left mb-1 cursor-pointer",
                       selectedId === conversation.id
                         ? "bg-primary/10 border border-primary/20 shadow-sm"
                         : "hover:bg-muted/50 hover:scale-[1.01]"
                     )}
+                    onClick={() => onSelect(conversation)}
                   >
                     {/* Avatar */}
                     <div className="relative">
@@ -225,12 +226,20 @@ export const ConversationList = ({
                         )}>
                           {conversation.contact?.name || "Contato Desconhecido"}
                         </span>
-                        <span className={cn(
-                          "text-xs shrink-0 ml-2",
-                          conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
-                        )}>
-                          {formatMessageTime(conversation.last_message_at)}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <span className={cn(
+                            "text-xs",
+                            conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
+                          )}>
+                            {formatMessageTime(conversation.last_message_at)}
+                          </span>
+                          <ConversationQuickActions
+                            conversationId={conversation.id}
+                            isPinned={conversation.is_pinned || false}
+                            contactName={conversation.contact?.name || "Contato Desconhecido"}
+                            contactPhone={conversation.contact?.phone || ""}
+                          />
+                        </div>
                       </div>
                       {/* Phone Number - Always visible */}
                       <p className="text-xs text-muted-foreground truncate mb-1">
@@ -255,7 +264,7 @@ export const ConversationList = ({
                         )}
                       </div>
                     </div>
-                  </motion.button>
+                  </motion.div>
                 </ConversationContextMenu>
               ))}
             </AnimatePresence>
