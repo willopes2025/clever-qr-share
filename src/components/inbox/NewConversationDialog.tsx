@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Smartphone } from "lucide-react";
+import { Plus, Search, Smartphone, UserPlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,9 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useContacts } from "@/hooks/useContacts";
 import { useConversations } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { formatPhoneNumber, validateBrazilianPhone, extractDigits } from "@/lib/phone-utils";
+import { toast } from "sonner";
 
 interface NewConversationDialogProps {
   onConversationCreated: (conversationId: string) => void;
@@ -30,7 +33,9 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
-  const { contacts, isLoading } = useContacts();
+  const [newPhone, setNewPhone] = useState("");
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const { contacts, isLoading, createContact } = useContacts();
   const { createConversation } = useConversations();
   const { instances } = useWhatsAppInstances();
 
@@ -69,6 +74,55 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
     }
   };
 
+  const handleCreateAndChat = async () => {
+    if (!selectedInstanceId) {
+      toast.error("Selecione uma instância primeiro");
+      return;
+    }
+
+    const digits = extractDigits(newPhone);
+    const validation = validateBrazilianPhone(digits);
+    
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
+    setIsCreatingNew(true);
+    
+    try {
+      // Create contact first
+      const newContact = await createContact.mutateAsync({
+        phone: digits,
+        name: null,
+      });
+
+      if (newContact) {
+        // Create conversation with the new contact
+        const result = await createConversation.mutateAsync({ 
+          contactId: newContact.id,
+          instanceId: selectedInstanceId 
+        });
+        
+        if (result) {
+          onConversationCreated(result.id);
+          setOpen(false);
+          setSearchTerm("");
+          setNewPhone("");
+          toast.success("Contato criado e conversa iniciada");
+        }
+      }
+    } catch (error: any) {
+      if (error?.message?.includes('duplicate') || error?.code === '23505') {
+        toast.error("Este número já está cadastrado");
+      } else {
+        toast.error("Erro ao criar contato");
+      }
+    } finally {
+      setIsCreatingNew(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -87,7 +141,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           <div className="space-y-2">
             <Label className="text-sm font-medium">Enviar via</Label>
             <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Selecionar número" />
               </SelectTrigger>
@@ -107,6 +161,35 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
             </Select>
           </div>
 
+          {/* Create New Contact */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Novo contato</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="(11) 99999-9999"
+                value={newPhone}
+                onChange={(e) => setNewPhone(formatPhoneNumber(e.target.value))}
+                className="flex-1"
+                maxLength={15}
+              />
+              <Button 
+                onClick={handleCreateAndChat}
+                disabled={!newPhone || isCreatingNew || !selectedInstanceId}
+                size="sm"
+                className="gap-1.5 shrink-0"
+              >
+                <UserPlus className="h-4 w-4" />
+                Criar e conversar
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">ou selecione um contato</span>
+            <Separator className="flex-1" />
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -117,7 +200,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
             />
           </div>
 
-          <ScrollArea className="h-64">
+          <ScrollArea className="h-52">
             {isLoading ? (
               <div className="space-y-2">
                 {[...Array(5)].map((_, i) => (
