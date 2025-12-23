@@ -219,9 +219,9 @@ export const ConversationList = ({
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
                         <span className={cn(
-                          "font-medium truncate",
+                          "font-medium truncate min-w-0 flex-1",
                           conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
                         )}>
                           {conversation.contact?.name || "Contato Desconhecido"}
