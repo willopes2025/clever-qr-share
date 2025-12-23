@@ -226,9 +226,9 @@ export const ConversationList = ({
                         )}>
                           {conversation.contact?.name || "Contato Desconhecido"}
                         </span>
-                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <span className={cn(
-                            "text-xs",
+                            "text-xs whitespace-nowrap",
                             conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
                           )}>
                             {formatMessageTime(conversation.last_message_at)}
