@@ -521,31 +521,81 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
 
 // deno-lint-ignore no-explicit-any
 async function handleMessagesUpdate(supabase: any, data: any) {
-  const updates = data.messages || [];
+  console.log('handleMessagesUpdate called with:', JSON.stringify(data, null, 2));
   
-  for (const update of updates) {
-    const messageId = update.key?.id;
-    const status = update.update?.status;
+  // Evolution API sends data directly, not in data.messages array
+  // keyId is the WhatsApp internal ID, messageId is the one we stored
+  const messageId = data.messageId || data.keyId || data.key?.id;
+  const statusString = data.status;
 
-    if (!messageId || status === undefined) continue;
+  if (!messageId || !statusString) {
+    console.log('No messageId or status in update data:', { messageId, statusString });
+    return;
+  }
 
-    // Status codes: 1 = pending, 2 = sent, 3 = delivered, 4 = read
-    let statusText = 'pending';
-    if (status === 2) statusText = 'sent';
-    else if (status === 3) statusText = 'delivered';
-    else if (status === 4) statusText = 'read';
+  // Map Evolution API status strings to our status
+  let statusText = 'pending';
+  let delivered_at: string | null = null;
+  let read_at: string | null = null;
+  const now = new Date().toISOString();
 
-    console.log(`Updating message ${messageId} to status ${statusText}`);
+  // Evolution API status values:
+  // "ERROR" = erro
+  // "PENDING" = pendente
+  // "SERVER_ACK" = servidor recebeu (enviado)
+  // "DELIVERY_ACK" = entregue ao destinatário
+  // "READ" = lido
+  // "PLAYED" = áudio reproduzido (equivalente a lido)
+  
+  const statusUpper = String(statusString).toUpperCase();
+  
+  switch (statusUpper) {
+    case 'ERROR':
+      statusText = 'failed';
+      break;
+    case 'PENDING':
+      statusText = 'pending';
+      break;
+    case 'SERVER_ACK':
+      statusText = 'sent';
+      break;
+    case 'DELIVERY_ACK':
+      statusText = 'delivered';
+      delivered_at = now;
+      break;
+    case 'READ':
+    case 'PLAYED':
+      statusText = 'read';
+      read_at = now;
+      break;
+    default:
+      // Fallback for numeric statuses (if any)
+      if (statusString === 2 || statusString === '2') statusText = 'sent';
+      else if (statusString === 3 || statusString === '3') { statusText = 'delivered'; delivered_at = now; }
+      else if (statusString === 4 || statusString === '4') { statusText = 'read'; read_at = now; }
+      else console.log('Unknown status value:', statusString);
+  }
 
-    // deno-lint-ignore no-explicit-any
-    const updateData: any = { status: statusText };
-    if (status === 3) updateData.delivered_at = new Date().toISOString();
-    if (status === 4) updateData.read_at = new Date().toISOString();
+  console.log(`Updating message ${messageId} to status ${statusText}`);
 
-    await supabase
-      .from('inbox_messages')
-      .update(updateData)
-      .eq('whatsapp_message_id', messageId);
+  // deno-lint-ignore no-explicit-any
+  const updateData: any = { status: statusText };
+  if (delivered_at) updateData.delivered_at = delivered_at;
+  if (read_at) updateData.read_at = read_at;
+
+  // Update by whatsapp_message_id
+  const { data: updated, error } = await supabase
+    .from('inbox_messages')
+    .update(updateData)
+    .eq('whatsapp_message_id', messageId)
+    .select('id');
+
+  if (error) {
+    console.error('Error updating message status:', error);
+  } else if (updated && updated.length > 0) {
+    console.log(`Message ${messageId} updated to ${statusText} successfully`);
+  } else {
+    console.log(`Message ${messageId} not found in database`);
   }
 }
 
