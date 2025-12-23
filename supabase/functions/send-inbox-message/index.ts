@@ -166,8 +166,16 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // Message failed
-      const errorMessage = result.message || result.error || 'Unknown error';
+      // Message failed - check for specific error types
+      let errorMessage = result.message || result.error || 'Unknown error';
+      
+      // Check if number doesn't exist on WhatsApp
+      if (result.response?.message) {
+        const msgDetails = result.response.message;
+        if (Array.isArray(msgDetails) && msgDetails.length > 0 && msgDetails[0]?.exists === false) {
+          errorMessage = `Este número (${phone}) não está registrado no WhatsApp. Verifique se o número está correto.`;
+        }
+      }
       
       await supabase
         .from('inbox_messages')
