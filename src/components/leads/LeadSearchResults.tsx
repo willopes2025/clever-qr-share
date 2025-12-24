@@ -173,10 +173,18 @@ export const LeadSearchResults = ({
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={company.situacao_cadastral === 'ATIVA' ? 'default' : 'secondary'}
+                          variant={
+                            (typeof company.situacao_cadastral === 'string' 
+                              ? company.situacao_cadastral 
+                              : (company.situacao_cadastral as { situacao_atual: string })?.situacao_atual) === 'ATIVA' 
+                              ? 'default' 
+                              : 'secondary'
+                          }
                           className="text-xs"
                         >
-                          {company.situacao_cadastral}
+                          {typeof company.situacao_cadastral === 'string' 
+                            ? company.situacao_cadastral 
+                            : (company.situacao_cadastral as { situacao_atual: string })?.situacao_atual || '-'}
                         </Badge>
                       </TableCell>
                     </TableRow>

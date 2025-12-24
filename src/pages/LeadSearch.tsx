@@ -12,7 +12,7 @@ export interface Company {
   cnpj: string;
   razao_social: string;
   nome_fantasia: string | null;
-  situacao_cadastral: string;
+  situacao_cadastral: string | { situacao_atual: string; motivo?: string; data?: string };
   data_abertura: string | null;
   capital_social: number | null;
   porte: string | null;
