@@ -290,6 +290,36 @@ export function useTeamMembers() {
     },
   });
 
+  // Criar membro com senha
+  const createMemberWithPassword = useMutation({
+    mutationFn: async ({ email, password, name, role }: { email: string; password: string; name?: string; role: TeamRole }) => {
+      if (!organization) throw new Error('Organização não encontrada');
+      if (!isAdmin) throw new Error('Sem permissão para criar membros');
+
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: { 
+          email, 
+          password, 
+          name,
+          role,
+          organizationId: organization.id,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success('Membro criado com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   return {
     members,
     isLoading,
@@ -301,5 +331,6 @@ export function useTeamMembers() {
     activateMember,
     resendInvite,
     resetPassword,
+    createMemberWithPassword,
   };
 }
