@@ -12,19 +12,49 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useSidebarContext } from "@/contexts/SidebarContext";
 import wideLogo from "@/assets/wide-logo.png";
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: QrCode, label: "Instâncias", path: "/instances" },
-  { icon: Flame, label: "Aquecimento", path: "/warming" },
-  { icon: MessageSquare, label: "Inbox", path: "/inbox", showBadge: true },
-  { icon: Target, label: "Funis", path: "/funnels" },
-  { icon: BarChart3, label: "Análise", path: "/analysis", premiumOnly: true },
-  { icon: Users, label: "Contatos", path: "/contacts" },
-  { icon: List, label: "Listas", path: "/broadcast-lists" },
-  { icon: FileText, label: "Templates", path: "/templates" },
-  { icon: Send, label: "Disparos", path: "/campaigns" },
-  { icon: CreditCard, label: "Assinatura", path: "/subscription" },
-  { icon: Settings, label: "Configurações", path: "/settings" },
+const navGroups = [
+  {
+    label: "Visão Geral",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+    ],
+  },
+  {
+    label: "Potencialize seu WhatsApp",
+    items: [
+      { icon: QrCode, label: "Instâncias", path: "/instances" },
+      { icon: Flame, label: "Aquecimento", path: "/warming" },
+    ],
+  },
+  {
+    label: "Atendimento e Vendas",
+    items: [
+      { icon: MessageSquare, label: "Inbox", path: "/inbox", showBadge: true },
+      { icon: Target, label: "Funis", path: "/funnels" },
+      { icon: BarChart3, label: "Análise", path: "/analysis", premiumOnly: true },
+    ],
+  },
+  {
+    label: "Organize seus Clientes",
+    items: [
+      { icon: Users, label: "Contatos", path: "/contacts" },
+      { icon: List, label: "Listas", path: "/broadcast-lists" },
+    ],
+  },
+  {
+    label: "Campanhas e Disparos",
+    items: [
+      { icon: FileText, label: "Templates", path: "/templates" },
+      { icon: Send, label: "Disparos", path: "/campaigns" },
+    ],
+  },
+  {
+    label: "Sua Conta",
+    items: [
+      { icon: CreditCard, label: "Assinatura", path: "/subscription" },
+      { icon: Settings, label: "Configurações", path: "/settings" },
+    ],
+  },
 ];
 
 export const DashboardSidebar = () => {
@@ -46,6 +76,64 @@ export const DashboardSidebar = () => {
       toast.success("Logout realizado com sucesso");
       navigate("/login");
     }
+  };
+
+  const renderNavItem = (item: typeof navGroups[0]['items'][0]) => {
+    const linkContent = (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        className={({ isActive }) =>
+          cn(
+            "flex items-center rounded-xl text-sm font-medium transition-all duration-200 relative",
+            isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-2.5",
+            isActive
+              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
+              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          )
+        }
+      >
+        <item.icon className="h-5 w-5 shrink-0" />
+        {!isCollapsed && (
+          <>
+            <span className="flex-1">{item.label}</span>
+            {item.showBadge && totalUnread > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
+              >
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </Badge>
+            )}
+          </>
+        )}
+        {isCollapsed && item.showBadge && totalUnread > 0 && (
+          <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+            {totalUnread > 99 ? '99+' : totalUnread}
+          </span>
+        )}
+      </NavLink>
+    );
+
+    if (isCollapsed) {
+      return (
+        <Tooltip key={item.path}>
+          <TooltipTrigger asChild>
+            {linkContent}
+          </TooltipTrigger>
+          <TooltipContent side="right" className="flex items-center gap-2">
+            {item.label}
+            {item.showBadge && totalUnread > 0 && (
+              <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </Badge>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return linkContent;
   };
 
   return (
@@ -80,66 +168,31 @@ export const DashboardSidebar = () => {
 
         {/* Navigation */}
         <nav className={cn(
-          "flex-1 py-6 space-y-1 overflow-y-auto",
+          "flex-1 py-4 overflow-y-auto",
           isCollapsed ? "px-2" : "px-3"
         )}>
-          {navItems.map((item) => {
-            const linkContent = (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center rounded-xl text-sm font-medium transition-all duration-200 relative",
-                    isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3",
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  )
-                }
-              >
-                <item.icon className="h-5 w-5 shrink-0" />
-                {!isCollapsed && (
-                  <>
-                    <span className="flex-1">{item.label}</span>
-                    {item.showBadge && totalUnread > 0 && (
-                      <Badge 
-                        variant="destructive" 
-                        className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
-                      >
-                        {totalUnread > 99 ? '99+' : totalUnread}
-                      </Badge>
-                    )}
-                  </>
-                )}
-                {isCollapsed && item.showBadge && totalUnread > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {totalUnread > 99 ? '99+' : totalUnread}
+          {navGroups.map((group, groupIndex) => (
+            <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
+              {/* Group Label - hidden when collapsed */}
+              {!isCollapsed && (
+                <div className="px-4 mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    {group.label}
                   </span>
-                )}
-              </NavLink>
-            );
-
-            if (isCollapsed) {
-              return (
-                <Tooltip key={item.path}>
-                  <TooltipTrigger asChild>
-                    {linkContent}
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="flex items-center gap-2">
-                    {item.label}
-                    {item.showBadge && totalUnread > 0 && (
-                      <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
-                        {totalUnread > 99 ? '99+' : totalUnread}
-                      </Badge>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
-
-            return linkContent;
-          })}
+                </div>
+              )}
+              
+              {/* Separator when collapsed */}
+              {isCollapsed && groupIndex > 0 && (
+                <div className="my-2 mx-2 border-t border-sidebar-border/20" />
+              )}
+              
+              {/* Group Items */}
+              <div className="space-y-0.5">
+                {group.items.map(renderNavItem)}
+              </div>
+            </div>
+          ))}
           
           {/* Admin Link */}
           {isAdmin && (
