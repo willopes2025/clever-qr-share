@@ -14,6 +14,183 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agent_configs: {
+        Row: {
+          active_hours_end: number | null
+          active_hours_start: number | null
+          agent_name: string
+          behavior_rules: string | null
+          campaign_id: string | null
+          created_at: string | null
+          fallback_message: string | null
+          goodbye_message: string | null
+          greeting_message: string | null
+          handoff_keywords: string[] | null
+          id: string
+          is_active: boolean | null
+          max_interactions: number | null
+          personality_prompt: string | null
+          response_delay_max: number | null
+          response_delay_min: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          active_hours_end?: number | null
+          active_hours_start?: number | null
+          agent_name?: string
+          behavior_rules?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          fallback_message?: string | null
+          goodbye_message?: string | null
+          greeting_message?: string | null
+          handoff_keywords?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          max_interactions?: number | null
+          personality_prompt?: string | null
+          response_delay_max?: number | null
+          response_delay_min?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          active_hours_end?: number | null
+          active_hours_start?: number | null
+          agent_name?: string
+          behavior_rules?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          fallback_message?: string | null
+          goodbye_message?: string | null
+          greeting_message?: string | null
+          handoff_keywords?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          max_interactions?: number | null
+          personality_prompt?: string | null
+          response_delay_max?: number | null
+          response_delay_min?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_configs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_knowledge_items: {
+        Row: {
+          agent_config_id: string
+          content: string | null
+          created_at: string | null
+          error_message: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          last_synced_at: string | null
+          processed_content: string | null
+          source_type: string
+          status: string
+          title: string
+          updated_at: string | null
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          agent_config_id: string
+          content?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          processed_content?: string | null
+          source_type: string
+          status?: string
+          title: string
+          updated_at?: string | null
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          agent_config_id?: string
+          content?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          processed_content?: string | null
+          source_type?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_knowledge_items_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_variables: {
+        Row: {
+          agent_config_id: string
+          created_at: string | null
+          id: string
+          is_system: boolean | null
+          updated_at: string | null
+          user_id: string
+          variable_description: string | null
+          variable_key: string
+          variable_value: string | null
+        }
+        Insert: {
+          agent_config_id: string
+          created_at?: string | null
+          id?: string
+          is_system?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          variable_description?: string | null
+          variable_key: string
+          variable_value?: string | null
+        }
+        Update: {
+          agent_config_id?: string
+          created_at?: string | null
+          id?: string
+          is_system?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          variable_description?: string | null
+          variable_key?: string
+          variable_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_variables_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       broadcast_list_contacts: {
         Row: {
           added_at: string
@@ -484,6 +661,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      conversation_stage_data: {
+        Row: {
+          collected_data: Json | null
+          conversation_id: string
+          created_at: string | null
+          current_stage_id: string | null
+          id: string
+          stage_history: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          collected_data?: Json | null
+          conversation_id: string
+          created_at?: string | null
+          current_stage_id?: string | null
+          id?: string
+          stage_history?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          collected_data?: Json | null
+          conversation_id?: string
+          created_at?: string | null
+          current_stage_id?: string | null
+          id?: string
+          stage_history?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_stage_data_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversation_tag_assignments: {
         Row: {

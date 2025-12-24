@@ -6,13 +6,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { Campaign } from '@/hooks/useCampaigns';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, MessageSquare, Zap } from 'lucide-react';
+import { useAgentConfig, useKnowledgeItems, useAgentVariables, useAgentConfigMutations, useVariableMutations } from '@/hooks/useAIAgentConfig';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, Smile, BookOpen, Variable } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AgentPersonalityTab } from './agent/AgentPersonalityTab';
+import { AgentKnowledgeTab } from './agent/AgentKnowledgeTab';
+import { AgentVariablesTab } from './agent/AgentVariablesTab';
 
 interface CampaignFormDialogProps {
   open: boolean;
@@ -30,7 +33,6 @@ interface CampaignFormDialogProps {
     allowed_end_hour: number;
     allowed_days: string[];
     timezone: string;
-    // AI settings
     ai_enabled: boolean;
     ai_prompt: string;
     ai_knowledge_base: string;
@@ -70,7 +72,6 @@ export const CampaignFormDialog = ({
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
   
-  // Sending settings
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [intervalMin, setIntervalMin] = useState(90);
   const [intervalMax, setIntervalMax] = useState(180);
@@ -82,18 +83,28 @@ export const CampaignFormDialog = ({
 
   // AI Agent settings
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiKnowledgeBase, setAiKnowledgeBase] = useState('');
+  const [agentName, setAgentName] = useState('Assistente IA');
+  const [personalityPrompt, setPersonalityPrompt] = useState('');
+  const [behaviorRules, setBehaviorRules] = useState('');
+  const [greetingMessage, setGreetingMessage] = useState('');
+  const [fallbackMessage, setFallbackMessage] = useState('Desculpe, não entendi. Pode reformular?');
+  const [goodbyeMessage, setGoodbyeMessage] = useState('');
   const [aiMaxInteractions, setAiMaxInteractions] = useState(10);
   const [aiResponseDelayMin, setAiResponseDelayMin] = useState(3);
   const [aiResponseDelayMax, setAiResponseDelayMax] = useState(8);
   const [aiHandoffKeywords, setAiHandoffKeywords] = useState<string[]>(DEFAULT_HANDOFF_KEYWORDS);
   const [aiActiveHoursStart, setAiActiveHoursStart] = useState(8);
   const [aiActiveHoursEnd, setAiActiveHoursEnd] = useState(20);
-  const [newKeyword, setNewKeyword] = useState('');
 
   const { templates } = useMessageTemplates();
   const { lists } = useBroadcastLists();
+  
+  // Agent config hooks
+  const { data: agentConfig } = useAgentConfig(campaign?.id || null);
+  const { data: knowledgeItems = [], isLoading: knowledgeLoading } = useKnowledgeItems(agentConfig?.id || null);
+  const { data: variables = [], isLoading: variablesLoading } = useAgentVariables(agentConfig?.id || null);
+  const { upsertConfig } = useAgentConfigMutations();
+  const { initSystemVariables } = useVariableMutations();
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
 
@@ -112,23 +123,13 @@ export const CampaignFormDialog = ({
         setScheduledDate('');
         setScheduledTime('');
       }
-      // Load campaign-specific settings
       setIntervalMin(campaign.message_interval_min ?? 90);
       setIntervalMax(campaign.message_interval_max ?? 180);
       setDailyLimit(campaign.daily_limit ?? 1000);
       setStartHour(campaign.allowed_start_hour ?? 8);
       setEndHour(campaign.allowed_end_hour ?? 20);
       setAllowedDays(campaign.allowed_days ?? ['mon', 'tue', 'wed', 'thu', 'fri']);
-      // Load AI settings
       setAiEnabled(campaign.ai_enabled ?? false);
-      setAiPrompt(campaign.ai_prompt ?? '');
-      setAiKnowledgeBase(campaign.ai_knowledge_base ?? '');
-      setAiMaxInteractions(campaign.ai_max_interactions ?? 10);
-      setAiResponseDelayMin(campaign.ai_response_delay_min ?? 3);
-      setAiResponseDelayMax(campaign.ai_response_delay_max ?? 8);
-      setAiHandoffKeywords(campaign.ai_handoff_keywords ?? DEFAULT_HANDOFF_KEYWORDS);
-      setAiActiveHoursStart(campaign.ai_active_hours_start ?? 8);
-      setAiActiveHoursEnd(campaign.ai_active_hours_end ?? 20);
     } else {
       setName('');
       setTemplateId('');
@@ -142,25 +143,40 @@ export const CampaignFormDialog = ({
       setStartHour(8);
       setEndHour(20);
       setAllowedDays(['mon', 'tue', 'wed', 'thu', 'fri']);
-      // Reset AI settings
       setAiEnabled(false);
-      setAiPrompt('');
-      setAiKnowledgeBase('');
-      setAiMaxInteractions(10);
-      setAiResponseDelayMin(3);
-      setAiResponseDelayMax(8);
-      setAiHandoffKeywords(DEFAULT_HANDOFF_KEYWORDS);
-      setAiActiveHoursStart(8);
-      setAiActiveHoursEnd(20);
     }
   }, [campaign, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Load agent config when available
+  useEffect(() => {
+    if (agentConfig) {
+      setAgentName(agentConfig.agent_name);
+      setPersonalityPrompt(agentConfig.personality_prompt || '');
+      setBehaviorRules(agentConfig.behavior_rules || '');
+      setGreetingMessage(agentConfig.greeting_message || '');
+      setFallbackMessage(agentConfig.fallback_message || 'Desculpe, não entendi. Pode reformular?');
+      setGoodbyeMessage(agentConfig.goodbye_message || '');
+      setAiMaxInteractions(agentConfig.max_interactions);
+      setAiResponseDelayMin(agentConfig.response_delay_min);
+      setAiResponseDelayMax(agentConfig.response_delay_max);
+      setAiHandoffKeywords(agentConfig.handoff_keywords);
+      setAiActiveHoursStart(agentConfig.active_hours_start);
+      setAiActiveHoursEnd(agentConfig.active_hours_end);
+    }
+  }, [agentConfig]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     let scheduledAt: string | null = null;
     if (isScheduled && scheduledDate && scheduledTime) {
       scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+    }
+
+    // Build prompt from personality settings
+    let fullPrompt = personalityPrompt;
+    if (behaviorRules) {
+      fullPrompt += `\n\nRegras:\n${behaviorRules}`;
     }
 
     onSubmit({
@@ -175,10 +191,9 @@ export const CampaignFormDialog = ({
       allowed_end_hour: endHour,
       allowed_days: allowedDays,
       timezone,
-      // AI settings
       ai_enabled: aiEnabled,
-      ai_prompt: aiPrompt,
-      ai_knowledge_base: aiKnowledgeBase,
+      ai_prompt: fullPrompt,
+      ai_knowledge_base: '', // Knowledge is now stored separately
       ai_max_interactions: aiMaxInteractions,
       ai_response_delay_min: aiResponseDelayMin,
       ai_response_delay_max: aiResponseDelayMax,
@@ -186,6 +201,31 @@ export const CampaignFormDialog = ({
       ai_active_hours_start: aiActiveHoursStart,
       ai_active_hours_end: aiActiveHoursEnd,
     });
+
+    // Save agent config if campaign exists
+    if (campaign?.id && aiEnabled) {
+      const configResult = await upsertConfig.mutateAsync({
+        campaign_id: campaign.id,
+        agent_name: agentName,
+        personality_prompt: personalityPrompt,
+        behavior_rules: behaviorRules,
+        greeting_message: greetingMessage,
+        fallback_message: fallbackMessage,
+        goodbye_message: goodbyeMessage,
+        max_interactions: aiMaxInteractions,
+        response_delay_min: aiResponseDelayMin,
+        response_delay_max: aiResponseDelayMax,
+        active_hours_start: aiActiveHoursStart,
+        active_hours_end: aiActiveHoursEnd,
+        handoff_keywords: aiHandoffKeywords,
+        is_active: true,
+      });
+      
+      // Initialize system variables if new config
+      if (configResult && !agentConfig) {
+        initSystemVariables.mutate(configResult.id);
+      }
+    }
   };
 
   const toggleDay = (day: string) => {
@@ -201,7 +241,7 @@ export const CampaignFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {campaign ? 'Editar Campanha' : 'Nova Campanha'}
@@ -239,9 +279,7 @@ export const CampaignFormDialog = ({
             </Select>
             {selectedTemplate && (
               <div className="p-3 bg-muted rounded-lg text-sm">
-                <p className="text-muted-foreground line-clamp-3">
-                  {selectedTemplate.content}
-                </p>
+                <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
               </div>
             )}
           </div>
@@ -271,14 +309,9 @@ export const CampaignFormDialog = ({
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Agendar Envio</Label>
-                <p className="text-sm text-muted-foreground">
-                  Defina data e hora para envio automático
-                </p>
+                <p className="text-sm text-muted-foreground">Defina data e hora para envio automático</p>
               </div>
-              <Switch
-                checked={isScheduled}
-                onCheckedChange={setIsScheduled}
-              />
+              <Switch checked={isScheduled} onCheckedChange={setIsScheduled} />
             </div>
 
             {isScheduled && (
@@ -326,93 +359,51 @@ export const CampaignFormDialog = ({
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-4 pt-4">
-              {/* Message Intervals */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="intervalMin">Intervalo Mínimo (seg)</Label>
-                  <Input
-                    id="intervalMin"
-                    type="number"
-                    min={1}
-                    value={intervalMin}
-                    onChange={(e) => setIntervalMin(parseInt(e.target.value) || 1)}
-                  />
+                  <Label>Intervalo Mínimo (seg)</Label>
+                  <Input type="number" min={1} value={intervalMin} onChange={(e) => setIntervalMin(parseInt(e.target.value) || 1)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="intervalMax">Intervalo Máximo (seg)</Label>
-                  <Input
-                    id="intervalMax"
-                    type="number"
-                    min={1}
-                    value={intervalMax}
-                    onChange={(e) => setIntervalMax(parseInt(e.target.value) || 1)}
-                  />
+                  <Label>Intervalo Máximo (seg)</Label>
+                  <Input type="number" min={1} value={intervalMax} onChange={(e) => setIntervalMax(parseInt(e.target.value) || 1)} />
                 </div>
               </div>
-
-              {/* Daily Limit */}
               <div className="space-y-2">
-                <Label htmlFor="dailyLimit">Limite Diário de Mensagens</Label>
-                <Input
-                  id="dailyLimit"
-                  type="number"
-                  min={1}
-                  value={dailyLimit}
-                  onChange={(e) => setDailyLimit(parseInt(e.target.value) || 1)}
-                />
+                <Label>Limite Diário de Mensagens</Label>
+                <Input type="number" min={1} value={dailyLimit} onChange={(e) => setDailyLimit(parseInt(e.target.value) || 1)} />
               </div>
-
-              {/* Allowed Hours */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="startHour">Hora Início</Label>
+                  <Label>Hora Início</Label>
                   <Select value={startHour.toString()} onValueChange={(v) => setStartHour(parseInt(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 24 }, (_, i) => (
-                        <SelectItem key={i} value={i.toString()}>
-                          {i.toString().padStart(2, '0')}:00
-                        </SelectItem>
+                        <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="endHour">Hora Fim</Label>
+                  <Label>Hora Fim</Label>
                   <Select value={endHour.toString()} onValueChange={(v) => setEndHour(parseInt(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 24 }, (_, i) => (
-                        <SelectItem key={i} value={i.toString()}>
-                          {i.toString().padStart(2, '0')}:00
-                        </SelectItem>
+                        <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
-              {/* Allowed Days */}
               <div className="space-y-2">
                 <Label>Dias Permitidos</Label>
                 <div className="flex flex-wrap gap-2">
                   {DAYS_OF_WEEK.map((day) => (
-                    <div
-                      key={day.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={day.value}
-                        checked={allowedDays.includes(day.value)}
-                        onCheckedChange={() => toggleDay(day.value)}
-                      />
-                      <Label htmlFor={day.value} className="text-sm cursor-pointer">
-                        {day.label}
-                      </Label>
+                    <div key={day.value} className="flex items-center space-x-2">
+                      <Checkbox id={day.value} checked={allowedDays.includes(day.value)} onCheckedChange={() => toggleDay(day.value)} />
+                      <Label htmlFor={day.value} className="text-sm cursor-pointer">{day.label}</Label>
                     </div>
                   ))}
                 </div>
@@ -427,204 +418,80 @@ export const CampaignFormDialog = ({
                 <span className="flex items-center gap-2">
                   <Bot className="h-4 w-4" />
                   Agente de IA
-                  {aiEnabled && (
-                    <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">
-                      Ativo
-                    </span>
-                  )}
+                  {aiEnabled && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
                 </span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-4 pt-4">
-              {/* Enable AI Toggle */}
               <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                 <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" />
-                    <Label className="font-medium">Ativar Agente de IA</Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Responde automaticamente às mensagens dos contatos
-                  </p>
+                  <Label className="font-medium">Ativar Agente de IA</Label>
+                  <p className="text-sm text-muted-foreground">Responde automaticamente às mensagens dos contatos</p>
                 </div>
-                <Switch
-                  checked={aiEnabled}
-                  onCheckedChange={setAiEnabled}
-                />
+                <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
               </div>
 
               {aiEnabled && (
-                <Tabs defaultValue="prompt" className="w-full">
-                  <TabsList className="w-full">
-                    <TabsTrigger value="prompt" className="flex-1 gap-1.5">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      Prompt
+                <Tabs defaultValue="personality" className="w-full">
+                  <TabsList className="w-full grid grid-cols-3">
+                    <TabsTrigger value="personality" className="gap-1.5">
+                      <Smile className="h-3.5 w-3.5" />
+                      Personalidade
                     </TabsTrigger>
-                    <TabsTrigger value="config" className="flex-1 gap-1.5">
-                      <Settings2 className="h-3.5 w-3.5" />
-                      Configurações
+                    <TabsTrigger value="knowledge" className="gap-1.5">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      Conhecimento
+                    </TabsTrigger>
+                    <TabsTrigger value="variables" className="gap-1.5">
+                      <Variable className="h-3.5 w-3.5" />
+                      Variáveis
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="prompt" className="space-y-4 mt-4">
-                    {/* AI Prompt */}
-                    <div className="space-y-2">
-                      <Label>Prompt do Agente</Label>
-                      <Textarea
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="Ex: Você é um assistente de vendas amigável. Responda perguntas sobre nossos produtos e ajude os clientes a fazer pedidos..."
-                        rows={4}
-                        className="resize-none"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Defina como o agente deve se comportar e responder
-                      </p>
-                    </div>
-
-                    {/* Knowledge Base */}
-                    <div className="space-y-2">
-                      <Label>Base de Conhecimento</Label>
-                      <Textarea
-                        value={aiKnowledgeBase}
-                        onChange={(e) => setAiKnowledgeBase(e.target.value)}
-                        placeholder="Informações sobre produtos, preços, políticas de entrega, horários de funcionamento..."
-                        rows={4}
-                        className="resize-none"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Informações que o agente pode usar para responder
-                      </p>
-                    </div>
+                  <TabsContent value="personality" className="mt-4">
+                    <AgentPersonalityTab
+                      agentName={agentName}
+                      setAgentName={setAgentName}
+                      personalityPrompt={personalityPrompt}
+                      setPersonalityPrompt={setPersonalityPrompt}
+                      behaviorRules={behaviorRules}
+                      setBehaviorRules={setBehaviorRules}
+                      greetingMessage={greetingMessage}
+                      setGreetingMessage={setGreetingMessage}
+                      fallbackMessage={fallbackMessage}
+                      setFallbackMessage={setFallbackMessage}
+                      goodbyeMessage={goodbyeMessage}
+                      setGoodbyeMessage={setGoodbyeMessage}
+                      maxInteractions={aiMaxInteractions}
+                      setMaxInteractions={setAiMaxInteractions}
+                      responseDelayMin={aiResponseDelayMin}
+                      setResponseDelayMin={setAiResponseDelayMin}
+                      responseDelayMax={aiResponseDelayMax}
+                      setResponseDelayMax={setAiResponseDelayMax}
+                      activeHoursStart={aiActiveHoursStart}
+                      setActiveHoursStart={setAiActiveHoursStart}
+                      activeHoursEnd={aiActiveHoursEnd}
+                      setActiveHoursEnd={setAiActiveHoursEnd}
+                      handoffKeywords={aiHandoffKeywords}
+                      setHandoffKeywords={setAiHandoffKeywords}
+                    />
                   </TabsContent>
 
-                  <TabsContent value="config" className="space-y-4 mt-4">
-                    {/* Response Delay */}
-                    <div className="space-y-2">
-                      <Label>Tempo de Resposta (segundos)</Label>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Mínimo</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={60}
-                            value={aiResponseDelayMin}
-                            onChange={(e) => setAiResponseDelayMin(parseInt(e.target.value) || 3)}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Máximo</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={120}
-                            value={aiResponseDelayMax}
-                            onChange={(e) => setAiResponseDelayMax(parseInt(e.target.value) || 8)}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                  <TabsContent value="knowledge" className="mt-4">
+                    <AgentKnowledgeTab
+                      agentConfigId={agentConfig?.id || null}
+                      knowledgeItems={knowledgeItems}
+                      isLoading={knowledgeLoading}
+                    />
+                  </TabsContent>
 
-                    {/* Active Hours */}
-                    <div className="space-y-2">
-                      <Label>Horário de Atendimento</Label>
-                      <div className="grid grid-cols-2 gap-4">
-                        <Select value={aiActiveHoursStart.toString()} onValueChange={(v) => setAiActiveHoursStart(parseInt(v))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 24 }, (_, i) => (
-                              <SelectItem key={i} value={i.toString()}>
-                                {i.toString().padStart(2, '0')}:00
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select value={aiActiveHoursEnd.toString()} onValueChange={(v) => setAiActiveHoursEnd(parseInt(v))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.from({ length: 24 }, (_, i) => (
-                              <SelectItem key={i} value={i.toString()}>
-                                {i.toString().padStart(2, '0')}:00
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* Max Interactions */}
-                    <div className="space-y-2">
-                      <Label>Máximo de Interações por Conversa</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={aiMaxInteractions}
-                        onChange={(e) => setAiMaxInteractions(parseInt(e.target.value) || 10)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Após atingir o limite, a conversa é passada para atendimento humano
-                      </p>
-                    </div>
-
-                    {/* Handoff Keywords */}
-                    <div className="space-y-2">
-                      <Label>Palavras-chave para Handoff</Label>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {aiHandoffKeywords.map((keyword) => (
-                          <span
-                            key={keyword}
-                            className="px-2 py-1 bg-muted text-sm rounded-full flex items-center gap-1"
-                          >
-                            {keyword}
-                            <button
-                              type="button"
-                              onClick={() => setAiHandoffKeywords(prev => prev.filter(k => k !== keyword))}
-                              className="hover:text-destructive"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          value={newKeyword}
-                          onChange={(e) => setNewKeyword(e.target.value)}
-                          placeholder="Nova palavra-chave"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && newKeyword.trim()) {
-                              e.preventDefault();
-                              if (!aiHandoffKeywords.includes(newKeyword.trim().toLowerCase())) {
-                                setAiHandoffKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]);
-                              }
-                              setNewKeyword('');
-                            }
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => {
-                            if (newKeyword.trim() && !aiHandoffKeywords.includes(newKeyword.trim().toLowerCase())) {
-                              setAiHandoffKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]);
-                              setNewKeyword('');
-                            }
-                          }}
-                        >
-                          Adicionar
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Quando o contato mencionar essas palavras, a IA pausa e solicita atendimento humano
-                      </p>
-                    </div>
+                  <TabsContent value="variables" className="mt-4">
+                    <AgentVariablesTab
+                      agentConfigId={agentConfig?.id || null}
+                      variables={variables}
+                      isLoading={variablesLoading}
+                    />
                   </TabsContent>
                 </Tabs>
               )}
@@ -632,11 +499,7 @@ export const CampaignFormDialog = ({
           </Collapsible>
 
           <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isLoading || !name}>
