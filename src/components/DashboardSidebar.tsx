@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target } from "lucide-react";
+import { useState } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarContext } from "@/contexts/SidebarContext";
 import wideLogo from "@/assets/wide-logo.png";
+import { motion, AnimatePresence } from "framer-motion";
 
 const navGroups = [
   {
@@ -61,12 +63,24 @@ export const DashboardSidebar = () => {
   const { signOut } = useAuth();
   const { isAdmin } = useAdmin();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
   const { conversations } = useConversations();
   const { isCollapsed, toggle } = useSidebarContext();
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+
+  // Check if current route is in a group
+  const isGroupActive = (group: typeof navGroups[0]) => {
+    return group.items.some(item => location.pathname === item.path);
+  };
+
+  // Check if group should be expanded (hovered or active route)
+  const isGroupExpanded = (group: typeof navGroups[0]) => {
+    return hoveredGroup === group.label || isGroupActive(group);
+  };
 
   const handleLogout = async () => {
     const { error } = await signOut();
@@ -172,13 +186,41 @@ export const DashboardSidebar = () => {
           isCollapsed ? "px-2" : "px-3"
         )}>
           {navGroups.map((group, groupIndex) => (
-            <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
+            <div 
+              key={group.label} 
+              className={cn(groupIndex > 0 && "mt-2")}
+              onMouseEnter={() => !isCollapsed && setHoveredGroup(group.label)}
+              onMouseLeave={() => !isCollapsed && setHoveredGroup(null)}
+            >
               {/* Group Label - hidden when collapsed */}
               {!isCollapsed && (
-                <div className="px-4 mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                <div 
+                  className={cn(
+                    "px-4 py-2 cursor-pointer rounded-lg transition-all duration-200 flex items-center justify-between",
+                    isGroupExpanded(group) 
+                      ? "bg-sidebar-accent/50" 
+                      : "hover:bg-sidebar-accent/30"
+                  )}
+                >
+                  <span className={cn(
+                    "text-[10px] font-semibold uppercase tracking-wider transition-colors duration-200",
+                    isGroupActive(group) 
+                      ? "text-sidebar-primary" 
+                      : "text-sidebar-foreground/50"
+                  )}>
                     {group.label}
                   </span>
+                  <motion.div
+                    animate={{ rotate: isGroupExpanded(group) ? 90 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronRight className={cn(
+                      "h-3 w-3 transition-colors duration-200",
+                      isGroupActive(group) 
+                        ? "text-sidebar-primary" 
+                        : "text-sidebar-foreground/40"
+                    )} />
+                  </motion.div>
                 </div>
               )}
               
@@ -187,10 +229,28 @@ export const DashboardSidebar = () => {
                 <div className="my-2 mx-2 border-t border-sidebar-border/20" />
               )}
               
-              {/* Group Items */}
-              <div className="space-y-0.5">
-                {group.items.map(renderNavItem)}
-              </div>
+              {/* Group Items - animated */}
+              {isCollapsed ? (
+                <div className="space-y-0.5">
+                  {group.items.map(renderNavItem)}
+                </div>
+              ) : (
+                <AnimatePresence initial={false}>
+                  {isGroupExpanded(group) && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div className="space-y-0.5 pt-1">
+                        {group.items.map(renderNavItem)}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              )}
             </div>
           ))}
           
