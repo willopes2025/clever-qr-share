@@ -273,15 +273,16 @@ serve(async (req) => {
     }
 
     // Helper function to extract phone from contato_telefonico array
+    // Returns phone WITHOUT DDD, keeping DDD separate for proper formatting
     const extractPhone = (company: any, preferCelular = false): { phone: string | null, phone2: string | null, ddd: string | null } => {
       const contatos = company.contato_telefonico;
       
       if (!Array.isArray(contatos) || contatos.length === 0) {
-        // Fallback to old fields
+        // Fallback to old fields - return phone WITHOUT ddd
         const phone = company.telefone1 || company.telefone || null;
         const ddd = company.ddd1 || company.ddd || null;
         return { 
-          phone: phone ? (ddd ? `${ddd}${phone}` : phone) : null, 
+          phone, 
           phone2: company.telefone2 || null,
           ddd 
         };
@@ -300,15 +301,12 @@ serve(async (req) => {
       const first = sorted[0];
       const second = sorted[1];
       
-      const formatPhone = (c: any) => {
-        if (c.completo) return c.completo;
-        if (c.ddd && c.numero) return `${c.ddd}${c.numero}`;
-        return c.numero || null;
-      };
+      // Return ONLY the numero, not completo (which includes DDD)
+      const getNumero = (c: any) => c.numero || null;
       
       return {
-        phone: formatPhone(first),
-        phone2: second ? formatPhone(second) : null,
+        phone: getNumero(first),
+        phone2: second ? getNumero(second) : null,
         ddd: first.ddd || null,
       };
     };
