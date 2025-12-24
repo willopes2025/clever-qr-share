@@ -1328,6 +1328,7 @@ export type Database = {
           message_type: string
           read_at: string | null
           sent_at: string | null
+          sent_by_user_id: string | null
           status: string
           transcription: string | null
           user_id: string
@@ -1344,6 +1345,7 @@ export type Database = {
           message_type?: string
           read_at?: string | null
           sent_at?: string | null
+          sent_by_user_id?: string | null
           status?: string
           transcription?: string | null
           user_id: string
@@ -1360,6 +1362,7 @@ export type Database = {
           message_type?: string
           read_at?: string | null
           sent_at?: string | null
+          sent_by_user_id?: string | null
           status?: string
           transcription?: string | null
           user_id?: string
@@ -1408,6 +1411,54 @@ export type Database = {
           updated_at?: string
           user_id?: string
           variables?: Json | null
+        }
+        Relationships: []
+      }
+      organizations: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1605,6 +1656,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          invited_at: string | null
+          joined_at: string | null
+          organization_id: string
+          permissions: Json | null
+          role: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          invited_at?: string | null
+          joined_at?: string | null
+          organization_id: string
+          permissions?: Json | null
+          role?: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          invited_at?: string | null
+          joined_at?: string | null
+          organization_id?: string
+          permissions?: Json | null
+          role?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       template_variations: {
         Row: {
@@ -1975,6 +2073,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_organization_id: { Args: { _user_id: string }; Returns: string }
+      get_user_team_role: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

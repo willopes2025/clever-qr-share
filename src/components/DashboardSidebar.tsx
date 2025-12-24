@@ -13,49 +13,65 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useSidebarContext } from "@/contexts/SidebarContext";
 import wideLogo from "@/assets/wide-logo.png";
 import { motion, AnimatePresence } from "framer-motion";
+import { useOrganization } from "@/hooks/useOrganization";
+import { PermissionKey } from "@/config/permissions";
 
-const navGroups = [
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  permission?: PermissionKey;
+  showBadge?: boolean;
+  premiumOnly?: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
     label: "Visão Geral",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permission: "view_dashboard" },
     ],
   },
   {
     label: "Potencialize seu WhatsApp",
     items: [
-      { icon: QrCode, label: "Instâncias", path: "/instances" },
-      { icon: Flame, label: "Aquecimento", path: "/warming" },
+      { icon: QrCode, label: "Instâncias", path: "/instances", permission: "manage_instances" },
+      { icon: Flame, label: "Aquecimento", path: "/warming", permission: "manage_warming" },
     ],
   },
   {
     label: "Atendimento e Vendas",
     items: [
-      { icon: MessageSquare, label: "Inbox", path: "/inbox", showBadge: true },
-      { icon: Target, label: "Funis", path: "/funnels" },
-      { icon: BarChart3, label: "Análise", path: "/analysis", premiumOnly: true },
+      { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+      { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
+      { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
     ],
   },
   {
     label: "Organize seus Clientes",
     items: [
-      { icon: Users, label: "Contatos", path: "/contacts" },
-      { icon: Building2, label: "Pesquisa de Leads", path: "/lead-search" },
-      { icon: List, label: "Listas", path: "/broadcast-lists" },
+      { icon: Users, label: "Contatos", path: "/contacts", permission: "view_contacts" },
+      { icon: Building2, label: "Pesquisa de Leads", path: "/lead-search", permission: "search_leads" },
+      { icon: List, label: "Listas", path: "/broadcast-lists", permission: "view_lists" },
     ],
   },
   {
     label: "Campanhas e Disparos",
     items: [
-      { icon: FileText, label: "Templates", path: "/templates" },
-      { icon: Send, label: "Disparos", path: "/campaigns" },
+      { icon: FileText, label: "Templates", path: "/templates", permission: "manage_templates" },
+      { icon: Send, label: "Disparos", path: "/campaigns", permission: "manage_campaigns" },
     ],
   },
   {
     label: "Sua Conta",
     items: [
-      { icon: CreditCard, label: "Assinatura", path: "/subscription" },
-      { icon: Settings, label: "Configurações", path: "/settings" },
+      { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
+      { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
     ],
   },
 ];
@@ -69,17 +85,30 @@ export const DashboardSidebar = () => {
   const { conversations } = useConversations();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const { checkPermission, organization } = useOrganization();
   
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
+  // Filter nav items based on permissions
+  const filterItems = (items: NavItem[]) => {
+    return items.filter(item => {
+      // If no organization exists yet, show all items (legacy behavior)
+      if (!organization) return true;
+      // If no permission is set, show the item
+      if (!item.permission) return true;
+      // Check if user has permission
+      return checkPermission(item.permission);
+    });
+  };
+
   // Check if current route is in a group
-  const isGroupActive = (group: typeof navGroups[0]) => {
+  const isGroupActive = (group: NavGroup) => {
     return group.items.some(item => location.pathname === item.path);
   };
 
   // Check if group should be expanded (hovered or active route)
-  const isGroupExpanded = (group: typeof navGroups[0]) => {
+  const isGroupExpanded = (group: NavGroup) => {
     return hoveredGroup === group.label || isGroupActive(group);
   };
 
@@ -233,7 +262,7 @@ export const DashboardSidebar = () => {
               {/* Group Items - animated */}
               {isCollapsed ? (
                 <div className="space-y-0.5">
-                  {group.items.map(renderNavItem)}
+                  {filterItems(group.items).map(renderNavItem)}
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
@@ -246,7 +275,7 @@ export const DashboardSidebar = () => {
                       className="overflow-hidden"
                     >
                       <div className="space-y-0.5 pt-1">
-                        {group.items.map(renderNavItem)}
+                        {filterItems(group.items).map(renderNavItem)}
                       </div>
                     </motion.div>
                   )}
