@@ -420,6 +420,217 @@ export const CampaignFormDialog = ({
             </CollapsibleContent>
           </Collapsible>
 
+          {/* AI Agent Settings */}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="outline" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <Bot className="h-4 w-4" />
+                  Agente de IA
+                  {aiEnabled && (
+                    <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">
+                      Ativo
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-4">
+              {/* Enable AI Toggle */}
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Ativar Agente de IA</Label>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Responde automaticamente às mensagens dos contatos
+                  </p>
+                </div>
+                <Switch
+                  checked={aiEnabled}
+                  onCheckedChange={setAiEnabled}
+                />
+              </div>
+
+              {aiEnabled && (
+                <Tabs defaultValue="prompt" className="w-full">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="prompt" className="flex-1 gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Prompt
+                    </TabsTrigger>
+                    <TabsTrigger value="config" className="flex-1 gap-1.5">
+                      <Settings2 className="h-3.5 w-3.5" />
+                      Configurações
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="prompt" className="space-y-4 mt-4">
+                    {/* AI Prompt */}
+                    <div className="space-y-2">
+                      <Label>Prompt do Agente</Label>
+                      <Textarea
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Ex: Você é um assistente de vendas amigável. Responda perguntas sobre nossos produtos e ajude os clientes a fazer pedidos..."
+                        rows={4}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Defina como o agente deve se comportar e responder
+                      </p>
+                    </div>
+
+                    {/* Knowledge Base */}
+                    <div className="space-y-2">
+                      <Label>Base de Conhecimento</Label>
+                      <Textarea
+                        value={aiKnowledgeBase}
+                        onChange={(e) => setAiKnowledgeBase(e.target.value)}
+                        placeholder="Informações sobre produtos, preços, políticas de entrega, horários de funcionamento..."
+                        rows={4}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Informações que o agente pode usar para responder
+                      </p>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="config" className="space-y-4 mt-4">
+                    {/* Response Delay */}
+                    <div className="space-y-2">
+                      <Label>Tempo de Resposta (segundos)</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Mínimo</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={aiResponseDelayMin}
+                            onChange={(e) => setAiResponseDelayMin(parseInt(e.target.value) || 3)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Máximo</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={120}
+                            value={aiResponseDelayMax}
+                            onChange={(e) => setAiResponseDelayMax(parseInt(e.target.value) || 8)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Active Hours */}
+                    <div className="space-y-2">
+                      <Label>Horário de Atendimento</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Select value={aiActiveHoursStart.toString()} onValueChange={(v) => setAiActiveHoursStart(parseInt(v))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <SelectItem key={i} value={i.toString()}>
+                                {i.toString().padStart(2, '0')}:00
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={aiActiveHoursEnd.toString()} onValueChange={(v) => setAiActiveHoursEnd(parseInt(v))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <SelectItem key={i} value={i.toString()}>
+                                {i.toString().padStart(2, '0')}:00
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Max Interactions */}
+                    <div className="space-y-2">
+                      <Label>Máximo de Interações por Conversa</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={aiMaxInteractions}
+                        onChange={(e) => setAiMaxInteractions(parseInt(e.target.value) || 10)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Após atingir o limite, a conversa é passada para atendimento humano
+                      </p>
+                    </div>
+
+                    {/* Handoff Keywords */}
+                    <div className="space-y-2">
+                      <Label>Palavras-chave para Handoff</Label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {aiHandoffKeywords.map((keyword) => (
+                          <span
+                            key={keyword}
+                            className="px-2 py-1 bg-muted text-sm rounded-full flex items-center gap-1"
+                          >
+                            {keyword}
+                            <button
+                              type="button"
+                              onClick={() => setAiHandoffKeywords(prev => prev.filter(k => k !== keyword))}
+                              className="hover:text-destructive"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newKeyword}
+                          onChange={(e) => setNewKeyword(e.target.value)}
+                          placeholder="Nova palavra-chave"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newKeyword.trim()) {
+                              e.preventDefault();
+                              if (!aiHandoffKeywords.includes(newKeyword.trim().toLowerCase())) {
+                                setAiHandoffKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]);
+                              }
+                              setNewKeyword('');
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            if (newKeyword.trim() && !aiHandoffKeywords.includes(newKeyword.trim().toLowerCase())) {
+                              setAiHandoffKeywords(prev => [...prev, newKeyword.trim().toLowerCase()]);
+                              setNewKeyword('');
+                            }
+                          }}
+                        >
+                          Adicionar
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Quando o contato mencionar essas palavras, a IA pausa e solicita atendimento humano
+                      </p>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
           <div className="flex justify-end gap-3">
             <Button
               type="button"

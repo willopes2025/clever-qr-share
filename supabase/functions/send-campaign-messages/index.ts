@@ -579,6 +579,57 @@ serve(async (req) => {
         deliveredCount++; // Assume delivered for now
 
         console.log(`Message ${messageIndex + 1} sent successfully via ${instance.instance_name}`);
+
+        // Link conversation to campaign for AI agent
+        try {
+          // Find or create conversation for this contact
+          const { data: existingConversation } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('contact_id', message.contact_id)
+            .eq('user_id', campaign.user_id)
+            .single();
+
+          if (existingConversation) {
+            // Update existing conversation with campaign_id and AI settings
+            await supabase
+              .from('conversations')
+              .update({
+                campaign_id: campaignId,
+                ai_handled: true,
+                ai_paused: false,
+                ai_interactions_count: 0,
+                instance_id: instance.id === 'legacy' ? null : instance.id
+              })
+              .eq('id', existingConversation.id);
+            
+            console.log(`Linked existing conversation ${existingConversation.id} to campaign ${campaignId}`);
+          } else {
+            // Create new conversation linked to campaign
+            const { data: newConv, error: convError } = await supabase
+              .from('conversations')
+              .insert({
+                user_id: campaign.user_id,
+                contact_id: message.contact_id,
+                campaign_id: campaignId,
+                instance_id: instance.id === 'legacy' ? null : instance.id,
+                ai_handled: true,
+                ai_paused: false,
+                ai_interactions_count: 0,
+                last_message_at: new Date().toISOString(),
+                last_message_preview: message.message_content.substring(0, 100)
+              })
+              .select('id')
+              .single();
+            
+            if (!convError && newConv) {
+              console.log(`Created new conversation ${newConv.id} linked to campaign ${campaignId}`);
+            }
+          }
+        } catch (convLinkError) {
+          console.error('Error linking conversation to campaign:', convLinkError);
+          // Don't fail the message send if conversation linking fails
+        }
       } else {
         // Message failed
         const errorMessage = result.message || result.error || 'Unknown error';

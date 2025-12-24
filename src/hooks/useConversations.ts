@@ -15,6 +15,13 @@ export interface Conversation {
   is_pinned: boolean | null;
   created_at: string;
   updated_at: string;
+  // AI Agent fields
+  campaign_id?: string | null;
+  ai_handled?: boolean | null;
+  ai_paused?: boolean | null;
+  ai_handoff_requested?: boolean | null;
+  ai_handoff_reason?: string | null;
+  ai_interactions_count?: number | null;
   contact?: {
     id: string;
     name: string | null;
