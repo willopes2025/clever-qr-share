@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { getDefaultPermissions, TeamRole, PermissionKey, hasPermission } from '@/config/permissions';
+import { toast } from 'sonner';
 
 export interface Organization {
   id: string;
@@ -44,23 +45,25 @@ export function useOrganization() {
         .select('organization_id')
         .eq('user_id', user.id)
         .eq('status', 'active')
-        .single();
+        .maybeSingle();
 
       if (memberData) {
         const { data: org } = await supabase
           .from('organizations')
           .select('*')
           .eq('id', memberData.organization_id)
-          .single();
+          .maybeSingle();
         return org as Organization | null;
       }
 
-      // Se não for membro, verificar se é dono
+      // Se não for membro, verificar se é dono (pegar a mais recente)
       const { data: ownedOrg } = await supabase
         .from('organizations')
         .select('*')
         .eq('owner_id', user.id)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       return ownedOrg as Organization | null;
     },
@@ -79,7 +82,7 @@ export function useOrganization() {
         .eq('organization_id', organization.id)
         .eq('user_id', user.id)
         .eq('status', 'active')
-        .single();
+        .maybeSingle();
 
       // Se não encontrar membro, verificar se é o dono
       if (!data && organization.owner_id === user.id) {
@@ -135,6 +138,12 @@ export function useOrganization() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] });
       queryClient.invalidateQueries({ queryKey: ['current-member'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success('Organização criada com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao criar organização:', error);
+      toast.error(`Erro ao criar organização: ${error.message}`);
     },
   });
 
