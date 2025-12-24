@@ -47,6 +47,7 @@ export interface FunnelDeal {
   entered_stage_at: string;
   created_at: string;
   updated_at: string;
+  custom_fields?: Record<string, unknown>;
   contact?: {
     id: string;
     name: string | null;
@@ -242,13 +243,40 @@ export const useFunnels = () => {
     onError: () => toast.error("Erro ao criar etapa")
   });
 
-  // Update stage
+  // Update stage - with optimistic update for reordering
   const updateStage = useMutation({
     mutationFn: async ({ id, ...data }: { id: string; name?: string; color?: string; display_order?: number; is_final?: boolean; final_type?: 'won' | 'lost' | null; probability?: number }) => {
       const { error } = await supabase.from('funnel_stages').update(data).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, ...data }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: ['funnels'] });
+      
+      // Snapshot current data
+      const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
+      
+      // Optimistic update
+      if (data.display_order !== undefined) {
+        queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
+          if (!old) return old;
+          return old.map(funnel => ({
+            ...funnel,
+            stages: funnel.stages?.map(stage => 
+              stage.id === id ? { ...stage, ...data } : stage
+            ).sort((a, b) => a.display_order - b.display_order)
+          }));
+        });
+      }
+      
+      return { previousFunnels };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousFunnels) {
+        queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
     }
   });
@@ -277,12 +305,20 @@ export const useFunnels = () => {
       value?: number; 
       expected_close_date?: string;
       source?: string;
+      custom_fields?: Record<string, unknown>;
     }) => {
-      const { error } = await supabase.from('funnel_deals').insert({
+      const { error } = await supabase.from('funnel_deals').insert([{
         user_id: user!.id,
-        ...data,
-        value: data.value || 0
-      });
+        funnel_id: data.funnel_id,
+        stage_id: data.stage_id,
+        contact_id: data.contact_id,
+        conversation_id: data.conversation_id,
+        title: data.title,
+        value: data.value || 0,
+        expected_close_date: data.expected_close_date,
+        source: data.source,
+        custom_fields: (data.custom_fields || {}) as Record<string, never>
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -293,7 +329,7 @@ export const useFunnels = () => {
     onError: () => toast.error("Erro ao criar deal")
   });
 
-  // Update deal
+  // Update deal - with OPTIMISTIC UPDATE for drag & drop
   const updateDeal = useMutation({
     mutationFn: async ({ id, ...data }: { 
       id: string; 
@@ -304,6 +340,7 @@ export const useFunnels = () => {
       closed_at?: string | null;
       close_reason_id?: string | null;
       notes?: string;
+      custom_fields?: Record<string, unknown>;
     }) => {
       // Get current deal to check stage change
       const { data: currentDeal } = await supabase
@@ -338,7 +375,63 @@ export const useFunnels = () => {
       const { error } = await supabase.from('funnel_deals').update(updateData).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    // OPTIMISTIC UPDATE - Move card instantly
+    onMutate: async ({ id, stage_id }) => {
+      if (!stage_id) return;
+      
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: ['funnels'] });
+      
+      // Snapshot current data
+      const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
+      
+      // Optimistic update - move deal to new stage instantly
+      queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
+        if (!old) return old;
+        
+        return old.map(funnel => {
+          // Find the deal in current stages
+          let dealToMove: FunnelDeal | undefined;
+          
+          const stagesWithoutDeal = funnel.stages?.map(stage => {
+            const deal = stage.deals?.find(d => d.id === id);
+            if (deal) {
+              dealToMove = { ...deal, stage_id, entered_stage_at: new Date().toISOString() };
+            }
+            return {
+              ...stage,
+              deals: stage.deals?.filter(d => d.id !== id)
+            };
+          });
+          
+          // Add deal to target stage
+          const stagesWithDeal = stagesWithoutDeal?.map(stage => {
+            if (stage.id === stage_id && dealToMove) {
+              return {
+                ...stage,
+                deals: [dealToMove, ...(stage.deals || [])]
+              };
+            }
+            return stage;
+          });
+          
+          return {
+            ...funnel,
+            stages: stagesWithDeal
+          };
+        });
+      });
+      
+      return { previousFunnels };
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousFunnels) {
+        queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
+        toast.error("Erro ao mover deal");
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
     }

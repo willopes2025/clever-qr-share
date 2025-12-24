@@ -758,6 +758,7 @@ export type Database = {
           conversation_id: string | null
           created_at: string | null
           currency: string | null
+          custom_fields: Json | null
           entered_stage_at: string | null
           expected_close_date: string | null
           funnel_id: string
@@ -777,6 +778,7 @@ export type Database = {
           conversation_id?: string | null
           created_at?: string | null
           currency?: string | null
+          custom_fields?: Json | null
           entered_stage_at?: string | null
           expected_close_date?: string | null
           funnel_id: string
@@ -796,6 +798,7 @@ export type Database = {
           conversation_id?: string | null
           created_at?: string | null
           currency?: string | null
+          custom_fields?: Json | null
           entered_stage_at?: string | null
           expected_close_date?: string | null
           funnel_id?: string
