@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.process-funnel-automations]
 verify_jwt = false
+
+[functions.ai-campaign-agent]
+verify_jwt = false

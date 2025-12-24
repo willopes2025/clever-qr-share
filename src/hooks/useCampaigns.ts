@@ -33,6 +33,16 @@ export interface Campaign {
   allowed_end_hour: number | null;
   allowed_days: string[] | null;
   timezone: string | null;
+  // AI Agent settings
+  ai_enabled: boolean | null;
+  ai_prompt: string | null;
+  ai_knowledge_base: string | null;
+  ai_max_interactions: number | null;
+  ai_response_delay_min: number | null;
+  ai_response_delay_max: number | null;
+  ai_handoff_keywords: string[] | null;
+  ai_active_hours_start: number | null;
+  ai_active_hours_end: number | null;
   template?: {
     id: string;
     name: string;
@@ -171,6 +181,16 @@ export const useCampaignMutations = () => {
       allowed_end_hour?: number;
       allowed_days?: string[];
       timezone?: string;
+      // AI settings
+      ai_enabled?: boolean;
+      ai_prompt?: string;
+      ai_knowledge_base?: string;
+      ai_max_interactions?: number;
+      ai_response_delay_min?: number;
+      ai_response_delay_max?: number;
+      ai_handoff_keywords?: string[];
+      ai_active_hours_start?: number;
+      ai_active_hours_end?: number;
     }) => {
       if (!user?.id) throw new Error('User not authenticated');
 
@@ -201,6 +221,15 @@ export const useCampaignMutations = () => {
           allowed_end_hour: data.allowed_end_hour,
           allowed_days: data.allowed_days,
           timezone: data.timezone,
+          ai_enabled: data.ai_enabled,
+          ai_prompt: data.ai_prompt,
+          ai_knowledge_base: data.ai_knowledge_base,
+          ai_max_interactions: data.ai_max_interactions,
+          ai_response_delay_min: data.ai_response_delay_min,
+          ai_response_delay_max: data.ai_response_delay_max,
+          ai_handoff_keywords: data.ai_handoff_keywords,
+          ai_active_hours_start: data.ai_active_hours_start,
+          ai_active_hours_end: data.ai_active_hours_end,
         })
         .select()
         .single();
@@ -232,6 +261,15 @@ export const useCampaignMutations = () => {
       allowed_end_hour?: number;
       allowed_days?: string[];
       timezone?: string;
+      ai_enabled?: boolean;
+      ai_prompt?: string;
+      ai_knowledge_base?: string;
+      ai_max_interactions?: number;
+      ai_response_delay_min?: number;
+      ai_response_delay_max?: number;
+      ai_handoff_keywords?: string[];
+      ai_active_hours_start?: number;
+      ai_active_hours_end?: number;
     }) => {
       const updateData: Record<string, unknown> = { ...data };
       

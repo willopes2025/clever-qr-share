@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { Campaign } from '@/hooks/useCampaigns';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, MessageSquare, Zap } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface CampaignFormDialogProps {
   open: boolean;
@@ -28,6 +30,16 @@ interface CampaignFormDialogProps {
     allowed_end_hour: number;
     allowed_days: string[];
     timezone: string;
+    // AI settings
+    ai_enabled: boolean;
+    ai_prompt: string;
+    ai_knowledge_base: string;
+    ai_max_interactions: number;
+    ai_response_delay_min: number;
+    ai_response_delay_max: number;
+    ai_handoff_keywords: string[];
+    ai_active_hours_start: number;
+    ai_active_hours_end: number;
   }) => void;
   isLoading?: boolean;
 }
@@ -41,6 +53,8 @@ const DAYS_OF_WEEK = [
   { value: 'sat', label: 'Sáb' },
   { value: 'sun', label: 'Dom' },
 ];
+
+const DEFAULT_HANDOFF_KEYWORDS = ['atendente', 'humano', 'pessoa', 'falar com alguém'];
 
 export const CampaignFormDialog = ({
   open,
@@ -65,6 +79,18 @@ export const CampaignFormDialog = ({
   const [endHour, setEndHour] = useState(20);
   const [allowedDays, setAllowedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri']);
   const [timezone] = useState('America/Sao_Paulo');
+
+  // AI Agent settings
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiKnowledgeBase, setAiKnowledgeBase] = useState('');
+  const [aiMaxInteractions, setAiMaxInteractions] = useState(10);
+  const [aiResponseDelayMin, setAiResponseDelayMin] = useState(3);
+  const [aiResponseDelayMax, setAiResponseDelayMax] = useState(8);
+  const [aiHandoffKeywords, setAiHandoffKeywords] = useState<string[]>(DEFAULT_HANDOFF_KEYWORDS);
+  const [aiActiveHoursStart, setAiActiveHoursStart] = useState(8);
+  const [aiActiveHoursEnd, setAiActiveHoursEnd] = useState(20);
+  const [newKeyword, setNewKeyword] = useState('');
 
   const { templates } = useMessageTemplates();
   const { lists } = useBroadcastLists();
@@ -93,6 +119,16 @@ export const CampaignFormDialog = ({
       setStartHour(campaign.allowed_start_hour ?? 8);
       setEndHour(campaign.allowed_end_hour ?? 20);
       setAllowedDays(campaign.allowed_days ?? ['mon', 'tue', 'wed', 'thu', 'fri']);
+      // Load AI settings
+      setAiEnabled(campaign.ai_enabled ?? false);
+      setAiPrompt(campaign.ai_prompt ?? '');
+      setAiKnowledgeBase(campaign.ai_knowledge_base ?? '');
+      setAiMaxInteractions(campaign.ai_max_interactions ?? 10);
+      setAiResponseDelayMin(campaign.ai_response_delay_min ?? 3);
+      setAiResponseDelayMax(campaign.ai_response_delay_max ?? 8);
+      setAiHandoffKeywords(campaign.ai_handoff_keywords ?? DEFAULT_HANDOFF_KEYWORDS);
+      setAiActiveHoursStart(campaign.ai_active_hours_start ?? 8);
+      setAiActiveHoursEnd(campaign.ai_active_hours_end ?? 20);
     } else {
       setName('');
       setTemplateId('');
@@ -106,6 +142,16 @@ export const CampaignFormDialog = ({
       setStartHour(8);
       setEndHour(20);
       setAllowedDays(['mon', 'tue', 'wed', 'thu', 'fri']);
+      // Reset AI settings
+      setAiEnabled(false);
+      setAiPrompt('');
+      setAiKnowledgeBase('');
+      setAiMaxInteractions(10);
+      setAiResponseDelayMin(3);
+      setAiResponseDelayMax(8);
+      setAiHandoffKeywords(DEFAULT_HANDOFF_KEYWORDS);
+      setAiActiveHoursStart(8);
+      setAiActiveHoursEnd(20);
     }
   }, [campaign, open]);
 
@@ -129,6 +175,16 @@ export const CampaignFormDialog = ({
       allowed_end_hour: endHour,
       allowed_days: allowedDays,
       timezone,
+      // AI settings
+      ai_enabled: aiEnabled,
+      ai_prompt: aiPrompt,
+      ai_knowledge_base: aiKnowledgeBase,
+      ai_max_interactions: aiMaxInteractions,
+      ai_response_delay_min: aiResponseDelayMin,
+      ai_response_delay_max: aiResponseDelayMax,
+      ai_handoff_keywords: aiHandoffKeywords,
+      ai_active_hours_start: aiActiveHoursStart,
+      ai_active_hours_end: aiActiveHoursEnd,
     });
   };
 
