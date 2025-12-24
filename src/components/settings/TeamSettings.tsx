@@ -30,27 +30,64 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, RefreshCw } from 'lucide-react';
+import { 
+  MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, 
+  RefreshCw, Pencil, Key 
+} from 'lucide-react';
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { CreateOrganizationDialog } from './CreateOrganizationDialog';
+import { EditOrganizationDialog } from './EditOrganizationDialog';
+import { DeleteOrganizationDialog } from './DeleteOrganizationDialog';
+import { EditMemberDialog } from './EditMemberDialog';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { TeamMember } from '@/hooks/useOrganization';
+import { TeamRole } from '@/config/permissions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function TeamSettings() {
-  const { organization, isOwner, isAdmin, isLoading: isLoadingOrg } = useOrganization();
-  const { members, isLoading: isLoadingMembers, updateMemberRole, removeMember, resendInvite } = useTeamMembers();
+  const { 
+    organization, 
+    isOwner, 
+    isAdmin, 
+    isLoading: isLoadingOrg,
+    updateOrganization,
+    deleteOrganization 
+  } = useOrganization();
+  const { 
+    members, 
+    isLoading: isLoadingMembers, 
+    updateMemberRole, 
+    updateMember,
+    removeMember, 
+    resendInvite,
+    resetPassword 
+  } = useTeamMembers();
   
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
   const [createOrgDialogOpen, setCreateOrgDialogOpen] = useState(false);
+  const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
+  const [deleteOrgDialogOpen, setDeleteOrgDialogOpen] = useState(false);
+  const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
 
   const handleOpenPermissions = (member: TeamMember) => {
     setSelectedMember(member);
     setPermissionsDialogOpen(true);
+  };
+
+  const handleOpenEditMember = (member: TeamMember) => {
+    setSelectedMember(member);
+    setEditMemberDialogOpen(true);
+  };
+
+  const handleOpenResetPassword = (member: TeamMember) => {
+    setSelectedMember(member);
+    setResetPasswordDialogOpen(true);
   };
 
   const handleRemoveMember = async () => {
@@ -70,6 +107,26 @@ export function TeamSettings() {
       email: member.email,
       role: member.role,
     });
+  };
+
+  const handleSaveOrganization = async (name: string) => {
+    await updateOrganization.mutateAsync(name);
+  };
+
+  const handleDeleteOrganization = async () => {
+    await deleteOrganization.mutateAsync();
+  };
+
+  const handleSaveMember = async (data: { name?: string; email?: string; role: TeamRole }) => {
+    if (selectedMember) {
+      await updateMember.mutateAsync({ memberId: selectedMember.id, data });
+    }
+  };
+
+  const handleResetPassword = async (newPassword: string) => {
+    if (selectedMember?.user_id) {
+      await resetPassword.mutateAsync({ userId: selectedMember.user_id, newPassword });
+    }
   };
 
   if (isLoadingOrg) {
@@ -122,12 +179,33 @@ export function TeamSettings() {
                 Gerencie os membros da sua equipe e suas permissões
               </CardDescription>
             </div>
-            {isAdmin && (
-              <Button onClick={() => setInviteDialogOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Convidar Membro
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isOwner && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setEditOrgDialogOpen(true)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteOrgDialogOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              {isAdmin && (
+                <Button onClick={() => setInviteDialogOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Convidar Membro
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -212,36 +290,46 @@ export function TeamSettings() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end">
-                                            {member.status === 'invited' && (
-                                              <>
-                                                <DropdownMenuItem onClick={() => handleResendInvite(member)}>
-                                                  <RefreshCw className="mr-2 h-4 w-4" />
-                                                  Reenviar Convite
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                              </>
-                                            )}
-                                            <DropdownMenuItem onClick={() => handleToggleRole(member)}>
-                                              {member.role === 'admin' ? (
-                                                <><User className="mr-2 h-4 w-4" /> Rebaixar para Membro</>
-                                              ) : (
-                                                <><Shield className="mr-2 h-4 w-4" /> Promover a Admin</>
-                                              )}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleOpenPermissions(member)}>
-                                              <Settings2 className="mr-2 h-4 w-4" />
-                                              Permissões
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem 
-                                              className="text-destructive"
-                                              onClick={() => setMemberToRemove(member)}
-                                            >
-                                              <Trash2 className="mr-2 h-4 w-4" />
-                                              Remover
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
+                          <DropdownMenuContent align="end">
+                            {member.status === 'invited' && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleResendInvite(member)}>
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                  Reenviar Convite
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem onClick={() => handleOpenEditMember(member)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleRole(member)}>
+                              {member.role === 'admin' ? (
+                                <><User className="mr-2 h-4 w-4" /> Rebaixar para Membro</>
+                              ) : (
+                                <><Shield className="mr-2 h-4 w-4" /> Promover a Admin</>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenPermissions(member)}>
+                              <Settings2 className="mr-2 h-4 w-4" />
+                              Permissões
+                            </DropdownMenuItem>
+                            {member.status === 'active' && member.user_id && (
+                              <DropdownMenuItem onClick={() => handleOpenResetPassword(member)}>
+                                <Key className="mr-2 h-4 w-4" />
+                                Redefinir Senha
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => setMemberToRemove(member)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remover
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
                         </DropdownMenu>
                       )}
                     </TableCell>
@@ -260,11 +348,48 @@ export function TeamSettings() {
       />
 
       {selectedMember && (
-        <MemberPermissionsDialog
-          open={permissionsDialogOpen}
-          onOpenChange={setPermissionsDialogOpen}
-          member={selectedMember}
-        />
+        <>
+          <MemberPermissionsDialog
+            open={permissionsDialogOpen}
+            onOpenChange={setPermissionsDialogOpen}
+            member={selectedMember}
+          />
+          <EditMemberDialog
+            open={editMemberDialogOpen}
+            onOpenChange={setEditMemberDialogOpen}
+            member={selectedMember}
+            onSave={handleSaveMember}
+            isLoading={updateMember.isPending}
+          />
+          {selectedMember.user_id && (
+            <ResetPasswordDialog
+              open={resetPasswordDialogOpen}
+              onOpenChange={setResetPasswordDialogOpen}
+              member={selectedMember}
+              onReset={handleResetPassword}
+              isLoading={resetPassword.isPending}
+            />
+          )}
+        </>
+      )}
+
+      {organization && (
+        <>
+          <EditOrganizationDialog
+            open={editOrgDialogOpen}
+            onOpenChange={setEditOrgDialogOpen}
+            organization={organization}
+            onSave={handleSaveOrganization}
+            isLoading={updateOrganization.isPending}
+          />
+          <DeleteOrganizationDialog
+            open={deleteOrgDialogOpen}
+            onOpenChange={setDeleteOrgDialogOpen}
+            organization={organization}
+            onDelete={handleDeleteOrganization}
+            isLoading={deleteOrganization.isPending}
+          />
+        </>
       )}
 
       <AlertDialog open={!!memberToRemove} onOpenChange={() => setMemberToRemove(null)}>

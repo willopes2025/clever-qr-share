@@ -40,8 +40,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Potencialize seu WhatsApp",
     items: [
-      { icon: QrCode, label: "Instâncias", path: "/instances", permission: "manage_instances" },
-      { icon: Flame, label: "Aquecimento", path: "/warming", permission: "manage_warming" },
+      { icon: QrCode, label: "Instâncias", path: "/instances", permission: "view_instances" },
+      { icon: Flame, label: "Aquecimento", path: "/warming", permission: "view_warming" },
     ],
   },
   {
@@ -63,8 +63,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Campanhas e Disparos",
     items: [
-      { icon: FileText, label: "Templates", path: "/templates", permission: "manage_templates" },
-      { icon: Send, label: "Disparos", path: "/campaigns", permission: "manage_campaigns" },
+      { icon: FileText, label: "Templates", path: "/templates", permission: "view_templates" },
+      { icon: Send, label: "Disparos", path: "/campaigns", permission: "view_campaigns" },
     ],
   },
   {

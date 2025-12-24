@@ -155,6 +155,52 @@ export function useTeamMembers() {
     },
   });
 
+  // Editar membro
+  const updateMember = useMutation({
+    mutationFn: async ({ memberId, data }: { memberId: string; data: { name?: string; email?: string; role: TeamRole } }) => {
+      if (!isAdmin) throw new Error('Sem permissão para editar membros');
+
+      const member = members.find(m => m.id === memberId);
+      if (!member) throw new Error('Membro não encontrado');
+
+      // Atualizar role e email (se pendente)
+      const updateData: Record<string, unknown> = {
+        role: data.role,
+        permissions: getDefaultPermissions(data.role),
+      };
+
+      if (member.status === 'invited' && data.email) {
+        updateData.email = data.email;
+      }
+
+      const { error } = await supabase
+        .from('team_members')
+        .update(updateData)
+        .eq('id', memberId);
+
+      if (error) throw error;
+
+      // Se tem user_id e nome, atualizar o profile
+      if (member.user_id && data.name) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ full_name: data.name })
+          .eq('id', member.user_id);
+
+        if (profileError) {
+          console.error('Erro ao atualizar profile:', profileError);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success('Membro atualizado!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   // Remover membro
   const removeMember = useMutation({
     mutationFn: async (memberId: string) => {
@@ -224,14 +270,36 @@ export function useTeamMembers() {
     },
   });
 
+  // Redefinir senha
+  const resetPassword = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      if (!isAdmin) throw new Error('Sem permissão para redefinir senhas');
+
+      const { data, error } = await supabase.functions.invoke('admin-update-user-password', {
+        body: { targetUserId: userId, newPassword },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast.success('Senha redefinida com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   return {
     members,
     isLoading,
     inviteMember,
     updateMemberRole,
     updateMemberPermissions,
+    updateMember,
     removeMember,
     activateMember,
     resendInvite,
+    resetPassword,
   };
 }
