@@ -45,6 +45,21 @@ interface SearchRequest {
   pagina?: number;
 }
 
+// Sanitize API key - remove prefixes and whitespace
+function sanitizeApiKey(key: string): string {
+  let sanitized = key.trim();
+  
+  // Remove common prefixes if user pasted the full header
+  if (sanitized.toLowerCase().startsWith('api-key:')) {
+    sanitized = sanitized.substring(8).trim();
+  }
+  if (sanitized.toLowerCase().startsWith('api-key')) {
+    sanitized = sanitized.substring(7).trim();
+  }
+  
+  return sanitized;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -52,14 +67,28 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('CNPJWS_API_KEY');
-    if (!apiKey) {
-      console.error('CNPJWS_API_KEY not configured');
+    // Try both secret names for compatibility
+    let rawApiKey = Deno.env.get('CASADOSDADOS_API_KEY') || Deno.env.get('CNPJWS_API_KEY');
+    
+    if (!rawApiKey) {
+      console.error('API Key not configured (checked CASADOSDADOS_API_KEY and CNPJWS_API_KEY)');
       return new Response(
-        JSON.stringify({ success: false, error: 'API Key não configurada' }),
+        JSON.stringify({ 
+          success: false, 
+          error: 'API Key não configurada. Configure CASADOSDADOS_API_KEY ou CNPJWS_API_KEY.' 
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const apiKey = sanitizeApiKey(rawApiKey);
+    
+    // Log safe metadata for debugging (not the key itself)
+    console.log('API Key info:', {
+      length: apiKey.length,
+      lastChars: apiKey.slice(-4),
+      source: Deno.env.get('CASADOSDADOS_API_KEY') ? 'CASADOSDADOS_API_KEY' : 'CNPJWS_API_KEY'
+    });
 
     const { filters, page = 1, limit = 20 } = await req.json();
     console.log('Received search request:', { filters, page, limit });
@@ -184,10 +213,14 @@ serve(async (req) => {
     console.log('API Request body:', JSON.stringify(searchBody, null, 2));
 
     // Make request to Casa dos Dados API v5
-    const response = await fetch('https://api.casadosdados.com.br/v5/cnpj/pesquisa', {
+    const apiUrl = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa';
+    console.log('Calling API:', apiUrl);
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'api-key': apiKey,
       },
       body: JSON.stringify(searchBody),
@@ -195,15 +228,29 @@ serve(async (req) => {
 
     const responseText = await response.text();
     console.log('API Response status:', response.status);
+    console.log('API Response headers:', Object.fromEntries(response.headers.entries()));
     console.log('API Response preview:', responseText.substring(0, 500));
 
     if (!response.ok) {
       let errorMessage = 'Erro na API Casa dos Dados';
-      try {
-        const errorData = JSON.parse(responseText);
-        errorMessage = errorData.message || errorData.error || errorMessage;
-      } catch {
-        errorMessage = responseText || `HTTP ${response.status}`;
+      
+      // Specific error messages based on status
+      if (response.status === 401) {
+        errorMessage = 'API Key inválida. Verifique se a chave está correta no portal da Casa dos Dados (https://casadosdados.com.br). Cole apenas o valor da chave, sem prefixos.';
+        console.error('401 Unauthorized - API Key rejected by Casa dos Dados');
+      } else if (response.status === 403) {
+        errorMessage = 'Sem permissão para acessar este recurso. Verifique se seu plano na Casa dos Dados permite pesquisas avançadas.';
+        console.error('403 Forbidden - Access denied');
+      } else if (response.status === 429) {
+        errorMessage = 'Limite de requisições excedido. Aguarde alguns minutos e tente novamente.';
+        console.error('429 Rate Limited');
+      } else {
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorData.error || errorData.msg || `HTTP ${response.status}`;
+        } catch {
+          errorMessage = responseText || `HTTP ${response.status}`;
+        }
       }
       
       console.error('API Error:', errorMessage);
