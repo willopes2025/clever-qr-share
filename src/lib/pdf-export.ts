@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import { AnalysisReport } from '@/hooks/useAnalysisReports';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateOnly } from '@/lib/date-utils';
 
 export function generateAnalysisPDF(report: AnalysisReport) {
   const doc = new jsPDF();
@@ -69,7 +70,7 @@ export function generateAnalysisPDF(report: AnalysisReport) {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    `Período: ${format(new Date(report.period_start), "dd/MM/yyyy")} - ${format(new Date(report.period_end), "dd/MM/yyyy")}`,
+    `Período: ${formatDateOnly(report.period_start)} - ${formatDateOnly(report.period_end)}`,
     margin,
     35
   );
@@ -196,7 +197,7 @@ export function generateAnalysisPDF(report: AnalysisReport) {
     );
   }
 
-  // Save
-  const filename = `relatorio-analise-${format(new Date(report.period_start), 'yyyy-MM-dd')}-${format(new Date(report.period_end), 'yyyy-MM-dd')}.pdf`;
+  // Save - use the raw period strings since they're already in yyyy-MM-dd format
+  const filename = `relatorio-analise-${report.period_start}-${report.period_end}.pdf`;
   doc.save(filename);
 }

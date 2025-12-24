@@ -4,9 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Download, Star, AlertCircle, CheckCircle, XCircle, MessageSquare, TrendingUp, Mic, FileText, Lightbulb, ThumbsUp, ThumbsDown, Target, Zap, BookOpen, Users } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { AnalysisReport } from '@/hooks/useAnalysisReports';
+import { formatDateOnly } from '@/lib/date-utils';
 import { AnalysisScoreCard } from './AnalysisScoreCard';
 
 interface AnalysisReportDetailProps {
@@ -27,7 +26,7 @@ export function AnalysisReportDetail({ report, onBack, onExport }: AnalysisRepor
           <div>
             <h1 className="text-2xl font-bold">Relatório de Análise</h1>
             <p className="text-muted-foreground">
-              {format(new Date(report.period_start), "dd/MM/yyyy")} - {format(new Date(report.period_end), "dd/MM/yyyy")}
+              {formatDateOnly(report.period_start)} - {formatDateOnly(report.period_end)}
             </p>
           </div>
         </div>

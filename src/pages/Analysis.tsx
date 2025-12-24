@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart3, CalendarIcon, FileText, Loader2, Sparkles, TrendingUp, TrendingDown, Clock, MessageSquare, Mic, Download, Trash2, ChevronRight, Star, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { format, subDays, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateOnly } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { useAnalysisReports, AnalysisReport } from '@/hooks/useAnalysisReports';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -36,7 +37,9 @@ export default function Analysis() {
   const handleGenerateReport = async () => {
     const periodStart = format(dateRange.from, 'yyyy-MM-dd');
     const periodEnd = format(dateRange.to ?? dateRange.from, 'yyyy-MM-dd');
-    await generateReport(periodStart, periodEnd, transcribeAudios);
+    // Send timezone offset so backend can calculate full day correctly
+    const tzOffsetMinutes = new Date().getTimezoneOffset();
+    await generateReport(periodStart, periodEnd, transcribeAudios, tzOffsetMinutes);
   };
 
   const handleExportPDF = (report: AnalysisReport) => {
@@ -242,7 +245,7 @@ export default function Analysis() {
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">
-                          Período: {format(new Date(report.period_start), "dd/MM/yyyy")} - {format(new Date(report.period_end), "dd/MM/yyyy")}
+                          Período: {formatDateOnly(report.period_start)} - {formatDateOnly(report.period_end)}
                         </p>
                         {report.status === 'completed' && (
                           <div className="flex flex-wrap gap-4 text-sm">
