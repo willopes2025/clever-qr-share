@@ -515,7 +515,158 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.error('Error inserting message:', msgError);
     } else {
       console.log('Message inserted successfully');
+      
+      // Check if this is a warming message (inbound only)
+      if (!isFromMe) {
+        await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, content || preview);
+      }
     }
+  }
+}
+
+// Check if incoming message is from a warming contact or paired instance and update counters
+// deno-lint-ignore no-explicit-any
+async function checkAndCountWarmingMessage(supabase: any, userId: string, instanceId: string, phone: string, contentPreview: string) {
+  try {
+    console.log(`[WARMING] Checking if message from ${phone} is a warming message for instance ${instanceId}`);
+    
+    // Find active warming schedule for this instance
+    const { data: schedule, error: scheduleError } = await supabase
+      .from('warming_schedules')
+      .select('id, messages_received_today, total_messages_received')
+      .eq('instance_id', instanceId)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+    
+    if (scheduleError) {
+      console.error('[WARMING] Error fetching schedule:', scheduleError);
+      return;
+    }
+    
+    if (!schedule) {
+      console.log('[WARMING] No active warming schedule for this instance');
+      return;
+    }
+    
+    console.log(`[WARMING] Found active schedule: ${schedule.id}`);
+    
+    // Check if message is from a warming contact
+    const { data: warmingContact } = await supabase
+      .from('warming_contacts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('phone', phone)
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    let isWarmingMessage = !!warmingContact;
+    
+    if (warmingContact) {
+      console.log(`[WARMING] Message is from warming contact: ${warmingContact.id}`);
+    }
+    
+    // If not a warming contact, check if it's from a paired instance
+    if (!isWarmingMessage) {
+      // Get the phone number of paired instances
+      const { data: pairs } = await supabase
+        .from('warming_pairs')
+        .select(`
+          id,
+          instance_a_id,
+          instance_b_id,
+          instance_a:whatsapp_instances!warming_pairs_instance_a_id_fkey(id, instance_name),
+          instance_b:whatsapp_instances!warming_pairs_instance_b_id_fkey(id, instance_name)
+        `)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .or(`instance_a_id.eq.${instanceId},instance_b_id.eq.${instanceId}`);
+      
+      if (pairs && pairs.length > 0) {
+        console.log(`[WARMING] Found ${pairs.length} active pairs for this instance`);
+        
+        // For each pair, check if the message phone matches the paired instance's connected number
+        // Since we don't store the connected phone number directly, we'll check warming_schedules
+        // of the paired instance to see if any messages were sent from there
+        for (const pair of pairs) {
+          const pairedInstanceId = pair.instance_a_id === instanceId 
+            ? pair.instance_b_id 
+            : pair.instance_a_id;
+          
+          // Check if there's a warming schedule for the paired instance that sent messages
+          const { data: pairedSchedule } = await supabase
+            .from('warming_schedules')
+            .select('id')
+            .eq('instance_id', pairedInstanceId)
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle();
+          
+          if (pairedSchedule) {
+            // Check warming activities to see if this phone received messages from the paired instance
+            const { data: sentActivity } = await supabase
+              .from('warming_activities')
+              .select('id')
+              .eq('schedule_id', pairedSchedule.id)
+              .eq('contact_phone', phone)
+              .eq('activity_type', 'send_message')
+              .limit(1);
+            
+            if (sentActivity && sentActivity.length > 0) {
+              console.log(`[WARMING] Message is from paired instance (schedule: ${pairedSchedule.id})`);
+              isWarmingMessage = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    if (!isWarmingMessage) {
+      console.log('[WARMING] Message is not from a warming source, skipping');
+      return;
+    }
+    
+    // Update warming schedule counters
+    const newReceivedToday = (schedule.messages_received_today || 0) + 1;
+    const newTotalReceived = (schedule.total_messages_received || 0) + 1;
+    
+    const { error: updateError } = await supabase
+      .from('warming_schedules')
+      .update({
+        messages_received_today: newReceivedToday,
+        total_messages_received: newTotalReceived,
+        last_activity_at: new Date().toISOString(),
+      })
+      .eq('id', schedule.id);
+    
+    if (updateError) {
+      console.error('[WARMING] Error updating schedule counters:', updateError);
+      return;
+    }
+    
+    console.log(`[WARMING] Updated schedule ${schedule.id}: received_today=${newReceivedToday}, total_received=${newTotalReceived}`);
+    
+    // Log the activity
+    const { error: activityError } = await supabase
+      .from('warming_activities')
+      .insert({
+        schedule_id: schedule.id,
+        instance_id: instanceId,
+        activity_type: 'receive_message',
+        contact_phone: phone,
+        content_preview: contentPreview?.substring(0, 100) || '',
+        success: true,
+      });
+    
+    if (activityError) {
+      console.error('[WARMING] Error logging activity:', activityError);
+    } else {
+      console.log(`[WARMING] Activity logged for schedule ${schedule.id}`);
+    }
+    
+  } catch (error) {
+    console.error('[WARMING] Error in checkAndCountWarmingMessage:', error);
   }
 }
 
