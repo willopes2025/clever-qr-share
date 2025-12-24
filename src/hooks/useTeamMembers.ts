@@ -190,6 +190,33 @@ export function useTeamMembers() {
     },
   });
 
+  // Reenviar convite
+  const resendInvite = useMutation({
+    mutationFn: async ({ email, role, inviterName }: { email: string; role: string; inviterName?: string }) => {
+      if (!organization) throw new Error('Organização não encontrada');
+      if (!isAdmin) throw new Error('Sem permissão para reenviar convites');
+
+      const { error: emailError } = await supabase.functions.invoke('send-team-invite', {
+        body: {
+          email,
+          role,
+          organizationName: organization.name,
+          inviterName: inviterName || 'Um administrador',
+        },
+      });
+
+      if (emailError) {
+        throw new Error('Erro ao reenviar convite');
+      }
+    },
+    onSuccess: () => {
+      toast.success('Convite reenviado com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   return {
     members,
     isLoading,
@@ -198,5 +225,6 @@ export function useTeamMembers() {
     updateMemberPermissions,
     removeMember,
     activateMember,
+    resendInvite,
   };
 }
