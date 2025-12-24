@@ -611,6 +611,321 @@ export type Database = {
         }
         Relationships: []
       }
+      funnel_automations: {
+        Row: {
+          action_config: Json | null
+          action_type: Database["public"]["Enums"]["funnel_action_type"]
+          created_at: string | null
+          funnel_id: string
+          id: string
+          is_active: boolean | null
+          name: string
+          stage_id: string | null
+          trigger_config: Json | null
+          trigger_type: Database["public"]["Enums"]["funnel_trigger_type"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action_config?: Json | null
+          action_type: Database["public"]["Enums"]["funnel_action_type"]
+          created_at?: string | null
+          funnel_id: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          stage_id?: string | null
+          trigger_config?: Json | null
+          trigger_type: Database["public"]["Enums"]["funnel_trigger_type"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action_config?: Json | null
+          action_type?: Database["public"]["Enums"]["funnel_action_type"]
+          created_at?: string | null
+          funnel_id?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          stage_id?: string | null
+          trigger_config?: Json | null
+          trigger_type?: Database["public"]["Enums"]["funnel_trigger_type"]
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_automations_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_automations_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_close_reasons: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      funnel_deal_history: {
+        Row: {
+          changed_at: string | null
+          deal_id: string
+          from_stage_id: string | null
+          id: string
+          notes: string | null
+          to_stage_id: string | null
+        }
+        Insert: {
+          changed_at?: string | null
+          deal_id: string
+          from_stage_id?: string | null
+          id?: string
+          notes?: string | null
+          to_stage_id?: string | null
+        }
+        Update: {
+          changed_at?: string | null
+          deal_id?: string
+          from_stage_id?: string | null
+          id?: string
+          notes?: string | null
+          to_stage_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_deal_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deal_history_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deal_history_to_stage_id_fkey"
+            columns: ["to_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_deals: {
+        Row: {
+          close_reason_id: string | null
+          closed_at: string | null
+          contact_id: string
+          conversation_id: string | null
+          created_at: string | null
+          currency: string | null
+          entered_stage_at: string | null
+          expected_close_date: string | null
+          funnel_id: string
+          id: string
+          notes: string | null
+          source: string | null
+          stage_id: string
+          title: string | null
+          updated_at: string | null
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          close_reason_id?: string | null
+          closed_at?: string | null
+          contact_id: string
+          conversation_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          entered_stage_at?: string | null
+          expected_close_date?: string | null
+          funnel_id: string
+          id?: string
+          notes?: string | null
+          source?: string | null
+          stage_id: string
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          close_reason_id?: string | null
+          closed_at?: string | null
+          contact_id?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          entered_stage_at?: string | null
+          expected_close_date?: string | null
+          funnel_id?: string
+          id?: string
+          notes?: string | null
+          source?: string | null
+          stage_id?: string
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_deals_close_reason_id_fkey"
+            columns: ["close_reason_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_close_reasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deals_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deals_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deals_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_stages: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          display_order: number | null
+          final_type: string | null
+          funnel_id: string
+          id: string
+          is_final: boolean | null
+          name: string
+          probability: number | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          final_type?: string | null
+          funnel_id: string
+          id?: string
+          is_final?: boolean | null
+          name: string
+          probability?: number | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          final_type?: string | null
+          funnel_id?: string
+          id?: string
+          is_final?: boolean | null
+          name?: string
+          probability?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_stages_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnels: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       inbox_messages: {
         Row: {
           content: string
@@ -1281,6 +1596,19 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       broadcast_list_type: "manual" | "dynamic"
+      funnel_action_type:
+        | "send_message"
+        | "send_template"
+        | "add_tag"
+        | "remove_tag"
+        | "notify_user"
+        | "move_stage"
+      funnel_trigger_type:
+        | "on_stage_enter"
+        | "on_stage_exit"
+        | "on_deal_won"
+        | "on_deal_lost"
+        | "on_time_in_stage"
       template_category:
         | "promotional"
         | "transactional"
@@ -1417,6 +1745,21 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       broadcast_list_type: ["manual", "dynamic"],
+      funnel_action_type: [
+        "send_message",
+        "send_template",
+        "add_tag",
+        "remove_tag",
+        "notify_user",
+        "move_stage",
+      ],
+      funnel_trigger_type: [
+        "on_stage_enter",
+        "on_stage_exit",
+        "on_deal_won",
+        "on_deal_lost",
+        "on_time_in_stage",
+      ],
       template_category: [
         "promotional",
         "transactional",
