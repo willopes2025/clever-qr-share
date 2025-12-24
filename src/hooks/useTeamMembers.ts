@@ -50,7 +50,7 @@ export function useTeamMembers() {
 
   // Convidar membro
   const inviteMember = useMutation({
-    mutationFn: async ({ email, role, inviterName }: { email: string; role: TeamRole; inviterName?: string }) => {
+    mutationFn: async ({ email, role, inviterName }: { email: string; role: TeamRole; inviterName?: string }): Promise<{ emailSent: boolean; organizationName: string }> => {
       if (!organization) throw new Error('Organização não encontrada');
       if (!isAdmin) throw new Error('Sem permissão para convidar membros');
 
@@ -74,8 +74,9 @@ export function useTeamMembers() {
       }
 
       // Enviar email de convite
+      let emailSent = false;
       try {
-        const { error: emailError } = await supabase.functions.invoke('send-team-invite', {
+        const { error: emailError, data: emailData } = await supabase.functions.invoke('send-team-invite', {
           body: {
             email,
             role,
@@ -86,17 +87,23 @@ export function useTeamMembers() {
 
         if (emailError) {
           console.error('Erro ao enviar email de convite:', emailError);
-          // Não falhar a operação por causa do email
+        } else if (emailData?.success === false) {
+          console.error('Email não enviado:', emailData?.error);
+        } else {
+          emailSent = true;
         }
       } catch (emailErr) {
         console.error('Erro ao enviar email de convite:', emailErr);
       }
 
-      return data;
+      return { emailSent, organizationName: organization.name };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      toast.success('Convite enviado com sucesso!');
+      if (data.emailSent) {
+        toast.success('Convite enviado com sucesso!');
+      }
+      // Se email não foi enviado, o dialog vai mostrar o fallback
     },
     onError: (error: Error) => {
       toast.error(error.message);
