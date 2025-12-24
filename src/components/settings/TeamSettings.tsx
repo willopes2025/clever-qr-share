@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2 } from 'lucide-react';
+import { MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, RefreshCw } from 'lucide-react';
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
 import { CreateOrganizationDialog } from './CreateOrganizationDialog';
@@ -40,7 +40,7 @@ import { ptBR } from 'date-fns/locale';
 
 export function TeamSettings() {
   const { organization, isOwner, isAdmin, isLoading: isLoadingOrg } = useOrganization();
-  const { members, isLoading: isLoadingMembers, updateMemberRole, removeMember } = useTeamMembers();
+  const { members, isLoading: isLoadingMembers, updateMemberRole, removeMember, resendInvite } = useTeamMembers();
   
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
@@ -63,6 +63,13 @@ export function TeamSettings() {
   const handleToggleRole = async (member: TeamMember) => {
     const newRole = member.role === 'admin' ? 'member' : 'admin';
     await updateMemberRole.mutateAsync({ memberId: member.id, role: newRole });
+  };
+
+  const handleResendInvite = async (member: TeamMember) => {
+    await resendInvite.mutateAsync({
+      email: member.email,
+      role: member.role,
+    });
   };
 
   if (isLoadingOrg) {
@@ -205,27 +212,36 @@ export function TeamSettings() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleToggleRole(member)}>
-                              {member.role === 'admin' ? (
-                                <><User className="mr-2 h-4 w-4" /> Rebaixar para Membro</>
-                              ) : (
-                                <><Shield className="mr-2 h-4 w-4" /> Promover a Admin</>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenPermissions(member)}>
-                              <Settings2 className="mr-2 h-4 w-4" />
-                              Permissões
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => setMemberToRemove(member)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remover
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
+                                          <DropdownMenuContent align="end">
+                                            {member.status === 'invited' && (
+                                              <>
+                                                <DropdownMenuItem onClick={() => handleResendInvite(member)}>
+                                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                                  Reenviar Convite
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                              </>
+                                            )}
+                                            <DropdownMenuItem onClick={() => handleToggleRole(member)}>
+                                              {member.role === 'admin' ? (
+                                                <><User className="mr-2 h-4 w-4" /> Rebaixar para Membro</>
+                                              ) : (
+                                                <><Shield className="mr-2 h-4 w-4" /> Promover a Admin</>
+                                              )}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleOpenPermissions(member)}>
+                                              <Settings2 className="mr-2 h-4 w-4" />
+                                              Permissões
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem 
+                                              className="text-destructive"
+                                              onClick={() => setMemberToRemove(member)}
+                                            >
+                                              <Trash2 className="mr-2 h-4 w-4" />
+                                              Remover
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
                         </DropdownMenu>
                       )}
                     </TableCell>
