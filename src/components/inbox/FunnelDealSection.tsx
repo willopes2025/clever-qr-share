@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Target, Plus, ChevronRight, DollarSign } from "lucide-react";
+import { Target, Plus, ChevronRight, DollarSign, FileText, CheckSquare, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -10,11 +11,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useFunnels } from "@/hooks/useFunnels";
+import { useDealTasks } from "@/hooks/useDealTasks";
 import { DealFormDialog } from "@/components/funnels/DealFormDialog";
+import { DealTasksSection } from "@/components/funnels/DealTasksSection";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface FunnelDealSectionProps {
   contactId: string;
@@ -25,13 +34,30 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
   const { funnels, updateDeal, useContactDeal } = useFunnels();
   const { data: activeDeal, isLoading } = useContactDeal(contactId);
   const [showDealForm, setShowDealForm] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(true);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState("");
   const navigate = useNavigate();
+
+  const { pendingCount, overdueCount } = useDealTasks(activeDeal?.id);
 
   const formatCurrency = (value: number, currency: string = 'BRL') => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency,
     }).format(value);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!activeDeal) return;
+    await updateDeal.mutateAsync({ id: activeDeal.id, notes: notesValue });
+    setEditingNotes(false);
+  };
+
+  const handleStartEditNotes = () => {
+    setNotesValue(activeDeal?.notes || "");
+    setEditingNotes(true);
   };
 
   if (isLoading) {
@@ -82,7 +108,6 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
 
   const currentFunnel = funnels?.find(f => f.id === activeDeal.funnel_id);
   const currentStage = currentFunnel?.stages?.find(s => s.id === activeDeal.stage_id);
-  const availableStages = currentFunnel?.stages?.filter(s => !s.is_final) || [];
 
   const handleStageChange = async (newStageId: string) => {
     await updateDeal.mutateAsync({ id: activeDeal.id, stage_id: newStageId });
@@ -178,6 +203,89 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
             </SelectContent>
           </Select>
         </div>
+
+        <Separator />
+
+        {/* Notes Section */}
+        <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between h-8 px-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-3.5 w-3.5" />
+                <span className="text-xs">Notas</span>
+              </div>
+              <ChevronRight className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                notesOpen && "rotate-90"
+              )} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            {editingNotes ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                  placeholder="Adicionar notas..."
+                  className="min-h-[80px] text-sm"
+                />
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setEditingNotes(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={handleSaveNotes}
+                    disabled={updateDeal.isPending}
+                  >
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className="text-sm text-muted-foreground p-2 bg-background rounded border cursor-pointer hover:bg-muted/50 min-h-[60px]"
+                onClick={handleStartEditNotes}
+              >
+                {activeDeal.notes || (
+                  <span className="italic">Clique para adicionar notas...</span>
+                )}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Tasks Section */}
+        <Collapsible open={tasksOpen} onOpenChange={setTasksOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between h-8 px-2">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-3.5 w-3.5" />
+                <span className="text-xs">Tarefas</span>
+                {pendingCount > 0 && (
+                  <Badge 
+                    variant={overdueCount > 0 ? "destructive" : "secondary"}
+                    className="h-4 px-1 text-[10px]"
+                  >
+                    {overdueCount > 0 && <AlertCircle className="h-2.5 w-2.5 mr-0.5" />}
+                    {pendingCount}
+                  </Badge>
+                )}
+              </div>
+              <ChevronRight className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                tasksOpen && "rotate-90"
+              )} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-2">
+            <DealTasksSection dealId={activeDeal.id} />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   );
