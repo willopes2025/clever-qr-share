@@ -175,7 +175,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
-    // Extract phone and label_id from JIDs
+// Extract phone and label_id from JIDs
     // remoteJid can be either a real phone (@s.whatsapp.net/@c.us) or a Label ID (@lid)
     // remoteJidAlt usually contains the real phone when remoteJid is a Label ID
     let phone = '';
@@ -187,6 +187,23 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     
     const isValidPhone = (p: string): boolean => {
       return p.length >= 8 && p.length <= 15 && /^\d+$/.test(p);
+    };
+    
+    // Normalize Brazilian phone numbers - always include country code
+    const normalizePhone = (p: string): string => {
+      let cleaned = p.replace(/\D/g, '');
+      
+      // If already has country code 55 and correct length (12-13 digits)
+      if (cleaned.startsWith('55') && cleaned.length >= 12 && cleaned.length <= 13) {
+        return cleaned;
+      }
+      
+      // Brazilian mobile without country code (10-11 digits starting with DDD)
+      if (cleaned.length >= 10 && cleaned.length <= 11) {
+        return '55' + cleaned;
+      }
+      
+      return cleaned;
     };
     
     // Determine if remoteJid is a Label ID
@@ -217,7 +234,10 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
     
-    console.log(`Extracted phone: ${phone}, labelId: ${labelId}`);
+    // Normalize the phone number to prevent duplicates
+    const originalPhone = phone;
+    phone = normalizePhone(phone);
+    console.log(`Extracted phone: ${originalPhone} -> normalized: ${phone}, labelId: ${labelId}`);
 
     // Detect message type and extract content/media
     let messageType = 'text';
@@ -349,16 +369,21 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     const finalMediaUrl = persistedMediaUrl || mediaUrl;
 
     const isFromMe = key.fromMe === true;
-    const contactName = pushName || phone;
+    // Don't use pushName for outgoing messages (would be "Você" or similar)
+    const contactName = (!isFromMe && pushName) ? pushName : phone;
     
     console.log(`Processing: phone=${phone}, labelId=${labelId}, fromMe=${isFromMe}, type=${messageType}, hasMedia=${!!mediaUrl}, content=${content.substring(0, 50)}...`);
 
     // Find contact by phone OR by label_id (to prevent duplicates)
+    // Also search for phone without country code to handle legacy data
+    const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
+    
     let { data: contact } = await supabase
       .from('contacts')
-      .select('id, label_id')
+      .select('id, label_id, phone')
       .eq('user_id', userId)
-      .eq('phone', phone)
+      .or(`phone.eq.${phone},phone.eq.${phoneWithoutCountry}`)
+      .limit(1)
       .single();
 
     // If not found by phone, try to find by label_id
@@ -372,8 +397,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       
       if (contactByLabel) {
         console.log(`Found existing contact by label_id: ${contactByLabel.id} (phone: ${contactByLabel.phone})`);
-        // Update the contact's phone if it was a Label ID
-        if (contactByLabel.phone !== phone) {
+        // Update the contact's phone to normalized version
+        const normalizedExisting = normalizePhone(contactByLabel.phone);
+        if (normalizedExisting !== phone) {
           console.log(`Updating contact phone from ${contactByLabel.phone} to ${phone}`);
           await supabase
             .from('contacts')
@@ -382,6 +408,15 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         }
         contact = contactByLabel;
       }
+    }
+    
+    // If found contact with non-normalized phone, update it
+    if (contact && contact.phone !== phone) {
+      console.log(`Normalizing contact phone from ${contact.phone} to ${phone}`);
+      await supabase
+        .from('contacts')
+        .update({ phone: phone })
+        .eq('id', contact.id);
     }
 
     if (!contact) {
