@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface SearchRequest {
   cnpj?: string[];
+  cnpj_raiz?: string[];
   busca_textual?: {
     texto: string[];
     tipo_busca?: 'exata' | 'radical';
@@ -14,12 +15,16 @@ interface SearchRequest {
     nome_fantasia?: boolean;
   }[];
   codigo_atividade_principal?: string[];
+  codigo_atividade_secundaria?: string[];
+  codigo_natureza_juridica?: string[];
+  codigo_porte?: string[];
   situacao_cadastral?: string[];
   uf?: string[];
   municipio?: string[];
   bairro?: string[];
   cep?: string[];
   ddd?: string[];
+  telefone?: string[];
   data_abertura?: {
     inicio?: string;
     fim?: string;
@@ -33,6 +38,10 @@ interface SearchRequest {
     optante?: boolean;
     excluir_optante?: boolean;
   };
+  simples?: {
+    optante?: boolean;
+    excluir_optante?: boolean;
+  };
   mais_filtros?: {
     somente_matriz?: boolean;
     somente_filial?: boolean;
@@ -40,7 +49,9 @@ interface SearchRequest {
     com_telefone?: boolean;
     somente_fixo?: boolean;
     somente_celular?: boolean;
+    excluir_email_contabilidade?: boolean;
   };
+  excluir_cnpj?: string[];
   limite?: number;
   pagina?: number;
 }
@@ -206,8 +217,60 @@ serve(async (req) => {
       hasMaisFilters = true;
     }
 
+    // Excluir email contabilidade
+    if (filters.excluir_email_contab) {
+      maisFilters.excluir_email_contabilidade = true;
+      hasMaisFilters = true;
+    }
+
     if (hasMaisFilters) {
       searchBody.mais_filtros = maisFilters;
+    }
+
+    // Natureza Jurídica filter
+    if (filters.natureza_juridica && filters.natureza_juridica.length > 0) {
+      searchBody.codigo_natureza_juridica = filters.natureza_juridica;
+    }
+
+    // Porte filter
+    if (filters.porte && filters.porte.length > 0) {
+      searchBody.codigo_porte = filters.porte;
+    }
+
+    // CNPJ específico filter
+    if (filters.cnpj && filters.cnpj.length > 0) {
+      searchBody.cnpj = filters.cnpj.map((c: string) => c.replace(/\D/g, ''));
+    }
+
+    // CNPJ Raiz filter
+    if (filters.cnpj_raiz && filters.cnpj_raiz.length > 0) {
+      searchBody.cnpj_raiz = filters.cnpj_raiz.map((c: string) => c.replace(/\D/g, ''));
+    }
+
+    // CNAE Secundário filter
+    if (filters.cnae_secundario && filters.cnae_secundario.length > 0) {
+      searchBody.codigo_atividade_secundaria = filters.cnae_secundario.map((c: string) => c.replace(/\D/g, ''));
+    }
+
+    // Simples Nacional options
+    if (filters.simples_optante || filters.simples_excluir) {
+      searchBody.simples = {};
+      if (filters.simples_optante) {
+        searchBody.simples.optante = true;
+      }
+      if (filters.simples_excluir) {
+        searchBody.simples.excluir_optante = true;
+      }
+    }
+
+    // Telefone específico filter
+    if (filters.telefone && filters.telefone.length > 0) {
+      searchBody.telefone = filters.telefone;
+    }
+
+    // Excluir CNPJ filter
+    if (filters.excluir_cnpj && filters.excluir_cnpj.length > 0) {
+      searchBody.excluir_cnpj = filters.excluir_cnpj.map((c: string) => c.replace(/\D/g, ''));
     }
 
     console.log('API Request body:', JSON.stringify(searchBody, null, 2));
