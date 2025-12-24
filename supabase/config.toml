@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.analyze-conversations]
 verify_jwt = true
+
+[functions.process-funnel-automations]
+verify_jwt = false

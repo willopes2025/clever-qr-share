@@ -13,6 +13,7 @@ import { Conversation } from "@/hooks/useConversations";
 import { TagSelector } from "./TagSelector";
 import { CustomFieldsEditor } from "./CustomFieldsEditor";
 import { CustomFieldsManager } from "./CustomFieldsManager";
+import { FunnelDealSection } from "./FunnelDealSection";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -211,6 +212,14 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
                   customFields={conversation.contact?.custom_fields || {}}
                 />
               </div>
+
+              <Separator className="my-4" />
+
+              {/* Funnel Deal Section */}
+              <FunnelDealSection 
+                contactId={conversation.contact_id}
+                conversationId={conversation.id}
+              />
 
               <Separator className="my-4" />
 

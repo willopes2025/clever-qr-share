@@ -22,7 +22,7 @@ import { useContacts } from "@/hooks/useContacts";
 interface DealFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  funnelId: string;
+  funnelId?: string;
   stageId?: string;
   deal?: FunnelDeal;
   contactId?: string;
@@ -48,8 +48,9 @@ export const DealFormDialog = ({
   const [source, setSource] = useState(deal?.source || '');
   const [notes, setNotes] = useState(deal?.notes || '');
   const [selectedStageId, setSelectedStageId] = useState(stageId || deal?.stage_id || '');
+  const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || deal?.funnel_id || '');
 
-  const currentFunnel = funnels?.find(f => f.id === funnelId);
+  const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = currentFunnel?.stages || [];
 
   // Reset form when dialog opens with new data
@@ -61,9 +62,21 @@ export const DealFormDialog = ({
       setExpectedCloseDate(deal?.expected_close_date || '');
       setSource(deal?.source || '');
       setNotes(deal?.notes || '');
-      setSelectedStageId(stageId || deal?.stage_id || stages[0]?.id || '');
+      setSelectedFunnelId(funnelId || deal?.funnel_id || funnels?.[0]?.id || '');
+      setSelectedStageId(stageId || deal?.stage_id || '');
     }
-  }, [open, deal, initialContactId, stageId, stages]);
+  }, [open, deal, initialContactId, stageId, funnelId, funnels]);
+
+  // Update stage when funnel changes
+  useEffect(() => {
+    if (selectedFunnelId && !selectedStageId) {
+      const funnel = funnels?.find(f => f.id === selectedFunnelId);
+      const firstStage = funnel?.stages?.find(s => !s.is_final);
+      if (firstStage) {
+        setSelectedStageId(firstStage.id);
+      }
+    }
+  }, [selectedFunnelId, funnels, selectedStageId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +92,7 @@ export const DealFormDialog = ({
       });
     } else {
       await createDeal.mutateAsync({ 
-        funnel_id: funnelId,
+        funnel_id: selectedFunnelId,
         stage_id: selectedStageId,
         contact_id: contactId,
         conversation_id: conversationId,
@@ -112,6 +125,24 @@ export const DealFormDialog = ({
                   {contacts?.map((contact) => (
                     <SelectItem key={contact.id} value={contact.id}>
                       {contact.name || contact.phone}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {!funnelId && !deal && (
+            <div className="space-y-2">
+              <Label>Funil *</Label>
+              <Select value={selectedFunnelId} onValueChange={setSelectedFunnelId} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar funil" />
+                </SelectTrigger>
+                <SelectContent>
+                  {funnels?.map((funnel) => (
+                    <SelectItem key={funnel.id} value={funnel.id}>
+                      {funnel.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
