@@ -107,17 +107,17 @@ export const useFunnels = () => {
       if (error) throw error;
       
       // Sort stages and deals
-      return (data || []).map((funnel: Funnel) => ({
+      return (data || []).map((funnel) => ({
         ...funnel,
         stages: (funnel.stages || [])
-          .sort((a, b) => a.display_order - b.display_order)
-          .map((stage: FunnelStage) => ({
+          .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
+          .map((stage: { deals?: { updated_at: string }[] }) => ({
             ...stage,
-            deals: (stage.deals || []).sort((a, b) => 
+            deals: (stage.deals || []).sort((a: { updated_at: string }, b: { updated_at: string }) => 
               new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
             )
           }))
-      }));
+      })) as Funnel[];
     },
     enabled: !!user?.id
   });
@@ -386,18 +386,18 @@ export const useFunnels = () => {
 
   // Automation mutations
   const createAutomation = useMutation({
-    mutationFn: async (data: { funnel_id: string; stage_id?: string | null; name: string; trigger_type: string; trigger_config?: unknown; action_type: string; action_config?: unknown; is_active?: boolean }) => {
-      const { error } = await supabase.from('funnel_automations').insert({
+    mutationFn: async (data: { funnel_id: string; stage_id?: string | null; name: string; trigger_type: string; trigger_config?: Record<string, unknown>; action_type: string; action_config?: Record<string, unknown>; is_active?: boolean }) => {
+      const { error } = await supabase.from('funnel_automations').insert([{
         user_id: user!.id,
         funnel_id: data.funnel_id,
         stage_id: data.stage_id || null,
         name: data.name,
-        trigger_type: data.trigger_type as 'on_stage_enter',
-        trigger_config: data.trigger_config || {},
-        action_type: data.action_type as 'send_message',
-        action_config: data.action_config || {},
+        trigger_type: data.trigger_type as 'on_stage_enter' | 'on_stage_exit' | 'on_deal_won' | 'on_deal_lost' | 'on_time_in_stage',
+        trigger_config: (data.trigger_config || {}) as Record<string, never>,
+        action_type: data.action_type as 'send_message' | 'send_template' | 'add_tag' | 'remove_tag' | 'notify_user' | 'move_stage',
+        action_config: (data.action_config || {}) as Record<string, never>,
         is_active: data.is_active ?? true
-      });
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -49,10 +49,10 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
       setName(automation.name);
       setSelectedFunnelId(automation.funnel_id);
       setStageId(automation.stage_id || '');
-      setTriggerType(automation.trigger_type);
-      setTriggerConfig(automation.trigger_config);
-      setActionType(automation.action_type);
-      setActionConfig(automation.action_config);
+      setTriggerType(automation.trigger_type as TriggerType);
+      setTriggerConfig((automation.trigger_config as Record<string, unknown>) || {});
+      setActionType(automation.action_type as ActionType);
+      setActionConfig((automation.action_config as Record<string, unknown>) || {});
     } else if (open) {
       setName('');
       setSelectedFunnelId(funnelId || '');
