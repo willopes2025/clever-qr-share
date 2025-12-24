@@ -34,49 +34,97 @@ export interface Company {
 }
 
 export interface SearchFilters {
+  // Localização
   uf: string[];
   municipio: string[];
   bairro: string[];
   cep: string[];
   ddd: string[];
+  
+  // Atividade
   cnae: string[];
+  cnae_secundario: string[];
+  incluir_atividade_secundaria: boolean;
   termo: string;
   situacao_cadastral: string;
-  data_abertura_gte: string;
-  data_abertura_lte: string;
-  capital_social_gte: string;
-  capital_social_lte: string;
+  natureza_juridica: string[];
+  porte: string[];
+  
+  // Identificação
+  cnpj: string[];
+  cnpj_raiz: string[];
+  somente_matriz: boolean;
+  somente_filial: boolean;
+  
+  // MEI / Simples
   somente_mei: boolean;
   excluir_mei: boolean;
+  simples_optante: boolean;
+  simples_excluir: boolean;
+  
+  // Contato
   com_email: boolean;
   com_telefone: boolean;
   somente_fixo: boolean;
   somente_celular: boolean;
-  somente_matriz: boolean;
-  somente_filial: boolean;
+  telefone: string[];
+  excluir_email_contab: boolean;
+  
+  // Data e Capital
+  data_abertura_gte: string;
+  data_abertura_lte: string;
+  capital_social_gte: string;
+  capital_social_lte: string;
+  
+  // Exclusões
+  excluir_cnpj: string[];
 }
 
-const initialFilters: SearchFilters = {
+export const initialFilters: SearchFilters = {
+  // Localização
   uf: [],
   municipio: [],
   bairro: [],
   cep: [],
   ddd: [],
+  
+  // Atividade
   cnae: [],
+  cnae_secundario: [],
+  incluir_atividade_secundaria: false,
   termo: "",
   situacao_cadastral: "ATIVA",
-  data_abertura_gte: "",
-  data_abertura_lte: "",
-  capital_social_gte: "",
-  capital_social_lte: "",
+  natureza_juridica: [],
+  porte: [],
+  
+  // Identificação
+  cnpj: [],
+  cnpj_raiz: [],
+  somente_matriz: false,
+  somente_filial: false,
+  
+  // MEI / Simples
   somente_mei: false,
   excluir_mei: false,
+  simples_optante: false,
+  simples_excluir: false,
+  
+  // Contato
   com_email: false,
   com_telefone: true,
   somente_fixo: false,
   somente_celular: true,
-  somente_matriz: false,
-  somente_filial: false,
+  telefone: [],
+  excluir_email_contab: false,
+  
+  // Data e Capital
+  data_abertura_gte: "",
+  data_abertura_lte: "",
+  capital_social_gte: "",
+  capital_social_lte: "",
+  
+  // Exclusões
+  excluir_cnpj: [],
 };
 
 const LeadSearch = () => {
