@@ -19,6 +19,7 @@ import Admin from "./pages/Admin";
 import Inbox from "./pages/Inbox";
 import Warming from "./pages/Warming";
 import Analysis from "./pages/Analysis";
+import Funnels from "./pages/Funnels";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -113,6 +114,13 @@ const App = () => (
             <ProtectedRoute>
               <NotificationProvider>
                 <Analysis />
+              </NotificationProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/funnels" element={
+            <ProtectedRoute>
+              <NotificationProvider>
+                <Funnels />
               </NotificationProvider>
             </ProtectedRoute>
           } />
