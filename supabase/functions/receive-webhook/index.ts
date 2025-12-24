@@ -108,7 +108,7 @@ serve(async (req) => {
     
     if (eventLower === 'messages.upsert' || eventLower === 'messages_upsert') {
       console.log('>>> Handling MESSAGES.UPSERT event');
-      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey);
+      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey, supabaseUrl, supabaseServiceKey);
     } else if (eventLower === 'messages.update' || eventLower === 'messages_update') {
       console.log('>>> Handling MESSAGES.UPDATE event');
       await handleMessagesUpdate(supabase, data);
@@ -117,7 +117,7 @@ serve(async (req) => {
       await handleConnectionUpdate(supabase, instanceId, data);
     } else if (eventLower === 'send.message' || eventLower === 'send_message') {
       console.log('>>> Handling SEND.MESSAGE event');
-      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey);
+      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey, supabaseUrl, supabaseServiceKey);
     } else {
       console.log(`Unhandled event type: ${event} (normalized: ${eventLower})`);
     }
@@ -136,7 +136,7 @@ serve(async (req) => {
 });
 
 // deno-lint-ignore no-explicit-any
-async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any, instanceName: string, evolutionApiUrl: string, evolutionApiKey: string) {
+async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any, instanceName: string, evolutionApiUrl: string, evolutionApiKey: string, supabaseUrl: string, supabaseServiceKey: string) {
   console.log('handleMessagesUpsert called with data:', JSON.stringify(data, null, 2));
   
   const messages = data.messages || data.message ? [data] : [];
@@ -519,8 +519,38 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       // Check if this is a warming message (inbound only)
       if (!isFromMe) {
         await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, content || preview);
+        
+        // Check if conversation has AI agent enabled and trigger response
+        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, content || preview, instanceName);
       }
     }
+  }
+}
+
+// Trigger AI agent for campaign conversations
+async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: string, conversationId: string, messageContent: string, instanceName: string) {
+  try {
+    console.log(`[AI-TRIGGER] Checking if AI agent should respond for conversation ${conversationId}`);
+    
+    // Call the AI agent edge function
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-campaign-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({
+        conversationId,
+        messageContent,
+        instanceName,
+      }),
+    });
+
+    const result = await response.json();
+    console.log(`[AI-TRIGGER] AI agent response:`, result);
+    
+  } catch (error) {
+    console.error('[AI-TRIGGER] Error calling AI agent:', error);
   }
 }
 

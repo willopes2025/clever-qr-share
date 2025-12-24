@@ -189,6 +189,15 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          ai_active_hours_end: number | null
+          ai_active_hours_start: number | null
+          ai_enabled: boolean | null
+          ai_handoff_keywords: string[] | null
+          ai_knowledge_base: string | null
+          ai_max_interactions: number | null
+          ai_prompt: string | null
+          ai_response_delay_max: number | null
+          ai_response_delay_min: number | null
           allowed_days: string[] | null
           allowed_end_hour: number | null
           allowed_start_hour: number | null
@@ -216,6 +225,15 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_active_hours_end?: number | null
+          ai_active_hours_start?: number | null
+          ai_enabled?: boolean | null
+          ai_handoff_keywords?: string[] | null
+          ai_knowledge_base?: string | null
+          ai_max_interactions?: number | null
+          ai_prompt?: string | null
+          ai_response_delay_max?: number | null
+          ai_response_delay_min?: number | null
           allowed_days?: string[] | null
           allowed_end_hour?: number | null
           allowed_start_hour?: number | null
@@ -243,6 +261,15 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_active_hours_end?: number | null
+          ai_active_hours_start?: number | null
+          ai_enabled?: boolean | null
+          ai_handoff_keywords?: string[] | null
+          ai_knowledge_base?: string | null
+          ai_max_interactions?: number | null
+          ai_prompt?: string | null
+          ai_response_delay_max?: number | null
+          ai_response_delay_min?: number | null
           allowed_days?: string[] | null
           allowed_end_hour?: number | null
           allowed_start_hour?: number | null
@@ -520,6 +547,12 @@ export type Database = {
       }
       conversations: {
         Row: {
+          ai_handled: boolean | null
+          ai_handoff_reason: string | null
+          ai_handoff_requested: boolean | null
+          ai_interactions_count: number | null
+          ai_paused: boolean | null
+          campaign_id: string | null
           contact_id: string
           created_at: string
           id: string
@@ -533,6 +566,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_handled?: boolean | null
+          ai_handoff_reason?: string | null
+          ai_handoff_requested?: boolean | null
+          ai_interactions_count?: number | null
+          ai_paused?: boolean | null
+          campaign_id?: string | null
           contact_id: string
           created_at?: string
           id?: string
@@ -546,6 +585,12 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_handled?: boolean | null
+          ai_handoff_reason?: string | null
+          ai_handoff_requested?: boolean | null
+          ai_interactions_count?: number | null
+          ai_paused?: boolean | null
+          campaign_id?: string | null
           contact_id?: string
           created_at?: string
           id?: string
@@ -559,6 +604,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversations_contact_id_fkey"
             columns: ["contact_id"]
