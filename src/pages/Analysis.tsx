@@ -23,7 +23,7 @@ import { generateAnalysisPDF } from '@/lib/pdf-export';
 export default function Analysis() {
   const { reports, isLoading, isGenerating, generateReport, deleteReport } = useAnalysisReports();
   const { subscription } = useSubscription();
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
+  const [dateRange, setDateRange] = useState<{ from: Date; to?: Date }>({
     from: subDays(new Date(), 7),
     to: new Date(),
   });
@@ -35,7 +35,7 @@ export default function Analysis() {
 
   const handleGenerateReport = async () => {
     const periodStart = format(dateRange.from, 'yyyy-MM-dd');
-    const periodEnd = format(dateRange.to, 'yyyy-MM-dd');
+    const periodEnd = format(dateRange.to ?? dateRange.from, 'yyyy-MM-dd');
     await generateReport(periodStart, periodEnd, transcribeAudios);
   };
 
@@ -125,7 +125,7 @@ export default function Analysis() {
                   onClick={() => setDateRange({ from: preset.from, to: preset.to })}
                   className={cn(
                     dateRange.from.getTime() === preset.from.getTime() &&
-                    dateRange.to.getTime() === preset.to.getTime() &&
+                    dateRange.to?.getTime() === preset.to.getTime() &&
                     "bg-primary text-primary-foreground"
                   )}
                 >
@@ -137,9 +137,11 @@ export default function Analysis() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start text-left font-normal">
+                <Button variant="outline" className="justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                    {dateRange.to 
+                      ? `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`
+                      : format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -149,11 +151,17 @@ export default function Analysis() {
                     defaultMonth={dateRange.from}
                     selected={{ from: dateRange.from, to: dateRange.to }}
                     onSelect={(range) => {
-                      if (range?.from && range?.to) {
-                        // Limit to 1 month
-                        const maxDate = subMonths(range.from, -1);
-                        const toDate = range.to > maxDate ? maxDate : range.to;
-                        setDateRange({ from: range.from, to: toDate });
+                      if (range?.from) {
+                        if (range.to) {
+                          // Limit to 1 month max
+                          const maxDate = new Date(range.from);
+                          maxDate.setMonth(maxDate.getMonth() + 1);
+                          const toDate = range.to > maxDate ? maxDate : range.to;
+                          setDateRange({ from: range.from, to: toDate });
+                        } else {
+                          // Allow single day selection
+                          setDateRange({ from: range.from, to: undefined });
+                        }
                       }
                     }}
                     numberOfMonths={2}
