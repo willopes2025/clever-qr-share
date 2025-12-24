@@ -30,20 +30,23 @@ export interface TeamMember {
 }
 
 export function useOrganization() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  const userId = user?.id;
+  const userEmail = user?.email;
 
   // Buscar organização do usuário
   const { data: organization, isLoading: isLoadingOrg } = useQuery({
-    queryKey: ['organization', user?.id],
+    queryKey: ['organization', userId],
     queryFn: async () => {
-      if (!user) return null;
+      if (!userId) return null;
 
       // Primeiro, tentar encontrar organização onde o usuário é membro
       const { data: memberData } = await supabase
         .from('team_members')
         .select('organization_id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .maybeSingle();
 
@@ -60,59 +63,63 @@ export function useOrganization() {
       const { data: ownedOrg } = await supabase
         .from('organizations')
         .select('*')
-        .eq('owner_id', user.id)
+        .eq('owner_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       return ownedOrg as Organization | null;
     },
-    enabled: !!user,
+    enabled: !!userId,
   });
 
   // Buscar dados do membro atual
+  const organizationId = organization?.id;
+  const organizationOwnerId = organization?.owner_id;
+  const organizationCreatedAt = organization?.created_at;
+  
   const { data: currentMember, isLoading: isLoadingMember } = useQuery({
-    queryKey: ['current-member', user?.id, organization?.id],
+    queryKey: ['current-member', userId, organizationId],
     queryFn: async () => {
-      if (!user || !organization) return null;
+      if (!userId || !organizationId) return null;
 
       const { data } = await supabase
         .from('team_members')
         .select('*')
-        .eq('organization_id', organization.id)
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .maybeSingle();
 
       // Se não encontrar membro, verificar se é o dono
-      if (!data && organization.owner_id === user.id) {
+      if (!data && organizationOwnerId === userId) {
         return {
           id: 'owner',
-          organization_id: organization.id,
-          user_id: user.id,
-          email: user.email || '',
+          organization_id: organizationId,
+          user_id: userId,
+          email: userEmail || '',
           role: 'admin' as TeamRole,
           permissions: getDefaultPermissions('admin'),
           status: 'active' as const,
-          invited_at: organization.created_at,
-          joined_at: organization.created_at,
-          created_at: organization.created_at,
+          invited_at: organizationCreatedAt,
+          joined_at: organizationCreatedAt,
+          created_at: organizationCreatedAt,
         } as TeamMember;
       }
 
       return data as TeamMember | null;
     },
-    enabled: !!user && !!organization,
+    enabled: !!userId && !!organizationId,
   });
 
   // Criar organização
   const createOrganization = useMutation({
     mutationFn: async (name: string) => {
-      if (!user) throw new Error('Usuário não autenticado');
+      if (!userId) throw new Error('Usuário não autenticado');
 
       const { data: org, error: orgError } = await supabase
         .from('organizations')
-        .insert({ owner_id: user.id, name })
+        .insert({ owner_id: userId, name })
         .select()
         .single();
 
@@ -123,8 +130,8 @@ export function useOrganization() {
         .from('team_members')
         .insert({
           organization_id: org.id,
-          user_id: user.id,
-          email: user.email || '',
+          user_id: userId,
+          email: userEmail || '',
           role: 'admin',
           permissions: getDefaultPermissions('admin'),
           status: 'active',
@@ -195,7 +202,7 @@ export function useOrganization() {
   const checkPermission = (permission: PermissionKey): boolean => {
     if (!currentMember) {
       // Se é o dono da organização, tem todas as permissões
-      if (organization && user && organization.owner_id === user.id) {
+      if (organizationId && userId && organizationOwnerId === userId) {
         return true;
       }
       return false;
@@ -203,7 +210,7 @@ export function useOrganization() {
     return hasPermission(currentMember.permissions, permission, currentMember.role);
   };
 
-  const isOwner = organization?.owner_id === user?.id;
+  const isOwner = organizationOwnerId === userId;
   const isAdmin = currentMember?.role === 'admin' || isOwner;
 
   return {
