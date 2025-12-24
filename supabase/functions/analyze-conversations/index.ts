@@ -54,7 +54,12 @@ serve(async (req) => {
       throw new Error('periodStart and periodEnd are required');
     }
 
-    console.log(`Starting analysis for user ${user.id} from ${periodStart} to ${periodEnd}`);
+    // Calculate full end of day timestamp to include all messages from the end date
+    const periodEndDate = new Date(periodEnd);
+    periodEndDate.setHours(23, 59, 59, 999);
+    const periodEndFull = periodEndDate.toISOString();
+
+    console.log(`Starting analysis for user ${user.id} from ${periodStart} to ${periodEndFull}`);
 
     // Create the report record first
     const { data: report, error: reportError } = await supabase
@@ -92,7 +97,7 @@ serve(async (req) => {
       `)
       .eq('user_id', user.id)
       .gte('last_message_at', periodStart)
-      .lte('last_message_at', periodEnd);
+      .lte('last_message_at', periodEndFull);
 
     if (convError) {
       console.error('Error fetching conversations:', convError);
@@ -124,7 +129,7 @@ serve(async (req) => {
       .select('id, conversation_id, direction, content, message_type, transcription, created_at, media_url')
       .in('conversation_id', conversationIds)
       .gte('created_at', periodStart)
-      .lte('created_at', periodEnd)
+      .lte('created_at', periodEndFull)
       .order('created_at', { ascending: true });
 
     if (msgError) {
