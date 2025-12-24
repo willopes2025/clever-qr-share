@@ -19,6 +19,16 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    // Extract user ID from authorization header
+    const authHeader = req.headers.get('authorization');
+    let senderUserId: string | null = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      senderUserId = user?.id || null;
+    }
+
     const { conversationId, content, instanceId } = await req.json();
 
     if (!conversationId || !content || !instanceId) {
@@ -106,9 +116,12 @@ serve(async (req) => {
         message_type: 'text',
         status: 'sending',
         sent_at: new Date().toISOString(),
+        sent_by_user_id: senderUserId,
       })
       .select()
       .single();
+    
+    console.log(`Message created with sent_by_user_id: ${senderUserId}`);
 
     if (msgError) {
       console.error('Message insert error:', msgError);

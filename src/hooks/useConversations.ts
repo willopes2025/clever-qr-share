@@ -46,6 +46,11 @@ export interface InboxMessage {
   read_at: string | null;
   created_at: string;
   transcription?: string | null;
+  sent_by_user_id?: string | null;
+  sent_by_user?: {
+    full_name: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 export const useConversations = () => {
@@ -128,7 +133,10 @@ export const useMessages = (conversationId: string | null) => {
       
       const { data, error } = await supabase
         .from('inbox_messages')
-        .select('*')
+        .select(`
+          *,
+          sent_by_user:profiles!inbox_messages_sent_by_user_id_fkey(full_name, avatar_url)
+        `)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
 
