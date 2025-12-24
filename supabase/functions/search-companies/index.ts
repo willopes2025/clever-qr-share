@@ -212,8 +212,8 @@ serve(async (req) => {
 
     console.log('API Request body:', JSON.stringify(searchBody, null, 2));
 
-    // Make request to Casa dos Dados API v5
-    const apiUrl = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa';
+    // Make request to Casa dos Dados API v5 with tipo_resultado=completo to get all fields
+    const apiUrl = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa?tipo_resultado=completo';
     console.log('Calling API:', apiUrl);
     
     const response = await fetch(apiUrl, {
@@ -263,33 +263,89 @@ serve(async (req) => {
     const data = JSON.parse(responseText);
     console.log('Found companies:', data.cnpjs?.length || 0, 'Total:', data.total);
 
-    // Format companies for frontend
-    const companies = (data.cnpjs || []).map((company: any) => ({
-      cnpj: company.cnpj,
-      razao_social: company.razao_social,
-      nome_fantasia: company.nome_fantasia,
-      situacao_cadastral: company.situacao_cadastral,
-      data_abertura: company.data_abertura,
-      capital_social: company.capital_social,
-      porte: company.porte,
-      natureza_juridica: company.natureza_juridica?.descricao || null,
-      cnae_principal: company.atividade_principal?.descricao 
-        ? `${company.atividade_principal.codigo} - ${company.atividade_principal.descricao}`
-        : null,
-      telefone: company.telefone1,
-      telefone2: company.telefone2 || null,
-      email: company.email,
-      endereco: {
-        logradouro: company.logradouro,
-        numero: company.numero,
-        complemento: company.complemento,
-        bairro: company.bairro,
-        cep: company.cep,
-        municipio: company.municipio,
-        uf: company.uf,
-        ddd: company.ddd1 || company.ddd2,
+    // Log first company structure for debugging phone fields
+    if (data.cnpjs && data.cnpjs.length > 0) {
+      const first = data.cnpjs[0];
+      console.log('First company structure (full):', JSON.stringify(first, null, 2));
+      console.log('Phone fields check:', {
+        telefone1: first.telefone1,
+        telefone2: first.telefone2,
+        telefone: first.telefone,
+        telefones: first.telefones,
+        ddd1: first.ddd1,
+        ddd2: first.ddd2,
+        contato: first.contato,
+        contatos: first.contatos,
+      });
+    }
+
+    // Helper function to extract phone from various possible fields
+    const extractPhone = (company: any): string | null => {
+      // Try direct phone fields first
+      if (company.telefone1) return company.telefone1;
+      if (company.telefone) return company.telefone;
+      
+      // Try with DDD prefix
+      const ddd = company.ddd1 || company.ddd;
+      if (ddd) {
+        if (company.telefone1) return `${ddd}${company.telefone1}`;
+        if (company.telefone) return `${ddd}${company.telefone}`;
       }
-    }));
+      
+      // Try telefones array
+      if (Array.isArray(company.telefones) && company.telefones.length > 0) {
+        const tel = company.telefones[0];
+        if (typeof tel === 'string') return tel;
+        if (tel && tel.numero) return tel.ddd ? `${tel.ddd}${tel.numero}` : tel.numero;
+      }
+      
+      // Try contato object
+      if (company.contato) {
+        if (company.contato.telefone) return company.contato.telefone;
+        if (company.contato.telefone1) return company.contato.telefone1;
+      }
+      
+      // Try contatos array
+      if (Array.isArray(company.contatos) && company.contatos.length > 0) {
+        const contato = company.contatos[0];
+        if (contato.telefone) return contato.telefone;
+        if (contato.numero) return contato.ddd ? `${contato.ddd}${contato.numero}` : contato.numero;
+      }
+      
+      return null;
+    };
+
+    // Format companies for frontend
+    const companies = (data.cnpjs || []).map((company: any) => {
+      const phone = extractPhone(company);
+      
+      return {
+        cnpj: company.cnpj,
+        razao_social: company.razao_social,
+        nome_fantasia: company.nome_fantasia,
+        situacao_cadastral: company.situacao_cadastral,
+        data_abertura: company.data_abertura,
+        capital_social: company.capital_social,
+        porte: company.porte,
+        natureza_juridica: company.natureza_juridica?.descricao || null,
+        cnae_principal: company.atividade_principal?.descricao 
+          ? `${company.atividade_principal.codigo} - ${company.atividade_principal.descricao}`
+          : null,
+        telefone: phone,
+        telefone2: company.telefone2 || null,
+        email: company.email,
+        endereco: {
+          logradouro: company.logradouro,
+          numero: company.numero,
+          complemento: company.complemento,
+          bairro: company.bairro,
+          cep: company.cep,
+          municipio: company.municipio,
+          uf: company.uf,
+          ddd: company.ddd1 || company.ddd2 || company.ddd,
+        }
+      };
+    });
 
     return new Response(
       JSON.stringify({
