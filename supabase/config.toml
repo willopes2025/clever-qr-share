@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.reset-warming-daily]
 verify_jwt = false
+
+[functions.analyze-conversations]
+verify_jwt = true
