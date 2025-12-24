@@ -8,11 +8,13 @@ const corsHeaders = {
 
 interface Message {
   id: string;
+  conversation_id: string;
   direction: string;
   content: string;
   message_type: string;
   transcription: string | null;
   created_at: string;
+  media_url: string | null;
 }
 
 interface Conversation {
@@ -22,6 +24,137 @@ interface Conversation {
     phone: string;
   };
   messages: Message[];
+}
+
+// Standard report structure schema for tool calling
+const reportSchema = {
+  type: "object",
+  properties: {
+    overall_score: { type: "number", description: "Nota geral de 0 a 100" },
+    textual_quality_score: { type: "number", description: "Nota de qualidade textual de 0 a 100" },
+    communication_score: { type: "number", description: "Nota de comunicação de 0 a 100" },
+    sales_score: { type: "number", description: "Nota de vendas de 0 a 100" },
+    efficiency_score: { type: "number", description: "Nota de eficiência de 0 a 100" },
+    audio_analysis_score: { type: "number", description: "Nota de análise de áudios de 0 a 100" },
+    executive_summary: { type: "string", description: "Resumo executivo em 3-5 parágrafos" },
+    strengths: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          example: { type: "string" }
+        },
+        required: ["title", "description"]
+      },
+      description: "Até 5 pontos fortes identificados"
+    },
+    improvements: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" },
+          suggestion: { type: "string" },
+          example: { type: "string" }
+        },
+        required: ["title", "description"]
+      },
+      description: "Até 5 áreas de melhoria"
+    },
+    recommendations: {
+      type: "array",
+      items: { type: "string" },
+      description: "3-5 recomendações acionáveis"
+    },
+    highlighted_examples: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["positive", "negative"] },
+          context: { type: "string" },
+          message: { type: "string" },
+          reason: { type: "string" }
+        },
+        required: ["type", "context", "message", "reason"]
+      },
+      description: "Até 6 exemplos destacados (3 positivos, 3 negativos)"
+    },
+    conversation_details: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          contact: { type: "string" },
+          score: { type: "number" },
+          summary: { type: "string" },
+          feedback: { type: "string" }
+        },
+        required: ["contact", "score", "summary", "feedback"]
+      },
+      description: "Detalhes de até 10 conversas analisadas"
+    }
+  },
+  required: [
+    "overall_score",
+    "textual_quality_score",
+    "communication_score",
+    "sales_score",
+    "efficiency_score",
+    "audio_analysis_score",
+    "executive_summary",
+    "strengths",
+    "improvements",
+    "recommendations",
+    "highlighted_examples",
+    "conversation_details"
+  ]
+};
+
+// Helper to clamp scores between 0-100
+function clampScore(score: number | undefined | null): number {
+  if (score === undefined || score === null || isNaN(score)) return 0;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+// Normalize and validate the analysis result
+function normalizeAnalysisResult(raw: any): any {
+  return {
+    overall_score: clampScore(raw.overall_score),
+    textual_quality_score: clampScore(raw.textual_quality_score),
+    communication_score: clampScore(raw.communication_score),
+    sales_score: clampScore(raw.sales_score),
+    efficiency_score: clampScore(raw.efficiency_score),
+    audio_analysis_score: clampScore(raw.audio_analysis_score),
+    executive_summary: typeof raw.executive_summary === 'string' ? raw.executive_summary : 'Análise concluída.',
+    strengths: Array.isArray(raw.strengths) ? raw.strengths.slice(0, 5).map((s: any) => ({
+      title: s.title || 'Ponto forte',
+      description: s.description || '',
+      example: s.example || ''
+    })) : [],
+    improvements: Array.isArray(raw.improvements) ? raw.improvements.slice(0, 5).map((i: any) => ({
+      title: i.title || 'Área de melhoria',
+      description: i.description || '',
+      suggestion: i.suggestion || '',
+      example: i.example || ''
+    })) : [],
+    recommendations: Array.isArray(raw.recommendations) ? raw.recommendations.slice(0, 5).filter((r: any) => typeof r === 'string') : [],
+    highlighted_examples: Array.isArray(raw.highlighted_examples) ? raw.highlighted_examples.slice(0, 6).map((e: any) => ({
+      type: e.type === 'negative' ? 'negative' : 'positive',
+      context: e.context || '',
+      message: e.message || '',
+      reason: e.reason || ''
+    })) : [],
+    conversation_details: Array.isArray(raw.conversation_details) ? raw.conversation_details.slice(0, 10).map((c: any) => ({
+      contact: c.contact || 'Contato',
+      score: clampScore(c.score),
+      summary: c.summary || '',
+      feedback: c.feedback || ''
+    })) : []
+  };
 }
 
 serve(async (req) => {
@@ -48,18 +181,33 @@ serve(async (req) => {
       throw new Error('Invalid token');
     }
 
-    const { periodStart, periodEnd, transcribeAudios = true } = await req.json();
+    const { periodStart, periodEnd, transcribeAudios = true, tzOffsetMinutes = 180 } = await req.json();
 
     if (!periodStart || !periodEnd) {
       throw new Error('periodStart and periodEnd are required');
     }
 
-    // Calculate full end of day timestamp to include all messages from the end date
-    const periodEndDate = new Date(periodEnd);
-    periodEndDate.setHours(23, 59, 59, 999);
-    const periodEndFull = periodEndDate.toISOString();
+    // Calculate UTC timestamps for the full day in user's timezone
+    // tzOffsetMinutes: positive = behind UTC (e.g., Brazil is +180 = UTC-3)
+    // For Brazil (UTC-3): tzOffsetMinutes = 180
+    // To get start of day in user's TZ: we need 00:00 local = 00:00 + offset in UTC
+    const [startYear, startMonth, startDay] = periodStart.split('-').map(Number);
+    const [endYear, endMonth, endDay] = periodEnd.split('-').map(Number);
+    
+    // Create dates at midnight UTC, then adjust for timezone
+    const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999));
+    
+    // Adjust for timezone: add offset minutes to get UTC equivalent of local time
+    startDate.setUTCMinutes(startDate.getUTCMinutes() + tzOffsetMinutes);
+    endDate.setUTCMinutes(endDate.getUTCMinutes() + tzOffsetMinutes);
+    
+    const periodStartISO = startDate.toISOString();
+    const periodEndISO = endDate.toISOString();
 
-    console.log(`Starting analysis for user ${user.id} from ${periodStart} to ${periodEndFull}`);
+    console.log(`Starting analysis for user ${user.id}`);
+    console.log(`Period: ${periodStart} to ${periodEnd} (local)`);
+    console.log(`UTC range: ${periodStartISO} to ${periodEndISO}`);
 
     // Create the report record first
     const { data: report, error: reportError } = await supabase
@@ -85,28 +233,27 @@ serve(async (req) => {
       throw new Error('Failed to create report');
     }
 
-    console.log(`Report ${report.id} created, fetching conversations...`);
+    console.log(`Report ${report.id} created, fetching messages in period...`);
 
-    // Fetch conversations with messages in the period
-    const { data: conversations, error: convError } = await supabase
-      .from('conversations')
-      .select(`
-        id,
-        contact:contacts!inner(name, phone),
-        last_message_at
-      `)
+    // IMPROVED: First fetch messages in the period to find all relevant conversations
+    // This ensures we get conversations even if their last_message_at is outside the period
+    const { data: messagesInPeriod, error: msgPeriodError } = await supabase
+      .from('inbox_messages')
+      .select('conversation_id')
       .eq('user_id', user.id)
-      .gte('last_message_at', periodStart)
-      .lte('last_message_at', periodEndFull);
+      .gte('created_at', periodStartISO)
+      .lte('created_at', periodEndISO);
 
-    if (convError) {
-      console.error('Error fetching conversations:', convError);
-      throw new Error('Failed to fetch conversations');
+    if (msgPeriodError) {
+      console.error('Error fetching messages in period:', msgPeriodError);
+      throw new Error('Failed to fetch messages');
     }
 
-    console.log(`Found ${conversations?.length || 0} conversations`);
+    // Get unique conversation IDs
+    const uniqueConversationIds = [...new Set((messagesInPeriod || []).map(m => m.conversation_id))];
+    console.log(`Found ${uniqueConversationIds.length} conversations with messages in period`);
 
-    if (!conversations || conversations.length === 0) {
+    if (uniqueConversationIds.length === 0) {
       await supabase
         .from('conversation_analysis_reports')
         .update({
@@ -122,14 +269,29 @@ serve(async (req) => {
       );
     }
 
-    // Fetch all messages for these conversations
-    const conversationIds = conversations.map(c => c.id);
+    // Fetch conversation details with contacts
+    const { data: conversations, error: convError } = await supabase
+      .from('conversations')
+      .select(`
+        id,
+        contact:contacts!inner(name, phone)
+      `)
+      .in('id', uniqueConversationIds);
+
+    if (convError) {
+      console.error('Error fetching conversations:', convError);
+      throw new Error('Failed to fetch conversations');
+    }
+
+    console.log(`Fetched ${conversations?.length || 0} conversation details`);
+
+    // Fetch all messages for these conversations in the period
     const { data: allMessages, error: msgError } = await supabase
       .from('inbox_messages')
       .select('id, conversation_id, direction, content, message_type, transcription, created_at, media_url')
-      .in('conversation_id', conversationIds)
-      .gte('created_at', periodStart)
-      .lte('created_at', periodEndFull)
+      .in('conversation_id', uniqueConversationIds)
+      .gte('created_at', periodStartISO)
+      .lte('created_at', periodEndISO)
       .order('created_at', { ascending: true });
 
     if (msgError) {
@@ -172,14 +334,14 @@ serve(async (req) => {
     console.log(`Transcribed ${transcribedCount} audio messages`);
 
     // Group messages by conversation
-    const conversationsWithMessages: Conversation[] = conversations.map(conv => {
+    const conversationsWithMessages: Conversation[] = (conversations || []).map(conv => {
       const contactData = Array.isArray(conv.contact) ? conv.contact[0] : conv.contact;
       return {
         id: conv.id,
         contact: contactData as { name: string | null; phone: string },
         messages: (allMessages || []).filter(m => m.conversation_id === conv.id)
       };
-    });
+    }).filter(c => c.messages.length > 0); // Only include conversations with messages
 
     // Count statistics
     const totalMessages = allMessages?.length || 0;
@@ -207,8 +369,9 @@ serve(async (req) => {
       return `--- Conversa com ${conv.contact.name || conv.contact.phone} ---\n${messagesText}`;
     }).join('\n\n');
 
-    console.log('Calling Lovable AI for analysis...');
+    console.log('Calling Lovable AI for analysis with tool calling...');
 
+    // Call AI with tool calling for structured output
     const analysisResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -220,59 +383,51 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de qualidade de atendimento ao cliente. Sua tarefa é analisar conversas de WhatsApp entre atendentes e clientes, avaliando a qualidade do atendimento.
+            content: `Você é um especialista em análise de qualidade de atendimento ao cliente via WhatsApp. Analise as conversas e gere um relatório detalhado usando a função analyze_conversations.
 
-Analise as conversas fornecidas e retorne um JSON com a seguinte estrutura EXATA (sem markdown, apenas JSON puro):
-{
-  "overall_score": <número de 0 a 100>,
-  "textual_quality_score": <número de 0 a 100>,
-  "communication_score": <número de 0 a 100>,
-  "sales_score": <número de 0 a 100>,
-  "efficiency_score": <número de 0 a 100>,
-  "audio_analysis_score": <número de 0 a 100>,
-  "executive_summary": "<resumo executivo em 3-5 parágrafos detalhando o desempenho geral>",
-  "strengths": [
-    {"title": "<título da força>", "description": "<descrição>", "example": "<exemplo real das conversas>"}
-  ],
-  "improvements": [
-    {"title": "<área de melhoria>", "description": "<descrição detalhada>", "suggestion": "<sugestão específica>", "example": "<exemplo real das conversas onde ocorreu>"}
-  ],
-  "recommendations": [
-    "<recomendação 1>",
-    "<recomendação 2>",
-    "<recomendação 3>"
-  ],
-  "highlighted_examples": [
-    {"type": "positive", "context": "<contexto>", "message": "<mensagem destacada>", "reason": "<por que é bom>"},
-    {"type": "negative", "context": "<contexto>", "message": "<mensagem destacada>", "reason": "<por que precisa melhorar>"}
-  ],
-  "conversation_details": [
-    {"contact": "<nome ou telefone>", "score": <0-100>, "summary": "<resumo da conversa>", "feedback": "<feedback específico>"}
-  ]
-}
+Critérios de avaliação (0-100):
+1. QUALIDADE TEXTUAL: Gramática, ortografia, clareza, pontuação, uso apropriado de emojis
+2. COMUNICAÇÃO: Rapport, personalização, empatia, escuta ativa, cordialidade
+3. VENDAS/PERSUASÃO: Identificação de necessidades, apresentação de soluções, contorno de objeções
+4. EFICIÊNCIA: Tempo de resposta, resolução no primeiro contato, objetividade
+5. ANÁLISE DE ÁUDIO: Qualidade das transcrições, completude das mensagens de voz
 
-Critérios de avaliação:
-1. QUALIDADE TEXTUAL (textual_quality_score): Gramática, ortografia, clareza, pontuação, uso de emojis apropriado
-2. TÉCNICAS DE COMUNICAÇÃO (communication_score): Rapport, personalização, empatia, escuta ativa, cordialidade
-3. VENDAS E PERSUASÃO (sales_score): Identificação de necessidades, apresentação de soluções, contorno de objeções, fechamento
-4. EFICIÊNCIA (efficiency_score): Tempo de resposta, resolução no primeiro contato, objetividade
-5. ANÁLISE DE ÁUDIO (audio_analysis_score): Qualidade das transcrições, completude das mensagens de voz, profissionalismo
-
-Seja detalhado e específico. Use exemplos reais das conversas. O feedback deve ser construtivo e acionável.`
+Seja específico, use exemplos reais das conversas. Forneça feedback construtivo e acionável.
+Limite: 5 pontos fortes, 5 melhorias, 5 recomendações, 6 exemplos destacados, 10 conversas.`
           },
           {
             role: 'user',
-            content: `Analise as seguintes conversas do período de ${periodStart} a ${periodEnd}:\n\n${conversationTexts}\n\nTotal de mensagens: ${totalMessages}\nMensagens enviadas pelo atendente: ${sentMessages}\nMensagens recebidas de clientes: ${receivedMessages}\nÁudios analisados: ${audioMessages}`
+            content: `Analise as conversas do período ${periodStart} a ${periodEnd}:
+
+${conversationTexts}
+
+Estatísticas:
+- Total de mensagens: ${totalMessages}
+- Enviadas pelo atendente: ${sentMessages}
+- Recebidas de clientes: ${receivedMessages}
+- Áudios: ${audioMessages}`
           }
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "analyze_conversations",
+              description: "Gera um relatório estruturado de análise de atendimento",
+              parameters: reportSchema
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "analyze_conversations" } }
       }),
     });
+
+    let analysisResult;
 
     if (!analysisResponse.ok) {
       const errorText = await analysisResponse.text();
       console.error('Lovable AI error:', analysisResponse.status, errorText);
       
-      // Check for rate limit or credit issues
       if (analysisResponse.status === 429) {
         await supabase
           .from('conversation_analysis_reports')
@@ -294,7 +449,7 @@ Seja detalhado e específico. Use exemplos reais das conversas. O feedback deve 
           .from('conversation_analysis_reports')
           .update({
             status: 'error',
-            error_message: 'Erro ao processar análise com IA.'
+            error_message: 'Erro ao processar análise com IA. Tente novamente.'
           })
           .eq('id', report.id);
       }
@@ -306,59 +461,76 @@ Seja detalhado e específico. Use exemplos reais das conversas. O feedback deve 
     }
 
     const aiData = await analysisResponse.json();
-    const aiContent = aiData.choices?.[0]?.message?.content;
-
     console.log('AI response received, parsing...');
 
-    // Parse AI response
-    let analysisResult;
-    try {
-      // Remove markdown code blocks if present
-      let jsonContent = aiContent;
-      if (jsonContent.includes('```json')) {
-        jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-      } else if (jsonContent.includes('```')) {
-        jsonContent = jsonContent.replace(/```\n?/g, '');
+    // Try to get tool call result first (structured output)
+    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    
+    if (toolCall?.function?.arguments) {
+      try {
+        const rawResult = JSON.parse(toolCall.function.arguments);
+        analysisResult = normalizeAnalysisResult(rawResult);
+        console.log('Successfully parsed tool call response');
+      } catch (e) {
+        console.error('Failed to parse tool call arguments:', e);
+        analysisResult = null;
       }
-      analysisResult = JSON.parse(jsonContent.trim());
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      console.log('Raw AI content:', aiContent);
-      
-      // Create a basic response if parsing fails
-      analysisResult = {
-        overall_score: 70,
-        textual_quality_score: 70,
-        communication_score: 70,
-        sales_score: 70,
-        efficiency_score: 70,
-        audio_analysis_score: 70,
-        executive_summary: 'Análise parcialmente processada. ' + (aiContent || 'Não foi possível gerar análise detalhada.'),
-        strengths: [],
-        improvements: [],
-        recommendations: ['Tente gerar um novo relatório para análise mais detalhada.'],
-        highlighted_examples: [],
-        conversation_details: []
-      };
     }
 
-    // Update the report with analysis results
+    // Fallback: try to parse regular content if tool call failed
+    if (!analysisResult) {
+      const aiContent = aiData.choices?.[0]?.message?.content;
+      if (aiContent) {
+        try {
+          let jsonContent = aiContent;
+          if (jsonContent.includes('```json')) {
+            jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+          } else if (jsonContent.includes('```')) {
+            jsonContent = jsonContent.replace(/```\n?/g, '');
+          }
+          const rawResult = JSON.parse(jsonContent.trim());
+          analysisResult = normalizeAnalysisResult(rawResult);
+          console.log('Successfully parsed content response');
+        } catch (e) {
+          console.error('Failed to parse content:', e);
+        }
+      }
+    }
+
+    // If all parsing failed, create a basic error response
+    if (!analysisResult) {
+      console.error('All parsing attempts failed');
+      await supabase
+        .from('conversation_analysis_reports')
+        .update({
+          status: 'error',
+          error_message: 'Não foi possível gerar a análise padrão. Tente novamente.'
+        })
+        .eq('id', report.id);
+
+      return new Response(
+        JSON.stringify({ success: false, reportId: report.id, error: 'Failed to parse AI response' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Update the report with normalized analysis results
     const { error: updateError } = await supabase
       .from('conversation_analysis_reports')
       .update({
-        overall_score: analysisResult.overall_score || 0,
-        textual_quality_score: analysisResult.textual_quality_score || 0,
-        communication_score: analysisResult.communication_score || 0,
-        sales_score: analysisResult.sales_score || 0,
-        efficiency_score: analysisResult.efficiency_score || 0,
-        audio_analysis_score: analysisResult.audio_analysis_score || 0,
-        executive_summary: analysisResult.executive_summary || 'Análise concluída.',
-        strengths: analysisResult.strengths || [],
-        improvements: analysisResult.improvements || [],
-        recommendations: analysisResult.recommendations || [],
-        highlighted_examples: analysisResult.highlighted_examples || [],
-        conversation_details: analysisResult.conversation_details || [],
-        total_conversations: conversations.length,
+        overall_score: analysisResult.overall_score,
+        textual_quality_score: analysisResult.textual_quality_score,
+        communication_score: analysisResult.communication_score,
+        sales_score: analysisResult.sales_score,
+        efficiency_score: analysisResult.efficiency_score,
+        audio_analysis_score: analysisResult.audio_analysis_score,
+        executive_summary: analysisResult.executive_summary,
+        strengths: analysisResult.strengths,
+        improvements: analysisResult.improvements,
+        recommendations: analysisResult.recommendations,
+        highlighted_examples: analysisResult.highlighted_examples,
+        conversation_details: analysisResult.conversation_details,
+        total_conversations: conversationsWithMessages.length,
         total_messages_sent: sentMessages,
         total_messages_received: receivedMessages,
         total_audios_analyzed: audioMessages,

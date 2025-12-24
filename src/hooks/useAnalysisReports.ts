@@ -61,7 +61,7 @@ export function useAnalysisReports() {
     enabled: !!user?.id,
   });
 
-  const generateReport = useCallback(async (periodStart: string, periodEnd: string, transcribeAudios = true) => {
+  const generateReport = useCallback(async (periodStart: string, periodEnd: string, transcribeAudios = true, tzOffsetMinutes?: number) => {
     if (!user?.id) {
       toast.error('Você precisa estar logado para gerar relatórios');
       return null;
@@ -77,7 +77,7 @@ export function useAnalysisReports() {
       }
 
       const response = await supabase.functions.invoke('analyze-conversations', {
-        body: { periodStart, periodEnd, transcribeAudios },
+        body: { periodStart, periodEnd, transcribeAudios, tzOffsetMinutes },
       });
 
       if (response.error) {
