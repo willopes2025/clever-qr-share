@@ -380,6 +380,84 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_analysis_reports: {
+        Row: {
+          audio_analysis_score: number
+          communication_score: number
+          conversation_details: Json
+          created_at: string
+          efficiency_score: number
+          error_message: string | null
+          executive_summary: string
+          highlighted_examples: Json
+          id: string
+          improvements: Json
+          overall_score: number
+          period_end: string
+          period_start: string
+          recommendations: Json
+          sales_score: number
+          status: string
+          strengths: Json
+          textual_quality_score: number
+          total_audios_analyzed: number
+          total_conversations: number
+          total_messages_received: number
+          total_messages_sent: number
+          user_id: string
+        }
+        Insert: {
+          audio_analysis_score: number
+          communication_score: number
+          conversation_details?: Json
+          created_at?: string
+          efficiency_score: number
+          error_message?: string | null
+          executive_summary: string
+          highlighted_examples?: Json
+          id?: string
+          improvements?: Json
+          overall_score: number
+          period_end: string
+          period_start: string
+          recommendations?: Json
+          sales_score: number
+          status?: string
+          strengths?: Json
+          textual_quality_score: number
+          total_audios_analyzed?: number
+          total_conversations?: number
+          total_messages_received?: number
+          total_messages_sent?: number
+          user_id: string
+        }
+        Update: {
+          audio_analysis_score?: number
+          communication_score?: number
+          conversation_details?: Json
+          created_at?: string
+          efficiency_score?: number
+          error_message?: string | null
+          executive_summary?: string
+          highlighted_examples?: Json
+          id?: string
+          improvements?: Json
+          overall_score?: number
+          period_end?: string
+          period_start?: string
+          recommendations?: Json
+          sales_score?: number
+          status?: string
+          strengths?: Json
+          textual_quality_score?: number
+          total_audios_analyzed?: number
+          total_conversations?: number
+          total_messages_received?: number
+          total_messages_sent?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversation_tag_assignments: {
         Row: {
           conversation_id: string
