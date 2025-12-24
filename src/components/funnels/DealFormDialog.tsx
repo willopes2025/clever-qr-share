@@ -16,8 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFunnels, FunnelDeal } from "@/hooks/useFunnels";
 import { useContacts } from "@/hooks/useContacts";
+import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
 
 interface DealFormDialogProps {
   open: boolean;
@@ -49,6 +51,9 @@ export const DealFormDialog = ({
   const [notes, setNotes] = useState(deal?.notes || '');
   const [selectedStageId, setSelectedStageId] = useState(stageId || deal?.stage_id || '');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || deal?.funnel_id || '');
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(
+    (deal?.custom_fields as Record<string, unknown>) || {}
+  );
 
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = currentFunnel?.stages || [];
@@ -64,6 +69,7 @@ export const DealFormDialog = ({
       setNotes(deal?.notes || '');
       setSelectedFunnelId(funnelId || deal?.funnel_id || funnels?.[0]?.id || '');
       setSelectedStageId(stageId || deal?.stage_id || '');
+      setCustomFields((deal?.custom_fields as Record<string, unknown>) || {});
     }
   }, [open, deal, initialContactId, stageId, funnelId, funnels]);
 
@@ -88,7 +94,8 @@ export const DealFormDialog = ({
         value: Number(value) || 0,
         expected_close_date: expectedCloseDate || null,
         notes: notes || null,
-        stage_id: selectedStageId
+        stage_id: selectedStageId,
+        custom_fields: customFields
       });
     } else {
       await createDeal.mutateAsync({ 
@@ -99,7 +106,8 @@ export const DealFormDialog = ({
         title: title || undefined,
         value: Number(value) || 0,
         expected_close_date: expectedCloseDate || undefined,
-        source: source || undefined
+        source: source || undefined,
+        custom_fields: customFields
       });
     }
     
@@ -108,135 +116,143 @@ export const DealFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{deal ? 'Editar Deal' : 'Novo Deal'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!deal && !initialContactId && (
+        <ScrollArea className="max-h-[calc(90vh-120px)]">
+          <form onSubmit={handleSubmit} className="space-y-4 pr-4">
+            {!deal && !initialContactId && (
+              <div className="space-y-2">
+                <Label>Contato *</Label>
+                <Select value={contactId} onValueChange={setContactId} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar contato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contacts?.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.name || contact.phone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {!funnelId && !deal && (
+              <div className="space-y-2">
+                <Label>Funil *</Label>
+                <Select value={selectedFunnelId} onValueChange={setSelectedFunnelId} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar funil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funnels?.map((funnel) => (
+                      <SelectItem key={funnel.id} value={funnel.id}>
+                        {funnel.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label>Contato *</Label>
-              <Select value={contactId} onValueChange={setContactId} required>
+              <Label>Etapa</Label>
+              <Select value={selectedStageId} onValueChange={setSelectedStageId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecionar contato" />
+                  <SelectValue placeholder="Selecionar etapa" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contacts?.map((contact) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contact.name || contact.phone}
+                  {stages.filter(s => !s.is_final).map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                        {stage.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
 
-          {!funnelId && !deal && (
             <div className="space-y-2">
-              <Label>Funil *</Label>
-              <Select value={selectedFunnelId} onValueChange={setSelectedFunnelId} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar funil" />
-                </SelectTrigger>
-                <SelectContent>
-                  {funnels?.map((funnel) => (
-                    <SelectItem key={funnel.id} value={funnel.id}>
-                      {funnel.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>Etapa</Label>
-            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar etapa" />
-              </SelectTrigger>
-              <SelectContent>
-                {stages.filter(s => !s.is_final).map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                      {stage.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="title">Título (opcional)</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Projeto Website"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="value">Valor (R$)</Label>
-            <Input
-              id="value"
-              type="number"
-              step="0.01"
-              min="0"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="0,00"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="expected-date">Previsão de Fechamento</Label>
-            <Input
-              id="expected-date"
-              type="date"
-              value={expectedCloseDate}
-              onChange={(e) => setExpectedCloseDate(e.target.value)}
-            />
-          </div>
-
-          {!deal && (
-            <div className="space-y-2">
-              <Label htmlFor="source">Origem</Label>
+              <Label htmlFor="title">Título (opcional)</Label>
               <Input
-                id="source"
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-                placeholder="Ex: WhatsApp, Site, Indicação"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Projeto Website"
               />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observações sobre o deal"
-              rows={2}
+            <div className="space-y-2">
+              <Label htmlFor="value">Valor (R$)</Label>
+              <Input
+                id="value"
+                type="number"
+                step="0.01"
+                min="0"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expected-date">Previsão de Fechamento</Label>
+              <Input
+                id="expected-date"
+                type="date"
+                value={expectedCloseDate}
+                onChange={(e) => setExpectedCloseDate(e.target.value)}
+              />
+            </div>
+
+            {!deal && (
+              <div className="space-y-2">
+                <Label htmlFor="source">Origem</Label>
+                <Input
+                  id="source"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                  placeholder="Ex: WhatsApp, Site, Indicação"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notas</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Observações sobre o deal"
+                rows={2}
+              />
+            </div>
+
+            {/* Custom Fields */}
+            <DealCustomFieldsEditor
+              values={customFields}
+              onChange={setCustomFields}
             />
-          </div>
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={(!deal && !contactId) || createDeal.isPending || updateDeal.isPending}
-            >
-              {deal ? 'Salvar' : 'Criar Deal'}
-            </Button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={(!deal && !contactId) || createDeal.isPending || updateDeal.isPending}
+              >
+                {deal ? 'Salvar' : 'Criar Deal'}
+              </Button>
+            </div>
+          </form>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

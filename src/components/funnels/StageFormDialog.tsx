@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -32,11 +34,22 @@ const COLORS = [
 
 export const StageFormDialog = ({ open, onOpenChange, funnelId, stage }: StageFormDialogProps) => {
   const { createStage, updateStage } = useFunnels();
-  const [name, setName] = useState(stage?.name || '');
-  const [color, setColor] = useState(stage?.color || COLORS[0]);
-  const [isFinal, setIsFinal] = useState(stage?.is_final || false);
-  const [finalType, setFinalType] = useState<'won' | 'lost' | null>(stage?.final_type as 'won' | 'lost' | null);
-  const [probability, setProbability] = useState(stage?.probability || 0);
+  const [name, setName] = useState('');
+  const [color, setColor] = useState(COLORS[0]);
+  const [isFinal, setIsFinal] = useState(false);
+  const [finalType, setFinalType] = useState<'won' | 'lost' | null>(null);
+  const [probability, setProbability] = useState(0);
+
+  // Reset form when dialog opens or stage changes
+  useEffect(() => {
+    if (open) {
+      setName(stage?.name || '');
+      setColor(stage?.color || COLORS[0]);
+      setIsFinal(stage?.is_final || false);
+      setFinalType(stage?.final_type as 'won' | 'lost' | null);
+      setProbability(stage?.probability || 0);
+    }
+  }, [open, stage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,15 +74,6 @@ export const StageFormDialog = ({ open, onOpenChange, funnelId, stage }: StageFo
     }
     
     onOpenChange(false);
-    resetForm();
-  };
-
-  const resetForm = () => {
-    setName('');
-    setColor(COLORS[0]);
-    setIsFinal(false);
-    setFinalType(null);
-    setProbability(0);
   };
 
   return (
@@ -98,7 +102,7 @@ export const StageFormDialog = ({ open, onOpenChange, funnelId, stage }: StageFo
                 <button
                   key={c}
                   type="button"
-                  className={`h-8 w-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
+                  className={`h-8 w-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'hover:scale-105'}`}
                   style={{ backgroundColor: c }}
                   onClick={() => setColor(c)}
                 />
@@ -107,18 +111,26 @@ export const StageFormDialog = ({ open, onOpenChange, funnelId, stage }: StageFo
           </div>
 
           <div className="space-y-2">
-            <Label>Probabilidade (%)</Label>
-            <Input
-              type="number"
-              min={0}
+            <div className="flex items-center justify-between">
+              <Label>Probabilidade de Conversão</Label>
+              <span className="text-sm font-medium">{probability}%</span>
+            </div>
+            <Slider
+              value={[probability]}
+              onValueChange={([v]) => setProbability(v)}
               max={100}
-              value={probability}
-              onChange={(e) => setProbability(Number(e.target.value))}
+              step={5}
+              className="w-full"
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label htmlFor="is-final">Etapa Final</Label>
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="space-y-0.5">
+              <Label htmlFor="is-final">Etapa Final</Label>
+              <p className="text-xs text-muted-foreground">
+                Deals nesta etapa são considerados encerrados
+              </p>
+            </div>
             <Switch
               id="is-final"
               checked={isFinal}
@@ -134,14 +146,24 @@ export const StageFormDialog = ({ open, onOpenChange, funnelId, stage }: StageFo
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="won">Ganho (Won)</SelectItem>
-                  <SelectItem value="lost">Perdido (Lost)</SelectItem>
+                  <SelectItem value="won">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-green-500" />
+                      Ganho (Won)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="lost">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-red-500" />
+                      Perdido (Lost)
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
