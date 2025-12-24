@@ -1,5 +1,8 @@
 project_id = "fgbenetdksqnvwkgnips"
 
+[functions.process-knowledge-url]
+verify_jwt = true
+
 [functions.create-instance]
 verify_jwt = false
 

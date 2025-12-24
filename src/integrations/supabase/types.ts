@@ -147,6 +147,72 @@ export type Database = {
           },
         ]
       }
+      ai_agent_stages: {
+        Row: {
+          actions: Json | null
+          agent_config_id: string
+          collected_fields: Json | null
+          completion_condition: Json | null
+          condition_type: string
+          created_at: string | null
+          id: string
+          is_final: boolean | null
+          next_stage_id: string | null
+          order_index: number
+          stage_name: string
+          stage_prompt: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          actions?: Json | null
+          agent_config_id: string
+          collected_fields?: Json | null
+          completion_condition?: Json | null
+          condition_type?: string
+          created_at?: string | null
+          id?: string
+          is_final?: boolean | null
+          next_stage_id?: string | null
+          order_index?: number
+          stage_name: string
+          stage_prompt?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          actions?: Json | null
+          agent_config_id?: string
+          collected_fields?: Json | null
+          completion_condition?: Json | null
+          condition_type?: string
+          created_at?: string | null
+          id?: string
+          is_final?: boolean | null
+          next_stage_id?: string | null
+          order_index?: number
+          stage_name?: string
+          stage_prompt?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_stages_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_stages_next_stage_id_fkey"
+            columns: ["next_stage_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_variables: {
         Row: {
           agent_config_id: string
@@ -696,6 +762,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: true
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_stage_data_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_stages"
             referencedColumns: ["id"]
           },
         ]
