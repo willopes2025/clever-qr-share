@@ -35,7 +35,7 @@ export const StageFormDialog = ({ open, onOpenChange, funnelId, stage }: StageFo
   const [name, setName] = useState(stage?.name || '');
   const [color, setColor] = useState(stage?.color || COLORS[0]);
   const [isFinal, setIsFinal] = useState(stage?.is_final || false);
-  const [finalType, setFinalType] = useState<'won' | 'lost' | null>(stage?.final_type || null);
+  const [finalType, setFinalType] = useState<'won' | 'lost' | null>(stage?.final_type as 'won' | 'lost' | null);
   const [probability, setProbability] = useState(stage?.probability || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
