@@ -116,6 +116,13 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
             )}
           </div>
 
+          {/* Notes Preview */}
+          {hasNotes && (
+            <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 rounded p-1.5">
+              {deal.notes}
+            </p>
+          )}
+
           {/* Indicators */}
           <div className="flex items-center gap-1 flex-wrap">
             {pendingCount > 0 && (
@@ -125,13 +132,7 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
               >
                 {overdueCount > 0 && <AlertCircle className="h-3 w-3 mr-0.5" />}
                 <CheckSquare className="h-3 w-3 mr-0.5" />
-                {pendingCount} {overdueCount > 0 && `(${overdueCount} atraso)`}
-              </Badge>
-            )}
-            {hasNotes && (
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                <FileText className="h-3 w-3 mr-0.5" />
-                Notas
+                {pendingCount} tarefa{pendingCount > 1 ? 's' : ''}{overdueCount > 0 && ` (${overdueCount} atraso)`}
               </Badge>
             )}
             {hasExpectedDate && (
