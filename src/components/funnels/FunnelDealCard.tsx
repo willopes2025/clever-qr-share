@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, DollarSign, MoreHorizontal, User, FileText, Calendar } from "lucide-react";
+import { Clock, DollarSign, MoreHorizontal, User, FileText, Calendar, CheckSquare, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { DealFormDialog } from "./DealFormDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
+import { useDealTasks } from "@/hooks/useDealTasks";
 
 interface FunnelDealCardProps {
   deal: FunnelDeal;
@@ -24,6 +25,7 @@ interface FunnelDealCardProps {
 export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: FunnelDealCardProps) => {
   const { deleteDeal } = useFunnels();
   const [showEdit, setShowEdit] = useState(false);
+  const { pendingCount, overdueCount } = useDealTasks(deal.id);
 
   const getTimeInStage = () => {
     const days = Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24));
@@ -39,14 +41,21 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
   const hasExpectedDate = !!deal.expected_close_date;
   const customFieldsCount = Object.keys(deal.custom_fields || {}).length;
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Não abrir se clicar no dropdown
+    if ((e.target as HTMLElement).closest('[data-dropdown-trigger]')) return;
+    setShowEdit(true);
+  };
+
   return (
     <>
       <Card
         draggable
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
+        onClick={handleCardClick}
         className={cn(
-          "cursor-grab active:cursor-grabbing transition-all duration-200 hover:shadow-md hover:-translate-y-0.5",
+          "cursor-pointer active:cursor-grabbing transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group",
           isDragging && "opacity-50 scale-95 shadow-lg rotate-2"
         )}
       >
@@ -66,7 +75,13 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  data-dropdown-trigger
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <MoreHorizontal className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -103,6 +118,16 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
 
           {/* Indicators */}
           <div className="flex items-center gap-1 flex-wrap">
+            {pendingCount > 0 && (
+              <Badge 
+                variant={overdueCount > 0 ? "destructive" : "secondary"} 
+                className="h-5 px-1.5 text-[10px]"
+              >
+                {overdueCount > 0 && <AlertCircle className="h-3 w-3 mr-0.5" />}
+                <CheckSquare className="h-3 w-3 mr-0.5" />
+                {pendingCount} {overdueCount > 0 && `(${overdueCount} atraso)`}
+              </Badge>
+            )}
             {hasNotes && (
               <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
                 <FileText className="h-3 w-3 mr-0.5" />
