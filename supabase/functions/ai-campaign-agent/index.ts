@@ -11,16 +11,53 @@ interface ConversationMessage {
   content: string;
 }
 
-interface CampaignAIConfig {
-  ai_enabled: boolean;
-  ai_prompt: string | null;
-  ai_knowledge_base: string | null;
-  ai_max_interactions: number;
-  ai_response_delay_min: number;
-  ai_response_delay_max: number;
-  ai_handoff_keywords: string[];
-  ai_active_hours_start: number;
-  ai_active_hours_end: number;
+interface AgentConfig {
+  id: string;
+  agent_name: string;
+  personality_prompt: string | null;
+  behavior_rules: string | null;
+  greeting_message: string | null;
+  fallback_message: string | null;
+  goodbye_message: string | null;
+  max_interactions: number;
+  response_delay_min: number;
+  response_delay_max: number;
+  active_hours_start: number;
+  active_hours_end: number;
+  handoff_keywords: string[];
+  is_active: boolean;
+}
+
+interface KnowledgeItem {
+  title: string;
+  content: string | null;
+  processed_content: string | null;
+  source_type: string;
+}
+
+interface AgentVariable {
+  variable_key: string;
+  variable_value: string | null;
+}
+
+interface AgentStage {
+  id: string;
+  stage_name: string;
+  stage_prompt: string | null;
+  order_index: number;
+  collected_fields: Array<{ key: string; label: string; required?: boolean }>;
+  completion_condition: { type?: string; value?: string };
+  condition_type: string;
+  next_stage_id: string | null;
+  is_final: boolean;
+  actions: Array<{ type: string; config?: Record<string, unknown> }>;
+}
+
+interface StageData {
+  id: string;
+  current_stage_id: string | null;
+  collected_data: Record<string, unknown>;
+  stage_history: Array<{ stage_id: string; entered_at: string; completed_at?: string }>;
 }
 
 // Check if current time is within allowed AI hours
@@ -44,6 +81,143 @@ const containsHandoffKeyword = (message: string, keywords: string[]): boolean =>
 // Get random delay for response
 const getRandomDelay = (min: number, max: number): number => {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
+// Replace variables in text
+const replaceVariables = (
+  text: string, 
+  variables: AgentVariable[], 
+  contactName: string,
+  collectedData: Record<string, unknown>
+): string => {
+  let result = text;
+  
+  // System variables
+  result = result.replace(/\{\{nome\}\}/gi, contactName);
+  result = result.replace(/\{\{data\}\}/gi, new Date().toLocaleDateString('pt-BR'));
+  result = result.replace(/\{\{hora\}\}/gi, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  
+  // Custom variables
+  for (const v of variables) {
+    const regex = new RegExp(`\\{\\{${v.variable_key}\\}\\}`, 'gi');
+    result = result.replace(regex, v.variable_value || '');
+  }
+  
+  // Collected data from stages
+  for (const [key, value] of Object.entries(collectedData)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+    result = result.replace(regex, String(value || ''));
+  }
+  
+  return result;
+};
+
+// Build knowledge context from all sources
+const buildKnowledgeContext = (items: KnowledgeItem[]): string => {
+  if (!items || items.length === 0) return '';
+  
+  const sections: string[] = [];
+  
+  for (const item of items) {
+    const content = item.processed_content || item.content;
+    if (content) {
+      sections.push(`### ${item.title}\n${content}`);
+    }
+  }
+  
+  return sections.length > 0 
+    ? `\n\n## Base de Conhecimento\n${sections.join('\n\n')}`
+    : '';
+};
+
+// Check if stage completion condition is met
+const checkStageCompletion = (
+  stage: AgentStage,
+  collectedData: Record<string, unknown>,
+  messageContent: string
+): boolean => {
+  switch (stage.condition_type) {
+    case 'always':
+      return true;
+      
+    case 'field_filled':
+      // Check if all required fields are filled
+      const requiredFields = stage.collected_fields.filter(f => f.required !== false);
+      return requiredFields.every(f => collectedData[f.key] !== undefined && collectedData[f.key] !== '');
+      
+    case 'keyword_match':
+      const keywords = stage.completion_condition.value?.split(',').map(k => k.trim().toLowerCase()) || [];
+      const lowerMessage = messageContent.toLowerCase();
+      return keywords.some(k => lowerMessage.includes(k));
+      
+    case 'intent_detected':
+      // For now, just check if message seems affirmative
+      const affirmativeWords = ['sim', 'ok', 'certo', 'confirmo', 'isso', 'exato', 'claro'];
+      return affirmativeWords.some(w => messageContent.toLowerCase().includes(w));
+      
+    case 'manual':
+      return false;
+      
+    default:
+      return true;
+  }
+};
+
+// Extract field values from message using AI
+const extractFieldsFromMessage = async (
+  lovableApiKey: string,
+  message: string,
+  fields: Array<{ key: string; label: string }>,
+  existingData: Record<string, unknown>
+): Promise<Record<string, unknown>> => {
+  if (fields.length === 0) return existingData;
+  
+  const fieldDescriptions = fields.map(f => `- ${f.key}: ${f.label}`).join('\n');
+  
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: `Extraia informações da mensagem do usuário. Retorne APENAS um JSON válido com os campos encontrados.
+          
+Campos a extrair:
+${fieldDescriptions}
+
+Dados já coletados:
+${JSON.stringify(existingData)}
+
+Se um campo não for encontrado na mensagem, não inclua no JSON.
+Exemplo de resposta: {"nome": "João", "email": "joao@email.com"}`
+        },
+        { role: 'user', content: message }
+      ],
+      max_tokens: 200,
+    }),
+  });
+  
+  if (!response.ok) return existingData;
+  
+  try {
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '{}';
+    // Extract JSON from response
+    const jsonMatch = content.match(/\{[^{}]*\}/);
+    if (jsonMatch) {
+      const extracted = JSON.parse(jsonMatch[0]);
+      return { ...existingData, ...extracted };
+    }
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to extract fields:', e);
+  }
+  
+  return existingData;
 };
 
 serve(async (req) => {
@@ -74,11 +248,7 @@ serve(async (req) => {
       .select(`
         id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested,
         contacts!inner(id, phone, name),
-        campaigns(
-          id, name, ai_enabled, ai_prompt, ai_knowledge_base, ai_max_interactions,
-          ai_response_delay_min, ai_response_delay_max, ai_handoff_keywords,
-          ai_active_hours_start, ai_active_hours_end
-        )
+        campaigns(id, name, ai_enabled)
       `)
       .eq('id', conversationId)
       .single();
@@ -104,6 +274,32 @@ serve(async (req) => {
       );
     }
 
+    // Fetch agent config for this campaign
+    const { data: agentConfig } = await supabase
+      .from('ai_agent_configs')
+      .select('*')
+      .eq('campaign_id', campaign.id)
+      .eq('is_active', true)
+      .single();
+
+    // Use agent config or fallback to campaign defaults
+    const config: AgentConfig = agentConfig || {
+      id: '',
+      agent_name: 'Assistente',
+      personality_prompt: null,
+      behavior_rules: null,
+      greeting_message: null,
+      fallback_message: 'Desculpe, não entendi. Pode reformular?',
+      goodbye_message: null,
+      max_interactions: 10,
+      response_delay_min: 3,
+      response_delay_max: 8,
+      active_hours_start: 8,
+      active_hours_end: 20,
+      handoff_keywords: ['atendente', 'humano', 'pessoa', 'falar com alguém'],
+      is_active: true,
+    };
+
     if (conversation.ai_paused) {
       console.log('[AI-AGENT] AI is paused for this conversation');
       return new Response(
@@ -121,7 +317,7 @@ serve(async (req) => {
     }
 
     // Check if within active hours
-    if (!isWithinActiveHours(campaign.ai_active_hours_start, campaign.ai_active_hours_end)) {
+    if (!isWithinActiveHours(config.active_hours_start, config.active_hours_end)) {
       console.log('[AI-AGENT] Outside active hours');
       return new Response(
         JSON.stringify({ success: false, reason: 'Outside active hours' }),
@@ -131,7 +327,7 @@ serve(async (req) => {
 
     // Check max interactions
     const interactionCount = conversation.ai_interactions_count || 0;
-    if (interactionCount >= campaign.ai_max_interactions) {
+    if (interactionCount >= config.max_interactions) {
       console.log('[AI-AGENT] Max interactions reached, triggering handoff');
       
       await supabase
@@ -149,7 +345,7 @@ serve(async (req) => {
     }
 
     // Check for handoff keywords
-    const handoffKeywords = campaign.ai_handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'];
+    const handoffKeywords = config.handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'];
     if (containsHandoffKeyword(messageContent, handoffKeywords)) {
       console.log('[AI-AGENT] Handoff keyword detected');
       
@@ -185,6 +381,117 @@ serve(async (req) => {
       );
     }
 
+    // Fetch knowledge base, variables, and stages if agent config exists
+    let knowledgeItems: KnowledgeItem[] = [];
+    let variables: AgentVariable[] = [];
+    let stages: AgentStage[] = [];
+    
+    if (agentConfig?.id) {
+      // Fetch knowledge items
+      const { data: knowledge } = await supabase
+        .from('ai_agent_knowledge_items')
+        .select('title, content, processed_content, source_type')
+        .eq('agent_config_id', agentConfig.id)
+        .eq('status', 'completed');
+      
+      knowledgeItems = knowledge || [];
+      
+      // Fetch variables
+      const { data: vars } = await supabase
+        .from('ai_agent_variables')
+        .select('variable_key, variable_value')
+        .eq('agent_config_id', agentConfig.id);
+      
+      variables = vars || [];
+      
+      // Fetch stages ordered
+      const { data: stagesData } = await supabase
+        .from('ai_agent_stages')
+        .select('*')
+        .eq('agent_config_id', agentConfig.id)
+        .order('order_index', { ascending: true });
+      
+      stages = (stagesData || []) as AgentStage[];
+    }
+
+    // Fetch or create conversation stage data
+    let stageData: StageData | null = null;
+    let currentStage: AgentStage | null = null;
+    
+    if (stages.length > 0) {
+      const { data: existingStageData } = await supabase
+        .from('conversation_stage_data')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .single();
+      
+      if (existingStageData) {
+        stageData = existingStageData as StageData;
+        currentStage = stages.find(s => s.id === stageData!.current_stage_id) || stages[0];
+      } else {
+        // Create initial stage data
+        const initialStage = stages[0];
+        const { data: newStageData } = await supabase
+          .from('conversation_stage_data')
+          .insert({
+            conversation_id: conversationId,
+            current_stage_id: initialStage.id,
+            collected_data: {},
+            stage_history: [{ stage_id: initialStage.id, entered_at: new Date().toISOString() }],
+          })
+          .select()
+          .single();
+        
+        stageData = newStageData as StageData;
+        currentStage = initialStage;
+      }
+    }
+
+    // Extract fields from message if we have a current stage
+    let collectedData: Record<string, unknown> = stageData?.collected_data || {};
+    
+    if (currentStage && currentStage.collected_fields.length > 0) {
+      collectedData = await extractFieldsFromMessage(
+        lovableApiKey,
+        messageContent,
+        currentStage.collected_fields,
+        collectedData
+      );
+      
+      // Update collected data
+      if (stageData) {
+        await supabase
+          .from('conversation_stage_data')
+          .update({ collected_data: collectedData })
+          .eq('id', stageData.id);
+      }
+    }
+
+    // Check if we should advance to next stage
+    if (currentStage && !currentStage.is_final && checkStageCompletion(currentStage, collectedData, messageContent)) {
+      const nextStage = currentStage.next_stage_id 
+        ? stages.find(s => s.id === currentStage!.next_stage_id)
+        : stages[stages.findIndex(s => s.id === currentStage!.id) + 1];
+      
+      if (nextStage && stageData) {
+        const newHistory = [
+          ...stageData.stage_history,
+          { stage_id: nextStage.id, entered_at: new Date().toISOString() }
+        ];
+        
+        await supabase
+          .from('conversation_stage_data')
+          .update({
+            current_stage_id: nextStage.id,
+            stage_history: newHistory,
+          })
+          .eq('id', stageData.id);
+        
+        currentStage = nextStage;
+        console.log(`[AI-AGENT] Advanced to stage: ${nextStage.stage_name}`);
+      }
+    }
+
     // Fetch conversation history for context
     const { data: messages } = await supabase
       .from('inbox_messages')
@@ -208,16 +515,45 @@ serve(async (req) => {
     const contact = Array.isArray(contacts) ? contacts[0] : contacts;
     const contactName = contact?.name || 'Cliente';
     
-    let systemPrompt = campaign.ai_prompt || 
-      'Você é um assistente virtual amigável e profissional. Responda de forma clara e concisa.';
+    // Start with personality prompt
+    let systemPrompt = config.personality_prompt || 
+      `Você é ${config.agent_name}, um assistente virtual amigável e profissional.`;
     
-    // Add knowledge base if available
-    if (campaign.ai_knowledge_base) {
-      systemPrompt += `\n\nBase de conhecimento:\n${campaign.ai_knowledge_base}`;
+    // Add behavior rules
+    if (config.behavior_rules) {
+      systemPrompt += `\n\n## Regras de Comportamento\n${config.behavior_rules}`;
+    }
+    
+    // Add current stage prompt if exists
+    if (currentStage?.stage_prompt) {
+      systemPrompt += `\n\n## Instrução do Estágio Atual (${currentStage.stage_name})\n${currentStage.stage_prompt}`;
+      
+      // Add fields to collect
+      if (currentStage.collected_fields.length > 0) {
+        const fieldsToCollect = currentStage.collected_fields
+          .filter(f => !collectedData[f.key])
+          .map(f => `- ${f.label}`)
+          .join('\n');
+        
+        if (fieldsToCollect) {
+          systemPrompt += `\n\nInformações que ainda precisam ser coletadas:\n${fieldsToCollect}`;
+        }
+      }
+    }
+    
+    // Add knowledge base
+    const knowledgeContext = buildKnowledgeContext(knowledgeItems);
+    if (knowledgeContext) {
+      systemPrompt += knowledgeContext;
+    }
+    
+    // Add collected data context
+    if (Object.keys(collectedData).length > 0) {
+      systemPrompt += `\n\n## Dados já coletados\n${JSON.stringify(collectedData, null, 2)}`;
     }
     
     // Add context
-    systemPrompt += `\n\nContexto:
+    systemPrompt += `\n\n## Contexto da Conversa
 - Nome do cliente: ${contactName}
 - Esta é uma conversa via WhatsApp
 - Seja educado, amigável e objetivo
@@ -225,7 +561,11 @@ serve(async (req) => {
 - Se não souber responder algo específico, sugira falar com um atendente
 - Não invente informações que não estão na base de conhecimento`;
 
+    // Replace variables in system prompt
+    systemPrompt = replaceVariables(systemPrompt, variables, contactName, collectedData);
+
     console.log('[AI-AGENT] Calling Lovable AI...');
+    console.log('[AI-AGENT] Current stage:', currentStage?.stage_name || 'none');
 
     // Call Lovable AI
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -259,17 +599,20 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const aiMessage = aiData.choices?.[0]?.message?.content;
+    let aiMessage = aiData.choices?.[0]?.message?.content;
 
     if (!aiMessage) {
       console.error('[AI-AGENT] No AI response content');
-      throw new Error('No AI response');
+      aiMessage = config.fallback_message || 'Desculpe, não consegui processar sua mensagem.';
     }
+
+    // Replace variables in response
+    aiMessage = replaceVariables(aiMessage, variables, contactName, collectedData);
 
     console.log('[AI-AGENT] AI response:', aiMessage.substring(0, 100));
 
     // Apply response delay
-    const delay = getRandomDelay(campaign.ai_response_delay_min, campaign.ai_response_delay_max);
+    const delay = getRandomDelay(config.response_delay_min, config.response_delay_max);
     console.log(`[AI-AGENT] Waiting ${delay}s before sending...`);
     await new Promise(resolve => setTimeout(resolve, delay * 1000));
 
@@ -336,6 +679,8 @@ serve(async (req) => {
         success: true, 
         message: aiMessage,
         interactionCount: interactionCount + 1,
+        currentStage: currentStage?.stage_name || null,
+        collectedData,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
