@@ -1,6 +1,6 @@
 import { format, isToday, isYesterday, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, MessageCircle, Inbox, Archive } from "lucide-react";
+import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,14 @@ import { ConversationContextMenu } from "./ConversationContextMenu";
 import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { ConversationFiltersComponent, ConversationFilters } from "./ConversationFilters";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ConversationWithTags extends Conversation {
   tag_assignments?: { tag_id: string }[];
+  campaign_id?: string | null;
+  ai_handled?: boolean | null;
+  ai_paused?: boolean | null;
+  ai_handoff_requested?: boolean | null;
 }
 
 interface ConversationListProps {
@@ -214,6 +219,27 @@ export const ConversationList = ({
                       )}
                       {conversation.is_pinned && (
                         <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center text-[8px] text-white">📌</span>
+                      )}
+                      {/* AI Badge */}
+                      {conversation.ai_handled && !conversation.ai_paused && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="absolute -top-0.5 -left-0.5 w-5 h-5 bg-emerald-500 rounded-full border-2 border-card flex items-center justify-center">
+                              <Bot className="h-3 w-3 text-white" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>IA Atendendo</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {conversation.ai_handoff_requested && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="absolute -top-0.5 -left-0.5 w-5 h-5 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center animate-pulse">
+                              <UserCheck className="h-3 w-3 text-white" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>Aguardando Atendente</TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
 

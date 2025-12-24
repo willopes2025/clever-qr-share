@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Send, Smartphone, Edit2, Check, X, User } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
@@ -29,8 +31,17 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { isToday, isSameDay } from "date-fns";
 
+interface ConversationWithAI extends Conversation {
+  campaign_id?: string | null;
+  ai_handled?: boolean | null;
+  ai_paused?: boolean | null;
+  ai_handoff_requested?: boolean | null;
+  ai_handoff_reason?: string | null;
+  ai_interactions_count?: number | null;
+}
+
 interface MessageViewProps {
-  conversation: Conversation;
+  conversation: ConversationWithAI;
 }
 
 interface OptimisticMessage extends InboxMessage {
@@ -383,6 +394,66 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* AI Status Badge */}
+          {conversation.ai_handled && (
+            <div className="flex items-center gap-2">
+              {conversation.ai_handoff_requested ? (
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 gap-1">
+                  <User className="h-3 w-3" />
+                  Aguardando Atendente
+                </Badge>
+              ) : conversation.ai_paused ? (
+                <Badge variant="outline" className="bg-muted text-muted-foreground gap-1">
+                  <Pause className="h-3 w-3" />
+                  IA Pausada
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 gap-1">
+                  <Bot className="h-3 w-3" />
+                  IA Ativa
+                </Badge>
+              )}
+              
+              {/* Toggle AI Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('conversations')
+                          .update({ 
+                            ai_paused: !conversation.ai_paused,
+                            ai_handoff_requested: false 
+                          })
+                          .eq('id', conversation.id);
+                        
+                        if (error) throw error;
+                        
+                        toast.success(conversation.ai_paused ? "IA retomada" : "IA pausada");
+                        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                      } catch (error) {
+                        toast.error("Erro ao alterar status da IA");
+                      }
+                    }}
+                  >
+                    {conversation.ai_paused ? (
+                      <Play className="h-4 w-4 text-emerald-500" />
+                    ) : (
+                      <Pause className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {conversation.ai_paused ? "Retomar IA" : "Pausar IA"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+          
           {/* Instance Selector */}
           <Select 
             value={selectedInstanceId} 
