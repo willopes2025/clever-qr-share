@@ -31,12 +31,10 @@ const Settings = () => {
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Perfil</span>
           </TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="team" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Equipe</span>
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="team" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Equipe</span>
+          </TabsTrigger>
           <TabsTrigger value="sending" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
             <MessageSquare className="h-4 w-4" />
             <span className="hidden sm:inline">Envio</span>
@@ -59,11 +57,9 @@ const Settings = () => {
           <ProfileSettings />
         </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="team">
-            <TeamSettings />
-          </TabsContent>
-        )}
+        <TabsContent value="team">
+          <TeamSettings />
+        </TabsContent>
 
         <TabsContent value="sending">
           <SendingSettings />
