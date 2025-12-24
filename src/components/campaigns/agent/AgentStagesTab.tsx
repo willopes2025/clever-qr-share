@@ -64,7 +64,9 @@ export function AgentStagesTab({ agentConfigId }: AgentStagesTabProps) {
   const parseCollectedFields = (fields: Json): CollectedField[] => {
     if (!Array.isArray(fields)) return [];
     return fields
-      .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null && 'key' in f && 'label' in f)
+      .filter((f): f is { key: string; label: string; required?: boolean } => {
+        return typeof f === 'object' && f !== null && !Array.isArray(f) && 'key' in f && 'label' in f;
+      })
       .map(f => ({ key: String(f.key), label: String(f.label), required: f.required !== false }));
   };
 
