@@ -20,6 +20,7 @@ import Inbox from "./pages/Inbox";
 import Warming from "./pages/Warming";
 import Analysis from "./pages/Analysis";
 import Funnels from "./pages/Funnels";
+import LeadSearch from "./pages/LeadSearch";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -121,6 +122,13 @@ const App = () => (
             <ProtectedRoute>
               <NotificationProvider>
                 <Funnels />
+              </NotificationProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/lead-search" element={
+            <ProtectedRoute>
+              <NotificationProvider>
+                <LeadSearch />
               </NotificationProvider>
             </ProtectedRoute>
           } />
