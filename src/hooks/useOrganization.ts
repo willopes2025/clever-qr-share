@@ -147,6 +147,50 @@ export function useOrganization() {
     },
   });
 
+  // Atualizar organização
+  const updateOrganization = useMutation({
+    mutationFn: async (name: string) => {
+      if (!organization) throw new Error('Organização não encontrada');
+
+      const { error } = await supabase
+        .from('organizations')
+        .update({ name, updated_at: new Date().toISOString() })
+        .eq('id', organization.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      toast.success('Organização atualizada!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao atualizar organização: ${error.message}`);
+    },
+  });
+
+  // Excluir organização
+  const deleteOrganization = useMutation({
+    mutationFn: async () => {
+      if (!organization) throw new Error('Organização não encontrada');
+
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .eq('id', organization.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      queryClient.invalidateQueries({ queryKey: ['current-member'] });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      toast.success('Organização excluída com sucesso');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao excluir organização: ${error.message}`);
+    },
+  });
+
   // Verificar permissão
   const checkPermission = (permission: PermissionKey): boolean => {
     if (!currentMember) {
@@ -170,5 +214,7 @@ export function useOrganization() {
     isAdmin,
     checkPermission,
     createOrganization,
+    updateOrganization,
+    deleteOrganization,
   };
 }
