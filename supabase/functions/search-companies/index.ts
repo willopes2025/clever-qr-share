@@ -263,61 +263,77 @@ serve(async (req) => {
     const data = JSON.parse(responseText);
     console.log('Found companies:', data.cnpjs?.length || 0, 'Total:', data.total);
 
-    // Log first company structure for debugging phone fields
+    // Log first company structure for debugging
     if (data.cnpjs && data.cnpjs.length > 0) {
       const first = data.cnpjs[0];
-      console.log('First company structure (full):', JSON.stringify(first, null, 2));
-      console.log('Phone fields check:', {
-        telefone1: first.telefone1,
-        telefone2: first.telefone2,
-        telefone: first.telefone,
-        telefones: first.telefones,
-        ddd1: first.ddd1,
-        ddd2: first.ddd2,
-        contato: first.contato,
-        contatos: first.contatos,
-      });
+      console.log('First company keys:', Object.keys(first));
+      console.log('contato_telefonico:', first.contato_telefonico);
+      console.log('contato_email:', first.contato_email);
+      console.log('endereco:', first.endereco);
     }
 
-    // Helper function to extract phone from various possible fields
-    const extractPhone = (company: any): string | null => {
-      // Try direct phone fields first
-      if (company.telefone1) return company.telefone1;
-      if (company.telefone) return company.telefone;
+    // Helper function to extract phone from contato_telefonico array
+    const extractPhone = (company: any, preferCelular = false): { phone: string | null, phone2: string | null, ddd: string | null } => {
+      const contatos = company.contato_telefonico;
       
-      // Try with DDD prefix
-      const ddd = company.ddd1 || company.ddd;
-      if (ddd) {
-        if (company.telefone1) return `${ddd}${company.telefone1}`;
-        if (company.telefone) return `${ddd}${company.telefone}`;
+      if (!Array.isArray(contatos) || contatos.length === 0) {
+        // Fallback to old fields
+        const phone = company.telefone1 || company.telefone || null;
+        const ddd = company.ddd1 || company.ddd || null;
+        return { 
+          phone: phone ? (ddd ? `${ddd}${phone}` : phone) : null, 
+          phone2: company.telefone2 || null,
+          ddd 
+        };
       }
       
-      // Try telefones array
-      if (Array.isArray(company.telefones) && company.telefones.length > 0) {
-        const tel = company.telefones[0];
-        if (typeof tel === 'string') return tel;
-        if (tel && tel.numero) return tel.ddd ? `${tel.ddd}${tel.numero}` : tel.numero;
+      // Sort: prefer celular if requested
+      let sorted = [...contatos];
+      if (preferCelular) {
+        sorted.sort((a, b) => {
+          if (a.tipo === 'celular' && b.tipo !== 'celular') return -1;
+          if (a.tipo !== 'celular' && b.tipo === 'celular') return 1;
+          return 0;
+        });
       }
       
-      // Try contato object
-      if (company.contato) {
-        if (company.contato.telefone) return company.contato.telefone;
-        if (company.contato.telefone1) return company.contato.telefone1;
+      const first = sorted[0];
+      const second = sorted[1];
+      
+      const formatPhone = (c: any) => {
+        if (c.completo) return c.completo;
+        if (c.ddd && c.numero) return `${c.ddd}${c.numero}`;
+        return c.numero || null;
+      };
+      
+      return {
+        phone: formatPhone(first),
+        phone2: second ? formatPhone(second) : null,
+        ddd: first.ddd || null,
+      };
+    };
+
+    // Helper function to extract email from contato_email array
+    const extractEmail = (company: any): string | null => {
+      const emails = company.contato_email;
+      
+      if (!Array.isArray(emails) || emails.length === 0) {
+        return company.email || null;
       }
       
-      // Try contatos array
-      if (Array.isArray(company.contatos) && company.contatos.length > 0) {
-        const contato = company.contatos[0];
-        if (contato.telefone) return contato.telefone;
-        if (contato.numero) return contato.ddd ? `${contato.ddd}${contato.numero}` : contato.numero;
-      }
+      // Prefer valid emails
+      const valid = emails.find((e: any) => e.valido === true);
+      if (valid) return valid.email;
       
-      return null;
+      // Otherwise first email
+      return emails[0]?.email || null;
     };
 
     // Format companies for frontend
     const companies = (data.cnpjs || []).map((company: any) => {
-      const phone = extractPhone(company);
+      const { phone, phone2, ddd } = extractPhone(company);
+      const email = extractEmail(company);
+      const endereco = company.endereco || {};
       
       return {
         cnpj: company.cnpj,
@@ -326,23 +342,23 @@ serve(async (req) => {
         situacao_cadastral: company.situacao_cadastral,
         data_abertura: company.data_abertura,
         capital_social: company.capital_social,
-        porte: company.porte,
-        natureza_juridica: company.natureza_juridica?.descricao || null,
+        porte: company.porte_empresa?.descricao || company.porte || null,
+        natureza_juridica: company.natureza_juridica?.descricao || company.descricao_natureza_juridica || null,
         cnae_principal: company.atividade_principal?.descricao 
           ? `${company.atividade_principal.codigo} - ${company.atividade_principal.descricao}`
           : null,
         telefone: phone,
-        telefone2: company.telefone2 || null,
-        email: company.email,
+        telefone2: phone2,
+        email: email,
         endereco: {
-          logradouro: company.logradouro,
-          numero: company.numero,
-          complemento: company.complemento,
-          bairro: company.bairro,
-          cep: company.cep,
-          municipio: company.municipio,
-          uf: company.uf,
-          ddd: company.ddd1 || company.ddd2 || company.ddd,
+          logradouro: endereco.logradouro || company.logradouro,
+          numero: endereco.numero || company.numero,
+          complemento: endereco.complemento || company.complemento,
+          bairro: endereco.bairro || company.bairro,
+          cep: endereco.cep || company.cep,
+          municipio: endereco.municipio || company.municipio,
+          uf: endereco.uf || company.uf,
+          ddd: ddd,
         }
       };
     });
