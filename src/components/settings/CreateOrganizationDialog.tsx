@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useOrganization } from '@/hooks/useOrganization';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface CreateOrganizationDialogProps {
   open: boolean;
@@ -25,10 +26,19 @@ export function CreateOrganizationDialog({ open, onOpenChange }: CreateOrganizat
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    await createOrganization.mutateAsync(name);
-    
-    setName('');
-    onOpenChange(false);
+    if (!name.trim()) {
+      toast.error('Por favor, insira um nome para a organização');
+      return;
+    }
+
+    try {
+      await createOrganization.mutateAsync(name.trim());
+      setName('');
+      onOpenChange(false);
+    } catch (error) {
+      // Error is already handled by onError in useMutation
+      console.error('Failed to create organization:', error);
+    }
   };
 
   return (
@@ -57,7 +67,7 @@ export function CreateOrganizationDialog({ open, onOpenChange }: CreateOrganizat
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={createOrganization.isPending}>
+            <Button type="submit" disabled={createOrganization.isPending || !name.trim()}>
               {createOrganization.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar
             </Button>
