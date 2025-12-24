@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { useProfile } from '@/hooks/useProfile';
 import { TeamRole } from '@/config/permissions';
 import { Shield, User, Loader2 } from 'lucide-react';
 
@@ -22,13 +23,18 @@ interface InviteMemberDialogProps {
 
 export function InviteMemberDialog({ open, onOpenChange }: InviteMemberDialogProps) {
   const { inviteMember } = useTeamMembers();
+  const { profile } = useProfile();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<TeamRole>('member');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    await inviteMember.mutateAsync({ email, role });
+    await inviteMember.mutateAsync({ 
+      email, 
+      role,
+      inviterName: profile?.full_name || undefined,
+    });
     
     setEmail('');
     setRole('member');

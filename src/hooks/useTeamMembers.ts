@@ -50,7 +50,7 @@ export function useTeamMembers() {
 
   // Convidar membro
   const inviteMember = useMutation({
-    mutationFn: async ({ email, role }: { email: string; role: TeamRole }) => {
+    mutationFn: async ({ email, role, inviterName }: { email: string; role: TeamRole; inviterName?: string }) => {
       if (!organization) throw new Error('Organização não encontrada');
       if (!isAdmin) throw new Error('Sem permissão para convidar membros');
 
@@ -71,6 +71,25 @@ export function useTeamMembers() {
           throw new Error('Este email já foi convidado');
         }
         throw error;
+      }
+
+      // Enviar email de convite
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-team-invite', {
+          body: {
+            email,
+            role,
+            organizationName: organization.name,
+            inviterName: inviterName || 'Um administrador',
+          },
+        });
+
+        if (emailError) {
+          console.error('Erro ao enviar email de convite:', emailError);
+          // Não falhar a operação por causa do email
+        }
+      } catch (emailErr) {
+        console.error('Erro ao enviar email de convite:', emailErr);
       }
 
       return data;
