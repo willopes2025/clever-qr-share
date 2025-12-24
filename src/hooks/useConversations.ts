@@ -131,17 +131,45 @@ export const useMessages = (conversationId: string | null) => {
     queryFn: async () => {
       if (!conversationId) return [];
       
-      const { data, error } = await supabase
+      // Fetch messages
+      const { data: messagesData, error } = await supabase
         .from('inbox_messages')
-        .select(`
-          *,
-          sent_by_user:profiles!inbox_messages_sent_by_user_id_fkey(full_name, avatar_url)
-        `)
+        .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return data as InboxMessage[];
+      
+      // Get unique sender IDs
+      const senderIds = [...new Set(
+        messagesData
+          ?.filter(m => m.sent_by_user_id)
+          .map(m => m.sent_by_user_id) || []
+      )] as string[];
+      
+      // Fetch profiles for senders if any
+      let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+      
+      if (senderIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', senderIds);
+        
+        if (profiles) {
+          profilesMap = profiles.reduce((acc, p) => {
+            acc[p.id] = { full_name: p.full_name, avatar_url: p.avatar_url };
+            return acc;
+          }, {} as Record<string, { full_name: string | null; avatar_url: string | null }>);
+        }
+      }
+      
+      // Map messages with sender info
+      return messagesData?.map(msg => ({
+        ...msg,
+        direction: msg.direction as 'inbound' | 'outbound',
+        sent_by_user: msg.sent_by_user_id ? profilesMap[msg.sent_by_user_id] || null : null
+      })) as InboxMessage[];
     },
     enabled: !!conversationId && !!user,
   });
