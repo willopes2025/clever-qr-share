@@ -34,6 +34,7 @@ const Admin = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState<UserWithSubscription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserWithSubscription | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -76,6 +77,25 @@ const Admin = () => {
     fetchUsers();
     setEditDialogOpen(false);
     setSelectedUser(null);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeletingUserId(userId);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-update-subscription', {
+        body: { action: 'delete_user', userId }
+      });
+
+      if (error) throw error;
+      
+      toast.success('Usuário excluído com sucesso');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      toast.error('Erro ao excluir usuário');
+    } finally {
+      setDeletingUserId(null);
+    }
   };
 
   if (adminLoading) {
@@ -147,6 +167,8 @@ const Admin = () => {
               loading={loading}
               onEditUser={handleEditUser}
               onViewHistory={handleViewHistory}
+              onDeleteUser={handleDeleteUser}
+              deletingUserId={deletingUserId}
             />
           </CardContent>
         </Card>
