@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Edit, History, UserPlus } from "lucide-react";
+import { Edit, History, UserPlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,6 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useState } from "react";
 
 interface UserWithSubscription {
@@ -42,6 +53,8 @@ interface UserSubscriptionsTableProps {
   loading: boolean;
   onEditUser: (user: UserWithSubscription) => void;
   onViewHistory: (subscriptionId: string) => void;
+  onDeleteUser: (userId: string) => void;
+  deletingUserId?: string | null;
 }
 
 const planColors: Record<string, string> = {
@@ -63,7 +76,9 @@ export const UserSubscriptionsTable = ({
   users,
   loading,
   onEditUser,
-  onViewHistory
+  onViewHistory,
+  onDeleteUser,
+  deletingUserId
 }: UserSubscriptionsTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPlan, setFilterPlan] = useState("all");
@@ -190,6 +205,40 @@ export const UserSubscriptionsTable = ({
                           <History className="h-4 w-4" />
                         </Button>
                       )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 rounded-xl hover:bg-destructive/10 text-destructive"
+                            disabled={deletingUserId === user.id}
+                          >
+                            {deletingUserId === user.id ? (
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir o usuário <strong>{user.email}</strong>? 
+                              Esta ação não pode ser desfeita. Todos os dados do usuário serão removidos permanentemente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => onDeleteUser(user.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
                 </TableRow>

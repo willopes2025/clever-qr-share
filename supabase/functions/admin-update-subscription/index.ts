@@ -224,6 +224,38 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'delete_user') {
+      if (!userId) {
+        throw new Error("Missing userId for delete_user action");
+      }
+
+      logStep("Deleting user", { userId });
+
+      // Deletar assinatura do usuário primeiro (se existir)
+      const { error: subDeleteError } = await supabaseClient
+        .from('subscriptions')
+        .delete()
+        .eq('user_id', userId);
+
+      if (subDeleteError) {
+        logStep("Subscription delete error (may not exist)", subDeleteError);
+      }
+
+      // Deletar usuário usando admin API
+      const { error: userDeleteError } = await supabaseClient.auth.admin.deleteUser(userId);
+
+      if (userDeleteError) {
+        throw userDeleteError;
+      }
+
+      logStep("User deleted successfully", { userId });
+
+      return new Response(JSON.stringify({ success: true, message: "User deleted successfully" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     throw new Error(`Unknown action: ${action}`);
 
   } catch (error) {
