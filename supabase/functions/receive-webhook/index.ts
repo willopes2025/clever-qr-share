@@ -775,10 +775,53 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       
       // Check if this is a warming message (inbound only)
       if (!isFromMe) {
-        await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, content || preview);
+        // For audio messages, transcribe before triggering AI
+        let effectiveContent = content || preview;
         
-        // Check if conversation has AI agent enabled and trigger response
-        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, content || preview, instanceName, instanceId);
+        if ((messageType === 'audio' || messageType === 'voice' || messageType === 'ptt') && finalMediaUrl) {
+          console.log('[AUDIO-TRANSCRIPTION] Audio message detected, transcribing before AI trigger...');
+          
+          // Get the ID of the message we just inserted
+          const { data: insertedMessage } = await supabase
+            .from('inbox_messages')
+            .select('id')
+            .eq('whatsapp_message_id', key.id)
+            .single();
+          
+          if (insertedMessage?.id) {
+            try {
+              // Call transcribe-audio edge function
+              const transcriptionResponse = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({
+                  messageId: insertedMessage.id,
+                  audioUrl: finalMediaUrl,
+                }),
+              });
+              
+              const transcriptionResult = await transcriptionResponse.json();
+              
+              if (transcriptionResult.success && transcriptionResult.transcription) {
+                effectiveContent = transcriptionResult.transcription;
+                console.log('[AUDIO-TRANSCRIPTION] Audio transcribed successfully:', effectiveContent.substring(0, 100) + '...');
+              } else {
+                console.log('[AUDIO-TRANSCRIPTION] Transcription failed or empty, using original preview');
+              }
+            } catch (transcriptionError) {
+              console.error('[AUDIO-TRANSCRIPTION] Error transcribing audio:', transcriptionError);
+              // Continue with original preview if transcription fails
+            }
+          }
+        }
+        
+        await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, effectiveContent);
+        
+        // Check if conversation has AI agent enabled and trigger response with transcription
+        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, effectiveContent, instanceName, instanceId);
       }
     }
   }
