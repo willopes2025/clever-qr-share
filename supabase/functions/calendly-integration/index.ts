@@ -321,6 +321,39 @@ serve(async (req) => {
         );
       }
 
+      case 'select-event-type': {
+        const { eventTypeUri, eventTypeName, schedulingUrl } = params;
+        
+        if (!integration?.id) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Integration not found' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const { error: updateError } = await supabase
+          .from('calendar_integrations')
+          .update({
+            selected_event_type_uri: eventTypeUri,
+            selected_event_type_name: eventTypeName,
+            selected_scheduling_url: schedulingUrl,
+          })
+          .eq('id', integration.id);
+
+        if (updateError) {
+          console.error('[CALENDLY] Error updating selected event type:', updateError);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Erro ao salvar seleção' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'get-availability': {
         // Get scheduled events and return available slots
         const userUri = integration?.user_uri || params.userUri;
@@ -359,14 +392,17 @@ serve(async (req) => {
           name: event.name,
         }));
 
-        // Get event types for scheduling URL
-        const eventTypesResponse = await calendlyFetch(`/event_types?user=${encodeURIComponent(userUri)}&active=true`);
-        let schedulingUrl = '';
+        // Use selected scheduling URL if available, otherwise fallback to first event type
+        let schedulingUrl = (integration as { selected_scheduling_url?: string })?.selected_scheduling_url || '';
         
-        if (eventTypesResponse.ok) {
-          const etData = await eventTypesResponse.json();
-          if (etData.collection.length > 0) {
-            schedulingUrl = etData.collection[0].scheduling_url;
+        if (!schedulingUrl) {
+          // Fallback: get first event type
+          const eventTypesResponse = await calendlyFetch(`/event_types?user=${encodeURIComponent(userUri)}&active=true`);
+          if (eventTypesResponse.ok) {
+            const etData = await eventTypesResponse.json();
+            if (etData.collection.length > 0) {
+              schedulingUrl = etData.collection[0].scheduling_url;
+            }
           }
         }
 

@@ -385,6 +385,9 @@ export type Database = {
           organization_uri: string | null
           provider: string
           refresh_token: string | null
+          selected_event_type_name: string | null
+          selected_event_type_uri: string | null
+          selected_scheduling_url: string | null
           token_expires_at: string | null
           updated_at: string | null
           user_id: string
@@ -403,6 +406,9 @@ export type Database = {
           organization_uri?: string | null
           provider?: string
           refresh_token?: string | null
+          selected_event_type_name?: string | null
+          selected_event_type_uri?: string | null
+          selected_scheduling_url?: string | null
           token_expires_at?: string | null
           updated_at?: string | null
           user_id: string
@@ -421,6 +427,9 @@ export type Database = {
           organization_uri?: string | null
           provider?: string
           refresh_token?: string | null
+          selected_event_type_name?: string | null
+          selected_event_type_uri?: string | null
+          selected_scheduling_url?: string | null
           token_expires_at?: string | null
           updated_at?: string | null
           user_id?: string
