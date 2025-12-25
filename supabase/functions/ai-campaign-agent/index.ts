@@ -427,18 +427,40 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { conversationId, messageContent, instanceName, instanceId, manualTrigger } = await req.json();
+    const { conversationId, messageContent, instanceName: providedInstanceName, instanceId, manualTrigger } = await req.json();
 
     // For manual trigger, we need to fetch the last inbound message
     let effectiveMessageContent = messageContent;
+    let instanceName = providedInstanceName;
     
     if (!conversationId) {
       throw new Error('conversationId is required');
     }
     
-    // If manualTrigger but no messageContent, fetch last message from client
+    // If manualTrigger, we need to fetch the instance name from the database
+    if (manualTrigger && instanceId && !instanceName) {
+      console.log('[AI-AGENT] Manual trigger: fetching instance name from database');
+      const { data: instanceData } = await supabase
+        .from('whatsapp_instances')
+        .select('instance_name')
+        .eq('id', instanceId)
+        .single();
+      
+      if (instanceData?.instance_name) {
+        instanceName = instanceData.instance_name;
+        console.log('[AI-AGENT] Found instance name:', instanceName);
+      } else {
+        console.error('[AI-AGENT] Instance not found for id:', instanceId);
+        return new Response(
+          JSON.stringify({ success: false, reason: 'Instance not found' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    
+    // If manualTrigger but no messageContent, log it
     if (manualTrigger && !messageContent) {
-      console.log('[AI-AGENT] Manual trigger: fetching last inbound message');
+      console.log('[AI-AGENT] Manual trigger: will fetch last inbound message');
     }
 
     console.log(`[AI-AGENT] Processing message for conversation ${conversationId}, instanceId: ${instanceId}`);
