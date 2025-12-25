@@ -4,6 +4,7 @@ import { CampaignChart } from "@/components/dashboard/CampaignChart";
 import { RecentCampaigns } from "@/components/dashboard/RecentCampaigns";
 import { ScheduledCampaigns } from "@/components/dashboard/ScheduledCampaigns";
 import { InstancesOverview } from "@/components/dashboard/InstancesOverview";
+import { MyPermissionsCard } from "@/components/settings/MyPermissionsCard";
 import { 
   useDashboardMetrics, 
   useRecentCampaigns, 
@@ -79,6 +80,9 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout className="p-8">
+      {/* Member Permissions Card - Only shows for org members */}
+      <MyPermissionsCard />
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 text-foreground">
           Dashboard
