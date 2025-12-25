@@ -727,6 +727,12 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         .from('conversations')
         .update(updateData)
         .eq('id', conversation.id);
+        
+      // Ensure deal exists for existing conversations when instance has funnel
+      // This handles the case where funnel was linked after conversation was created
+      if (defaultFunnelId && !isFromMe) {
+        await ensureDealExistsForConversation(supabase, userId, defaultFunnelId, contact.id, conversation.id, contact.name || phone);
+      }
     }
 
     if (!conversation) {
@@ -870,6 +876,71 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
     
   } catch (error) {
     console.error('[FUNNEL-DEAL] Error in createDealFromNewConversation:', error);
+  }
+}
+
+// Ensure a deal exists for an existing conversation (when funnel was linked after conversation was created)
+// deno-lint-ignore no-explicit-any
+async function ensureDealExistsForConversation(supabase: any, userId: string, funnelId: string, contactId: string, conversationId: string, contactName: string) {
+  try {
+    // Check if deal already exists for this contact in this funnel
+    const { data: existingDeal } = await supabase
+      .from('funnel_deals')
+      .select('id')
+      .eq('contact_id', contactId)
+      .eq('funnel_id', funnelId)
+      .limit(1)
+      .single();
+    
+    if (existingDeal) {
+      // Deal exists, just ensure conversation_id is set
+      await supabase
+        .from('funnel_deals')
+        .update({ conversation_id: conversationId })
+        .eq('id', existingDeal.id)
+        .is('conversation_id', null);
+      return;
+    }
+    
+    // No deal exists, create one
+    console.log(`[FUNNEL-DEAL] Creating deal for existing conversation ${conversationId}`);
+    
+    const { data: firstStage } = await supabase
+      .from('funnel_stages')
+      .select('id')
+      .eq('funnel_id', funnelId)
+      .order('display_order', { ascending: true })
+      .limit(1)
+      .single();
+    
+    if (!firstStage) {
+      console.error('[FUNNEL-DEAL] No first stage found for funnel');
+      return;
+    }
+    
+    const { data: newDeal, error: dealError } = await supabase
+      .from('funnel_deals')
+      .insert({
+        user_id: userId,
+        funnel_id: funnelId,
+        stage_id: firstStage.id,
+        contact_id: contactId,
+        conversation_id: conversationId,
+        title: `Lead - ${contactName}`,
+        value: 0,
+        source: 'whatsapp',
+      })
+      .select('id')
+      .single();
+    
+    if (dealError) {
+      console.error('[FUNNEL-DEAL] Error creating deal:', dealError);
+    } else {
+      console.log(`[FUNNEL-DEAL] Deal created for existing conversation: ${newDeal?.id}`);
+    }
+    
+  } catch (error) {
+    console.error('[FUNNEL-DEAL] Error in ensureDealExistsForConversation:', error);
   }
 }
 

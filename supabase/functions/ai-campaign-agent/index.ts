@@ -330,6 +330,7 @@ serve(async (req) => {
     // First try: get agent config from campaign
     let agentConfig = null;
     let funnelId: string | null = null;
+    let configSource = '';
     
     if (campaign?.id && campaign.ai_enabled) {
       console.log('[AI-AGENT] Looking for agent config by campaign_id:', campaign.id);
@@ -340,7 +341,11 @@ serve(async (req) => {
         .eq('is_active', true)
         .single();
       
-      agentConfig = campaignConfig;
+      if (campaignConfig) {
+        agentConfig = campaignConfig;
+        configSource = 'campaign';
+        console.log('[AI-AGENT] ✓ Found agent config via campaign:', campaignConfig.id);
+      }
     }
     
     // Second try: get agent config from instance's default funnel
@@ -357,7 +362,7 @@ serve(async (req) => {
         
         if (instance?.default_funnel_id) {
           funnelId = instance.default_funnel_id;
-          console.log('[AI-AGENT] Found default funnel:', funnelId);
+          console.log('[AI-AGENT] Found default funnel on instance:', funnelId);
           
           const { data: funnelConfig } = await supabase
             .from('ai_agent_configs')
@@ -366,22 +371,68 @@ serve(async (req) => {
             .eq('is_active', true)
             .single();
           
-          agentConfig = funnelConfig;
-          if (agentConfig) {
-            console.log('[AI-AGENT] Found agent config via funnel:', agentConfig.id);
+          if (funnelConfig) {
+            agentConfig = funnelConfig;
+            configSource = 'instance_funnel';
+            console.log('[AI-AGENT] ✓ Found agent config via instance funnel:', funnelConfig.id);
+          } else {
+            console.log('[AI-AGENT] ✗ Instance has funnel but no active AI config for it');
           }
+        } else {
+          console.log('[AI-AGENT] ✗ Instance has no default funnel set');
         }
+      } else {
+        console.log('[AI-AGENT] ✗ No instanceId available');
       }
     }
     
-    // If no agent config found, AI is not enabled
+    // Third try: get funnel from existing deal for this conversation
     if (!agentConfig) {
-      console.log('[AI-AGENT] No active AI agent config found');
+      console.log('[AI-AGENT] Trying fallback: look for deal linked to conversation');
+      
+      const { data: deal } = await supabase
+        .from('funnel_deals')
+        .select('funnel_id')
+        .eq('conversation_id', conversationId)
+        .limit(1)
+        .single();
+      
+      if (deal?.funnel_id) {
+        funnelId = deal.funnel_id;
+        console.log('[AI-AGENT] Found deal with funnel:', funnelId);
+        
+        const { data: dealFunnelConfig } = await supabase
+          .from('ai_agent_configs')
+          .select('*')
+          .eq('funnel_id', funnelId)
+          .eq('is_active', true)
+          .single();
+        
+        if (dealFunnelConfig) {
+          agentConfig = dealFunnelConfig;
+          configSource = 'deal_funnel';
+          console.log('[AI-AGENT] ✓ Found agent config via deal funnel:', dealFunnelConfig.id);
+        } else {
+          console.log('[AI-AGENT] ✗ Deal funnel has no active AI config');
+        }
+      } else {
+        console.log('[AI-AGENT] ✗ No deal linked to this conversation');
+      }
+    }
+    
+    // If no agent config found, AI is not enabled - log detailed reason
+    if (!agentConfig) {
+      console.log('[AI-AGENT] === AI NOT RESPONDING ===');
+      console.log('[AI-AGENT] Reason: No active AI agent configuration found');
+      console.log('[AI-AGENT] Checked: campaign_id, instance default_funnel_id, conversation deal');
+      console.log('[AI-AGENT] To fix: Link a funnel with active AI config to the instance, or create a deal with AI-enabled funnel');
       return new Response(
-        JSON.stringify({ success: false, reason: 'AI not enabled' }),
+        JSON.stringify({ success: false, reason: 'AI not enabled - no config found' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log(`[AI-AGENT] Using config from: ${configSource}, agent: ${agentConfig.agent_name}`);
 
     // Use the agent config we found
     const config: AgentConfig = {
