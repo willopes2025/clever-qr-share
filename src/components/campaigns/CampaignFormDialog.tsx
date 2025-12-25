@@ -43,7 +43,7 @@ interface CampaignFormDialogProps {
     ai_handoff_keywords: string[];
     ai_active_hours_start: number;
     ai_active_hours_end: number;
-  }) => void;
+  }) => Promise<{ id: string } | void>;  // Modified to return campaign
   isLoading?: boolean;
 }
 
@@ -96,15 +96,23 @@ export const CampaignFormDialog = ({
   const [aiHandoffKeywords, setAiHandoffKeywords] = useState<string[]>(DEFAULT_HANDOFF_KEYWORDS);
   const [aiActiveHoursStart, setAiActiveHoursStart] = useState(8);
   const [aiActiveHoursEnd, setAiActiveHoursEnd] = useState(20);
+  
+  // Temporary agent config ID for new campaigns
+  const [tempAgentConfigId, setTempAgentConfigId] = useState<string | null>(null);
+  const [isCreatingTempConfig, setIsCreatingTempConfig] = useState(false);
 
   const { templates } = useMessageTemplates();
   const { lists } = useBroadcastLists();
   
   // Agent config hooks
   const { data: agentConfig } = useAgentConfig(campaign?.id || null);
-  const { data: knowledgeItems = [], isLoading: knowledgeLoading } = useKnowledgeItems(agentConfig?.id || null);
-  const { data: variables = [], isLoading: variablesLoading } = useAgentVariables(agentConfig?.id || null);
-  const { upsertConfig } = useAgentConfigMutations();
+  
+  // Use tempAgentConfigId for new campaigns, or agentConfig.id for existing ones
+  const effectiveAgentConfigId = tempAgentConfigId || agentConfig?.id || null;
+  
+  const { data: knowledgeItems = [], isLoading: knowledgeLoading } = useKnowledgeItems(effectiveAgentConfigId);
+  const { data: variables = [], isLoading: variablesLoading } = useAgentVariables(effectiveAgentConfigId);
+  const { upsertConfig, createTempConfig, linkConfigToCampaign, updateConfig } = useAgentConfigMutations();
   const { initSystemVariables } = useVariableMutations();
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
@@ -131,6 +139,7 @@ export const CampaignFormDialog = ({
       setEndHour(campaign.allowed_end_hour ?? 20);
       setAllowedDays(campaign.allowed_days ?? ['mon', 'tue', 'wed', 'thu', 'fri']);
       setAiEnabled(campaign.ai_enabled ?? false);
+      setTempAgentConfigId(null); // Reset temp config for existing campaigns
     } else {
       setName('');
       setTemplateId('');
@@ -145,6 +154,7 @@ export const CampaignFormDialog = ({
       setEndHour(20);
       setAllowedDays(['mon', 'tue', 'wed', 'thu', 'fri']);
       setAiEnabled(false);
+      setTempAgentConfigId(null); // Reset temp config for new campaigns
     }
   }, [campaign, open]);
 
@@ -166,6 +176,46 @@ export const CampaignFormDialog = ({
     }
   }, [agentConfig]);
 
+  // Create temporary agent config when AI is enabled for a new campaign
+  useEffect(() => {
+    const createTempAgentConfig = async () => {
+      // Only create temp config if:
+      // 1. AI is enabled
+      // 2. This is a new campaign (no campaign.id)
+      // 3. We don't already have a temp config
+      // 4. We're not already creating one
+      if (aiEnabled && !campaign?.id && !tempAgentConfigId && !isCreatingTempConfig) {
+        setIsCreatingTempConfig(true);
+        try {
+          const result = await createTempConfig.mutateAsync({
+            agent_name: agentName,
+            personality_prompt: personalityPrompt,
+            behavior_rules: behaviorRules,
+            greeting_message: greetingMessage,
+            fallback_message: fallbackMessage,
+            goodbye_message: goodbyeMessage,
+            max_interactions: aiMaxInteractions,
+            response_delay_min: aiResponseDelayMin,
+            response_delay_max: aiResponseDelayMax,
+            active_hours_start: aiActiveHoursStart,
+            active_hours_end: aiActiveHoursEnd,
+            handoff_keywords: aiHandoffKeywords,
+            is_active: true,
+          });
+          setTempAgentConfigId(result.id);
+          // Initialize system variables for the new config
+          initSystemVariables.mutate(result.id);
+        } catch (error) {
+          console.error('Failed to create temp agent config:', error);
+        } finally {
+          setIsCreatingTempConfig(false);
+        }
+      }
+    };
+    
+    createTempAgentConfig();
+  }, [aiEnabled, campaign?.id, tempAgentConfigId, isCreatingTempConfig]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -180,7 +230,7 @@ export const CampaignFormDialog = ({
       fullPrompt += `\n\nRegras:\n${behaviorRules}`;
     }
 
-    onSubmit({
+    const result = await onSubmit({
       name,
       template_id: templateId || null,
       list_id: listId || null,
@@ -203,7 +253,37 @@ export const CampaignFormDialog = ({
       ai_active_hours_end: aiActiveHoursEnd,
     });
 
-    // Save agent config if campaign exists
+    // For new campaigns with AI enabled: link temp config to the new campaign
+    const newCampaignId = result && 'id' in result ? result.id : null;
+    if (!campaign?.id && aiEnabled && tempAgentConfigId && newCampaignId) {
+      try {
+        await linkConfigToCampaign.mutateAsync({
+          configId: tempAgentConfigId,
+          campaignId: newCampaignId,
+        });
+        // Update the agent config with latest settings
+        await updateConfig.mutateAsync({
+          id: tempAgentConfigId,
+          agent_name: agentName,
+          personality_prompt: personalityPrompt,
+          behavior_rules: behaviorRules,
+          greeting_message: greetingMessage,
+          fallback_message: fallbackMessage,
+          goodbye_message: goodbyeMessage,
+          max_interactions: aiMaxInteractions,
+          response_delay_min: aiResponseDelayMin,
+          response_delay_max: aiResponseDelayMax,
+          active_hours_start: aiActiveHoursStart,
+          active_hours_end: aiActiveHoursEnd,
+          handoff_keywords: aiHandoffKeywords,
+          is_active: true,
+        });
+      } catch (error) {
+        console.error('Failed to link agent config:', error);
+      }
+    }
+
+    // Save agent config for existing campaigns
     if (campaign?.id && aiEnabled) {
       const configResult = await upsertConfig.mutateAsync({
         campaign_id: campaign.id,
@@ -485,22 +565,22 @@ export const CampaignFormDialog = ({
 
                   <TabsContent value="knowledge" className="mt-4">
                     <AgentKnowledgeTab
-                      agentConfigId={agentConfig?.id || null}
+                      agentConfigId={effectiveAgentConfigId}
                       knowledgeItems={knowledgeItems}
-                      isLoading={knowledgeLoading}
+                      isLoading={knowledgeLoading || isCreatingTempConfig}
                     />
                   </TabsContent>
 
                   <TabsContent value="variables" className="mt-4">
                     <AgentVariablesTab
-                      agentConfigId={agentConfig?.id || null}
+                      agentConfigId={effectiveAgentConfigId}
                       variables={variables}
-                      isLoading={variablesLoading}
+                      isLoading={variablesLoading || isCreatingTempConfig}
                     />
                   </TabsContent>
 
                   <TabsContent value="calendar" className="mt-4">
-                    <AgentCalendarTab agentConfigId={agentConfig?.id || null} />
+                    <AgentCalendarTab agentConfigId={effectiveAgentConfigId} />
                   </TabsContent>
                 </Tabs>
               )}

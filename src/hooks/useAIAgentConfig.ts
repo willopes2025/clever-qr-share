@@ -129,6 +129,65 @@ export const useAgentConfigMutations = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
+  // Create a temporary config without campaign_id (for new campaigns)
+  const createTempConfig = useMutation({
+    mutationFn: async (data: Partial<AIAgentConfig>) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data: created, error } = await supabase
+        .from('ai_agent_configs')
+        .insert({ 
+          ...data, 
+          user_id: user.id,
+          campaign_id: null, // Temporary config without campaign
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return created as AIAgentConfig;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-config'] });
+    },
+  });
+
+  // Link an existing config to a campaign
+  const linkConfigToCampaign = useMutation({
+    mutationFn: async ({ configId, campaignId }: { configId: string; campaignId: string }) => {
+      const { data, error } = await supabase
+        .from('ai_agent_configs')
+        .update({ campaign_id: campaignId })
+        .eq('id', configId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data as AIAgentConfig;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['agent-config', variables.campaignId] });
+    },
+  });
+
+  // Update an existing config by ID
+  const updateConfig = useMutation({
+    mutationFn: async ({ id, ...data }: Partial<AIAgentConfig> & { id: string }) => {
+      const { data: updated, error } = await supabase
+        .from('ai_agent_configs')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return updated as AIAgentConfig;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['agent-config', data.campaign_id] });
+    },
+  });
+
   const upsertConfig = useMutation({
     mutationFn: async (data: Partial<AIAgentConfig> & { campaign_id: string }) => {
       if (!user) throw new Error('User not authenticated');
@@ -165,7 +224,7 @@ export const useAgentConfigMutations = () => {
     },
   });
 
-  return { upsertConfig };
+  return { upsertConfig, createTempConfig, linkConfigToCampaign, updateConfig };
 };
 
 // Mutations for knowledge items

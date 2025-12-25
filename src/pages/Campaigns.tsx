@@ -42,9 +42,19 @@ const Campaigns = () => {
     allowed_end_hour: number;
     allowed_days: string[];
     timezone: string;
+    ai_enabled?: boolean;
+    ai_prompt?: string;
+    ai_knowledge_base?: string;
+    ai_max_interactions?: number;
+    ai_response_delay_min?: number;
+    ai_response_delay_max?: number;
+    ai_handoff_keywords?: string[];
+    ai_active_hours_start?: number;
+    ai_active_hours_end?: number;
   }) => {
-    await createCampaign.mutateAsync(data);
+    const campaign = await createCampaign.mutateAsync(data);
     setIsFormOpen(false);
+    return campaign; // Return the campaign for agent config linking
   };
 
   const handleUpdate = async (data: {
@@ -59,6 +69,15 @@ const Campaigns = () => {
     allowed_end_hour: number;
     allowed_days: string[];
     timezone: string;
+    ai_enabled?: boolean;
+    ai_prompt?: string;
+    ai_knowledge_base?: string;
+    ai_max_interactions?: number;
+    ai_response_delay_min?: number;
+    ai_response_delay_max?: number;
+    ai_handoff_keywords?: string[];
+    ai_active_hours_start?: number;
+    ai_active_hours_end?: number;
   }) => {
     if (!editingCampaign) return;
     await updateCampaign.mutateAsync({ id: editingCampaign.id, ...data });
