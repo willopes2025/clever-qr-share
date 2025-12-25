@@ -41,6 +41,7 @@ import { EditOrganizationDialog } from './EditOrganizationDialog';
 import { DeleteOrganizationDialog } from './DeleteOrganizationDialog';
 import { EditMemberDialog } from './EditMemberDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
+import { MyPermissionsCard } from './MyPermissionsCard';
 import { TeamMember } from '@/hooks/useOrganization';
 import { TeamRole } from '@/config/permissions';
 import { format } from 'date-fns';
@@ -166,6 +167,9 @@ export function TeamSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Card de permissões do membro atual */}
+      <MyPermissionsCard />
+
       {/* Cabeçalho da Organização */}
       <Card>
         <CardHeader>
