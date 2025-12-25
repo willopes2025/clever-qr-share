@@ -23,6 +23,7 @@ export type Database = {
           campaign_id: string | null
           created_at: string | null
           fallback_message: string | null
+          funnel_id: string | null
           goodbye_message: string | null
           greeting_message: string | null
           handoff_keywords: string[] | null
@@ -43,6 +44,7 @@ export type Database = {
           campaign_id?: string | null
           created_at?: string | null
           fallback_message?: string | null
+          funnel_id?: string | null
           goodbye_message?: string | null
           greeting_message?: string | null
           handoff_keywords?: string[] | null
@@ -63,6 +65,7 @@ export type Database = {
           campaign_id?: string | null
           created_at?: string | null
           fallback_message?: string | null
+          funnel_id?: string | null
           goodbye_message?: string | null
           greeting_message?: string | null
           handoff_keywords?: string[] | null
@@ -81,6 +84,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_configs_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
             referencedColumns: ["id"]
           },
         ]
@@ -2207,6 +2217,7 @@ export type Database = {
       whatsapp_instances: {
         Row: {
           created_at: string | null
+          default_funnel_id: string | null
           id: string
           instance_name: string
           qr_code: string | null
@@ -2218,6 +2229,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          default_funnel_id?: string | null
           id?: string
           instance_name: string
           qr_code?: string | null
@@ -2229,6 +2241,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          default_funnel_id?: string | null
           id?: string
           instance_name?: string
           qr_code?: string | null
@@ -2238,7 +2251,15 @@ export type Database = {
           user_id?: string
           warming_level?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_instances_default_funnel_id_fkey"
+            columns: ["default_funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

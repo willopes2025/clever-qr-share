@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QrCode, Trash2, Power, Check, Minus, Plus } from "lucide-react";
+import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 import { WARMING_LEVELS } from "@/hooks/useWhatsAppInstances";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,18 +10,24 @@ interface InstanceCardProps {
   name: string;
   status: "connected" | "disconnected" | "connecting";
   warmingLevel: number;
+  funnelName?: string | null;
+  funnelColor?: string | null;
   onQRCode: () => void;
   onDelete: () => void;
   onWarmingChange: (level: number) => void;
+  onConfigureFunnel: () => void;
 }
 
 export const InstanceCard = ({ 
   name, 
   status, 
   warmingLevel = 1,
+  funnelName,
+  funnelColor,
   onQRCode, 
   onDelete,
-  onWarmingChange 
+  onWarmingChange,
+  onConfigureFunnel,
 }: InstanceCardProps) => {
   const statusConfig = {
     connected: { color: "bg-accent", text: "Conectado", icon: Check },
@@ -55,18 +61,45 @@ export const InstanceCard = ({
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h3 className="font-semibold text-lg mb-2 text-foreground">{name}</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className={`h-2 w-2 rounded-full ${config.color} animate-pulse`} />
               <span className="text-sm text-muted-foreground">{config.text}</span>
+              {funnelName && (
+                <Badge 
+                  variant="outline" 
+                  className="gap-1 text-xs"
+                  style={{ borderColor: funnelColor || '#3B82F6' }}
+                >
+                  <GitBranch className="h-3 w-3" style={{ color: funnelColor || '#3B82F6' }} />
+                  {funnelName}
+                </Badge>
+              )}
             </div>
           </div>
-          <Badge 
-            variant={status === "connected" ? "default" : "secondary"} 
-            className={`gap-1 ${status === "connected" ? "bg-accent text-white" : ""}`}
-          >
-            <StatusIcon className="h-3 w-3" />
-            {config.text}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onConfigureFunnel}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Configurar funil de captura</p>
+              </TooltipContent>
+            </Tooltip>
+            <Badge 
+              variant={status === "connected" ? "default" : "secondary"} 
+              className={`gap-1 ${status === "connected" ? "bg-accent text-white" : ""}`}
+            >
+              <StatusIcon className="h-3 w-3" />
+              {config.text}
+            </Badge>
+          </div>
         </div>
 
         {/* Warming Level Section */}

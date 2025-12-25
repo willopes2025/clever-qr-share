@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3 } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +18,7 @@ import { FunnelMetricsCard } from "@/components/funnels/FunnelMetricsCard";
 import { FunnelDashboard } from "@/components/funnels/FunnelDashboard";
 import { CloseReasonsManager } from "@/components/funnels/CloseReasonsManager";
 import { AutomationsDialog } from "@/components/funnels/AutomationsDialog";
+import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
@@ -27,6 +28,7 @@ const Funnels = () => {
   const [showFunnelForm, setShowFunnelForm] = useState(false);
   const [showCloseReasons, setShowCloseReasons] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
+  const [showAIDialog, setShowAIDialog] = useState(false);
 
   // Auto-select first funnel
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId) || funnels?.[0];
@@ -61,6 +63,12 @@ const Funnels = () => {
               <Zap className="h-4 w-4 mr-2" />
               Automações
             </Button>
+            {currentFunnel && (
+              <Button variant="outline" size="sm" onClick={() => setShowAIDialog(true)}>
+                <Bot className="h-4 w-4 mr-2" />
+                Agente IA
+              </Button>
+            )}
             <Button onClick={() => setShowFunnelForm(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Novo Funil
@@ -150,6 +158,14 @@ const Funnels = () => {
         onOpenChange={setShowAutomations} 
         funnelId={currentFunnel?.id}
       />
+      {currentFunnel && (
+        <FunnelAIDialog
+          open={showAIDialog}
+          onOpenChange={setShowAIDialog}
+          funnelId={currentFunnel.id}
+          funnelName={currentFunnel.name}
+        />
+      )}
     </DashboardLayout>
   );
 };

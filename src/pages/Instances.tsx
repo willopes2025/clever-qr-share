@@ -13,6 +13,7 @@ import { useWhatsAppInstances, WhatsAppInstance } from "@/hooks/useWhatsAppInsta
 import { useSubscription } from "@/hooks/useSubscription";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
+import { InstanceFunnelDialog } from "@/components/instances/InstanceFunnelDialog";
 
 const Instances = () => {
   const {
@@ -25,6 +26,7 @@ const Instances = () => {
     deleteInstance,
     updateWarmingLevel,
     configureWebhook,
+    updateDefaultFunnel,
   } = useWhatsAppInstances();
   
   const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
@@ -37,6 +39,8 @@ const Instances = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const [confirmRecreateDialog, setConfirmRecreateDialog] = useState(false);
   const [pendingInstanceName, setPendingInstanceName] = useState("");
+  const [funnelDialogOpen, setFunnelDialogOpen] = useState(false);
+  const [funnelDialogInstance, setFunnelDialogInstance] = useState<WhatsAppInstance | null>(null);
 
   // Polling para verificar status de instâncias "connecting"
   useEffect(() => {
@@ -323,9 +327,15 @@ const Instances = () => {
                 name={instance.instance_name}
                 status={instance.status}
                 warmingLevel={instance.warming_level}
+                funnelName={instance.funnel?.name}
+                funnelColor={instance.funnel?.color}
                 onQRCode={() => handleShowQRCode(instance)}
                 onDelete={() => handleDeleteInstance(instance.instance_name)}
                 onWarmingChange={(level) => handleWarmingChange(instance.id, level)}
+                onConfigureFunnel={() => {
+                  setFunnelDialogInstance(instance);
+                  setFunnelDialogOpen(true);
+                }}
               />
             </motion.div>
           ))}
@@ -416,6 +426,23 @@ const Instances = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Funnel Configuration Dialog */}
+      {funnelDialogInstance && (
+        <InstanceFunnelDialog
+          open={funnelDialogOpen}
+          onOpenChange={setFunnelDialogOpen}
+          instanceId={funnelDialogInstance.id}
+          instanceName={funnelDialogInstance.instance_name}
+          currentFunnelId={funnelDialogInstance.default_funnel_id}
+          onSave={async (funnelId) => {
+            await updateDefaultFunnel.mutateAsync({
+              instanceId: funnelDialogInstance.id,
+              funnelId,
+            });
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 };

@@ -13,6 +13,7 @@ export interface WhatsAppInstance {
   created_at: string;
   updated_at: string;
   warming_level: number;
+  default_funnel_id: string | null;
 }
 
 export const WARMING_LEVELS = [
@@ -37,11 +38,11 @@ export const useWhatsAppInstances = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('whatsapp_instances')
-        .select('*')
+        .select('*, funnel:funnels(id, name, color)')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as WhatsAppInstance[];
+      return data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
     },
   });
 
@@ -170,6 +171,24 @@ export const useWhatsAppInstances = () => {
     },
   });
 
+  // Atualizar funil padrão da instância
+  const updateDefaultFunnel = useMutation({
+    mutationFn: async ({ instanceId, funnelId }: { instanceId: string; funnelId: string | null }) => {
+      const { error } = await supabase
+        .from('whatsapp_instances')
+        .update({ default_funnel_id: funnelId })
+        .eq('id', instanceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+      toast.success('Funil vinculado com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao vincular funil: ${error.message}`);
+    },
+  });
+
   return {
     instances,
     isLoading,
@@ -180,5 +199,6 @@ export const useWhatsAppInstances = () => {
     deleteInstance,
     updateWarmingLevel,
     configureWebhook,
+    updateDefaultFunnel,
   };
 };
