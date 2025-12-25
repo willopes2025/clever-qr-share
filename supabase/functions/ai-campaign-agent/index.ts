@@ -886,23 +886,33 @@ serve(async (req) => {
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
       if (availability) {
-        calendarContext = `\n\n## REGRAS DE AGENDAMENTO (SIGA EXATAMENTE)
-1. SEMPRE use get_available_times ANTES de oferecer horários ao cliente
-2. Quando receber os horários, apresente-os NO FORMATO BRASÍLIA (ex: "09:00", "14:30")
-3. Quando o cliente escolher um horário, pergunte o EMAIL dele se ainda não tiver
-4. Para criar o agendamento, use EXATAMENTE o valor ISO retornado (depois de "→ ISO:")
-5. NUNCA reconstrua ou modifique o horário ISO - copie exatamente como veio
-6. Link alternativo para agendamento manual: ${availability.schedulingUrl}
+        calendarContext = `\n\n## REGRAS DE AGENDAMENTO - LEIA COM ATENÇÃO
 
-EXEMPLO CORRETO:
-- Cliente pergunta: "Tem horário segunda?"
+### Como funciona:
+1. SEMPRE chame get_available_times PRIMEIRO para ver os horários
+2. A ferramenta retorna horários assim: "1. sex, 26/12 - 09:00 (BRT) | booking_id: 2025-12-26T12:00:00Z"
+   - ANTES do "|" = horário em Brasília para MOSTRAR ao cliente
+   - DEPOIS de "booking_id:" = código para usar no create_booking
+
+### O que MOSTRAR ao cliente:
+- Apenas o horário em Brasília: "09:00", "14:30", etc
+- NUNCA diga "12:00:00Z", "UTC", ou qualquer código técnico
+
+### O que usar no create_booking:
+- Use EXATAMENTE o valor após "booking_id:" 
+- Exemplo: se a linha diz "booking_id: 2025-12-26T12:00:00.000000Z", use esse valor inteiro
+
+### Fluxo de exemplo:
+- Cliente: "Tem horário sexta?"
 - Você: [chama get_available_times]
-- Ferramenta retorna: "1) seg, 30/12 às 09:00 (Brasília) → ISO: 2025-12-30T12:00:00.000000Z"
-- Você responde: "Tenho horário às 09:00 de segunda. Quer agendar?"
-- Cliente: "Sim"
-- Você: "Perfeito! Qual seu email para confirmar?"
-- Cliente: "email@teste.com"  
-- Você: [chama create_booking com start_time="2025-12-30T12:00:00.000000Z"]`;
+- Ferramenta retorna: "1. sex, 26/12 - 09:00 (BRT) | booking_id: 2025-12-26T12:00:00.000000Z"
+- Você diz: "Tenho horário às 09:00 na sexta! Quer agendar?"
+- Cliente: "Quero às 09:00"
+- Você: "Ótimo! Qual seu email para eu confirmar?"
+- Cliente: "teste@email.com"
+- Você: [chama create_booking com start_time="2025-12-26T12:00:00.000000Z"]
+
+Link alternativo: ${availability.schedulingUrl}`;
         
         if (availability.hasBusySlots && availability.busySlots.length > 0) {
           const busyTimes = availability.busySlots.map(slot => {
@@ -910,12 +920,12 @@ EXEMPLO CORRETO:
             const end = new Date(slot.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
             return `${start} - ${end} (${slot.name})`;
           }).join('\n  - ');
-          calendarContext += `\n\nHorários já ocupados hoje (Brasília):\n  - ${busyTimes}`;
+          calendarContext += `\n\nHorários já ocupados hoje:\n  - ${busyTimes}`;
         }
       }
     } else if (hasCalendarIntegration) {
       calendarContext = `\n\n## Agendamento Disponível
-Quando o cliente quiser agendar, use get_available_times para buscar horários. SEMPRE exiba horários em Brasília e use o ISO exato para booking.`;
+Quando o cliente quiser agendar, use get_available_times. Mostre horários em Brasília ao cliente e use o booking_id para criar o agendamento.`;
     }
     
     if (calendarContext) {
@@ -1007,7 +1017,7 @@ Quando o cliente quiser agendar, use get_available_times para buscar horários. 
           if (availableTimes && availableTimes.length > 0) {
             console.log(`[AI-AGENT] Found ${availableTimes.length} available times from Calendly`);
             
-            // Format times for readability - ALWAYS convert from UTC to America/Sao_Paulo
+            // Format times with CLEAR separation between display and booking ID
             const formattedTimes = availableTimes.slice(0, 10).map((slot, index) => {
               const utcDate = new Date(slot.start_time);
               
@@ -1024,8 +1034,8 @@ Quando o cliente quiser agendar, use get_available_times para buscar horários. 
                 timeZone: 'America/Sao_Paulo'
               });
               
-              // Return numbered option with BRT display and exact ISO UTC for booking
-              return `${index + 1}) ${dataBRT} às ${horaBRT} (Brasília) → ISO: ${slot.start_time}`;
+              // NOVO FORMATO: Separação clara com | e booking_id:
+              return `${index + 1}. ${dataBRT} - ${horaBRT} (BRT) | booking_id: ${slot.start_time}`;
             }).join('\n');
             
             console.log(`[AI-AGENT] Formatted times for agent:\n${formattedTimes}`);
@@ -1033,7 +1043,16 @@ Quando o cliente quiser agendar, use get_available_times para buscar horários. 
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `Horários disponíveis (horário de Brasília):\n${formattedTimes}\n\n⚠️ IMPORTANTE: Para criar agendamento, você DEVE usar EXATAMENTE o valor ISO mostrado após "→ ISO:" (exemplo: 2025-12-29T12:00:00.000000Z). NUNCA invente ou modifique o horário ISO.`,
+              content: `## Horários disponíveis
+
+PARA O CLIENTE (diga apenas estes horários):
+${formattedTimes}
+
+---
+INSTRUÇÕES PARA VOCÊ:
+- Diga ao cliente apenas os horários ANTES do "|" (ex: "09:00", "14:30")
+- Quando for criar booking, use o valor DEPOIS de "booking_id:" EXATAMENTE como está
+- NUNCA mencione "booking_id", "Z", "UTC" ou códigos técnicos ao cliente`,
             });
           } else {
             toolResults.push({
