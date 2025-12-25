@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const [showContactInfo, setShowContactInfo] = useState(false);
+  const [isInvokingAI, setIsInvokingAI] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -324,6 +325,37 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const selectedInstance = connectedInstances.find(i => i.id === selectedInstanceId);
   const allMessages = [...(messages || []), ...optimisticMessages];
 
+  const handleInvokeAI = async () => {
+    if (!selectedInstanceId) {
+      toast.error("Selecione uma instância primeiro");
+      return;
+    }
+    
+    setIsInvokingAI(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-campaign-agent', {
+        body: { 
+          conversationId: conversation.id,
+          instanceId: selectedInstanceId,
+          manualTrigger: true
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success("IA acionada com sucesso");
+      } else {
+        toast.error(data?.reason || "Não foi possível acionar a IA");
+      }
+    } catch (error) {
+      console.error("Error invoking AI:", error);
+      toast.error("Erro ao acionar IA");
+    } finally {
+      setIsInvokingAI(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex h-full">
       <div className="flex-1 flex flex-col h-full bg-background relative">
@@ -394,6 +426,29 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Invoke AI Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={handleInvokeAI}
+                disabled={isInvokingAI || !selectedInstanceId}
+              >
+                {isInvokingAI ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Acionar IA
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              A IA vai ler a conversa e continuar
+            </TooltipContent>
+          </Tooltip>
+          
           {/* AI Status Badge */}
           {conversation.ai_handled && (
             <div className="flex items-center gap-2">

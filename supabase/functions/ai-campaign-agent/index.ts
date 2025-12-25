@@ -427,10 +427,18 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { conversationId, messageContent, instanceName, instanceId } = await req.json();
+    const { conversationId, messageContent, instanceName, instanceId, manualTrigger } = await req.json();
 
-    if (!conversationId || !messageContent) {
-      throw new Error('conversationId and messageContent are required');
+    // For manual trigger, we need to fetch the last inbound message
+    let effectiveMessageContent = messageContent;
+    
+    if (!conversationId) {
+      throw new Error('conversationId is required');
+    }
+    
+    // If manualTrigger but no messageContent, fetch last message from client
+    if (manualTrigger && !messageContent) {
+      console.log('[AI-AGENT] Manual trigger: fetching last inbound message');
     }
 
     console.log(`[AI-AGENT] Processing message for conversation ${conversationId}, instanceId: ${instanceId}`);
@@ -584,29 +592,65 @@ serve(async (req) => {
       is_active: agentConfig.is_active ?? true,
     };
 
-    if (conversation.ai_paused) {
-      console.log('[AI-AGENT] AI is paused for this conversation');
-      return new Response(
-        JSON.stringify({ success: false, reason: 'AI paused' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Skip pause and handoff checks for manual trigger
+    if (!manualTrigger) {
+      if (conversation.ai_paused) {
+        console.log('[AI-AGENT] AI is paused for this conversation');
+        return new Response(
+          JSON.stringify({ success: false, reason: 'AI paused' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    if (conversation.ai_handoff_requested) {
-      console.log('[AI-AGENT] Handoff already requested');
-      return new Response(
-        JSON.stringify({ success: false, reason: 'Handoff requested' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      if (conversation.ai_handoff_requested) {
+        console.log('[AI-AGENT] Handoff already requested');
+        return new Response(
+          JSON.stringify({ success: false, reason: 'Handoff requested' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    // Check if within active hours
-    if (!isWithinActiveHours(config.active_hours_start, config.active_hours_end)) {
-      console.log('[AI-AGENT] Outside active hours');
-      return new Response(
-        JSON.stringify({ success: false, reason: 'Outside active hours' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Check if within active hours (only for automatic trigger)
+      if (!isWithinActiveHours(config.active_hours_start, config.active_hours_end)) {
+        console.log('[AI-AGENT] Outside active hours');
+        return new Response(
+          JSON.stringify({ success: false, reason: 'Outside active hours' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      console.log('[AI-AGENT] Manual trigger - skipping pause/handoff/hours checks');
+      
+      // For manual trigger, reset handoff and pause status
+      await supabase
+        .from('conversations')
+        .update({
+          ai_paused: false,
+          ai_handoff_requested: false,
+          ai_handoff_reason: null,
+          ai_handled: true,
+        })
+        .eq('id', conversationId);
+    }
+    
+    // Fetch message content for manual trigger if not provided
+    if (manualTrigger && !effectiveMessageContent) {
+      const { data: lastMessages } = await supabase
+        .from('inbox_messages')
+        .select('content')
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'inbound')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (lastMessages?.[0]) {
+        effectiveMessageContent = lastMessages[0].content;
+        console.log('[AI-AGENT] Using last inbound message:', effectiveMessageContent.substring(0, 50) + '...');
+      } else {
+        // If no inbound messages, use a generic greeting request
+        effectiveMessageContent = 'Olá, gostaria de mais informações';
+        console.log('[AI-AGENT] No inbound messages found, using default message');
+      }
     }
 
     // Check max interactions (0 = unlimited)
@@ -630,7 +674,7 @@ serve(async (req) => {
 
     // Check for handoff keywords
     const handoffKeywords = config.handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'];
-    if (containsHandoffKeyword(messageContent, handoffKeywords)) {
+    if (containsHandoffKeyword(effectiveMessageContent, handoffKeywords)) {
       console.log('[AI-AGENT] Handoff keyword detected');
       
       await supabase
@@ -751,7 +795,7 @@ serve(async (req) => {
     if (currentStage && currentStage.collected_fields.length > 0) {
       collectedData = await extractFieldsFromMessage(
         lovableApiKey,
-        messageContent,
+        effectiveMessageContent,
         currentStage.collected_fields,
         collectedData
       );
@@ -766,7 +810,7 @@ serve(async (req) => {
     }
 
     // Check if we should advance to next stage
-    if (currentStage && !currentStage.is_final && checkStageCompletion(currentStage, collectedData, messageContent)) {
+    if (currentStage && !currentStage.is_final && checkStageCompletion(currentStage, collectedData, effectiveMessageContent)) {
       const nextStage = currentStage.next_stage_id 
         ? stages.find(s => s.id === currentStage!.next_stage_id)
         : stages[stages.findIndex(s => s.id === currentStage!.id) + 1];
@@ -804,8 +848,11 @@ serve(async (req) => {
       content: msg.content,
     }));
 
-    // Add current message
-    conversationHistory.push({ role: 'user', content: messageContent });
+    // Add current message (only if not already in history)
+    const lastHistoryMessage = conversationHistory[conversationHistory.length - 1];
+    if (!lastHistoryMessage || lastHistoryMessage.content !== effectiveMessageContent) {
+      conversationHistory.push({ role: 'user', content: effectiveMessageContent });
+    }
 
     // Build system prompt
     // deno-lint-ignore no-explicit-any
@@ -881,7 +928,7 @@ serve(async (req) => {
     let calendarContext = '';
     const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
     
-    if (hasCalendarIntegration && isAskingAboutSchedule(messageContent)) {
+    if (hasCalendarIntegration && isAskingAboutSchedule(effectiveMessageContent)) {
       console.log('[AI-AGENT] User asking about schedule, fetching Calendly availability...');
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
