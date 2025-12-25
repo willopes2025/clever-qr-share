@@ -60,6 +60,20 @@ interface StageData {
   stage_history: Array<{ stage_id: string; entered_at: string; completed_at?: string }>;
 }
 
+interface CalendarIntegration {
+  id: string;
+  api_token: string;
+  user_uri: string | null;
+  organization_uri: string | null;
+  is_active: boolean;
+}
+
+interface CalendlyAvailability {
+  schedulingUrl: string;
+  busySlots: Array<{ start: string; end: string; name: string }>;
+  hasBusySlots: boolean;
+}
+
 // Check if current time is within allowed AI hours
 const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
   const now = new Date();
@@ -128,6 +142,53 @@ const buildKnowledgeContext = (items: KnowledgeItem[]): string => {
   return sections.length > 0 
     ? `\n\n## Base de Conhecimento\n${sections.join('\n\n')}`
     : '';
+};
+
+// Check if message is asking about scheduling/availability
+const isAskingAboutSchedule = (message: string): boolean => {
+  const scheduleKeywords = [
+    'horário', 'horarios', 'hora', 'agendar', 'agenda', 'marcar', 
+    'disponível', 'disponibilidade', 'reunião', 'reuniao', 'meeting',
+    'quando', 'que horas', 'amanhã', 'amanha', 'próxima', 'proxima',
+    'semana', 'dia', 'calendário', 'calendario', 'livre', 'vaga'
+  ];
+  const lowerMessage = message.toLowerCase();
+  return scheduleKeywords.some(keyword => lowerMessage.includes(keyword));
+};
+
+// Fetch Calendly availability
+const fetchCalendlyAvailability = async (
+  supabaseUrl: string,
+  agentConfigId: string
+): Promise<CalendlyAvailability | null> => {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'get-availability',
+        agentConfigId,
+        date: new Date().toISOString().split('T')[0],
+      }),
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (!data.success) return null;
+    
+    return {
+      schedulingUrl: data.schedulingUrl,
+      busySlots: data.busySlots || [],
+      hasBusySlots: data.hasBusySlots || false,
+    };
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to fetch Calendly availability:', e);
+    return null;
+  }
 };
 
 // Check if stage completion condition is met
@@ -381,10 +442,11 @@ serve(async (req) => {
       );
     }
 
-    // Fetch knowledge base, variables, and stages if agent config exists
+    // Fetch knowledge base, variables, stages, and calendar integration if agent config exists
     let knowledgeItems: KnowledgeItem[] = [];
     let variables: AgentVariable[] = [];
     let stages: AgentStage[] = [];
+    let calendarIntegration: CalendarIntegration | null = null;
     
     if (agentConfig?.id) {
       // Fetch knowledge items
@@ -412,6 +474,19 @@ serve(async (req) => {
         .order('order_index', { ascending: true });
       
       stages = (stagesData || []) as AgentStage[];
+      
+      // Fetch calendar integration
+      const { data: calendarData } = await supabase
+        .from('calendar_integrations')
+        .select('id, api_token, user_uri, organization_uri, is_active')
+        .eq('agent_config_id', agentConfig.id)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .single();
+      
+      if (calendarData) {
+        calendarIntegration = calendarData as CalendarIntegration;
+      }
     }
 
     // Fetch or create conversation stage data
@@ -550,6 +625,38 @@ serve(async (req) => {
     // Add collected data context
     if (Object.keys(collectedData).length > 0) {
       systemPrompt += `\n\n## Dados já coletados\n${JSON.stringify(collectedData, null, 2)}`;
+    }
+    
+    // Check if user is asking about scheduling and we have calendar integration
+    let calendarContext = '';
+    if (calendarIntegration && agentConfig?.id && isAskingAboutSchedule(messageContent)) {
+      console.log('[AI-AGENT] User asking about schedule, fetching Calendly availability...');
+      const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
+      
+      if (availability) {
+        calendarContext = `\n\n## Informações do Calendário
+- Link para agendamento: ${availability.schedulingUrl}
+- O cliente pode usar este link para escolher um horário disponível.`;
+        
+        if (availability.hasBusySlots && availability.busySlots.length > 0) {
+          const busyTimes = availability.busySlots.map(slot => {
+            const start = new Date(slot.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const end = new Date(slot.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            return `${start} - ${end} (${slot.name})`;
+          }).join('\n  - ');
+          calendarContext += `\n- Horários já ocupados hoje:\n  - ${busyTimes}`;
+        }
+        
+        calendarContext += `\n\nQuando o cliente perguntar sobre horários, compartilhe o link de agendamento e incentive-o a escolher o melhor horário.`;
+      }
+    } else if (calendarIntegration) {
+      // Still add the scheduling URL even if not asking about schedule
+      calendarContext = `\n\n## Link de Agendamento
+Se o cliente quiser agendar uma reunião, você pode compartilhar este link: Use a variável {{link_agendamento}} ou informe que tem um calendário disponível.`;
+    }
+    
+    if (calendarContext) {
+      systemPrompt += calendarContext;
     }
     
     // Add context

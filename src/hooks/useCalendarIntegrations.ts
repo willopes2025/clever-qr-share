@@ -39,14 +39,29 @@ export interface CalendlyEvent {
   created_at: string;
 }
 
-export const useCalendarIntegrations = () => {
+export const useCalendarIntegrations = (agentConfigId?: string | null) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch integration status
+  // Fetch integration status - by agent config if provided, otherwise by user
   const { data: integration, isLoading: isLoadingIntegration } = useQuery({
-    queryKey: ["calendar-integration", user?.id],
+    queryKey: agentConfigId 
+      ? ["calendar-integration", "agent", agentConfigId] 
+      : ["calendar-integration", user?.id],
     queryFn: async () => {
+      if (agentConfigId) {
+        const { data, error } = await supabase
+          .from("calendar_integrations")
+          .select("*")
+          .eq("agent_config_id", agentConfigId)
+          .eq("provider", "calendly")
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data as CalendarIntegration | null;
+      }
+      
       if (!user?.id) return null;
 
       const { data, error } = await supabase
@@ -60,7 +75,7 @@ export const useCalendarIntegrations = () => {
       if (error) throw error;
       return data as CalendarIntegration | null;
     },
-    enabled: !!user?.id,
+    enabled: !!agentConfigId || !!user?.id,
   });
 
   // Fetch recent events
