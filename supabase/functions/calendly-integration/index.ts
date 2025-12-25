@@ -145,19 +145,68 @@ serve(async (req) => {
         let saveError;
 
         if (agentConfigId) {
-          // For agent-specific integrations, check if one exists first
-          const { data: existing } = await supabase
+          // For agent-specific integrations, check if one exists for this agent
+          const { data: existingAgent } = await supabase
             .from('calendar_integrations')
             .select('id')
             .eq('agent_config_id', agentConfigId)
             .eq('provider', 'calendly')
             .single();
 
-          if (existing) {
+          if (existingAgent) {
+            // Update existing agent integration
             const { data, error } = await supabase
               .from('calendar_integrations')
               .update(upsertData)
-              .eq('id', existing.id)
+              .eq('id', existingAgent.id)
+              .select()
+              .single();
+            savedIntegration = data;
+            saveError = error;
+          } else {
+            // Check if user already has a calendly integration we can update
+            const { data: existingUser } = await supabase
+              .from('calendar_integrations')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('provider', 'calendly')
+              .single();
+
+            if (existingUser) {
+              // Update existing user integration with the new agent_config_id
+              const { data, error } = await supabase
+                .from('calendar_integrations')
+                .update(upsertData)
+                .eq('id', existingUser.id)
+                .select()
+                .single();
+              savedIntegration = data;
+              saveError = error;
+            } else {
+              // Insert new integration
+              const { data, error } = await supabase
+                .from('calendar_integrations')
+                .insert(upsertData)
+                .select()
+                .single();
+              savedIntegration = data;
+              saveError = error;
+            }
+          }
+        } else {
+          // For user-level integrations, use upsert
+          const { data: existingUser } = await supabase
+            .from('calendar_integrations')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('provider', 'calendly')
+            .single();
+
+          if (existingUser) {
+            const { data, error } = await supabase
+              .from('calendar_integrations')
+              .update(upsertData)
+              .eq('id', existingUser.id)
               .select()
               .single();
             savedIntegration = data;
@@ -171,17 +220,6 @@ serve(async (req) => {
             savedIntegration = data;
             saveError = error;
           }
-        } else {
-          // For user-level integrations, use upsert
-          const { data, error } = await supabase
-            .from('calendar_integrations')
-            .upsert(upsertData, { 
-              onConflict: 'user_id,provider' 
-            })
-            .select()
-            .single();
-          savedIntegration = data;
-          saveError = error;
         }
 
         if (saveError) {
