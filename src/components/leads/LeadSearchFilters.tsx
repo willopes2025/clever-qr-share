@@ -54,6 +54,11 @@ export const LeadSearchFilters = ({
     setFilters({ ...filters, [key]: value });
   };
 
+  // For mutually exclusive filters - updates both in a single state change
+  const updateExclusiveFilters = (updates: Partial<SearchFilters>) => {
+    setFilters({ ...filters, ...updates });
+  };
+
   const handleUfChange = (uf: string) => {
     const current = filters.uf;
     if (current.includes(uf)) {
@@ -299,19 +304,35 @@ export const LeadSearchFilters = ({
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="flex items-center gap-2">
-                <Checkbox id="somente_mei" checked={filters.somente_mei} onCheckedChange={(c) => { updateFilter('somente_mei', !!c); if (c) updateFilter('excluir_mei', false); }} />
+                <Checkbox 
+                  id="somente_mei" 
+                  checked={filters.somente_mei} 
+                  onCheckedChange={(c) => updateExclusiveFilters({ somente_mei: !!c, excluir_mei: c ? false : filters.excluir_mei })} 
+                />
                 <Label htmlFor="somente_mei" className="text-sm">Somente MEI</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="excluir_mei" checked={filters.excluir_mei} onCheckedChange={(c) => { updateFilter('excluir_mei', !!c); if (c) updateFilter('somente_mei', false); }} />
+                <Checkbox 
+                  id="excluir_mei" 
+                  checked={filters.excluir_mei} 
+                  onCheckedChange={(c) => updateExclusiveFilters({ excluir_mei: !!c, somente_mei: c ? false : filters.somente_mei })} 
+                />
                 <Label htmlFor="excluir_mei" className="text-sm">Excluir MEI</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="somente_matriz" checked={filters.somente_matriz} onCheckedChange={(c) => { updateFilter('somente_matriz', !!c); if (c) updateFilter('somente_filial', false); }} />
+                <Checkbox 
+                  id="somente_matriz" 
+                  checked={filters.somente_matriz} 
+                  onCheckedChange={(c) => updateExclusiveFilters({ somente_matriz: !!c, somente_filial: c ? false : filters.somente_filial })} 
+                />
                 <Label htmlFor="somente_matriz" className="text-sm">Somente Matriz</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="somente_filial" checked={filters.somente_filial} onCheckedChange={(c) => { updateFilter('somente_filial', !!c); if (c) updateFilter('somente_matriz', false); }} />
+                <Checkbox 
+                  id="somente_filial" 
+                  checked={filters.somente_filial} 
+                  onCheckedChange={(c) => updateExclusiveFilters({ somente_filial: !!c, somente_matriz: c ? false : filters.somente_matriz })} 
+                />
                 <Label htmlFor="somente_filial" className="text-sm">Somente Filial</Label>
               </div>
             </div>
@@ -333,11 +354,19 @@ export const LeadSearchFilters = ({
                 <Label htmlFor="com_telefone" className="text-sm">Com Telefone</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="somente_celular" checked={filters.somente_celular} onCheckedChange={(c) => { updateFilter('somente_celular', !!c); if (c) updateFilter('somente_fixo', false); }} />
+                <Checkbox 
+                  id="somente_celular" 
+                  checked={filters.somente_celular} 
+                  onCheckedChange={(c) => updateExclusiveFilters({ somente_celular: !!c, somente_fixo: c ? false : filters.somente_fixo })} 
+                />
                 <Label htmlFor="somente_celular" className="text-sm">Somente Celular</Label>
               </div>
               <div className="flex items-center gap-2">
-                <Checkbox id="somente_fixo" checked={filters.somente_fixo} onCheckedChange={(c) => { updateFilter('somente_fixo', !!c); if (c) updateFilter('somente_celular', false); }} />
+                <Checkbox 
+                  id="somente_fixo" 
+                  checked={filters.somente_fixo} 
+                  onCheckedChange={(c) => updateExclusiveFilters({ somente_fixo: !!c, somente_celular: c ? false : filters.somente_celular })} 
+                />
                 <Label htmlFor="somente_fixo" className="text-sm">Somente Fixo</Label>
               </div>
               <div className="flex items-center gap-2">
