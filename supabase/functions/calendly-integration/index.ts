@@ -48,14 +48,31 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, userId, apiToken, ...params } = await req.json();
+    const { action, userId, apiToken, agentConfigId, ...params } = await req.json();
 
-    console.log(`[CALENDLY] Action: ${action}, userId: ${userId}`);
+    console.log(`[CALENDLY] Action: ${action}, userId: ${userId}, agentConfigId: ${agentConfigId}`);
 
     // For setup action, use the provided token. For others, fetch from DB
     let token = apiToken;
     let integration = null;
 
+    // First try to fetch by agentConfigId if provided
+    if (!token && agentConfigId) {
+      const { data: integrationData } = await supabase
+        .from('calendar_integrations')
+        .select('*')
+        .eq('agent_config_id', agentConfigId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .single();
+
+      if (integrationData) {
+        token = integrationData.api_token;
+        integration = integrationData;
+      }
+    }
+
+    // Fallback to userId lookup
     if (!token && userId) {
       const { data: integrationData } = await supabase
         .from('calendar_integrations')
@@ -107,22 +124,65 @@ serve(async (req) => {
         const userData: CalendlyUser = await userResponse.json();
         console.log('[CALENDLY] User validated:', userData.resource.name);
 
+        // Build upsert data
+        const upsertData: Record<string, unknown> = {
+          user_id: userId,
+          provider: 'calendly',
+          api_token: token,
+          user_uri: userData.resource.uri,
+          organization_uri: userData.resource.current_organization,
+          is_active: true,
+          last_sync_at: new Date().toISOString(),
+        };
+
+        // If agentConfigId is provided, link to agent
+        if (agentConfigId) {
+          upsertData.agent_config_id = agentConfigId;
+        }
+
         // Save integration to database
-        const { data: savedIntegration, error: saveError } = await supabase
-          .from('calendar_integrations')
-          .upsert({
-            user_id: userId,
-            provider: 'calendly',
-            api_token: token,
-            user_uri: userData.resource.uri,
-            organization_uri: userData.resource.current_organization,
-            is_active: true,
-            last_sync_at: new Date().toISOString(),
-          }, { 
-            onConflict: 'user_id,provider' 
-          })
-          .select()
-          .single();
+        let savedIntegration;
+        let saveError;
+
+        if (agentConfigId) {
+          // For agent-specific integrations, check if one exists first
+          const { data: existing } = await supabase
+            .from('calendar_integrations')
+            .select('id')
+            .eq('agent_config_id', agentConfigId)
+            .eq('provider', 'calendly')
+            .single();
+
+          if (existing) {
+            const { data, error } = await supabase
+              .from('calendar_integrations')
+              .update(upsertData)
+              .eq('id', existing.id)
+              .select()
+              .single();
+            savedIntegration = data;
+            saveError = error;
+          } else {
+            const { data, error } = await supabase
+              .from('calendar_integrations')
+              .insert(upsertData)
+              .select()
+              .single();
+            savedIntegration = data;
+            saveError = error;
+          }
+        } else {
+          // For user-level integrations, use upsert
+          const { data, error } = await supabase
+            .from('calendar_integrations')
+            .upsert(upsertData, { 
+              onConflict: 'user_id,provider' 
+            })
+            .select()
+            .single();
+          savedIntegration = data;
+          saveError = error;
+        }
 
         if (saveError) {
           console.error('[CALENDLY] Error saving integration:', saveError);

@@ -376,6 +376,7 @@ export type Database = {
       calendar_integrations: {
         Row: {
           access_token: string | null
+          agent_config_id: string | null
           api_token: string | null
           created_at: string | null
           id: string
@@ -393,6 +394,7 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
+          agent_config_id?: string | null
           api_token?: string | null
           created_at?: string | null
           id?: string
@@ -410,6 +412,7 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
+          agent_config_id?: string | null
           api_token?: string | null
           created_at?: string | null
           id?: string
@@ -425,7 +428,15 @@ export type Database = {
           webhook_signing_key?: string | null
           webhook_subscription_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "calendar_integrations_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calendly_events: {
         Row: {

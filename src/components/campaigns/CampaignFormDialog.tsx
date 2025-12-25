@@ -10,12 +10,13 @@ import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { Campaign } from '@/hooks/useCampaigns';
 import { useAgentConfig, useKnowledgeItems, useAgentVariables, useAgentConfigMutations, useVariableMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, Smile, BookOpen, Variable } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, Smile, BookOpen, Variable, CalendarDays } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AgentPersonalityTab } from './agent/AgentPersonalityTab';
 import { AgentKnowledgeTab } from './agent/AgentKnowledgeTab';
 import { AgentVariablesTab } from './agent/AgentVariablesTab';
+import { AgentCalendarTab } from './agent/AgentCalendarTab';
 
 interface CampaignFormDialogProps {
   open: boolean;
@@ -434,18 +435,22 @@ export const CampaignFormDialog = ({
 
               {aiEnabled && (
                 <Tabs defaultValue="personality" className="w-full">
-                  <TabsList className="w-full grid grid-cols-3">
+                  <TabsList className="w-full grid grid-cols-4">
                     <TabsTrigger value="personality" className="gap-1.5">
                       <Smile className="h-3.5 w-3.5" />
-                      Personalidade
+                      <span className="hidden sm:inline">Personalidade</span>
                     </TabsTrigger>
                     <TabsTrigger value="knowledge" className="gap-1.5">
                       <BookOpen className="h-3.5 w-3.5" />
-                      Conhecimento
+                      <span className="hidden sm:inline">Conhecimento</span>
                     </TabsTrigger>
                     <TabsTrigger value="variables" className="gap-1.5">
                       <Variable className="h-3.5 w-3.5" />
-                      Variáveis
+                      <span className="hidden sm:inline">Variáveis</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="calendar" className="gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Calendário</span>
                     </TabsTrigger>
                   </TabsList>
 
@@ -492,6 +497,10 @@ export const CampaignFormDialog = ({
                       variables={variables}
                       isLoading={variablesLoading}
                     />
+                  </TabsContent>
+
+                  <TabsContent value="calendar" className="mt-4">
+                    <AgentCalendarTab agentConfigId={agentConfig?.id || null} />
                   </TabsContent>
                 </Tabs>
               )}
