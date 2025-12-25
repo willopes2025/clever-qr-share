@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useFunnels } from "@/hooks/useFunnels";
 import { FunnelKanbanView } from "@/components/funnels/FunnelKanbanView";
 import { FunnelListView } from "@/components/funnels/FunnelListView";
@@ -22,13 +32,15 @@ import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
-  const { funnels, isLoading } = useFunnels();
+  const { funnels, isLoading, deleteFunnel } = useFunnels();
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'dashboard'>('kanban');
   const [showFunnelForm, setShowFunnelForm] = useState(false);
+  const [editingFunnel, setEditingFunnel] = useState<{ id: string; name: string; description?: string; color?: string } | null>(null);
   const [showCloseReasons, setShowCloseReasons] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
+  const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Auto-select first funnel
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId) || funnels?.[0];
@@ -36,6 +48,17 @@ const Funnels = () => {
   if (currentFunnel && !selectedFunnelId) {
     setSelectedFunnelId(currentFunnel.id);
   }
+
+  const handleDeleteFunnel = async () => {
+    if (!funnelToDelete) return;
+    await deleteFunnel.mutateAsync(funnelToDelete.id);
+    setFunnelToDelete(null);
+    // Select another funnel after deletion
+    if (selectedFunnelId === funnelToDelete.id) {
+      const remaining = funnels?.filter(f => f.id !== funnelToDelete.id);
+      setSelectedFunnelId(remaining?.[0]?.id || null);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -99,24 +122,50 @@ const Funnels = () => {
           <>
             {/* Controls */}
             <div className="flex items-center justify-between">
-              <Select value={selectedFunnelId || ''} onValueChange={setSelectedFunnelId}>
-                <SelectTrigger className="w-[250px]">
-                  <SelectValue placeholder="Selecionar funil" />
-                </SelectTrigger>
-                <SelectContent>
-                  {funnels.map(funnel => (
-                    <SelectItem key={funnel.id} value={funnel.id}>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="h-3 w-3 rounded-full" 
-                          style={{ backgroundColor: funnel.color }}
-                        />
-                        {funnel.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={selectedFunnelId || ''} onValueChange={setSelectedFunnelId}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue placeholder="Selecionar funil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funnels.map(funnel => (
+                      <SelectItem key={funnel.id} value={funnel.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="h-3 w-3 rounded-full" 
+                            style={{ backgroundColor: funnel.color }}
+                          />
+                          {funnel.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {currentFunnel && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setEditingFunnel({
+                        id: currentFunnel.id,
+                        name: currentFunnel.name,
+                        description: currentFunnel.description || undefined,
+                        color: currentFunnel.color
+                      })}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setFunnelToDelete({ id: currentFunnel.id, name: currentFunnel.name })}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </>
+                )}
+              </div>
 
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'dashboard')}>
                 <TabsList>
@@ -151,7 +200,16 @@ const Funnels = () => {
         )}
       </div>
 
-      <FunnelFormDialog open={showFunnelForm} onOpenChange={setShowFunnelForm} />
+      <FunnelFormDialog 
+        open={showFunnelForm || !!editingFunnel} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowFunnelForm(false);
+            setEditingFunnel(null);
+          }
+        }} 
+        funnel={editingFunnel || undefined}
+      />
       <CloseReasonsManager open={showCloseReasons} onOpenChange={setShowCloseReasons} />
       <AutomationsDialog 
         open={showAutomations} 
@@ -166,6 +224,24 @@ const Funnels = () => {
           funnelName={currentFunnel.name}
         />
       )}
+
+      <AlertDialog open={!!funnelToDelete} onOpenChange={(open) => !open && setFunnelToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir funil</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o funil <strong>{funnelToDelete?.name}</strong>? 
+              Esta ação é irreversível e todos os deals associados serão excluídos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteFunnel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
