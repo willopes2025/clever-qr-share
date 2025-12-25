@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, Link, Check, X, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader2, Calendar, Link, Check, X, ExternalLink, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,7 +26,6 @@ export function AgentCalendarTab({ agentConfigId }: AgentCalendarTabProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [apiToken, setApiToken] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
 
   // Fetch integration for this agent
   const { data: integration, isLoading: isLoadingIntegration } = useQuery({
@@ -99,6 +98,42 @@ export function AgentCalendarTab({ agentConfigId }: AgentCalendarTabProps) {
     onError: (error: Error) => {
       toast({
         title: "Erro ao conectar",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Select event type mutation
+  const selectEventTypeMutation = useMutation({
+    mutationFn: async (eventType: CalendlyEventType) => {
+      if (!agentConfigId) throw new Error("Agent config não encontrado");
+
+      const { data, error } = await supabase.functions.invoke("calendly-integration", {
+        body: { 
+          action: "select-event-type", 
+          agentConfigId,
+          eventTypeUri: eventType.uri,
+          eventTypeName: eventType.name,
+          schedulingUrl: eventType.scheduling_url,
+        },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-calendar-integration", agentConfigId] });
+      toast({
+        title: "Tipo de evento selecionado!",
+        description: "A IA usará este link para agendamentos.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao selecionar evento",
         description: error.message,
         variant: "destructive",
       });
@@ -204,6 +239,7 @@ export function AgentCalendarTab({ agentConfigId }: AgentCalendarTabProps) {
   }
 
   const isConnected = !!integration?.is_active;
+  const selectedEventTypeUri = (integration as { selected_event_type_uri?: string })?.selected_event_type_uri;
 
   return (
     <div className="space-y-4">
@@ -269,7 +305,7 @@ export function AgentCalendarTab({ agentConfigId }: AgentCalendarTabProps) {
               {/* Event Types */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Tipos de Eventos Disponíveis</Label>
+                  <Label>Selecione o Tipo de Evento para Agendamentos</Label>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -287,29 +323,63 @@ export function AgentCalendarTab({ agentConfigId }: AgentCalendarTabProps) {
                   </div>
                 ) : eventTypes && eventTypes.length > 0 ? (
                   <div className="space-y-2">
-                    {eventTypes.map((et) => (
-                      <div
-                        key={et.uri}
-                        className="flex items-center justify-between p-2 rounded-md bg-muted/50"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{et.name}</p>
-                          <p className="text-xs text-muted-foreground">{et.duration} min</p>
-                        </div>
-                        <a
-                          href={et.scheduling_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                    {eventTypes.map((et) => {
+                      const isSelected = selectedEventTypeUri === et.uri;
+                      return (
+                        <div
+                          key={et.uri}
+                          className={`flex items-center justify-between p-3 rounded-md border transition-colors ${
+                            isSelected 
+                              ? 'border-primary bg-primary/5' 
+                              : 'border-border bg-muted/50 hover:bg-muted'
+                          }`}
                         >
-                          Link <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-3">
+                            {isSelected && (
+                              <CheckCircle2 className="h-5 w-5 text-primary" />
+                            )}
+                            <div>
+                              <p className="text-sm font-medium">{et.name}</p>
+                              <p className="text-xs text-muted-foreground">{et.duration} min</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={et.scheduling_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                            <Button
+                              variant={isSelected ? "secondary" : "outline"}
+                              size="sm"
+                              onClick={() => selectEventTypeMutation.mutate(et)}
+                              disabled={selectEventTypeMutation.isPending || isSelected}
+                            >
+                              {selectEventTypeMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isSelected ? (
+                                "Selecionado"
+                              ) : (
+                                "Selecionar"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Nenhum tipo de evento encontrado
+                  </p>
+                )}
+
+                {!selectedEventTypeUri && eventTypes && eventTypes.length > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    ⚠️ Selecione um tipo de evento para que a IA possa agendar consultas.
                   </p>
                 )}
               </div>
@@ -344,7 +414,7 @@ export function AgentCalendarTab({ agentConfigId }: AgentCalendarTabProps) {
                 <p className="text-sm font-medium">Como a IA usa o calendário:</p>
                 <ul className="text-xs text-muted-foreground space-y-1">
                   <li>• Quando o cliente perguntar sobre horários, a IA consultará sua agenda</li>
-                  <li>• A IA pode gerar links de agendamento personalizados</li>
+                  <li>• A IA vai usar o link do evento selecionado acima</li>
                   <li>• Novos agendamentos são salvos automaticamente</li>
                 </ul>
               </div>
