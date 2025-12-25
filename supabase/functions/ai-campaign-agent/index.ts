@@ -191,6 +191,138 @@ const fetchCalendlyAvailability = async (
   }
 };
 
+// Fetch available time slots from Calendly
+const fetchCalendlyAvailableTimes = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  startDate: string,
+  endDate: string
+): Promise<Array<{ start_time: string; status: string }> | null> => {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'get-available-times',
+        agentConfigId,
+        startDate,
+        endDate,
+      }),
+    });
+    
+    if (!response.ok) {
+      console.error('[AI-AGENT] Failed to fetch available times:', await response.text());
+      return null;
+    }
+    
+    const data = await response.json();
+    if (!data.success) return null;
+    
+    return data.availableTimes || [];
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to fetch Calendly available times:', e);
+    return null;
+  }
+};
+
+// Create a booking via Calendly
+const createCalendlyBooking = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  startTime: string,
+  inviteeName: string,
+  inviteeEmail: string,
+  inviteePhone?: string
+): Promise<{ success: boolean; booking?: Record<string, unknown>; error?: string }> => {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'create-booking',
+        agentConfigId,
+        startTime,
+        inviteeName,
+        inviteeEmail,
+        inviteePhone,
+        timezone: 'America/Sao_Paulo',
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      console.error('[AI-AGENT] Failed to create booking:', data.error);
+      return { success: false, error: data.error || 'Erro ao criar agendamento' };
+    }
+    
+    return { success: true, booking: data.booking };
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to create Calendly booking:', e);
+    return { success: false, error: 'Erro de conexão ao criar agendamento' };
+  }
+};
+
+// Define tools for AI agent
+const getCalendlyTools = () => [
+  {
+    type: 'function',
+    function: {
+      name: 'get_available_times',
+      description: 'Busca horários disponíveis para agendamento no Calendly. Use quando o cliente perguntar sobre horários disponíveis ou quiser agendar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { 
+            type: 'string', 
+            description: 'Data de início para buscar horários (formato YYYY-MM-DD). Use a data de hoje ou a data mencionada pelo cliente.' 
+          },
+          end_date: { 
+            type: 'string', 
+            description: 'Data de fim para buscar horários (formato YYYY-MM-DD). Máximo 7 dias após start_date.' 
+          },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_booking',
+      description: 'Cria um agendamento confirmado no Calendly. Use APENAS quando o cliente confirmar um horário específico E você tiver o email dele.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_time: { 
+            type: 'string', 
+            description: 'Data e hora do agendamento em formato ISO (YYYY-MM-DDTHH:MM:SS). Deve ser um horário que foi retornado por get_available_times.' 
+          },
+          invitee_name: { 
+            type: 'string', 
+            description: 'Nome completo do cliente' 
+          },
+          invitee_email: { 
+            type: 'string', 
+            description: 'Email do cliente (obrigatório para criar agendamento)' 
+          },
+          invitee_phone: { 
+            type: 'string', 
+            description: 'Telefone do cliente (opcional)' 
+          },
+        },
+        required: ['start_time', 'invitee_name', 'invitee_email'],
+      },
+    },
+  },
+];
+
 // Check if stage completion condition is met
 const checkStageCompletion = (
   stage: AgentStage,
@@ -681,9 +813,36 @@ serve(async (req) => {
     const contact = Array.isArray(contacts) ? contacts[0] : contacts;
     const contactName = contact?.name || 'Cliente';
     
+    // Get current date/time info for the AI
+    const agora = new Date();
+    const dataAtualFormatada = agora.toLocaleDateString('pt-BR', { 
+      weekday: 'long', 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      timeZone: 'America/Sao_Paulo'
+    });
+    const horaAtual = agora.toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo'
+    });
+    const anoAtual = agora.getFullYear();
+    
     // Start with personality prompt
     let systemPrompt = config.personality_prompt || 
       `Você é ${config.agent_name}, um assistente virtual amigável e profissional.`;
+    
+    // Add mandatory current date/time context at the very beginning
+    systemPrompt = `## DATA E HORA ATUAIS (OBRIGATÓRIO - USE SEMPRE)
+- Hoje é ${dataAtualFormatada}
+- Agora são ${horaAtual} (horário de Brasília)
+- O ano atual é ${anoAtual}
+- NUNCA mencione o ano 2024. Estamos em ${anoAtual}.
+- Quando mencionar qualquer data, use SEMPRE o ano ${anoAtual}.
+- "Amanhã" significa o dia seguinte a hoje (${dataAtualFormatada}).
+
+` + systemPrompt;
     
     // Add behavior rules
     if (config.behavior_rules) {
@@ -720,14 +879,19 @@ serve(async (req) => {
     
     // Check if user is asking about scheduling and we have calendar integration
     let calendarContext = '';
-    if (calendarIntegration && agentConfig?.id && isAskingAboutSchedule(messageContent)) {
+    const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
+    
+    if (hasCalendarIntegration && isAskingAboutSchedule(messageContent)) {
       console.log('[AI-AGENT] User asking about schedule, fetching Calendly availability...');
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
       if (availability) {
         calendarContext = `\n\n## Informações do Calendário
-- Link para agendamento: ${availability.schedulingUrl}
-- O cliente pode usar este link para escolher um horário disponível.`;
+- Você tem acesso às ferramentas get_available_times e create_booking.
+- Use get_available_times para buscar horários disponíveis.
+- Use create_booking para criar um agendamento quando o cliente confirmar horário E você tiver o email dele.
+- Se não tiver o email, peça antes de criar o agendamento.
+- Link alternativo para agendamento manual: ${availability.schedulingUrl}`;
         
         if (availability.hasBusySlots && availability.busySlots.length > 0) {
           const busyTimes = availability.busySlots.map(slot => {
@@ -737,13 +901,10 @@ serve(async (req) => {
           }).join('\n  - ');
           calendarContext += `\n- Horários já ocupados hoje:\n  - ${busyTimes}`;
         }
-        
-        calendarContext += `\n\nQuando o cliente perguntar sobre horários, compartilhe o link de agendamento e incentive-o a escolher o melhor horário.`;
       }
-    } else if (calendarIntegration) {
-      // Still add the scheduling URL even if not asking about schedule
-      calendarContext = `\n\n## Link de Agendamento
-Se o cliente quiser agendar uma reunião, você pode compartilhar este link: Use a variável {{link_agendamento}} ou informe que tem um calendário disponível.`;
+    } else if (hasCalendarIntegration) {
+      calendarContext = `\n\n## Agendamento Disponível
+Você pode usar as ferramentas get_available_times e create_booking quando o cliente quiser agendar.`;
     }
     
     if (calendarContext) {
@@ -764,6 +925,24 @@ Se o cliente quiser agendar uma reunião, você pode compartilhar este link: Use
 
     console.log('[AI-AGENT] Calling Lovable AI...');
     console.log('[AI-AGENT] Current stage:', currentStage?.stage_name || 'none');
+    console.log('[AI-AGENT] Calendar integration:', hasCalendarIntegration ? 'enabled' : 'disabled');
+
+    // Build AI request
+    // deno-lint-ignore no-explicit-any
+    const aiRequestBody: Record<string, any> = {
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory,
+      ],
+      max_tokens: 500,
+    };
+
+    // Add tools if calendar integration is active
+    if (hasCalendarIntegration) {
+      aiRequestBody.tools = getCalendlyTools();
+      aiRequestBody.tool_choice = 'auto';
+    }
 
     // Call Lovable AI
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -772,14 +951,7 @@ Se o cliente quiser agendar uma reunião, você pode compartilhar este link: Use
         'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...conversationHistory,
-        ],
-        max_tokens: 500,
-      }),
+      body: JSON.stringify(aiRequestBody),
     });
 
     if (!aiResponse.ok) {
@@ -796,8 +968,105 @@ Se o cliente quiser agendar uma reunião, você pode compartilhar este link: Use
       throw new Error(`AI API error: ${aiResponse.status}`);
     }
 
-    const aiData = await aiResponse.json();
-    let aiMessage = aiData.choices?.[0]?.message?.content;
+    let aiData = await aiResponse.json();
+    let aiMessage = aiData.choices?.[0]?.message?.content || '';
+    
+    // Process tool calls if present
+    const toolCalls = aiData.choices?.[0]?.message?.tool_calls;
+    if (toolCalls && toolCalls.length > 0 && agentConfig?.id) {
+      console.log('[AI-AGENT] Processing tool calls:', toolCalls.length);
+      
+      // deno-lint-ignore no-explicit-any
+      const toolResults: Array<{ role: string; tool_call_id: string; content: string }> = [];
+      
+      for (const toolCall of toolCalls) {
+        const functionName = toolCall.function?.name;
+        const args = JSON.parse(toolCall.function?.arguments || '{}');
+        
+        console.log(`[AI-AGENT] Executing tool: ${functionName}`, args);
+        
+        if (functionName === 'get_available_times') {
+          const availableTimes = await fetchCalendlyAvailableTimes(
+            supabaseUrl,
+            agentConfig.id,
+            args.start_date,
+            args.end_date
+          );
+          
+          if (availableTimes && availableTimes.length > 0) {
+            // Format times for readability
+            const formattedTimes = availableTimes.slice(0, 10).map(slot => {
+              const date = new Date(slot.start_time);
+              return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} (${slot.start_time})`;
+            }).join('\n');
+            
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `Horários disponíveis encontrados:\n${formattedTimes}\n\nTotal: ${availableTimes.length} horários. Use o formato ISO (entre parênteses) para criar um agendamento.`,
+            });
+          } else {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: 'Não foram encontrados horários disponíveis neste período. Tente outro período.',
+            });
+          }
+        } else if (functionName === 'create_booking') {
+          const bookingResult = await createCalendlyBooking(
+            supabaseUrl,
+            agentConfig.id,
+            args.start_time,
+            args.invitee_name,
+            args.invitee_email,
+            args.invitee_phone
+          );
+          
+          if (bookingResult.success && bookingResult.booking) {
+            const booking = bookingResult.booking;
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `✅ Agendamento criado com sucesso!\n- Horário: ${booking.start_time}\n- Nome: ${booking.invitee_name}\n- Email: ${booking.invitee_email}\n- Link para cancelar: ${booking.cancel_url}\n- Link para reagendar: ${booking.reschedule_url}`,
+            });
+          } else {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `❌ Erro ao criar agendamento: ${bookingResult.error}. Tente novamente ou ofereça o link de agendamento manual.`,
+            });
+          }
+        }
+      }
+      
+      // Call AI again with tool results to get final response
+      if (toolResults.length > 0) {
+        console.log('[AI-AGENT] Calling AI with tool results...');
+        
+        const followUpResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${lovableApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...conversationHistory,
+              aiData.choices[0].message, // Include the assistant message with tool_calls
+              ...toolResults,
+            ],
+            max_tokens: 500,
+          }),
+        });
+        
+        if (followUpResponse.ok) {
+          const followUpData = await followUpResponse.json();
+          aiMessage = followUpData.choices?.[0]?.message?.content || aiMessage;
+        }
+      }
+    }
 
     if (!aiMessage) {
       console.error('[AI-AGENT] No AI response content');
