@@ -609,9 +609,9 @@ serve(async (req) => {
       );
     }
 
-    // Check max interactions
+    // Check max interactions (0 = unlimited)
     const interactionCount = conversation.ai_interactions_count || 0;
-    if (interactionCount >= config.max_interactions) {
+    if (config.max_interactions > 0 && interactionCount >= config.max_interactions) {
       console.log('[AI-AGENT] Max interactions reached, triggering handoff');
       
       await supabase
