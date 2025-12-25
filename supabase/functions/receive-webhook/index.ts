@@ -70,6 +70,15 @@ serve(async (req) => {
     console.log('=== WEBHOOK RECEIVED ===');
     console.log('Full payload:', JSON.stringify(payload, null, 2));
 
+    // Check if this is a Calendly webhook
+    if (payload.event && (payload.event === 'invitee.created' || payload.event === 'invitee.canceled')) {
+      console.log('>>> Handling CALENDLY webhook event:', payload.event);
+      await handleCalendlyWebhook(supabase, payload);
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { event, instance, data } = payload;
     
     console.log('Event type:', event);
@@ -134,6 +143,206 @@ serve(async (req) => {
     });
   }
 });
+
+// Handle Calendly webhook events
+// deno-lint-ignore no-explicit-any
+async function handleCalendlyWebhook(supabase: any, payload: any) {
+  try {
+    const eventType = payload.event; // invitee.created or invitee.canceled
+    const eventPayload = payload.payload;
+    
+    if (!eventPayload) {
+      console.error('[CALENDLY] No payload in webhook');
+      return;
+    }
+
+    console.log('[CALENDLY] Processing event:', eventType);
+    console.log('[CALENDLY] Event payload:', JSON.stringify(eventPayload, null, 2));
+
+    // Extract data from payload
+    const invitee = eventPayload.invitee;
+    const scheduledEvent = eventPayload.scheduled_event;
+    const canceledData = eventPayload.cancellation;
+
+    if (!invitee || !scheduledEvent) {
+      console.error('[CALENDLY] Missing invitee or scheduled_event');
+      return;
+    }
+
+    // Find the integration by the organization URI or user URI in the event
+    const schedulingLink = eventPayload.scheduling_link?.owner;
+    
+    let integration = null;
+    if (schedulingLink) {
+      const { data: integrationData } = await supabase
+        .from('calendar_integrations')
+        .select('*')
+        .eq('user_uri', schedulingLink)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .single();
+      
+      integration = integrationData;
+    }
+
+    if (!integration) {
+      // Try to find by organization
+      const eventMembers = scheduledEvent.event_memberships;
+      if (eventMembers && eventMembers.length > 0) {
+        const userUri = eventMembers[0].user;
+        const { data: integrationData } = await supabase
+          .from('calendar_integrations')
+          .select('*')
+          .eq('user_uri', userUri)
+          .eq('provider', 'calendly')
+          .eq('is_active', true)
+          .single();
+        
+        integration = integrationData;
+      }
+    }
+
+    if (!integration) {
+      console.error('[CALENDLY] Could not find integration for this event');
+      return;
+    }
+
+    const userId = integration.user_id;
+    console.log('[CALENDLY] Found integration for user:', userId);
+
+    // Extract invitee information
+    const inviteeName = invitee.name;
+    const inviteeEmail = invitee.email;
+    const inviteePhone = invitee.text_reminder_number || 
+      (invitee.questions_and_answers?.find((q: { question: string; answer: string }) => 
+        q.question.toLowerCase().includes('telefone') || 
+        q.question.toLowerCase().includes('phone') ||
+        q.question.toLowerCase().includes('whatsapp')
+      )?.answer);
+
+    // Check if event already exists
+    const eventUri = scheduledEvent.uri;
+    const { data: existingEvent } = await supabase
+      .from('calendly_events')
+      .select('id')
+      .eq('calendly_event_uri', eventUri)
+      .single();
+
+    if (eventType === 'invitee.canceled') {
+      // Update existing event as canceled
+      if (existingEvent) {
+        await supabase
+          .from('calendly_events')
+          .update({
+            event_type: 'invitee.canceled',
+            cancel_reason: canceledData?.reason || 'Cancelado pelo convidado',
+            canceled_at: canceledData?.canceled_at || new Date().toISOString(),
+          })
+          .eq('id', existingEvent.id);
+        
+        console.log('[CALENDLY] Event marked as canceled:', existingEvent.id);
+      }
+      return;
+    }
+
+    // Create or update event record
+    const eventData = {
+      user_id: userId,
+      integration_id: integration.id,
+      calendly_event_uri: eventUri,
+      event_type: eventType,
+      event_name: scheduledEvent.name,
+      invitee_name: inviteeName,
+      invitee_email: inviteeEmail,
+      invitee_phone: inviteePhone,
+      event_start_time: scheduledEvent.start_time,
+      event_end_time: scheduledEvent.end_time,
+      location: scheduledEvent.location?.join_url || scheduledEvent.location?.location,
+      raw_payload: payload,
+      processed_at: new Date().toISOString(),
+    };
+
+    if (existingEvent) {
+      await supabase
+        .from('calendly_events')
+        .update(eventData)
+        .eq('id', existingEvent.id);
+      
+      console.log('[CALENDLY] Event updated:', existingEvent.id);
+    } else {
+      const { data: newEvent, error } = await supabase
+        .from('calendly_events')
+        .insert(eventData)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('[CALENDLY] Error inserting event:', error);
+      } else {
+        console.log('[CALENDLY] Event created:', newEvent.id);
+      }
+    }
+
+    // Try to match with existing contact by phone or email
+    if (inviteePhone || inviteeEmail) {
+      let contact = null;
+      
+      if (inviteePhone) {
+        const normalizedPhone = inviteePhone.replace(/\D/g, '');
+        const { data: contactByPhone } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('user_id', userId)
+          .or(`phone.eq.${normalizedPhone},phone.ilike.%${normalizedPhone}%`)
+          .limit(1)
+          .single();
+        
+        contact = contactByPhone;
+      }
+
+      if (!contact && inviteeEmail) {
+        const { data: contactByEmail } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('email', inviteeEmail)
+          .limit(1)
+          .single();
+        
+        contact = contactByEmail;
+      }
+
+      if (contact) {
+        console.log('[CALENDLY] Matched contact:', contact.id);
+        
+        // Update the calendly_event with contact_id
+        await supabase
+          .from('calendly_events')
+          .update({ contact_id: contact.id })
+          .eq('calendly_event_uri', eventUri);
+
+        // Find conversation and update
+        const { data: conversation } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('contact_id', contact.id)
+          .single();
+
+        if (conversation) {
+          await supabase
+            .from('calendly_events')
+            .update({ conversation_id: conversation.id })
+            .eq('calendly_event_uri', eventUri);
+        }
+      }
+    }
+
+    console.log('[CALENDLY] Webhook processed successfully');
+  } catch (error) {
+    console.error('[CALENDLY] Error processing webhook:', error);
+  }
+}
 
 // deno-lint-ignore no-explicit-any
 async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any, instanceName: string, evolutionApiUrl: string, evolutionApiKey: string, supabaseUrl: string, supabaseServiceKey: string) {

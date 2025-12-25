@@ -373,6 +373,158 @@ export type Database = {
           },
         ]
       }
+      calendar_integrations: {
+        Row: {
+          access_token: string | null
+          api_token: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          organization_uri: string | null
+          provider: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          user_id: string
+          user_uri: string | null
+          webhook_signing_key: string | null
+          webhook_subscription_id: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          api_token?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          organization_uri?: string | null
+          provider?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id: string
+          user_uri?: string | null
+          webhook_signing_key?: string | null
+          webhook_subscription_id?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          api_token?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          organization_uri?: string | null
+          provider?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+          user_uri?: string | null
+          webhook_signing_key?: string | null
+          webhook_subscription_id?: string | null
+        }
+        Relationships: []
+      }
+      calendly_events: {
+        Row: {
+          calendly_event_uri: string | null
+          cancel_reason: string | null
+          canceled_at: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          deal_id: string | null
+          event_end_time: string | null
+          event_name: string | null
+          event_start_time: string | null
+          event_type: string
+          id: string
+          integration_id: string | null
+          invitee_email: string | null
+          invitee_name: string | null
+          invitee_phone: string | null
+          location: string | null
+          processed_at: string | null
+          raw_payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          calendly_event_uri?: string | null
+          cancel_reason?: string | null
+          canceled_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          event_end_time?: string | null
+          event_name?: string | null
+          event_start_time?: string | null
+          event_type: string
+          id?: string
+          integration_id?: string | null
+          invitee_email?: string | null
+          invitee_name?: string | null
+          invitee_phone?: string | null
+          location?: string | null
+          processed_at?: string | null
+          raw_payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          calendly_event_uri?: string | null
+          cancel_reason?: string | null
+          canceled_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          event_end_time?: string | null
+          event_name?: string | null
+          event_start_time?: string | null
+          event_type?: string
+          id?: string
+          integration_id?: string | null
+          invitee_email?: string | null
+          invitee_name?: string | null
+          invitee_phone?: string | null
+          location?: string | null
+          processed_at?: string | null
+          raw_payload?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendly_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_events_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendly_events_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_messages: {
         Row: {
           campaign_id: string
