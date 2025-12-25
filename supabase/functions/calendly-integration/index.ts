@@ -483,6 +483,183 @@ serve(async (req) => {
         );
       }
 
+      case 'get-available-times': {
+        // Get available time slots from Calendly API
+        const eventTypeUri = integration?.selected_event_type_uri || params.eventTypeUri;
+        const startDate = params.startDate || new Date().toISOString().split('T')[0];
+        // Calendly API limits to 7 days max, default to 7 days ahead
+        const endDateDefault = new Date();
+        endDateDefault.setDate(endDateDefault.getDate() + 7);
+        const endDate = params.endDate || endDateDefault.toISOString().split('T')[0];
+        
+        if (!eventTypeUri) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Event type URI not found. Please select an event type first.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`[CALENDLY] Fetching available times for ${eventTypeUri} from ${startDate} to ${endDate}`);
+
+        // Format dates for Calendly API (needs full ISO format)
+        const startTime = new Date(startDate + 'T00:00:00').toISOString();
+        const endTime = new Date(endDate + 'T23:59:59').toISOString();
+
+        const response = await calendlyFetch(
+          `/event_type_available_times?event_type=${encodeURIComponent(eventTypeUri)}&start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}`
+        );
+        
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('[CALENDLY] Error fetching available times:', error);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Erro ao buscar horários disponíveis', details: error }),
+            { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const data = await response.json();
+        const availableTimes = (data.collection || []).map((slot: { status: string; start_time: string; invitees_remaining: number }) => ({
+          status: slot.status,
+          start_time: slot.start_time,
+          invitees_remaining: slot.invitees_remaining,
+        }));
+
+        console.log(`[CALENDLY] Found ${availableTimes.length} available slots`);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            availableTimes,
+            startDate,
+            endDate,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'create-booking': {
+        // Create a booking/invitee via Calendly API
+        const eventTypeUri = integration?.selected_event_type_uri || params.eventTypeUri;
+        const { startTime, inviteeName, inviteeEmail, inviteePhone, timezone } = params;
+        
+        if (!eventTypeUri) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Event type URI not found' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (!startTime || !inviteeName || !inviteeEmail) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Missing required fields: startTime, inviteeName, inviteeEmail' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`[CALENDLY] Creating booking for ${inviteeEmail} at ${startTime}`);
+
+        // According to Calendly API docs for AI Agents
+        // POST /invitees with event_type, start_time, and invitee details
+        const bookingPayload: Record<string, unknown> = {
+          event_type: eventTypeUri,
+          start_time: startTime,
+          invitee: {
+            name: inviteeName,
+            email: inviteeEmail,
+            timezone: timezone || 'America/Sao_Paulo',
+          },
+        };
+
+        // Add phone if provided
+        if (inviteePhone) {
+          (bookingPayload.invitee as Record<string, unknown>).phone_number = inviteePhone;
+        }
+
+        console.log('[CALENDLY] Booking payload:', JSON.stringify(bookingPayload));
+
+        const response = await calendlyFetch('/invitees', {
+          method: 'POST',
+          body: JSON.stringify(bookingPayload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[CALENDLY] Error creating booking:', response.status, errorText);
+          
+          // Parse error for user-friendly message
+          let userError = 'Erro ao criar agendamento';
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.message) userError = errorData.message;
+            if (errorData.details) userError += ': ' + JSON.stringify(errorData.details);
+          } catch {
+            userError = errorText || userError;
+          }
+
+          return new Response(
+            JSON.stringify({ success: false, error: userError }),
+            { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const bookingData = await response.json();
+        console.log('[CALENDLY] Booking created successfully:', bookingData.resource?.uri);
+
+        // Extract useful info from response
+        const booking = bookingData.resource || {};
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            booking: {
+              uri: booking.uri,
+              event_uri: booking.event,
+              cancel_url: booking.cancel_url,
+              reschedule_url: booking.reschedule_url,
+              start_time: startTime,
+              invitee_name: inviteeName,
+              invitee_email: inviteeEmail,
+            },
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'create-booking-link': {
+        // Generate a pre-filled scheduling link with date parameter
+        const { date, time } = params;
+        const schedulingUrl = integration?.selected_scheduling_url;
+        
+        if (!schedulingUrl) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'No scheduling URL configured' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Calendly accepts date parameter in format YYYY-MM-DD
+        let prefilledLink = schedulingUrl;
+        if (date) {
+          prefilledLink += `?date=${date}`;
+          if (time) {
+            prefilledLink += `&time=${time}`;
+          }
+        }
+
+        console.log('[CALENDLY] Generated prefilled link:', prefilledLink);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            link: prefilledLink,
+            date,
+            time,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'disconnect': {
         // Delete webhook subscription if exists
         if (integration?.webhook_subscription_id) {
