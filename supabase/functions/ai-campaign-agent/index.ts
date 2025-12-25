@@ -886,31 +886,34 @@ serve(async (req) => {
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
       if (availability) {
-        calendarContext = `\n\n## REGRAS DE AGENDAMENTO - LEIA COM ATENÇÃO
+        calendarContext = `\n\n## ⚠️ REGRAS CRÍTICAS DE AGENDAMENTO ⚠️
 
-### Como funciona:
-1. SEMPRE chame get_available_times PRIMEIRO para ver os horários
-2. A ferramenta retorna horários assim: "1. sex, 26/12 - 09:00 (BRT) | booking_id: 2025-12-26T12:00:00Z"
-   - ANTES do "|" = horário em Brasília para MOSTRAR ao cliente
-   - DEPOIS de "booking_id:" = código para usar no create_booking
+### Formato dos horários (get_available_times):
+A ferramenta retorna horários assim:
+  [A] sex, 26/12 às 09:00
+  [B] sex, 26/12 às 09:23
+  ...
+  
+E um MAPEAMENTO INTERNO:
+  A = 2025-12-26T12:00:00.000000Z
+  B = 2025-12-26T12:23:00.000000Z
+  ...
 
-### O que MOSTRAR ao cliente:
-- Apenas o horário em Brasília: "09:00", "14:30", etc
-- NUNCA diga "12:00:00Z", "UTC", ou qualquer código técnico
+### O QUE FAZER:
+1. Liste CADA horário individualmente: "Tenho às 09:00, 09:23, 09:46..."
+2. Quando o cliente escolher (ex: "09:00"), encontre a LETRA ([A]) correspondente
+3. Para create_booking, use o valor ISO do MAPEAMENTO dessa letra (ex: "2025-12-26T12:00:00.000000Z")
 
-### O que usar no create_booking:
-- Use EXATAMENTE o valor após "booking_id:" 
-- Exemplo: se a linha diz "booking_id: 2025-12-26T12:00:00.000000Z", use esse valor inteiro
+### O QUE NÃO FAZER:
+❌ NÃO agrupe horários (errado: "9h às 11h")
+❌ NÃO invente ISOs baseado no horário (errado: usar "2025-12-26T09:00:00Z" se o cliente disse 09:00)
+❌ NÃO mostre o mapeamento ou códigos técnicos ao cliente
 
-### Fluxo de exemplo:
-- Cliente: "Tem horário sexta?"
-- Você: [chama get_available_times]
-- Ferramenta retorna: "1. sex, 26/12 - 09:00 (BRT) | booking_id: 2025-12-26T12:00:00.000000Z"
-- Você diz: "Tenho horário às 09:00 na sexta! Quer agendar?"
+### Exemplo de fluxo CORRETO:
+- Você recebe: "[A] sex, 26/12 às 09:00" e "A = 2025-12-26T12:00:00.000000Z"
+- Você diz: "Tenho horário às 09:00 na sexta!"
 - Cliente: "Quero às 09:00"
-- Você: "Ótimo! Qual seu email para eu confirmar?"
-- Cliente: "teste@email.com"
-- Você: [chama create_booking com start_time="2025-12-26T12:00:00.000000Z"]
+- Você: [chama create_booking com start_time="2025-12-26T12:00:00.000000Z"] ← do mapeamento A
 
 Link alternativo: ${availability.schedulingUrl}`;
         
@@ -925,7 +928,7 @@ Link alternativo: ${availability.schedulingUrl}`;
       }
     } else if (hasCalendarIntegration) {
       calendarContext = `\n\n## Agendamento Disponível
-Quando o cliente quiser agendar, use get_available_times. Mostre horários em Brasília ao cliente e use o booking_id para criar o agendamento.`;
+Quando o cliente quiser agendar, use get_available_times. A ferramenta retorna horários com códigos [A], [B], etc. Liste CADA horário individualmente para o cliente e use o mapeamento interno para o create_booking.`;
     }
     
     if (calendarContext) {
@@ -1017,11 +1020,14 @@ Quando o cliente quiser agendar, use get_available_times. Mostre horários em Br
           if (availableTimes && availableTimes.length > 0) {
             console.log(`[AI-AGENT] Found ${availableTimes.length} available times from Calendly`);
             
-            // Format times with CLEAR separation between display and booking ID
-            const formattedTimes = availableTimes.slice(0, 10).map((slot, index) => {
+            // NOVO FORMATO: Usar letras como código para forçar uso exato
+            const timesSlice = availableTimes.slice(0, 10);
+            
+            // Lista para mostrar ao cliente (só horários em BRT)
+            const listaParaCliente = timesSlice.map((slot, index) => {
               const utcDate = new Date(slot.start_time);
+              const codigo = String.fromCharCode(65 + index); // A, B, C, D...
               
-              // Format date and time in Brasília timezone
               const dataBRT = utcDate.toLocaleDateString('pt-BR', { 
                 weekday: 'short',
                 day: '2-digit', 
@@ -1034,25 +1040,37 @@ Quando o cliente quiser agendar, use get_available_times. Mostre horários em Br
                 timeZone: 'America/Sao_Paulo'
               });
               
-              // NOVO FORMATO: Separação clara com | e booking_id:
-              return `${index + 1}. ${dataBRT} - ${horaBRT} (BRT) | booking_id: ${slot.start_time}`;
+              return `[${codigo}] ${dataBRT} às ${horaBRT}`;
             }).join('\n');
             
-            console.log(`[AI-AGENT] Formatted times for agent:\n${formattedTimes}`);
+            // Mapeamento interno de códigos para ISO UTC
+            const mapeamento = timesSlice.map((slot, index) => {
+              const codigo = String.fromCharCode(65 + index);
+              return `${codigo} = ${slot.start_time}`;
+            }).join('\n');
+            
+            console.log(`[AI-AGENT] Formatted times for client:\n${listaParaCliente}`);
+            console.log(`[AI-AGENT] Code mapping:\n${mapeamento}`);
             
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `## Horários disponíveis
+              content: `## HORÁRIOS DISPONÍVEIS
 
-PARA O CLIENTE (diga apenas estes horários):
-${formattedTimes}
+DIGA AO CLIENTE EXATAMENTE ASSIM (liste cada um individualmente):
+${listaParaCliente}
 
 ---
-INSTRUÇÕES PARA VOCÊ:
-- Diga ao cliente apenas os horários ANTES do "|" (ex: "09:00", "14:30")
-- Quando for criar booking, use o valor DEPOIS de "booking_id:" EXATAMENTE como está
-- NUNCA mencione "booking_id", "Z", "UTC" ou códigos técnicos ao cliente`,
+⚠️ MAPEAMENTO INTERNO (NÃO MOSTRE ISSO AO CLIENTE):
+${mapeamento}
+
+---
+📋 REGRAS OBRIGATÓRIAS:
+1. Liste CADA horário individualmente para o cliente (ex: "Tenho às 09:00, 09:23, 09:46...")
+2. NÃO agrupe em intervalos (ERRADO: "9h às 11h", CERTO: "09:00, 09:23, 09:46...")
+3. Quando o cliente escolher um horário, encontre a LETRA correspondente acima
+4. Para agendar, use o valor ISO do mapeamento EXATAMENTE como está (com o Z no final)
+5. NUNCA construa um ISO baseado no horário que o cliente disse - use APENAS o mapeamento`,
             });
           } else {
             toolResults.push({
