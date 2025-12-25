@@ -87,7 +87,7 @@ export const InstanceFunnelDialog = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum funil</SelectItem>
-                  {funnels.map((funnel) => (
+                  {(funnels || []).map((funnel) => (
                     <SelectItem key={funnel.id} value={funnel.id}>
                       <div className="flex items-center gap-2">
                         <div
