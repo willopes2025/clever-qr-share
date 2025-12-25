@@ -296,13 +296,13 @@ const getCalendlyTools = () => [
     type: 'function',
     function: {
       name: 'create_booking',
-      description: 'Cria um agendamento confirmado no Calendly. Use APENAS quando o cliente confirmar um horário específico E você tiver o email dele.',
+      description: 'Cria um agendamento confirmado no Calendly. Use APENAS quando o cliente confirmar um horário específico E você tiver o email dele. IMPORTANTE: O start_time DEVE ser EXATAMENTE o valor ISO retornado por get_available_times (ex: 2025-12-29T12:00:00.000000Z).',
       parameters: {
         type: 'object',
         properties: {
           start_time: { 
             type: 'string', 
-            description: 'Data e hora do agendamento em formato ISO (YYYY-MM-DDTHH:MM:SS). Deve ser um horário que foi retornado por get_available_times.' 
+            description: 'OBRIGATÓRIO: Use EXATAMENTE o valor ISO retornado por get_available_times (ex: 2025-12-29T12:00:00.000000Z). NUNCA modifique ou reconstrua este valor.' 
           },
           invitee_name: { 
             type: 'string', 
@@ -886,25 +886,36 @@ serve(async (req) => {
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
       if (availability) {
-        calendarContext = `\n\n## Informações do Calendário
-- Você tem acesso às ferramentas get_available_times e create_booking.
-- Use get_available_times para buscar horários disponíveis.
-- Use create_booking para criar um agendamento quando o cliente confirmar horário E você tiver o email dele.
-- Se não tiver o email, peça antes de criar o agendamento.
-- Link alternativo para agendamento manual: ${availability.schedulingUrl}`;
+        calendarContext = `\n\n## REGRAS DE AGENDAMENTO (SIGA EXATAMENTE)
+1. SEMPRE use get_available_times ANTES de oferecer horários ao cliente
+2. Quando receber os horários, apresente-os NO FORMATO BRASÍLIA (ex: "09:00", "14:30")
+3. Quando o cliente escolher um horário, pergunte o EMAIL dele se ainda não tiver
+4. Para criar o agendamento, use EXATAMENTE o valor ISO retornado (depois de "→ ISO:")
+5. NUNCA reconstrua ou modifique o horário ISO - copie exatamente como veio
+6. Link alternativo para agendamento manual: ${availability.schedulingUrl}
+
+EXEMPLO CORRETO:
+- Cliente pergunta: "Tem horário segunda?"
+- Você: [chama get_available_times]
+- Ferramenta retorna: "1) seg, 30/12 às 09:00 (Brasília) → ISO: 2025-12-30T12:00:00.000000Z"
+- Você responde: "Tenho horário às 09:00 de segunda. Quer agendar?"
+- Cliente: "Sim"
+- Você: "Perfeito! Qual seu email para confirmar?"
+- Cliente: "email@teste.com"  
+- Você: [chama create_booking com start_time="2025-12-30T12:00:00.000000Z"]`;
         
         if (availability.hasBusySlots && availability.busySlots.length > 0) {
           const busyTimes = availability.busySlots.map(slot => {
-            const start = new Date(slot.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const end = new Date(slot.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const start = new Date(slot.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+            const end = new Date(slot.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
             return `${start} - ${end} (${slot.name})`;
           }).join('\n  - ');
-          calendarContext += `\n- Horários já ocupados hoje:\n  - ${busyTimes}`;
+          calendarContext += `\n\nHorários já ocupados hoje (Brasília):\n  - ${busyTimes}`;
         }
       }
     } else if (hasCalendarIntegration) {
       calendarContext = `\n\n## Agendamento Disponível
-Você pode usar as ferramentas get_available_times e create_booking quando o cliente quiser agendar.`;
+Quando o cliente quiser agendar, use get_available_times para buscar horários. SEMPRE exiba horários em Brasília e use o ISO exato para booking.`;
     }
     
     if (calendarContext) {
@@ -994,47 +1005,101 @@ Você pode usar as ferramentas get_available_times e create_booking quando o cli
           );
           
           if (availableTimes && availableTimes.length > 0) {
-            // Format times for readability
-            const formattedTimes = availableTimes.slice(0, 10).map(slot => {
-              const date = new Date(slot.start_time);
-              return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} (${slot.start_time})`;
+            console.log(`[AI-AGENT] Found ${availableTimes.length} available times from Calendly`);
+            
+            // Format times for readability - ALWAYS convert from UTC to America/Sao_Paulo
+            const formattedTimes = availableTimes.slice(0, 10).map((slot, index) => {
+              const utcDate = new Date(slot.start_time);
+              
+              // Format date and time in Brasília timezone
+              const dataBRT = utcDate.toLocaleDateString('pt-BR', { 
+                weekday: 'short',
+                day: '2-digit', 
+                month: '2-digit',
+                timeZone: 'America/Sao_Paulo'
+              });
+              const horaBRT = utcDate.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                timeZone: 'America/Sao_Paulo'
+              });
+              
+              // Return numbered option with BRT display and exact ISO UTC for booking
+              return `${index + 1}) ${dataBRT} às ${horaBRT} (Brasília) → ISO: ${slot.start_time}`;
             }).join('\n');
+            
+            console.log(`[AI-AGENT] Formatted times for agent:\n${formattedTimes}`);
             
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `Horários disponíveis encontrados:\n${formattedTimes}\n\nTotal: ${availableTimes.length} horários. Use o formato ISO (entre parênteses) para criar um agendamento.`,
+              content: `Horários disponíveis (horário de Brasília):\n${formattedTimes}\n\n⚠️ IMPORTANTE: Para criar agendamento, você DEVE usar EXATAMENTE o valor ISO mostrado após "→ ISO:" (exemplo: 2025-12-29T12:00:00.000000Z). NUNCA invente ou modifique o horário ISO.`,
             });
           } else {
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: 'Não foram encontrados horários disponíveis neste período. Tente outro período.',
+              content: 'Não foram encontrados horários disponíveis neste período. Sugira outro período ao cliente ou ofereça o link de agendamento manual.',
             });
           }
         } else if (functionName === 'create_booking') {
-          const bookingResult = await createCalendlyBooking(
-            supabaseUrl,
-            agentConfig.id,
-            args.start_time,
-            args.invitee_name,
-            args.invitee_email,
-            args.invitee_phone
-          );
+          const startTimeArg = args.start_time || '';
           
-          if (bookingResult.success && bookingResult.booking) {
-            const booking = bookingResult.booking;
+          console.log(`[AI-AGENT] create_booking called with start_time: "${startTimeArg}"`);
+          
+          // Validate start_time format - MUST be ISO UTC with Z or timezone offset
+          const hasTimezone = startTimeArg.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(startTimeArg);
+          
+          if (!hasTimezone) {
+            console.log(`[AI-AGENT] REJECTED: start_time missing timezone: "${startTimeArg}"`);
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `✅ Agendamento criado com sucesso!\n- Horário: ${booking.start_time}\n- Nome: ${booking.invitee_name}\n- Email: ${booking.invitee_email}\n- Link para cancelar: ${booking.cancel_url}\n- Link para reagendar: ${booking.reschedule_url}`,
+              content: `❌ ERRO: O horário "${startTimeArg}" está em formato inválido. Você DEVE usar EXATAMENTE o valor ISO retornado pela ferramenta get_available_times (exemplo: 2025-12-29T12:00:00.000000Z). Chame get_available_times novamente e use o horário ISO exato.`,
             });
           } else {
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: `❌ Erro ao criar agendamento: ${bookingResult.error}. Tente novamente ou ofereça o link de agendamento manual.`,
-            });
+            const bookingResult = await createCalendlyBooking(
+              supabaseUrl,
+              agentConfig.id,
+              startTimeArg,
+              args.invitee_name,
+              args.invitee_email,
+              args.invitee_phone
+            );
+            
+            if (bookingResult.success && bookingResult.booking) {
+              const booking = bookingResult.booking;
+              
+              // Convert booking time to BRT for display
+              const bookingDate = new Date(String(booking.start_time));
+              const dataBRT = bookingDate.toLocaleDateString('pt-BR', { 
+                weekday: 'long',
+                day: '2-digit', 
+                month: '2-digit',
+                year: 'numeric',
+                timeZone: 'America/Sao_Paulo'
+              });
+              const horaBRT = bookingDate.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                timeZone: 'America/Sao_Paulo'
+              });
+              
+              console.log(`[AI-AGENT] Booking created successfully: ${dataBRT} às ${horaBRT}`);
+              
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `✅ Agendamento criado com sucesso!\n- Data: ${dataBRT}\n- Horário: ${horaBRT} (Brasília)\n- Nome: ${booking.invitee_name}\n- Email: ${booking.invitee_email}\n- Link para cancelar: ${booking.cancel_url}\n- Link para reagendar: ${booking.reschedule_url}\n\nInforme o cliente sobre a confirmação!`,
+              });
+            } else {
+              console.log(`[AI-AGENT] Booking failed: ${bookingResult.error}`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao criar agendamento: ${bookingResult.error}. Verifique se o horário ainda está disponível ou ofereça o link de agendamento manual.`,
+              });
+            }
           }
         }
       }
