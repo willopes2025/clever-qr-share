@@ -575,7 +575,7 @@ serve(async (req) => {
       greeting_message: agentConfig.greeting_message,
       fallback_message: agentConfig.fallback_message || 'Desculpe, não entendi. Pode reformular?',
       goodbye_message: agentConfig.goodbye_message,
-      max_interactions: agentConfig.max_interactions || 10,
+      max_interactions: agentConfig.max_interactions || 50,
       response_delay_min: agentConfig.response_delay_min || 3,
       response_delay_max: agentConfig.response_delay_max || 8,
       active_hours_start: agentConfig.active_hours_start || 8,

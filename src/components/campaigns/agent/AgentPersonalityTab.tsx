@@ -228,10 +228,13 @@ export const AgentPersonalityTab = ({
             <Input
               type="number"
               min={1}
-              max={100}
+              max={500}
               value={maxInteractions}
-              onChange={(e) => setMaxInteractions(parseInt(e.target.value) || 10)}
+              onChange={(e) => setMaxInteractions(parseInt(e.target.value) || 50)}
             />
+            <p className="text-xs text-muted-foreground">
+              Número máximo de trocas de mensagens antes de solicitar atendimento humano. Use 0 para ilimitado.
+            </p>
           </div>
         </div>
 
