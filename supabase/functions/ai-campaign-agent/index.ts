@@ -83,7 +83,7 @@ const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
     hour12: false,
   });
   const currentHour = parseInt(formatter.format(now));
-  return currentHour >= startHour && currentHour < endHour;
+  return currentHour >= startHour && currentHour <= endHour;
 };
 
 // Check if message contains handoff keywords
