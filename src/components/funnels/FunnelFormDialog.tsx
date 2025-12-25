@@ -14,7 +14,7 @@ import { useFunnels, Funnel } from "@/hooks/useFunnels";
 interface FunnelFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  funnel?: Funnel;
+  funnel?: { id: string; name: string; description?: string; color?: string };
 }
 
 const COLORS = [
