@@ -42,9 +42,8 @@ interface SearchRequest {
     optante?: boolean;
     excluir_optante?: boolean;
   };
+  matriz_filial?: "MATRIZ" | "FILIAL";
   mais_filtros?: {
-    somente_matriz?: boolean;
-    somente_filial?: boolean;
     com_email?: boolean;
     com_telefone?: boolean;
     somente_fixo?: boolean;
@@ -188,7 +187,17 @@ serve(async (req) => {
       }
     }
 
-    // Mais filtros (contact and matrix/branch options)
+    // Filtro Matriz/Filial - Campo separado no nível raiz (não dentro de mais_filtros)
+    if (filters.somente_matriz) {
+      searchBody.matriz_filial = "MATRIZ";
+      console.log('Aplicando filtro matriz_filial: MATRIZ');
+    }
+    if (filters.somente_filial) {
+      searchBody.matriz_filial = "FILIAL";
+      console.log('Aplicando filtro matriz_filial: FILIAL');
+    }
+
+    // Mais filtros (contact options only)
     const maisFilters: SearchRequest['mais_filtros'] = {};
     let hasMaisFilters = false;
 
@@ -206,14 +215,6 @@ serve(async (req) => {
     }
     if (filters.somente_celular) {
       maisFilters.somente_celular = true;
-      hasMaisFilters = true;
-    }
-    if (filters.somente_matriz) {
-      maisFilters.somente_matriz = true;
-      hasMaisFilters = true;
-    }
-    if (filters.somente_filial) {
-      maisFilters.somente_filial = true;
       hasMaisFilters = true;
     }
 
