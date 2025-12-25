@@ -30,6 +30,103 @@ const FREE_PLAN: PlanInfo = {
   maxMessages: 300 
 };
 
+// Helper to get subscription for a specific user
+async function getSubscriptionForUser(
+  supabaseClient: any, 
+  stripe: any, 
+  userId: string, 
+  userEmail: string
+): Promise<{
+  subscribed: boolean;
+  plan: string;
+  max_instances: number | null;
+  max_contacts: number | null;
+  max_messages: number | null;
+  subscription_end: string | null;
+}> {
+  // PRIMEIRO: Verificar se existe assinatura manual válida
+  const { data: existingSub } = await supabaseClient
+    .from("subscriptions")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+
+  // Se existe assinatura manual ativa, usar ela
+  if (existingSub?.manual_override && existingSub?.status === 'active') {
+    const periodEnd = existingSub.current_period_end 
+      ? new Date(existingSub.current_period_end) 
+      : null;
+    
+    // Verificar se não expirou
+    if (!periodEnd || periodEnd > new Date()) {
+      logStep("Using manual subscription override", { 
+        userId,
+        plan: existingSub.plan, 
+        periodEnd: existingSub.current_period_end 
+      });
+      
+      return {
+        subscribed: true,
+        plan: existingSub.plan,
+        max_instances: existingSub.max_instances,
+        max_contacts: existingSub.max_contacts,
+        max_messages: existingSub.max_messages,
+        subscription_end: existingSub.current_period_end,
+      };
+    } else {
+      // Assinatura manual expirou
+      logStep("Manual subscription expired for user", { userId });
+      await supabaseClient
+        .from("subscriptions")
+        .update({ manual_override: false, status: 'expired' })
+        .eq("user_id", userId);
+    }
+  }
+
+  // Verificar no Stripe
+  const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
+
+  if (customers.data.length === 0) {
+    logStep("No Stripe customer found for user", { userId, email: userEmail });
+    return {
+      subscribed: true,
+      plan: FREE_PLAN.plan,
+      max_instances: FREE_PLAN.maxInstances,
+      max_contacts: FREE_PLAN.maxContacts,
+      max_messages: FREE_PLAN.maxMessages,
+      subscription_end: null,
+    };
+  }
+
+  const customerId = customers.data[0].id;
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: "active",
+    limit: 1,
+  });
+
+  const hasActiveSub = subscriptions.data.length > 0;
+  let planInfo: PlanInfo = FREE_PLAN;
+  let subscriptionEnd = null;
+
+  if (hasActiveSub) {
+    const subscription = subscriptions.data[0];
+    subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
+    const productId = subscription.items.data[0].price.product as string;
+    planInfo = PRODUCT_TO_PLAN[productId as keyof typeof PRODUCT_TO_PLAN] || planInfo;
+    logStep("Active Stripe subscription found", { userId, productId, plan: planInfo.plan });
+  }
+
+  return {
+    subscribed: true,
+    plan: planInfo.plan,
+    max_instances: planInfo.maxInstances,
+    max_contacts: planInfo.maxContacts,
+    max_messages: planInfo.maxMessages,
+    subscription_end: subscriptionEnd,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -59,6 +156,62 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
+    // NOVA LÓGICA: Verificar se o usuário é membro de uma organização
+    const { data: member } = await supabaseClient
+      .from("team_members")
+      .select("organization_id, role, permissions")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .single();
+
+    if (member) {
+      logStep("User is a team member", { organizationId: member.organization_id });
+      
+      // Buscar o owner da organização
+      const { data: org } = await supabaseClient
+        .from("organizations")
+        .select("owner_id")
+        .eq("id", member.organization_id)
+        .single();
+
+      if (org && org.owner_id !== user.id) {
+        logStep("Getting subscription from organization owner", { ownerId: org.owner_id });
+        
+        // Buscar email do owner
+        const { data: ownerData } = await supabaseClient.auth.admin.getUserById(org.owner_id);
+        
+        if (ownerData?.user?.email) {
+          // Retornar a assinatura do owner
+          const ownerSubscription = await getSubscriptionForUser(
+            supabaseClient, 
+            stripe, 
+            org.owner_id, 
+            ownerData.user.email
+          );
+          
+          logStep("Returning owner subscription for member", { 
+            memberId: user.id, 
+            ownerId: org.owner_id,
+            plan: ownerSubscription.plan 
+          });
+          
+          return new Response(JSON.stringify({
+            ...ownerSubscription,
+            is_organization_member: true,
+            organization_id: member.organization_id,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+      }
+    }
+
+    // Usuário não é membro de organização ou é o próprio owner - verificar assinatura normal
+    logStep("Checking direct subscription for user");
+
     // PRIMEIRO: Verificar se existe assinatura manual válida
     const { data: existingSub } = await supabaseClient
       .from("subscriptions")
@@ -86,6 +239,7 @@ serve(async (req) => {
           max_contacts: existingSub.max_contacts,
           max_messages: existingSub.max_messages,
           subscription_end: existingSub.current_period_end,
+          is_organization_member: false,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
@@ -101,7 +255,6 @@ serve(async (req) => {
     }
 
     // Continuar com verificação do Stripe
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
 
     if (customers.data.length === 0) {
@@ -127,6 +280,7 @@ serve(async (req) => {
         max_contacts: FREE_PLAN.maxContacts,
         max_messages: FREE_PLAN.maxMessages,
         subscription_end: null,
+        is_organization_member: false,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -191,6 +345,7 @@ serve(async (req) => {
       max_contacts: planInfo.maxContacts,
       max_messages: planInfo.maxMessages,
       subscription_end: subscriptionEnd,
+      is_organization_member: false,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

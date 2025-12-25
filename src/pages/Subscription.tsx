@@ -166,15 +166,42 @@ const Subscription = () => {
   };
 
   const PlanIcon = planIcons[currentPlan as keyof typeof planIcons] || Zap;
+  const isOrgMember = subscription?.is_organization_member === true;
 
   return (
     <DashboardLayout className="p-8 cyber-grid">
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Assinatura</h1>
         <p className="text-muted-foreground">
-          Gerencie seu plano e visualize o histórico de faturas
+          {isOrgMember 
+            ? 'Você está utilizando a assinatura da sua organização'
+            : 'Gerencie seu plano e visualize o histórico de faturas'
+          }
         </p>
       </div>
+
+      {/* Organization Member Banner */}
+      {isOrgMember && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <Card className="glass-card border-primary/30 bg-primary/5">
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                <Crown className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium">Assinatura da Organização</p>
+                <p className="text-sm text-muted-foreground">
+                  Você tem acesso aos benefícios do plano <span className="font-semibold text-primary">{PLANS[currentPlan as keyof typeof PLANS]?.name || currentPlan}</span> através da sua organização.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6 mb-8">
         {/* Current Plan Card */}
@@ -249,81 +276,92 @@ const Subscription = () => {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-wrap gap-3 pt-4">
-                    {isSubscribed && (
-                      <>
-                        {/* Trocar Plano */}
-                        <Button 
-                          onClick={() => openPortalWithFlow('update_plan')} 
-                          variant="outline" 
-                          className="neon-border"
-                          disabled={portalLoading === 'update_plan'}
-                        >
-                          {portalLoading === 'update_plan' ? (
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <ArrowLeftRight className="h-4 w-4 mr-2" />
-                          )}
-                          Trocar Plano
-                        </Button>
-                        
-                        {/* Atualizar Cartão */}
-                        <Button 
-                          onClick={() => openPortalWithFlow('payment_method')} 
-                          variant="outline"
-                          disabled={portalLoading === 'payment_method'}
-                        >
-                          {portalLoading === 'payment_method' ? (
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <CreditCard className="h-4 w-4 mr-2" />
-                          )}
-                          Atualizar Cartão
-                        </Button>
-                        
-                        {/* Cancelar Assinatura */}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              disabled={portalLoading === 'cancel'}
-                            >
-                              {portalLoading === 'cancel' ? (
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                              ) : (
-                                <X className="h-4 w-4 mr-2" />
-                              )}
-                              Cancelar Assinatura
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Sua assinatura continuará ativa até o final do período atual 
-                                ({subscription?.subscription_end ? format(new Date(subscription.subscription_end), "dd/MM/yyyy") : 'data de renovação'}). 
-                                Após isso, você será movido para o plano gratuito com limites reduzidos.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Voltar</AlertDialogCancel>
-                              <AlertDialogAction 
-                                onClick={() => openPortalWithFlow('cancel')}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  {/* Actions - Ocultar para membros de organização */}
+                  {!isOrgMember && (
+                    <div className="flex flex-wrap gap-3 pt-4">
+                      {isSubscribed && (
+                        <>
+                          {/* Trocar Plano */}
+                          <Button 
+                            onClick={() => openPortalWithFlow('update_plan')} 
+                            variant="outline" 
+                            className="neon-border"
+                            disabled={portalLoading === 'update_plan'}
+                          >
+                            {portalLoading === 'update_plan' ? (
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <ArrowLeftRight className="h-4 w-4 mr-2" />
+                            )}
+                            Trocar Plano
+                          </Button>
+                          
+                          {/* Atualizar Cartão */}
+                          <Button 
+                            onClick={() => openPortalWithFlow('payment_method')} 
+                            variant="outline"
+                            disabled={portalLoading === 'payment_method'}
+                          >
+                            {portalLoading === 'payment_method' ? (
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <CreditCard className="h-4 w-4 mr-2" />
+                            )}
+                            Atualizar Cartão
+                          </Button>
+                          
+                          {/* Cancelar Assinatura */}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={portalLoading === 'cancel'}
                               >
-                                Sim, cancelar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </>
-                    )}
-                    <Button onClick={() => checkSubscription()} variant="ghost" size="icon">
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
+                                {portalLoading === 'cancel' ? (
+                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <X className="h-4 w-4 mr-2" />
+                                )}
+                                Cancelar Assinatura
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Sua assinatura continuará ativa até o final do período atual 
+                                  ({subscription?.subscription_end ? format(new Date(subscription.subscription_end), "dd/MM/yyyy") : 'data de renovação'}). 
+                                  Após isso, você será movido para o plano gratuito com limites reduzidos.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Voltar</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => openPortalWithFlow('cancel')}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Sim, cancelar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      )}
+                      <Button onClick={() => checkSubscription()} variant="ghost" size="icon">
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Mensagem para membros de organização */}
+                  {isOrgMember && (
+                    <div className="pt-4 border-t border-border/50">
+                      <p className="text-sm text-muted-foreground text-center">
+                        O gerenciamento da assinatura é feito pelo proprietário da organização
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -366,8 +404,8 @@ const Subscription = () => {
         </motion.div>
       </div>
 
-      {/* Upgrade Options */}
-      {currentPlan !== 'business' && (
+      {/* Upgrade Options - Ocultar para membros de organização */}
+      {currentPlan !== 'business' && !isOrgMember && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

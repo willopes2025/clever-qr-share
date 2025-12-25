@@ -10,6 +10,8 @@ export interface SubscriptionInfo {
   max_contacts: number | null;
   max_messages: number | null;
   subscription_end: string | null;
+  is_organization_member?: boolean;
+  organization_id?: string;
 }
 
 // Plan configuration with Stripe IDs
