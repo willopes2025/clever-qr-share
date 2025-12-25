@@ -92,10 +92,10 @@ serve(async (req) => {
       });
     }
 
-    // Get instance from database to find user_id
+    // Get instance from database to find user_id and default_funnel_id
     const { data: instanceData, error: instanceError } = await supabase
       .from('whatsapp_instances')
-      .select('id, user_id')
+      .select('id, user_id, default_funnel_id')
       .eq('instance_name', instance)
       .single();
 
@@ -115,9 +115,11 @@ serve(async (req) => {
     // Handle different event types - check multiple formats
     const eventLower = event?.toLowerCase() || '';
     
+    const defaultFunnelId = instanceData.default_funnel_id;
+    
     if (eventLower === 'messages.upsert' || eventLower === 'messages_upsert') {
       console.log('>>> Handling MESSAGES.UPSERT event');
-      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey, supabaseUrl, supabaseServiceKey);
+      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey, supabaseUrl, supabaseServiceKey, defaultFunnelId);
     } else if (eventLower === 'messages.update' || eventLower === 'messages_update') {
       console.log('>>> Handling MESSAGES.UPDATE event');
       await handleMessagesUpdate(supabase, data);
@@ -126,7 +128,7 @@ serve(async (req) => {
       await handleConnectionUpdate(supabase, instanceId, data);
     } else if (eventLower === 'send.message' || eventLower === 'send_message') {
       console.log('>>> Handling SEND.MESSAGE event');
-      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey, supabaseUrl, supabaseServiceKey);
+      await handleMessagesUpsert(supabase, userId, instanceId, data, instance, evolutionApiUrl, evolutionApiKey, supabaseUrl, supabaseServiceKey, defaultFunnelId);
     } else {
       console.log(`Unhandled event type: ${event} (normalized: ${eventLower})`);
     }
@@ -345,7 +347,7 @@ async function handleCalendlyWebhook(supabase: any, payload: any) {
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any, instanceName: string, evolutionApiUrl: string, evolutionApiKey: string, supabaseUrl: string, supabaseServiceKey: string) {
+async function handleMessagesUpsert(supabase: any, userId: string, instanceId: string, data: any, instanceName: string, evolutionApiUrl: string, evolutionApiKey: string, supabaseUrl: string, supabaseServiceKey: string, defaultFunnelId: string | null) {
   console.log('handleMessagesUpsert called with data:', JSON.stringify(data, null, 2));
   
   const messages = data.messages || data.message ? [data] : [];
@@ -702,6 +704,11 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       }
       conversation = newConversation;
       console.log('Created new conversation:', conversation?.id);
+      
+      // Auto-create deal if instance has default funnel and is incoming message
+      if (defaultFunnelId && !isFromMe && conversation) {
+        await createDealFromNewConversation(supabase, userId, defaultFunnelId, contact.id, conversation.id, contact.name || phone);
+      }
     } else {
       // Update conversation
       // deno-lint-ignore no-explicit-any
@@ -765,14 +772,14 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, content || preview);
         
         // Check if conversation has AI agent enabled and trigger response
-        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, content || preview, instanceName);
+        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, content || preview, instanceName, instanceId);
       }
     }
   }
 }
 
-// Trigger AI agent for campaign conversations
-async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: string, conversationId: string, messageContent: string, instanceName: string) {
+// Trigger AI agent for campaign or funnel conversations
+async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: string, conversationId: string, messageContent: string, instanceName: string, instanceId: string) {
   try {
     console.log(`[AI-TRIGGER] Checking if AI agent should respond for conversation ${conversationId}`);
     
@@ -787,6 +794,7 @@ async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: 
         conversationId,
         messageContent,
         instanceName,
+        instanceId, // Added to allow fetching funnel-based AI config
       }),
     });
 
@@ -795,6 +803,73 @@ async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: 
     
   } catch (error) {
     console.error('[AI-TRIGGER] Error calling AI agent:', error);
+  }
+}
+
+// Create a deal in the funnel when a new conversation is created
+// deno-lint-ignore no-explicit-any
+async function createDealFromNewConversation(supabase: any, userId: string, funnelId: string, contactId: string, conversationId: string, contactName: string) {
+  try {
+    console.log(`[FUNNEL-DEAL] Creating deal for conversation ${conversationId} in funnel ${funnelId}`);
+    
+    // Check if deal already exists for this contact in this funnel
+    const { data: existingDeal } = await supabase
+      .from('funnel_deals')
+      .select('id')
+      .eq('contact_id', contactId)
+      .eq('funnel_id', funnelId)
+      .limit(1)
+      .single();
+    
+    if (existingDeal) {
+      console.log(`[FUNNEL-DEAL] Deal already exists for contact in this funnel: ${existingDeal.id}`);
+      // Update the conversation_id on the existing deal if not set
+      await supabase
+        .from('funnel_deals')
+        .update({ conversation_id: conversationId })
+        .eq('id', existingDeal.id)
+        .is('conversation_id', null);
+      return;
+    }
+    
+    // Get first stage of the funnel
+    const { data: firstStage, error: stageError } = await supabase
+      .from('funnel_stages')
+      .select('id')
+      .eq('funnel_id', funnelId)
+      .order('display_order', { ascending: true })
+      .limit(1)
+      .single();
+    
+    if (stageError || !firstStage) {
+      console.error('[FUNNEL-DEAL] Could not find first stage:', stageError);
+      return;
+    }
+    
+    // Create the deal
+    const { data: newDeal, error: dealError } = await supabase
+      .from('funnel_deals')
+      .insert({
+        user_id: userId,
+        funnel_id: funnelId,
+        stage_id: firstStage.id,
+        contact_id: contactId,
+        conversation_id: conversationId,
+        title: `Lead - ${contactName}`,
+        value: 0,
+        source: 'whatsapp',
+      })
+      .select('id')
+      .single();
+    
+    if (dealError) {
+      console.error('[FUNNEL-DEAL] Error creating deal:', dealError);
+    } else {
+      console.log(`[FUNNEL-DEAL] Deal created successfully: ${newDeal?.id}`);
+    }
+    
+  } catch (error) {
+    console.error('[FUNNEL-DEAL] Error in createDealFromNewConversation:', error);
   }
 }
 

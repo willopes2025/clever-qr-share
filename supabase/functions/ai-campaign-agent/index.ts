@@ -295,19 +295,19 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { conversationId, messageContent, instanceName } = await req.json();
+    const { conversationId, messageContent, instanceName, instanceId } = await req.json();
 
     if (!conversationId || !messageContent) {
       throw new Error('conversationId and messageContent are required');
     }
 
-    console.log(`[AI-AGENT] Processing message for conversation ${conversationId}`);
+    console.log(`[AI-AGENT] Processing message for conversation ${conversationId}, instanceId: ${instanceId}`);
 
     // Fetch conversation with campaign info
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select(`
-        id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested,
+        id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested, instance_id,
         contacts!inner(id, phone, name),
         campaigns(id, name, ai_enabled)
       `)
@@ -322,43 +322,83 @@ serve(async (req) => {
       );
     }
 
-    // Check if AI should respond
+    // Get campaign and check for AI config
     // deno-lint-ignore no-explicit-any
     const campaigns = conversation.campaigns as any;
     const campaign = Array.isArray(campaigns) ? campaigns[0] : campaigns;
     
-    if (!campaign || !campaign.ai_enabled) {
-      console.log('[AI-AGENT] AI not enabled for this campaign');
+    // First try: get agent config from campaign
+    let agentConfig = null;
+    let funnelId: string | null = null;
+    
+    if (campaign?.id && campaign.ai_enabled) {
+      console.log('[AI-AGENT] Looking for agent config by campaign_id:', campaign.id);
+      const { data: campaignConfig } = await supabase
+        .from('ai_agent_configs')
+        .select('*')
+        .eq('campaign_id', campaign.id)
+        .eq('is_active', true)
+        .single();
+      
+      agentConfig = campaignConfig;
+    }
+    
+    // Second try: get agent config from instance's default funnel
+    if (!agentConfig) {
+      const effectiveInstanceId = instanceId || conversation.instance_id;
+      if (effectiveInstanceId) {
+        console.log('[AI-AGENT] No campaign config, checking instance funnel:', effectiveInstanceId);
+        
+        const { data: instance } = await supabase
+          .from('whatsapp_instances')
+          .select('default_funnel_id')
+          .eq('id', effectiveInstanceId)
+          .single();
+        
+        if (instance?.default_funnel_id) {
+          funnelId = instance.default_funnel_id;
+          console.log('[AI-AGENT] Found default funnel:', funnelId);
+          
+          const { data: funnelConfig } = await supabase
+            .from('ai_agent_configs')
+            .select('*')
+            .eq('funnel_id', funnelId)
+            .eq('is_active', true)
+            .single();
+          
+          agentConfig = funnelConfig;
+          if (agentConfig) {
+            console.log('[AI-AGENT] Found agent config via funnel:', agentConfig.id);
+          }
+        }
+      }
+    }
+    
+    // If no agent config found, AI is not enabled
+    if (!agentConfig) {
+      console.log('[AI-AGENT] No active AI agent config found');
       return new Response(
         JSON.stringify({ success: false, reason: 'AI not enabled' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch agent config for this campaign
-    const { data: agentConfig } = await supabase
-      .from('ai_agent_configs')
-      .select('*')
-      .eq('campaign_id', campaign.id)
-      .eq('is_active', true)
-      .single();
-
-    // Use agent config or fallback to campaign defaults
-    const config: AgentConfig = agentConfig || {
-      id: '',
-      agent_name: 'Assistente',
-      personality_prompt: null,
-      behavior_rules: null,
-      greeting_message: null,
-      fallback_message: 'Desculpe, não entendi. Pode reformular?',
-      goodbye_message: null,
-      max_interactions: 10,
-      response_delay_min: 3,
-      response_delay_max: 8,
-      active_hours_start: 8,
-      active_hours_end: 20,
-      handoff_keywords: ['atendente', 'humano', 'pessoa', 'falar com alguém'],
-      is_active: true,
+    // Use the agent config we found
+    const config: AgentConfig = {
+      id: agentConfig.id,
+      agent_name: agentConfig.agent_name || 'Assistente',
+      personality_prompt: agentConfig.personality_prompt,
+      behavior_rules: agentConfig.behavior_rules,
+      greeting_message: agentConfig.greeting_message,
+      fallback_message: agentConfig.fallback_message || 'Desculpe, não entendi. Pode reformular?',
+      goodbye_message: agentConfig.goodbye_message,
+      max_interactions: agentConfig.max_interactions || 10,
+      response_delay_min: agentConfig.response_delay_min || 3,
+      response_delay_max: agentConfig.response_delay_max || 8,
+      active_hours_start: agentConfig.active_hours_start || 8,
+      active_hours_end: agentConfig.active_hours_end || 20,
+      handoff_keywords: agentConfig.handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'],
+      is_active: agentConfig.is_active ?? true,
     };
 
     if (conversation.ai_paused) {
