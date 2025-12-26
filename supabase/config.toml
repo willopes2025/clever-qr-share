@@ -95,3 +95,6 @@ verify_jwt = true
 
 [functions.calendly-integration]
 verify_jwt = false
+
+[functions.elevenlabs-tts]
+verify_jwt = false

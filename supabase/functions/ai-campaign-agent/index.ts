@@ -26,6 +26,8 @@ interface AgentConfig {
   active_hours_end: number;
   handoff_keywords: string[];
   is_active: boolean;
+  response_mode: 'text' | 'audio' | 'both';
+  voice_id: string | null;
 }
 
 interface KnowledgeItem {
@@ -612,6 +614,8 @@ serve(async (req) => {
       active_hours_end: agentConfig.active_hours_end || 20,
       handoff_keywords: agentConfig.handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'],
       is_active: agentConfig.is_active ?? true,
+      response_mode: agentConfig.response_mode || 'text',
+      voice_id: agentConfig.voice_id || 'EXAVITQu4vr4xnSDxMaL',
     };
 
     // Skip pause and handoff checks for manual trigger
@@ -1321,21 +1325,91 @@ ${mapeamento}
     let phone = (contactData?.phone || '').replace(/\D/g, '');
     if (!phone.startsWith('55')) phone = '55' + phone;
 
-    const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
-      },
-      body: JSON.stringify({ number: phone, text: aiMessage }),
-    });
+    let textMessageId: string | null = null;
+    let audioMessageId: string | null = null;
+    let audioUrl: string | null = null;
 
-    const sendResult = await sendResponse.json();
-    console.log('[AI-AGENT] Evolution API response:', sendResult);
+    // Send text message if response_mode is 'text' or 'both'
+    if (config.response_mode === 'text' || config.response_mode === 'both') {
+      console.log('[AI-AGENT] Sending text message...');
+      const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evolutionApiKey,
+        },
+        body: JSON.stringify({ number: phone, text: aiMessage }),
+      });
 
-    if (!sendResponse.ok || !sendResult.key) {
-      console.error('[AI-AGENT] Failed to send message');
-      throw new Error('Failed to send message via Evolution API');
+      const sendResult = await sendResponse.json();
+      console.log('[AI-AGENT] Evolution API text response:', sendResult);
+
+      if (!sendResponse.ok || !sendResult.key) {
+        console.error('[AI-AGENT] Failed to send text message');
+        throw new Error('Failed to send text message via Evolution API');
+      }
+      
+      textMessageId = sendResult.key?.id || null;
+    }
+
+    // Send audio message if response_mode is 'audio' or 'both'
+    if (config.response_mode === 'audio' || config.response_mode === 'both') {
+      console.log('[AI-AGENT] Converting text to speech via ElevenLabs...');
+      
+      try {
+        // Call TTS edge function
+        const ttsResponse = await fetch(`${supabaseUrl}/functions/v1/elevenlabs-tts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            text: aiMessage,
+            voiceId: config.voice_id || 'EXAVITQu4vr4xnSDxMaL',
+          }),
+        });
+
+        const ttsResult = await ttsResponse.json();
+        console.log('[AI-AGENT] TTS response:', ttsResult);
+
+        if (ttsResult.success && ttsResult.audioUrl) {
+          audioUrl = ttsResult.audioUrl;
+          
+          // Send audio via Evolution API
+          console.log('[AI-AGENT] Sending audio message...');
+          const sendAudioResponse = await fetch(`${evolutionApiUrl}/message/sendWhatsAppAudio/${instanceName}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey,
+            },
+            body: JSON.stringify({
+              number: phone,
+              audio: audioUrl,
+            }),
+          });
+
+          const sendAudioResult = await sendAudioResponse.json();
+          console.log('[AI-AGENT] Evolution API audio response:', sendAudioResult);
+
+          if (sendAudioResponse.ok && sendAudioResult.key) {
+            audioMessageId = sendAudioResult.key?.id || null;
+          } else {
+            console.error('[AI-AGENT] Failed to send audio, but continuing...');
+          }
+        } else {
+          console.error('[AI-AGENT] TTS conversion failed:', ttsResult.error);
+        }
+      } catch (ttsError) {
+        console.error('[AI-AGENT] TTS error:', ttsError);
+        // Don't fail the whole request if TTS fails
+      }
+    }
+
+    // Verify at least one message was sent
+    if (!textMessageId && !audioMessageId) {
+      throw new Error('Failed to send any message via Evolution API');
     }
 
     // Update conversation AI counters
@@ -1347,19 +1421,38 @@ ${mapeamento}
       })
       .eq('id', conversationId);
 
-    // Save AI message to inbox
-    await supabase
-      .from('inbox_messages')
-      .insert({
-        user_id: conversation.user_id,
-        conversation_id: conversationId,
-        content: aiMessage,
-        direction: 'outbound',
-        status: 'sent',
-        message_type: 'text',
-        whatsapp_message_id: sendResult.key?.id || null,
-        sent_at: new Date().toISOString(),
-      });
+    // Save text message to inbox if sent
+    if (textMessageId || config.response_mode === 'text') {
+      await supabase
+        .from('inbox_messages')
+        .insert({
+          user_id: conversation.user_id,
+          conversation_id: conversationId,
+          content: aiMessage,
+          direction: 'outbound',
+          status: 'sent',
+          message_type: 'text',
+          whatsapp_message_id: textMessageId,
+          sent_at: new Date().toISOString(),
+        });
+    }
+
+    // Save audio message to inbox if sent
+    if (audioMessageId && audioUrl) {
+      await supabase
+        .from('inbox_messages')
+        .insert({
+          user_id: conversation.user_id,
+          conversation_id: conversationId,
+          content: aiMessage, // Store transcription as content
+          direction: 'outbound',
+          status: 'sent',
+          message_type: 'audio',
+          media_url: audioUrl,
+          whatsapp_message_id: audioMessageId,
+          sent_at: new Date().toISOString(),
+        });
+    }
 
     // Update conversation last message
     await supabase

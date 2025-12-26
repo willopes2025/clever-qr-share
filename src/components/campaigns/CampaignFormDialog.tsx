@@ -96,6 +96,8 @@ export const CampaignFormDialog = ({
   const [aiHandoffKeywords, setAiHandoffKeywords] = useState<string[]>(DEFAULT_HANDOFF_KEYWORDS);
   const [aiActiveHoursStart, setAiActiveHoursStart] = useState(8);
   const [aiActiveHoursEnd, setAiActiveHoursEnd] = useState(20);
+  const [responseMode, setResponseMode] = useState<'text' | 'audio' | 'both'>('text');
+  const [voiceId, setVoiceId] = useState('EXAVITQu4vr4xnSDxMaL');
   
   // Temporary agent config ID for new campaigns
   const [tempAgentConfigId, setTempAgentConfigId] = useState<string | null>(null);
@@ -560,6 +562,10 @@ export const CampaignFormDialog = ({
                       setActiveHoursEnd={setAiActiveHoursEnd}
                       handoffKeywords={aiHandoffKeywords}
                       setHandoffKeywords={setAiHandoffKeywords}
+                      responseMode={responseMode}
+                      setResponseMode={setResponseMode}
+                      voiceId={voiceId}
+                      setVoiceId={setVoiceId}
                     />
                   </TabsContent>
 

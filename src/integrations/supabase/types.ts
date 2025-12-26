@@ -33,8 +33,10 @@ export type Database = {
           personality_prompt: string | null
           response_delay_max: number | null
           response_delay_min: number | null
+          response_mode: string | null
           updated_at: string | null
           user_id: string
+          voice_id: string | null
         }
         Insert: {
           active_hours_end?: number | null
@@ -54,8 +56,10 @@ export type Database = {
           personality_prompt?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
+          response_mode?: string | null
           updated_at?: string | null
           user_id: string
+          voice_id?: string | null
         }
         Update: {
           active_hours_end?: number | null
@@ -75,8 +79,10 @@ export type Database = {
           personality_prompt?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
+          response_mode?: string | null
           updated_at?: string | null
           user_id?: string
+          voice_id?: string | null
         }
         Relationships: [
           {
