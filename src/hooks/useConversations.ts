@@ -57,10 +57,53 @@ export const useConversations = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id],
+  // Check if current user has funnel restrictions
+  const { data: hasFunnelRestriction } = useQuery({
+    queryKey: ['has-funnel-restriction', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
+        .rpc('member_has_funnel_restriction', { _user_id: user!.id });
+      
+      if (error) throw error;
+      return data as boolean;
+    },
+    enabled: !!user,
+  });
+
+  // Get member's funnel IDs
+  const { data: memberFunnelIds } = useQuery({
+    queryKey: ['my-funnel-ids', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc('get_member_funnel_ids', { _user_id: user!.id });
+      
+      if (error) throw error;
+      return data as string[];
+    },
+    enabled: !!user && hasFunnelRestriction === true,
+  });
+
+  // Get allowed instance IDs based on member's funnels
+  const { data: allowedInstanceIds } = useQuery({
+    queryKey: ['allowed-instance-ids', memberFunnelIds],
+    queryFn: async () => {
+      if (!memberFunnelIds || memberFunnelIds.length === 0) return null;
+      
+      const { data, error } = await supabase
+        .from('whatsapp_instances')
+        .select('id')
+        .in('default_funnel_id', memberFunnelIds);
+      
+      if (error) throw error;
+      return data?.map(instance => instance.id) || [];
+    },
+    enabled: !!memberFunnelIds && memberFunnelIds.length > 0,
+  });
+
+  const { data: conversations, isLoading, refetch } = useQuery({
+    queryKey: ['conversations', user?.id, allowedInstanceIds, hasFunnelRestriction],
+    queryFn: async () => {
+      let query = supabase
         .from('conversations')
         .select(`
           *,
@@ -70,10 +113,22 @@ export const useConversations = () => {
         .order('is_pinned', { ascending: false })
         .order('last_message_at', { ascending: false });
 
+      // Filter by instance IDs if member has funnel restrictions
+      if (hasFunnelRestriction && allowedInstanceIds !== undefined) {
+        if (allowedInstanceIds.length > 0) {
+          query = query.in('instance_id', allowedInstanceIds);
+        } else {
+          // Member has funnel restrictions but no instances match - return empty
+          return [];
+        }
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
       return data as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
-    enabled: !!user,
+    enabled: !!user && (hasFunnelRestriction === false || allowedInstanceIds !== undefined),
   });
 
   const createConversation = useMutation({
@@ -119,6 +174,7 @@ export const useConversations = () => {
     refetch,
     createConversation,
     markAsRead,
+    hasFunnelRestriction,
   };
 };
 

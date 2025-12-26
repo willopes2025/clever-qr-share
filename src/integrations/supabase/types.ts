@@ -1848,6 +1848,42 @@ export type Database = {
         }
         Relationships: []
       }
+      team_member_funnels: {
+        Row: {
+          created_at: string | null
+          funnel_id: string
+          id: string
+          team_member_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          funnel_id: string
+          id?: string
+          team_member_id: string
+        }
+        Update: {
+          created_at?: string | null
+          funnel_id?: string
+          id?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_funnels_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_member_funnels_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           created_at: string | null
@@ -2275,6 +2311,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_member_funnel_ids: { Args: { _user_id: string }; Returns: string[] }
       get_organization_member_ids: {
         Args: { _user_id: string }
         Returns: string[]
@@ -2290,6 +2327,10 @@ export type Database = {
       }
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
+      member_has_funnel_restriction: {
+        Args: { _user_id: string }
         Returns: boolean
       }
       user_belongs_to_org: {
