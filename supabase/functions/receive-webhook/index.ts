@@ -821,16 +821,17 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, effectiveContent);
         
         // Check if conversation has AI agent enabled and trigger response with transcription
-        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, effectiveContent, instanceName, instanceId);
+        // Pass the message type so AI can mirror the format (text vs audio)
+        await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, effectiveContent, instanceName, instanceId, messageType);
       }
     }
   }
 }
 
 // Trigger AI agent for campaign or funnel conversations
-async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: string, conversationId: string, messageContent: string, instanceName: string, instanceId: string) {
+async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: string, conversationId: string, messageContent: string, instanceName: string, instanceId: string, incomingMessageType: string = 'text') {
   try {
-    console.log(`[AI-TRIGGER] Checking if AI agent should respond for conversation ${conversationId}`);
+    console.log(`[AI-TRIGGER] Checking if AI agent should respond for conversation ${conversationId}, messageType: ${incomingMessageType}`);
     
     // Call the AI agent edge function
     const response = await fetch(`${supabaseUrl}/functions/v1/ai-campaign-agent`, {
@@ -843,7 +844,8 @@ async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: 
         conversationId,
         messageContent,
         instanceName,
-        instanceId, // Added to allow fetching funnel-based AI config
+        instanceId,
+        incomingMessageType, // Pass the type of the incoming message for adaptive response
       }),
     });
 

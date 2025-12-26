@@ -26,7 +26,7 @@ interface AgentConfig {
   active_hours_end: number;
   handoff_keywords: string[];
   is_active: boolean;
-  response_mode: 'text' | 'audio' | 'both';
+  response_mode: 'text' | 'audio' | 'both' | 'adaptive';
   voice_id: string | null;
 }
 
@@ -92,6 +92,61 @@ const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
 const containsHandoffKeyword = (message: string, keywords: string[]): boolean => {
   const lowerMessage = message.toLowerCase();
   return keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()));
+};
+
+// Detect explicit format preference from message
+const detectFormatPreference = (message: string): 'text' | 'audio' | null => {
+  const lower = message.toLowerCase();
+  
+  const audioKeywords = [
+    'responde por áudio', 'responda por áudio', 'manda áudio', 
+    'envia áudio', 'quero áudio', 'prefiro áudio', 'me manda audio',
+    'responde em audio', 'fala comigo', 'manda audio', 'envia audio',
+    'quero audio', 'prefiro audio', 'responde por audio', 'responda por audio',
+    'manda um áudio', 'manda um audio', 'me envia audio', 'me envia áudio'
+  ];
+  
+  const textKeywords = [
+    'responde por texto', 'responda por texto', 'manda texto',
+    'prefiro texto', 'quero texto', 'escreve', 'digita',
+    'responde escrito', 'não manda áudio', 'sem áudio', 'sem audio',
+    'não manda audio', 'só texto', 'so texto', 'apenas texto'
+  ];
+  
+  if (audioKeywords.some(k => lower.includes(k))) return 'audio';
+  if (textKeywords.some(k => lower.includes(k))) return 'text';
+  return null;
+};
+
+// Determine response format based on adaptive logic
+const determineResponseFormat = (
+  incomingType: string,
+  preferredFormat: string | null,
+  requestedFormat: 'text' | 'audio' | null,
+  configMode: string
+): 'text' | 'audio' => {
+  // If config is set to a specific mode (not adaptive), use it
+  if (configMode === 'text') return 'text';
+  if (configMode === 'audio') return 'audio';
+  if (configMode === 'both') return 'text'; // For 'both' mode, we handle sending both separately
+  
+  // 1. Priority: client explicitly requested NOW
+  if (requestedFormat) {
+    return requestedFormat;
+  }
+  
+  // 2. Second priority: saved preference from previous request
+  if (preferredFormat === 'text' || preferredFormat === 'audio') {
+    return preferredFormat;
+  }
+  
+  // 3. Third priority: mirror incoming message format
+  if (incomingType === 'audio' || incomingType === 'voice' || incomingType === 'ptt') {
+    return 'audio';
+  }
+  
+  // 4. Default: text
+  return 'text';
 };
 
 // Get random delay for response
@@ -429,7 +484,9 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { conversationId, messageContent, instanceName: providedInstanceName, instanceId, manualTrigger } = await req.json();
+    const { conversationId, messageContent, instanceName: providedInstanceName, instanceId, manualTrigger, incomingMessageType = 'text' } = await req.json();
+    
+    console.log(`[AI-AGENT] Incoming message type: ${incomingMessageType}`);
 
     // For manual trigger, we need to fetch the last inbound message
     let effectiveMessageContent = messageContent;
@@ -467,11 +524,11 @@ serve(async (req) => {
 
     console.log(`[AI-AGENT] Processing message for conversation ${conversationId}, instanceId: ${instanceId}`);
 
-    // Fetch conversation with campaign info
+    // Fetch conversation with campaign info and preferred format
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select(`
-        id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested, instance_id,
+        id, user_id, contact_id, campaign_id, ai_handled, ai_interactions_count, ai_paused, ai_handoff_requested, instance_id, preferred_response_format,
         contacts!inner(id, phone, name),
         campaigns(id, name, ai_enabled)
       `)
@@ -1329,8 +1386,40 @@ ${mapeamento}
     let audioMessageId: string | null = null;
     let audioUrl: string | null = null;
 
-    // Send text message if response_mode is 'text' or 'both'
-    if (config.response_mode === 'text' || config.response_mode === 'both') {
+    // Detect if client explicitly requested a format change
+    const requestedFormat = detectFormatPreference(effectiveMessageContent);
+    const preferredFormat = conversation.preferred_response_format;
+    
+    // Determine response format using adaptive logic
+    // For 'both' mode, we send both regardless
+    const adaptiveFormat = determineResponseFormat(
+      incomingMessageType,
+      preferredFormat,
+      requestedFormat,
+      config.response_mode
+    );
+    
+    console.log(`[AI-AGENT] Response format decision: incoming=${incomingMessageType}, preferred=${preferredFormat}, requested=${requestedFormat}, config=${config.response_mode}, final=${adaptiveFormat}`);
+
+    // Save preference if client explicitly requested a format change
+    if (requestedFormat && requestedFormat !== preferredFormat) {
+      console.log(`[AI-AGENT] Saving client format preference: ${requestedFormat}`);
+      await supabase
+        .from('conversations')
+        .update({ preferred_response_format: requestedFormat })
+        .eq('id', conversationId);
+    }
+
+    // Determine what to send based on config mode and adaptive format
+    const shouldSendText = config.response_mode === 'both' || 
+                           config.response_mode === 'text' || 
+                           (config.response_mode !== 'audio' && adaptiveFormat === 'text');
+    const shouldSendAudio = config.response_mode === 'both' || 
+                            config.response_mode === 'audio' || 
+                            adaptiveFormat === 'audio';
+
+    // Send text message if needed
+    if (shouldSendText && adaptiveFormat === 'text') {
       console.log('[AI-AGENT] Sending text message...');
       const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
         method: 'POST',
@@ -1352,8 +1441,8 @@ ${mapeamento}
       textMessageId = sendResult.key?.id || null;
     }
 
-    // Send audio message if response_mode is 'audio' or 'both'
-    if (config.response_mode === 'audio' || config.response_mode === 'both') {
+    // Send audio message if adaptive format says audio OR config is 'both' or 'audio'
+    if (shouldSendAudio && (adaptiveFormat === 'audio' || config.response_mode === 'both')) {
       console.log('[AI-AGENT] Converting text to speech via ElevenLabs...');
       
       try {
@@ -1404,6 +1493,24 @@ ${mapeamento}
       } catch (ttsError) {
         console.error('[AI-AGENT] TTS error:', ttsError);
         // Don't fail the whole request if TTS fails
+      }
+    }
+
+    // If config is 'both', also send text message
+    if (config.response_mode === 'both' && !textMessageId) {
+      console.log('[AI-AGENT] Config is "both", also sending text message...');
+      const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evolutionApiKey,
+        },
+        body: JSON.stringify({ number: phone, text: aiMessage }),
+      });
+
+      const sendResult = await sendResponse.json();
+      if (sendResponse.ok && sendResult.key) {
+        textMessageId = sendResult.key?.id || null;
       }
     }
 

@@ -29,8 +29,8 @@ interface AgentPersonalityTabProps {
   setActiveHoursEnd: (value: number) => void;
   handoffKeywords: string[];
   setHandoffKeywords: (value: string[]) => void;
-  responseMode: 'text' | 'audio' | 'both';
-  setResponseMode: (value: 'text' | 'audio' | 'both') => void;
+  responseMode: 'text' | 'audio' | 'both' | 'adaptive';
+  setResponseMode: (value: 'text' | 'audio' | 'both' | 'adaptive') => void;
   voiceId: string;
   setVoiceId: (value: string) => void;
 }
@@ -199,19 +199,20 @@ export const AgentPersonalityTab = ({
             <Label>Modo de Resposta</Label>
             <Select 
               value={responseMode} 
-              onValueChange={(v) => setResponseMode(v as 'text' | 'audio' | 'both')}
+              onValueChange={(v) => setResponseMode(v as 'text' | 'audio' | 'both' | 'adaptive')}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o modo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="text">📝 Apenas Texto</SelectItem>
-                <SelectItem value="audio">🎵 Apenas Áudio</SelectItem>
+                <SelectItem value="adaptive">🔄 Adaptativo (espelha cliente)</SelectItem>
+                <SelectItem value="text">📝 Sempre Texto</SelectItem>
+                <SelectItem value="audio">🎵 Sempre Áudio</SelectItem>
                 <SelectItem value="both">📝🎵 Texto + Áudio</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Escolha como o agente irá responder
+              Adaptativo: responde no mesmo formato que o cliente enviou
             </p>
           </div>
 
