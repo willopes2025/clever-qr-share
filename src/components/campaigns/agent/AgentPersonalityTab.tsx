@@ -1,8 +1,10 @@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bot, MessageSquare, AlertCircle, Smile, Volume2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Bot, MessageSquare, AlertCircle, Smile, Volume2, Play, Square, Loader2, RefreshCw } from 'lucide-react';
+import { useElevenLabsVoices } from '@/hooks/useElevenLabsVoices';
 
 interface AgentPersonalityTabProps {
   agentName: string;
@@ -34,6 +36,154 @@ interface AgentPersonalityTabProps {
   voiceId: string;
   setVoiceId: (value: string) => void;
 }
+
+// Voice Settings sub-component
+interface VoiceSettingsProps {
+  responseMode: 'text' | 'audio' | 'both' | 'adaptive';
+  setResponseMode: (value: 'text' | 'audio' | 'both' | 'adaptive') => void;
+  voiceId: string;
+  setVoiceId: (value: string) => void;
+}
+
+const VoiceSettings = ({ responseMode, setResponseMode, voiceId, setVoiceId }: VoiceSettingsProps) => {
+  const { 
+    voices, 
+    clonedVoices, 
+    premadeVoices, 
+    isLoading, 
+    refetch, 
+    playPreview, 
+    stopCurrentAudio,
+    playingVoiceId 
+  } = useElevenLabsVoices();
+
+  const isPlaying = playingVoiceId === voiceId;
+  const isVoiceDisabled = responseMode === 'text';
+
+  const getVoiceIcon = (voice: { labels?: { gender?: string } }) => {
+    return voice.labels?.gender === 'female' ? '👩' : '👨';
+  };
+
+  return (
+    <div className="space-y-4 border-t pt-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Volume2 className="h-4 w-4" />
+          Configurações de Voz (ElevenLabs)
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isLoading}
+          className="h-8"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Modo de Resposta</Label>
+          <Select 
+            value={responseMode} 
+            onValueChange={(v) => setResponseMode(v as 'text' | 'audio' | 'both' | 'adaptive')}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o modo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="adaptive">🔄 Adaptativo (espelha cliente)</SelectItem>
+              <SelectItem value="text">📝 Sempre Texto</SelectItem>
+              <SelectItem value="audio">🎵 Sempre Áudio</SelectItem>
+              <SelectItem value="both">📝🎵 Texto + Áudio</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Adaptativo: responde no mesmo formato que o cliente enviou
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Voz ElevenLabs</Label>
+          <div className="flex gap-2">
+            <Select 
+              value={voiceId} 
+              onValueChange={setVoiceId}
+              disabled={isVoiceDisabled}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder={isLoading ? "Carregando vozes..." : "Selecione uma voz"} />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Cloned Voices */}
+                {clonedVoices.length > 0 && (
+                  <>
+                    <SelectGroup>
+                      <SelectLabel className="text-xs font-semibold">🎤 Minhas Vozes Clonadas</SelectLabel>
+                      {clonedVoices.map((voice) => (
+                        <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                          {voice.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectSeparator />
+                  </>
+                )}
+                
+                {/* Premade/Professional Voices */}
+                <SelectGroup>
+                  <SelectLabel className="text-xs font-semibold">👥 Vozes Padrão</SelectLabel>
+                  {premadeVoices.map((voice) => (
+                    <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                      {getVoiceIcon(voice)} {voice.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+
+                {/* Fallback if no voices loaded */}
+                {voices.length === 0 && !isLoading && (
+                  <SelectItem value="" disabled>
+                    Nenhuma voz encontrada
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+
+            {/* Test Voice Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                if (isPlaying) {
+                  stopCurrentAudio();
+                } else {
+                  playPreview(voiceId);
+                }
+              }}
+              disabled={!voiceId || isVoiceDisabled || (playingVoiceId !== null && playingVoiceId !== voiceId)}
+              title={isPlaying ? "Parar" : "Testar voz"}
+            >
+              {playingVoiceId === voiceId ? (
+                <Square className="h-4 w-4" />
+              ) : playingVoiceId !== null ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {isVoiceDisabled 
+              ? 'Ative o modo áudio para selecionar uma voz'
+              : 'Escolha uma voz e clique ▶️ para testar'
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const AgentPersonalityTab = ({
   agentName,
@@ -188,66 +338,12 @@ export const AgentPersonalityTab = ({
       </div>
 
       {/* Voice Settings */}
-      <div className="space-y-4 border-t pt-4">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Volume2 className="h-4 w-4" />
-          Configurações de Voz (ElevenLabs)
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Modo de Resposta</Label>
-            <Select 
-              value={responseMode} 
-              onValueChange={(v) => setResponseMode(v as 'text' | 'audio' | 'both' | 'adaptive')}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o modo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="adaptive">🔄 Adaptativo (espelha cliente)</SelectItem>
-                <SelectItem value="text">📝 Sempre Texto</SelectItem>
-                <SelectItem value="audio">🎵 Sempre Áudio</SelectItem>
-                <SelectItem value="both">📝🎵 Texto + Áudio</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Adaptativo: responde no mesmo formato que o cliente enviou
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Voz ElevenLabs</Label>
-            <Select 
-              value={voiceId} 
-              onValueChange={setVoiceId}
-              disabled={responseMode === 'text'}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma voz" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="EXAVITQu4vr4xnSDxMaL">👩 Sarah (Feminina)</SelectItem>
-                <SelectItem value="FGY2WhTYpPnrIDTdsKH5">👩 Laura (Feminina)</SelectItem>
-                <SelectItem value="cgSgspJ2msm6clMCkdW9">👩 Jessica (Feminina)</SelectItem>
-                <SelectItem value="pFZP5JQG7iQjIQuC4Bku">👩 Lily (Feminina)</SelectItem>
-                <SelectItem value="Xb7hH8MSUJpSbSDYk0k2">👩 Alice (Feminina)</SelectItem>
-                <SelectItem value="JBFqnCBsd6RMkjVDRZzb">👨 George (Masculino)</SelectItem>
-                <SelectItem value="TX3LPaxmHKxFdv7VOQHJ">👨 Liam (Masculino)</SelectItem>
-                <SelectItem value="IKne3meq5aSn9XLyUdCD">👨 Charlie (Masculino)</SelectItem>
-                <SelectItem value="onwK4e9ZLuTAKqWW03F9">👨 Daniel (Masculino)</SelectItem>
-                <SelectItem value="nPczCjzI2devNBz1zQrb">👨 Brian (Masculino)</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {responseMode === 'text' 
-                ? 'Ative o modo áudio para selecionar uma voz'
-                : 'Escolha a voz para as respostas por áudio'
-              }
-            </p>
-          </div>
-        </div>
-      </div>
+      <VoiceSettings 
+        responseMode={responseMode}
+        setResponseMode={setResponseMode}
+        voiceId={voiceId}
+        setVoiceId={setVoiceId}
+      />
 
       {/* Settings */}
       <div className="space-y-4 border-t pt-4">
