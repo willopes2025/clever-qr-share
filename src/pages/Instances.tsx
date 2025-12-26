@@ -163,7 +163,7 @@ const Instances = () => {
           <AlertDescription>
             Você atingiu o limite de {maxInstances} instância{maxInstances > 1 ? 's' : ''} do seu plano {currentPlan}.{' '}
             <button 
-              onClick={() => createCheckout(currentPlan === 'starter' ? 'pro' : 'business')}
+              onClick={() => createCheckout(currentPlan === 'essencial' ? 'profissional' : 'agencia')}
               className="text-primary hover:underline font-medium"
             >
               Fazer upgrade

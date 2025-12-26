@@ -16,7 +16,7 @@ interface PricingTier {
   highlighted?: boolean;
   icon: 'zap' | 'crown' | 'rocket';
   cta: string;
-  planKey?: 'starter' | 'pro' | 'business';
+  planKey?: 'essencial' | 'profissional' | 'agencia' | 'avancado';
 }
 
 interface PricingCardProps {

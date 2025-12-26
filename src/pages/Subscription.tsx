@@ -136,7 +136,7 @@ const Subscription = () => {
     fetchInvoices();
   }, [session?.access_token]);
 
-  const handleUpgrade = async (plan: 'starter' | 'pro' | 'business') => {
+  const handleUpgrade = async (plan: 'essencial' | 'profissional' | 'agencia' | 'avancado') => {
     setUpgradeLoading(plan);
     try {
       await createCheckout(plan);
@@ -405,7 +405,7 @@ const Subscription = () => {
       </div>
 
       {/* Upgrade Options - Ocultar para membros de organização */}
-      {currentPlan !== 'business' && !isOrgMember && (
+      {currentPlan !== 'avancado' && !isOrgMember && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -446,7 +446,7 @@ const Subscription = () => {
                     </p>
 
                     <Button 
-                      onClick={() => handleUpgrade(key as 'starter' | 'pro' | 'business')}
+                      onClick={() => handleUpgrade(key as 'essencial' | 'profissional' | 'agencia' | 'avancado')}
                       disabled={isCurrentPlan || upgradeLoading === key}
                       className={`w-full ${
                         isCurrentPlan 
