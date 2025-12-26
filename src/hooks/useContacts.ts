@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Json } from "@/integrations/supabase/types";
 
 export interface Contact {
   id: string;
@@ -168,19 +169,43 @@ export const useContacts = () => {
     mutationFn: async ({
       contacts,
       tagIds = [],
+      newFields = [],
     }: {
-      contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, string> }[];
+      contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, unknown> }[];
       tagIds?: string[];
+      newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean }[];
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
+
+      // First, create any new custom fields
+      if (newFields.length > 0) {
+        const fieldsToInsert = newFields.map((field, index) => ({
+          field_name: field.field_name,
+          field_key: field.field_key,
+          field_type: field.field_type,
+          options: field.options || [],
+          is_required: field.is_required || false,
+          display_order: index,
+          user_id: userData.user!.id,
+        }));
+
+        const { error: fieldsError } = await supabase
+          .from("custom_field_definitions")
+          .insert(fieldsToInsert);
+
+        if (fieldsError) {
+          console.error("Error creating fields:", fieldsError);
+          // Continue anyway, fields might already exist
+        }
+      }
 
       const normalizedContacts = contacts.map((c) => ({
         phone: c.phone.replace(/\D/g, ""),
         name: c.name || null,
         email: c.email || null,
         notes: c.notes || null,
-        custom_fields: c.custom_fields || {},
+        custom_fields: (c.custom_fields || {}) as Json,
         user_id: userData.user!.id,
       }));
 
@@ -218,6 +243,7 @@ export const useContacts = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["custom-field-definitions"] });
       toast.success(`${data.length} contatos importados!`);
     },
     onError: (error: Error) => {

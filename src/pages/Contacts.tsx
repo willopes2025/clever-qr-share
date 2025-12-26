@@ -43,11 +43,12 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useContacts, ContactWithTags } from "@/hooks/useContacts";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
-import { ImportContactsDialog } from "@/components/contacts/ImportContactsDialog";
+import { ImportContactsDialogV2 } from "@/components/contacts/ImportContactsDialogV2";
 import { TagManager } from "@/components/contacts/TagManager";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
+import { useCustomFields } from "@/hooks/useCustomFields";
 
 const Contacts = () => {
   const {
@@ -68,6 +69,8 @@ const Contacts = () => {
     bulkRemoveTags,
     bulkOptOut,
   } = useContacts();
+
+  const { fieldDefinitions } = useCustomFields();
 
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
@@ -466,16 +469,16 @@ const Contacts = () => {
         isLoading={createContact.isPending || updateContact.isPending}
       />
 
-      <ImportContactsDialog
+      <ImportContactsDialogV2
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
-        onImport={(contacts, tagIds) => {
-          importContacts.mutate({ contacts, tagIds }, {
-            onSuccess: () => setShowImportDialog(false),
-          });
+        onImport={async (contacts, tagIds, newFields) => {
+          await importContacts.mutateAsync({ contacts, tagIds, newFields });
+          setShowImportDialog(false);
         }}
         isLoading={importContacts.isPending}
         tags={tags}
+        existingFields={fieldDefinitions}
       />
 
       <TagManager
