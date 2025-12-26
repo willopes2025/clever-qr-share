@@ -12,11 +12,16 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Stripe price IDs for each plan
-const PRICE_IDS = {
-  starter: "price_1SfqabIuIJFtamjKBREt4KzH",
-  pro: "price_1SfqaoIuIJFtamjKUw2Z0zdd",
-  business: "price_1SfqazIuIJFtamjKBQLRF2AL",
+// Stripe price IDs for each plan (NEW PLANS)
+const PRICE_IDS: Record<string, string> = {
+  essencial: "price_1SijenIuIJFtamjKuzbqG8xt",
+  profissional: "price_1SijezIuIJFtamjK45VHVMhV",
+  agencia: "price_1SijfBIuIJFtamjKkRlLwfkh",
+  avancado: "price_1SijfUIuIJFtamjKrRwGYD7o",
+  // Legacy support
+  starter: "price_1SijenIuIJFtamjKuzbqG8xt", // maps to essencial
+  pro: "price_1SijezIuIJFtamjK45VHVMhV", // maps to profissional
+  business: "price_1SijfBIuIJFtamjKkRlLwfkh", // maps to agencia
 };
 
 serve(async (req) => {
@@ -47,8 +52,8 @@ serve(async (req) => {
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     const { plan } = await req.json();
-    if (!plan || !PRICE_IDS[plan as keyof typeof PRICE_IDS]) {
-      throw new Error("Invalid plan selected");
+    if (!plan || !PRICE_IDS[plan]) {
+      throw new Error(`Invalid plan selected: ${plan}`);
     }
     logStep("Plan selected", { plan });
 
@@ -69,13 +74,13 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price: PRICE_IDS[plan as keyof typeof PRICE_IDS],
+          price: PRICE_IDS[plan],
           quantity: 1,
         },
       ],
       mode: "subscription",
       success_url: `${origin}/dashboard?checkout=success`,
-      cancel_url: `${origin}/#pricing`,
+      cancel_url: `${origin}/subscription`,
       metadata: {
         user_id: user.id,
         plan: plan,

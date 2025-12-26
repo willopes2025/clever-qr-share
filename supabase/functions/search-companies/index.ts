@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,6 +100,52 @@ serve(async (req) => {
       lastChars: apiKey.slice(-4),
       source: Deno.env.get('CASADOSDADOS_API_KEY') ? 'CASADOSDADOS_API_KEY' : 'CNPJWS_API_KEY'
     });
+
+    // Initialize Supabase client to check subscription
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
+    );
+
+    // Get user from auth header
+    const authHeader = req.headers.get("Authorization");
+    let userId: string | null = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData } = await supabaseClient.auth.getUser(token);
+      userId = userData?.user?.id || null;
+    }
+
+    // Check subscription limits if user is authenticated
+    if (userId) {
+      const { data: subscription } = await supabaseClient
+        .from("subscriptions")
+        .select("max_leads, leads_used, leads_reset_at, plan")
+        .eq("user_id", userId)
+        .single();
+
+      if (subscription) {
+        const maxLeads = subscription.max_leads || 50;
+        const leadsUsed = subscription.leads_used || 0;
+        
+        console.log('Lead limit check:', { maxLeads, leadsUsed, plan: subscription.plan });
+        
+        if (leadsUsed >= maxLeads) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Limite de leads atingido (${leadsUsed}/${maxLeads}). Faça upgrade do seu plano para continuar.`,
+              limit_reached: true,
+              leads_used: leadsUsed,
+              max_leads: maxLeads,
+            }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
 
     const { filters, page = 1, limit = 20 } = await req.json();
     console.log('Received search request:', { filters, page, limit });
@@ -325,7 +372,38 @@ serve(async (req) => {
     }
 
     const data = JSON.parse(responseText);
-    console.log('Found companies:', data.cnpjs?.length || 0, 'Total:', data.total);
+    const companiesCount = data.cnpjs?.length || 0;
+    console.log('Found companies:', companiesCount, 'Total:', data.total);
+
+    // Update leads_used in subscription if user is authenticated
+    if (userId && companiesCount > 0) {
+      // Increment leads_used
+      await supabaseClient.rpc('', {}).then(() => {});
+      
+      const { data: currentSub } = await supabaseClient
+        .from("subscriptions")
+        .select("leads_used")
+        .eq("user_id", userId)
+        .single();
+      
+      const newLeadsUsed = (currentSub?.leads_used || 0) + companiesCount;
+      
+      await supabaseClient
+        .from("subscriptions")
+        .update({ leads_used: newLeadsUsed })
+        .eq("user_id", userId);
+
+      // Log the usage
+      await supabaseClient
+        .from("lead_usage_log")
+        .insert({
+          user_id: userId,
+          leads_consumed: companiesCount,
+          search_query: filters,
+        });
+
+      console.log('Updated leads_used:', { userId, newLeadsUsed, consumed: companiesCount });
+    }
 
     // Log first company structure for debugging
     if (data.cnpjs && data.cnpjs.length > 0) {

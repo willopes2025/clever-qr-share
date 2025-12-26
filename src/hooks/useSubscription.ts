@@ -9,84 +9,160 @@ export interface SubscriptionInfo {
   max_instances: number | null;
   max_contacts: number | null;
   max_messages: number | null;
+  max_leads: number | null;
+  leads_used: number | null;
+  leads_reset_at: string | null;
   subscription_end: string | null;
   is_organization_member?: boolean;
   organization_id?: string;
+  trial_ends_at?: string | null;
 }
 
-// Plan configuration with Stripe IDs
-export const PLANS = {
+export type PlanKey = 'free' | 'essencial' | 'profissional' | 'agencia' | 'avancado';
+
+export interface PlanConfig {
+  name: string;
+  price: number;
+  priceId: string | null;
+  productId: string | null;
+  maxInstances: number | null;
+  maxMessages: number | null;
+  maxContacts: number | null;
+  maxLeads: number;
+  features: string[];
+  featureKeys: string[];
+}
+
+// New plan configuration with Stripe IDs
+export const PLANS: Record<PlanKey, PlanConfig> = {
   free: {
-    name: 'Grátis',
+    name: 'Free Trial',
     price: 0,
     priceId: null,
     productId: null,
     maxInstances: 1,
     maxMessages: 300,
-    maxContacts: 1000,
+    maxContacts: 500,
+    maxLeads: 50,
     features: [
       '1 Instância WhatsApp',
       '300 mensagens/mês',
-      '1.000 contatos',
+      '500 contatos',
+      '50 leads/mês',
+      'Inbox / Chat',
       'Templates básicos',
       'Campanhas simples',
     ],
+    featureKeys: ['inbox', 'templates', 'campaigns_basic', 'contacts'],
   },
-  starter: {
-    name: 'Starter',
-    price: 67,
-    priceId: 'price_1SfqabIuIJFtamjKBREt4KzH',
-    productId: 'prod_Td6oCDIlCW9tXp',
-    maxInstances: 1,
-    maxMessages: null,
-    maxContacts: null,
-    features: [
-      '1 Instância WhatsApp',
-      'Contatos ilimitados',
-      'Mensagens ilimitadas',
-      'Templates com variações',
-      'Campanhas agendadas',
-      'Suporte por email',
-    ],
-  },
-  pro: {
-    name: 'Pro',
+  essencial: {
+    name: 'Essencial',
     price: 147,
-    priceId: 'price_1SfqaoIuIJFtamjKUw2Z0zdd',
-    productId: 'prod_Td6oDKN8AXJsXf',
-    maxInstances: 10,
-    maxMessages: null,
-    maxContacts: null,
+    priceId: 'price_1SijenIuIJFtamjKuzbqG8xt',
+    productId: 'prod_Tg5qEVTAzaY2d1',
+    maxInstances: 3,
+    maxMessages: 10000,
+    maxContacts: 10000,
+    maxLeads: 1000,
     features: [
-      'Até 10 Instâncias WhatsApp',
-      'Contatos ilimitados',
-      'Mensagens ilimitadas',
-      'Templates com IA',
-      'Campanhas avançadas',
-      'Relatórios detalhados',
-      'Suporte prioritário',
+      '3 Instâncias WhatsApp',
+      '10.000 mensagens/mês',
+      '10.000 contatos',
+      '1.000 leads/mês',
+      'Aquecimento de Chip',
+      'Listas de Transmissão',
+      'Funis de Vendas (CRM)',
+      'Templates com variações',
     ],
+    featureKeys: ['inbox', 'templates', 'campaigns', 'contacts', 'broadcast', 'funnels', 'warming'],
   },
-  business: {
-    name: 'Business',
+  profissional: {
+    name: 'Profissional',
     price: 297,
-    priceId: 'price_1SfqazIuIJFtamjKBQLRF2AL',
-    productId: 'prod_Td6otV5Ef9IHSt',
-    maxInstances: null,
+    priceId: 'price_1SijezIuIJFtamjK45VHVMhV',
+    productId: 'prod_Tg5qspfPups3iN',
+    maxInstances: 10,
+    maxMessages: null, // ilimitadas
+    maxContacts: 50000,
+    maxLeads: 5000,
+    features: [
+      '10 Instâncias WhatsApp',
+      'Mensagens ilimitadas',
+      '50.000 contatos',
+      '5.000 leads/mês',
+      'Tudo do Essencial',
+      'Analysis (IA)',
+      'Automações',
+      'Agente IA',
+      'API & Webhooks',
+    ],
+    featureKeys: ['inbox', 'templates', 'campaigns', 'contacts', 'broadcast', 'funnels', 'warming', 'analysis', 'automations', 'ai_agent', 'api', 'webhooks'],
+  },
+  agencia: {
+    name: 'Agência',
+    price: 597,
+    priceId: 'price_1SijfBIuIJFtamjKkRlLwfkh',
+    productId: 'prod_Tg5qcEw3OK7hU3',
+    maxInstances: 30,
+    maxMessages: null,
+    maxContacts: null, // ilimitados
+    maxLeads: 25000,
+    features: [
+      '30 Instâncias WhatsApp',
+      'Mensagens ilimitadas',
+      'Contatos ilimitados',
+      '25.000 leads/mês',
+      'Tudo do Profissional',
+      'Multi-equipe',
+      'Suporte Prioritário',
+    ],
+    featureKeys: ['all', 'multi_team', 'priority_support'],
+  },
+  avancado: {
+    name: 'Avançado',
+    price: 797,
+    priceId: 'price_1SijfUIuIJFtamjKrRwGYD7o',
+    productId: 'prod_Tg5rhArqyzOqTt',
+    maxInstances: 50,
     maxMessages: null,
     maxContacts: null,
+    maxLeads: 100000,
     features: [
-      'Instâncias ilimitadas',
-      'Contatos ilimitados',
+      '50 Instâncias WhatsApp',
       'Mensagens ilimitadas',
-      'Tudo do Pro',
-      'API completa',
-      'Webhooks personalizados',
-      'Gerente de conta dedicado',
-      'SLA garantido',
+      'Contatos ilimitados',
+      '100.000 leads/mês',
+      'Todas as features',
+      'Suporte VIP',
     ],
+    featureKeys: ['all'],
   },
 };
+
+// Feature access by plan
+export const FEATURE_ACCESS: Record<string, PlanKey[]> = {
+  inbox: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
+  templates: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
+  campaigns: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
+  contacts: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
+  broadcast: ['essencial', 'profissional', 'agencia', 'avancado'],
+  funnels: ['essencial', 'profissional', 'agencia', 'avancado'],
+  warming: ['essencial', 'profissional', 'agencia', 'avancado'],
+  analysis: ['profissional', 'agencia', 'avancado'],
+  automations: ['profissional', 'agencia', 'avancado'],
+  ai_agent: ['profissional', 'agencia', 'avancado'],
+  api: ['profissional', 'agencia', 'avancado'],
+  webhooks: ['profissional', 'agencia', 'avancado'],
+  multi_team: ['agencia', 'avancado'],
+  priority_support: ['agencia', 'avancado'],
+  lead_search: ['essencial', 'profissional', 'agencia', 'avancado'],
+};
+
+export function hasFeatureAccess(plan: string, feature: string): boolean {
+  const allowedPlans = FEATURE_ACCESS[feature];
+  if (!allowedPlans) return true; // Feature not restricted
+  return allowedPlans.includes(plan as PlanKey);
+}
 
 export const useSubscription = () => {
   const { user, session, loading: authLoading } = useAuth();
@@ -148,9 +224,14 @@ export const useSubscription = () => {
     return () => clearInterval(interval);
   }, [user, checkSubscription]);
 
-  const createCheckout = async (plan: 'starter' | 'pro' | 'business') => {
+  const createCheckout = async (plan: PlanKey) => {
     if (!session?.access_token) {
       toast.error('Você precisa estar logado para assinar');
+      return;
+    }
+
+    if (plan === 'free') {
+      toast.error('O plano gratuito não requer checkout');
       return;
     }
 
@@ -206,6 +287,20 @@ export const useSubscription = () => {
     return currentInstanceCount < maxInstances;
   };
 
+  const canSearchLeads = (): boolean => {
+    if (!subscription) return false;
+    const maxLeads = subscription.max_leads || 0;
+    const leadsUsed = subscription.leads_used || 0;
+    return leadsUsed < maxLeads;
+  };
+
+  const getRemainingLeads = (): number => {
+    if (!subscription) return 0;
+    const maxLeads = subscription.max_leads || 0;
+    const leadsUsed = subscription.leads_used || 0;
+    return Math.max(0, maxLeads - leadsUsed);
+  };
+
   return {
     subscription,
     loading,
@@ -213,7 +308,10 @@ export const useSubscription = () => {
     createCheckout,
     openCustomerPortal,
     canCreateInstance,
+    canSearchLeads,
+    getRemainingLeads,
+    hasFeatureAccess: (feature: string) => hasFeatureAccess(subscription?.plan || 'free', feature),
     isSubscribed: subscription?.subscribed || false,
-    currentPlan: subscription?.plan || 'free',
+    currentPlan: (subscription?.plan || 'free') as PlanKey,
   };
 };

@@ -12,23 +12,59 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-// Plan type
-type PlanInfo = { plan: string; maxInstances: number | null; maxContacts: number | null; maxMessages: number | null };
+// Plan type with leads
+type PlanInfo = { 
+  plan: string; 
+  maxInstances: number | null; 
+  maxContacts: number | null; 
+  maxMessages: number | null;
+  maxLeads: number;
+};
 
-// Mapping from Stripe product IDs to plan names
+// Mapping from Stripe product IDs to plan names (NEW PLANS)
 const PRODUCT_TO_PLAN: Record<string, PlanInfo> = {
-  "prod_Td6oCDIlCW9tXp": { plan: "starter", maxInstances: 1, maxContacts: null, maxMessages: null },
-  "prod_Td6oDKN8AXJsXf": { plan: "pro", maxInstances: 10, maxContacts: null, maxMessages: null },
-  "prod_Td6otV5Ef9IHSt": { plan: "business", maxInstances: null, maxContacts: null, maxMessages: null },
+  // New plans
+  "prod_Tg5qEVTAzaY2d1": { plan: "essencial", maxInstances: 3, maxContacts: 10000, maxMessages: 10000, maxLeads: 1000 },
+  "prod_Tg5qspfPups3iN": { plan: "profissional", maxInstances: 10, maxContacts: 50000, maxMessages: null, maxLeads: 5000 },
+  "prod_Tg5qcEw3OK7hU3": { plan: "agencia", maxInstances: 30, maxContacts: null, maxMessages: null, maxLeads: 25000 },
+  "prod_Tg5rhArqyzOqTt": { plan: "avancado", maxInstances: 50, maxContacts: null, maxMessages: null, maxLeads: 100000 },
+  // Legacy plans (backward compatibility)
+  "prod_Td6oCDIlCW9tXp": { plan: "essencial", maxInstances: 3, maxContacts: 10000, maxMessages: 10000, maxLeads: 1000 },
+  "prod_Td6oDKN8AXJsXf": { plan: "profissional", maxInstances: 10, maxContacts: 50000, maxMessages: null, maxLeads: 5000 },
+  "prod_Td6otV5Ef9IHSt": { plan: "agencia", maxInstances: 30, maxContacts: null, maxMessages: null, maxLeads: 25000 },
 };
 
 // Free plan configuration
 const FREE_PLAN: PlanInfo = { 
   plan: "free", 
   maxInstances: 1, 
-  maxContacts: null, 
-  maxMessages: 300 
+  maxContacts: 500, 
+  maxMessages: 300,
+  maxLeads: 50,
 };
+
+// Helper to check if leads need to be reset
+async function checkAndResetLeads(supabaseClient: any, userId: string) {
+  const { data: sub } = await supabaseClient
+    .from("subscriptions")
+    .select("leads_reset_at")
+    .eq("user_id", userId)
+    .single();
+
+  if (sub?.leads_reset_at) {
+    const resetDate = new Date(sub.leads_reset_at);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - resetDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays >= 30) {
+      logStep("Resetting leads for new month", { userId, lastReset: sub.leads_reset_at });
+      await supabaseClient
+        .from("subscriptions")
+        .update({ leads_used: 0, leads_reset_at: now.toISOString() })
+        .eq("user_id", userId);
+    }
+  }
+}
 
 // Helper to get subscription for a specific user
 async function getSubscriptionForUser(
@@ -42,8 +78,14 @@ async function getSubscriptionForUser(
   max_instances: number | null;
   max_contacts: number | null;
   max_messages: number | null;
+  max_leads: number;
+  leads_used: number;
+  leads_reset_at: string | null;
   subscription_end: string | null;
 }> {
+  // Check and reset leads if needed
+  await checkAndResetLeads(supabaseClient, userId);
+
   // PRIMEIRO: Verificar se existe assinatura manual válida
   const { data: existingSub } = await supabaseClient
     .from("subscriptions")
@@ -71,6 +113,9 @@ async function getSubscriptionForUser(
         max_instances: existingSub.max_instances,
         max_contacts: existingSub.max_contacts,
         max_messages: existingSub.max_messages,
+        max_leads: existingSub.max_leads || FREE_PLAN.maxLeads,
+        leads_used: existingSub.leads_used || 0,
+        leads_reset_at: existingSub.leads_reset_at,
         subscription_end: existingSub.current_period_end,
       };
     } else {
@@ -94,6 +139,9 @@ async function getSubscriptionForUser(
       max_instances: FREE_PLAN.maxInstances,
       max_contacts: FREE_PLAN.maxContacts,
       max_messages: FREE_PLAN.maxMessages,
+      max_leads: FREE_PLAN.maxLeads,
+      leads_used: existingSub?.leads_used || 0,
+      leads_reset_at: existingSub?.leads_reset_at || null,
       subscription_end: null,
     };
   }
@@ -123,6 +171,9 @@ async function getSubscriptionForUser(
     max_instances: planInfo.maxInstances,
     max_contacts: planInfo.maxContacts,
     max_messages: planInfo.maxMessages,
+    max_leads: planInfo.maxLeads,
+    leads_used: existingSub?.leads_used || 0,
+    leads_reset_at: existingSub?.leads_reset_at || null,
     subscription_end: subscriptionEnd,
   };
 }
@@ -157,6 +208,9 @@ serve(async (req) => {
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
+    // Check and reset leads if needed
+    await checkAndResetLeads(supabaseClient, user.id);
 
     // NOVA LÓGICA: Verificar se o usuário é membro de uma organização
     const { data: member } = await supabaseClient
@@ -238,6 +292,9 @@ serve(async (req) => {
           max_instances: existingSub.max_instances,
           max_contacts: existingSub.max_contacts,
           max_messages: existingSub.max_messages,
+          max_leads: existingSub.max_leads || FREE_PLAN.maxLeads,
+          leads_used: existingSub.leads_used || 0,
+          leads_reset_at: existingSub.leads_reset_at,
           subscription_end: existingSub.current_period_end,
           is_organization_member: false,
         }), {
@@ -270,6 +327,9 @@ serve(async (req) => {
           max_instances: FREE_PLAN.maxInstances,
           max_contacts: FREE_PLAN.maxContacts,
           max_messages: FREE_PLAN.maxMessages,
+          max_leads: FREE_PLAN.maxLeads,
+          leads_used: existingSub?.leads_used || 0,
+          leads_reset_at: existingSub?.leads_reset_at || new Date().toISOString(),
           manual_override: false,
         }, { onConflict: "user_id" });
 
@@ -279,6 +339,9 @@ serve(async (req) => {
         max_instances: FREE_PLAN.maxInstances,
         max_contacts: FREE_PLAN.maxContacts,
         max_messages: FREE_PLAN.maxMessages,
+        max_leads: FREE_PLAN.maxLeads,
+        leads_used: existingSub?.leads_used || 0,
+        leads_reset_at: existingSub?.leads_reset_at || null,
         subscription_end: null,
         is_organization_member: false,
       }), {
@@ -332,6 +395,9 @@ serve(async (req) => {
         max_instances: planInfo.maxInstances,
         max_contacts: planInfo.maxContacts,
         max_messages: planInfo.maxMessages,
+        max_leads: planInfo.maxLeads,
+        leads_used: existingSub?.leads_used || 0,
+        leads_reset_at: existingSub?.leads_reset_at || new Date().toISOString(),
         current_period_end: subscriptionEnd,
         manual_override: false,
       }, { onConflict: "user_id" });
@@ -344,6 +410,9 @@ serve(async (req) => {
       max_instances: planInfo.maxInstances,
       max_contacts: planInfo.maxContacts,
       max_messages: planInfo.maxMessages,
+      max_leads: planInfo.maxLeads,
+      leads_used: existingSub?.leads_used || 0,
+      leads_reset_at: existingSub?.leads_reset_at || null,
       subscription_end: subscriptionEnd,
       is_organization_member: false,
     }), {
