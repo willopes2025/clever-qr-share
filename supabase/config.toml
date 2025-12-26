@@ -98,3 +98,9 @@ verify_jwt = false
 
 [functions.elevenlabs-tts]
 verify_jwt = false
+
+[functions.elevenlabs-list-voices]
+verify_jwt = false
+
+[functions.elevenlabs-preview-voice]
+verify_jwt = false
