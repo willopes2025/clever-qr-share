@@ -1569,6 +1569,41 @@ export type Database = {
           },
         ]
       }
+      lead_usage_log: {
+        Row: {
+          created_at: string | null
+          id: string
+          leads_consumed: number
+          organization_id: string | null
+          search_query: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          leads_consumed: number
+          organization_id?: string | null
+          search_query?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          leads_consumed?: number
+          organization_id?: string | null
+          search_query?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_usage_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_templates: {
         Row: {
           category: Database["public"]["Enums"]["template_category"]
@@ -1774,15 +1809,19 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          leads_reset_at: string | null
+          leads_used: number | null
           manual_override: boolean | null
           max_contacts: number | null
           max_instances: number
+          max_leads: number | null
           max_messages: number | null
           plan: string
           status: string
           stripe_customer_id: string | null
           stripe_price_id: string | null
           stripe_subscription_id: string | null
+          trial_ends_at: string | null
           updated_at: string
           user_id: string
         }
@@ -1792,15 +1831,19 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          leads_reset_at?: string | null
+          leads_used?: number | null
           manual_override?: boolean | null
           max_contacts?: number | null
           max_instances?: number
+          max_leads?: number | null
           max_messages?: number | null
           plan?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1810,15 +1853,19 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          leads_reset_at?: string | null
+          leads_used?: number | null
           manual_override?: boolean | null
           max_contacts?: number | null
           max_instances?: number
+          max_leads?: number | null
           max_messages?: number | null
           plan?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -2333,6 +2380,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      reset_leads_monthly: { Args: never; Returns: undefined }
       user_belongs_to_org: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
