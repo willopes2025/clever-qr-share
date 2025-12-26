@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { 
   MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, 
-  RefreshCw, Pencil, Key, Filter 
+  RefreshCw, Pencil, Key, Smartphone 
 } from 'lucide-react';
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
@@ -41,7 +41,7 @@ import { EditOrganizationDialog } from './EditOrganizationDialog';
 import { DeleteOrganizationDialog } from './DeleteOrganizationDialog';
 import { EditMemberDialog } from './EditMemberDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
-import { MemberFunnelsDialog } from './MemberFunnelsDialog';
+import { MemberInstancesDialog } from './MemberInstancesDialog';
 import { MyPermissionsCard } from './MyPermissionsCard';
 import { TeamMember } from '@/hooks/useOrganization';
 import { TeamRole } from '@/config/permissions';
@@ -74,7 +74,7 @@ export function TeamSettings() {
   const [deleteOrgDialogOpen, setDeleteOrgDialogOpen] = useState(false);
   const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
-  const [funnelsDialogOpen, setFunnelsDialogOpen] = useState(false);
+  const [instancesDialogOpen, setInstancesDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
 
@@ -103,9 +103,9 @@ export function TeamSettings() {
     setResetPasswordDialogOpen(true);
   };
 
-  const handleOpenFunnels = (member: TeamMember) => {
+  const handleOpenInstances = (member: TeamMember) => {
     setSelectedMember(member);
-    setFunnelsDialogOpen(true);
+    setInstancesDialogOpen(true);
   };
 
   const handleRemoveMember = async () => {
@@ -336,9 +336,9 @@ export function TeamSettings() {
                               <Settings2 className="mr-2 h-4 w-4" />
                               Permissões
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenFunnels(member)}>
-                              <Filter className="mr-2 h-4 w-4" />
-                              Funis de Acesso
+                            <DropdownMenuItem onClick={() => handleOpenInstances(member)}>
+                              <Smartphone className="mr-2 h-4 w-4" />
+                              Instâncias de Acesso
                             </DropdownMenuItem>
                             {member.status === 'active' && member.user_id && (
                               <DropdownMenuItem onClick={() => handleOpenResetPassword(member)}>
@@ -395,9 +395,9 @@ export function TeamSettings() {
               isLoading={resetPassword.isPending}
             />
           )}
-          <MemberFunnelsDialog
-            open={funnelsDialogOpen}
-            onOpenChange={setFunnelsDialogOpen}
+          <MemberInstancesDialog
+            open={instancesDialogOpen}
+            onOpenChange={setInstancesDialogOpen}
             member={selectedMember}
           />
         </>

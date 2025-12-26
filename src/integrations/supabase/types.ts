@@ -1848,35 +1848,35 @@ export type Database = {
         }
         Relationships: []
       }
-      team_member_funnels: {
+      team_member_instances: {
         Row: {
           created_at: string | null
-          funnel_id: string
           id: string
+          instance_id: string
           team_member_id: string
         }
         Insert: {
           created_at?: string | null
-          funnel_id: string
           id?: string
+          instance_id: string
           team_member_id: string
         }
         Update: {
           created_at?: string | null
-          funnel_id?: string
           id?: string
+          instance_id?: string
           team_member_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "team_member_funnels_funnel_id_fkey"
-            columns: ["funnel_id"]
+            foreignKeyName: "team_member_instances_instance_id_fkey"
+            columns: ["instance_id"]
             isOneToOne: false
-            referencedRelation: "funnels"
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "team_member_funnels_team_member_id_fkey"
+            foreignKeyName: "team_member_instances_team_member_id_fkey"
             columns: ["team_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
@@ -2311,7 +2311,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_member_funnel_ids: { Args: { _user_id: string }; Returns: string[] }
+      get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
       get_organization_member_ids: {
         Args: { _user_id: string }
         Returns: string[]
@@ -2329,7 +2329,7 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
-      member_has_funnel_restriction: {
+      member_has_instance_restriction: {
         Args: { _user_id: string }
         Returns: boolean
       }

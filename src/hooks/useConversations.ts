@@ -57,12 +57,12 @@ export const useConversations = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Check if current user has funnel restrictions
-  const { data: hasFunnelRestriction } = useQuery({
-    queryKey: ['has-funnel-restriction', user?.id],
+  // Check if current user has instance restrictions
+  const { data: hasInstanceRestriction } = useQuery({
+    queryKey: ['has-instance-restriction', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('member_has_funnel_restriction', { _user_id: user!.id });
+        .rpc('member_has_instance_restriction', { _user_id: user!.id });
       
       if (error) throw error;
       return data as boolean;
@@ -70,38 +70,21 @@ export const useConversations = () => {
     enabled: !!user,
   });
 
-  // Get member's funnel IDs
-  const { data: memberFunnelIds } = useQuery({
-    queryKey: ['my-funnel-ids', user?.id],
+  // Get member's allowed instance IDs directly
+  const { data: allowedInstanceIds } = useQuery({
+    queryKey: ['my-instance-ids', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('get_member_funnel_ids', { _user_id: user!.id });
+        .rpc('get_member_instance_ids', { _user_id: user!.id });
       
       if (error) throw error;
       return data as string[];
     },
-    enabled: !!user && hasFunnelRestriction === true,
-  });
-
-  // Get allowed instance IDs based on member's funnels
-  const { data: allowedInstanceIds } = useQuery({
-    queryKey: ['allowed-instance-ids', memberFunnelIds],
-    queryFn: async () => {
-      if (!memberFunnelIds || memberFunnelIds.length === 0) return null;
-      
-      const { data, error } = await supabase
-        .from('whatsapp_instances')
-        .select('id')
-        .in('default_funnel_id', memberFunnelIds);
-      
-      if (error) throw error;
-      return data?.map(instance => instance.id) || [];
-    },
-    enabled: !!memberFunnelIds && memberFunnelIds.length > 0,
+    enabled: !!user && hasInstanceRestriction === true,
   });
 
   const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id, allowedInstanceIds, hasFunnelRestriction],
+    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction],
     queryFn: async () => {
       let query = supabase
         .from('conversations')
@@ -113,12 +96,12 @@ export const useConversations = () => {
         .order('is_pinned', { ascending: false })
         .order('last_message_at', { ascending: false });
 
-      // Filter by instance IDs if member has funnel restrictions
-      if (hasFunnelRestriction && allowedInstanceIds !== undefined) {
+      // Filter by instance IDs if member has instance restrictions
+      if (hasInstanceRestriction && allowedInstanceIds !== undefined) {
         if (allowedInstanceIds.length > 0) {
           query = query.in('instance_id', allowedInstanceIds);
         } else {
-          // Member has funnel restrictions but no instances match - return empty
+          // Member has instance restrictions but no instances assigned - return empty
           return [];
         }
       }
@@ -128,7 +111,7 @@ export const useConversations = () => {
       if (error) throw error;
       return data as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
-    enabled: !!user && (hasFunnelRestriction === false || allowedInstanceIds !== undefined),
+    enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
   });
 
   const createConversation = useMutation({
@@ -174,7 +157,7 @@ export const useConversations = () => {
     refetch,
     createConversation,
     markAsRead,
-    hasFunnelRestriction,
+    hasInstanceRestriction,
   };
 };
 
