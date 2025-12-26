@@ -686,6 +686,200 @@ serve(async (req) => {
         );
       }
 
+      case 'get-invitee-appointments': {
+        // Search for appointments by invitee email
+        const { inviteeEmail } = params;
+        const userUri = integration?.user_uri;
+        
+        if (!inviteeEmail) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'inviteeEmail is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        if (!userUri) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'User URI not found' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`[CALENDLY] Searching appointments for email: ${inviteeEmail}`);
+
+        // Get scheduled events for next 60 days
+        const now = new Date();
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + 60);
+
+        const eventsResponse = await calendlyFetch(
+          `/scheduled_events?user=${encodeURIComponent(userUri)}&min_start_time=${now.toISOString()}&max_start_time=${futureDate.toISOString()}&status=active`
+        );
+        
+        if (!eventsResponse.ok) {
+          const error = await eventsResponse.text();
+          console.error('[CALENDLY] Error fetching events:', error);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Erro ao buscar agendamentos' }),
+            { status: eventsResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const eventsData = await eventsResponse.json();
+        const appointments = [];
+
+        // For each event, fetch invitees to find matching email
+        for (const event of eventsData.collection || []) {
+          const eventUuid = event.uri.split('/').pop();
+          const inviteesResponse = await calendlyFetch(`/scheduled_events/${eventUuid}/invitees`);
+          
+          if (inviteesResponse.ok) {
+            const inviteesData = await inviteesResponse.json();
+            
+            for (const invitee of inviteesData.collection || []) {
+              if (invitee.email.toLowerCase() === inviteeEmail.toLowerCase()) {
+                appointments.push({
+                  event_uri: event.uri,
+                  event_name: event.name,
+                  start_time: event.start_time,
+                  end_time: event.end_time,
+                  status: event.status,
+                  location: event.location,
+                  invitee_uri: invitee.uri,
+                  invitee_name: invitee.name,
+                  invitee_email: invitee.email,
+                  cancel_url: invitee.cancel_url,
+                  reschedule_url: invitee.reschedule_url,
+                });
+              }
+            }
+          }
+        }
+
+        console.log(`[CALENDLY] Found ${appointments.length} appointments for ${inviteeEmail}`);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            appointments,
+            count: appointments.length,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'cancel-booking': {
+        // Cancel a booking (mark invitee as canceled)
+        const { inviteeUri, reason } = params;
+        
+        if (!inviteeUri) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'inviteeUri is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`[CALENDLY] Canceling booking: ${inviteeUri}`);
+
+        // Extract invitee UUID from URI
+        const inviteeUuid = inviteeUri.split('/').pop();
+
+        const cancelResponse = await calendlyFetch(`/scheduled_events/invitees/${inviteeUuid}/cancellation`, {
+          method: 'POST',
+          body: JSON.stringify({
+            reason: reason || 'Cancelado pelo paciente via chat',
+          }),
+        });
+
+        if (!cancelResponse.ok) {
+          const errorText = await cancelResponse.text();
+          console.error('[CALENDLY] Error canceling booking:', cancelResponse.status, errorText);
+          
+          // Try alternative endpoint format
+          const eventUuidMatch = inviteeUri.match(/scheduled_events\/([^/]+)/);
+          if (eventUuidMatch) {
+            const eventUuid = eventUuidMatch[1];
+            const altCancelResponse = await calendlyFetch(`/scheduled_events/${eventUuid}/cancellation`, {
+              method: 'POST',
+              body: JSON.stringify({
+                reason: reason || 'Cancelado pelo paciente via chat',
+              }),
+            });
+            
+            if (altCancelResponse.ok) {
+              console.log('[CALENDLY] Booking canceled successfully via alternative endpoint');
+              return new Response(
+                JSON.stringify({ success: true, message: 'Agendamento cancelado com sucesso' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+          
+          return new Response(
+            JSON.stringify({ success: false, error: 'Erro ao cancelar agendamento' }),
+            { status: cancelResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('[CALENDLY] Booking canceled successfully');
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Agendamento cancelado com sucesso' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'get-reschedule-link': {
+        // Get reschedule link for an invitee
+        const { inviteeUri } = params;
+        
+        if (!inviteeUri) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'inviteeUri is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`[CALENDLY] Getting reschedule link for: ${inviteeUri}`);
+
+        // Extract invitee UUID and fetch details
+        const inviteeUuid = inviteeUri.split('/').pop();
+        
+        // Get invitee details which includes reschedule URL
+        const inviteeResponse = await calendlyFetch(`/scheduled_events/invitees/${inviteeUuid}`);
+        
+        if (!inviteeResponse.ok) {
+          const error = await inviteeResponse.text();
+          console.error('[CALENDLY] Error fetching invitee:', error);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Erro ao buscar dados do agendamento' }),
+            { status: inviteeResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const inviteeData = await inviteeResponse.json();
+        const rescheduleUrl = inviteeData.resource?.reschedule_url;
+
+        if (!rescheduleUrl) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Link de reagendamento não disponível' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('[CALENDLY] Reschedule link found:', rescheduleUrl);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            rescheduleUrl,
+            inviteeName: inviteeData.resource?.name,
+            inviteeEmail: inviteeData.resource?.email,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ success: false, error: 'Unknown action' }),
