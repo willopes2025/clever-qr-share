@@ -14,6 +14,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
 import { InstanceFunnelDialog } from "@/components/instances/InstanceFunnelDialog";
+import { SyncHistoryDialog } from "@/components/instances/SyncHistoryDialog";
 
 const Instances = () => {
   const {
@@ -41,6 +42,8 @@ const Instances = () => {
   const [pendingInstanceName, setPendingInstanceName] = useState("");
   const [funnelDialogOpen, setFunnelDialogOpen] = useState(false);
   const [funnelDialogInstance, setFunnelDialogInstance] = useState<WhatsAppInstance | null>(null);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncDialogInstance, setSyncDialogInstance] = useState<WhatsAppInstance | null>(null);
 
   // Polling para verificar status de instâncias "connecting"
   useEffect(() => {
@@ -336,6 +339,10 @@ const Instances = () => {
                   setFunnelDialogInstance(instance);
                   setFunnelDialogOpen(true);
                 }}
+                onSyncHistory={() => {
+                  setSyncDialogInstance(instance);
+                  setSyncDialogOpen(true);
+                }}
               />
             </motion.div>
           ))}
@@ -441,6 +448,16 @@ const Instances = () => {
               funnelId,
             });
           }}
+        />
+      )}
+
+      {/* Sync History Dialog */}
+      {syncDialogInstance && (
+        <SyncHistoryDialog
+          open={syncDialogOpen}
+          onOpenChange={setSyncDialogOpen}
+          instanceName={syncDialogInstance.instance_name}
+          onSuccess={() => refetch()}
         />
       )}
     </DashboardLayout>
