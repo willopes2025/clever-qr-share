@@ -16,6 +16,7 @@ import {
   UserPlus,
   Crown,
   Rocket,
+  Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -66,55 +67,75 @@ const stats = [
 
 const pricingTiers = [
   {
-    name: "Starter",
-    price: "67",
+    name: "Essencial",
+    price: "97",
     period: "mês",
     description: "Perfeito para quem está começando",
+    planKey: "essencial" as const,
     features: [
-      "1 Instância WhatsApp",
-      "Contatos ilimitados",
-      "Mensagens ilimitadas",
+      "3 Instâncias WhatsApp",
+      "500 leads/mês para prospecção",
+      "Até 10.000 contatos",
       "Templates com variações",
       "Campanhas agendadas",
       "Suporte por email",
     ],
     icon: Zap,
-    cta: "Começar Agora",
+    cta: "Testar 7 dias grátis",
   },
   {
-    name: "Pro",
-    price: "147",
+    name: "Profissional",
+    price: "297",
     period: "mês",
     description: "Para profissionais e pequenas empresas",
+    planKey: "profissional" as const,
     features: [
-      "Até 10 Instâncias WhatsApp",
-      "Contatos ilimitados",
-      "Mensagens ilimitadas",
-      "Templates com IA",
-      "Campanhas avançadas",
-      "Relatórios detalhados",
+      "10 Instâncias WhatsApp",
+      "5.000 leads/mês para prospecção",
+      "Até 50.000 contatos",
+      "Análise de conversas com IA",
+      "Automações de funil",
+      "AI Agent para campanhas",
+      "API & Webhooks",
       "Suporte prioritário",
     ],
     highlighted: true,
     icon: Crown,
-    cta: "Assinar Pro",
+    cta: "Testar 7 dias grátis",
   },
   {
-    name: "Business",
-    price: "297",
+    name: "Agência",
+    price: "597",
     period: "mês",
-    description: "Para grandes operações e agências",
+    description: "Para agências e operações maiores",
+    planKey: "agencia" as const,
     features: [
-      "Instâncias ilimitadas",
-      "Tudo do Pro",
-      "API completa",
-      "Webhooks personalizados",
+      "30 Instâncias WhatsApp",
+      "25.000 leads/mês para prospecção",
+      "Contatos ilimitados",
+      "Gestão multi-equipe",
+      "Tudo do Profissional",
       "Gerente de conta dedicado",
+    ],
+    icon: Rocket,
+    cta: "Testar 7 dias grátis",
+  },
+  {
+    name: "Avançado",
+    price: "797",
+    period: "mês",
+    description: "Para grandes operações e enterprises",
+    planKey: "avancado" as const,
+    features: [
+      "50 Instâncias WhatsApp",
+      "100.000 leads/mês para prospecção",
+      "Contatos ilimitados",
+      "Todas as features",
       "SLA garantido",
       "Treinamento exclusivo",
     ],
-    icon: Rocket,
-    cta: "Assinar Business",
+    icon: Star,
+    cta: "Testar 7 dias grátis",
   },
 ];
 
@@ -276,9 +297,13 @@ const Index = () => {
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 text-foreground">
               Escolha seu <span className="text-primary">Plano</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
               Planos flexíveis para todos os tamanhos de negócio
             </p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 text-accent font-semibold mb-8">
+              <Sparkles className="h-4 w-4" />
+              <span>7 dias grátis em todos os planos</span>
+            </div>
 
             {/* Billing Toggle */}
             <div className="flex items-center justify-center gap-4">
@@ -295,7 +320,7 @@ const Index = () => {
             </div>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {pricingTiers.map((tier, index) => {
               const Icon = tier.icon;
               const price = isAnnual ? Math.round(parseInt(tier.price) * 0.8) : tier.price;
