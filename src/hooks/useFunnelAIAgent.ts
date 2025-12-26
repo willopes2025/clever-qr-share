@@ -21,7 +21,7 @@ export interface FunnelAIAgentConfig {
   active_hours_end: number;
   handoff_keywords: string[];
   is_active: boolean;
-  response_mode: 'text' | 'audio' | 'both';
+  response_mode: 'text' | 'audio' | 'both' | 'adaptive';
   voice_id: string | null;
   created_at: string;
   updated_at: string;
