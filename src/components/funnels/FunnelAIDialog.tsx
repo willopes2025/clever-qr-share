@@ -54,6 +54,8 @@ export const FunnelAIDialog = ({
   const [activeHoursStart, setActiveHoursStart] = useState(8);
   const [activeHoursEnd, setActiveHoursEnd] = useState(20);
   const [handoffKeywords, setHandoffKeywords] = useState<string[]>(['atendente', 'humano', 'pessoa']);
+  const [responseMode, setResponseMode] = useState<'text' | 'audio' | 'both'>('text');
+  const [voiceId, setVoiceId] = useState('EXAVITQu4vr4xnSDxMaL');
   const [isSaving, setIsSaving] = useState(false);
 
   // Load existing config
@@ -72,6 +74,8 @@ export const FunnelAIDialog = ({
       setActiveHoursStart(agentConfig.active_hours_start ?? 8);
       setActiveHoursEnd(agentConfig.active_hours_end ?? 20);
       setHandoffKeywords(agentConfig.handoff_keywords || ['atendente', 'humano', 'pessoa']);
+      setResponseMode(agentConfig.response_mode || 'text');
+      setVoiceId(agentConfig.voice_id || 'EXAVITQu4vr4xnSDxMaL');
     }
   }, [agentConfig]);
 
@@ -93,6 +97,8 @@ export const FunnelAIDialog = ({
         active_hours_start: activeHoursStart,
         active_hours_end: activeHoursEnd,
         handoff_keywords: handoffKeywords,
+        response_mode: responseMode,
+        voice_id: voiceId,
       });
       toast.success('Configuração do agente salva!');
     } catch (error) {
@@ -193,6 +199,10 @@ export const FunnelAIDialog = ({
                     setActiveHoursEnd={setActiveHoursEnd}
                     handoffKeywords={handoffKeywords}
                     setHandoffKeywords={setHandoffKeywords}
+                    responseMode={responseMode}
+                    setResponseMode={setResponseMode}
+                    voiceId={voiceId}
+                    setVoiceId={setVoiceId}
                   />
                 </TabsContent>
 

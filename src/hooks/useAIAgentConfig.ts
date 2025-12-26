@@ -20,6 +20,8 @@ export interface AIAgentConfig {
   active_hours_end: number;
   handoff_keywords: string[];
   is_active: boolean;
+  response_mode: 'text' | 'audio' | 'both';
+  voice_id: string | null;
   created_at: string;
   updated_at: string;
 }

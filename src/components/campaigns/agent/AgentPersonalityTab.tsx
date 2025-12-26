@@ -2,7 +2,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bot, MessageSquare, AlertCircle, Smile } from 'lucide-react';
+import { Bot, MessageSquare, AlertCircle, Smile, Volume2 } from 'lucide-react';
 
 interface AgentPersonalityTabProps {
   agentName: string;
@@ -29,6 +29,10 @@ interface AgentPersonalityTabProps {
   setActiveHoursEnd: (value: number) => void;
   handoffKeywords: string[];
   setHandoffKeywords: (value: string[]) => void;
+  responseMode: 'text' | 'audio' | 'both';
+  setResponseMode: (value: 'text' | 'audio' | 'both') => void;
+  voiceId: string;
+  setVoiceId: (value: string) => void;
 }
 
 export const AgentPersonalityTab = ({
@@ -56,6 +60,10 @@ export const AgentPersonalityTab = ({
   setActiveHoursEnd,
   handoffKeywords,
   setHandoffKeywords,
+  responseMode,
+  setResponseMode,
+  voiceId,
+  setVoiceId,
 }: AgentPersonalityTabProps) => {
   const handleAddKeyword = (keyword: string) => {
     if (keyword.trim() && !handoffKeywords.includes(keyword.trim().toLowerCase())) {
@@ -176,6 +184,67 @@ export const AgentPersonalityTab = ({
           <p className="text-xs text-muted-foreground">
             Usada quando o agente não consegue entender ou responder
           </p>
+        </div>
+      </div>
+
+      {/* Voice Settings */}
+      <div className="space-y-4 border-t pt-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Volume2 className="h-4 w-4" />
+          Configurações de Voz (ElevenLabs)
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Modo de Resposta</Label>
+            <Select 
+              value={responseMode} 
+              onValueChange={(v) => setResponseMode(v as 'text' | 'audio' | 'both')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o modo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">📝 Apenas Texto</SelectItem>
+                <SelectItem value="audio">🎵 Apenas Áudio</SelectItem>
+                <SelectItem value="both">📝🎵 Texto + Áudio</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Escolha como o agente irá responder
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Voz ElevenLabs</Label>
+            <Select 
+              value={voiceId} 
+              onValueChange={setVoiceId}
+              disabled={responseMode === 'text'}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma voz" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="EXAVITQu4vr4xnSDxMaL">👩 Sarah (Feminina)</SelectItem>
+                <SelectItem value="FGY2WhTYpPnrIDTdsKH5">👩 Laura (Feminina)</SelectItem>
+                <SelectItem value="cgSgspJ2msm6clMCkdW9">👩 Jessica (Feminina)</SelectItem>
+                <SelectItem value="pFZP5JQG7iQjIQuC4Bku">👩 Lily (Feminina)</SelectItem>
+                <SelectItem value="Xb7hH8MSUJpSbSDYk0k2">👩 Alice (Feminina)</SelectItem>
+                <SelectItem value="JBFqnCBsd6RMkjVDRZzb">👨 George (Masculino)</SelectItem>
+                <SelectItem value="TX3LPaxmHKxFdv7VOQHJ">👨 Liam (Masculino)</SelectItem>
+                <SelectItem value="IKne3meq5aSn9XLyUdCD">👨 Charlie (Masculino)</SelectItem>
+                <SelectItem value="onwK4e9ZLuTAKqWW03F9">👨 Daniel (Masculino)</SelectItem>
+                <SelectItem value="nPczCjzI2devNBz1zQrb">👨 Brian (Masculino)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {responseMode === 'text' 
+                ? 'Ative o modo áudio para selecionar uma voz'
+                : 'Escolha a voz para as respostas por áudio'
+              }
+            </p>
+          </div>
         </div>
       </div>
 
