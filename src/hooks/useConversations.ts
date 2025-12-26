@@ -3,6 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+export interface ConversationDeal {
+  id: string;
+  funnel_name: string | null;
+  stage_name: string | null;
+  stage_color: string | null;
+}
+
 export interface Conversation {
   id: string;
   user_id: string;
@@ -29,6 +36,7 @@ export interface Conversation {
     notes?: string | null;
     custom_fields?: Record<string, any> | null;
   };
+  deal?: ConversationDeal | null;
 }
 
 export interface InboxMessage {
@@ -109,7 +117,43 @@ export const useConversations = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
+      
+      // Fetch active deals for all contact_ids to show funnel/stage info
+      const contactIds = data?.map(c => c.contact_id).filter(Boolean) || [];
+      
+      let dealsMap: Record<string, ConversationDeal> = {};
+      
+      if (contactIds.length > 0) {
+        const { data: deals } = await supabase
+          .from('funnel_deals')
+          .select(`
+            id,
+            contact_id,
+            funnel:funnels(name),
+            stage:funnel_stages(name, color)
+          `)
+          .in('contact_id', contactIds)
+          .is('closed_at', null);
+        
+        if (deals) {
+          deals.forEach((deal: any) => {
+            if (deal.contact_id) {
+              dealsMap[deal.contact_id] = {
+                id: deal.id,
+                funnel_name: deal.funnel?.name || null,
+                stage_name: deal.stage?.name || null,
+                stage_color: deal.stage?.color || null,
+              };
+            }
+          });
+        }
+      }
+      
+      // Map deals to conversations
+      return data?.map(conv => ({
+        ...conv,
+        deal: dealsMap[conv.contact_id] || null,
+      })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
     enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
   });
