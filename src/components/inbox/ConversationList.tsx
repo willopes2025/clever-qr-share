@@ -1,6 +1,6 @@
 import { format, isToday, isYesterday, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck } from "lucide-react";
+import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -267,9 +267,35 @@ export const ConversationList = ({
                         </div>
                       </div>
                       {/* Phone Number - Always visible */}
-                      <p className="text-xs text-muted-foreground truncate mb-1">
+                      <p className="text-xs text-muted-foreground truncate mb-0.5">
                         {formatForDisplay(conversation.contact?.phone || "")}
                       </p>
+                      {/* Funnel/Stage Badge */}
+                      {conversation.deal && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-1 mb-0.5 max-w-full overflow-hidden">
+                              <Target className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className="text-[10px] text-muted-foreground truncate">
+                                {conversation.deal.funnel_name}
+                              </span>
+                              <Badge 
+                                variant="outline" 
+                                className="h-4 px-1.5 text-[9px] shrink-0 border"
+                                style={{ 
+                                  borderColor: conversation.deal.stage_color || undefined,
+                                  color: conversation.deal.stage_color || undefined
+                                }}
+                              >
+                                {conversation.deal.stage_name}
+                              </Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {conversation.deal.funnel_name} → {conversation.deal.stage_name}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       <div className="flex items-center gap-2">
                           <p className={cn(
                             "text-sm truncate max-w-[180px]",
