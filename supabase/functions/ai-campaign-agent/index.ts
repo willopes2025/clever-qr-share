@@ -326,6 +326,111 @@ const createCalendlyBooking = async (
   }
 };
 
+// Fetch patient appointments from Calendly
+const fetchPatientAppointments = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  inviteeEmail: string
+): Promise<{ success: boolean; appointments?: Array<Record<string, unknown>>; error?: string }> => {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'get-invitee-appointments',
+        agentConfigId,
+        inviteeEmail,
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      console.error('[AI-AGENT] Failed to fetch appointments:', data.error);
+      return { success: false, error: data.error || 'Erro ao buscar agendamentos' };
+    }
+    
+    return { success: true, appointments: data.appointments };
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to fetch patient appointments:', e);
+    return { success: false, error: 'Erro de conexão ao buscar agendamentos' };
+  }
+};
+
+// Cancel a Calendly booking
+const cancelCalendlyBooking = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  inviteeUri: string,
+  reason?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'cancel-booking',
+        agentConfigId,
+        inviteeUri,
+        reason,
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      console.error('[AI-AGENT] Failed to cancel booking:', data.error);
+      return { success: false, error: data.error || 'Erro ao cancelar agendamento' };
+    }
+    
+    return { success: true };
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to cancel Calendly booking:', e);
+    return { success: false, error: 'Erro de conexão ao cancelar agendamento' };
+  }
+};
+
+// Get reschedule link from Calendly
+const getRescheduleLink = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  inviteeUri: string
+): Promise<{ success: boolean; rescheduleUrl?: string; error?: string }> => {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'get-reschedule-link',
+        agentConfigId,
+        inviteeUri,
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      console.error('[AI-AGENT] Failed to get reschedule link:', data.error);
+      return { success: false, error: data.error || 'Erro ao obter link de reagendamento' };
+    }
+    
+    return { success: true, rescheduleUrl: data.rescheduleUrl };
+  } catch (e) {
+    console.error('[AI-AGENT] Failed to get reschedule link:', e);
+    return { success: false, error: 'Erro de conexão ao obter link de reagendamento' };
+  }
+};
+
+
 // Define tools for AI agent
 const getCalendlyTools = () => [
   {
@@ -375,6 +480,61 @@ const getCalendlyTools = () => [
           },
         },
         required: ['start_time', 'invitee_name', 'invitee_email'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_patient_appointments',
+      description: 'Busca agendamentos existentes de um paciente pelo email ou telefone. Use quando o cliente perguntar sobre sua consulta, quiser remarcar ou cancelar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          invitee_email: { 
+            type: 'string', 
+            description: 'Email do paciente para buscar agendamentos' 
+          },
+        },
+        required: ['invitee_email'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancel_booking',
+      description: 'Cancela um agendamento existente. Use APENAS quando o cliente confirmar que deseja cancelar sua consulta.',
+      parameters: {
+        type: 'object',
+        properties: {
+          event_uri: { 
+            type: 'string', 
+            description: 'URI do evento retornado por get_patient_appointments' 
+          },
+          reason: { 
+            type: 'string', 
+            description: 'Motivo do cancelamento informado pelo cliente' 
+          },
+        },
+        required: ['event_uri'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_reschedule_link',
+      description: 'Obtém o link para o paciente remarcar sua consulta. Use quando o cliente quiser remarcar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          invitee_uri: { 
+            type: 'string', 
+            description: 'URI do invitee retornado por get_patient_appointments' 
+          },
+        },
+        required: ['invitee_uri'],
       },
     },
   },
@@ -1325,6 +1485,145 @@ ${mapeamento}
                 role: 'tool',
                 tool_call_id: toolCall.id,
                 content: `❌ Erro ao criar agendamento: ${bookingResult.error}. Verifique se o horário ainda está disponível ou ofereça o link de agendamento manual.`,
+              });
+            }
+          }
+        } else if (functionName === 'get_patient_appointments') {
+          const inviteeEmail = args.invitee_email || '';
+          
+          console.log(`[AI-AGENT] get_patient_appointments called for email: "${inviteeEmail}"`);
+          
+          if (!inviteeEmail) {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: '❌ ERRO: Email não fornecido. Pergunte o email do paciente para buscar seus agendamentos.',
+            });
+          } else {
+            const appointmentsResult = await fetchPatientAppointments(
+              supabaseUrl,
+              agentConfig.id,
+              inviteeEmail
+            );
+            
+            if (appointmentsResult.success && appointmentsResult.appointments && appointmentsResult.appointments.length > 0) {
+              const appointments = appointmentsResult.appointments;
+              
+              const appointmentsList = appointments.map((apt, index) => {
+                const startDate = new Date(String(apt.start_time));
+                const dataBRT = startDate.toLocaleDateString('pt-BR', { 
+                  weekday: 'long',
+                  day: '2-digit', 
+                  month: '2-digit',
+                  year: 'numeric',
+                  timeZone: 'America/Sao_Paulo'
+                });
+                const horaBRT = startDate.toLocaleTimeString('pt-BR', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  timeZone: 'America/Sao_Paulo'
+                });
+                
+                return `[${index + 1}] ${apt.event_name}\n    📅 ${dataBRT} às ${horaBRT}\n    👤 ${apt.invitee_name}\n    📧 ${apt.invitee_email}\n    🔗 event_uri: ${apt.event_uri}\n    🔗 invitee_uri: ${apt.invitee_uri}`;
+              }).join('\n\n');
+              
+              console.log(`[AI-AGENT] Found ${appointments.length} appointments for ${inviteeEmail}`);
+              
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `## AGENDAMENTOS ENCONTRADOS (${appointments.length})
+
+${appointmentsList}
+
+---
+📋 INSTRUÇÕES:
+- Para CANCELAR: use a ferramenta cancel_booking com o event_uri do agendamento
+- Para REMARCAR: use a ferramenta get_reschedule_link com o invitee_uri do agendamento
+- Confirme com o paciente qual agendamento ele deseja cancelar/remarcar`,
+              });
+            } else if (appointmentsResult.success && (!appointmentsResult.appointments || appointmentsResult.appointments.length === 0)) {
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `Nenhum agendamento encontrado para o email ${inviteeEmail}. Verifique se o email está correto ou ofereça ao paciente a opção de fazer um novo agendamento.`,
+              });
+            } else {
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao buscar agendamentos: ${appointmentsResult.error}`,
+              });
+            }
+          }
+        } else if (functionName === 'cancel_booking') {
+          const eventUri = args.event_uri || '';
+          const reason = args.reason || 'Cancelado pelo paciente via chat';
+          
+          console.log(`[AI-AGENT] cancel_booking called for event: "${eventUri}"`);
+          
+          if (!eventUri) {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: '❌ ERRO: event_uri não fornecido. Use get_patient_appointments primeiro para obter o URI do agendamento.',
+            });
+          } else {
+            // Extract invitee_uri from the event - we need to pass the invitee_uri for cancellation
+            const cancelResult = await cancelCalendlyBooking(
+              supabaseUrl,
+              agentConfig.id,
+              eventUri,
+              reason
+            );
+            
+            if (cancelResult.success) {
+              console.log(`[AI-AGENT] Booking canceled successfully`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `✅ Agendamento cancelado com sucesso!\n\nMotivo: ${reason}\n\nInforme o paciente sobre o cancelamento e ofereça a opção de agendar uma nova consulta quando desejar.`,
+              });
+            } else {
+              console.log(`[AI-AGENT] Cancel failed: ${cancelResult.error}`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao cancelar agendamento: ${cancelResult.error}. Tente novamente ou ofereça ao paciente o link de cancelamento manual.`,
+              });
+            }
+          }
+        } else if (functionName === 'get_reschedule_link') {
+          const inviteeUri = args.invitee_uri || '';
+          
+          console.log(`[AI-AGENT] get_reschedule_link called for invitee: "${inviteeUri}"`);
+          
+          if (!inviteeUri) {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: '❌ ERRO: invitee_uri não fornecido. Use get_patient_appointments primeiro para obter o URI do paciente.',
+            });
+          } else {
+            const rescheduleResult = await getRescheduleLink(
+              supabaseUrl,
+              agentConfig.id,
+              inviteeUri
+            );
+            
+            if (rescheduleResult.success && rescheduleResult.rescheduleUrl) {
+              console.log(`[AI-AGENT] Reschedule link obtained: ${rescheduleResult.rescheduleUrl}`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `✅ Link de reagendamento obtido!\n\n🔗 Link: ${rescheduleResult.rescheduleUrl}\n\nEnvie este link ao paciente para que ele possa escolher um novo horário. O link já está pré-preenchido com os dados dele.`,
+              });
+            } else {
+              console.log(`[AI-AGENT] Get reschedule link failed: ${rescheduleResult.error}`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao obter link de reagendamento: ${rescheduleResult.error}. Tente buscar os agendamentos novamente.`,
               });
             }
           }
