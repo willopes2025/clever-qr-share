@@ -3,12 +3,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+export type FieldType =
+  | "text"
+  | "number"
+  | "date"
+  | "time"
+  | "datetime"
+  | "boolean"
+  | "switch"
+  | "select"
+  | "multi_select"
+  | "url"
+  | "phone"
+  | "email";
+
 export interface CustomFieldDefinition {
   id: string;
   user_id: string;
   field_name: string;
   field_key: string;
-  field_type: 'text' | 'number' | 'boolean' | 'date' | 'select';
+  field_type: FieldType;
   options: string[];
   is_required: boolean;
   display_order: number;
