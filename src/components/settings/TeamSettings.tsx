@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -75,6 +75,16 @@ export function TeamSettings() {
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
+
+  // Sincroniza o selectedMember com os dados atualizados do members
+  useEffect(() => {
+    if (selectedMember && members.length > 0) {
+      const updatedMember = members.find(m => m.id === selectedMember.id);
+      if (updatedMember && JSON.stringify(updatedMember) !== JSON.stringify(selectedMember)) {
+        setSelectedMember(updatedMember);
+      }
+    }
+  }, [members, selectedMember]);
 
   const handleOpenPermissions = (member: TeamMember) => {
     setSelectedMember(member);
