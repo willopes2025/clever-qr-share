@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Clock, DollarSign, MoreHorizontal, User, FileText, Calendar, CheckSquare, AlertCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Clock, DollarSign, MoreHorizontal, User, FileText, Calendar, CheckSquare, AlertCircle, MessageCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,9 +24,19 @@ interface FunnelDealCardProps {
 }
 
 export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: FunnelDealCardProps) => {
+  const navigate = useNavigate();
   const { deleteDeal } = useFunnels();
   const [showEdit, setShowEdit] = useState(false);
   const { pendingCount, overdueCount } = useDealTasks(deal.id);
+
+  const handleGoToChat = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (deal.conversation_id) {
+      navigate(`/inbox?conversationId=${deal.conversation_id}`);
+    } else if (deal.contact_id) {
+      navigate(`/inbox?contactId=${deal.contact_id}`);
+    }
+  };
 
   const getTimeInStage = () => {
     const days = Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24));
@@ -73,18 +84,28 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
                 {!deal.contact?.name && formatForDisplay(deal.contact?.phone || '')}
               </p>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  data-dropdown-trigger
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
+            <div className="flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={handleGoToChat}
+                title="Ir para conversa"
+              >
+                <MessageCircle className="h-3 w-3" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    data-dropdown-trigger
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setShowEdit(true)}>
                   Editar
@@ -95,8 +116,9 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
                 >
                   Excluir
                 </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
           {/* Value and Time */}

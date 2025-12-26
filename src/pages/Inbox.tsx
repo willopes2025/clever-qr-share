@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageView } from "@/components/inbox/MessageView";
@@ -8,8 +9,36 @@ import { Conversation, useConversations } from "@/hooks/useConversations";
 import { supabase } from "@/integrations/supabase/client";
 
 const Inbox = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const initialSelectionDone = useRef(false);
+
+  // Handle initial selection from URL params
+  useEffect(() => {
+    if (initialSelectionDone.current || !conversations || conversations.length === 0) return;
+    
+    const conversationId = searchParams.get('conversationId');
+    const contactId = searchParams.get('contactId');
+    
+    if (conversationId) {
+      const conv = conversations.find(c => c.id === conversationId);
+      if (conv) {
+        setSelectedConversationId(conv.id);
+        initialSelectionDone.current = true;
+        // Clear params after selection
+        setSearchParams({});
+      }
+    } else if (contactId) {
+      const conv = conversations.find(c => c.contact_id === contactId);
+      if (conv) {
+        setSelectedConversationId(conv.id);
+        initialSelectionDone.current = true;
+        // Clear params after selection
+        setSearchParams({});
+      }
+    }
+  }, [conversations, searchParams, setSearchParams]);
 
   // Keep the selected conversation in sync with updated data
   const selectedConversation = useMemo(() => {
