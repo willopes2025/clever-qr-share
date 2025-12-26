@@ -51,10 +51,14 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
     );
   };
 
-  const handleToggleAllInstances = (checked: boolean) => {
-    setAllInstancesSelected(checked);
-    if (checked) {
+  const handleToggleAllInstances = (checked: boolean | 'indeterminate') => {
+    const isChecked = checked === true;
+    setAllInstancesSelected(isChecked);
+    if (isChecked) {
       setSelectedInstances([]);
+    } else {
+      // Quando desmarca "Todas", pré-seleciona todas as instâncias
+      setSelectedInstances(instances?.map(i => i.id) || []);
     }
   };
 
