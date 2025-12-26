@@ -89,11 +89,16 @@ export const PLANS = {
 };
 
 export const useSubscription = () => {
-  const { user, session } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   const checkSubscription = useCallback(async () => {
+    // Wait for auth to finish loading before making requests
+    if (authLoading) {
+      return;
+    }
+
     if (!session?.access_token) {
       setSubscription(null);
       setLoading(false);
@@ -116,16 +121,21 @@ export const useSubscription = () => {
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, authLoading]);
 
   useEffect(() => {
-    if (user) {
+    // Don't do anything while auth is still loading
+    if (authLoading) {
+      return;
+    }
+
+    if (user && session?.access_token) {
       checkSubscription();
     } else {
       setSubscription(null);
       setLoading(false);
     }
-  }, [user, checkSubscription]);
+  }, [user, session?.access_token, authLoading, checkSubscription]);
 
   // Auto-refresh subscription every minute
   useEffect(() => {
