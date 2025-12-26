@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface LeadSearchResultsProps {
   companies: Company[];
   selectedCompanies: Set<string>;
+  totalSelected: number;
   onSelectCompany: (cnpj: string) => void;
   onSelectAll: () => void;
   totalResults: number;
@@ -22,6 +23,7 @@ interface LeadSearchResultsProps {
 export const LeadSearchResults = ({
   companies,
   selectedCompanies,
+  totalSelected,
   onSelectCompany,
   onSelectAll,
   totalResults,
@@ -31,7 +33,9 @@ export const LeadSearchResults = ({
   onImport,
 }: LeadSearchResultsProps) => {
   const totalPages = Math.ceil(totalResults / 20);
-  const allSelected = companies.length > 0 && selectedCompanies.size === companies.length;
+  const currentPageSelected = companies.filter(c => selectedCompanies.has(c.cnpj)).length;
+  const allCurrentPageSelected = companies.length > 0 && currentPageSelected === companies.length;
+  const otherPagesSelected = totalSelected - currentPageSelected;
 
   const formatPhone = (company: Company) => {
     const ddd = company.endereco?.ddd || '';
@@ -79,12 +83,24 @@ export const LeadSearchResults = ({
           </Badge>
         </div>
         
-        {selectedCompanies.size > 0 && (
-          <Button onClick={onImport}>
-            <Download className="h-4 w-4 mr-2" />
-            Importar {selectedCompanies.size} Selecionado(s)
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {totalSelected > 0 && (
+            <>
+              <Badge variant="secondary" className="text-sm">
+                {totalSelected} selecionado(s)
+                {otherPagesSelected > 0 && (
+                  <span className="ml-1 opacity-70">
+                    (+{otherPagesSelected} de outras páginas)
+                  </span>
+                )}
+              </Badge>
+              <Button onClick={onImport}>
+                <Download className="h-4 w-4 mr-2" />
+                Importar {totalSelected} Selecionado(s)
+              </Button>
+            </>
+          )}
+        </div>
       </CardHeader>
       
       <CardContent>
@@ -101,7 +117,7 @@ export const LeadSearchResults = ({
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={allSelected}
+                        checked={allCurrentPageSelected}
                         onCheckedChange={onSelectAll}
                       />
                     </TableHead>
