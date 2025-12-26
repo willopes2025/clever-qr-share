@@ -130,16 +130,22 @@ export const initialFilters: SearchFilters = {
 const LeadSearch = () => {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  // Store full company objects to persist selections across pages
+  const [selectedCompanies, setSelectedCompanies] = useState<Map<string, Company>>(new Map());
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-  const handleSearch = async (page = 1) => {
+  const handleSearch = async (page = 1, isNewSearch = false) => {
     setIsSearching(true);
     setCurrentPage(page);
+    
+    // Only clear selections on new search (page 1 from button click)
+    if (isNewSearch) {
+      setSelectedCompanies(new Map());
+    }
     
     try {
       const { data, error } = await supabase.functions.invoke('search-companies', {
@@ -155,11 +161,10 @@ const LeadSearch = () => {
       setCompanies(data.data || []);
       setTotalResults(data.total || 0);
       setHasSearched(true);
-      setSelectedCompanies(new Set());
       
       if (data.data?.length === 0) {
         toast.info('Nenhuma empresa encontrada com os filtros selecionados');
-      } else {
+      } else if (isNewSearch) {
         toast.success(`${data.total} empresas encontradas`);
       }
     } catch (error) {
@@ -172,27 +177,46 @@ const LeadSearch = () => {
 
   const handleSelectCompany = (cnpj: string) => {
     setSelectedCompanies(prev => {
-      const next = new Set(prev);
+      const next = new Map(prev);
       if (next.has(cnpj)) {
         next.delete(cnpj);
       } else {
-        next.add(cnpj);
+        const company = companies.find(c => c.cnpj === cnpj);
+        if (company) {
+          next.set(cnpj, company);
+        }
       }
       return next;
     });
   };
 
   const handleSelectAll = () => {
-    if (selectedCompanies.size === companies.length) {
-      setSelectedCompanies(new Set());
+    const currentPageCnpjs = companies.map(c => c.cnpj);
+    const allCurrentSelected = currentPageCnpjs.every(cnpj => selectedCompanies.has(cnpj));
+    
+    if (allCurrentSelected) {
+      // Deselect all from current page
+      setSelectedCompanies(prev => {
+        const next = new Map(prev);
+        currentPageCnpjs.forEach(cnpj => next.delete(cnpj));
+        return next;
+      });
     } else {
-      setSelectedCompanies(new Set(companies.map(c => c.cnpj)));
+      // Select all from current page (add to existing)
+      setSelectedCompanies(prev => {
+        const next = new Map(prev);
+        companies.forEach(c => next.set(c.cnpj, c));
+        return next;
+      });
     }
   };
 
-  const getSelectedCompanies = () => {
-    return companies.filter(c => selectedCompanies.has(c.cnpj));
+  const getSelectedCompanies = (): Company[] => {
+    return Array.from(selectedCompanies.values());
   };
+
+  // Get CNPJs for current page selection check
+  const selectedCnpjs = new Set(selectedCompanies.keys());
 
   return (
     <DashboardLayout>
@@ -223,7 +247,7 @@ const LeadSearch = () => {
             <LeadSearchFilters
               filters={filters}
               setFilters={setFilters}
-              onSearch={() => handleSearch(1)}
+              onSearch={() => handleSearch(1, true)}
               isSearching={isSearching}
               onReset={() => setFilters(initialFilters)}
             />
@@ -234,12 +258,13 @@ const LeadSearch = () => {
         {hasSearched && (
           <LeadSearchResults
             companies={companies}
-            selectedCompanies={selectedCompanies}
+            selectedCompanies={selectedCnpjs}
+            totalSelected={selectedCompanies.size}
             onSelectCompany={handleSelectCompany}
             onSelectAll={handleSelectAll}
             totalResults={totalResults}
             currentPage={currentPage}
-            onPageChange={handleSearch}
+            onPageChange={(page) => handleSearch(page, false)}
             isLoading={isSearching}
             onImport={() => setImportDialogOpen(true)}
           />
@@ -251,7 +276,7 @@ const LeadSearch = () => {
           onOpenChange={setImportDialogOpen}
           companies={getSelectedCompanies()}
           onSuccess={() => {
-            setSelectedCompanies(new Set());
+            setSelectedCompanies(new Map());
             setImportDialogOpen(false);
           }}
         />
