@@ -74,6 +74,7 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
           <MediaMessage
             mediaUrl={message.media_url}
             messageType={message.message_type}
+            messageId={message.id}
             transcription={message.transcription}
           />
         )}

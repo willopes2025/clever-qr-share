@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { VoiceRecorder } from "./VoiceRecorder";
 import { MediaUploadButton } from "./MediaUploadButton";
 import { AIAssistantButton } from "./AIAssistantButton";
 import { ContactInfoPanel } from "./ContactInfoPanel";
+import { TransferConversationDialog } from "./TransferConversationDialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -64,6 +65,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const [showContactInfo, setShowContactInfo] = useState(false);
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [isInvokingAI, setIsInvokingAI] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -545,6 +547,23 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             </SelectContent>
           </Select>
           
+          {/* Transfer Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setShowTransferDialog(true)}
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Transferir conversa
+            </TooltipContent>
+          </Tooltip>
+          
           {/* Contact Info Button */}
           <Button
             variant="ghost"
@@ -687,6 +706,14 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
         conversation={conversation}
         isOpen={showContactInfo}
         onClose={() => setShowContactInfo(false)}
+      />
+      
+      {/* Transfer Dialog */}
+      <TransferConversationDialog
+        open={showTransferDialog}
+        onOpenChange={setShowTransferDialog}
+        conversationId={conversation.id}
+        contactName={conversation.contact?.name || conversation.contact?.phone || "Contato"}
       />
     </div>
   );
