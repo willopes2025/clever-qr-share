@@ -1004,6 +1004,66 @@ Quando o cliente quiser agendar, use get_available_times. A ferramenta retorna h
       systemPrompt += calendarContext;
     }
     
+    // Analyze conversation history to detect what has already been said
+    const historicoJaSaudou = conversationHistory.some(msg => 
+      msg.role === 'assistant' && 
+      (msg.content.toLowerCase().includes('olá') || 
+       msg.content.toLowerCase().includes('oi') ||
+       msg.content.toLowerCase().includes('bom dia') ||
+       msg.content.toLowerCase().includes('boa tarde') ||
+       msg.content.toLowerCase().includes('boa noite') ||
+       msg.content.toLowerCase().includes('sou a') ||
+       msg.content.toLowerCase().includes('sou o') ||
+       msg.content.toLowerCase().includes('assistente virtual') ||
+       msg.content.toLowerCase().includes('bem-vind'))
+    );
+
+    const historicoJaPerguntouNome = conversationHistory.some(msg =>
+      msg.role === 'assistant' && 
+      (msg.content.toLowerCase().includes('qual') || msg.content.toLowerCase().includes('como')) &&
+      msg.content.toLowerCase().includes('nome')
+    );
+
+    const historicoClienteDisseNome = conversationHistory.some(msg =>
+      msg.role === 'user' && 
+      // Short message (1-3 words) is usually a name
+      msg.content.split(' ').length <= 3 && 
+      msg.content.length < 30 &&
+      msg.content.length > 1
+    );
+
+    const totalMensagensAssistant = conversationHistory.filter(m => m.role === 'assistant').length;
+    
+    // Add critical continuity rules
+    systemPrompt += `\n\n## ⚠️ REGRAS CRÍTICAS DE CONTINUIDADE DA CONVERSA ⚠️
+
+ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra todas as mensagens trocadas.
+
+### Estado Atual da Conversa:
+- Já me apresentei/saudei? ${historicoJaSaudou ? '✅ SIM - NÃO REPETIR saudação' : '❌ NÃO - pode saudar'}
+- Já perguntei o nome? ${historicoJaPerguntouNome ? '✅ SIM - NÃO PERGUNTAR de novo' : '❌ NÃO'}
+- Cliente já disse o nome? ${historicoClienteDisseNome ? '✅ PROVAVELMENTE SIM' : '❌ NÃO'}
+- Total de respostas minhas no histórico: ${totalMensagensAssistant}
+
+### REGRAS OBRIGATÓRIAS:
+1. **NUNCA REPITA SAUDAÇÕES** - Se já disse "Olá", "Oi", "Sou a Bia" (ou similar) no histórico, NÃO diga novamente
+2. **NUNCA REPITA PERGUNTAS** - Se já perguntou o nome, interesse, etc., NÃO pergunte de novo
+3. **ANALISE O HISTÓRICO** - Leia as mensagens anteriores e continue de onde parou
+4. **SEJA CONTEXTUAL** - Responda baseado na última mensagem do cliente
+5. **PROGRIDA NA CONVERSA** - Avance para o próximo passo, não reinicie
+
+### O que NÃO fazer:
+❌ Dizer "Olá" se já saudou antes
+❌ Perguntar "Qual seu nome?" se já sabe ou já perguntou
+❌ Repetir sua apresentação a cada mensagem
+❌ Ignorar o que o cliente disse e recomeçar do zero
+
+### O que FAZER:
+✅ Responder diretamente ao que o cliente disse
+✅ Continuar de onde a conversa parou
+✅ Usar o nome do cliente se já souber
+✅ Avançar para o próximo assunto`;
+
     // Add context
     systemPrompt += `\n\n## Contexto da Conversa
 - Nome do cliente: ${contactName}
