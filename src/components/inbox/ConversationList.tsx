@@ -187,8 +187,8 @@ export const ConversationList = ({
           </div>
         ) : (
           <div className="p-2">
-            <AnimatePresence mode="popLayout">
-              {filteredConversations.map((conversation, index) => (
+            <AnimatePresence mode="sync">
+              {filteredConversations.map((conversation) => (
                 <ConversationContextMenu
                   key={conversation.id}
                   conversationId={conversation.id}
@@ -196,16 +196,15 @@ export const ConversationList = ({
                   isPinned={conversation.is_pinned || false}
                 >
                   <motion.div
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, delay: index * 0.02 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
                     className={cn(
-                      "group w-full flex items-start gap-3 p-3 rounded-xl transition-all duration-200 text-left mb-1 cursor-pointer",
+                      "group w-full flex items-start gap-3 p-3 rounded-xl transition-colors duration-200 text-left mb-1 cursor-pointer",
                       selectedId === conversation.id
                         ? "bg-primary/10 border border-primary/20 shadow-sm"
-                        : "hover:bg-muted/50 hover:scale-[1.01]"
+                        : "hover:bg-muted/50"
                     )}
                     onClick={() => onSelect(conversation)}
                   >
