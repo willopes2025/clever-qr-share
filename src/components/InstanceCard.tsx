@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings } from "lucide-react";
+import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { WARMING_LEVELS } from "@/hooks/useWhatsAppInstances";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +16,7 @@ interface InstanceCardProps {
   onDelete: () => void;
   onWarmingChange: (level: number) => void;
   onConfigureFunnel: () => void;
+  onSyncHistory: () => void;
 }
 
 export const InstanceCard = ({ 
@@ -28,6 +29,7 @@ export const InstanceCard = ({
   onDelete,
   onWarmingChange,
   onConfigureFunnel,
+  onSyncHistory,
 }: InstanceCardProps) => {
   const statusConfig = {
     connected: { color: "bg-accent", text: "Conectado", icon: Check },
@@ -176,6 +178,22 @@ export const InstanceCard = ({
             <QrCode className="h-4 w-4 mr-2" />
             {status === "connected" ? "Conectado" : "Ver QR Code"}
           </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSyncHistory}
+                disabled={status !== "connected"}
+                className="relative z-50 rounded-xl"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Sincronizar histórico de mensagens</p>
+            </TooltipContent>
+          </Tooltip>
           <Button
             variant="destructive"
             size="sm"

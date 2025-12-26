@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.elevenlabs-preview-voice]
 verify_jwt = false
+
+[functions.sync-message-history]
+verify_jwt = false
