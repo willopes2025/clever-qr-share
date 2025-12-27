@@ -1,9 +1,10 @@
 import { CalendarTask } from "@/hooks/useCalendarTasks";
 import { TaskEventCard } from "./TaskEventCard";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { isSameDateString } from "@/lib/date-utils";
 
 interface MonthViewProps {
   currentDate: Date;
@@ -23,11 +24,9 @@ export function MonthView({ currentDate, tasks, onTaskClick, onDayClick }: Month
 
   const getTasksForDay = (day: Date) => {
     return tasks.filter(task => {
-      if (!task.due_date) return false;
-      return isSameDay(new Date(task.due_date), day);
+      return isSameDateString(task.due_date, day);
     });
   };
-
   return (
     <div className="flex-1 overflow-auto">
       {/* Cabeçalho dos dias da semana */}

@@ -6,7 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useConversationTasks, ConversationTask } from "@/hooks/useConversationTasks";
-import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { useTaskTypes } from "@/hooks/useTaskTypes";
+import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, User, Tag } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TaskTypeSelector } from "@/components/calendar/TaskTypeSelector";
+import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
 
 interface TasksTabProps {
   conversationId: string | null;
@@ -54,14 +57,17 @@ const priorityLabels: Record<string, string> = {
 
 export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
   const { pendingTasks, completedTasks, isLoading, createTask, updateTask, toggleComplete, deleteTask } = useConversationTasks(conversationId, contactId);
+  const { taskTypes } = useTaskTypes();
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
   const [newDueTime, setNewDueTime] = useState("");
   const [newPriority, setNewPriority] = useState("normal");
+  const [newTaskTypeId, setNewTaskTypeId] = useState<string | null>(null);
+  const [newAssignedTo, setNewAssignedTo] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTask, setEditTask] = useState<Partial<ConversationTask>>({});
+  const [editTask, setEditTask] = useState<Partial<ConversationTask> & { task_type_id?: string | null; assigned_to?: string | null }>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
@@ -73,6 +79,8 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       due_date: newDueDate || undefined,
       due_time: newDueTime || undefined,
       priority: newPriority,
+      task_type_id: newTaskTypeId,
+      assigned_to: newAssignedTo,
     });
     resetForm();
   };
@@ -83,6 +91,8 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
     setNewDueDate("");
     setNewDueTime("");
     setNewPriority("normal");
+    setNewTaskTypeId(null);
+    setNewAssignedTo(null);
     setIsCreating(false);
   };
 
@@ -106,7 +116,14 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       due_date: task.due_date || "",
       due_time: task.due_time || "",
       priority: task.priority,
+      task_type_id: (task as any).task_type_id || null,
+      assigned_to: (task as any).assigned_to || null,
     });
+  };
+
+  const getTaskType = (typeId: string | null | undefined) => {
+    if (!typeId) return null;
+    return taskTypes.find(t => t.id === typeId);
   };
 
   const getDueDateLabel = (date: string) => {
@@ -168,6 +185,18 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
               <SelectItem value="urgent">Urgente</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex gap-2">
+            <TaskTypeSelector
+              value={editTask.task_type_id || null}
+              onChange={(value) => setEditTask({ ...editTask, task_type_id: value })}
+              compact
+            />
+            <AssigneeSelector
+              value={editTask.assigned_to || null}
+              onChange={(value) => setEditTask({ ...editTask, assigned_to: value })}
+              compact
+            />
+          </div>
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
               <X className="h-4 w-4" />
@@ -210,7 +239,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 </Badge>
               </div>
             </div>
-            <div className="flex items-center gap-3 mt-2 text-xs">
+            <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
               {task.due_date && (
                 <span className={cn("flex items-center gap-1", getDueDateColor(task.due_date))}>
                   <Calendar className="h-3 w-3" />
@@ -221,6 +250,15 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 <span className="flex items-center gap-1 text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {task.due_time.slice(0, 5)}
+                </span>
+              )}
+              {getTaskType(task.task_type_id) && (
+                <span 
+                  className="flex items-center gap-1"
+                  style={{ color: getTaskType(task.task_type_id)?.color }}
+                >
+                  <Tag className="h-3 w-3" />
+                  {getTaskType(task.task_type_id)?.name}
                 </span>
               )}
             </div>
@@ -293,6 +331,18 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 <SelectItem value="urgent">Urgente</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex gap-2">
+              <TaskTypeSelector
+                value={newTaskTypeId}
+                onChange={setNewTaskTypeId}
+                compact
+              />
+              <AssigneeSelector
+                value={newAssignedTo}
+                onChange={setNewAssignedTo}
+                compact
+              />
+            </div>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="ghost" onClick={resetForm}>
                 <X className="h-4 w-4 mr-1" />

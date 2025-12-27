@@ -1,3 +1,5 @@
+import { format, isSameDay as dateFnsIsSameDay } from "date-fns";
+
 /**
  * Parse a date string (YYYY-MM-DD) without timezone issues
  * This ensures the date displays as the exact day stored, regardless of local timezone
@@ -18,4 +20,14 @@ export function formatDateOnly(dateString: string): string {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+/**
+ * Check if a date string (YYYY-MM-DD) is the same day as a Date object
+ * This avoids timezone issues when comparing dates from the database
+ */
+export function isSameDateString(dateString: string | null, day: Date): boolean {
+  if (!dateString) return false;
+  const taskDate = parseDateOnly(dateString);
+  return dateFnsIsSameDay(taskDate, day);
 }

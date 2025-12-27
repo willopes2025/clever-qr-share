@@ -15,6 +15,8 @@ export interface ConversationTask {
   priority: string;
   completed_at: string | null;
   reminder_at: string | null;
+  task_type_id: string | null;
+  assigned_to: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +61,8 @@ export const useConversationTasks = (conversationId: string | null, contactId: s
       due_time?: string;
       priority?: string;
       reminder_at?: string;
+      task_type_id?: string | null;
+      assigned_to?: string | null;
     }) => {
       if (!user) throw new Error('Usuário não autenticado');
       
