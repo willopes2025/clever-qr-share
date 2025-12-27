@@ -567,11 +567,13 @@ serve(async (req) => {
 
       if (response.ok && result.key) {
         // Message sent successfully
+        const sentAt = new Date().toISOString();
+        
         await supabase
           .from('campaign_messages')
           .update({ 
             status: 'sent',
-            sent_at: new Date().toISOString()
+            sent_at: sentAt
           })
           .eq('id', message.id);
 
@@ -580,7 +582,7 @@ serve(async (req) => {
 
         console.log(`Message ${messageIndex + 1} sent successfully via ${instance.instance_name}`);
 
-        // Link conversation to campaign for AI agent
+        // Link conversation to campaign for AI agent and insert into inbox_messages
         try {
           // Find or create conversation for this contact
           const { data: existingConversation } = await supabase
@@ -590,7 +592,11 @@ serve(async (req) => {
             .eq('user_id', campaign.user_id)
             .single();
 
+          let conversationId: string | null = null;
+
           if (existingConversation) {
+            conversationId = existingConversation.id;
+            
             // Update existing conversation with campaign_id and AI settings
             await supabase
               .from('conversations')
@@ -599,7 +605,9 @@ serve(async (req) => {
                 ai_handled: true,
                 ai_paused: false,
                 ai_interactions_count: 0,
-                instance_id: instance.id === 'legacy' ? null : instance.id
+                instance_id: instance.id === 'legacy' ? null : instance.id,
+                last_message_at: sentAt,
+                last_message_preview: message.message_content.substring(0, 100)
               })
               .eq('id', existingConversation.id);
             
@@ -616,14 +624,38 @@ serve(async (req) => {
                 ai_handled: true,
                 ai_paused: false,
                 ai_interactions_count: 0,
-                last_message_at: new Date().toISOString(),
+                last_message_at: sentAt,
                 last_message_preview: message.message_content.substring(0, 100)
               })
               .select('id')
               .single();
             
             if (!convError && newConv) {
+              conversationId = newConv.id;
               console.log(`Created new conversation ${newConv.id} linked to campaign ${campaignId}`);
+            }
+          }
+
+          // Insert message into inbox_messages so it appears in the chat
+          if (conversationId) {
+            const { error: inboxError } = await supabase
+              .from('inbox_messages')
+              .insert({
+                conversation_id: conversationId,
+                user_id: campaign.user_id,
+                direction: 'outbound',
+                content: message.message_content,
+                message_type: 'text',
+                status: 'sent',
+                sent_at: sentAt,
+                whatsapp_message_id: result.key.id || null
+                // sent_by_user_id is null to indicate it was sent by the system/campaign
+              });
+
+            if (inboxError) {
+              console.error('Error inserting message into inbox_messages:', inboxError);
+            } else {
+              console.log(`Inserted campaign message into inbox_messages for conversation ${conversationId}`);
             }
           }
         } catch (convLinkError) {
