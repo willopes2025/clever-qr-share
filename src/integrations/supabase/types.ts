@@ -1569,6 +1569,45 @@ export type Database = {
           },
         ]
       }
+      integrations: {
+        Row: {
+          created_at: string | null
+          credentials: Json | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          provider: string
+          settings: Json | null
+          sync_error: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          credentials?: Json | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          provider: string
+          settings?: Json | null
+          sync_error?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          credentials?: Json | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          provider?: string
+          settings?: Json | null
+          sync_error?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       lead_usage_log: {
         Row: {
           created_at: string | null
