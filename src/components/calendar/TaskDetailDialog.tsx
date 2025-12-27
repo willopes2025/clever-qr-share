@@ -47,7 +47,7 @@ export function TaskDetailDialog({ open, onOpenChange, task }: TaskDetailDialogP
 
   const handleGoToChat = () => {
     if (task?.conversation_id) {
-      navigate(`/inbox?conversation=${task.conversation_id}`);
+      navigate(`/inbox?conversationId=${task.conversation_id}`);
       onOpenChange(false);
     }
   };

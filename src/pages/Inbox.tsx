@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -12,33 +12,31 @@ const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const initialSelectionDone = useRef(false);
 
-  // Handle initial selection from URL params
+  // Handle selection from URL params (reactive to changes)
   useEffect(() => {
-    if (initialSelectionDone.current || !conversations || conversations.length === 0) return;
+    if (!conversations || conversations.length === 0) return;
     
-    const conversationId = searchParams.get('conversationId');
+    // Support both 'conversationId' and 'conversation' params for compatibility
+    const conversationId = searchParams.get('conversationId') || searchParams.get('conversation');
     const contactId = searchParams.get('contactId');
     
     if (conversationId) {
       const conv = conversations.find(c => c.id === conversationId);
-      if (conv) {
+      if (conv && selectedConversationId !== conv.id) {
         setSelectedConversationId(conv.id);
-        initialSelectionDone.current = true;
         // Clear params after selection
         setSearchParams({});
       }
     } else if (contactId) {
       const conv = conversations.find(c => c.contact_id === contactId);
-      if (conv) {
+      if (conv && selectedConversationId !== conv.id) {
         setSelectedConversationId(conv.id);
-        initialSelectionDone.current = true;
         // Clear params after selection
         setSearchParams({});
       }
     }
-  }, [conversations, searchParams, setSearchParams]);
+  }, [conversations, searchParams, setSearchParams, selectedConversationId]);
 
   // Keep the selected conversation in sync with updated data
   const selectedConversation = useMemo(() => {
