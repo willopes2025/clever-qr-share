@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,7 @@ import { AssigneeSelector } from "./AssigneeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Trash2, Check, X, Pencil, Calendar, Clock, User, Tag } from "lucide-react";
+import { Trash2, Check, X, Pencil, Calendar, Clock, User, Tag, MessageSquare } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,10 +39,18 @@ interface TaskDetailDialogProps {
 }
 
 export function TaskDetailDialog({ open, onOpenChange, task }: TaskDetailDialogProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleGoToChat = () => {
+    if (task?.conversation_id) {
+      navigate(`/inbox?conversation=${task.conversation_id}`);
+      onOpenChange(false);
+    }
+  };
 
   const [editData, setEditData] = useState({
     title: "",
@@ -284,9 +293,23 @@ export function TaskDetailDialog({ open, onOpenChange, task }: TaskDetailDialogP
                 )}
 
                 {(task.contact_name || task.deal_title) && (
-                  <div className="text-sm text-muted-foreground">
-                    {task.source === 'conversation' ? 'Contato: ' : 'Negócio: '}
-                    <span className="font-medium">{task.contact_name || task.deal_title}</span>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    {task.source === 'conversation' && task.conversation_id ? (
+                      <>
+                        <MessageSquare className="h-4 w-4" />
+                        Contato:{' '}
+                        <button
+                          onClick={handleGoToChat}
+                          className="font-medium text-primary hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {task.contact_name}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        Negócio: <span className="font-medium">{task.deal_title}</span>
+                      </>
+                    )}
                   </div>
                 )}
 
