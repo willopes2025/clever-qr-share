@@ -21,6 +21,7 @@ import Warming from "./pages/Warming";
 import Analysis from "./pages/Analysis";
 import Funnels from "./pages/Funnels";
 import LeadSearch from "./pages/LeadSearch";
+import Calendar from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -122,6 +123,13 @@ const App = () => (
             <ProtectedRoute>
               <NotificationProvider>
                 <Funnels />
+              </NotificationProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/calendar" element={
+            <ProtectedRoute>
+              <NotificationProvider>
+                <Calendar />
               </NotificationProvider>
             </ProtectedRoute>
           } />
