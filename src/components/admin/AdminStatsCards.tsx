@@ -42,7 +42,7 @@ export const AdminStatsCards = ({ totalUsers, activeSubscriptions, planCounts }:
     },
     {
       title: "Planos Premium",
-      value: (planCounts['pro'] || 0) + (planCounts['business'] || 0),
+      value: (planCounts['profissional'] || 0) + (planCounts['agencia'] || 0) + (planCounts['avancado'] || 0),
       icon: Crown,
       color: "text-accent",
       bgColor: "bg-accent/10"

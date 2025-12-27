@@ -158,10 +158,11 @@ export const EditSubscriptionDialog = ({
                   <SelectValue placeholder="Selecione o plano" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="starter">Starter</SelectItem>
-                  <SelectItem value="pro">Pro</SelectItem>
-                  <SelectItem value="business">Business</SelectItem>
+                  <SelectItem value="free">Free Trial</SelectItem>
+                  <SelectItem value="essencial">Essencial (R$147/mês)</SelectItem>
+                  <SelectItem value="profissional">Profissional (R$297/mês)</SelectItem>
+                  <SelectItem value="agencia">Agência (R$597/mês)</SelectItem>
+                  <SelectItem value="avancado">Avançado (R$797/mês)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

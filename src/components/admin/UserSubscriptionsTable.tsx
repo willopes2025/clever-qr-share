@@ -59,9 +59,10 @@ interface UserSubscriptionsTableProps {
 
 const planColors: Record<string, string> = {
   free: "bg-muted text-muted-foreground",
-  starter: "bg-primary/10 text-primary",
-  pro: "bg-accent/10 text-accent",
-  business: "bg-accent/20 text-accent",
+  essencial: "bg-blue-500/10 text-blue-600",
+  profissional: "bg-primary/10 text-primary",
+  agencia: "bg-accent/10 text-accent",
+  avancado: "bg-purple-500/10 text-purple-600",
   none: "bg-destructive/10 text-destructive"
 };
 
@@ -115,10 +116,11 @@ export const UserSubscriptionsTable = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os planos</SelectItem>
-            <SelectItem value="free">Free</SelectItem>
-            <SelectItem value="starter">Starter</SelectItem>
-            <SelectItem value="pro">Pro</SelectItem>
-            <SelectItem value="business">Business</SelectItem>
+            <SelectItem value="free">Free Trial</SelectItem>
+            <SelectItem value="essencial">Essencial</SelectItem>
+            <SelectItem value="profissional">Profissional</SelectItem>
+            <SelectItem value="agencia">Agência</SelectItem>
+            <SelectItem value="avancado">Avançado</SelectItem>
             <SelectItem value="none">Sem plano</SelectItem>
           </SelectContent>
         </Select>
