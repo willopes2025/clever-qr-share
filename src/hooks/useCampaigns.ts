@@ -83,7 +83,7 @@ export const useCampaigns = () => {
           template:message_templates(id, name, content),
           list:broadcast_lists(id, name)
         `)
-        .eq('user_id', user.id)
+        // RLS policy handles organization-level access
         .order('created_at', { ascending: false });
 
       if (error) throw error;
