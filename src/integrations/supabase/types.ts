@@ -1071,6 +1071,7 @@ export type Database = {
       }
       conversation_tasks: {
         Row: {
+          assigned_to: string | null
           completed_at: string | null
           contact_id: string | null
           conversation_id: string | null
@@ -1078,14 +1079,18 @@ export type Database = {
           description: string | null
           due_date: string | null
           due_time: string | null
+          google_event_id: string | null
           id: string
           priority: string | null
           reminder_at: string | null
+          sync_with_google: boolean | null
+          task_type_id: string | null
           title: string
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          assigned_to?: string | null
           completed_at?: string | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -1093,14 +1098,18 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_time?: string | null
+          google_event_id?: string | null
           id?: string
           priority?: string | null
           reminder_at?: string | null
+          sync_with_google?: boolean | null
+          task_type_id?: string | null
           title: string
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          assigned_to?: string | null
           completed_at?: string | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -1108,9 +1117,12 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_time?: string | null
+          google_event_id?: string | null
           id?: string
           priority?: string | null
           reminder_at?: string | null
+          sync_with_google?: boolean | null
+          task_type_id?: string | null
           title?: string
           updated_at?: string | null
           user_id?: string
@@ -1128,6 +1140,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_tasks_task_type_id_fkey"
+            columns: ["task_type_id"]
+            isOneToOne: false
+            referencedRelation: "task_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1255,37 +1274,52 @@ export type Database = {
       }
       deal_tasks: {
         Row: {
+          assigned_to: string | null
           completed_at: string | null
           created_at: string | null
           deal_id: string
           description: string | null
           due_date: string | null
+          due_time: string | null
+          google_event_id: string | null
           id: string
           priority: string | null
+          sync_with_google: boolean | null
+          task_type_id: string | null
           title: string
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          assigned_to?: string | null
           completed_at?: string | null
           created_at?: string | null
           deal_id: string
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
+          google_event_id?: string | null
           id?: string
           priority?: string | null
+          sync_with_google?: boolean | null
+          task_type_id?: string | null
           title: string
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          assigned_to?: string | null
           completed_at?: string | null
           created_at?: string | null
           deal_id?: string
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
+          google_event_id?: string | null
           id?: string
           priority?: string | null
+          sync_with_google?: boolean | null
+          task_type_id?: string | null
           title?: string
           updated_at?: string | null
           user_id?: string
@@ -1296,6 +1330,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_tasks_task_type_id_fkey"
+            columns: ["task_type_id"]
+            isOneToOne: false
+            referencedRelation: "task_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1613,6 +1654,45 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      google_calendar_integrations: {
+        Row: {
+          access_token: string
+          calendar_id: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          refresh_token: string
+          token_expires_at: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          calendar_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          refresh_token: string
+          token_expires_at: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          calendar_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          refresh_token?: string
+          token_expires_at?: string
           updated_at?: string | null
           user_id?: string
         }
@@ -2085,6 +2165,39 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      task_types: {
+        Row: {
+          color: string
+          created_at: string | null
+          display_order: number | null
+          icon: string
+          id: string
+          is_default: boolean | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string | null
+          display_order?: number | null
+          icon: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string | null
+          display_order?: number | null
+          icon?: string
+          id?: string
+          is_default?: boolean | null
           name?: string
           user_id?: string
         }
