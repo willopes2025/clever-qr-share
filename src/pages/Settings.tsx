@@ -6,8 +6,8 @@ import { CampaignSettings } from "@/components/settings/CampaignSettings";
 import { ApiSettings } from "@/components/settings/ApiSettings";
 import { DataSettings } from "@/components/settings/DataSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
-import { CalendarIntegrations } from "@/components/settings/CalendarIntegrations";
-import { User, MessageSquare, Megaphone, Server, Database, Users, Calendar } from "lucide-react";
+import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings";
+import { User, MessageSquare, Megaphone, Server, Database, Users, Plug } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 
 const Settings = () => {
@@ -27,7 +27,7 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6 relative z-10">
-        <TabsList className="grid w-full grid-cols-7 bg-secondary/50 p-1">
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7 bg-secondary/50 p-1">
           <TabsTrigger value="profile" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Perfil</span>
@@ -36,9 +36,9 @@ const Settings = () => {
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Equipe</span>
           </TabsTrigger>
-          <TabsTrigger value="calendar" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">Calendário</span>
+          <TabsTrigger value="integrations" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
+            <Plug className="h-4 w-4" />
+            <span className="hidden sm:inline">Integrações</span>
           </TabsTrigger>
           <TabsTrigger value="sending" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
             <MessageSquare className="h-4 w-4" />
@@ -66,8 +66,8 @@ const Settings = () => {
           <TeamSettings />
         </TabsContent>
 
-        <TabsContent value="calendar">
-          <CalendarIntegrations />
+        <TabsContent value="integrations">
+          <IntegrationsSettings />
         </TabsContent>
 
         <TabsContent value="sending">
