@@ -51,16 +51,47 @@ serve(async (req) => {
       );
     }
 
-    // Verify template belongs to user
+    // Verify template exists
     const { data: template, error: templateError } = await supabase
       .from('message_templates')
       .select('id, user_id')
       .eq('id', templateId)
       .single();
 
-    if (templateError || !template || template.user_id !== user.id) {
+    if (templateError || !template) {
       return new Response(
-        JSON.stringify({ error: 'Template not found or not authorized' }),
+        JSON.stringify({ error: 'Template not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if user owns the template or is in the same organization
+    let isAuthorized = template.user_id === user.id;
+    
+    if (!isAuthorized) {
+      // Get organization members to check if template owner is in same org
+      const { data: userOrg } = await supabase
+        .from('team_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      if (userOrg?.organization_id) {
+        const { data: orgMembers } = await supabase
+          .from('team_members')
+          .select('user_id')
+          .eq('organization_id', userOrg.organization_id)
+          .eq('status', 'active');
+
+        const orgMemberIds = orgMembers?.map(m => m.user_id) || [];
+        isAuthorized = orgMemberIds.includes(template.user_id);
+      }
+    }
+
+    if (!isAuthorized) {
+      return new Response(
+        JSON.stringify({ error: 'Not authorized to modify this template' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
