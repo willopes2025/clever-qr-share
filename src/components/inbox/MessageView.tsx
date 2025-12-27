@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useConversationNotes } from "@/hooks/useConversationNotes";
+import { useConversationTasks } from "@/hooks/useConversationTasks";
+import { useInternalMessages } from "@/hooks/useInternalMessages";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageBubble } from "./MessageBubble";
 import { DateSeparator } from "./DateSeparator";
@@ -27,6 +31,9 @@ import { MediaUploadButton } from "./MediaUploadButton";
 import { AIAssistantButton } from "./AIAssistantButton";
 import { ContactInfoPanel } from "./ContactInfoPanel";
 import { TransferConversationDialog } from "./TransferConversationDialog";
+import { NotesTab } from "./NotesTab";
+import { TasksTab } from "./TasksTab";
+import { InternalChatTab } from "./InternalChatTab";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -52,6 +59,9 @@ interface OptimisticMessage extends InboxMessage {
 export const MessageView = ({ conversation }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
+  const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
+  const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
+  const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
@@ -67,6 +77,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [isInvokingAI, setIsInvokingAI] = useState(false);
+  const [activeTab, setActiveTab] = useState("chat");
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -576,6 +587,31 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
         </div>
       </div>
 
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+        <TabsList className="mx-4 mt-2 justify-start bg-muted/50 p-1 h-auto flex-wrap">
+          <TabsTrigger value="chat" className="gap-2 data-[state=active]:bg-background">
+            <MessageSquare className="h-4 w-4" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="gap-2 data-[state=active]:bg-background">
+            <StickyNote className="h-4 w-4" />
+            Notas
+            {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{notes.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="tasks" className="gap-2 data-[state=active]:bg-background">
+            <CheckSquare className="h-4 w-4" />
+            Tarefas
+            {pendingTasks.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{pendingTasks.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="internal" className="gap-2 data-[state=active]:bg-background">
+            <Users className="h-4 w-4" />
+            Interno
+            {internalMessages.length > 0 && <Badge className="ml-1 h-5 px-1.5 bg-primary">{internalMessages.length}</Badge>}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden">
       {/* Messages */}
       <ScrollArea 
         className="flex-1 p-4" 
@@ -699,6 +735,20 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           </motion.p>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="notes" className="flex-1 mt-0 overflow-hidden">
+          <NotesTab conversationId={conversation.id} contactId={conversation.contact_id} />
+        </TabsContent>
+
+        <TabsContent value="tasks" className="flex-1 mt-0 overflow-hidden">
+          <TasksTab conversationId={conversation.id} contactId={conversation.contact_id} />
+        </TabsContent>
+
+        <TabsContent value="internal" className="flex-1 mt-0 overflow-hidden">
+          <InternalChatTab conversationId={conversation.id} contactId={conversation.contact_id} />
+        </TabsContent>
+      </Tabs>
       </div>
       
       {/* Contact Info Panel */}
