@@ -21,6 +21,9 @@ export type PermissionKey =
   | 'manage_deals'
   | 'manage_stages'
   | 'manage_automations'
+  // Calendar
+  | 'view_calendar'
+  | 'manage_calendar'
   // Analysis
   | 'view_analysis'
   // Contacts
@@ -71,6 +74,7 @@ export type PermissionCategory =
   | 'warming'
   | 'inbox'
   | 'funnels'
+  | 'calendar'
   | 'analysis'
   | 'contacts'
   | 'leads'
@@ -86,6 +90,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   warming: 'Aquecimento',
   inbox: 'Inbox',
   funnels: 'Funis',
+  calendar: 'Calendário',
   analysis: 'Análise',
   contacts: 'Contatos',
   leads: 'Busca de Leads',
@@ -123,6 +128,10 @@ export const PERMISSIONS: Permission[] = [
   { key: 'manage_deals', label: 'Gerenciar Deals', description: 'Criar/editar negócios', defaultForAdmin: true, defaultForMember: true, category: 'funnels' },
   { key: 'manage_stages', label: 'Gerenciar Etapas', description: 'Criar/editar etapas do funil', defaultForAdmin: true, defaultForMember: false, category: 'funnels' },
   { key: 'manage_automations', label: 'Gerenciar Automações', description: 'Configurar automações do funil', defaultForAdmin: true, defaultForMember: false, category: 'funnels' },
+  
+  // Calendar
+  { key: 'view_calendar', label: 'Ver Calendário', description: 'Visualizar calendário de tarefas', defaultForAdmin: true, defaultForMember: true, category: 'calendar' },
+  { key: 'manage_calendar', label: 'Gerenciar Calendário', description: 'Criar/editar tarefas no calendário', defaultForAdmin: true, defaultForMember: true, category: 'calendar' },
   
   // Analysis
   { key: 'view_analysis', label: 'Ver Análises', description: 'Visualizar análises de conversas', defaultForAdmin: true, defaultForMember: false, category: 'analysis' },
@@ -176,6 +185,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/warming', permission: 'view_warming' },
   { path: '/inbox', permission: 'view_inbox' },
   { path: '/funnels', permission: 'view_funnels' },
+  { path: '/calendar', permission: 'view_calendar' },
   { path: '/analysis', permission: 'view_analysis' },
   { path: '/contacts', permission: 'view_contacts' },
   { path: '/lead-search', permission: 'search_leads' },
