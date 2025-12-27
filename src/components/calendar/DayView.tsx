@@ -1,9 +1,10 @@
 import { CalendarTask } from "@/hooks/useCalendarTasks";
 import { TaskEventCard } from "./TaskEventCard";
-import { format, isSameDay, isToday } from "date-fns";
+import { format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { isSameDateString } from "@/lib/date-utils";
 
 interface DayViewProps {
   currentDate: Date;
@@ -15,8 +16,7 @@ export function DayView({ currentDate, tasks, onTaskClick }: DayViewProps) {
   const isCurrentDay = isToday(currentDate);
 
   const dayTasks = tasks.filter(task => {
-    if (!task.due_date) return false;
-    return isSameDay(new Date(task.due_date), currentDate);
+    return isSameDateString(task.due_date, currentDate);
   });
 
   // Agrupar por horário

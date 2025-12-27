@@ -1,9 +1,10 @@
 import { CalendarTask } from "@/hooks/useCalendarTasks";
 import { TaskEventCard } from "./TaskEventCard";
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { isSameDateString } from "@/lib/date-utils";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -19,8 +20,7 @@ export function WeekView({ currentDate, tasks, onTaskClick, onDayClick }: WeekVi
 
   const getTasksForDay = (day: Date) => {
     return tasks.filter(task => {
-      if (!task.due_date) return false;
-      return isSameDay(new Date(task.due_date), day);
+      return isSameDateString(task.due_date, day);
     });
   };
 

@@ -6,6 +6,7 @@ import { WeekView } from "@/components/calendar/WeekView";
 import { DayView } from "@/components/calendar/DayView";
 import { CalendarFilters, CalendarFiltersState } from "@/components/calendar/CalendarFilters";
 import { CreateTaskDialog } from "@/components/calendar/CreateTaskDialog";
+import { TaskDetailDialog } from "@/components/calendar/TaskDetailDialog";
 import { useCalendarTasks, ViewMode, CalendarTask } from "@/hooks/useCalendarTasks";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -13,6 +14,7 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTask, setSelectedTask] = useState<CalendarTask | null>(null);
   const [filters, setFilters] = useState<CalendarFiltersState>({
@@ -50,7 +52,7 @@ export default function Calendar() {
 
   const handleTaskClick = (task: CalendarTask) => {
     setSelectedTask(task);
-    // TODO: Abrir modal de edição
+    setDetailDialogOpen(true);
   };
 
   const handleCreateTask = () => {
@@ -122,6 +124,12 @@ export default function Calendar() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         defaultDate={selectedDate}
+      />
+
+      <TaskDetailDialog
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        task={selectedTask}
       />
     </DashboardLayout>
   );
