@@ -31,7 +31,8 @@ const TRIGGER_LABELS: Record<string, string> = {
   on_tag_removed: 'Tag removida',
   on_inactivity: 'Inatividade',
   on_deal_value_changed: 'Valor do deal alterado',
-  on_custom_field_changed: 'Campo personalizado alterado'
+  on_custom_field_changed: 'Campo personalizado alterado',
+  on_webhook: 'Webhook externo'
 };
 
 const ACTION_LABELS: Record<string, string> = {
