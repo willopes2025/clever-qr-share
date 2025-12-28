@@ -4,8 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Settings } from "lucide-react";
+import { X, Settings, Bot } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
 
 interface NodeData {
   message?: string;
@@ -18,6 +20,8 @@ interface NodeData {
   unit?: string;
   prompt?: string;
   maxTokens?: number;
+  aiConfigId?: string;
+  aiMode?: 'existing' | 'custom';
   actionType?: string;
   config?: {
     tagName?: string;
@@ -31,6 +35,113 @@ interface ChatbotNodeConfigProps {
   onClose: () => void;
   onUpdate: (nodeId: string, data: Record<string, any>) => void;
 }
+
+// Separate component for AI Response configuration
+const AIResponseConfig = ({ 
+  data, 
+  handleChange 
+}: { 
+  data: NodeData; 
+  handleChange: (key: string, value: any) => void;
+}) => {
+  const { data: agentConfigs, isLoading } = useAllAgentConfigs();
+  const selectedAgent = agentConfigs?.find(a => a.id === data?.aiConfigId);
+  const aiMode = data?.aiMode || 'custom';
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <Label>Modo de Resposta</Label>
+        <RadioGroup
+          value={aiMode}
+          onValueChange={(v) => handleChange("aiMode", v)}
+          className="space-y-2"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="existing" id="existing" />
+            <Label htmlFor="existing" className="font-normal cursor-pointer">
+              Usar IA existente
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="custom" id="custom" />
+            <Label htmlFor="custom" className="font-normal cursor-pointer">
+              Prompt personalizado
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {aiMode === 'existing' && (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="aiConfigId">Selecionar IA</Label>
+            <Select
+              value={data?.aiConfigId || "none"}
+              onValueChange={(v) => handleChange("aiConfigId", v === "none" ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma IA..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Selecione uma IA...</SelectItem>
+                {isLoading ? (
+                  <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                ) : agentConfigs?.length === 0 ? (
+                  <SelectItem value="empty" disabled>Nenhuma IA configurada</SelectItem>
+                ) : (
+                  agentConfigs?.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      <div className="flex items-center gap-2">
+                        <Bot className="h-3 w-3" />
+                        {agent.agent_name}
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedAgent && (
+            <div className="rounded-lg bg-muted/50 p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Preview da IA:</p>
+              <p className="text-sm line-clamp-4">
+                {selectedAgent.personality_prompt || "Sem prompt definido"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {aiMode === 'custom' && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="prompt">Prompt do Sistema</Label>
+            <Textarea
+              id="prompt"
+              value={data?.prompt || ""}
+              onChange={(e) => handleChange("prompt", e.target.value)}
+              placeholder="Você é um assistente útil..."
+              rows={4}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="maxTokens">Máximo de Tokens</Label>
+            <Input
+              id="maxTokens"
+              type="number"
+              min={50}
+              max={4000}
+              value={data?.maxTokens || 500}
+              onChange={(e) => handleChange("maxTokens", parseInt(e.target.value) || 500)}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
@@ -181,31 +292,7 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
         );
 
       case "ai_response":
-        return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="prompt">Prompt do Sistema</Label>
-              <Textarea
-                id="prompt"
-                value={data?.prompt || ""}
-                onChange={(e) => handleChange("prompt", e.target.value)}
-                placeholder="Você é um assistente útil..."
-                rows={4}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="maxTokens">Máximo de Tokens</Label>
-              <Input
-                id="maxTokens"
-                type="number"
-                min={50}
-                max={4000}
-                value={data?.maxTokens || 500}
-                onChange={(e) => handleChange("maxTokens", parseInt(e.target.value) || 500)}
-              />
-            </div>
-          </div>
-        );
+        return <AIResponseConfig data={data} handleChange={handleChange} />;
 
       case "action":
         return (
