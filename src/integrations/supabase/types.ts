@@ -1730,6 +1730,7 @@ export type Database = {
           funnel_id: string
           id: string
           notes: string | null
+          responsible_id: string | null
           source: string | null
           stage_id: string
           title: string | null
@@ -1750,6 +1751,7 @@ export type Database = {
           funnel_id: string
           id?: string
           notes?: string | null
+          responsible_id?: string | null
           source?: string | null
           stage_id: string
           title?: string | null
@@ -1770,6 +1772,7 @@ export type Database = {
           funnel_id?: string
           id?: string
           notes?: string | null
+          responsible_id?: string | null
           source?: string | null
           stage_id?: string
           title?: string | null
@@ -2201,7 +2204,10 @@ export type Database = {
           notify_new_deal: boolean | null
           notify_new_message: boolean | null
           notify_task_assigned: boolean | null
+          notify_task_created: boolean | null
+          notify_task_deleted: boolean | null
           notify_task_due: boolean | null
+          notify_task_updated: boolean | null
           only_if_responsible: boolean | null
           updated_at: string | null
           user_id: string
@@ -2219,7 +2225,10 @@ export type Database = {
           notify_new_deal?: boolean | null
           notify_new_message?: boolean | null
           notify_task_assigned?: boolean | null
+          notify_task_created?: boolean | null
+          notify_task_deleted?: boolean | null
           notify_task_due?: boolean | null
+          notify_task_updated?: boolean | null
           only_if_responsible?: boolean | null
           updated_at?: string | null
           user_id: string
@@ -2237,7 +2246,10 @@ export type Database = {
           notify_new_deal?: boolean | null
           notify_new_message?: boolean | null
           notify_task_assigned?: boolean | null
+          notify_task_created?: boolean | null
+          notify_task_deleted?: boolean | null
           notify_task_due?: boolean | null
+          notify_task_updated?: boolean | null
           only_if_responsible?: boolean | null
           updated_at?: string | null
           user_id?: string

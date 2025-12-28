@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Phone, Save, Loader2 } from 'lucide-react';
+import { Bell, Phone, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings } from 'lucide-react';
 import { useNotificationPreferences, NOTIFICATION_TYPES, NotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useProfile } from '@/hooks/useProfile';
-import { formatPhoneNumber } from '@/lib/phone-utils';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+const CATEGORY_CONFIG = {
+  inbox: { label: 'Inbox', icon: MessageSquare, description: 'Notificações de mensagens e conversas' },
+  deals: { label: 'Deals', icon: Target, description: 'Notificações de funil de vendas' },
+  tasks: { label: 'Tarefas', icon: CheckSquare, description: 'Notificações de tarefas' },
+  other: { label: 'Outros', icon: Settings, description: 'Outras notificações' },
+};
 
 export function NotificationSettings() {
   const { preferences, isLoading, savePreferences, isSaving } = useNotificationPreferences();
   const { instances } = useWhatsAppInstances();
-  const { profile, updateProfile } = useProfile();
+  const { profile } = useProfile();
   
-  const [phone, setPhone] = useState('');
-  const [profilePhone, setProfilePhone] = useState('');
   const [notificationSettings, setNotificationSettings] = useState<Partial<NotificationPreferences>>({
     notify_new_message: false,
     notify_new_deal: false,
@@ -26,6 +30,9 @@ export function NotificationSettings() {
     notify_deal_assigned: true,
     notify_task_due: true,
     notify_task_assigned: true,
+    notify_task_created: false,
+    notify_task_updated: false,
+    notify_task_deleted: false,
     notify_calendly_event: true,
     notify_ai_handoff: true,
     notify_campaign_complete: false,
@@ -43,6 +50,9 @@ export function NotificationSettings() {
         notify_deal_assigned: preferences.notify_deal_assigned,
         notify_task_due: preferences.notify_task_due,
         notify_task_assigned: preferences.notify_task_assigned,
+        notify_task_created: preferences.notify_task_created,
+        notify_task_updated: preferences.notify_task_updated,
+        notify_task_deleted: preferences.notify_task_deleted,
         notify_calendly_event: preferences.notify_calendly_event,
         notify_ai_handoff: preferences.notify_ai_handoff,
         notify_campaign_complete: preferences.notify_campaign_complete,
@@ -53,15 +63,6 @@ export function NotificationSettings() {
     }
   }, [preferences]);
 
-  useEffect(() => {
-    // Phone will be loaded from profile or team_member in the future
-    // For now, initialize empty
-  }, [profile]);
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhone(formatPhoneNumber(e.target.value));
-  };
-
   const handleToggle = (key: keyof NotificationPreferences, value: boolean) => {
     setNotificationSettings(prev => ({
       ...prev,
@@ -70,11 +71,18 @@ export function NotificationSettings() {
   };
 
   const handleSave = async () => {
-    // Save notification preferences (phone is stored in notification_preferences via the hook)
     await savePreferences(notificationSettings);
   };
 
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
+
+  // Group notification types by category
+  const groupedNotifications = NOTIFICATION_TYPES.reduce((acc, type) => {
+    const category = type.category || 'other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(type);
+    return acc;
+  }, {} as Record<string, typeof NOTIFICATION_TYPES[number][]>);
 
   if (isLoading) {
     return (
@@ -90,31 +98,29 @@ export function NotificationSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Phone Number Card */}
+      {/* Phone Info Card */}
       <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5 text-primary" />
-            Telefone para Notificações
+            Configuração de Envio
           </CardTitle>
           <CardDescription>
-            Número do WhatsApp que receberá as notificações
+            Configure a instância para envio das notificações
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="notification-phone">Telefone</Label>
-            <Input
-              id="notification-phone"
-              placeholder="(11) 99999-9999"
-              value={phone}
-              onChange={handlePhoneChange}
-              maxLength={15}
-            />
-            <p className="text-xs text-muted-foreground">
-              Este número receberá as notificações via WhatsApp
-            </p>
-          </div>
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              As notificações serão enviadas para o telefone cadastrado no seu perfil
+              {profile?.phone ? (
+                <span className="font-medium">: {profile.phone}</span>
+              ) : (
+                <span className="text-muted-foreground"> (não configurado - configure na aba Perfil)</span>
+              )}
+            </AlertDescription>
+          </Alert>
 
           <div className="space-y-2">
             <Label htmlFor="notification-instance">Instância para envio</Label>
@@ -141,45 +147,65 @@ export function NotificationSettings() {
         </CardContent>
       </Card>
 
-      {/* Notification Types Card */}
+      {/* Notification Types by Category */}
+      {Object.entries(groupedNotifications).map(([category, types]) => {
+        const config = CATEGORY_CONFIG[category as keyof typeof CATEGORY_CONFIG];
+        const Icon = config?.icon || Bell;
+        
+        return (
+          <Card key={category} className="bg-card/50 backdrop-blur border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Icon className="h-5 w-5 text-primary" />
+                {config?.label || category}
+              </CardTitle>
+              <CardDescription>
+                {config?.description || 'Notificações'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {types.map((type) => (
+                <div key={type.key} className="flex items-center justify-between py-2">
+                  <div className="space-y-0.5">
+                    <Label htmlFor={type.key} className="font-medium cursor-pointer">
+                      {type.label}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {type.description}
+                    </p>
+                  </div>
+                  <Switch
+                    id={type.key}
+                    checked={notificationSettings[type.key as keyof NotificationPreferences] as boolean}
+                    onCheckedChange={(checked) => handleToggle(type.key as keyof NotificationPreferences, checked)}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* Responsibility Filter */}
       <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5 text-primary" />
-            Tipos de Notificação
+            Filtro de Responsabilidade
           </CardTitle>
           <CardDescription>
-            Escolha quais notificações deseja receber via WhatsApp
+            Controle quando receber notificações baseado na sua responsabilidade
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {NOTIFICATION_TYPES.map((type) => (
-            <div key={type.key} className="flex items-center justify-between py-2">
-              <div className="space-y-0.5">
-                <Label htmlFor={type.key} className="font-medium cursor-pointer">
-                  {type.label}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {type.description}
-                </p>
-              </div>
-              <Switch
-                id={type.key}
-                checked={notificationSettings[type.key as keyof NotificationPreferences] as boolean}
-                onCheckedChange={(checked) => handleToggle(type.key as keyof NotificationPreferences, checked)}
-              />
-            </div>
-          ))}
-
-          <Separator className="my-4" />
-
+        <CardContent>
           <div className="flex items-center justify-between py-2">
             <div className="space-y-0.5">
               <Label htmlFor="only_if_responsible" className="font-medium cursor-pointer">
                 Notificar apenas se eu for responsável
               </Label>
               <p className="text-xs text-muted-foreground">
-                Receber notificações apenas para clientes e deals que eu sou responsável
+                Notificações de tarefas serão enviadas apenas quando você for o responsável (assigned_to). 
+                Notificações de deals serão enviadas quando você for o responsável pelo deal.
               </p>
             </div>
             <Switch
