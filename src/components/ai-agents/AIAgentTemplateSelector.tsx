@@ -1,7 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AI_AGENT_TEMPLATES, AIAgentTemplate } from "@/data/ai-agent-templates";
 import { Plus } from "lucide-react";
@@ -10,18 +8,12 @@ interface AIAgentTemplateSelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectTemplate: (template: AIAgentTemplate | null) => void;
-  personalizeWithCompany: boolean;
-  setPersonalizeWithCompany: (value: boolean) => void;
-  hasCompanyContext: boolean;
 }
 
 export const AIAgentTemplateSelector = ({
   open,
   onOpenChange,
   onSelectTemplate,
-  personalizeWithCompany,
-  setPersonalizeWithCompany,
-  hasCompanyContext,
 }: AIAgentTemplateSelectorProps) => {
   const categoryLabels: Record<string, string> = {
     sales: "Vendas",
@@ -41,20 +33,6 @@ export const AIAgentTemplateSelector = ({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Personalize Option */}
-          {hasCompanyContext && (
-            <div className="flex items-center space-x-2 p-3 bg-muted/50 rounded-lg">
-              <Checkbox
-                id="personalize"
-                checked={personalizeWithCompany}
-                onCheckedChange={(checked) => setPersonalizeWithCompany(checked as boolean)}
-              />
-              <Label htmlFor="personalize" className="text-sm cursor-pointer">
-                Personalizar automaticamente com os dados da minha empresa
-              </Label>
-            </div>
-          )}
-
           {/* Templates Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {AI_AGENT_TEMPLATES.map((template) => (
