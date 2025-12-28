@@ -268,16 +268,28 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                   <SelectValue placeholder="Selecionar fluxo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {flows?.filter(f => f.is_active).map((flow) => (
+                  {flows?.map((flow) => (
                     <SelectItem key={flow.id} value={flow.id}>
-                      {flow.name}
+                      <span className="flex items-center gap-2">
+                        {flow.name}
+                        {!flow.is_active && (
+                          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                            Inativo
+                          </span>
+                        )}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {!flows?.filter(f => f.is_active).length && (
+              {!flows?.length && (
                 <p className="text-sm text-muted-foreground">
-                  Nenhum fluxo ativo disponível. Crie um fluxo em Chatbots.
+                  Nenhum fluxo disponível. Crie um fluxo em Chatbots.
+                </p>
+              )}
+              {flows && flows.length > 0 && !flows.some(f => f.is_active) && (
+                <p className="text-sm text-yellow-600">
+                  ⚠️ Todos os fluxos estão inativos. Ative pelo menos um em Chatbots.
                 </p>
               )}
             </div>
