@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
   addEdge,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   Connection,
   Edge,
   Node,
@@ -18,7 +20,7 @@ import { ChatbotFlow, useChatbotFlowNodes, useChatbotFlowEdges } from '@/hooks/u
 import { ChatbotFlowSidebar } from './ChatbotFlowSidebar';
 import { ChatbotNodeConfig } from './ChatbotNodeConfig';
 import { Button } from '@/components/ui/button';
-import { Save, Play, Settings } from 'lucide-react';
+import { Save, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -47,8 +49,10 @@ interface ChatbotFlowEditorProps {
   flow: ChatbotFlow;
 }
 
-export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
+const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
   const { user } = useAuth();
+  const { screenToFlowPosition } = useReactFlow();
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { nodes: savedNodes, saveNodes } = useChatbotFlowNodes(flow.id);
   const { edges: savedEdges, saveEdges } = useChatbotFlowEdges(flow.id);
   
@@ -107,10 +111,11 @@ export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
       const type = event.dataTransfer.getData('application/reactflow');
       if (!type) return;
 
-      const position = {
-        x: event.clientX - 250,
-        y: event.clientY - 100,
-      };
+      // Use screenToFlowPosition to get correct position in canvas coordinates
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
 
       const newNode: Node = {
         id: `${type}-${Date.now()}`,
@@ -121,7 +126,7 @@ export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
 
       setNodes((nds) => [...nds, newNode]);
     },
-    [setNodes]
+    [setNodes, screenToFlowPosition]
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -198,7 +203,7 @@ export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
     <div className="flex-1 flex">
       <ChatbotFlowSidebar />
       
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" ref={reactFlowWrapper}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -241,6 +246,15 @@ export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
         />
       )}
     </div>
+  );
+};
+
+// Wrapper component with ReactFlowProvider
+export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
+  return (
+    <ReactFlowProvider>
+      <ChatbotFlowEditorInner flow={flow} />
+    </ReactFlowProvider>
   );
 };
 

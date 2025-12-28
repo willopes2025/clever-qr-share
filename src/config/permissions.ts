@@ -48,6 +48,10 @@ export type PermissionKey =
   | 'create_campaigns'
   | 'start_campaigns'
   | 'configure_ai_agent'
+  // Chatbots
+  | 'view_chatbots'
+  | 'create_chatbots'
+  | 'manage_chatbots'
   // Settings
   | 'manage_subscription'
   | 'manage_settings'
@@ -81,6 +85,7 @@ export type PermissionCategory =
   | 'lists'
   | 'templates'
   | 'campaigns'
+  | 'chatbots'
   | 'settings'
   | 'team';
 
@@ -97,6 +102,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   lists: 'Listas de Transmissão',
   templates: 'Templates',
   campaigns: 'Campanhas',
+  chatbots: 'Chatbots',
   settings: 'Configurações',
   team: 'Equipe',
 };
@@ -163,6 +169,11 @@ export const PERMISSIONS: Permission[] = [
   { key: 'start_campaigns', label: 'Iniciar Campanhas', description: 'Iniciar/pausar campanhas', defaultForAdmin: true, defaultForMember: false, category: 'campaigns' },
   { key: 'configure_ai_agent', label: 'Configurar Agente IA', description: 'Configurar agente de IA das campanhas', defaultForAdmin: true, defaultForMember: false, category: 'campaigns' },
   
+  // Chatbots
+  { key: 'view_chatbots', label: 'Ver Chatbots', description: 'Visualizar chatbots', defaultForAdmin: true, defaultForMember: true, category: 'chatbots' },
+  { key: 'create_chatbots', label: 'Criar Chatbots', description: 'Criar novos chatbots', defaultForAdmin: true, defaultForMember: false, category: 'chatbots' },
+  { key: 'manage_chatbots', label: 'Gerenciar Chatbots', description: 'Editar e excluir chatbots', defaultForAdmin: true, defaultForMember: false, category: 'chatbots' },
+  
   // Settings
   { key: 'manage_subscription', label: 'Gerenciar Assinatura', description: 'Gerenciar plano e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
   { key: 'manage_settings', label: 'Gerenciar Configurações', description: 'Acessar configurações do sistema', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
@@ -192,6 +203,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/broadcast-lists', permission: 'view_lists' },
   { path: '/templates', permission: 'view_templates' },
   { path: '/campaigns', permission: 'view_campaigns' },
+  { path: '/chatbots', permission: 'view_chatbots' },
   { path: '/subscription', permission: 'manage_subscription' },
   { path: '/settings', permission: 'manage_settings' },
 ];

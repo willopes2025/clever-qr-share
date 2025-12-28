@@ -22,6 +22,7 @@ import Analysis from "./pages/Analysis";
 import Funnels from "./pages/Funnels";
 import LeadSearch from "./pages/LeadSearch";
 import Calendar from "./pages/Calendar";
+import Chatbots from "./pages/Chatbots";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -137,6 +138,13 @@ const App = () => (
             <ProtectedRoute>
               <NotificationProvider>
                 <LeadSearch />
+              </NotificationProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/chatbots" element={
+            <ProtectedRoute>
+              <NotificationProvider>
+                <Chatbots />
               </NotificationProvider>
             </ProtectedRoute>
           } />
