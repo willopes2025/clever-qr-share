@@ -997,6 +997,32 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
       console.error('[FUNNEL-DEAL] Error creating deal:', dealError);
     } else {
       console.log(`[FUNNEL-DEAL] Deal created successfully: ${newDeal?.id}`);
+      
+      // Trigger funnel automations for the new deal entering the first stage
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        
+        console.log(`[FUNNEL-AUTOMATIONS] Triggering automations for new deal ${newDeal?.id} entering stage ${firstStage.id}`);
+        
+        const automationResponse = await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            dealId: newDeal?.id,
+            toStageId: firstStage.id,
+            triggerType: 'on_stage_enter',
+          }),
+        });
+        
+        const automationResult = await automationResponse.json();
+        console.log(`[FUNNEL-AUTOMATIONS] Result:`, JSON.stringify(automationResult));
+      } catch (autoError) {
+        console.error('[FUNNEL-AUTOMATIONS] Error triggering automations:', autoError);
+      }
     }
     
   } catch (error) {
@@ -1062,6 +1088,32 @@ async function ensureDealExistsForConversation(supabase: any, userId: string, fu
       console.error('[FUNNEL-DEAL] Error creating deal:', dealError);
     } else {
       console.log(`[FUNNEL-DEAL] Deal created for existing conversation: ${newDeal?.id}`);
+      
+      // Trigger funnel automations for the new deal entering the first stage
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        
+        console.log(`[FUNNEL-AUTOMATIONS] Triggering automations for deal ${newDeal?.id} entering stage ${firstStage.id}`);
+        
+        const automationResponse = await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            dealId: newDeal?.id,
+            toStageId: firstStage.id,
+            triggerType: 'on_stage_enter',
+          }),
+        });
+        
+        const automationResult = await automationResponse.json();
+        console.log(`[FUNNEL-AUTOMATIONS] Result:`, JSON.stringify(automationResult));
+      } catch (autoError) {
+        console.error('[FUNNEL-AUTOMATIONS] Error triggering automations:', autoError);
+      }
     }
     
   } catch (error) {
