@@ -20,12 +20,13 @@ import {
 import { Loader2 } from 'lucide-react';
 import { TeamMember } from '@/hooks/useOrganization';
 import { TeamRole } from '@/config/permissions';
+import { formatPhoneNumber } from '@/lib/phone-utils';
 
 interface EditMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   member: TeamMember;
-  onSave: (data: { name?: string; email?: string; role: TeamRole }) => Promise<void>;
+  onSave: (data: { name?: string; email?: string; role: TeamRole; phone?: string }) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -38,15 +39,21 @@ export function EditMemberDialog({
 }: EditMemberDialogProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState<TeamRole>('member');
 
   useEffect(() => {
     if (open && member) {
       setName(member.profile?.full_name || '');
       setEmail(member.email);
+      setPhone((member as any).phone || '');
       setRole(member.role);
     }
   }, [open, member]);
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhone(formatPhoneNumber(e.target.value));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +61,7 @@ export function EditMemberDialog({
     await onSave({
       name: name.trim() || undefined,
       email: member.status === 'invited' ? email.trim() : undefined,
+      phone: phone.trim() || undefined,
       role,
     });
     onOpenChange(false);
@@ -100,6 +108,21 @@ export function EditMemberDialog({
                   O email não pode ser alterado após o membro aceitar o convite.
                 </p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-phone">Telefone (WhatsApp)</Label>
+              <Input
+                id="member-phone"
+                type="tel"
+                value={phone}
+                onChange={handlePhoneChange}
+                placeholder="(11) 99999-9999"
+                maxLength={15}
+              />
+              <p className="text-xs text-muted-foreground">
+                Telefone para receber notificações via WhatsApp
+              </p>
             </div>
 
             <div className="space-y-2">

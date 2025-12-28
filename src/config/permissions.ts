@@ -59,7 +59,10 @@ export type PermissionKey =
   | 'invite_members'
   | 'remove_members'
   | 'edit_permissions'
-  | 'reset_passwords';
+  | 'reset_passwords'
+  // Notifications
+  | 'receive_notifications'
+  | 'manage_notification_settings';
 
 export type TeamRole = 'admin' | 'member';
 
@@ -87,7 +90,8 @@ export type PermissionCategory =
   | 'campaigns'
   | 'chatbots'
   | 'settings'
-  | 'team';
+  | 'team'
+  | 'notifications';
 
 export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   dashboard: 'Dashboard',
@@ -105,6 +109,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   chatbots: 'Chatbots',
   settings: 'Configurações',
   team: 'Equipe',
+  notifications: 'Notificações',
 };
 
 export const PERMISSIONS: Permission[] = [
@@ -183,6 +188,10 @@ export const PERMISSIONS: Permission[] = [
   { key: 'remove_members', label: 'Remover Membros', description: 'Remover membros da equipe', defaultForAdmin: true, defaultForMember: false, category: 'team' },
   { key: 'edit_permissions', label: 'Editar Permissões', description: 'Editar permissões de membros', defaultForAdmin: true, defaultForMember: false, category: 'team' },
   { key: 'reset_passwords', label: 'Redefinir Senhas', description: 'Redefinir senhas de membros', defaultForAdmin: true, defaultForMember: false, category: 'team' },
+  
+  // Notifications
+  { key: 'receive_notifications', label: 'Receber Notificações', description: 'Receber notificações via WhatsApp', defaultForAdmin: true, defaultForMember: true, category: 'notifications' },
+  { key: 'manage_notification_settings', label: 'Configurar Notificações', description: 'Gerenciar preferências de notificação', defaultForAdmin: true, defaultForMember: true, category: 'notifications' },
 ];
 
 export interface SidebarItem {

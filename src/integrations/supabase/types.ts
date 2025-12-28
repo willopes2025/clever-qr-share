@@ -2151,6 +2151,107 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          message: string
+          notification_type: string
+          related_id: string | null
+          sent_to_phone: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message: string
+          notification_type: string
+          related_id?: string | null
+          sent_to_phone?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message?: string
+          notification_type?: string
+          related_id?: string | null
+          sent_to_phone?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          notification_instance_id: string | null
+          notify_ai_handoff: boolean | null
+          notify_calendly_event: boolean | null
+          notify_campaign_complete: boolean | null
+          notify_deal_assigned: boolean | null
+          notify_deal_stage_change: boolean | null
+          notify_instance_disconnect: boolean | null
+          notify_new_deal: boolean | null
+          notify_new_message: boolean | null
+          notify_task_assigned: boolean | null
+          notify_task_due: boolean | null
+          only_if_responsible: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notification_instance_id?: string | null
+          notify_ai_handoff?: boolean | null
+          notify_calendly_event?: boolean | null
+          notify_campaign_complete?: boolean | null
+          notify_deal_assigned?: boolean | null
+          notify_deal_stage_change?: boolean | null
+          notify_instance_disconnect?: boolean | null
+          notify_new_deal?: boolean | null
+          notify_new_message?: boolean | null
+          notify_task_assigned?: boolean | null
+          notify_task_due?: boolean | null
+          only_if_responsible?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notification_instance_id?: string | null
+          notify_ai_handoff?: boolean | null
+          notify_calendly_event?: boolean | null
+          notify_campaign_complete?: boolean | null
+          notify_deal_assigned?: boolean | null
+          notify_deal_stage_change?: boolean | null
+          notify_instance_disconnect?: boolean | null
+          notify_new_deal?: boolean | null
+          notify_new_message?: boolean | null
+          notify_task_assigned?: boolean | null
+          notify_task_due?: boolean | null
+          only_if_responsible?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_notification_instance_id_fkey"
+            columns: ["notification_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string | null
@@ -2181,6 +2282,7 @@ export type Database = {
           created_at: string | null
           full_name: string | null
           id: string
+          phone: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2188,6 +2290,7 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id: string
+          phone?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2195,6 +2298,7 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -2484,6 +2588,7 @@ export type Database = {
           joined_at: string | null
           organization_id: string
           permissions: Json | null
+          phone: string | null
           role: string
           status: string
           user_id: string | null
@@ -2496,6 +2601,7 @@ export type Database = {
           joined_at?: string | null
           organization_id: string
           permissions?: Json | null
+          phone?: string | null
           role?: string
           status?: string
           user_id?: string | null
@@ -2508,6 +2614,7 @@ export type Database = {
           joined_at?: string | null
           organization_id?: string
           permissions?: Json | null
+          phone?: string | null
           role?: string
           status?: string
           user_id?: string | null
