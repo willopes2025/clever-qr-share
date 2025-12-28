@@ -114,5 +114,8 @@ verify_jwt = false
 [functions.chatbot-ai-condition]
 verify_jwt = false
 
+[functions.suggest-chatbot-intents]
+verify_jwt = false
+
 [functions.send-whatsapp-notification]
 verify_jwt = false

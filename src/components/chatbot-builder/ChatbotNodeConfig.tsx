@@ -1,14 +1,17 @@
 import { Node } from "@xyflow/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Settings, Bot, Plus, Trash2, GitBranch } from "lucide-react";
+import { X, Settings, Bot, Plus, Trash2, GitBranch, Sparkles, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
 import { useFunnels } from "@/hooks/useFunnels";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ConditionItem {
   id: string;
@@ -51,6 +54,7 @@ interface NodeData {
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
   intentDescription?: string;
+  conditionAiConfigId?: string; // AI assistant for intent analysis
   // Multiple conditions (variable mode)
   logicOperator?: 'and' | 'or';
   conditions?: ConditionItem[];
@@ -296,7 +300,11 @@ const MultipleIntentsConfig = ({
   data: NodeData;
   handleChange: (key: string, value: any) => void;
 }) => {
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const { data: agentConfigs, isLoading: isLoadingAgents } = useAllAgentConfigs();
+  
   const intents = data?.intents || [{ id: generateId(), label: '', description: '' }];
+  const selectedAgent = agentConfigs?.find(a => a.id === data?.conditionAiConfigId);
 
   const addIntent = () => {
     handleChange('intents', [...intents, { id: generateId(), label: '', description: '' }]);
@@ -314,8 +322,86 @@ const MultipleIntentsConfig = ({
     ));
   };
 
+  const handleSuggestIntents = async () => {
+    if (!data?.conditionAiConfigId) {
+      toast.error("Selecione um assistente de IA primeiro");
+      return;
+    }
+
+    setIsSuggesting(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('suggest-chatbot-intents', {
+        body: { agentConfigId: data.conditionAiConfigId }
+      });
+
+      if (error) throw error;
+
+      if (result?.suggestions && Array.isArray(result.suggestions)) {
+        const newIntents = result.suggestions.map((s: { label: string; description: string }) => ({
+          id: generateId(),
+          label: s.label,
+          description: s.description
+        }));
+        handleChange('intents', newIntents);
+        toast.success(`${newIntents.length} intenções sugeridas com sucesso!`);
+      } else {
+        toast.error("Não foi possível gerar sugestões");
+      }
+    } catch (error) {
+      console.error("Error suggesting intents:", error);
+      toast.error("Erro ao gerar sugestões de intenções");
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* AI Assistant Selector */}
+      <div className="space-y-2">
+        <Label>Assistente de IA</Label>
+        <Select
+          value={data?.conditionAiConfigId || "none"}
+          onValueChange={(v) => handleChange("conditionAiConfigId", v === "none" ? "" : v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione uma IA..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">IA Genérica (padrão)</SelectItem>
+            {isLoadingAgents ? (
+              <SelectItem value="loading" disabled>Carregando...</SelectItem>
+            ) : agentConfigs?.length === 0 ? (
+              <SelectItem value="empty" disabled>Nenhuma IA configurada</SelectItem>
+            ) : (
+              agentConfigs?.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-3 w-3" />
+                    {agent.agent_name}
+                  </div>
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Selecione uma IA para usar seu contexto na análise de intenções
+        </p>
+      </div>
+
+      {/* Selected AI Preview */}
+      {selectedAgent && (
+        <div className="rounded-lg bg-purple-500/10 p-3 space-y-2 border border-purple-500/20">
+          <p className="text-xs font-medium text-purple-600 dark:text-purple-400">
+            Personalidade da IA:
+          </p>
+          <p className="text-xs text-muted-foreground line-clamp-3">
+            {selectedAgent.personality_prompt || "Sem prompt definido"}
+          </p>
+        </div>
+      )}
+
       <div className="space-y-3">
         <Label>Intenções</Label>
         <p className="text-xs text-muted-foreground">
@@ -353,15 +439,32 @@ const MultipleIntentsConfig = ({
             />
           </div>
         ))}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={addIntent}
-          className="w-full border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Adicionar Intenção
-        </Button>
+        
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={addIntent}
+            className="flex-1"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            Adicionar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSuggestIntents}
+            disabled={isSuggesting || !data?.conditionAiConfigId}
+            className="flex-1 border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+          >
+            {isSuggesting ? (
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3 mr-1" />
+            )}
+            Sugerir com IA
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg bg-muted/50 p-3 space-y-1">
