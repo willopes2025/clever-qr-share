@@ -24,6 +24,7 @@ import Funnels from "./pages/Funnels";
 import LeadSearch from "./pages/LeadSearch";
 import Calendar from "./pages/Calendar";
 import Chatbots from "./pages/Chatbots";
+import AIAgents from "./pages/AIAgents";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -173,6 +174,15 @@ const App = () => (
               <NotificationProvider>
                 <PermissionGate permission="view_chatbots">
                   <Chatbots />
+                </PermissionGate>
+              </NotificationProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/ai-agents" element={
+            <ProtectedRoute>
+              <NotificationProvider>
+                <PermissionGate permission="view_ai_agents">
+                  <AIAgents />
                 </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
