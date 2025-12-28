@@ -2940,12 +2940,29 @@ export type Database = {
         | "remove_tag"
         | "notify_user"
         | "move_stage"
+        | "trigger_chatbot_flow"
+        | "set_custom_field"
+        | "set_deal_value"
+        | "change_responsible"
+        | "add_note"
+        | "webhook_request"
+        | "create_task"
+        | "close_deal_won"
+        | "close_deal_lost"
       funnel_trigger_type:
         | "on_stage_enter"
         | "on_stage_exit"
         | "on_deal_won"
         | "on_deal_lost"
         | "on_time_in_stage"
+        | "on_message_received"
+        | "on_keyword_received"
+        | "on_contact_created"
+        | "on_tag_added"
+        | "on_tag_removed"
+        | "on_inactivity"
+        | "on_deal_value_changed"
+        | "on_custom_field_changed"
       template_category:
         | "promotional"
         | "transactional"
@@ -3089,6 +3106,15 @@ export const Constants = {
         "remove_tag",
         "notify_user",
         "move_stage",
+        "trigger_chatbot_flow",
+        "set_custom_field",
+        "set_deal_value",
+        "change_responsible",
+        "add_note",
+        "webhook_request",
+        "create_task",
+        "close_deal_won",
+        "close_deal_lost",
       ],
       funnel_trigger_type: [
         "on_stage_enter",
@@ -3096,6 +3122,14 @@ export const Constants = {
         "on_deal_won",
         "on_deal_lost",
         "on_time_in_stage",
+        "on_message_received",
+        "on_keyword_received",
+        "on_contact_created",
+        "on_tag_added",
+        "on_tag_removed",
+        "on_inactivity",
+        "on_deal_value_changed",
+        "on_custom_field_changed",
       ],
       template_category: [
         "promotional",

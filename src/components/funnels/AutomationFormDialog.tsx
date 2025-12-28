@@ -19,6 +19,8 @@ import {
 import { useFunnels, FunnelAutomation } from "@/hooks/useFunnels";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useChatbotFlows } from "@/hooks/useChatbotFlows";
+import { useCustomFields } from "@/hooks/useCustomFields";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface AutomationFormDialogProps {
   open: boolean;
@@ -27,13 +29,44 @@ interface AutomationFormDialogProps {
   automation?: FunnelAutomation | null;
 }
 
-type TriggerType = 'on_stage_enter' | 'on_stage_exit' | 'on_deal_won' | 'on_deal_lost' | 'on_time_in_stage';
-type ActionType = 'send_message' | 'send_template' | 'add_tag' | 'remove_tag' | 'notify_user' | 'move_stage' | 'trigger_chatbot_flow';
+type TriggerType = 
+  | 'on_stage_enter' 
+  | 'on_stage_exit' 
+  | 'on_deal_won' 
+  | 'on_deal_lost' 
+  | 'on_time_in_stage'
+  | 'on_message_received'
+  | 'on_keyword_received'
+  | 'on_contact_created'
+  | 'on_tag_added'
+  | 'on_tag_removed'
+  | 'on_inactivity'
+  | 'on_deal_value_changed'
+  | 'on_custom_field_changed';
+
+type ActionType = 
+  | 'send_message' 
+  | 'send_template' 
+  | 'add_tag' 
+  | 'remove_tag' 
+  | 'notify_user' 
+  | 'move_stage' 
+  | 'trigger_chatbot_flow'
+  | 'set_custom_field'
+  | 'set_deal_value'
+  | 'change_responsible'
+  | 'add_note'
+  | 'webhook_request'
+  | 'create_task'
+  | 'close_deal_won'
+  | 'close_deal_lost';
 
 export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation }: AutomationFormDialogProps) => {
   const { funnels, createAutomation, updateAutomation } = useFunnels();
   const { templates } = useMessageTemplates();
   const { flows } = useChatbotFlows();
+  const { fieldDefinitions } = useCustomFields();
+  const { members } = useTeamMembers();
   
   const [name, setName] = useState('');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || '');
@@ -93,7 +126,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{automation ? 'Editar Automação' : 'Nova Automação'}</DialogTitle>
         </DialogHeader>
@@ -139,6 +172,14 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 <SelectItem value="on_deal_won">Quando deal for ganho</SelectItem>
                 <SelectItem value="on_deal_lost">Quando deal for perdido</SelectItem>
                 <SelectItem value="on_time_in_stage">Após X dias na etapa</SelectItem>
+                <SelectItem value="on_message_received">Quando receber mensagem</SelectItem>
+                <SelectItem value="on_keyword_received">Quando mensagem conter palavra-chave</SelectItem>
+                <SelectItem value="on_contact_created">Quando contato for criado</SelectItem>
+                <SelectItem value="on_tag_added">Quando tag for adicionada</SelectItem>
+                <SelectItem value="on_tag_removed">Quando tag for removida</SelectItem>
+                <SelectItem value="on_inactivity">Após X dias sem interação</SelectItem>
+                <SelectItem value="on_deal_value_changed">Quando valor do deal mudar</SelectItem>
+                <SelectItem value="on_custom_field_changed">Quando campo personalizado mudar</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -174,6 +215,65 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
             </div>
           )}
 
+          {triggerType === 'on_keyword_received' && (
+            <div className="space-y-2">
+              <Label>Palavras-chave (separadas por vírgula)</Label>
+              <Input
+                value={triggerConfig.keywords as string || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, keywords: e.target.value })}
+                placeholder="Ex: preço, orçamento, valor"
+              />
+              <p className="text-xs text-muted-foreground">
+                A automação será acionada se a mensagem conter qualquer uma das palavras
+              </p>
+            </div>
+          )}
+
+          {(triggerType === 'on_tag_added' || triggerType === 'on_tag_removed') && (
+            <div className="space-y-2">
+              <Label>Nome da Tag (gatilho)</Label>
+              <Input
+                value={triggerConfig.tag_name as string || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, tag_name: e.target.value })}
+                placeholder="Nome da tag que aciona a automação"
+              />
+            </div>
+          )}
+
+          {triggerType === 'on_inactivity' && (
+            <div className="space-y-2">
+              <Label>Dias sem interação</Label>
+              <Input
+                type="number"
+                min={1}
+                value={triggerConfig.days as number || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, days: Number(e.target.value) })}
+                placeholder="Ex: 7"
+              />
+            </div>
+          )}
+
+          {triggerType === 'on_custom_field_changed' && (
+            <div className="space-y-2">
+              <Label>Campo Personalizado</Label>
+              <Select 
+                value={triggerConfig.field_key as string || ''} 
+                onValueChange={(v) => setTriggerConfig({ ...triggerConfig, field_key: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar campo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fieldDefinitions?.map((field) => (
+                    <SelectItem key={field.id} value={field.field_key}>
+                      {field.field_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Ação</Label>
             <Select value={actionType} onValueChange={(v) => setActionType(v as ActionType)}>
@@ -188,6 +288,14 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
                 <SelectItem value="move_stage">Mover para etapa</SelectItem>
                 <SelectItem value="trigger_chatbot_flow">Acionar fluxo de chatbot</SelectItem>
+                <SelectItem value="set_custom_field">Definir campo personalizado</SelectItem>
+                <SelectItem value="set_deal_value">Definir valor do deal</SelectItem>
+                <SelectItem value="change_responsible">Alterar responsável</SelectItem>
+                <SelectItem value="add_note">Adicionar nota</SelectItem>
+                <SelectItem value="webhook_request">Enviar webhook</SelectItem>
+                <SelectItem value="create_task">Criar tarefa</SelectItem>
+                <SelectItem value="close_deal_won">Fechar como ganho</SelectItem>
+                <SelectItem value="close_deal_lost">Fechar como perdido</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -293,6 +401,156 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 </p>
               )}
             </div>
+          )}
+
+          {actionType === 'set_custom_field' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Campo Personalizado</Label>
+                <Select 
+                  value={actionConfig.field_key as string || ''} 
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, field_key: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar campo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fieldDefinitions?.map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Valor</Label>
+                <Input
+                  value={actionConfig.field_value as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, field_value: e.target.value })}
+                  placeholder="Valor do campo"
+                />
+              </div>
+            </div>
+          )}
+
+          {actionType === 'set_deal_value' && (
+            <div className="space-y-2">
+              <Label>Valor do Deal</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={actionConfig.value as number || ''}
+                onChange={(e) => setActionConfig({ ...actionConfig, value: Number(e.target.value) })}
+                placeholder="Ex: 5000"
+              />
+            </div>
+          )}
+
+          {actionType === 'change_responsible' && (
+            <div className="space-y-2">
+              <Label>Novo Responsável</Label>
+              <Select 
+                value={actionConfig.responsible_id as string || ''} 
+                onValueChange={(v) => setActionConfig({ ...actionConfig, responsible_id: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar membro" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members?.map((member) => (
+                    <SelectItem key={member.id} value={member.user_id || member.id}>
+                      {member.profile?.full_name || member.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {actionType === 'add_note' && (
+            <div className="space-y-2">
+              <Label>Conteúdo da Nota</Label>
+              <Textarea
+                value={actionConfig.note_content as string || ''}
+                onChange={(e) => setActionConfig({ ...actionConfig, note_content: e.target.value })}
+                placeholder="Use {{nome}}, {{valor}}, {{etapa}} para variáveis"
+                rows={3}
+              />
+            </div>
+          )}
+
+          {actionType === 'webhook_request' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>URL do Webhook</Label>
+                <Input
+                  type="url"
+                  value={actionConfig.webhook_url as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, webhook_url: e.target.value })}
+                  placeholder="https://seu-servidor.com/webhook"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Método HTTP</Label>
+                <Select 
+                  value={actionConfig.method as string || 'POST'} 
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, method: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GET">GET</SelectItem>
+                    <SelectItem value="POST">POST</SelectItem>
+                    <SelectItem value="PUT">PUT</SelectItem>
+                    <SelectItem value="PATCH">PATCH</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O payload inclui dados do deal, contato e funil automaticamente
+              </p>
+            </div>
+          )}
+
+          {actionType === 'create_task' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Título da Tarefa</Label>
+                <Input
+                  value={actionConfig.task_title as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, task_title: e.target.value })}
+                  placeholder="Ex: Fazer follow-up com cliente"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  value={actionConfig.task_description as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, task_description: e.target.value })}
+                  placeholder="Detalhes da tarefa"
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Prazo (dias a partir de hoje)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={actionConfig.due_days as number || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, due_days: Number(e.target.value) })}
+                  placeholder="Ex: 3"
+                />
+              </div>
+            </div>
+          )}
+
+          {(actionType === 'close_deal_won' || actionType === 'close_deal_lost') && (
+            <p className="text-sm text-muted-foreground">
+              O deal será movido para a etapa final correspondente ({actionType === 'close_deal_won' ? 'ganho' : 'perdido'})
+            </p>
           )}
 
           <div className="flex justify-end gap-2">
