@@ -157,13 +157,13 @@ export function useTeamMembers() {
 
   // Editar membro
   const updateMember = useMutation({
-    mutationFn: async ({ memberId, data }: { memberId: string; data: { name?: string; email?: string; role: TeamRole } }) => {
+    mutationFn: async ({ memberId, data }: { memberId: string; data: { name?: string; email?: string; role: TeamRole; phone?: string } }) => {
       if (!isAdmin) throw new Error('Sem permissão para editar membros');
 
       const member = members.find(m => m.id === memberId);
       if (!member) throw new Error('Membro não encontrado');
 
-      // Atualizar role e email (se pendente)
+      // Atualizar role, email (se pendente) e phone
       const updateData: Record<string, unknown> = {
         role: data.role,
         permissions: getDefaultPermissions(data.role),
@@ -171,6 +171,11 @@ export function useTeamMembers() {
 
       if (member.status === 'invited' && data.email) {
         updateData.email = data.email;
+      }
+
+      // Adicionar phone ao updateData
+      if (data.phone !== undefined) {
+        updateData.phone = data.phone || null;
       }
 
       const { error } = await supabase
