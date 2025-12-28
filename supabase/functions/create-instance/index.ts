@@ -32,10 +32,12 @@ serve(async (req) => {
       throw new Error('Não autenticado');
     }
 
-    const { instanceName, forceRecreate = false } = await req.json();
+    const { instanceName, forceRecreate = false, isNotificationOnly = false } = await req.json();
     if (!instanceName || typeof instanceName !== 'string') {
       throw new Error('Nome da instância é obrigatório');
     }
+    
+    console.log(`isNotificationOnly: ${isNotificationOnly}`);
 
     // Sanitize and validate name
     const sanitizedName = instanceName.trim();
@@ -176,6 +178,7 @@ serve(async (req) => {
         user_id: user.id,
         instance_name: sanitizedName,
         status: 'disconnected',
+        is_notification_only: isNotificationOnly,
       })
       .select()
       .single();
