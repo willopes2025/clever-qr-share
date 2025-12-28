@@ -199,13 +199,30 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
     }
   }, [setNodes, selectedNode]);
 
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+    if (selectedNode?.id === nodeId) {
+      setSelectedNode(null);
+    }
+  }, [setNodes, setEdges, selectedNode]);
+
+  // Add onDelete callback to nodes (except start nodes)
+  const nodesWithDelete = nodes.map((node) => ({
+    ...node,
+    data: {
+      ...node.data,
+      onDelete: node.type !== 'start' ? () => deleteNode(node.id) : undefined,
+    },
+  }));
+
   return (
     <div className="flex-1 flex">
       <ChatbotFlowSidebar />
       
       <div className="flex-1 relative" ref={reactFlowWrapper}>
         <ReactFlow
-          nodes={nodes}
+          nodes={nodesWithDelete}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

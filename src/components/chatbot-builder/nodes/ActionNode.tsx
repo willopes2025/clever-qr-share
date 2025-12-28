@@ -1,5 +1,5 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { Tag, ArrowRightLeft, Variable, UserPlus, Globe } from "lucide-react";
+import { Tag, ArrowRightLeft, Variable, UserPlus, Globe, Trash2 } from "lucide-react";
 
 const actionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   add_tag: Tag,
@@ -26,10 +26,21 @@ export const ActionNode = ({ data, selected }: NodeProps) => {
   return (
     <div
       className={`
-        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[160px]
+        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[160px] relative
         ${selected ? "border-pink-500 ring-2 ring-pink-500/20" : "border-border"}
       `}
     >
+      {data?.onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            (data.onDelete as () => void)();
+          }}
+          className="absolute -top-2 -right-2 p-1 rounded-full bg-card border shadow-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
       <Handle
         type="target"
         position={Position.Top}
