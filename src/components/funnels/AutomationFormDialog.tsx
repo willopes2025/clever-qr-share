@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Copy, Check, Link } from "lucide-react";
+import { Copy, Check, Link, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -23,6 +23,8 @@ import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useChatbotFlows } from "@/hooks/useChatbotFlows";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AutomationFormDialogProps {
   open: boolean;
@@ -150,6 +152,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
   const { flows } = useChatbotFlows();
   const { fieldDefinitions } = useCustomFields();
   const { members } = useTeamMembers();
+  const { data: agentConfigs } = useAllAgentConfigs();
   
   const [name, setName] = useState('');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || '');
@@ -158,6 +161,8 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>({});
   const [actionType, setActionType] = useState<ActionType>('send_message');
   const [actionConfig, setActionConfig] = useState<Record<string, unknown>>({});
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [isGeneratingIntents, setIsGeneratingIntents] = useState(false);
 
   const selectedFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = selectedFunnel?.stages || [];
@@ -179,8 +184,50 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
       setTriggerConfig({});
       setActionType('send_message');
       setActionConfig({});
+      setSelectedAgentId('');
     }
   }, [open, automation, funnelId]);
+
+  const handleGenerateIntents = async () => {
+    if (!selectedAgentId) {
+      toast.error('Selecione um agente de IA primeiro');
+      return;
+    }
+
+    if (stages.length === 0) {
+      toast.error('Selecione um funil com etapas primeiro');
+      return;
+    }
+
+    setIsGeneratingIntents(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('suggest-funnel-intents', {
+        body: {
+          agentConfigId: selectedAgentId,
+          stages: stages.map(s => ({ id: s.id, name: s.name }))
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.suggestions && Array.isArray(data.suggestions)) {
+        const newMappings: IntentMapping[] = data.suggestions.map((s: { intent: string; suggested_stage_id: string }) => ({
+          intent: s.intent,
+          target_stage_id: s.suggested_stage_id
+        }));
+        
+        setActionConfig({ ...actionConfig, intent_mappings: newMappings });
+        toast.success(`${newMappings.length} intenções geradas com sucesso!`);
+      } else {
+        throw new Error('Resposta inválida da IA');
+      }
+    } catch (error) {
+      console.error('Error generating intents:', error);
+      toast.error('Erro ao gerar intenções. Tente novamente.');
+    } finally {
+      setIsGeneratingIntents(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -657,6 +704,51 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
               <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
                 <p className="text-sm text-muted-foreground">
                   🤖 A IA analisará a intenção da mensagem recebida e moverá o cartão para a etapa correspondente.
+                </p>
+              </div>
+
+              {/* Agent selector for intent generation */}
+              <div className="space-y-2">
+                <Label>Gerar intenções a partir de um Agente de IA (opcional)</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedAgentId || '__none__'}
+                    onValueChange={(v) => setSelectedAgentId(v === '__none__' ? '' : v)}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecionar agente..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Nenhum agente</SelectItem>
+                      {agentConfigs?.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.agent_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="default"
+                    disabled={!selectedAgentId || isGeneratingIntents || stages.length === 0}
+                    onClick={handleGenerateIntents}
+                  >
+                    {isGeneratingIntents ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Gerar Intenções
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecione um agente de IA para gerar intenções automaticamente baseadas no contexto do agente
                 </p>
               </div>
               
