@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +19,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userMessage, intents, intentDescription } = await req.json();
+    const { userMessage, intents, intentDescription, aiConfigId } = await req.json();
 
     // Support both single intent (legacy) and multiple intents
     const hasMultipleIntents = Array.isArray(intents) && intents.length > 0;
@@ -46,6 +47,33 @@ serve(async (req) => {
       );
     }
 
+    // Fetch AI context if aiConfigId is provided
+    let aiContext = "";
+    if (aiConfigId) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { data: agentConfig } = await supabase
+        .from('ai_agent_configs')
+        .select('agent_name, personality_prompt, behavior_rules')
+        .eq('id', aiConfigId)
+        .single();
+
+      if (agentConfig) {
+        aiContext = `
+Contexto do Assistente "${agentConfig.agent_name}":
+${agentConfig.personality_prompt || ''}
+
+Regras de comportamento:
+${agentConfig.behavior_rules || ''}
+
+Use este contexto para entender melhor as possíveis intenções do usuário.
+`;
+        console.log(`[AI-CONDITION] Using AI context from: ${agentConfig.agent_name}`);
+      }
+    }
+
     if (hasMultipleIntents) {
       // Multiple intents mode
       console.log(`[AI-CONDITION] Analyzing ${intents.length} intents - Message: "${userMessage.substring(0, 50)}..."`);
@@ -54,7 +82,7 @@ serve(async (req) => {
         .map((intent, idx) => `${idx + 1}. ID: "${intent.id}" - ${intent.label}: "${intent.description}"`)
         .join('\n');
 
-      const systemPrompt = `Você é um analisador de intenções. Sua tarefa é determinar qual intenção melhor corresponde à mensagem do usuário.
+      const systemPrompt = `${aiContext}Você é um analisador de intenções. Sua tarefa é determinar qual intenção melhor corresponde à mensagem do usuário.
 
 Regras:
 - Analise o significado semântico, não apenas palavras exatas
