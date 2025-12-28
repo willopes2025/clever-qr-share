@@ -501,9 +501,26 @@ serve(async (req) => {
 
         console.log(`[CALENDLY] Fetching available times for ${eventTypeUri} from ${startDate} to ${endDate}`);
 
-        // Format dates for Calendly API (needs full ISO format)
-        const startTime = new Date(startDate + 'T00:00:00').toISOString();
-        const endTime = new Date(endDate + 'T23:59:59').toISOString();
+        // Format dates for Calendly API with proper timezone handling
+        const now = new Date();
+        
+        // Parse start date - use Brazil timezone offset (-03:00)
+        let startDateTime = new Date(startDate + 'T00:00:00-03:00');
+        
+        // If startDateTime is in the past, adjust to now + 1 hour minimum
+        if (startDateTime < now) {
+          startDateTime = new Date(now.getTime() + 60 * 60 * 1000); // now + 1 hour
+          console.log(`[CALENDLY] Start date was in the past, adjusted to: ${startDateTime.toISOString()}`);
+        }
+        
+        // Parse end date - use end of day in Brazil timezone
+        const endDateTime = new Date(endDate + 'T23:59:59-03:00');
+        
+        const startTime = startDateTime.toISOString();
+        const endTime = endDateTime.toISOString();
+        
+        console.log(`[CALENDLY] Current time (UTC): ${now.toISOString()}`);
+        console.log(`[CALENDLY] Query range: ${startTime} to ${endTime}`);
 
         const response = await calendlyFetch(
           `/event_type_available_times?event_type=${encodeURIComponent(eventTypeUri)}&start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}`
