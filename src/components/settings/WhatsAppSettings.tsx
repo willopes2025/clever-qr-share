@@ -33,17 +33,17 @@ export function WhatsAppSettings() {
     setIsConnecting(true);
     
     try {
-      const result = await connectInstance.mutateAsync(instanceId);
-      if (result?.qrCode) {
-        setQrCode(result.qrCode);
+      const result = await connectInstance.mutateAsync(instanceName);
+      if (result?.base64) {
+        setQrCode(result.base64);
       }
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const handleCheckStatus = async (instanceId: string, instanceName: string) => {
-    await checkStatus.mutateAsync(instanceId);
+  const handleCheckStatus = async (instanceName: string) => {
+    await checkStatus.mutateAsync(instanceName);
   };
 
   const closeQrDialog = () => {
@@ -71,9 +71,9 @@ export function WhatsAppSettings() {
         
         // Auto open QR code dialog
         setSelectedInstance(result.instance.id);
-        const connectResult = await connectInstance.mutateAsync(result.instance.id);
-        if (connectResult?.qrCode) {
-          setQrCode(connectResult.qrCode);
+        const connectResult = await connectInstance.mutateAsync(result.instance.instance_name);
+        if (connectResult?.base64) {
+          setQrCode(connectResult.base64);
         }
       }
     } catch (error: any) {
@@ -199,7 +199,7 @@ export function WhatsAppSettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleCheckStatus(instance.id, instance.instance_name)}
+                        onClick={() => handleCheckStatus(instance.instance_name)}
                         disabled={checkStatus.isPending}
                       >
                         <RefreshCw className={`h-4 w-4 mr-1 ${checkStatus.isPending ? 'animate-spin' : ''}`} />
@@ -279,7 +279,7 @@ export function WhatsAppSettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleCheckStatus(instance.id, instance.instance_name)}
+                        onClick={() => handleCheckStatus(instance.instance_name)}
                         disabled={checkStatus.isPending}
                       >
                         <RefreshCw className={`h-4 w-4 mr-1 ${checkStatus.isPending ? 'animate-spin' : ''}`} />
