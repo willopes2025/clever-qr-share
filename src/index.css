@@ -361,3 +361,40 @@ a[role="button"]:not([aria-disabled="true"]) {
   position: relative;
   z-index: 10;
 }
+
+/* Mobile Safe Area Support */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Touch-friendly tap targets */
+@media (max-width: 767px) {
+  button, 
+  a, 
+  [role="button"] {
+    min-height: 44px;
+  }
+  
+  /* Prevent zoom on input focus iOS */
+  input, 
+  textarea, 
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Hide desktop scrollbar on mobile */
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
