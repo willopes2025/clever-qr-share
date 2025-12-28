@@ -200,13 +200,22 @@ export function useOrganization() {
 
   // Verificar permissão
   const checkPermission = (permission: PermissionKey): boolean => {
+    // Se é o dono da organização, tem todas as permissões
+    if (organizationId && userId && organizationOwnerId === userId) {
+      return true;
+    }
+    
+    // Se não tem membro carregado, negar acesso
     if (!currentMember) {
-      // Se é o dono da organização, tem todas as permissões
-      if (organizationId && userId && organizationOwnerId === userId) {
-        return true;
-      }
       return false;
     }
+    
+    // Admin tem todas as permissões
+    if (currentMember.role === 'admin') {
+      return true;
+    }
+    
+    // Verificar permissões específicas do membro
     return hasPermission(currentMember.permissions, permission, currentMember.role);
   };
 

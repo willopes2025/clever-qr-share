@@ -13,7 +13,7 @@ interface PermissionGateProps {
 
 export const PermissionGate = ({ permission, children, fallback }: PermissionGateProps) => {
   const navigate = useNavigate();
-  const { checkPermission, isLoading, organization } = useOrganization();
+  const { checkPermission, isLoading, organization, currentMember, isOwner } = useOrganization();
 
   // Enquanto carrega, mostrar loading
   if (isLoading) {
@@ -25,8 +25,38 @@ export const PermissionGate = ({ permission, children, fallback }: PermissionGat
   }
 
   // Se não tem organização, permite acesso (usuário individual, legado)
-  // Mas se tem organização e não tem permissão, bloqueia
-  const hasAccess = !organization || checkPermission(permission);
+  if (!organization) {
+    return <>{children}</>;
+  }
+
+  // Se é o dono da organização, tem acesso total
+  if (isOwner) {
+    return <>{children}</>;
+  }
+
+  // Se tem organização mas não tem membro carregado (situação de erro), bloquear
+  if (!currentMember) {
+    return (
+      <DashboardLayout className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md p-8 bg-card/50 rounded-2xl border border-border/50">
+          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert className="h-8 w-8 text-destructive" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Erro de Acesso</h2>
+          <p className="text-muted-foreground mb-6">
+            Não foi possível verificar suas permissões. Entre em contato com o administrador.
+          </p>
+          <Button onClick={() => navigate("/dashboard")} variant="outline" className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao Dashboard
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Verificar permissão do membro
+  const hasAccess = checkPermission(permission);
 
   if (hasAccess) {
     return <>{children}</>;
