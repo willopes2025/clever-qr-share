@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'new_message' | 'new_deal' | 'deal_stage_change' | 'deal_assigned' | 'task_due' | 'task_assigned' | 'calendly_event' | 'ai_handoff' | 'campaign_complete' | 'instance_disconnect';
+  type: 'new_message' | 'new_deal' | 'deal_stage_change' | 'deal_assigned' | 'task_due' | 'task_assigned' | 'task_created' | 'task_updated' | 'task_deleted' | 'calendly_event' | 'ai_handoff' | 'campaign_complete' | 'instance_disconnect';
   data: {
     dealId?: string;
     conversationId?: string;
@@ -56,8 +56,11 @@ serve(async (req) => {
       new_deal: `🎯 Novo deal criado: *${data.dealTitle || 'Sem título'}*`,
       deal_stage_change: `📊 Deal *${data.dealTitle}* movido para *${data.stageName}*`,
       deal_assigned: `👤 Deal *${data.dealTitle}* atribuído a você`,
+      task_created: `📋 Nova tarefa criada: *${data.taskTitle}*`,
+      task_assigned: `📋 Tarefa atribuída a você: *${data.taskTitle}*`,
+      task_updated: `✏️ Tarefa atualizada: *${data.taskTitle}*`,
+      task_deleted: `🗑️ Tarefa excluída: *${data.taskTitle}*`,
       task_due: `⏰ Tarefa vencida: *${data.taskTitle}*`,
-      task_assigned: `📋 Nova tarefa atribuída: *${data.taskTitle}*`,
       calendly_event: `📅 Novo agendamento: *${data.contactName}*`,
       ai_handoff: `🤖 IA solicitou atendimento humano para *${data.contactName}*`,
       campaign_complete: `✅ Campanha *${data.campaignName}* finalizada`,
@@ -67,21 +70,90 @@ serve(async (req) => {
     const message = notificationMessages[type] || `Notificação: ${type}`;
     const notificationKey = `notify_${type.replace(/-/g, '_')}`;
 
-    // Determine recipients
+    // Determine recipients - automatically fetch responsible based on type
     let userIds: string[] = [];
-    if (recipientUserId) {
-      userIds = [recipientUserId];
-    } else if (organizationUserIds && organizationUserIds.length > 0) {
-      userIds = organizationUserIds;
+    
+    // If type is task-related and no recipientUserId is provided, fetch from task
+    if (type.startsWith('task_') && data.taskId && !recipientUserId) {
+      console.log('Fetching task responsible for task:', data.taskId);
+      
+      // Check both conversation_tasks and deal_tasks
+      const { data: convTask } = await supabase
+        .from('conversation_tasks')
+        .select('assigned_to, user_id')
+        .eq('id', data.taskId)
+        .maybeSingle();
+      
+      if (convTask) {
+        // Use assigned_to if available, otherwise use user_id (creator)
+        userIds = [convTask.assigned_to || convTask.user_id].filter(Boolean);
+        console.log('Found conversation task responsible:', userIds);
+      } else {
+        // Try deal_tasks
+        const { data: dealTask } = await supabase
+          .from('deal_tasks')
+          .select('assigned_to, user_id')
+          .eq('id', data.taskId)
+          .maybeSingle();
+        
+        if (dealTask) {
+          userIds = [dealTask.assigned_to || dealTask.user_id].filter(Boolean);
+          console.log('Found deal task responsible:', userIds);
+        }
+      }
+    }
+    
+    // If type is deal-related and no recipientUserId is provided, fetch responsible_id
+    if (type.startsWith('deal_') && data.dealId && !recipientUserId && userIds.length === 0) {
+      console.log('Fetching deal responsible for deal:', data.dealId);
+      
+      const { data: deal } = await supabase
+        .from('funnel_deals')
+        .select('responsible_id, user_id')
+        .eq('id', data.dealId)
+        .maybeSingle();
+      
+      if (deal) {
+        // Use responsible_id if available, otherwise use user_id (creator)
+        userIds = [deal.responsible_id || deal.user_id].filter(Boolean);
+        console.log('Found deal responsible:', userIds);
+      }
+    }
+    
+    // If type is inbox-related, fetch from conversation
+    if ((type === 'new_message' || type === 'ai_handoff') && data.conversationId && !recipientUserId && userIds.length === 0) {
+      console.log('Fetching conversation owner:', data.conversationId);
+      
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('user_id')
+        .eq('id', data.conversationId)
+        .maybeSingle();
+      
+      if (conv) {
+        userIds = [conv.user_id];
+        console.log('Found conversation owner:', userIds);
+      }
+    }
+    
+    // Fallback to provided recipientUserId or organizationUserIds
+    if (userIds.length === 0) {
+      if (recipientUserId) {
+        userIds = [recipientUserId];
+      } else if (organizationUserIds && organizationUserIds.length > 0) {
+        userIds = organizationUserIds;
+      }
     }
 
     if (userIds.length === 0) {
-      console.log('No recipients specified');
+      console.log('No recipients determined');
       return new Response(
         JSON.stringify({ success: false, message: 'No recipients' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Final recipients:', userIds);
 
     // Get notification preferences for all users
     const { data: preferences, error: prefError } = await supabase
@@ -147,7 +219,7 @@ serve(async (req) => {
         .from('whatsapp_instances')
         .select('instance_name')
         .eq('id', instanceId)
-        .single();
+        .maybeSingle();
 
       if (!instance) {
         console.log(`Instance ${instanceId} not found`);
