@@ -258,6 +258,9 @@ export const ChatbotFlowEditor = ({ flow }: ChatbotFlowEditorProps) => {
   );
 };
 
+// Generate unique ID
+const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 function getDefaultDataForType(type: string): Record<string, any> {
   switch (type) {
     case 'start':
@@ -267,7 +270,12 @@ function getDefaultDataForType(type: string): Record<string, any> {
     case 'question':
       return { question: '', variable: '', options: [] };
     case 'condition':
-      return { conditionMode: 'variable', variable: '', operator: 'equals', value: '', intentDescription: '' };
+      return { 
+        conditionMode: 'variable', 
+        logicOperator: 'and',
+        conditions: [{ id: generateId(), variable: '', operator: 'equals', value: '' }],
+        intents: [{ id: generateId(), label: '', description: '' }]
+      };
     case 'action':
       return { actionType: 'add_tag', config: {} };
     case 'delay':
