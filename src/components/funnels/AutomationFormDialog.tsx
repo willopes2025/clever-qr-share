@@ -740,14 +740,14 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
               <div className="space-y-2">
                 <Label>Etapa padrão (quando nenhuma intenção for detectada)</Label>
                 <Select
-                  value={actionConfig.default_stage_id as string || ''}
-                  onValueChange={(v) => setActionConfig({ ...actionConfig, default_stage_id: v })}
+                  value={actionConfig.default_stage_id as string || '__none__'}
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, default_stage_id: v === '__none__' ? '' : v })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecionar etapa (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Não mover</SelectItem>
+                    <SelectItem value="__none__">Não mover</SelectItem>
                     {stages.map((stage) => (
                       <SelectItem key={stage.id} value={stage.id}>
                         {stage.name}
