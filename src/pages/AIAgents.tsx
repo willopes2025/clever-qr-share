@@ -1,21 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Bot, Building2, Save, Loader2, Search, Sparkles } from "lucide-react";
-import { useAllAgentConfigs, useAgentConfigMutations } from "@/hooks/useAIAgentConfig";
+import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
 import { useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { AIAgentCard } from "@/components/ai-agents/AIAgentCard";
 import { AIAgentFormDialog } from "@/components/ai-agents/AIAgentFormDialog";
 import { AIAgentTemplateSelector } from "@/components/ai-agents/AIAgentTemplateSelector";
-import { AI_AGENT_TEMPLATES, AIAgentTemplate } from "@/data/ai-agent-templates";
+import { AIAgentTemplate } from "@/data/ai-agent-templates";
 
 const AIAgents = () => {
+  const queryClient = useQueryClient();
   const { data: agents, isLoading: isLoadingAgents, refetch } = useAllAgentConfigs();
   const { organization } = useOrganization();
   
@@ -28,6 +29,22 @@ const AIAgents = () => {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [personalizeWithCompany, setPersonalizeWithCompany] = useState(true);
   const [isPersonalizing, setIsPersonalizing] = useState(false);
+
+  // Load company context when organization is available
+  useEffect(() => {
+    if (organization?.id) {
+      supabase
+        .from("organizations")
+        .select("company_context")
+        .eq("id", organization.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.company_context) {
+            setCompanyContext(data.company_context);
+          }
+        });
+    }
+  }, [organization?.id]);
 
   const handleSaveCompanyContext = async () => {
     if (!organization?.id) {
@@ -44,7 +61,7 @@ const AIAgents = () => {
 
       if (error) throw error;
       toast.success("Contexto da empresa salvo com sucesso!");
-      refetchOrganization();
+      queryClient.invalidateQueries({ queryKey: ["organization"] });
     } catch (error: any) {
       toast.error("Erro ao salvar: " + error.message);
     } finally {
