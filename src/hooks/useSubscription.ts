@@ -171,11 +171,11 @@ export const useSubscription = () => {
 
   const checkSubscription = useCallback(async () => {
     // Wait for auth to finish loading before making requests
-    if (authLoading) {
-      return;
-    }
+    if (authLoading) return;
 
-    // First, get a fresh session to ensure we have a valid token
+    setLoading(true);
+
+    // Always use the freshest session (avoids stale tokens)
     const { data: sessionData } = await supabase.auth.getSession();
     const currentSession = sessionData?.session;
 
@@ -185,25 +185,36 @@ export const useSubscription = () => {
       return;
     }
 
-    try {
-      const { data, error } = await supabase.functions.invoke('check-subscription', {
+    const invokeCheck = async (accessToken: string) =>
+      supabase.functions.invoke('check-subscription', {
         headers: {
-          Authorization: `Bearer ${currentSession.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
+    try {
+      let { data, error } = await invokeCheck(currentSession.access_token);
+
       if (error) {
-        // If auth error, try to refresh the session
-        if (error.message?.includes('Auth') || error.message?.includes('session')) {
-          const { data: refreshData } = await supabase.auth.refreshSession();
-          if (!refreshData?.session) {
-            // Session truly expired, user needs to log in again
+        const message = (error as any)?.message ?? '';
+        const isAuthError = /auth|session|jwt|unauthorized/i.test(message);
+
+        if (isAuthError) {
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          const refreshedSession = refreshData?.session;
+
+          if (!refreshError && refreshedSession?.access_token) {
+            ({ data, error } = await invokeCheck(refreshedSession.access_token));
+          } else {
+            // Session is invalid server-side, force re-login
+            await supabase.auth.signOut();
             setSubscription(null);
             setLoading(false);
             return;
           }
         }
-        throw error;
+
+        if (error) throw error;
       }
 
       setSubscription(data);
@@ -221,7 +232,7 @@ export const useSubscription = () => {
       return;
     }
 
-    if (user && session?.access_token) {
+    if (user) {
       checkSubscription();
     } else {
       setSubscription(null);
