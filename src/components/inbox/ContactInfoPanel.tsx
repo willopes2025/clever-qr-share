@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +19,7 @@ import { formatForDisplay } from "@/lib/phone-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ContactInfoPanelProps {
   conversation: Conversation;
@@ -31,6 +33,7 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   // Update notes when conversation changes
   useEffect(() => {
@@ -85,6 +88,186 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
     }
   };
 
+  const panelContent = (
+    <div className="h-full flex flex-col">
+      {!isMobile && (
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h3 className="font-semibold">Informações do Contato</h3>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex flex-col items-center mb-6">
+          <Avatar className="h-20 w-20 mb-3">
+            <AvatarFallback className="text-2xl bg-primary/10 text-primary">
+              {getInitials(contactName)}
+            </AvatarFallback>
+          </Avatar>
+          {isEditingName ? (
+            <div className="flex items-center gap-2 mt-1">
+              <Input
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                className="h-8 text-center w-40"
+                placeholder="Nome do contato"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveName();
+                  if (e.key === 'Escape') setIsEditingName(false);
+                }}
+              />
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveName}>
+                <Check className="h-4 w-4 text-primary" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 mt-1">
+              <h4 className="text-lg font-semibold text-center">
+                {contactName || "Sem nome"}
+              </h4>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={startEditingName}>
+                <Edit2 className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+          <Badge variant="secondary" className="mt-1">
+            {conversation.status === 'archived' ? 'Arquivada' : 'Ativa'}
+          </Badge>
+        </div>
+
+        <Separator className="my-4" />
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Phone className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Telefone</p>
+              <p className="text-sm font-medium">
+                {formatForDisplay(contactPhone)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Calendar className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Primeira conversa</p>
+              <p className="text-sm font-medium">
+                {format(new Date(conversation.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <MessageSquare className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Última mensagem</p>
+              <p className="text-sm font-medium">
+                {conversation.last_message_at 
+                  ? format(new Date(conversation.last_message_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                  : "Nenhuma"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Separator className="my-4" />
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium">Tags</p>
+            <TagSelector conversationId={conversation.id} />
+          </div>
+        </div>
+
+        <Separator className="my-4" />
+
+        {/* Custom Fields Section */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Dados do Lead</p>
+            </div>
+            <CustomFieldsManager />
+          </div>
+          <CustomFieldsEditor 
+            contactId={conversation.contact_id} 
+            customFields={conversation.contact?.custom_fields || {}}
+          />
+        </div>
+
+        <Separator className="my-4" />
+
+        {/* Funnel Deal Section */}
+        <FunnelDealSection 
+          contactId={conversation.contact_id}
+          conversationId={conversation.id}
+        />
+
+        <Separator className="my-4" />
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <StickyNote className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Notas</p>
+            </div>
+            {!isEditingNotes && (
+              <Button variant="ghost" size="sm" onClick={() => setIsEditingNotes(true)}>
+                <Edit2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          
+          {isEditingNotes ? (
+            <div className="space-y-2">
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Adicionar notas..."
+                rows={4}
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSaveNotes} className="flex-1">Salvar</Button>
+                <Button size="sm" variant="outline" onClick={() => setIsEditingNotes(false)}>Cancelar</Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">{notes || "Sem notas"}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Mobile: Use Sheet (drawer from right)
+  if (isMobile) {
+    return (
+      <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0">
+          <SheetHeader className="p-4 border-b border-border">
+            <SheetTitle>Informações do Contato</SheetTitle>
+          </SheetHeader>
+          {panelContent}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  // Desktop: Animated side panel
   return (
     <AnimatePresence>
       {isOpen && (
@@ -95,166 +278,7 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
           transition={{ duration: 0.2 }}
           className="border-l border-border bg-card overflow-hidden shrink-0"
         >
-          <div className="h-full flex flex-col">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">Informações do Contato</h3>
-              <Button variant="ghost" size="icon" onClick={onClose}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="flex flex-col items-center mb-6">
-                <Avatar className="h-20 w-20 mb-3">
-                  <AvatarFallback className="text-2xl bg-primary/10 text-primary">
-                    {getInitials(contactName)}
-                  </AvatarFallback>
-                </Avatar>
-                {isEditingName ? (
-                  <div className="flex items-center gap-2 mt-1">
-                    <Input
-                      value={editedName}
-                      onChange={(e) => setEditedName(e.target.value)}
-                      className="h-8 text-center w-40"
-                      placeholder="Nome do contato"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveName();
-                        if (e.key === 'Escape') setIsEditingName(false);
-                      }}
-                    />
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveName}>
-                      <Check className="h-4 w-4 text-primary" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 mt-1">
-                    <h4 className="text-lg font-semibold text-center">
-                      {contactName || "Sem nome"}
-                    </h4>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={startEditingName}>
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-                <Badge variant="secondary" className="mt-1">
-                  {conversation.status === 'archived' ? 'Arquivada' : 'Ativa'}
-                </Badge>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Phone className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Telefone</p>
-                    <p className="text-sm font-medium">
-                      {formatForDisplay(contactPhone)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Calendar className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Primeira conversa</p>
-                    <p className="text-sm font-medium">
-                      {format(new Date(conversation.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <MessageSquare className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Última mensagem</p>
-                    <p className="text-sm font-medium">
-                      {conversation.last_message_at 
-                        ? format(new Date(conversation.last_message_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                        : "Nenhuma"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium">Tags</p>
-                  <TagSelector conversationId={conversation.id} />
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Custom Fields Section */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Database className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Dados do Lead</p>
-                  </div>
-                  <CustomFieldsManager />
-                </div>
-                <CustomFieldsEditor 
-                  contactId={conversation.contact_id} 
-                  customFields={conversation.contact?.custom_fields || {}}
-                />
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Funnel Deal Section */}
-              <FunnelDealSection 
-                contactId={conversation.contact_id}
-                conversationId={conversation.id}
-              />
-
-              <Separator className="my-4" />
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <StickyNote className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Notas</p>
-                  </div>
-                  {!isEditingNotes && (
-                    <Button variant="ghost" size="sm" onClick={() => setIsEditingNotes(true)}>
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
-                
-                {isEditingNotes ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Adicionar notas..."
-                      rows={4}
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleSaveNotes} className="flex-1">Salvar</Button>
-                      <Button size="sm" variant="outline" onClick={() => setIsEditingNotes(false)}>Cancelar</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{notes || "Sem notas"}</p>
-                )}
-              </div>
-            </div>
-          </div>
+          {panelContent}
         </motion.div>
       )}
     </AnimatePresence>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
@@ -38,6 +44,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { isToday, isSameDay } from "date-fns";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ConversationWithAI extends Conversation {
   campaign_id?: string | null;
@@ -50,19 +57,21 @@ interface ConversationWithAI extends Conversation {
 
 interface MessageViewProps {
   conversation: ConversationWithAI;
+  onBack?: () => void;
 }
 
 interface OptimisticMessage extends InboxMessage {
   isOptimistic: true;
 }
 
-export const MessageView = ({ conversation }: MessageViewProps) => {
+export const MessageView = ({ conversation, onBack }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
@@ -369,27 +378,64 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
     }
   };
 
+  const handleToggleAIPaused = async () => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ 
+          ai_paused: !conversation.ai_paused,
+          ai_handoff_requested: false 
+        })
+        .eq('id', conversation.id);
+      
+      if (error) throw error;
+      
+      toast.success(conversation.ai_paused ? "IA retomada" : "IA pausada");
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    } catch (error) {
+      toast.error("Erro ao alterar status da IA");
+    }
+  };
+
   return (
-    <div className="flex-1 flex h-full">
+    <div className="flex-1 flex h-full w-full">
       <div className="flex-1 flex flex-col h-full bg-background relative">
       {/* Header */}
-      <div className="h-16 px-4 flex items-center justify-between border-b border-border bg-card">
-        <div className="flex items-center gap-3">
+      <div className={cn(
+        "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card",
+        isMobile ? "h-14" : "h-16"
+      )}>
+        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+          {/* Back button - Mobile only */}
+          {isMobile && onBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={onBack}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
+          
           <motion.div 
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
-            className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium"
+            className={cn(
+              "rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0",
+              isMobile ? "w-9 h-9 text-sm" : "w-10 h-10"
+            )}
           >
             {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
           </motion.div>
-          <div>
+          <div className="min-w-0 flex-1">
             {isEditingName ? (
               <div className="flex items-center gap-1">
                 <Input
                   ref={nameInputRef}
                   value={editedName}
                   onChange={(e) => setEditedName(e.target.value)}
-                  className="h-7 w-40 text-sm font-semibold"
+                  className="h-7 w-32 md:w-40 text-sm font-semibold"
                   placeholder="Nome do contato"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSaveName();
@@ -404,66 +450,48 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-1">
-                <h3 className="font-semibold text-foreground">
+              <div className="flex items-center gap-1 min-w-0">
+                <h3 className="font-semibold text-foreground truncate text-sm md:text-base">
                   {conversation.contact?.name || conversation.contact?.phone || "Contato Desconhecido"}
                 </h3>
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={startEditingName}>
-                  <Edit2 className="h-3 w-3" />
-                </Button>
+                {!isMobile && (
+                  <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={startEditingName}>
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             )}
-            <AnimatePresence mode="wait">
-              {isTyping ? (
-                <motion.p
-                  key="typing"
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  className="text-xs text-primary font-medium"
-                >
-                  digitando...
-                </motion.p>
-              ) : (
-                <motion.p
-                  key="phone"
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  className="text-xs text-muted-foreground"
-                >
-                  {conversation.contact?.phone}
-                </motion.p>
-              )}
-            </AnimatePresence>
+            {!isMobile && (
+              <AnimatePresence mode="wait">
+                {isTyping ? (
+                  <motion.p
+                    key="typing"
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    className="text-xs text-primary font-medium"
+                  >
+                    digitando...
+                  </motion.p>
+                ) : (
+                  <motion.p
+                    key="phone"
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    className="text-xs text-muted-foreground"
+                  >
+                    {conversation.contact?.phone}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Invoke AI Button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={handleInvokeAI}
-                disabled={isInvokingAI || !selectedInstanceId}
-              >
-                {isInvokingAI ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                Acionar IA
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              A IA vai ler a conversa e continuar
-            </TooltipContent>
-          </Tooltip>
-          
-          {/* AI Status Badge */}
-          {conversation.ai_handled && (
+        
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+          {/* AI Status Badge - Desktop only */}
+          {!isMobile && conversation.ai_handled && (
             <div className="flex items-center gap-2">
               {conversation.ai_handoff_requested ? (
                 <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 gap-1">
@@ -481,140 +509,207 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
                   IA Ativa
                 </Badge>
               )}
-              
+            </div>
+          )}
+
+          {/* Desktop: Full buttons */}
+          {!isMobile ? (
+            <>
+              {/* Invoke AI Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={handleInvokeAI}
+                    disabled={isInvokingAI || !selectedInstanceId}
+                  >
+                    {isInvokingAI ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    Acionar IA
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  A IA vai ler a conversa e continuar
+                </TooltipContent>
+              </Tooltip>
+
               {/* Toggle AI Button */}
+              {conversation.ai_handled && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={handleToggleAIPaused}
+                    >
+                      {conversation.ai_paused ? (
+                        <Play className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <Pause className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {conversation.ai_paused ? "Retomar IA" : "Pausar IA"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              
+              {/* Instance Selector */}
+              <Select 
+                value={selectedInstanceId} 
+                onValueChange={async (value) => {
+                  setSelectedInstanceId(value);
+                  // Persist instance change to database
+                  try {
+                    await supabase
+                      .from('conversations')
+                      .update({ instance_id: value })
+                      .eq('id', conversation.id);
+                    toast.success("Número de envio atualizado");
+                  } catch (error) {
+                    toast.error("Erro ao atualizar número");
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Selecionar número" />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedInstances.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhuma instância conectada
+                    </div>
+                  ) : (
+                    connectedInstances.map((instance) => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        {instance.instance_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              
+              {/* Transfer Button */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
-                    onClick={async () => {
-                      try {
-                        const { error } = await supabase
-                          .from('conversations')
-                          .update({ 
-                            ai_paused: !conversation.ai_paused,
-                            ai_handoff_requested: false 
-                          })
-                          .eq('id', conversation.id);
-                        
-                        if (error) throw error;
-                        
-                        toast.success(conversation.ai_paused ? "IA retomada" : "IA pausada");
-                        queryClient.invalidateQueries({ queryKey: ['conversations'] });
-                      } catch (error) {
-                        toast.error("Erro ao alterar status da IA");
-                      }
-                    }}
+                    className="h-9 w-9"
+                    onClick={() => setShowTransferDialog(true)}
                   >
-                    {conversation.ai_paused ? (
-                      <Play className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <Pause className="h-4 w-4 text-muted-foreground" />
-                    )}
+                    <ArrowRightLeft className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {conversation.ai_paused ? "Retomar IA" : "Pausar IA"}
+                  Transferir conversa
                 </TooltipContent>
               </Tooltip>
-            </div>
-          )}
-          
-          {/* Instance Selector */}
-          <Select 
-            value={selectedInstanceId} 
-            onValueChange={async (value) => {
-              setSelectedInstanceId(value);
-              // Persist instance change to database
-              try {
-                await supabase
-                  .from('conversations')
-                  .update({ instance_id: value })
-                  .eq('id', conversation.id);
-                toast.success("Número de envio atualizado");
-              } catch (error) {
-                toast.error("Erro ao atualizar número");
-              }
-            }}
-          >
-            <SelectTrigger className="w-[180px] h-9">
-              <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Selecionar número" />
-            </SelectTrigger>
-            <SelectContent>
-              {connectedInstances.length === 0 ? (
-                <div className="p-2 text-sm text-muted-foreground text-center">
-                  Nenhuma instância conectada
-                </div>
-              ) : (
-                connectedInstances.map((instance) => (
-                  <SelectItem key={instance.id} value={instance.id}>
-                    {instance.instance_name}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-          
-          {/* Transfer Button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
+              
+              {/* Contact Info Button */}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9"
-                onClick={() => setShowTransferDialog(true)}
+                onClick={() => setShowContactInfo(!showContactInfo)}
               >
-                <ArrowRightLeft className="h-4 w-4" />
+                <User className="h-4 w-4" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Transferir conversa
-            </TooltipContent>
-          </Tooltip>
-          
-          {/* Contact Info Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setShowContactInfo(!showContactInfo)}
-          >
-            <User className="h-4 w-4" />
-          </Button>
+            </>
+          ) : (
+            // Mobile: Dropdown menu for actions
+            <>
+              {/* AI Status mini badge */}
+              {conversation.ai_handled && !conversation.ai_paused && (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 h-7 px-2">
+                  <Bot className="h-3 w-3" />
+                </Badge>
+              )}
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={startEditingName}>
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Editar nome
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleInvokeAI} disabled={isInvokingAI}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Acionar IA
+                  </DropdownMenuItem>
+                  {conversation.ai_handled && (
+                    <DropdownMenuItem onClick={handleToggleAIPaused}>
+                      {conversation.ai_paused ? (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          Retomar IA
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="h-4 w-4 mr-2" />
+                          Pausar IA
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Transferir
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowContactInfo(true)}>
+                    <User className="h-4 w-4 mr-2" />
+                    Info do contato
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-        <TabsList className="mx-4 mt-2 justify-start bg-muted/50 p-1 h-auto flex-wrap">
-          <TabsTrigger value="chat" className="gap-2 data-[state=active]:bg-background">
-            <MessageSquare className="h-4 w-4" />
-            Chat
+        <TabsList className={cn(
+          "mx-2 md:mx-4 mt-2 justify-start bg-muted/50 p-1 h-auto",
+          isMobile ? "flex overflow-x-auto gap-1" : "flex-wrap"
+        )}>
+          <TabsTrigger value="chat" className="gap-1.5 md:gap-2 data-[state=active]:bg-background text-xs md:text-sm px-2 md:px-3">
+            <MessageSquare className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <span className={isMobile ? "hidden xs:inline" : ""}>Chat</span>
           </TabsTrigger>
-          <TabsTrigger value="notes" className="gap-2 data-[state=active]:bg-background">
-            <StickyNote className="h-4 w-4" />
-            Notas
-            {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{notes.length}</Badge>}
+          <TabsTrigger value="notes" className="gap-1.5 md:gap-2 data-[state=active]:bg-background text-xs md:text-sm px-2 md:px-3">
+            <StickyNote className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <span className={isMobile ? "hidden xs:inline" : ""}>Notas</span>
+            {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-4 md:h-5 px-1 md:px-1.5 text-[10px] md:text-xs">{notes.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="tasks" className="gap-2 data-[state=active]:bg-background">
-            <CheckSquare className="h-4 w-4" />
-            Tarefas
-            {pendingTasks.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{pendingTasks.length}</Badge>}
+          <TabsTrigger value="tasks" className="gap-1.5 md:gap-2 data-[state=active]:bg-background text-xs md:text-sm px-2 md:px-3">
+            <CheckSquare className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <span className={isMobile ? "hidden xs:inline" : ""}>Tarefas</span>
+            {pendingTasks.length > 0 && <Badge variant="secondary" className="ml-1 h-4 md:h-5 px-1 md:px-1.5 text-[10px] md:text-xs">{pendingTasks.length}</Badge>}
           </TabsTrigger>
-          <TabsTrigger value="internal" className="gap-2 data-[state=active]:bg-background">
-            <Users className="h-4 w-4" />
-            Interno
-            {internalMessages.length > 0 && <Badge className="ml-1 h-5 px-1.5 bg-primary">{internalMessages.length}</Badge>}
+          <TabsTrigger value="internal" className="gap-1.5 md:gap-2 data-[state=active]:bg-background text-xs md:text-sm px-2 md:px-3">
+            <Users className="h-3.5 w-3.5 md:h-4 md:w-4" />
+            <span className={isMobile ? "hidden xs:inline" : ""}>Interno</span>
+            {internalMessages.length > 0 && <Badge className="ml-1 h-4 md:h-5 px-1 md:px-1.5 text-[10px] md:text-xs bg-primary">{internalMessages.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden">
       {/* Messages */}
       <ScrollArea 
-        className="flex-1 p-4" 
+        className="flex-1 p-3 md:p-4" 
         onScrollCapture={handleScroll}
         ref={scrollAreaRef}
       >
@@ -686,14 +781,52 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
       />
 
       {/* Input */}
-      <div className="p-4 border-t border-border bg-card">
-        <div className="flex gap-2 max-w-3xl mx-auto items-end">
+      <div className="p-2 md:p-4 border-t border-border bg-card">
+        {/* Mobile: Instance selector above input */}
+        {isMobile && (
+          <div className="mb-2">
+            <Select 
+              value={selectedInstanceId} 
+              onValueChange={async (value) => {
+                setSelectedInstanceId(value);
+                try {
+                  await supabase
+                    .from('conversations')
+                    .update({ instance_id: value })
+                    .eq('id', conversation.id);
+                } catch (error) {
+                  toast.error("Erro ao atualizar número");
+                }
+              }}
+            >
+              <SelectTrigger className="w-full h-8 text-xs">
+                <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Selecionar número" />
+              </SelectTrigger>
+              <SelectContent>
+                {connectedInstances.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground text-center">
+                    Nenhuma instância conectada
+                  </div>
+                ) : (
+                  connectedInstances.map((instance) => (
+                    <SelectItem key={instance.id} value={instance.id}>
+                      {instance.instance_name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
+        <div className="flex gap-1.5 md:gap-2 max-w-3xl mx-auto items-end">
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
             disabled={!selectedInstanceId}
           />
           
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
           <Textarea
             ref={textareaRef}
@@ -701,15 +834,17 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
             value={newMessage}
             onChange={handleMessageChange}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-muted/50 min-h-[40px] max-h-[150px] resize-none py-2"
+            className="flex-1 bg-muted/50 min-h-[40px] max-h-[150px] resize-none py-2 text-sm md:text-base"
             rows={1}
           />
 
-          <AIAssistantButton
-            conversationId={conversation.id}
-            onSuggestion={handleAISuggestion}
-            currentMessage={newMessage}
-          />
+          {!isMobile && (
+            <AIAssistantButton
+              conversationId={conversation.id}
+              onSuggestion={handleAISuggestion}
+              currentMessage={newMessage}
+            />
+          )}
 
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
@@ -719,9 +854,10 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
           <Button 
             onClick={handleSend} 
             disabled={!newMessage.trim() || !selectedInstanceId}
-            className="shrink-0 min-w-[44px]"
+            size={isMobile ? "icon" : "default"}
+            className="shrink-0 min-w-[40px] md:min-w-[44px]"
           >
-            <Send className="h-5 w-5" />
+            <Send className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
         </div>
         
@@ -751,7 +887,7 @@ export const MessageView = ({ conversation }: MessageViewProps) => {
       </Tabs>
       </div>
       
-      {/* Contact Info Panel */}
+      {/* Contact Info Panel - Sheet on mobile */}
       <ContactInfoPanel
         conversation={conversation}
         isOpen={showContactInfo}
