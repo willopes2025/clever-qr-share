@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Settings, Bot, Plus, Trash2 } from "lucide-react";
+import { X, Settings, Bot, Plus, Trash2, GitBranch } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
+import { useFunnels } from "@/hooks/useFunnels";
 
 interface ConditionItem {
   id: string;
@@ -40,6 +41,12 @@ interface NodeData {
     tagName?: string;
     varName?: string;
     varValue?: string;
+    funnelId?: string;
+    stageId?: string;
+    transferTo?: string;
+    httpUrl?: string;
+    httpMethod?: string;
+    httpBody?: string;
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
@@ -372,9 +379,13 @@ const MultipleIntentsConfig = ({
 
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
+  const { funnels } = useFunnels();
+  
   const handleChange = (key: string, value: any) => {
     onUpdate(node.id, { [key]: value });
   };
+  
+  const selectedFunnel = funnels?.find(f => f.id === data?.config?.funnelId);
 
   const renderConfig = () => {
     switch (node.type) {
@@ -588,6 +599,123 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 onChange={(e) => handleChange("config", { ...config, varValue: e.target.value })}
                 placeholder="valor"
               />
+            </div>
+          </>
+        );
+      case "move_funnel":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="funnelId">Funil</Label>
+              <Select
+                value={config.funnelId || ""}
+                onValueChange={(v) => handleChange("config", { ...config, funnelId: v, stageId: "" })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um funil..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {funnels?.map((funnel) => (
+                    <SelectItem key={funnel.id} value={funnel.id}>
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="h-3 w-3" />
+                        {funnel.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {config.funnelId && selectedFunnel && (
+              <div className="space-y-2">
+                <Label htmlFor="stageId">Etapa</Label>
+                <Select
+                  value={config.stageId || ""}
+                  onValueChange={(v) => handleChange("config", { ...config, stageId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma etapa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedFunnel.stages?.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-2 h-2 rounded-full" 
+                            style={{ backgroundColor: stage.color || '#888' }} 
+                          />
+                          {stage.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        );
+      case "transfer":
+        return (
+          <div className="space-y-2">
+            <Label>Tipo de Transferência</Label>
+            <Select
+              value={config.transferTo || "human"}
+              onValueChange={(v) => handleChange("config", { ...config, transferTo: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="human">Atendente Humano</SelectItem>
+                <SelectItem value="team">Equipe Específica</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              A conversa será transferida e marcada como pendente
+            </p>
+          </div>
+        );
+      case "http_request":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="httpUrl">URL</Label>
+              <Input
+                id="httpUrl"
+                value={config.httpUrl || ""}
+                onChange={(e) => handleChange("config", { ...config, httpUrl: e.target.value })}
+                placeholder="https://api.example.com/webhook"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="httpMethod">Método</Label>
+              <Select
+                value={config.httpMethod || "POST"}
+                onValueChange={(v) => handleChange("config", { ...config, httpMethod: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GET">GET</SelectItem>
+                  <SelectItem value="POST">POST</SelectItem>
+                  <SelectItem value="PUT">PUT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="httpBody">Body (JSON)</Label>
+              <Textarea
+                id="httpBody"
+                value={config.httpBody || ""}
+                onChange={(e) => handleChange("config", { ...config, httpBody: e.target.value })}
+                placeholder='{"contact": "{{phone}}"}'
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use {"{{variavel}}"} para inserir dados dinâmicos
+              </p>
             </div>
           </>
         );
