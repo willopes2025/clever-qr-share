@@ -39,13 +39,32 @@ serve(async (req) => {
 
     console.log(`Connecting instance: ${instanceName} for user: ${user.id}`);
 
-    // Verificar se a instância pertence ao usuário
-    const { data: instance, error: instanceError } = await supabase
+    // Verificar se a instância pertence ao usuário - try by instance_name first, then by id
+    let instance = null;
+    let instanceError = null;
+    
+    // First try to find by instance_name
+    const { data: byName, error: byNameError } = await supabase
       .from('whatsapp_instances')
       .select('*')
       .eq('instance_name', instanceName)
       .eq('user_id', user.id)
       .maybeSingle();
+    
+    if (byName) {
+      instance = byName;
+    } else {
+      // If not found by name, try by id (UUID format)
+      const { data: byId, error: byIdError } = await supabase
+        .from('whatsapp_instances')
+        .select('*')
+        .eq('id', instanceName)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      instance = byId;
+      instanceError = byIdError;
+    }
 
     if (instanceError) {
       console.error('Instance query error:', instanceError);
@@ -56,9 +75,12 @@ serve(async (req) => {
       throw new Error('Instância não encontrada');
     }
 
-    // Obter QR Code da Evolution API
+    // Obter QR Code da Evolution API - use the actual instance_name from the database
+    const evolutionInstanceName = instance.instance_name;
+    console.log(`Calling Evolution API to connect instance: ${evolutionInstanceName}`);
+    
     const evolutionResponse = await fetch(
-      `${evolutionApiUrl}/instance/connect/${instanceName}`,
+      `${evolutionApiUrl}/instance/connect/${evolutionInstanceName}`,
       {
         method: 'GET',
         headers: {
