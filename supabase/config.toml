@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-notification]
 verify_jwt = false
+
+[functions.suggest-funnel-intents]
+verify_jwt = false
