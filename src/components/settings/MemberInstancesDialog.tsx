@@ -26,8 +26,11 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
   const [selectedInstances, setSelectedInstances] = useState<string[]>([]);
   const [allInstancesSelected, setAllInstancesSelected] = useState(true);
   
-  const { instances, isLoading: isLoadingInstances } = useWhatsAppInstances();
+  const { instances: allInstances, isLoading: isLoadingInstances } = useWhatsAppInstances();
   const { memberInstanceIds, isLoading: isLoadingMember, updateMemberInstances } = useMemberInstances(member.id);
+
+  // Filtrar instâncias de notificação (não devem aparecer na seleção)
+  const instances = allInstances?.filter(i => !i.is_notification_only) || [];
 
   // Initialize selection when dialog opens or data loads
   useEffect(() => {
