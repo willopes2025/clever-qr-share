@@ -119,9 +119,24 @@ serve(async (req) => {
     for (const automation of automations || []) {
       try {
         // Check if automation applies to this stage
-        if (automation.stage_id && automation.stage_id !== toStageId && automation.stage_id !== fromStageId) {
-          console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - stage mismatch`);
-          continue;
+        // For message-based triggers (on_message_received, on_keyword_received), compare against deal's current stage
+        // For stage-based triggers, compare against toStageId/fromStageId
+        const isMessageTrigger = automation.trigger_type === 'on_message_received' || automation.trigger_type === 'on_keyword_received';
+        
+        if (automation.stage_id) {
+          if (isMessageTrigger) {
+            // For message triggers, check if deal is currently in the specified stage
+            if (automation.stage_id !== deal.stage_id) {
+              console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - deal not in stage ${automation.stage_id} (current: ${deal.stage_id})`);
+              continue;
+            }
+          } else {
+            // For stage-change triggers, check against toStageId/fromStageId
+            if (automation.stage_id !== toStageId && automation.stage_id !== fromStageId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - stage mismatch (expected: ${automation.stage_id}, got to: ${toStageId}, from: ${fromStageId})`);
+              continue;
+            }
+          }
         }
 
         // Check trigger-specific conditions
