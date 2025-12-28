@@ -4,10 +4,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Settings, Bot } from "lucide-react";
+import { X, Settings, Bot, Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
+
+interface ConditionItem {
+  id: string;
+  variable: string;
+  operator: string;
+  value: string;
+}
+
+interface IntentItem {
+  id: string;
+  label: string;
+  description: string;
+}
 
 interface NodeData {
   message?: string;
@@ -28,9 +41,14 @@ interface NodeData {
     varName?: string;
     varValue?: string;
   };
-  // Condition AI mode fields
+  // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
   intentDescription?: string;
+  // Multiple conditions (variable mode)
+  logicOperator?: 'and' | 'or';
+  conditions?: ConditionItem[];
+  // Multiple intents (AI mode)
+  intents?: IntentItem[];
 }
 
 interface ChatbotNodeConfigProps {
@@ -38,6 +56,9 @@ interface ChatbotNodeConfigProps {
   onClose: () => void;
   onUpdate: (nodeId: string, data: Record<string, any>) => void;
 }
+
+// Generate unique ID
+const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 // Separate component for AI Response configuration
 const AIResponseConfig = ({ 
@@ -146,6 +167,209 @@ const AIResponseConfig = ({
   );
 };
 
+// Component for multiple conditions (variable mode)
+const MultipleConditionsConfig = ({
+  data,
+  handleChange
+}: {
+  data: NodeData;
+  handleChange: (key: string, value: any) => void;
+}) => {
+  const conditions = data?.conditions || [{ id: generateId(), variable: '', operator: 'equals', value: '' }];
+  const logicOperator = data?.logicOperator || 'and';
+
+  const addCondition = () => {
+    handleChange('conditions', [...conditions, { id: generateId(), variable: '', operator: 'equals', value: '' }]);
+  };
+
+  const removeCondition = (id: string) => {
+    if (conditions.length > 1) {
+      handleChange('conditions', conditions.filter(c => c.id !== id));
+    }
+  };
+
+  const updateCondition = (id: string, field: string, value: string) => {
+    handleChange('conditions', conditions.map(c => 
+      c.id === id ? { ...c, [field]: value } : c
+    ));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Operador Lógico</Label>
+        <RadioGroup
+          value={logicOperator}
+          onValueChange={(v) => handleChange("logicOperator", v)}
+          className="flex gap-4"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="and" id="op-and" />
+            <Label htmlFor="op-and" className="font-normal cursor-pointer text-sm">
+              E (todas verdadeiras)
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="or" id="op-or" />
+            <Label htmlFor="op-or" className="font-normal cursor-pointer text-sm">
+              OU (pelo menos uma)
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Condições</Label>
+        {conditions.map((condition, index) => (
+          <div key={condition.id} className="p-3 border border-border rounded-lg space-y-2 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">Condição {index + 1}</span>
+              {conditions.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => removeCondition(condition.id)}
+                >
+                  <Trash2 className="h-3 w-3 text-destructive" />
+                </Button>
+              )}
+            </div>
+            <Input
+              value={condition.variable}
+              onChange={(e) => updateCondition(condition.id, 'variable', e.target.value)}
+              placeholder="Variável"
+              className="h-8 text-sm"
+            />
+            <Select
+              value={condition.operator}
+              onValueChange={(v) => updateCondition(condition.id, 'operator', v)}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="equals">Igual a</SelectItem>
+                <SelectItem value="not_equals">Diferente de</SelectItem>
+                <SelectItem value="contains">Contém</SelectItem>
+                <SelectItem value="not_contains">Não contém</SelectItem>
+                <SelectItem value="starts_with">Começa com</SelectItem>
+                <SelectItem value="ends_with">Termina com</SelectItem>
+                <SelectItem value="greater_than">Maior que</SelectItem>
+                <SelectItem value="less_than">Menor que</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              value={condition.value}
+              onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
+              placeholder="Valor"
+              className="h-8 text-sm"
+            />
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={addCondition}
+          className="w-full"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Adicionar Condição
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// Component for multiple intents (AI mode)
+const MultipleIntentsConfig = ({
+  data,
+  handleChange
+}: {
+  data: NodeData;
+  handleChange: (key: string, value: any) => void;
+}) => {
+  const intents = data?.intents || [{ id: generateId(), label: '', description: '' }];
+
+  const addIntent = () => {
+    handleChange('intents', [...intents, { id: generateId(), label: '', description: '' }]);
+  };
+
+  const removeIntent = (id: string) => {
+    if (intents.length > 1) {
+      handleChange('intents', intents.filter(i => i.id !== id));
+    }
+  };
+
+  const updateIntent = (id: string, field: string, value: string) => {
+    handleChange('intents', intents.map(i => 
+      i.id === id ? { ...i, [field]: value } : i
+    ));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <Label>Intenções</Label>
+        <p className="text-xs text-muted-foreground">
+          Cada intenção cria uma saída no nó. Há também uma saída "Nenhuma" para quando não houver correspondência.
+        </p>
+        {intents.map((intent, index) => (
+          <div key={intent.id} className="p-3 border border-purple-500/30 rounded-lg space-y-2 bg-purple-500/5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                Intenção {index + 1}
+              </span>
+              {intents.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => removeIntent(intent.id)}
+                >
+                  <Trash2 className="h-3 w-3 text-destructive" />
+                </Button>
+              )}
+            </div>
+            <Input
+              value={intent.label}
+              onChange={(e) => updateIntent(intent.id, 'label', e.target.value)}
+              placeholder="Nome da saída (ex: Preço, Agendar)"
+              className="h-8 text-sm"
+            />
+            <Textarea
+              value={intent.description}
+              onChange={(e) => updateIntent(intent.id, 'description', e.target.value)}
+              placeholder="Descrição da intenção (ex: O usuário quer saber sobre preços)"
+              rows={2}
+              className="text-sm"
+            />
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={addIntent}
+          className="w-full border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Adicionar Intenção
+        </Button>
+      </div>
+
+      <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">Exemplos de intenção:</p>
+        <ul className="text-xs text-muted-foreground space-y-0.5 list-disc pl-4">
+          <li>"Quer saber sobre preços"</li>
+          <li>"Quer falar com atendente humano"</li>
+          <li>"Quer agendar uma reunião"</li>
+          <li>"Está interessado em comprar"</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
   const handleChange = (key: string, value: any) => {
@@ -237,79 +461,16 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                   <RadioGroupItem value="ai_intent" id="mode-ai" />
                   <Label htmlFor="mode-ai" className="font-normal cursor-pointer flex items-center gap-1">
                     <Bot className="h-3 w-3" />
-                    Assistente IA (Intenção)
+                    Assistente IA (Intenções)
                   </Label>
                 </div>
               </RadioGroup>
             </div>
 
             {(data?.conditionMode || 'variable') === 'variable' ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="variable">Variável</Label>
-                  <Input
-                    id="variable"
-                    value={data?.variable || ""}
-                    onChange={(e) => handleChange("variable", e.target.value)}
-                    placeholder="nome_variavel"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="operator">Operador</Label>
-                  <Select
-                    value={data?.operator || "equals"}
-                    onValueChange={(v) => handleChange("operator", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="equals">Igual a</SelectItem>
-                      <SelectItem value="not_equals">Diferente de</SelectItem>
-                      <SelectItem value="contains">Contém</SelectItem>
-                      <SelectItem value="not_contains">Não contém</SelectItem>
-                      <SelectItem value="starts_with">Começa com</SelectItem>
-                      <SelectItem value="ends_with">Termina com</SelectItem>
-                      <SelectItem value="greater_than">Maior que</SelectItem>
-                      <SelectItem value="less_than">Menor que</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="value">Valor</Label>
-                  <Input
-                    id="value"
-                    value={data?.value || ""}
-                    onChange={(e) => handleChange("value", e.target.value)}
-                    placeholder="valor para comparar"
-                  />
-                </div>
-              </>
+              <MultipleConditionsConfig data={data} handleChange={handleChange} />
             ) : (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="intentDescription">Descrição da Intenção</Label>
-                  <Textarea
-                    id="intentDescription"
-                    value={data?.intentDescription || ""}
-                    onChange={(e) => handleChange("intentDescription", e.target.value)}
-                    placeholder="Ex: O usuário quer agendar uma consulta ou reunião"
-                    rows={3}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    A IA analisará a última mensagem do usuário e verificará se corresponde a esta intenção
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3 space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Exemplos de intenção:</p>
-                  <ul className="text-xs text-muted-foreground space-y-0.5 list-disc pl-4">
-                    <li>"Quer saber sobre preços"</li>
-                    <li>"Quer falar com atendente humano"</li>
-                    <li>"Quer agendar uma reunião"</li>
-                    <li>"Está interessado em comprar"</li>
-                  </ul>
-                </div>
-              </>
+              <MultipleIntentsConfig data={data} handleChange={handleChange} />
             )}
           </div>
         );
