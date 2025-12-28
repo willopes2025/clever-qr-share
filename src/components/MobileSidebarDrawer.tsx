@@ -1,7 +1,9 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -78,7 +80,7 @@ const navGroups: NavGroup[] = [
 ];
 
 export const MobileSidebarDrawer = () => {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,6 +88,7 @@ export const MobileSidebarDrawer = () => {
   const { conversations } = useConversations();
   const { isMobileOpen, closeMobile } = useSidebarContext();
   const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
+  const { profile } = useProfile();
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
@@ -208,6 +211,24 @@ export const MobileSidebarDrawer = () => {
 
         {/* Bottom section */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border/30 p-4 space-y-2 bg-sidebar">
+          {/* Usuário Logado */}
+          <div className="flex items-center gap-3 p-3 bg-sidebar-accent/30 rounded-xl">
+            <Avatar className="h-10 w-10 border-2 border-sidebar-accent">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-sidebar-primary/20 text-sidebar-primary">
+                {profile?.full_name?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-sidebar-foreground truncate">
+                {profile?.full_name || 'Usuário'}
+              </p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">
+                {user?.email}
+              </p>
+            </div>
+          </div>
+
           <button 
             onClick={() => handleNavigate("/subscription")}
             className="w-full bg-sidebar-accent/50 rounded-xl p-4 hover:bg-sidebar-accent transition-colors text-left"

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -79,7 +81,7 @@ const navGroups: NavGroup[] = [
 ];
 
 export const DashboardSidebar = () => {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,6 +90,7 @@ export const DashboardSidebar = () => {
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
+  const { profile } = useProfile();
   
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
@@ -351,6 +354,24 @@ export const DashboardSidebar = () => {
         )}>
           {isCollapsed ? (
             <>
+              {/* Avatar quando colapsado */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex justify-center">
+                    <Avatar className="h-10 w-10 cursor-pointer border-2 border-sidebar-accent">
+                      <AvatarImage src={profile?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-sm">
+                        {profile?.full_name?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p className="font-medium">{profile?.full_name || 'Usuário'}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </TooltipContent>
+              </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <NavLink to="/subscription" className="block">
@@ -383,6 +404,24 @@ export const DashboardSidebar = () => {
             </>
           ) : (
             <>
+              {/* Usuário Logado */}
+              <div className="flex items-center gap-3 px-2 py-2">
+                <Avatar className="h-9 w-9 border-2 border-sidebar-accent">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground text-sm">
+                    {profile?.full_name?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-sidebar-foreground truncate">
+                    {profile?.full_name || 'Usuário'}
+                  </p>
+                  <p className="text-xs text-sidebar-foreground/60 truncate">
+                    {user?.email}
+                  </p>
+                </div>
+              </div>
+
               <NavLink to="/subscription" className="block">
                 <div className="bg-sidebar-accent/50 rounded-xl p-4 hover:bg-sidebar-accent transition-colors cursor-pointer">
                   <p className="text-xs text-sidebar-foreground/60 mb-1">Plano Ativo</p>
