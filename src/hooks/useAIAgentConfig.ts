@@ -56,6 +56,29 @@ export interface AgentVariable {
   updated_at: string;
 }
 
+// Fetch all active AI agent configs for the current user (for selection in chatbot)
+export const useAllAgentConfigs = () => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['all-agent-configs', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('ai_agent_configs')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('agent_name', { ascending: true });
+
+      if (error) throw error;
+      return data as AIAgentConfig[];
+    },
+    enabled: !!user,
+  });
+};
+
 // Fetch agent config by campaign ID
 export const useAgentConfig = (campaignId: string | null) => {
   const { user } = useAuth();

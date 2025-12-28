@@ -1,7 +1,17 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { Bot } from "lucide-react";
+import { Bot, Sparkles } from "lucide-react";
+
+interface AIResponseNodeData {
+  prompt?: string;
+  aiMode?: 'existing' | 'custom';
+  aiConfigId?: string;
+  aiAgentName?: string;
+}
 
 export const AIResponseNode = ({ data, selected }: NodeProps) => {
+  const nodeData = data as AIResponseNodeData;
+  const isUsingExistingAI = nodeData?.aiMode === 'existing' && nodeData?.aiConfigId;
+
   return (
     <div
       className={`
@@ -20,11 +30,22 @@ export const AIResponseNode = ({ data, selected }: NodeProps) => {
         </div>
         <span className="font-medium text-sm">Resposta IA</span>
       </div>
-      {data?.prompt && (
+      
+      {isUsingExistingAI ? (
+        <div className="flex items-center gap-1.5 text-xs text-cyan-600 dark:text-cyan-400">
+          <Sparkles className="h-3 w-3" />
+          <span className="font-medium">IA vinculada</span>
+        </div>
+      ) : nodeData?.prompt ? (
         <p className="text-xs text-muted-foreground line-clamp-2">
-          {data.prompt as string}
+          {nodeData.prompt}
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">
+          Configure a IA...
         </p>
       )}
+      
       <Handle
         type="source"
         position={Position.Bottom}
