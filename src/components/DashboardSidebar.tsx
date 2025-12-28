@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -66,6 +66,7 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: FileText, label: "Templates", path: "/templates", permission: "view_templates" },
       { icon: Send, label: "Disparos", path: "/campaigns", permission: "view_campaigns" },
+      { icon: Bot, label: "Chatbots", path: "/chatbots", permission: "view_chatbots" },
     ],
   },
   {
