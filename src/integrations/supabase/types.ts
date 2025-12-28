@@ -2975,6 +2975,7 @@ export type Database = {
           default_funnel_id: string | null
           id: string
           instance_name: string
+          is_notification_only: boolean | null
           qr_code: string | null
           qr_code_updated_at: string | null
           status: string | null
@@ -2987,6 +2988,7 @@ export type Database = {
           default_funnel_id?: string | null
           id?: string
           instance_name: string
+          is_notification_only?: boolean | null
           qr_code?: string | null
           qr_code_updated_at?: string | null
           status?: string | null
@@ -2999,6 +3001,7 @@ export type Database = {
           default_funnel_id?: string | null
           id?: string
           instance_name?: string
+          is_notification_only?: boolean | null
           qr_code?: string | null
           qr_code_updated_at?: string | null
           status?: string | null

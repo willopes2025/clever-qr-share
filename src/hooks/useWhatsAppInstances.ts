@@ -14,6 +14,7 @@ export interface WhatsAppInstance {
   updated_at: string;
   warming_level: number;
   default_funnel_id: string | null;
+  is_notification_only: boolean | null;
 }
 
 export const WARMING_LEVELS = [
@@ -48,9 +49,9 @@ export const useWhatsAppInstances = () => {
 
   // Criar nova instância
   const createInstance = useMutation({
-    mutationFn: async ({ instanceName, forceRecreate = false }: { instanceName: string; forceRecreate?: boolean }) => {
+    mutationFn: async ({ instanceName, forceRecreate = false, isNotificationOnly = false }: { instanceName: string; forceRecreate?: boolean; isNotificationOnly?: boolean }) => {
       const { data, error } = await supabase.functions.invoke('create-instance', {
-        body: { instanceName, forceRecreate },
+        body: { instanceName, forceRecreate, isNotificationOnly },
         headers: requireAuthHeaders(),
       });
       if (error) throw error;
