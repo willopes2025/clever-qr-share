@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Zap, Play, Pause } from "lucide-react";
+import { Plus, Trash2, Zap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,15 @@ const TRIGGER_LABELS: Record<string, string> = {
   on_stage_exit: 'Sair da etapa',
   on_deal_won: 'Deal ganho',
   on_deal_lost: 'Deal perdido',
-  on_time_in_stage: 'Tempo na etapa'
+  on_time_in_stage: 'Tempo na etapa',
+  on_message_received: 'Receber mensagem',
+  on_keyword_received: 'Palavra-chave recebida',
+  on_contact_created: 'Contato criado',
+  on_tag_added: 'Tag adicionada',
+  on_tag_removed: 'Tag removida',
+  on_inactivity: 'Inatividade',
+  on_deal_value_changed: 'Valor do deal alterado',
+  on_custom_field_changed: 'Campo personalizado alterado'
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -33,7 +41,15 @@ const ACTION_LABELS: Record<string, string> = {
   remove_tag: 'Remover tag',
   notify_user: 'Notificar usuário',
   move_stage: 'Mover etapa',
-  trigger_chatbot_flow: 'Acionar fluxo de chatbot'
+  trigger_chatbot_flow: 'Acionar chatbot',
+  set_custom_field: 'Definir campo',
+  set_deal_value: 'Definir valor',
+  change_responsible: 'Alterar responsável',
+  add_note: 'Adicionar nota',
+  webhook_request: 'Enviar webhook',
+  create_task: 'Criar tarefa',
+  close_deal_won: 'Fechar como ganho',
+  close_deal_lost: 'Fechar como perdido'
 };
 
 export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsDialogProps) => {
@@ -61,7 +77,7 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-500" />
@@ -99,12 +115,12 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
                         <div className="text-sm text-muted-foreground space-y-1">
                           <p>
                             <span className="text-foreground">Gatilho:</span>{' '}
-                            {TRIGGER_LABELS[automation.trigger_type]}
+                            {TRIGGER_LABELS[automation.trigger_type] || automation.trigger_type}
                             {getStageName(automation.stage_id) && ` - ${getStageName(automation.stage_id)}`}
                           </p>
                           <p>
                             <span className="text-foreground">Ação:</span>{' '}
-                            {ACTION_LABELS[automation.action_type]}
+                            {ACTION_LABELS[automation.action_type] || automation.action_type}
                           </p>
                           {!funnelId && (
                             <p className="text-xs">Funil: {getFunnelName(automation.funnel_id)}</p>
