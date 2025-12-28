@@ -34,6 +34,7 @@ export type Database = {
           response_delay_max: number | null
           response_delay_min: number | null
           response_mode: string | null
+          template_type: string | null
           updated_at: string | null
           user_id: string
           voice_id: string | null
@@ -57,6 +58,7 @@ export type Database = {
           response_delay_max?: number | null
           response_delay_min?: number | null
           response_mode?: string | null
+          template_type?: string | null
           updated_at?: string | null
           user_id: string
           voice_id?: string | null
@@ -80,6 +82,7 @@ export type Database = {
           response_delay_max?: number | null
           response_delay_min?: number | null
           response_mode?: string | null
+          template_type?: string | null
           updated_at?: string | null
           user_id?: string
           voice_id?: string | null
@@ -2266,6 +2269,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          company_context: string | null
           created_at: string | null
           id: string
           name: string
@@ -2273,6 +2277,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          company_context?: string | null
           created_at?: string | null
           id?: string
           name: string
@@ -2280,6 +2285,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          company_context?: string | null
           created_at?: string | null
           id?: string
           name?: string
