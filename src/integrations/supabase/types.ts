@@ -3074,6 +3074,7 @@ export type Database = {
         | "create_task"
         | "close_deal_won"
         | "close_deal_lost"
+        | "ai_analyze_and_move"
       funnel_trigger_type:
         | "on_stage_enter"
         | "on_stage_exit"
@@ -3241,6 +3242,7 @@ export const Constants = {
         "create_task",
         "close_deal_won",
         "close_deal_lost",
+        "ai_analyze_and_move",
       ],
       funnel_trigger_type: [
         "on_stage_enter",

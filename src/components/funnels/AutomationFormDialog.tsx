@@ -62,7 +62,13 @@ type ActionType =
   | 'webhook_request'
   | 'create_task'
   | 'close_deal_won'
-  | 'close_deal_lost';
+  | 'close_deal_lost'
+  | 'ai_analyze_and_move';
+
+interface IntentMapping {
+  intent: string;
+  target_stage_id: string;
+}
 
 // Webhook trigger config component
 const WebhookTriggerConfig = ({ 
@@ -388,6 +394,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 <SelectItem value="create_task">Criar tarefa</SelectItem>
                 <SelectItem value="close_deal_won">Fechar como ganho</SelectItem>
                 <SelectItem value="close_deal_lost">Fechar como perdido</SelectItem>
+                <SelectItem value="ai_analyze_and_move">🤖 IA Analisa e Move</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -643,6 +650,113 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
             <p className="text-sm text-muted-foreground">
               O deal será movido para a etapa final correspondente ({actionType === 'close_deal_won' ? 'ganho' : 'perdido'})
             </p>
+          )}
+
+          {actionType === 'ai_analyze_and_move' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  🤖 A IA analisará a intenção da mensagem recebida e moverá o cartão para a etapa correspondente.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Mapeamentos de Intenção → Etapa</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const currentMappings = (actionConfig.intent_mappings as IntentMapping[]) || [];
+                      setActionConfig({
+                        ...actionConfig,
+                        intent_mappings: [...currentMappings, { intent: '', target_stage_id: '' }]
+                      });
+                    }}
+                  >
+                    + Adicionar
+                  </Button>
+                </div>
+                
+                {((actionConfig.intent_mappings as IntentMapping[]) || []).map((mapping, index) => (
+                  <div key={index} className="flex gap-2 items-start p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        value={mapping.intent}
+                        onChange={(e) => {
+                          const mappings = [...((actionConfig.intent_mappings as IntentMapping[]) || [])];
+                          mappings[index] = { ...mappings[index], intent: e.target.value };
+                          setActionConfig({ ...actionConfig, intent_mappings: mappings });
+                        }}
+                        placeholder="Ex: interesse, comprar, orçamento"
+                      />
+                    </div>
+                    <span className="mt-2 text-muted-foreground">→</span>
+                    <div className="flex-1">
+                      <Select
+                        value={mapping.target_stage_id}
+                        onValueChange={(v) => {
+                          const mappings = [...((actionConfig.intent_mappings as IntentMapping[]) || [])];
+                          mappings[index] = { ...mappings[index], target_stage_id: v };
+                          setActionConfig({ ...actionConfig, intent_mappings: mappings });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Etapa destino" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-1 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        const mappings = [...((actionConfig.intent_mappings as IntentMapping[]) || [])];
+                        mappings.splice(index, 1);
+                        setActionConfig({ ...actionConfig, intent_mappings: mappings });
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+                
+                {(!actionConfig.intent_mappings || (actionConfig.intent_mappings as IntentMapping[]).length === 0) && (
+                  <p className="text-sm text-muted-foreground text-center py-4 border-2 border-dashed rounded-lg">
+                    Adicione mapeamentos para definir como a IA deve mover os cartões
+                  </p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Etapa padrão (quando nenhuma intenção for detectada)</Label>
+                <Select
+                  value={actionConfig.default_stage_id as string || ''}
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, default_stage_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar etapa (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Não mover</SelectItem>
+                    {stages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        {stage.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           )}
 
           <div className="flex justify-end gap-2">
