@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ interface MemberInstancesDialogProps {
 export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInstancesDialogProps) {
   const [selectedInstances, setSelectedInstances] = useState<string[]>([]);
   const [allInstancesSelected, setAllInstancesSelected] = useState(true);
+  const hasInitialized = useRef(false);
   
   const { instances: allInstances, isLoading: isLoadingInstances } = useWhatsAppInstances();
   const { memberInstanceIds, isLoading: isLoadingMember, updateMemberInstances } = useMemberInstances(member.id);
@@ -32,9 +33,10 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
   // Filtrar instâncias de notificação (não devem aparecer na seleção)
   const instances = allInstances?.filter(i => !i.is_notification_only) || [];
 
-  // Initialize selection when dialog opens or data loads
+  // Initialize selection only once when dialog opens
   useEffect(() => {
-    if (open && memberInstanceIds !== undefined) {
+    if (open && memberInstanceIds !== undefined && !hasInitialized.current) {
+      hasInitialized.current = true;
       if (memberInstanceIds.length === 0) {
         // No specific instances = all access
         setAllInstancesSelected(true);
@@ -43,6 +45,11 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
         setAllInstancesSelected(false);
         setSelectedInstances(memberInstanceIds);
       }
+    }
+    
+    // Reset quando o dialog fecha
+    if (!open) {
+      hasInitialized.current = false;
     }
   }, [open, memberInstanceIds]);
 

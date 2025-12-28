@@ -79,14 +79,19 @@ export function TeamSettings() {
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
 
   // Sincroniza o selectedMember com os dados atualizados do members
+  // Não atualiza enquanto algum dialog está aberto para evitar reset de estado
   useEffect(() => {
+    if (permissionsDialogOpen || editMemberDialogOpen || resetPasswordDialogOpen || instancesDialogOpen) {
+      return;
+    }
+    
     if (selectedMember && members.length > 0) {
       const updatedMember = members.find(m => m.id === selectedMember.id);
       if (updatedMember && JSON.stringify(updatedMember) !== JSON.stringify(selectedMember)) {
         setSelectedMember(updatedMember);
       }
     }
-  }, [members, selectedMember]);
+  }, [members, selectedMember, permissionsDialogOpen, editMemberDialogOpen, resetPasswordDialogOpen, instancesDialogOpen]);
 
   const handleOpenPermissions = (member: TeamMember) => {
     setSelectedMember(member);
