@@ -9,11 +9,63 @@ import { TeamSettings } from "@/components/settings/TeamSettings";
 import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings";
 import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
-import { User, MessageSquare, Megaphone, Server, Database, Users, Plug, Smartphone, Bell } from "lucide-react";
+import { User, MessageSquare, Megaphone, Server, Database, Users, Plug, Smartphone, Bell, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { PermissionKey } from "@/config/permissions";
+import { useMemo } from "react";
+
+interface SettingsTab {
+  value: string;
+  label: string;
+  icon: LucideIcon;
+  permission?: PermissionKey;
+  adminOnly?: boolean;
+  component: React.ComponentType;
+}
+
+const allTabs: SettingsTab[] = [
+  { value: "profile", label: "Perfil", icon: User, component: ProfileSettings },
+  { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
+  { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
+  { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
+  { value: "integrations", label: "Integrações", icon: Plug, permission: "manage_settings", adminOnly: true, component: IntegrationsSettings },
+  { value: "sending", label: "Envio", icon: MessageSquare, permission: "manage_settings", adminOnly: true, component: SendingSettings },
+  { value: "campaigns", label: "Campanhas", icon: Megaphone, permission: "manage_settings", adminOnly: true, component: CampaignSettings },
+  { value: "api", label: "API", icon: Server, permission: "manage_settings", adminOnly: true, component: ApiSettings },
+  { value: "data", label: "Dados", icon: Database, permission: "manage_settings", adminOnly: true, component: DataSettings },
+];
 
 const Settings = () => {
-  const { isAdmin } = useOrganization();
+  const { isAdmin, checkPermission, organization, isLoading } = useOrganization();
+
+  // Filtrar abas baseado em permissões
+  const visibleTabs = useMemo(() => {
+    if (isLoading) return [allTabs[0]]; // Só mostra perfil enquanto carrega
+    
+    return allTabs.filter(tab => {
+      // Perfil sempre visível
+      if (tab.value === "profile") return true;
+      
+      // Se não tem organização, mostra tudo (legado)
+      if (!organization) return true;
+      
+      // Se é admin, mostra tudo
+      if (isAdmin) return true;
+      
+      // Se é admin-only e não é admin, oculta
+      if (tab.adminOnly) return false;
+      
+      // Checar permissão se definida
+      if (tab.permission) {
+        return checkPermission(tab.permission);
+      }
+      
+      return true;
+    });
+  }, [isLoading, organization, isAdmin, checkPermission]);
+
+  // Determinar aba padrão (primeira visível)
+  const defaultTab = visibleTabs[0]?.value || "profile";
 
   return (
     <DashboardLayout className="p-8 animated-gradient cyber-grid relative">
@@ -28,81 +80,25 @@ const Settings = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6 relative z-10">
-        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-9 bg-secondary/50 p-1">
-          <TabsTrigger value="profile" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Perfil</span>
-          </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Equipe</span>
-          </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Smartphone className="h-4 w-4" />
-            <span className="hidden sm:inline">WhatsApp</span>
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Bell className="h-4 w-4" />
-            <span className="hidden sm:inline">Notificações</span>
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Plug className="h-4 w-4" />
-            <span className="hidden sm:inline">Integrações</span>
-          </TabsTrigger>
-          <TabsTrigger value="sending" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">Envio</span>
-          </TabsTrigger>
-          <TabsTrigger value="campaigns" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Megaphone className="h-4 w-4" />
-            <span className="hidden sm:inline">Campanhas</span>
-          </TabsTrigger>
-          <TabsTrigger value="api" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Server className="h-4 w-4" />
-            <span className="hidden sm:inline">API</span>
-          </TabsTrigger>
-          <TabsTrigger value="data" className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan">
-            <Database className="h-4 w-4" />
-            <span className="hidden sm:inline">Dados</span>
-          </TabsTrigger>
+      <Tabs defaultValue={defaultTab} className="space-y-6 relative z-10">
+        <TabsList className={`grid w-full bg-secondary/50 p-1`} style={{ gridTemplateColumns: `repeat(${Math.min(visibleTabs.length, 5)}, 1fr)` }}>
+          {visibleTabs.map(tab => (
+            <TabsTrigger 
+              key={tab.value}
+              value={tab.value} 
+              className="flex items-center gap-2 font-medium data-[state=active]:bg-primary/20 data-[state=active]:text-primary data-[state=active]:shadow-glow-cyan"
+            >
+              <tab.icon className="h-4 w-4" />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="profile">
-          <ProfileSettings />
-        </TabsContent>
-
-        <TabsContent value="team">
-          <TeamSettings />
-        </TabsContent>
-
-        <TabsContent value="whatsapp">
-          <WhatsAppSettings />
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <NotificationSettings />
-        </TabsContent>
-
-        <TabsContent value="integrations">
-          <IntegrationsSettings />
-        </TabsContent>
-
-        <TabsContent value="sending">
-          <SendingSettings />
-        </TabsContent>
-
-        <TabsContent value="campaigns">
-          <CampaignSettings />
-        </TabsContent>
-
-        <TabsContent value="api">
-          <ApiSettings />
-        </TabsContent>
-
-        <TabsContent value="data">
-          <DataSettings />
-        </TabsContent>
+        {visibleTabs.map(tab => (
+          <TabsContent key={tab.value} value={tab.value}>
+            <tab.component />
+          </TabsContent>
+        ))}
       </Tabs>
     </DashboardLayout>
   );
