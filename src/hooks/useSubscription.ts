@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
@@ -168,63 +168,45 @@ export const useSubscription = () => {
   const { user, session, loading: authLoading } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const isCheckingRef = useRef(false);
 
   const checkSubscription = useCallback(async () => {
     // Wait for auth to finish loading before making requests
     if (authLoading) return;
-    
-    // Prevent multiple simultaneous calls using ref (avoids dependency issues)
-    if (isCheckingRef.current) return;
-    isCheckingRef.current = true;
 
     setLoading(true);
 
+    // Always use the freshest session (avoids stale tokens)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentSession = sessionData?.session;
+
+    if (!currentSession?.access_token) {
+      setSubscription(null);
+      setLoading(false);
+      return;
+    }
+
+    const invokeCheck = async (accessToken: string) =>
+      supabase.functions.invoke('check-subscription', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
     try {
-      // Always use the freshest session (avoids stale tokens)
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.warn('Session error, signing out:', sessionError.message);
-        await supabase.auth.signOut();
-        setSubscription(null);
-        setLoading(false);
-        return;
-      }
-
-      const currentSession = sessionData?.session;
-
-      if (!currentSession?.access_token) {
-        setSubscription(null);
-        setLoading(false);
-        return;
-      }
-
-      const invokeCheck = async (accessToken: string) =>
-        supabase.functions.invoke('check-subscription', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
       let { data, error } = await invokeCheck(currentSession.access_token);
 
       if (error) {
         const message = (error as any)?.message ?? '';
-        const isAuthError = /auth|session|jwt|unauthorized|missing/i.test(message);
+        const isAuthError = /auth|session|jwt|unauthorized/i.test(message);
 
         if (isAuthError) {
-          console.warn('Auth error detected, attempting refresh...', message);
-          
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
           const refreshedSession = refreshData?.session;
 
           if (!refreshError && refreshedSession?.access_token) {
-            console.log('Session refreshed successfully');
             ({ data, error } = await invokeCheck(refreshedSession.access_token));
           } else {
             // Session is invalid server-side, force re-login
-            console.warn('Session refresh failed, signing out');
             await supabase.auth.signOut();
             setSubscription(null);
             setLoading(false);
@@ -241,7 +223,6 @@ export const useSubscription = () => {
       setSubscription(null);
     } finally {
       setLoading(false);
-      isCheckingRef.current = false;
     }
   }, [authLoading]);
 

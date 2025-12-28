@@ -218,8 +218,7 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    // Use getUser() without token argument - the client already has the Authorization header
-    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser();
+    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser(token);
 
     if (userError || !userData?.user?.email) {
       logStep("AUTH_ERROR", { message: userError?.message || "User not authenticated" });
