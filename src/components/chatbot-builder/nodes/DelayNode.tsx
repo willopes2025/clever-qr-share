@@ -1,5 +1,5 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { Clock } from "lucide-react";
+import { Clock, Trash2 } from "lucide-react";
 
 export const DelayNode = ({ data, selected }: NodeProps) => {
   const duration = (data?.duration as number) || 5;
@@ -14,10 +14,21 @@ export const DelayNode = ({ data, selected }: NodeProps) => {
   return (
     <div
       className={`
-        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[140px]
+        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[140px] relative
         ${selected ? "border-orange-500 ring-2 ring-orange-500/20" : "border-border"}
       `}
     >
+      {data?.onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            (data.onDelete as () => void)();
+          }}
+          className="absolute -top-2 -right-2 p-1 rounded-full bg-card border shadow-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
       <Handle
         type="target"
         position={Position.Top}

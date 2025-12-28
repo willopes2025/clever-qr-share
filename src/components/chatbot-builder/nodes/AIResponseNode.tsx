@@ -1,11 +1,12 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot, Sparkles, Trash2 } from "lucide-react";
 
 interface AIResponseNodeData {
   prompt?: string;
   aiMode?: 'existing' | 'custom';
   aiConfigId?: string;
   aiAgentName?: string;
+  onDelete?: () => void;
 }
 
 export const AIResponseNode = ({ data, selected }: NodeProps) => {
@@ -15,10 +16,21 @@ export const AIResponseNode = ({ data, selected }: NodeProps) => {
   return (
     <div
       className={`
-        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[160px] max-w-[250px]
+        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[160px] max-w-[250px] relative
         ${selected ? "border-cyan-500 ring-2 ring-cyan-500/20" : "border-border"}
       `}
     >
+      {nodeData?.onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            nodeData.onDelete!();
+          }}
+          className="absolute -top-2 -right-2 p-1 rounded-full bg-card border shadow-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
       <Handle
         type="target"
         position={Position.Top}
