@@ -67,12 +67,12 @@ export const ChatbotFlowFormDialog = ({ open, onOpenChange }: ChatbotFlowFormDia
           </div>
           <div className="space-y-2">
             <Label htmlFor="instance">Instância WhatsApp (opcional)</Label>
-            <Select value={instanceId} onValueChange={setInstanceId}>
+            <Select value={instanceId} onValueChange={(val) => setInstanceId(val === "none" ? "" : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma instância" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhuma (configurar depois)</SelectItem>
+                <SelectItem value="none">Nenhuma (configurar depois)</SelectItem>
                 {instances?.map((instance) => (
                   <SelectItem key={instance.id} value={instance.id}>
                     {instance.instance_name}
