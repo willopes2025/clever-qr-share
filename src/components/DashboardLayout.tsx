@@ -1,6 +1,9 @@
 import { ReactNode } from "react";
 import { SidebarProvider, useSidebarContext } from "@/contexts/SidebarContext";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
+import { MobileHeader } from "@/components/MobileHeader";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { MobileSidebarDrawer } from "@/components/MobileSidebarDrawer";
 import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
@@ -9,15 +12,30 @@ interface DashboardLayoutProps {
 }
 
 const LayoutContent = ({ children, className }: DashboardLayoutProps) => {
-  const { isCollapsed } = useSidebarContext();
+  const { isCollapsed, isMobile } = useSidebarContext();
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar />
+      {/* Desktop Sidebar */}
+      {!isMobile && <DashboardSidebar />}
+      
+      {/* Mobile Components */}
+      {isMobile && (
+        <>
+          <MobileHeader />
+          <MobileSidebarDrawer />
+          <MobileBottomNav />
+        </>
+      )}
+      
       <main
         className={cn(
-          "transition-all duration-300 ease-in-out",
-          isCollapsed ? "ml-16" : "ml-64",
+          "transition-all duration-300 ease-in-out min-h-screen",
+          isMobile 
+            ? "ml-0 pt-14 pb-16" // Mobile: header top + bottom nav
+            : isCollapsed 
+              ? "ml-16" 
+              : "ml-64",
           className
         )}
       >
