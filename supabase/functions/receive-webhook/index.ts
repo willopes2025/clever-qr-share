@@ -420,12 +420,37 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     // Determine if remoteJid is a Label ID
     if (remoteJid.includes('@lid')) {
       labelId = extractPhone(remoteJid);
-      console.log('Detected Label ID:', labelId);
+      console.log('[LID] Detected Label ID (Click-to-WhatsApp Ads):', labelId);
       
       // Try to get real phone from remoteJidAlt
       if (key.remoteJidAlt && (key.remoteJidAlt.includes('@s.whatsapp.net') || key.remoteJidAlt.includes('@c.us'))) {
         phone = extractPhone(key.remoteJidAlt);
-        console.log('Extracted real phone from remoteJidAlt:', phone);
+        console.log('[LID] Extracted real phone from remoteJidAlt:', phone);
+      }
+      
+      // Try alternative fields if remoteJidAlt doesn't have the phone
+      if (!isValidPhone(phone)) {
+        // Check data.participant (sometimes sent by Evolution API)
+        if (data.participant && (data.participant.includes('@s.whatsapp.net') || data.participant.includes('@c.us'))) {
+          phone = extractPhone(data.participant);
+          console.log('[LID] Extracted phone from data.participant:', phone);
+        }
+        
+        // Check msg.participant
+        if (!isValidPhone(phone) && msg.participant && (msg.participant.includes('@s.whatsapp.net') || msg.participant.includes('@c.us'))) {
+          phone = extractPhone(msg.participant);
+          console.log('[LID] Extracted phone from msg.participant:', phone);
+        }
+        
+        // Check contextInfo.participant (for reply messages)
+        const contextInfo = message?.contextInfo || message?.extendedTextMessage?.contextInfo;
+        if (!isValidPhone(phone) && contextInfo?.participant) {
+          const ctxParticipant = contextInfo.participant;
+          if (ctxParticipant.includes('@s.whatsapp.net') || ctxParticipant.includes('@c.us')) {
+            phone = extractPhone(ctxParticipant);
+            console.log('[LID] Extracted phone from contextInfo.participant:', phone);
+          }
+        }
       }
     } else {
       // remoteJid is a real phone number
@@ -438,17 +463,43 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       }
     }
     
-    // Validate phone
-    if (!isValidPhone(phone)) {
+    // Handle Click-to-WhatsApp Ads: If we have a LID but no valid phone, try to find existing contact or create with LID
+    let useLidAsIdentifier = false;
+    if (!isValidPhone(phone) && labelId) {
+      console.log('[LID] No valid phone found, checking for existing contact by label_id:', labelId);
+      
+      // Try to find existing contact by label_id
+      const { data: existingContactByLid } = await supabase
+        .from('contacts')
+        .select('id, phone, name')
+        .eq('user_id', userId)
+        .eq('label_id', labelId)
+        .single();
+      
+      if (existingContactByLid) {
+        phone = existingContactByLid.phone;
+        console.log('[LID] Found existing contact by LID, using phone:', phone);
+      } else {
+        // Use LID as temporary phone identifier to allow message processing
+        phone = `LID_${labelId}`;
+        useLidAsIdentifier = true;
+        console.log('[LID] No existing contact found, using LID as temporary identifier:', phone);
+      }
+    }
+    
+    // Validate phone (now allowing LID identifiers)
+    if (!isValidPhone(phone) && !useLidAsIdentifier) {
       console.error(`Invalid phone extracted: ${phone}, labelId: ${labelId}`);
       console.error('Could not extract valid phone number, skipping message');
       continue;
     }
     
-    // Normalize the phone number to prevent duplicates
+    // Normalize the phone number to prevent duplicates (skip for LID identifiers)
     const originalPhone = phone;
-    phone = normalizePhone(phone);
-    console.log(`Extracted phone: ${originalPhone} -> normalized: ${phone}, labelId: ${labelId}`);
+    if (!useLidAsIdentifier) {
+      phone = normalizePhone(phone);
+    }
+    console.log(`Extracted phone: ${originalPhone} -> normalized: ${phone}, labelId: ${labelId}, useLidAsIdentifier: ${useLidAsIdentifier}`);
 
     // Detect message type and extract content/media
     let messageType = 'text';
@@ -583,51 +634,80 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     // Don't use pushName for outgoing messages (would be "Você" or similar)
     const contactName = (!isFromMe && pushName) ? pushName : phone;
     
-    console.log(`Processing: phone=${phone}, labelId=${labelId}, fromMe=${isFromMe}, type=${messageType}, hasMedia=${!!mediaUrl}, content=${content.substring(0, 50)}...`);
+    console.log(`Processing: phone=${phone}, labelId=${labelId}, useLidAsIdentifier=${useLidAsIdentifier}, fromMe=${isFromMe}, type=${messageType}, hasMedia=${!!mediaUrl}, content=${content.substring(0, 50)}...`);
 
     // Find contact by phone OR by label_id (to prevent duplicates)
     // Also search for phone without country code to handle legacy data
-    const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
+    let contact = null;
     
-    let { data: contact } = await supabase
-      .from('contacts')
-      .select('id, label_id, phone')
-      .eq('user_id', userId)
-      .or(`phone.eq.${phone},phone.eq.${phoneWithoutCountry}`)
-      .limit(1)
-      .single();
-
-    // If not found by phone, try to find by label_id
-    if (!contact && labelId) {
+    if (useLidAsIdentifier) {
+      // For LID identifiers, search primarily by label_id
+      console.log('[LID] Searching contact by label_id:', labelId);
       const { data: contactByLabel } = await supabase
         .from('contacts')
-        .select('id, phone, label_id')
+        .select('id, phone, label_id, name')
         .eq('user_id', userId)
         .eq('label_id', labelId)
         .single();
       
       if (contactByLabel) {
-        console.log(`Found existing contact by label_id: ${contactByLabel.id} (phone: ${contactByLabel.phone})`);
-        // Update the contact's phone to normalized version
-        const normalizedExisting = normalizePhone(contactByLabel.phone);
-        if (normalizedExisting !== phone) {
-          console.log(`Updating contact phone from ${contactByLabel.phone} to ${phone}`);
-          await supabase
-            .from('contacts')
-            .update({ phone: phone })
-            .eq('id', contactByLabel.id);
-        }
         contact = contactByLabel;
+        console.log('[LID] Found existing contact by label_id:', contact.id);
       }
-    }
-    
-    // If found contact with non-normalized phone, update it
-    if (contact && contact.phone !== phone) {
-      console.log(`Normalizing contact phone from ${contact.phone} to ${phone}`);
-      await supabase
+    } else {
+      // Normal phone search
+      const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
+      
+      const { data: contactByPhone } = await supabase
         .from('contacts')
-        .update({ phone: phone })
-        .eq('id', contact.id);
+        .select('id, label_id, phone')
+        .eq('user_id', userId)
+        .or(`phone.eq.${phone},phone.eq.${phoneWithoutCountry}`)
+        .limit(1)
+        .single();
+      
+      contact = contactByPhone;
+
+      // If not found by phone, try to find by label_id
+      if (!contact && labelId) {
+        const { data: contactByLabel } = await supabase
+          .from('contacts')
+          .select('id, phone, label_id')
+          .eq('user_id', userId)
+          .eq('label_id', labelId)
+          .single();
+        
+        if (contactByLabel) {
+          console.log(`Found existing contact by label_id: ${contactByLabel.id} (phone: ${contactByLabel.phone})`);
+          // Update the contact's phone to normalized version if we have a real phone now
+          if (contactByLabel.phone.startsWith('LID_') && isValidPhone(phone)) {
+            console.log(`[LID] Upgrading contact phone from LID to real phone: ${phone}`);
+            await supabase
+              .from('contacts')
+              .update({ phone: phone })
+              .eq('id', contactByLabel.id);
+          } else {
+            const normalizedExisting = normalizePhone(contactByLabel.phone);
+            if (normalizedExisting !== phone && !contactByLabel.phone.startsWith('LID_')) {
+              console.log(`Updating contact phone from ${contactByLabel.phone} to ${phone}`);
+              await supabase
+                .from('contacts')
+                .update({ phone: phone })
+                .eq('id', contactByLabel.id);
+            }
+          }
+          contact = contactByLabel;
+        }
+      }
+      
+      // If found contact with non-normalized phone, update it (skip LID phones)
+      if (contact && contact.phone !== phone && !contact.phone.startsWith('LID_')) {
+        console.log(`Normalizing contact phone from ${contact.phone} to ${phone}`);
+        await supabase
+          .from('contacts')
+          .update({ phone: phone })
+          .eq('id', contact.id);
+      }
     }
 
     if (!contact) {
