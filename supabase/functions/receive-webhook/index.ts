@@ -858,6 +858,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         // For audio messages, transcribe before triggering AI
         let effectiveContent = content || preview;
         
+        // Trigger funnel automations for on_message_received
+        await triggerFunnelAutomationsForMessage(supabase, userId, contact.id, conversation.id, effectiveContent, supabaseUrl, supabaseServiceKey);
+        
         if ((messageType === 'audio' || messageType === 'voice' || messageType === 'ptt') && finalMediaUrl) {
           console.log('[AUDIO-TRANSCRIPTION] Audio message detected, transcribing before AI trigger...');
           
@@ -934,6 +937,60 @@ async function triggerAIAgentIfEnabled(supabaseUrl: string, supabaseServiceKey: 
     
   } catch (error) {
     console.error('[AI-TRIGGER] Error calling AI agent:', error);
+  }
+}
+
+// Trigger funnel automations when a message is received
+// deno-lint-ignore no-explicit-any
+async function triggerFunnelAutomationsForMessage(supabase: any, userId: string, contactId: string, conversationId: string, messageContent: string, supabaseUrl: string, supabaseServiceKey: string) {
+  try {
+    console.log(`[FUNNEL-MESSAGE-AUTOMATION] Checking for message-based automations for contact ${contactId}`);
+    
+    // Find all active deals for this contact (could be in multiple funnels)
+    const { data: deals, error: dealsError } = await supabase
+      .from('funnel_deals')
+      .select('id, stage_id, funnel_id')
+      .eq('contact_id', contactId)
+      .is('closed_at', null); // Only open deals
+    
+    if (dealsError) {
+      console.error('[FUNNEL-MESSAGE-AUTOMATION] Error fetching deals:', dealsError);
+      return;
+    }
+    
+    if (!deals || deals.length === 0) {
+      console.log('[FUNNEL-MESSAGE-AUTOMATION] No active deals for this contact');
+      return;
+    }
+    
+    console.log(`[FUNNEL-MESSAGE-AUTOMATION] Found ${deals.length} active deals for contact`);
+    
+    // Trigger automations for each deal
+    for (const deal of deals) {
+      try {
+        console.log(`[FUNNEL-MESSAGE-AUTOMATION] Triggering for deal ${deal.id} in stage ${deal.stage_id}`);
+        
+        const automationResponse = await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            dealId: deal.id,
+            triggerType: 'on_message_received',
+            messageContent: messageContent,
+          }),
+        });
+        
+        const automationResult = await automationResponse.json();
+        console.log(`[FUNNEL-MESSAGE-AUTOMATION] Result for deal ${deal.id}:`, JSON.stringify(automationResult));
+      } catch (dealAutoError) {
+        console.error(`[FUNNEL-MESSAGE-AUTOMATION] Error processing deal ${deal.id}:`, dealAutoError);
+      }
+    }
+  } catch (error) {
+    console.error('[FUNNEL-MESSAGE-AUTOMATION] Error:', error);
   }
 }
 
