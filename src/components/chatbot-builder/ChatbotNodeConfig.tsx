@@ -28,6 +28,9 @@ interface NodeData {
     varName?: string;
     varValue?: string;
   };
+  // Condition AI mode fields
+  conditionMode?: 'variable' | 'ai_intent';
+  intentDescription?: string;
 }
 
 interface ChatbotNodeConfigProps {
@@ -217,45 +220,97 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
       case "condition":
         return (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="variable">Variável</Label>
-              <Input
-                id="variable"
-                value={data?.variable || ""}
-                onChange={(e) => handleChange("variable", e.target.value)}
-                placeholder="nome_variavel"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="operator">Operador</Label>
-              <Select
-                value={data?.operator || "equals"}
-                onValueChange={(v) => handleChange("operator", v)}
+            <div className="space-y-3">
+              <Label>Tipo de Condição</Label>
+              <RadioGroup
+                value={data?.conditionMode || 'variable'}
+                onValueChange={(v) => handleChange("conditionMode", v)}
+                className="space-y-2"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="equals">Igual a</SelectItem>
-                  <SelectItem value="not_equals">Diferente de</SelectItem>
-                  <SelectItem value="contains">Contém</SelectItem>
-                  <SelectItem value="not_contains">Não contém</SelectItem>
-                  <SelectItem value="starts_with">Começa com</SelectItem>
-                  <SelectItem value="ends_with">Termina com</SelectItem>
-                  <SelectItem value="greater_than">Maior que</SelectItem>
-                  <SelectItem value="less_than">Menor que</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="variable" id="mode-variable" />
+                  <Label htmlFor="mode-variable" className="font-normal cursor-pointer">
+                    Comparar Variável
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="ai_intent" id="mode-ai" />
+                  <Label htmlFor="mode-ai" className="font-normal cursor-pointer flex items-center gap-1">
+                    <Bot className="h-3 w-3" />
+                    Assistente IA (Intenção)
+                  </Label>
+                </div>
+              </RadioGroup>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="value">Valor</Label>
-              <Input
-                id="value"
-                value={data?.value || ""}
-                onChange={(e) => handleChange("value", e.target.value)}
-                placeholder="valor para comparar"
-              />
-            </div>
+
+            {(data?.conditionMode || 'variable') === 'variable' ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="variable">Variável</Label>
+                  <Input
+                    id="variable"
+                    value={data?.variable || ""}
+                    onChange={(e) => handleChange("variable", e.target.value)}
+                    placeholder="nome_variavel"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="operator">Operador</Label>
+                  <Select
+                    value={data?.operator || "equals"}
+                    onValueChange={(v) => handleChange("operator", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="equals">Igual a</SelectItem>
+                      <SelectItem value="not_equals">Diferente de</SelectItem>
+                      <SelectItem value="contains">Contém</SelectItem>
+                      <SelectItem value="not_contains">Não contém</SelectItem>
+                      <SelectItem value="starts_with">Começa com</SelectItem>
+                      <SelectItem value="ends_with">Termina com</SelectItem>
+                      <SelectItem value="greater_than">Maior que</SelectItem>
+                      <SelectItem value="less_than">Menor que</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="value">Valor</Label>
+                  <Input
+                    id="value"
+                    value={data?.value || ""}
+                    onChange={(e) => handleChange("value", e.target.value)}
+                    placeholder="valor para comparar"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="intentDescription">Descrição da Intenção</Label>
+                  <Textarea
+                    id="intentDescription"
+                    value={data?.intentDescription || ""}
+                    onChange={(e) => handleChange("intentDescription", e.target.value)}
+                    placeholder="Ex: O usuário quer agendar uma consulta ou reunião"
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A IA analisará a última mensagem do usuário e verificará se corresponde a esta intenção
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Exemplos de intenção:</p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 list-disc pl-4">
+                    <li>"Quer saber sobre preços"</li>
+                    <li>"Quer falar com atendente humano"</li>
+                    <li>"Quer agendar uma reunião"</li>
+                    <li>"Está interessado em comprar"</li>
+                  </ul>
+                </div>
+              </>
+            )}
           </div>
         );
 

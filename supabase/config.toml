@@ -110,3 +110,6 @@ verify_jwt = false
 
 [functions.receive-automation-webhook]
 verify_jwt = false
+
+[functions.chatbot-ai-condition]
+verify_jwt = false
