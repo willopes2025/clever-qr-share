@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PermissionGate } from "@/components/PermissionGate";
 import { NotificationProvider } from "@/components/NotificationProvider";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -39,49 +40,63 @@ const App = () => (
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Dashboard />
+                <PermissionGate permission="view_dashboard">
+                  <Dashboard />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/instances" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Instances />
+                <PermissionGate permission="view_instances">
+                  <Instances />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/inbox" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Inbox />
+                <PermissionGate permission="view_inbox">
+                  <Inbox />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/campaigns" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Campaigns />
+                <PermissionGate permission="view_campaigns">
+                  <Campaigns />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/contacts" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Contacts />
+                <PermissionGate permission="view_contacts">
+                  <Contacts />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/broadcast-lists" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <BroadcastLists />
+                <PermissionGate permission="view_lists">
+                  <BroadcastLists />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/templates" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Templates />
+                <PermissionGate permission="view_templates">
+                  <Templates />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
@@ -95,7 +110,9 @@ const App = () => (
           <Route path="/subscription" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Subscription />
+                <PermissionGate permission="manage_subscription">
+                  <Subscription />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
@@ -109,42 +126,54 @@ const App = () => (
           <Route path="/warming" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Warming />
+                <PermissionGate permission="view_warming">
+                  <Warming />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/analysis" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Analysis />
+                <PermissionGate permission="view_analysis">
+                  <Analysis />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/funnels" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Funnels />
+                <PermissionGate permission="view_funnels">
+                  <Funnels />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/calendar" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Calendar />
+                <PermissionGate permission="view_calendar">
+                  <Calendar />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/lead-search" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <LeadSearch />
+                <PermissionGate permission="search_leads">
+                  <LeadSearch />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />
           <Route path="/chatbots" element={
             <ProtectedRoute>
               <NotificationProvider>
-                <Chatbots />
+                <PermissionGate permission="view_chatbots">
+                  <Chatbots />
+                </PermissionGate>
               </NotificationProvider>
             </ProtectedRoute>
           } />

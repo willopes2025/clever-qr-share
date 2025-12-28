@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useSubscription, PLANS } from "@/hooks/useSubscription";
+import { useSubscription, PLANS, hasFeatureAccess } from "@/hooks/useSubscription";
 import { useConversations } from "@/hooks/useConversations";
 import { Badge } from "@/components/ui/badge";
 import { useSidebarContext } from "@/contexts/SidebarContext";
@@ -85,14 +85,35 @@ export const MobileSidebarDrawer = () => {
   const { currentPlan, isSubscribed } = useSubscription();
   const { conversations } = useConversations();
   const { isMobileOpen, closeMobile } = useSidebarContext();
-  const { checkPermission, organization } = useOrganization();
+  const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
+  // Map de features premium
+  const featureMap: Record<string, string> = {
+    '/warming': 'warming',
+    '/funnels': 'funnels',
+    '/broadcast-lists': 'broadcast',
+    '/analysis': 'analysis',
+    '/lead-search': 'lead_search',
+  };
+
   const filterItems = (items: NavItem[]) => {
+    // Se ainda está carregando organização, não mostrar nenhum item
+    if (isLoadingOrg) return [];
+    
     return items.filter(item => {
+      // Check plan-based feature access
+      const featureKey = featureMap[item.path];
+      if (featureKey && !hasFeatureAccess(currentPlan, featureKey)) {
+        return false;
+      }
+
+      // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
+      // Se não tem permissão definida, mostra o item
       if (!item.permission) return true;
+      // Verificar permissão do membro
       return checkPermission(item.permission);
     });
   };

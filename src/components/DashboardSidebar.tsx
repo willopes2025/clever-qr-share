@@ -87,7 +87,7 @@ export const DashboardSidebar = () => {
   const { conversations } = useConversations();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
-  const { checkPermission, organization } = useOrganization();
+  const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
   
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
@@ -103,6 +103,9 @@ export const DashboardSidebar = () => {
 
   // Filter nav items based on permissions and plan access
   const filterItems = (items: NavItem[]) => {
+    // Se ainda está carregando organização, não mostrar nenhum item
+    if (isLoadingOrg) return [];
+    
     return items.filter(item => {
       // Check plan-based feature access
       const featureKey = featureMap[item.path];
@@ -110,11 +113,11 @@ export const DashboardSidebar = () => {
         return false;
       }
 
-      // If no organization exists yet, show all items (legacy behavior)
+      // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
-      // If no permission is set, show the item
+      // Se não tem permissão definida, mostra o item
       if (!item.permission) return true;
-      // Check if user has permission
+      // Verificar permissão do membro
       return checkPermission(item.permission);
     });
   };

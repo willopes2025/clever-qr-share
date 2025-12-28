@@ -4,11 +4,22 @@ import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks/useConversations";
 import { Badge } from "@/components/ui/badge";
 import { useSidebarContext } from "@/contexts/SidebarContext";
+import { useOrganization } from "@/hooks/useOrganization";
+import { PermissionKey } from "@/config/permissions";
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: MessageSquare, label: "Inbox", path: "/inbox", showBadge: true },
-  { icon: Users, label: "Contatos", path: "/contacts" },
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  permission?: PermissionKey;
+  showBadge?: boolean;
+  isMenu?: boolean;
+}
+
+const navItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permission: "view_dashboard" },
+  { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+  { icon: Users, label: "Contatos", path: "/contacts", permission: "view_contacts" },
   { icon: MoreHorizontal, label: "Mais", path: "more", isMenu: true },
 ];
 
@@ -16,12 +27,22 @@ export const MobileBottomNav = () => {
   const location = useLocation();
   const { conversations } = useConversations();
   const { openMobile } = useSidebarContext();
+  const { checkPermission, organization, isLoading } = useOrganization();
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
+  // Filtrar itens por permissão
+  const filteredItems = navItems.filter(item => {
+    if (item.isMenu) return true; // Sempre mostra o botão "Mais"
+    if (isLoading) return false; // Não mostra enquanto carrega
+    if (!organization) return true; // Sem org, mostra tudo (legado)
+    if (!item.permission) return true;
+    return checkPermission(item.permission);
+  });
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-sidebar-border/30 flex items-center justify-around px-2 z-50 md:hidden safe-area-bottom">
-      {navItems.map((item) => {
+      {filteredItems.map((item) => {
         if (item.isMenu) {
           return (
             <button
