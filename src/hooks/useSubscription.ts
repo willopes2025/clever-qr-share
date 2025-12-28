@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
@@ -168,15 +168,15 @@ export const useSubscription = () => {
   const { user, session, loading: authLoading } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isChecking, setIsChecking] = useState(false);
+  const isCheckingRef = useRef(false);
 
   const checkSubscription = useCallback(async () => {
     // Wait for auth to finish loading before making requests
     if (authLoading) return;
     
-    // Prevent multiple simultaneous calls
-    if (isChecking) return;
-    setIsChecking(true);
+    // Prevent multiple simultaneous calls using ref (avoids dependency issues)
+    if (isCheckingRef.current) return;
+    isCheckingRef.current = true;
 
     setLoading(true);
 
@@ -241,9 +241,9 @@ export const useSubscription = () => {
       setSubscription(null);
     } finally {
       setLoading(false);
-      setIsChecking(false);
+      isCheckingRef.current = false;
     }
-  }, [authLoading, isChecking]);
+  }, [authLoading]);
 
   useEffect(() => {
     // Don't do anything while auth is still loading
