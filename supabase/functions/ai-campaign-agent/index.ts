@@ -934,8 +934,18 @@ serve(async (req) => {
       // deno-lint-ignore no-explicit-any
       const contactsHandoff = conversation.contacts as any;
       const contactHandoff = Array.isArray(contactsHandoff) ? contactsHandoff[0] : contactsHandoff;
-      let phone = (contactHandoff?.phone || '').replace(/\D/g, '');
-      if (!phone.startsWith('55')) phone = '55' + phone;
+      const rawPhoneHandoff = contactHandoff?.phone || '';
+      
+      // Handle LID (Click-to-WhatsApp Ads) contacts
+      let phoneHandoff: string;
+      if (rawPhoneHandoff.startsWith('LID_')) {
+        const labelId = rawPhoneHandoff.replace('LID_', '');
+        phoneHandoff = `${labelId}@lid`;
+        console.log(`[AI-AGENT] Handoff for LID contact, using jid format: ${phoneHandoff}`);
+      } else {
+        phoneHandoff = rawPhoneHandoff.replace(/\D/g, '');
+        if (!phoneHandoff.startsWith('55')) phoneHandoff = '55' + phoneHandoff;
+      }
 
       await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
         method: 'POST',
@@ -943,7 +953,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'apikey': evolutionApiKey,
         },
-        body: JSON.stringify({ number: phone, text: handoffMessage }),
+        body: JSON.stringify({ number: phoneHandoff, text: handoffMessage }),
       });
 
       return new Response(
@@ -1678,8 +1688,25 @@ ${appointmentsList}
     // deno-lint-ignore no-explicit-any
     const contactsForPhone = conversation.contacts as any;
     const contactData = Array.isArray(contactsForPhone) ? contactsForPhone[0] : contactsForPhone;
-    let phone = (contactData?.phone || '').replace(/\D/g, '');
-    if (!phone.startsWith('55')) phone = '55' + phone;
+    const rawPhone = contactData?.phone || '';
+    
+    // Check if this is a LID (Click-to-WhatsApp Ads) contact
+    // LID contacts have phone stored as "LID_<labelId>" and need to use @lid jid format
+    let phone: string;
+    let isLidContact = false;
+    
+    if (rawPhone.startsWith('LID_')) {
+      isLidContact = true;
+      // Extract the label ID and format for Evolution API
+      const labelId = rawPhone.replace('LID_', '');
+      // Evolution API expects the jid format for LID contacts
+      phone = `${labelId}@lid`;
+      console.log(`[AI-AGENT] LID contact detected, using jid format: ${phone}`);
+    } else {
+      // Regular phone number
+      phone = rawPhone.replace(/\D/g, '');
+      if (!phone.startsWith('55')) phone = '55' + phone;
+    }
 
     let textMessageId: string | null = null;
     let audioMessageId: string | null = null;
