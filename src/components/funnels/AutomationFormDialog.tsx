@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useFunnels, FunnelAutomation } from "@/hooks/useFunnels";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
+import { useChatbotFlows } from "@/hooks/useChatbotFlows";
 
 interface AutomationFormDialogProps {
   open: boolean;
@@ -27,11 +28,12 @@ interface AutomationFormDialogProps {
 }
 
 type TriggerType = 'on_stage_enter' | 'on_stage_exit' | 'on_deal_won' | 'on_deal_lost' | 'on_time_in_stage';
-type ActionType = 'send_message' | 'send_template' | 'add_tag' | 'remove_tag' | 'notify_user' | 'move_stage';
+type ActionType = 'send_message' | 'send_template' | 'add_tag' | 'remove_tag' | 'notify_user' | 'move_stage' | 'trigger_chatbot_flow';
 
 export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation }: AutomationFormDialogProps) => {
   const { funnels, createAutomation, updateAutomation } = useFunnels();
   const { templates } = useMessageTemplates();
+  const { flows } = useChatbotFlows();
   
   const [name, setName] = useState('');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || '');
@@ -185,6 +187,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 <SelectItem value="remove_tag">Remover tag</SelectItem>
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
                 <SelectItem value="move_stage">Mover para etapa</SelectItem>
+                <SelectItem value="trigger_chatbot_flow">Acionar fluxo de chatbot</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -251,6 +254,32 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 onChange={(e) => setActionConfig({ ...actionConfig, tag_name: e.target.value })}
                 placeholder="Nome da tag"
               />
+            </div>
+          )}
+
+          {actionType === 'trigger_chatbot_flow' && (
+            <div className="space-y-2">
+              <Label>Fluxo de Chatbot</Label>
+              <Select 
+                value={actionConfig.flow_id as string || ''} 
+                onValueChange={(v) => setActionConfig({ ...actionConfig, flow_id: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar fluxo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {flows?.filter(f => f.is_active).map((flow) => (
+                    <SelectItem key={flow.id} value={flow.id}>
+                      {flow.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!flows?.filter(f => f.is_active).length && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum fluxo ativo disponível. Crie um fluxo em Chatbots.
+                </p>
+              )}
             </div>
           )}
 

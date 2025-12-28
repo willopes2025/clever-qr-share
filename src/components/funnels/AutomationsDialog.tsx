@@ -32,7 +32,8 @@ const ACTION_LABELS: Record<string, string> = {
   add_tag: 'Adicionar tag',
   remove_tag: 'Remover tag',
   notify_user: 'Notificar usuário',
-  move_stage: 'Mover etapa'
+  move_stage: 'Mover etapa',
+  trigger_chatbot_flow: 'Acionar fluxo de chatbot'
 };
 
 export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsDialogProps) => {
