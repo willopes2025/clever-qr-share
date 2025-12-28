@@ -19,6 +19,16 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    // Extract user ID from authorization header
+    const authHeader = req.headers.get('authorization');
+    let senderUserId: string | null = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      senderUserId = user?.id || null;
+    }
+
     const { conversationId, mediaUrl, mediaType, caption, instanceId } = await req.json();
 
     if (!conversationId || !mediaUrl || !mediaType || !instanceId) {
@@ -90,9 +100,12 @@ serve(async (req) => {
         media_url: mediaUrl,
         status: 'sending',
         sent_at: new Date().toISOString(),
+        sent_by_user_id: senderUserId,
       })
       .select()
       .single();
+    
+    console.log(`Media message created with sent_by_user_id: ${senderUserId}`);
 
     if (msgError) {
       console.error('Message insert error:', msgError);
@@ -183,6 +196,40 @@ serve(async (req) => {
           instance_id: instanceId,
         })
         .eq('id', conversationId);
+
+      // Handle AI handoff logic when human agent sends media
+      if (senderUserId) {
+        const captionToCheck = caption || '';
+        const okPatterns = ['👍', '✅', '🤖'];
+        const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
+        
+        const shouldResumeAI = okPatterns.some(emoji => captionToCheck.includes(emoji)) ||
+                               textPatterns.some(pattern => pattern.test(captionToCheck));
+
+        if (shouldResumeAI) {
+          await supabase
+            .from('conversations')
+            .update({
+              ai_paused: false,
+              ai_handoff_requested: false,
+              ai_handoff_reason: null,
+            })
+            .eq('id', conversationId);
+          
+          console.log(`[HANDOFF] AI resumed via media caption for conversation ${conversationId}`);
+        } else {
+          await supabase
+            .from('conversations')
+            .update({
+              ai_paused: true,
+              ai_handoff_requested: true,
+              ai_handoff_reason: 'Atendente assumiu a conversa',
+            })
+            .eq('id', conversationId);
+          
+          console.log(`[HANDOFF] AI paused - human (${senderUserId}) sent media to conversation ${conversationId}`);
+        }
+      }
 
       return new Response(
         JSON.stringify({ 
