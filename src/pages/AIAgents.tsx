@@ -1,101 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Plus, Bot, Building2, Save, Loader2, Search, Sparkles } from "lucide-react";
+import { Plus, Bot, Loader2, Search, Sparkles } from "lucide-react";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
-import { useOrganization } from "@/hooks/useOrganization";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import { AIAgentCard } from "@/components/ai-agents/AIAgentCard";
 import { AIAgentFormDialog } from "@/components/ai-agents/AIAgentFormDialog";
 import { AIAgentTemplateSelector } from "@/components/ai-agents/AIAgentTemplateSelector";
 import { AIAgentTemplate } from "@/data/ai-agent-templates";
 
 const AIAgents = () => {
-  const queryClient = useQueryClient();
   const { data: agents, isLoading: isLoadingAgents, refetch } = useAllAgentConfigs();
-  const { organization } = useOrganization();
   
   const [searchQuery, setSearchQuery] = useState("");
-  const [companyContext, setCompanyContext] = useState("");
-  const [isSavingContext, setIsSavingContext] = useState(false);
   const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<AIAgentTemplate | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
-  const [personalizeWithCompany, setPersonalizeWithCompany] = useState(true);
-  const [isPersonalizing, setIsPersonalizing] = useState(false);
 
-  // Load company context when organization is available
-  useEffect(() => {
-    if (organization?.id) {
-      supabase
-        .from("organizations")
-        .select("company_context")
-        .eq("id", organization.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.company_context) {
-            setCompanyContext(data.company_context);
-          }
-        });
-    }
-  }, [organization?.id]);
-
-  const handleSaveCompanyContext = async () => {
-    if (!organization?.id) {
-      toast.error("Você precisa ter uma organização para salvar o contexto");
-      return;
-    }
-
-    setIsSavingContext(true);
-    try {
-      const { error } = await supabase
-        .from("organizations")
-        .update({ company_context: companyContext })
-        .eq("id", organization.id);
-
-      if (error) throw error;
-      toast.success("Contexto da empresa salvo com sucesso!");
-      queryClient.invalidateQueries({ queryKey: ["organization"] });
-    } catch (error: any) {
-      toast.error("Erro ao salvar: " + error.message);
-    } finally {
-      setIsSavingContext(false);
-    }
-  };
-
-  const handleSelectTemplate = async (template: AIAgentTemplate | null) => {
+  const handleSelectTemplate = (template: AIAgentTemplate | null) => {
     setSelectedTemplate(template);
     setIsTemplateSelectorOpen(false);
-
-    if (template && personalizeWithCompany && companyContext) {
-      setIsPersonalizing(true);
-      try {
-        const { data, error } = await supabase.functions.invoke("personalize-agent-template", {
-          body: {
-            template,
-            companyContext,
-          },
-        });
-
-        if (error) throw error;
-
-        if (data?.personalizedTemplate) {
-          setSelectedTemplate(data.personalizedTemplate);
-        }
-      } catch (error: any) {
-        console.error("Erro ao personalizar template:", error);
-        toast.error("Não foi possível personalizar o template. Usando versão padrão.");
-      } finally {
-        setIsPersonalizing(false);
-      }
-    }
-
     setIsFormDialogOpen(true);
   };
 
@@ -105,11 +31,13 @@ const AIAgents = () => {
     setIsFormDialogOpen(true);
   };
 
-  const handleCloseFormDialog = () => {
-    setIsFormDialogOpen(false);
-    setSelectedTemplate(null);
-    setEditingAgentId(null);
-    refetch();
+  const handleCloseFormDialog = (open: boolean) => {
+    setIsFormDialogOpen(open);
+    if (!open) {
+      setSelectedTemplate(null);
+      setEditingAgentId(null);
+      refetch();
+    }
   };
 
   const filteredAgents = agents?.filter(agent => 
@@ -135,45 +63,6 @@ const AIAgents = () => {
             Criar Novo Agente
           </Button>
         </div>
-
-        {/* Company Context Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              Sobre sua Empresa
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Descreva sua empresa para personalizar automaticamente os agentes de IA
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              placeholder="Ex: Somos a XYZ Tech, especializada em soluções SaaS para pequenas empresas. Nosso principal produto é o CRM Vendas+ que custa a partir de R$ 99/mês. Atendemos principalmente empresas de varejo e serviços..."
-              value={companyContext}
-              onChange={(e) => setCompanyContext(e.target.value)}
-              className="min-h-[120px] resize-none"
-            />
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">
-                {companyContext.length} caracteres
-              </p>
-              <Button 
-                onClick={handleSaveCompanyContext} 
-                disabled={isSavingContext}
-                size="sm"
-                className="gap-2"
-              >
-                {isSavingContext ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                Salvar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Agents Section */}
         <div className="space-y-4">
@@ -230,9 +119,6 @@ const AIAgents = () => {
         open={isTemplateSelectorOpen}
         onOpenChange={setIsTemplateSelectorOpen}
         onSelectTemplate={handleSelectTemplate}
-        personalizeWithCompany={personalizeWithCompany}
-        setPersonalizeWithCompany={setPersonalizeWithCompany}
-        hasCompanyContext={!!companyContext}
       />
 
       {/* Agent Form Dialog */}
@@ -241,7 +127,6 @@ const AIAgents = () => {
         onOpenChange={handleCloseFormDialog}
         template={selectedTemplate}
         editingAgentId={editingAgentId}
-        isPersonalizing={isPersonalizing}
       />
     </DashboardLayout>
   );
