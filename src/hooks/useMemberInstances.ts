@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
@@ -29,8 +30,11 @@ export const useMemberInstances = (teamMemberId?: string) => {
     enabled: !!teamMemberId,
   });
 
-  // Get instance IDs for a specific member
-  const memberInstanceIds = memberInstances?.map(mi => mi.instance_id) || [];
+  // Get instance IDs for a specific member - memoized to prevent unnecessary re-renders
+  const memberInstanceIds = useMemo(
+    () => memberInstances?.map(mi => mi.instance_id) || [],
+    [memberInstances]
+  );
 
   // Fetch current user's allowed instance IDs
   const { data: myInstanceIds } = useQuery({
