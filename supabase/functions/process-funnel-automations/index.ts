@@ -215,6 +215,55 @@ serve(async (req) => {
             results.push({ automationId: automation.id, success: true });
             break;
 
+          case 'trigger_chatbot_flow':
+            const flowId = actionConfig.flow_id as string;
+            if (flowId && deal.contact_id) {
+              // Fetch the chatbot flow to verify it exists and is active
+              const { data: chatbotFlow, error: flowError } = await supabase
+                .from('chatbot_flows')
+                .select('id, name, is_active')
+                .eq('id', flowId)
+                .eq('is_active', true)
+                .single();
+
+              if (flowError || !chatbotFlow) {
+                console.log(`[FUNNEL-AUTOMATIONS] Chatbot flow not found or inactive: ${flowId}`);
+                results.push({ automationId: automation.id, success: false, error: 'Chatbot flow not found or inactive' });
+                break;
+              }
+
+              // Create a chatbot execution entry
+              const { error: execError } = await supabase.from('chatbot_executions').insert({
+                flow_id: flowId,
+                contact_id: deal.contact_id,
+                deal_id: dealId,
+                conversation_id: deal.conversation_id || null,
+                user_id: deal.user_id,
+                status: 'pending',
+                trigger_source: 'funnel_automation',
+                trigger_automation_id: automation.id,
+                variables: {
+                  deal_title: deal.title,
+                  deal_value: deal.value,
+                  contact_name: deal.contact?.name,
+                  contact_phone: deal.contact?.phone,
+                  funnel_name: deal.funnel?.name,
+                  stage_name: deal.stage?.name
+                }
+              });
+
+              if (execError) {
+                console.error(`[FUNNEL-AUTOMATIONS] Error creating chatbot execution:`, execError);
+                results.push({ automationId: automation.id, success: false, error: execError.message });
+              } else {
+                console.log(`[FUNNEL-AUTOMATIONS] Triggered chatbot flow: ${chatbotFlow.name} for contact ${deal.contact_id}`);
+                results.push({ automationId: automation.id, success: true });
+              }
+            } else {
+              results.push({ automationId: automation.id, success: false, error: 'Missing flow_id or contact_id' });
+            }
+            break;
+
           default:
             console.log(`[FUNNEL-AUTOMATIONS] Unknown action type: ${automation.action_type}`);
             results.push({ automationId: automation.id, success: false, error: 'Unknown action type' });

@@ -751,6 +751,96 @@ export type Database = {
           },
         ]
       }
+      chatbot_executions: {
+        Row: {
+          completed_at: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          current_node_id: string | null
+          deal_id: string | null
+          error_message: string | null
+          flow_id: string | null
+          id: string
+          started_at: string | null
+          status: string | null
+          trigger_automation_id: string | null
+          trigger_source: string | null
+          user_id: string
+          variables: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          current_node_id?: string | null
+          deal_id?: string | null
+          error_message?: string | null
+          flow_id?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string | null
+          trigger_automation_id?: string | null
+          trigger_source?: string | null
+          user_id: string
+          variables?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          current_node_id?: string | null
+          deal_id?: string | null
+          error_message?: string | null
+          flow_id?: string | null
+          id?: string
+          started_at?: string | null
+          status?: string | null
+          trigger_automation_id?: string | null
+          trigger_source?: string | null
+          user_id?: string
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_executions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_executions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_executions_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_executions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_flows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_executions_trigger_automation_id_fkey"
+            columns: ["trigger_automation_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatbot_flow_edges: {
         Row: {
           created_at: string | null
