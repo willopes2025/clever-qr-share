@@ -19,6 +19,7 @@ import '@xyflow/react/dist/style.css';
 import { ChatbotFlow, useChatbotFlowNodes, useChatbotFlowEdges } from '@/hooks/useChatbotFlows';
 import { ChatbotFlowSidebar } from './ChatbotFlowSidebar';
 import { ChatbotNodeConfig } from './ChatbotNodeConfig';
+import { ChatbotTestDialog } from './ChatbotTestDialog';
 import { Button } from '@/components/ui/button';
 import { Save, Play } from 'lucide-react';
 import { toast } from 'sonner';
@@ -60,6 +61,8 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showTestDialog, setShowTestDialog] = useState(false);
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
 
   // Load saved nodes and edges
   useEffect(() => {
@@ -207,13 +210,17 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
     }
   }, [setNodes, setEdges, selectedNode]);
 
-  // Add onDelete callback to nodes (except start nodes)
-  const nodesWithDelete = nodes.map((node) => ({
+  // Add onDelete callback to nodes and highlight effect
+  const nodesWithExtras = nodes.map((node) => ({
     ...node,
     data: {
       ...node.data,
       onDelete: node.type !== 'start' ? () => deleteNode(node.id) : undefined,
     },
+    style: highlightedNodeId === node.id ? {
+      boxShadow: '0 0 0 3px hsl(var(--primary))',
+      borderRadius: '12px',
+    } : undefined,
   }));
 
   return (
@@ -222,7 +229,7 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
       
       <div className="flex-1 relative" ref={reactFlowWrapper}>
         <ReactFlow
-          nodes={nodesWithDelete}
+          nodes={nodesWithExtras}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -243,7 +250,11 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
             nodeBorderRadius={8}
           />
           <Panel position="top-right" className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowTestDialog(true)}
+            >
               <Play className="h-4 w-4 mr-2" />
               Testar
             </Button>
@@ -262,6 +273,15 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
           onUpdate={updateNodeData}
         />
       )}
+
+      <ChatbotTestDialog
+        open={showTestDialog}
+        onOpenChange={setShowTestDialog}
+        flowName={flow.name}
+        nodes={nodes}
+        edges={edges}
+        onHighlightNode={setHighlightedNodeId}
+      />
     </div>
   );
 };
