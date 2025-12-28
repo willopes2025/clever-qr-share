@@ -1,4 +1,5 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Flame, ArrowLeft } from "lucide-react";
 import { useWarming } from "@/hooks/useWarming";
@@ -27,6 +28,7 @@ export default function Warming() {
 
   return (
     <DashboardLayout className="p-6 space-y-6">
+      <FeatureGate feature="warming">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -142,6 +144,7 @@ export default function Warming() {
           </div>
         </>
       )}
+      </FeatureGate>
     </DashboardLayout>
   );
 }

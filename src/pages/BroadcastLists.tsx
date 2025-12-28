@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -85,6 +86,7 @@ const BroadcastLists = () => {
 
   return (
     <DashboardLayout className="p-8 cyber-grid">
+      <FeatureGate feature="broadcast">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -225,6 +227,7 @@ const BroadcastLists = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </FeatureGate>
     </DashboardLayout>
   );
 };
