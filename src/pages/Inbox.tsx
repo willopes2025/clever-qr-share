@@ -7,11 +7,14 @@ import { EmptyInbox } from "@/components/inbox/EmptyInbox";
 import { NewConversationDialog } from "@/components/inbox/NewConversationDialog";
 import { Conversation, useConversations } from "@/hooks/useConversations";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [mobileShowMessages, setMobileShowMessages] = useState(false);
+  const isMobile = useIsMobile();
 
   // Handle selection from URL params (reactive to changes)
   useEffect(() => {
@@ -25,6 +28,7 @@ const Inbox = () => {
       const conv = conversations.find(c => c.id === conversationId);
       if (conv && selectedConversationId !== conv.id) {
         setSelectedConversationId(conv.id);
+        if (isMobile) setMobileShowMessages(true);
         // Clear params after selection
         setSearchParams({});
       }
@@ -32,11 +36,12 @@ const Inbox = () => {
       const conv = conversations.find(c => c.contact_id === contactId);
       if (conv && selectedConversationId !== conv.id) {
         setSelectedConversationId(conv.id);
+        if (isMobile) setMobileShowMessages(true);
         // Clear params after selection
         setSearchParams({});
       }
     }
-  }, [conversations, searchParams, setSearchParams, selectedConversationId]);
+  }, [conversations, searchParams, setSearchParams, selectedConversationId, isMobile]);
 
   // Keep the selected conversation in sync with updated data
   const selectedConversation = useMemo(() => {
@@ -68,42 +73,81 @@ const Inbox = () => {
 
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversationId(conversation.id);
+    if (isMobile) {
+      setMobileShowMessages(true);
+    }
     if (conversation.unread_count > 0) {
       markAsRead.mutate(conversation.id);
     }
   };
 
+  const handleBackToList = () => {
+    setMobileShowMessages(false);
+  };
+
   const handleConversationCreated = (conversationId: string) => {
     setSelectedConversationId(conversationId);
+    if (isMobile) {
+      setMobileShowMessages(true);
+    }
     refetch();
   };
 
   return (
     <DashboardLayout className="h-screen flex flex-col">
-      {/* Header */}
-      <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card shrink-0">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
-          <p className="text-sm text-muted-foreground">
-            Gerencie todas as suas conversas em um só lugar
-          </p>
-        </div>
-        <NewConversationDialog onConversationCreated={handleConversationCreated} />
-      </header>
+      {/* Header - hidden on mobile */}
+      {!isMobile && (
+        <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card shrink-0">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
+            <p className="text-sm text-muted-foreground">
+              Gerencie todas as suas conversas em um só lugar
+            </p>
+          </div>
+          <NewConversationDialog onConversationCreated={handleConversationCreated} />
+        </header>
+      )}
 
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
-        <ConversationList
-          conversations={conversations || []}
-          selectedId={selectedConversation?.id || null}
-          onSelect={handleSelectConversation}
-          isLoading={isLoading}
-        />
-        
-        {selectedConversation ? (
-          <MessageView conversation={selectedConversation} />
+        {isMobile ? (
+          // Mobile: Show either list OR messages, not both
+          mobileShowMessages && selectedConversation ? (
+            <MessageView 
+              conversation={selectedConversation} 
+              onBack={handleBackToList}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col">
+              {/* Mobile header for conversation list */}
+              <div className="p-3 border-b border-border bg-card flex items-center justify-between">
+                <h1 className="text-lg font-semibold text-foreground">Conversas</h1>
+                <NewConversationDialog onConversationCreated={handleConversationCreated} />
+              </div>
+              <ConversationList
+                conversations={conversations || []}
+                selectedId={selectedConversation?.id || null}
+                onSelect={handleSelectConversation}
+                isLoading={isLoading}
+              />
+            </div>
+          )
         ) : (
-          <EmptyInbox />
+          // Desktop: Show list AND messages side by side
+          <>
+            <ConversationList
+              conversations={conversations || []}
+              selectedId={selectedConversation?.id || null}
+              onSelect={handleSelectConversation}
+              isLoading={isLoading}
+            />
+            
+            {selectedConversation ? (
+              <MessageView conversation={selectedConversation} />
+            ) : (
+              <EmptyInbox />
+            )}
+          </>
         )}
       </div>
     </DashboardLayout>

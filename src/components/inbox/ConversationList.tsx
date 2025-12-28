@@ -114,7 +114,7 @@ export const ConversationList = ({
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
 
   return (
-    <div className="w-80 border-r border-border flex flex-col h-full bg-card">
+    <div className="w-full md:w-80 border-r border-border flex flex-col h-full bg-card">
       {/* Header */}
       <div className="p-4 border-b border-border space-y-3">
         <h2 className="text-lg font-semibold text-foreground">Conversas</h2>
