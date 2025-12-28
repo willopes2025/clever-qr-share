@@ -52,6 +52,10 @@ export type PermissionKey =
   | 'view_chatbots'
   | 'create_chatbots'
   | 'manage_chatbots'
+  // AI Agents
+  | 'view_ai_agents'
+  | 'create_ai_agents'
+  | 'manage_ai_agents'
   // Settings
   | 'manage_subscription'
   | 'manage_settings'
@@ -89,6 +93,7 @@ export type PermissionCategory =
   | 'templates'
   | 'campaigns'
   | 'chatbots'
+  | 'ai_agents'
   | 'settings'
   | 'team'
   | 'notifications';
@@ -107,6 +112,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   templates: 'Templates',
   campaigns: 'Campanhas',
   chatbots: 'Chatbots',
+  ai_agents: 'Agentes IA',
   settings: 'Configurações',
   team: 'Equipe',
   notifications: 'Notificações',
@@ -179,6 +185,11 @@ export const PERMISSIONS: Permission[] = [
   { key: 'create_chatbots', label: 'Criar Chatbots', description: 'Criar novos chatbots', defaultForAdmin: true, defaultForMember: false, category: 'chatbots' },
   { key: 'manage_chatbots', label: 'Gerenciar Chatbots', description: 'Editar e excluir chatbots', defaultForAdmin: true, defaultForMember: false, category: 'chatbots' },
   
+  // AI Agents
+  { key: 'view_ai_agents', label: 'Ver Agentes IA', description: 'Visualizar agentes de IA', defaultForAdmin: true, defaultForMember: true, category: 'ai_agents' },
+  { key: 'create_ai_agents', label: 'Criar Agentes IA', description: 'Criar novos agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
+  { key: 'manage_ai_agents', label: 'Gerenciar Agentes IA', description: 'Editar e excluir agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
+  
   // Settings
   { key: 'manage_subscription', label: 'Gerenciar Assinatura', description: 'Gerenciar plano e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
   { key: 'manage_settings', label: 'Gerenciar Configurações', description: 'Acessar configurações do sistema', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
@@ -213,6 +224,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/templates', permission: 'view_templates' },
   { path: '/campaigns', permission: 'view_campaigns' },
   { path: '/chatbots', permission: 'view_chatbots' },
+  { path: '/ai-agents', permission: 'view_ai_agents' },
   { path: '/subscription', permission: 'manage_subscription' },
   { path: '/settings', permission: 'manage_settings' },
 ];
