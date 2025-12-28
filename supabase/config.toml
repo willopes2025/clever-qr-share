@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.sync-message-history]
 verify_jwt = false
+
+[functions.receive-automation-webhook]
+verify_jwt = false

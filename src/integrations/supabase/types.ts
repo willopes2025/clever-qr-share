@@ -2963,6 +2963,7 @@ export type Database = {
         | "on_inactivity"
         | "on_deal_value_changed"
         | "on_custom_field_changed"
+        | "on_webhook"
       template_category:
         | "promotional"
         | "transactional"
@@ -3130,6 +3131,7 @@ export const Constants = {
         "on_inactivity",
         "on_deal_value_changed",
         "on_custom_field_changed",
+        "on_webhook",
       ],
       template_category: [
         "promotional",

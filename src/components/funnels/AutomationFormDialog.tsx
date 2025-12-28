@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Copy, Check, Link } from "lucide-react";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -42,7 +44,8 @@ type TriggerType =
   | 'on_tag_removed'
   | 'on_inactivity'
   | 'on_deal_value_changed'
-  | 'on_custom_field_changed';
+  | 'on_custom_field_changed'
+  | 'on_webhook';
 
 type ActionType = 
   | 'send_message' 
@@ -60,6 +63,80 @@ type ActionType =
   | 'create_task'
   | 'close_deal_won'
   | 'close_deal_lost';
+
+// Webhook trigger config component
+const WebhookTriggerConfig = ({ 
+  automationId, 
+  token, 
+  onTokenChange 
+}: { 
+  automationId: string; 
+  token: string; 
+  onTokenChange: (token: string) => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+  
+  const webhookUrl = `https://fgbenetdksqnvwkgnips.supabase.co/functions/v1/receive-automation-webhook?automation_id=${automationId}${token ? `&token=${token}` : ''}`;
+  
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    toast.success('URL copiada!');
+    setTimeout(() => setCopied(false), 2000);
+  };
+  
+  return (
+    <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Link className="h-4 w-4" />
+        <span>Configuração do Webhook</span>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>URL do Webhook</Label>
+        <div className="flex gap-2">
+          <Input
+            value={webhookUrl}
+            readOnly
+            className="text-xs font-mono"
+          />
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="icon"
+            onClick={copyToClipboard}
+          >
+            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Token de Segurança (opcional)</Label>
+        <Input
+          value={token}
+          onChange={(e) => onTokenChange(e.target.value)}
+          placeholder="Deixe vazio para não exigir token"
+        />
+        <p className="text-xs text-muted-foreground">
+          Se definido, o webhook só será processado se o token na URL corresponder
+        </p>
+      </div>
+      
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p><strong>Payload esperado (POST):</strong></p>
+        <pre className="bg-background p-2 rounded text-[10px] overflow-x-auto">
+{`{
+  "contact_phone": "5511999999999", // ou
+  "contact_id": "uuid",             // ou
+  "deal_id": "uuid",                // identificador
+  "custom_data": {}                 // dados extras
+}`}
+        </pre>
+      </div>
+    </div>
+  );
+};
 
 export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation }: AutomationFormDialogProps) => {
   const { funnels, createAutomation, updateAutomation } = useFunnels();
@@ -180,6 +257,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 <SelectItem value="on_inactivity">Após X dias sem interação</SelectItem>
                 <SelectItem value="on_deal_value_changed">Quando valor do deal mudar</SelectItem>
                 <SelectItem value="on_custom_field_changed">Quando campo personalizado mudar</SelectItem>
+                <SelectItem value="on_webhook">Webhook externo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -271,6 +349,20 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {triggerType === 'on_webhook' && automation?.id && (
+            <WebhookTriggerConfig 
+              automationId={automation.id}
+              token={triggerConfig.security_token as string || ''}
+              onTokenChange={(token) => setTriggerConfig({ ...triggerConfig, security_token: token })}
+            />
+          )}
+
+          {triggerType === 'on_webhook' && !automation?.id && (
+            <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
+              <p>💡 Salve a automação para gerar a URL do webhook.</p>
             </div>
           )}
 
