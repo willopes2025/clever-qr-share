@@ -486,6 +486,124 @@ serve(async (req) => {
             break;
           }
 
+          case 'ai_analyze_and_move': {
+            // Get intent mappings from config
+            const intentMappings = (actionConfig.intent_mappings as Array<{ intent: string; target_stage_id: string }>) || [];
+            const defaultStageId = actionConfig.default_stage_id as string || null;
+            
+            if (!messageContent) {
+              console.log(`[FUNNEL-AUTOMATIONS] Skipping AI analysis - no message content`);
+              results.push({ automationId: automation.id, success: false, error: 'No message content for AI analysis' });
+              break;
+            }
+
+            if (intentMappings.length === 0 && !defaultStageId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Skipping AI analysis - no intent mappings configured`);
+              results.push({ automationId: automation.id, success: false, error: 'No intent mappings configured' });
+              break;
+            }
+
+            try {
+              console.log(`[FUNNEL-AUTOMATIONS] Analyzing message with AI: "${messageContent.substring(0, 100)}..."`);
+              
+              // Build intents list for AI
+              const intentsDescription = intentMappings.map(m => m.intent).join(', ');
+              
+              // Call Lovable AI to analyze intent
+              const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+              
+              if (!LOVABLE_API_KEY) {
+                console.error(`[FUNNEL-AUTOMATIONS] LOVABLE_API_KEY not configured`);
+                results.push({ automationId: automation.id, success: false, error: 'AI not configured' });
+                break;
+              }
+
+              const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash",
+                  messages: [
+                    {
+                      role: "system",
+                      content: `Você é um analisador de intenções de mensagens de WhatsApp para um sistema de vendas/CRM.
+                      
+Analise a mensagem do cliente e identifique qual das seguintes intenções melhor descreve o que o cliente quer:
+${intentMappings.map((m, i) => `${i + 1}. ${m.intent}`).join('\n')}
+
+Responda APENAS com o número da intenção identificada (1, 2, 3, etc.) ou "0" se nenhuma intenção se aplicar.
+Não adicione explicações, apenas o número.`
+                    },
+                    {
+                      role: "user",
+                      content: `Mensagem do cliente: "${messageContent}"`
+                    }
+                  ],
+                }),
+              });
+
+              if (!aiResponse.ok) {
+                const errorText = await aiResponse.text();
+                console.error(`[FUNNEL-AUTOMATIONS] AI API error: ${aiResponse.status} - ${errorText}`);
+                results.push({ automationId: automation.id, success: false, error: `AI error: ${aiResponse.status}` });
+                break;
+              }
+
+              const aiData = await aiResponse.json();
+              const aiResult = aiData.choices?.[0]?.message?.content?.trim() || "0";
+              const intentIndex = parseInt(aiResult, 10);
+
+              console.log(`[FUNNEL-AUTOMATIONS] AI detected intent index: ${intentIndex}`);
+
+              let targetStageId: string | null = null;
+              let intentMatched = "";
+
+              if (intentIndex > 0 && intentIndex <= intentMappings.length) {
+                targetStageId = intentMappings[intentIndex - 1].target_stage_id;
+                intentMatched = intentMappings[intentIndex - 1].intent;
+                console.log(`[FUNNEL-AUTOMATIONS] Matched intent: "${intentMatched}" -> stage ${targetStageId}`);
+              } else if (defaultStageId) {
+                targetStageId = defaultStageId;
+                console.log(`[FUNNEL-AUTOMATIONS] No intent matched, using default stage: ${defaultStageId}`);
+              }
+
+              if (targetStageId && targetStageId !== deal.stage_id) {
+                await supabase
+                  .from('funnel_deals')
+                  .update({ 
+                    stage_id: targetStageId,
+                    entered_stage_at: new Date().toISOString()
+                  })
+                  .eq('id', dealId);
+
+                await supabase.from('funnel_deal_history').insert({
+                  deal_id: dealId,
+                  from_stage_id: deal.stage_id,
+                  to_stage_id: targetStageId,
+                  notes: intentMatched 
+                    ? `Movido por IA (intenção detectada: "${intentMatched}"): ${automation.name}`
+                    : `Movido por IA (etapa padrão): ${automation.name}`
+                });
+
+                console.log(`[FUNNEL-AUTOMATIONS] AI moved deal from ${deal.stage_id} to ${targetStageId}`);
+                results.push({ automationId: automation.id, success: true });
+              } else if (!targetStageId) {
+                console.log(`[FUNNEL-AUTOMATIONS] AI analysis complete but no stage change needed`);
+                results.push({ automationId: automation.id, success: true });
+              } else {
+                console.log(`[FUNNEL-AUTOMATIONS] Deal already in target stage, no action needed`);
+                results.push({ automationId: automation.id, success: true });
+              }
+            } catch (aiError) {
+              console.error(`[FUNNEL-AUTOMATIONS] AI analysis error:`, aiError);
+              results.push({ automationId: automation.id, success: false, error: 'AI analysis failed' });
+            }
+            break;
+          }
+
           default:
             console.log(`[FUNNEL-AUTOMATIONS] Unknown action type: ${automation.action_type}`);
             results.push({ automationId: automation.id, success: false, error: 'Unknown action type' });
