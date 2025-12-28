@@ -183,11 +183,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
-  );
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
+  const supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 
   try {
     logStep("Function started");
@@ -206,15 +208,29 @@ serve(async (req) => {
     }
     logStep("Authorization header found");
 
+    // Use an auth-scoped client and try to fetch the user from the incoming JWT.
+    // This avoids relying on a server-side persisted session.
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+    logStep("Token parsed", { length: token.length });
+
+    const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+
+    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser(token);
 
     if (userError || !userData?.user?.email) {
       logStep("AUTH_ERROR", { message: userError?.message || "User not authenticated" });
-      return new Response(JSON.stringify({ error: `Authentication error: ${userError?.message || "User not authenticated"}` }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
+      return new Response(
+        JSON.stringify({
+          error: `Authentication error: ${userError?.message || "User not authenticated"}`,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        }
+      );
     }
 
     const user = userData.user;
