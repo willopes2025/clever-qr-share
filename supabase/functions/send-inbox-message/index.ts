@@ -43,7 +43,7 @@ serve(async (req) => {
       .select(`
         id,
         user_id,
-        contact:contacts(id, phone, name)
+        contact:contacts(id, phone, name, label_id)
       `)
       .eq('id', conversationId)
       .single();
@@ -70,40 +70,49 @@ serve(async (req) => {
     }
 
     // Type-safe access to contact - cast through unknown first
-    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null } | null;
+    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null; label_id: string | null } | null;
     if (!contactData || !contactData.phone) {
       console.error('Contact data:', JSON.stringify(conversation.contact));
       throw new Error('Contact not found');
     }
     
-    // Format phone number - remove non-digits
+    // Format phone number - handle Label IDs (LID) from Click-to-WhatsApp Ads
     let phone = contactData.phone.replace(/\D/g, '');
+    let remoteJid: string;
     
-    console.log(`Original phone from contact: ${contactData.phone}, cleaned: ${phone}`);
+    console.log(`Original phone from contact: ${contactData.phone}, cleaned: ${phone}, label_id: ${contactData.label_id}`);
     
-    // Validate phone number format
-    // Brazilian phones: 10-11 digits without country code, 12-13 with country code (55)
-    // If the number doesn't look like a valid Brazilian phone, it might be a Label ID
-    const isLikelyLabelId = phone.length > 13 || (phone.length < 10);
+    // Check if this is a Label ID (LID) contact from Click-to-WhatsApp Ads
+    const isLabelIdContact = contactData.phone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
     
-    if (isLikelyLabelId) {
-      console.error(`Invalid phone number format (likely a Label ID): ${phone}`);
-      throw new Error(`Número de telefone inválido: ${contactData.phone}. Este contato pode ter sido criado com um ID incorreto. Por favor, atualize o telefone do contato.`);
-    }
-    
-    // Add Brazil country code if missing
-    if (!phone.startsWith('55')) {
-      phone = '55' + phone;
-    }
-    
-    // Final validation: Brazilian phone with country code should be 12-13 digits
-    // 55 + DDD (2 digits) + number (8-9 digits) = 12-13 digits
-    if (phone.length < 12 || phone.length > 13) {
-      console.error(`Phone number has invalid length after formatting: ${phone} (${phone.length} digits)`);
-      throw new Error(`Número de telefone inválido: formato incorreto.`);
+    if (isLabelIdContact) {
+      // For Label ID contacts, we need to use the label_id as the remoteJid
+      const labelId = contactData.label_id || phone;
+      console.log(`[LID] Detected Label ID contact, using LID for remoteJid: ${labelId}`);
+      remoteJid = `${labelId}@lid`;
+    } else {
+      // Validate phone number format for regular contacts
+      // Brazilian phones: 10-11 digits without country code, 12-13 with country code (55)
+      if (phone.length < 10) {
+        console.error(`Invalid phone number format: ${phone}`);
+        throw new Error(`Número de telefone inválido: ${contactData.phone}. O telefone precisa ter pelo menos 10 dígitos.`);
+      }
+      
+      // Add Brazil country code if missing
+      if (!phone.startsWith('55')) {
+        phone = '55' + phone;
+      }
+      
+      // Final validation: Brazilian phone with country code should be 12-13 digits
+      if (phone.length < 12 || phone.length > 13) {
+        console.error(`Phone number has invalid length after formatting: ${phone} (${phone.length} digits)`);
+        throw new Error(`Número de telefone inválido: formato incorreto.`);
+      }
+      
+      remoteJid = `${phone}@s.whatsapp.net`;
     }
 
-    console.log(`Sending message to ${phone} via ${instance.instance_name}`);
+    console.log(`Sending message to ${remoteJid} via ${instance.instance_name}`);
 
     // Create message record first with 'sending' status
     const { data: message, error: msgError } = await supabase
@@ -128,7 +137,15 @@ serve(async (req) => {
       throw new Error('Failed to create message record');
     }
 
-    // Send via Evolution API
+    // Send via Evolution API - use remoteJid which handles both regular phones and Label IDs
+    // For LID contacts, we need to use a different payload structure
+    const isLidMessage = remoteJid.endsWith('@lid');
+    const sendPayload = isLidMessage 
+      ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: content }
+      : { number: phone, text: content };
+    
+    console.log(`[SEND] Using payload:`, JSON.stringify(sendPayload));
+    
     const response = await fetch(
       `${evolutionApiUrl}/message/sendText/${instance.instance_name}`,
       {
@@ -137,10 +154,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'apikey': evolutionApiKey
         },
-        body: JSON.stringify({
-          number: phone,
-          text: content
-        })
+        body: JSON.stringify(sendPayload)
       }
     );
 
