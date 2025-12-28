@@ -175,7 +175,11 @@ export const useSubscription = () => {
       return;
     }
 
-    if (!session?.access_token) {
+    // First, get a fresh session to ensure we have a valid token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const currentSession = sessionData?.session;
+
+    if (!currentSession?.access_token) {
       setSubscription(null);
       setLoading(false);
       return;
@@ -184,11 +188,23 @@ export const useSubscription = () => {
     try {
       const { data, error } = await supabase.functions.invoke('check-subscription', {
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // If auth error, try to refresh the session
+        if (error.message?.includes('Auth') || error.message?.includes('session')) {
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (!refreshData?.session) {
+            // Session truly expired, user needs to log in again
+            setSubscription(null);
+            setLoading(false);
+            return;
+          }
+        }
+        throw error;
+      }
 
       setSubscription(data);
     } catch (error) {
@@ -197,7 +213,7 @@ export const useSubscription = () => {
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token, authLoading]);
+  }, [authLoading]);
 
   useEffect(() => {
     // Don't do anything while auth is still loading
