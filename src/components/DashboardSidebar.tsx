@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useSubscription, PLANS } from "@/hooks/useSubscription";
+import { useSubscription, PLANS, hasFeatureAccess } from "@/hooks/useSubscription";
 import { useConversations } from "@/hooks/useConversations";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -92,9 +92,24 @@ export const DashboardSidebar = () => {
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
-  // Filter nav items based on permissions
+  // Map premiumOnly features to FEATURE_ACCESS keys
+  const featureMap: Record<string, string> = {
+    '/warming': 'warming',
+    '/funnels': 'funnels',
+    '/broadcast-lists': 'broadcast',
+    '/analysis': 'analysis',
+    '/lead-search': 'lead_search',
+  };
+
+  // Filter nav items based on permissions and plan access
   const filterItems = (items: NavItem[]) => {
     return items.filter(item => {
+      // Check plan-based feature access
+      const featureKey = featureMap[item.path];
+      if (featureKey && !hasFeatureAccess(currentPlan, featureKey)) {
+        return false;
+      }
+
       // If no organization exists yet, show all items (legacy behavior)
       if (!organization) return true;
       // If no permission is set, show the item

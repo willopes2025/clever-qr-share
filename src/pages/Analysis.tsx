@@ -16,7 +16,7 @@ import { ptBR } from 'date-fns/locale';
 import { formatDateOnly } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { useAnalysisReports, AnalysisReport } from '@/hooks/useAnalysisReports';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription, hasFeatureAccess } from '@/hooks/useSubscription';
 import { AnalysisScoreCard } from '@/components/analysis/AnalysisScoreCard';
 import { AnalysisReportDetail } from '@/components/analysis/AnalysisReportDetail';
 import { generateAnalysisPDF } from '@/lib/pdf-export';
@@ -32,7 +32,7 @@ export default function Analysis() {
   const [selectedReport, setSelectedReport] = useState<AnalysisReport | null>(null);
 
   const plan = subscription?.plan || 'free';
-  const hasAccess = plan === 'pro' || plan === 'business';
+  const hasAccess = hasFeatureAccess(plan, 'analysis');
 
   const handleGenerateReport = async () => {
     const periodStart = format(dateRange.from, 'yyyy-MM-dd');
@@ -69,7 +69,7 @@ export default function Analysis() {
           <h1 className="text-3xl font-bold mb-4">Análise de Atendimento</h1>
           <p className="text-muted-foreground max-w-md mb-6">
             Obtenha insights detalhados sobre a qualidade do seu atendimento com análise de IA.
-            Este recurso está disponível nos planos Pro e Business.
+            Este recurso está disponível a partir do plano Profissional.
           </p>
           <Button size="lg" onClick={() => window.location.href = '/subscription'}>
             Fazer Upgrade
