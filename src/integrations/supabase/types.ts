@@ -2593,6 +2593,7 @@ export type Database = {
       }
       team_members: {
         Row: {
+          auto_correct_enabled: boolean | null
           created_at: string | null
           email: string
           id: string
@@ -2606,6 +2607,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_correct_enabled?: boolean | null
           created_at?: string | null
           email: string
           id?: string
@@ -2619,6 +2621,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_correct_enabled?: boolean | null
           created_at?: string | null
           email?: string
           id?: string

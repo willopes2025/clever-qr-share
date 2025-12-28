@@ -17,7 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, SpellCheck } from 'lucide-react';
 import { TeamMember } from '@/hooks/useOrganization';
 import { TeamRole } from '@/config/permissions';
 import { formatPhoneNumber } from '@/lib/phone-utils';
@@ -26,7 +27,7 @@ interface EditMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   member: TeamMember;
-  onSave: (data: { name?: string; email?: string; role: TeamRole; phone?: string }) => Promise<void>;
+  onSave: (data: { name?: string; email?: string; role: TeamRole; phone?: string; auto_correct_enabled?: boolean }) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -41,6 +42,7 @@ export function EditMemberDialog({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<TeamRole>('member');
+  const [autoCorrectEnabled, setAutoCorrectEnabled] = useState(false);
 
   useEffect(() => {
     if (open && member) {
@@ -48,6 +50,7 @@ export function EditMemberDialog({
       setEmail(member.email);
       setPhone((member as any).phone || '');
       setRole(member.role);
+      setAutoCorrectEnabled((member as any).auto_correct_enabled || false);
     }
   }, [open, member]);
 
@@ -63,6 +66,7 @@ export function EditMemberDialog({
       email: member.status === 'invited' ? email.trim() : undefined,
       phone: phone.trim() || undefined,
       role,
+      auto_correct_enabled: autoCorrectEnabled,
     });
     onOpenChange(false);
   };
@@ -136,6 +140,23 @@ export function EditMemberDialog({
                   <SelectItem value="member">Membro</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <SpellCheck className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="auto-correct">Correção automática</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Corrige gramática e ortografia das mensagens antes de enviar no inbox
+                </p>
+              </div>
+              <Switch 
+                id="auto-correct"
+                checked={autoCorrectEnabled}
+                onCheckedChange={setAutoCorrectEnabled}
+              />
             </div>
           </div>
 

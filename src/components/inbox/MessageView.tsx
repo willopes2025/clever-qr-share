@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { useConversationNotes } from "@/hooks/useConversationNotes";
 import { useConversationTasks } from "@/hooks/useConversationTasks";
 import { useInternalMessages } from "@/hooks/useInternalMessages";
+import { useMemberAutoCorrect } from "@/hooks/useMemberAutoCorrect";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageBubble } from "./MessageBubble";
 import { DateSeparator } from "./DateSeparator";
@@ -70,6 +71,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
+  const { autoCorrectEnabled } = useMemberAutoCorrect();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
@@ -85,6 +87,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const [editedName, setEditedName] = useState("");
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [isInvokingAI, setIsInvokingAI] = useState(false);
+  const [isAutoCorrect, setIsAutoCorrect] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -188,8 +191,32 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedInstanceId) return;
 
-    const messageContent = newMessage.trim();
+    let messageContent = newMessage.trim();
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    
+    // Se correção automática está ativada, corrigir antes de enviar
+    if (autoCorrectEnabled && messageContent.length > 5) {
+      setIsAutoCorrect(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('inbox-ai-assistant', {
+          body: { 
+            conversationId: conversation.id, 
+            action: 'rewrite', 
+            tone: 'correction', 
+            originalMessage: messageContent 
+          }
+        });
+        
+        if (!error && data?.success && data?.result) {
+          messageContent = data.result;
+        }
+      } catch (error) {
+        console.error('Auto-correct error:', error);
+        // Continua com mensagem original se falhar
+      } finally {
+        setIsAutoCorrect(false);
+      }
+    }
     
     // Add optimistic message
     const optimisticMessage: OptimisticMessage = {
@@ -852,14 +879,30 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
             disabled={!selectedInstanceId}
           />
           
-          <Button 
-            onClick={handleSend} 
-            disabled={!newMessage.trim() || !selectedInstanceId}
-            size={isMobile ? "icon" : "default"}
-            className="shrink-0 min-w-[40px] md:min-w-[44px]"
-          >
-            <Send className="h-4 w-4 md:h-5 md:w-5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                onClick={handleSend} 
+                disabled={!newMessage.trim() || !selectedInstanceId || isAutoCorrect}
+                size={isMobile ? "icon" : "default"}
+                className="shrink-0 min-w-[40px] md:min-w-[44px] relative"
+              >
+                {isAutoCorrect ? (
+                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 md:h-5 md:w-5" />
+                )}
+                {autoCorrectEnabled && !isAutoCorrect && (
+                  <SpellCheck className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-primary" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            {autoCorrectEnabled && (
+              <TooltipContent>
+                <p>Correção automática ativada</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
         
         {!selectedInstanceId && connectedInstances.length > 0 && (
