@@ -14,9 +14,10 @@ import { CustomFieldDefinition, useCustomFields } from "@/hooks/useCustomFields"
 interface CustomFieldsEditorProps {
   contactId: string;
   customFields: Record<string, any>;
+  hideEmptyFields?: boolean;
 }
 
-export const CustomFieldsEditor = ({ contactId, customFields }: CustomFieldsEditorProps) => {
+export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = false }: CustomFieldsEditorProps) => {
   const { fieldDefinitions, updateContactCustomFields } = useCustomFields();
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields || {});
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -191,9 +192,27 @@ export const CustomFieldsEditor = ({ contactId, customFields }: CustomFieldsEdit
     );
   }
 
+  // Filter fields based on hideEmptyFields
+  const isFieldEmpty = (fieldKey: string) => {
+    const value = localFields[fieldKey];
+    return value === undefined || value === null || value === '';
+  };
+
+  const visibleFields = hideEmptyFields 
+    ? fieldDefinitions.filter(def => !isFieldEmpty(def.field_key))
+    : fieldDefinitions;
+
+  if (hideEmptyFields && visibleFields.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground text-center py-2">
+        Nenhum campo com dados
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      {fieldDefinitions.map((definition) => (
+      {visibleFields.map((definition) => (
         <div key={definition.id} className="space-y-1">
           <label className="text-xs text-muted-foreground flex items-center gap-1">
             {definition.field_name}

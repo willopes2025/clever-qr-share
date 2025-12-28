@@ -35,7 +35,6 @@ import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { MediaUploadButton } from "./MediaUploadButton";
 import { AIAssistantButton } from "./AIAssistantButton";
-import { ContactInfoPanel } from "./ContactInfoPanel";
 import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
 import { TasksTab } from "./TasksTab";
@@ -58,13 +57,14 @@ interface ConversationWithAI extends Conversation {
 interface MessageViewProps {
   conversation: ConversationWithAI;
   onBack?: () => void;
+  onOpenRightPanel?: () => void;
 }
 
 interface OptimisticMessage extends InboxMessage {
   isOptimistic: true;
 }
 
-export const MessageView = ({ conversation, onBack }: MessageViewProps) => {
+export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
@@ -83,7 +83,6 @@ export const MessageView = ({ conversation, onBack }: MessageViewProps) => {
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
-  const [showContactInfo, setShowContactInfo] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [isInvokingAI, setIsInvokingAI] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
@@ -615,14 +614,16 @@ export const MessageView = ({ conversation, onBack }: MessageViewProps) => {
               </Tooltip>
               
               {/* Contact Info Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setShowContactInfo(!showContactInfo)}
-              >
-                <User className="h-4 w-4" />
-              </Button>
+              {onOpenRightPanel && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={onOpenRightPanel}
+                >
+                  <User className="h-4 w-4" />
+                </Button>
+              )}
             </>
           ) : (
             // Mobile: Dropdown menu for actions
@@ -668,7 +669,7 @@ export const MessageView = ({ conversation, onBack }: MessageViewProps) => {
                     <ArrowRightLeft className="h-4 w-4 mr-2" />
                     Transferir
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowContactInfo(true)}>
+                  <DropdownMenuItem onClick={onOpenRightPanel}>
                     <User className="h-4 w-4 mr-2" />
                     Info do contato
                   </DropdownMenuItem>
@@ -886,13 +887,6 @@ export const MessageView = ({ conversation, onBack }: MessageViewProps) => {
         </TabsContent>
       </Tabs>
       </div>
-      
-      {/* Contact Info Panel - Sheet on mobile */}
-      <ContactInfoPanel
-        conversation={conversation}
-        isOpen={showContactInfo}
-        onClose={() => setShowContactInfo(false)}
-      />
       
       {/* Transfer Dialog */}
       <TransferConversationDialog

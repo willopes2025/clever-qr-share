@@ -1,19 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageView } from "@/components/inbox/MessageView";
 import { EmptyInbox } from "@/components/inbox/EmptyInbox";
 import { NewConversationDialog } from "@/components/inbox/NewConversationDialog";
+import { RightSidePanel } from "@/components/inbox/RightSidePanel";
 import { Conversation, useConversations } from "@/hooks/useConversations";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(true);
   const isMobile = useIsMobile();
 
   // Handle selection from URL params (reactive to changes)
@@ -93,18 +100,71 @@ const Inbox = () => {
     refetch();
   };
 
+  const handleOpenRightPanel = () => {
+    setShowRightPanel(true);
+  };
+
   return (
     <DashboardLayout className="h-screen flex flex-col">
       {/* Header - hidden on mobile */}
       {!isMobile && (
-        <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card shrink-0">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
-            <p className="text-sm text-muted-foreground">
-              Gerencie todas as suas conversas em um só lugar
-            </p>
+        <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card shrink-0">
+          <div className="flex items-center gap-3">
+            {/* Toggle Sidebar Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setShowSidebar(!showSidebar)}
+                >
+                  {showSidebar ? (
+                    <PanelLeftClose className="h-4 w-4" />
+                  ) : (
+                    <PanelLeft className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {showSidebar ? "Ocultar conversas" : "Mostrar conversas"}
+              </TooltipContent>
+            </Tooltip>
+            
+            <div>
+              <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
+              <p className="text-xs text-muted-foreground">
+                Gerencie suas conversas
+              </p>
+            </div>
           </div>
-          <NewConversationDialog onConversationCreated={handleConversationCreated} />
+          
+          <div className="flex items-center gap-2">
+            <NewConversationDialog onConversationCreated={handleConversationCreated} />
+            
+            {/* Toggle Right Panel Button */}
+            {selectedConversation && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowRightPanel(!showRightPanel)}
+                  >
+                    {showRightPanel ? (
+                      <PanelRightClose className="h-4 w-4" />
+                    ) : (
+                      <PanelRight className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {showRightPanel ? "Ocultar painel" : "Mostrar painel do lead"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </header>
       )}
 
@@ -116,6 +176,7 @@ const Inbox = () => {
             <MessageView 
               conversation={selectedConversation} 
               onBack={handleBackToList}
+              onOpenRightPanel={handleOpenRightPanel}
             />
           ) : (
             <div className="flex-1 flex flex-col">
@@ -133,23 +194,48 @@ const Inbox = () => {
             </div>
           )
         ) : (
-          // Desktop: Show list AND messages side by side
+          // Desktop: Show list AND messages side by side with right panel
           <>
-            <ConversationList
-              conversations={conversations || []}
-              selectedId={selectedConversation?.id || null}
-              onSelect={handleSelectConversation}
-              isLoading={isLoading}
-            />
+            {/* Sidebar - Conversation List */}
+            {showSidebar && (
+              <ConversationList
+                conversations={conversations || []}
+                selectedId={selectedConversation?.id || null}
+                onSelect={handleSelectConversation}
+                isLoading={isLoading}
+              />
+            )}
             
+            {/* Chat Area */}
             {selectedConversation ? (
-              <MessageView conversation={selectedConversation} />
+              <MessageView 
+                conversation={selectedConversation}
+                onOpenRightPanel={handleOpenRightPanel}
+              />
             ) : (
               <EmptyInbox />
+            )}
+            
+            {/* Right Panel - Funnel + Contact Info */}
+            {selectedConversation && (
+              <RightSidePanel
+                conversation={selectedConversation}
+                isOpen={showRightPanel}
+                onClose={() => setShowRightPanel(false)}
+              />
             )}
           </>
         )}
       </div>
+      
+      {/* Mobile Right Panel as Sheet */}
+      {isMobile && selectedConversation && (
+        <RightSidePanel
+          conversation={selectedConversation}
+          isOpen={showRightPanel}
+          onClose={() => setShowRightPanel(false)}
+        />
+      )}
     </DashboardLayout>
   );
 };
