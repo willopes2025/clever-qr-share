@@ -167,6 +167,41 @@ serve(async (req) => {
         })
         .eq('id', conversationId);
 
+      // Handle AI handoff logic when human agent sends message
+      if (senderUserId) {
+        const okPatterns = ['👍', '✅', '🤖'];
+        const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
+        
+        const shouldResumeAI = okPatterns.some(emoji => content.includes(emoji)) ||
+                               textPatterns.some(pattern => pattern.test(content));
+
+        if (shouldResumeAI) {
+          // Resume AI - human is signaling AI should take over
+          await supabase
+            .from('conversations')
+            .update({
+              ai_paused: false,
+              ai_handoff_requested: false,
+              ai_handoff_reason: null,
+            })
+            .eq('id', conversationId);
+          
+          console.log(`[HANDOFF] AI resumed for conversation ${conversationId} by user ${senderUserId}`);
+        } else {
+          // Pause AI - human is taking over the conversation
+          await supabase
+            .from('conversations')
+            .update({
+              ai_paused: true,
+              ai_handoff_requested: true,
+              ai_handoff_reason: 'Atendente assumiu a conversa',
+            })
+            .eq('id', conversationId);
+          
+          console.log(`[HANDOFF] AI paused for conversation ${conversationId} - human (${senderUserId}) took over`);
+        }
+      }
+
       console.log(`Message sent successfully to ${phone}`);
 
       return new Response(
