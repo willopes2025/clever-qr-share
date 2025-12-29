@@ -57,8 +57,73 @@ serve(async (req) => {
     let result;
 
     switch (action) {
+      case 'test-config': {
+        // Test credentials - use params directly for testing before save
+        const testDomain = params.domain || domain || 'vono.me';
+        const testToken = params.api_token || api_token;
+        const testKey = params.api_key || api_key;
+        const testDeviceId = params.device_id;
+
+        if (!testDomain || !testToken || !testKey) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'missing_credentials',
+            message: 'Preencha todos os campos obrigatórios (Domínio, Token API e Chave API).' 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        console.log('[VONO-API] Testing config:', { domain: testDomain, device_id: testDeviceId });
+
+        try {
+          const testUrl = `https://${testDomain}/api/online-calls/${testToken}/${testKey}`;
+          const response = await fetch(testUrl);
+          const data = await response.json();
+          
+          console.log('[VONO-API] Test config response:', data);
+
+          if (data.error === 1) {
+            if (data.reason === 'INVALID_CREDENTIALS') {
+              return new Response(JSON.stringify({ 
+                success: false, 
+                error: 'invalid_credentials',
+                message: 'Credenciais inválidas. Verifique o Token API e a Chave API.' 
+              }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: data.reason || 'api_error',
+              message: data.message || 'Erro ao conectar com a API Vono.' 
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          return new Response(JSON.stringify({ 
+            success: true, 
+            message: 'Conexão com Vono estabelecida com sucesso!',
+            device_id_warning: testDeviceId && !/^\d+$/.test(testDeviceId) 
+              ? 'Atenção: O ID da linha deve ser numérico. Verifique no painel do PABX Vono.' 
+              : null
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (fetchError) {
+          console.error('[VONO-API] Fetch error:', fetchError);
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'connection_error',
+            message: 'Não foi possível conectar com a API Vono. Verifique o domínio.' 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       case 'list-lines': {
-        // Try different endpoints that might list lines/devices
         console.log('[VONO-API] Fetching lines from:', `${baseUrl}/lines/${api_token}/${api_key}`);
         
         try {
@@ -72,7 +137,6 @@ serve(async (req) => {
             result = { raw: responseText };
           }
 
-          // Check if Vono returned an error
           if (result.error === 1 || result.error === true) {
             console.error('[VONO-API] Vono API error listing lines:', result);
             return new Response(
