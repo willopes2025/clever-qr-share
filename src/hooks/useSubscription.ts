@@ -18,7 +18,19 @@ export interface SubscriptionInfo {
   trial_ends_at?: string | null;
 }
 
-export type PlanKey = 'free' | 'essencial' | 'profissional' | 'agencia' | 'avancado';
+// Include both internal keys and external/Stripe plan names
+export type PlanKey = 'free' | 'essencial' | 'profissional' | 'pro' | 'agencia' | 'business' | 'avancado';
+
+// Map external plan names (from Stripe/DB) to internal plan keys
+const PLAN_ALIASES: Record<string, PlanKey> = {
+  'pro': 'profissional',
+  'business': 'agencia',
+};
+
+export function normalizePlanKey(plan: string): PlanKey {
+  const normalized = PLAN_ALIASES[plan.toLowerCase()];
+  return (normalized || plan) as PlanKey;
+}
 
 export interface PlanConfig {
   name: string;
@@ -137,31 +149,80 @@ export const PLANS: Record<PlanKey, PlanConfig> = {
     ],
     featureKeys: ['all'],
   },
+  // Aliases for Stripe/DB plan names
+  pro: {
+    name: 'Profissional',
+    price: 297,
+    priceId: 'price_1SijezIuIJFtamjK45VHVMhV',
+    productId: 'prod_Tg5qspfPups3iN',
+    maxInstances: 10,
+    maxMessages: null,
+    maxContacts: 50000,
+    maxLeads: 5000,
+    features: [
+      '10 Instâncias WhatsApp',
+      'Mensagens ilimitadas',
+      '50.000 contatos',
+      '5.000 leads/mês',
+      'Tudo do Essencial',
+      'Analysis (IA)',
+      'Automações',
+      'Agente IA',
+      'API & Webhooks',
+    ],
+    featureKeys: ['inbox', 'templates', 'campaigns', 'contacts', 'broadcast', 'funnels', 'warming', 'analysis', 'automations', 'ai_agent', 'api', 'webhooks'],
+  },
+  business: {
+    name: 'Agência',
+    price: 597,
+    priceId: 'price_1SijfBIuIJFtamjKkRlLwfkh',
+    productId: 'prod_Tg5qcEw3OK7hU3',
+    maxInstances: 30,
+    maxMessages: null,
+    maxContacts: null,
+    maxLeads: 25000,
+    features: [
+      '30 Instâncias WhatsApp',
+      'Mensagens ilimitadas',
+      'Contatos ilimitados',
+      '25.000 leads/mês',
+      'Tudo do Profissional',
+      'Multi-equipe',
+      'Suporte Prioritário',
+    ],
+    featureKeys: ['all', 'multi_team', 'priority_support'],
+  },
 };
 
-// Feature access by plan
+// Feature access by plan (includes aliases for pro/business)
 export const FEATURE_ACCESS: Record<string, PlanKey[]> = {
-  inbox: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
-  templates: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
-  campaigns: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
-  contacts: ['free', 'essencial', 'profissional', 'agencia', 'avancado'],
-  broadcast: ['essencial', 'profissional', 'agencia', 'avancado'],
-  funnels: ['essencial', 'profissional', 'agencia', 'avancado'],
-  warming: ['essencial', 'profissional', 'agencia', 'avancado'],
-  analysis: ['profissional', 'agencia', 'avancado'],
-  automations: ['profissional', 'agencia', 'avancado'],
-  ai_agent: ['profissional', 'agencia', 'avancado'],
-  api: ['profissional', 'agencia', 'avancado'],
-  webhooks: ['profissional', 'agencia', 'avancado'],
-  multi_team: ['agencia', 'avancado'],
-  priority_support: ['agencia', 'avancado'],
-  lead_search: ['essencial', 'profissional', 'agencia', 'avancado'],
+  inbox: ['free', 'essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  templates: ['free', 'essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  campaigns: ['free', 'essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  contacts: ['free', 'essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  broadcast: ['essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  funnels: ['essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  warming: ['essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  analysis: ['profissional', 'pro', 'agencia', 'business', 'avancado'],
+  automations: ['profissional', 'pro', 'agencia', 'business', 'avancado'],
+  ai_agent: ['profissional', 'pro', 'agencia', 'business', 'avancado'],
+  api: ['profissional', 'pro', 'agencia', 'business', 'avancado'],
+  webhooks: ['profissional', 'pro', 'agencia', 'business', 'avancado'],
+  multi_team: ['agencia', 'business', 'avancado'],
+  priority_support: ['agencia', 'business', 'avancado'],
+  lead_search: ['essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
+  calendar: ['free', 'essencial', 'profissional', 'pro', 'agencia', 'business', 'avancado'],
 };
 
 export function hasFeatureAccess(plan: string, feature: string): boolean {
   const allowedPlans = FEATURE_ACCESS[feature];
   if (!allowedPlans) return true; // Feature not restricted
-  return allowedPlans.includes(plan as PlanKey);
+  
+  // Normalize the plan name to handle aliases (pro -> profissional, business -> agencia)
+  const normalizedPlan = normalizePlanKey(plan);
+  
+  // Check both the original plan name and the normalized version
+  return allowedPlans.includes(plan as PlanKey) || allowedPlans.includes(normalizedPlan);
 }
 
 export const useSubscription = () => {
