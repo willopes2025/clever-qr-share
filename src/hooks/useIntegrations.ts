@@ -31,7 +31,8 @@ export type IntegrationProvider =
   | 'make'
   | 'n8n'
   | 'facebook_pixel'
-  | 'google_analytics';
+  | 'google_analytics'
+  | 'vono_voip';
 
 export const useIntegrations = () => {
   const { user } = useAuth();
