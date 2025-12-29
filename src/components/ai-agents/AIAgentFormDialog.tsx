@@ -134,15 +134,26 @@ export const AIAgentFormDialog = ({
 
           if (funcError) throw funcError;
 
-          if (data) {
+          if (data && !data.error) {
+            // Normalize data types
+            const behaviorRulesStr = Array.isArray(data.behaviorRules) 
+              ? data.behaviorRules.join('\n') 
+              : (typeof data.behaviorRules === 'string' ? data.behaviorRules : pendingTemplate.behaviorRules);
+            
+            const handoffKeywordsArr = Array.isArray(data.handoffKeywords)
+              ? data.handoffKeywords
+              : (typeof data.handoffKeywords === 'string' 
+                  ? data.handoffKeywords.split(',').map((k: string) => k.trim()).filter(Boolean)
+                  : pendingTemplate.handoffKeywords);
+
             // Load personalized data
             setAgentName(data.agentName || pendingTemplate.agentName);
             setPersonalityPrompt(data.personalityPrompt || pendingTemplate.personalityPrompt);
-            setBehaviorRules(data.behaviorRules || pendingTemplate.behaviorRules);
+            setBehaviorRules(behaviorRulesStr);
             setGreetingMessage(data.greetingMessage || pendingTemplate.greetingMessage);
             setGoodbyeMessage(data.goodbyeMessage || pendingTemplate.goodbyeMessage);
             setFallbackMessage(data.fallbackMessage || pendingTemplate.fallbackMessage);
-            setHandoffKeywords((data.handoffKeywords || pendingTemplate.handoffKeywords).join(", "));
+            setHandoffKeywords(handoffKeywordsArr.join(", "));
             setResponseMode(pendingTemplate.responseMode);
             setResponseDelayMin(pendingTemplate.responseDelayMin);
             setResponseDelayMax(pendingTemplate.responseDelayMax);
@@ -151,6 +162,8 @@ export const AIAgentFormDialog = ({
             setMaxInteractions(pendingTemplate.maxInteractions);
             setTemplateType(pendingTemplate.id);
             toast.success("Template personalizado com sucesso!");
+          } else {
+            throw new Error(data?.error || "Erro ao personalizar template");
           }
         } catch (error: any) {
           console.error("Error personalizing template:", error);
