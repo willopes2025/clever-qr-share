@@ -12,7 +12,10 @@ const getExtensionFromContentType = (contentType: string | null, url: string): s
   if (contentType) {
     const ct = contentType.toLowerCase();
     if (ct.includes('audio/mpeg') || ct.includes('audio/mp3')) return 'mp3';
-    if (ct.includes('audio/mp4') || ct.includes('audio/m4a') || ct.includes('audio/x-m4a')) return 'm4a';
+    // Prefer mp4 when the server says audio/mp4 (most common for WhatsApp)
+    if (ct.includes('audio/mp4')) return 'mp4';
+    // Keep m4a for explicit m4a content-types
+    if (ct.includes('audio/x-m4a') || ct.includes('audio/m4a')) return 'm4a';
     if (ct.includes('audio/webm')) return 'webm';
     if (ct.includes('audio/wav') || ct.includes('audio/wave')) return 'wav';
     if (ct.includes('audio/ogg') || ct.includes('audio/opus')) return 'ogg';
@@ -78,21 +81,58 @@ serve(async (req) => {
     const contentType = audioResponse.headers.get('content-type');
     console.log(`[TRANSCRIBE] Content-Type from response: ${contentType}`);
 
-    // Detect format from content-type or URL
-    const fileExtension = getExtensionFromContentType(contentType, audioUrl);
-    const mimeType = getMimeType(fileExtension);
-    console.log(`[TRANSCRIBE] Using extension: ${fileExtension}, MIME type: ${mimeType}`);
-
-    const audioBlob = await audioResponse.blob();
-    const audioSize = audioBlob.size;
+    // Read bytes once (we'll reuse the buffer for all attempts)
+    const audioArrayBuffer = await audioResponse.arrayBuffer();
+    const audioSize = audioArrayBuffer.byteLength;
     console.log(`[TRANSCRIBE] Audio downloaded, size: ${audioSize} bytes (${(audioSize / 1024 / 1024).toFixed(2)} MB)`);
+
+    // Detect container by signature (content-type and extension are often wrong)
+    const sniffExtensionFromBytes = (buf: ArrayBuffer): string | null => {
+      const bytes = new Uint8Array(buf.slice(0, 16));
+      const td = new TextDecoder();
+      const head4 = td.decode(bytes.slice(0, 4));
+
+      // OGG/Opus
+      if (head4 === 'OggS') return 'ogg';
+
+      // WebM/Matroska
+      if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return 'webm';
+
+      // WAV
+      if (head4 === 'RIFF') {
+        const wave = td.decode(new Uint8Array(buf.slice(8, 12)));
+        if (wave === 'WAVE') return 'wav';
+      }
+
+      // MP3 (ID3 tag or frame sync)
+      if (head4 === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)) return 'mp3';
+
+      // MP4 (ftyp box)
+      const box = td.decode(bytes.slice(4, 8));
+      if (box === 'ftyp') return 'mp4';
+
+      return null;
+    };
+
+    const headerExtension = getExtensionFromContentType(contentType, audioUrl);
+    const sniffedExtension = sniffExtensionFromBytes(audioArrayBuffer);
+
+    if (sniffedExtension) {
+      console.log(`[TRANSCRIBE] Sniffed container extension: ${sniffedExtension}`);
+    }
+
+    const fileExtension = sniffedExtension ?? headerExtension;
+    const mimeType = getMimeType(fileExtension);
+    console.log(`[TRANSCRIBE] Using extension: ${fileExtension}, MIME type: ${mimeType} (header: ${headerExtension})`);
+
+    const audioBlob = new Blob([audioArrayBuffer], { type: mimeType });
 
     // Whisper suporta até 25MB
     const MAX_AUDIO_SIZE = 25 * 1024 * 1024;
     if (audioSize > MAX_AUDIO_SIZE) {
       console.log(`[TRANSCRIBE] Audio too large: ${audioSize} bytes`);
       const transcription = '[Áudio muito grande para transcrição - máximo 25MB]';
-      
+
       await supabase
         .from('inbox_messages')
         .update({ transcription })
@@ -112,22 +152,21 @@ serve(async (req) => {
 
     // Usar OpenAI Whisper para transcrição
     console.log('[TRANSCRIBE] Using OpenAI Whisper API...');
-    
+
     // Try with detected extension first, then fallback to ALL alternatives
-    // WhatsApp audio is notoriously tricky - sometimes it's Opus in mp4/ogg container
     const allExtensions = ['mp4', 'm4a', 'ogg', 'webm', 'mp3', 'wav'];
-    const extensionsToTry = [fileExtension, ...allExtensions.filter(ext => ext !== fileExtension)];
-    
+    const extensionsToTry = Array.from(new Set([fileExtension, headerExtension, ...allExtensions]));
+    console.log(`[TRANSCRIBE] Extensions to try: ${extensionsToTry.join(', ')}`);
+
     let whisperResult = null;
     let lastError = '';
-    
+
     for (const ext of extensionsToTry) {
       console.log(`[TRANSCRIBE] Trying with extension: ${ext}`);
-      
+
       const formData = new FormData();
-      // Create a new blob with the correct MIME type
       const correctMimeType = getMimeType(ext);
-      const audioBlobWithType = new Blob([await audioBlob.arrayBuffer()], { type: correctMimeType });
+      const audioBlobWithType = new Blob([audioArrayBuffer], { type: correctMimeType });
       formData.append('file', audioBlobWithType, `audio.${ext}`);
       formData.append('model', 'whisper-1');
       formData.append('language', 'pt');
