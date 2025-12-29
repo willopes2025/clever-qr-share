@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCustomFields } from '@/hooks/useCustomFields';
-import { User, FileText, AtSign, Phone, Mail, Building } from 'lucide-react';
+import { User, FileText, AtSign, Phone, Mail, Loader2 } from 'lucide-react';
 
 interface VariableAutocompleteProps {
   value: string;
@@ -24,7 +24,6 @@ const DEFAULT_VARIABLES: VariableOption[] = [
   { key: 'nome', label: 'Nome do contato', icon: <User className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
   { key: 'telefone', label: 'Telefone', icon: <Phone className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
   { key: 'email', label: 'Email', icon: <Mail className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
-  { key: 'empresa', label: 'Empresa', icon: <Building className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
 ];
 
 export const VariableAutocomplete = ({
@@ -40,10 +39,10 @@ export const VariableAutocomplete = ({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   
-  const { fieldDefinitions } = useCustomFields();
+  const { fieldDefinitions, isLoading } = useCustomFields();
 
-  // Build all available variables
-  const allVariables: VariableOption[] = [
+  // Build all available variables with useMemo for proper reactivity
+  const allVariables = useMemo<VariableOption[]>(() => [
     ...DEFAULT_VARIABLES,
     ...(fieldDefinitions || []).map(field => ({
       key: field.field_key,
@@ -51,7 +50,7 @@ export const VariableAutocomplete = ({
       icon: <FileText className="h-3.5 w-3.5" />,
       group: 'Campos Personalizados'
     }))
-  ];
+  ], [fieldDefinitions]);
 
   // Filter variables based on search term
   const filteredVariables = allVariables.filter(v => 
@@ -189,7 +188,12 @@ export const VariableAutocomplete = ({
           </p>
         </div>
         <ScrollArea className="h-[200px]">
-          {Object.keys(groupedVariables).length === 0 ? (
+          {isLoading ? (
+            <div className="p-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando campos...
+            </div>
+          ) : Object.keys(groupedVariables).length === 0 ? (
             <div className="p-3 text-sm text-muted-foreground text-center">
               Nenhuma variável encontrada
             </div>
