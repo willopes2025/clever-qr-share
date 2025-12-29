@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,9 +24,6 @@ serve(async (req) => {
 
     console.log('Generating ElevenLabs conversation token for:', { agentId, contactName, contactPhone });
 
-    // Build dynamic instructions based on context
-    const instructions = buildAgentInstructions(contactName, contactPhone, conversationContext);
-
     // Request a conversation token from ElevenLabs
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
@@ -45,6 +43,9 @@ serve(async (req) => {
 
     const data = await response.json();
     console.log('ElevenLabs session created successfully');
+
+    // Build dynamic instructions based on context
+    const instructions = buildAgentInstructions(contactName, contactPhone, conversationContext);
 
     return new Response(
       JSON.stringify({
@@ -80,7 +81,7 @@ function buildAgentInstructions(
   
 Você está em uma ligação telefônica com ${name}${contactPhone ? ` (${contactPhone})` : ''}.
 
-Diretrizes:
+Diretrizes Gerais:
 - Seja cordial, profissional e objetivo
 - Fale de forma natural e conversacional
 - Responda em português brasileiro
@@ -89,7 +90,7 @@ Diretrizes:
 - Sempre confirme entendimento antes de prosseguir com ações importantes`;
 
   if (conversationContext) {
-    instructions += `\n\nContexto da conversa anterior:\n${conversationContext}`;
+    instructions += `\n\n${conversationContext}`;
   }
 
   return instructions;

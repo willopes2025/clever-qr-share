@@ -22,6 +22,7 @@ export type Database = {
           behavior_rules: string | null
           campaign_id: string | null
           created_at: string | null
+          elevenlabs_agent_id: string | null
           fallback_message: string | null
           funnel_id: string | null
           goodbye_message: string | null
@@ -46,6 +47,7 @@ export type Database = {
           behavior_rules?: string | null
           campaign_id?: string | null
           created_at?: string | null
+          elevenlabs_agent_id?: string | null
           fallback_message?: string | null
           funnel_id?: string | null
           goodbye_message?: string | null
@@ -70,6 +72,7 @@ export type Database = {
           behavior_rules?: string | null
           campaign_id?: string | null
           created_at?: string | null
+          elevenlabs_agent_id?: string | null
           fallback_message?: string | null
           funnel_id?: string | null
           goodbye_message?: string | null
