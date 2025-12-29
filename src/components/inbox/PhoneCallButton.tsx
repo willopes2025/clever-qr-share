@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Phone, PhoneCall, PhoneOff, Bot, History, Loader2, Settings } from "lucide-react";
+import { Phone, PhoneCall, Bot, History, Loader2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ import { useVoipConfig } from "@/hooks/useVoipConfig";
 import { useVoipCalls } from "@/hooks/useVoipCalls";
 import { ActiveCallPanel } from "./ActiveCallPanel";
 import { CallHistoryTab } from "./CallHistoryTab";
+import { AICallDialog } from "./AICallDialog";
 import { useNavigate } from "react-router-dom";
 
 interface PhoneCallButtonProps {
@@ -41,8 +42,9 @@ export const PhoneCallButton = ({
   const { makeCall, activeCall, hasActiveCall, calls } = useVoipCalls(contactId, conversationId);
   const [showHistory, setShowHistory] = useState(false);
   const [showActiveCall, setShowActiveCall] = useState(false);
+  const [showAICall, setShowAICall] = useState(false);
 
-  const handleMakeCall = async (useAI: boolean = false) => {
+  const handleMakeCall = async () => {
     if (!isConfigured) {
       navigate('/settings?tab=integrations');
       return;
@@ -54,10 +56,14 @@ export const PhoneCallButton = ({
       conversationId,
       srcNumber: config?.default_src_number || undefined,
       deviceId: config?.default_device_id || undefined,
-      useAI,
+      useAI: false,
     });
 
     setShowActiveCall(true);
+  };
+
+  const handleMakeAICall = () => {
+    setShowAICall(true);
   };
 
   // If there's an active call for this contact, show it
@@ -114,11 +120,11 @@ export const PhoneCallButton = ({
         <DropdownMenuContent align="end" className="w-48">
           {isConfigured ? (
             <>
-              <DropdownMenuItem onClick={() => handleMakeCall(false)}>
+              <DropdownMenuItem onClick={handleMakeCall}>
                 <Phone className="h-4 w-4 mr-2" />
                 Ligar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleMakeCall(true)}>
+              <DropdownMenuItem onClick={handleMakeAICall}>
                 <Bot className="h-4 w-4 mr-2" />
                 Ligar com IA
                 <Badge variant="outline" className="ml-auto text-[10px]">
@@ -176,6 +182,16 @@ export const PhoneCallButton = ({
           contactName={contactName}
         />
       )}
+
+      {/* AI Call Dialog */}
+      <AICallDialog
+        isOpen={showAICall}
+        onClose={() => setShowAICall(false)}
+        contactName={contactName}
+        contactPhone={contactPhone}
+        contactId={contactId}
+        conversationId={conversationId}
+      />
     </>
   );
 };
