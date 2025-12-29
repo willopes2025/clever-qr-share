@@ -164,10 +164,25 @@ Retorne um JSON com exatamente estes campos:
     }
     cleanedContent = cleanedContent.trim();
 
-    const personalizedData = JSON.parse(cleanedContent);
+    let personalizedData = JSON.parse(cleanedContent);
+
+    // Normalize data types to expected format
+    // behaviorRules: always string
+    if (Array.isArray(personalizedData.behaviorRules)) {
+      personalizedData.behaviorRules = personalizedData.behaviorRules.join('\n');
+    } else if (typeof personalizedData.behaviorRules !== 'string') {
+      personalizedData.behaviorRules = '';
+    }
+
+    // handoffKeywords: always string[]
+    if (typeof personalizedData.handoffKeywords === 'string') {
+      personalizedData.handoffKeywords = personalizedData.handoffKeywords.split(',').map((k: string) => k.trim()).filter(Boolean);
+    } else if (!Array.isArray(personalizedData.handoffKeywords)) {
+      personalizedData.handoffKeywords = ['falar com humano', 'atendente', 'gerente'];
+    }
 
     // Validate required fields
-    const requiredFields = ['agentName', 'personalityPrompt', 'behaviorRules', 'greetingMessage', 'goodbyeMessage', 'fallbackMessage', 'handoffKeywords'];
+    const requiredFields = ['agentName', 'personalityPrompt', 'greetingMessage', 'goodbyeMessage', 'fallbackMessage'];
     for (const field of requiredFields) {
       if (!personalizedData[field]) {
         throw new Error(`Campo obrigatório ausente: ${field}`);
