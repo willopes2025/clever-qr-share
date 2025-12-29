@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Filter, Phone, Tag, Calendar, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Filter, Phone, Tag, Calendar, X, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,12 +16,16 @@ import {
 } from "@/components/ui/select";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { useConversationTags } from "@/hooks/useConversationTags";
+import { useFunnels } from "@/hooks/useFunnels";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { cn } from "@/lib/utils";
 
 export interface ConversationFilters {
   instanceId: string | null;
   tagId: string | null;
   dateFilter: 'all' | 'today' | '7days' | '30days';
+  funnelId: string | null;
+  stageIds: string[];
 }
 
 interface ConversationFiltersProps {
@@ -40,11 +44,14 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
   const [isOpen, setIsOpen] = useState(false);
   const { instances } = useWhatsAppInstances();
   const { tags } = useConversationTags();
+  const { funnels } = useFunnels();
 
   const activeFiltersCount = [
     filters.instanceId,
     filters.tagId,
     filters.dateFilter !== 'all' ? filters.dateFilter : null,
+    filters.funnelId,
+    filters.stageIds.length > 0 ? true : null,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
@@ -52,12 +59,41 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
       instanceId: null,
       tagId: null,
       dateFilter: 'all',
+      funnelId: null,
+      stageIds: [],
     });
   };
 
   const selectedInstance = instances?.find(i => i.id === filters.instanceId);
   const selectedTag = tags?.find(t => t.id === filters.tagId);
   const selectedDateFilter = dateFilterOptions.find(d => d.value === filters.dateFilter);
+  const selectedFunnel = funnels?.find(f => f.id === filters.funnelId);
+
+  // Get stages for the selected funnel
+  const stageOptions = useMemo(() => {
+    if (!selectedFunnel?.stages) return [];
+    return selectedFunnel.stages.map(stage => ({
+      value: stage.id,
+      label: stage.name,
+      color: stage.color,
+    }));
+  }, [selectedFunnel]);
+
+  // Get selected stage names for display
+  const selectedStageNames = useMemo(() => {
+    if (!selectedFunnel?.stages || filters.stageIds.length === 0) return [];
+    return filters.stageIds
+      .map(id => selectedFunnel.stages.find(s => s.id === id)?.name)
+      .filter(Boolean) as string[];
+  }, [selectedFunnel, filters.stageIds]);
+
+  const handleFunnelChange = (value: string) => {
+    onFiltersChange({
+      ...filters,
+      funnelId: value === "all" ? null : value,
+      stageIds: [], // Clear stages when funnel changes
+    });
+  };
 
   return (
     <div className="space-y-2">
@@ -192,6 +228,52 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Funnel Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Target className="h-3 w-3" />
+                  Funil
+                </label>
+                <Select
+                  value={filters.funnelId || "all"}
+                  onValueChange={handleFunnelChange}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos os funis" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os funis</SelectItem>
+                    {funnels?.map((funnel) => (
+                      <SelectItem key={funnel.id} value={funnel.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: funnel.color }}
+                          />
+                          {funnel.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Stage Filter - Only show when a funnel is selected */}
+              {filters.funnelId && stageOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    Etapas
+                  </label>
+                  <MultiSelect
+                    options={stageOptions}
+                    value={filters.stageIds}
+                    onChange={(stageIds) => onFiltersChange({ ...filters, stageIds })}
+                    placeholder="Selecione etapas..."
+                    maxDisplay={2}
+                  />
+                </div>
+              )}
             </div>
           </PopoverContent>
         </Popover>
@@ -239,6 +321,38 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
               onClick={() => onFiltersChange({ ...filters, dateFilter: 'all' })}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        )}
+
+        {filters.funnelId && selectedFunnel && (
+          <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
+            <Target className="h-3 w-3" />
+            {selectedFunnel.name}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
+              onClick={() => onFiltersChange({ ...filters, funnelId: null, stageIds: [] })}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        )}
+
+        {filters.stageIds.length > 0 && selectedStageNames.length > 0 && (
+          <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
+            {selectedStageNames.length <= 2 
+              ? selectedStageNames.join(", ")
+              : `${selectedStageNames.slice(0, 2).join(", ")} +${selectedStageNames.length - 2}`
+            }
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
+              onClick={() => onFiltersChange({ ...filters, stageIds: [] })}
             >
               <X className="h-3 w-3" />
             </Button>
