@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { FileText, Download, Play, Pause, Loader2, FileAudio } from "lucide-react";
+import { useState, useRef } from "react";
+import { FileText, Download, Play, Pause, Loader2, FileAudio, ExternalLink, AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,11 +16,30 @@ interface MediaMessageProps {
   transcription?: string | null;
 }
 
+const ERROR_TRANSCRIPTIONS = [
+  '[Áudio não reconhecido]',
+  '[Transcrição não disponível]',
+  '[Áudio muito grande para transcrição]',
+];
+
+const getAudioMimeType = (url: string): string => {
+  const ext = url.split('.').pop()?.split('?')[0]?.toLowerCase();
+  switch (ext) {
+    case 'mp3': return 'audio/mpeg';
+    case 'mp4': case 'm4a': return 'audio/mp4';
+    case 'webm': return 'audio/webm';
+    case 'ogg': return 'audio/ogg';
+    case 'wav': return 'audio/wav';
+    default: return 'audio/mp4';
+  }
+};
+
 export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }: MediaMessageProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [localTranscription, setLocalTranscription] = useState(transcription);
+  const [audioError, setAudioError] = useState(false);
 
   const getFileNameFromUrl = (url: string) => {
     try {
@@ -32,14 +51,15 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }
   };
 
   const handleAudioToggle = () => {
-    if (!audioRef) return;
+    if (!audioRef.current) return;
     
     if (isPlaying) {
-      audioRef.pause();
+      audioRef.current.pause();
     } else {
-      audioRef.play();
+      audioRef.current.play().catch(() => {
+        setAudioError(true);
+      });
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleTranscribe = async () => {
@@ -64,6 +84,12 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }
     }
   };
 
+  const canRetryTranscription = localTranscription && ERROR_TRANSCRIPTIONS.some(
+    (err) => localTranscription.includes(err)
+  );
+
+  const showTranscribeButton = messageId && (!localTranscription || canRetryTranscription);
+
   // Image
   if (messageType === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
     return (
@@ -87,47 +113,80 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }
   }
 
   // Audio/Voice
-  if (messageType === 'audio' || messageType === 'voice' || mediaUrl.match(/\.(mp3|wav|ogg|webm|m4a)$/i)) {
+  if (messageType === 'audio' || messageType === 'voice' || mediaUrl.match(/\.(mp3|wav|ogg|webm|m4a|mp4)$/i)) {
+    const mimeType = getAudioMimeType(mediaUrl);
+    
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg min-w-[200px]">
+          {!audioError ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={handleAudioToggle}
+              >
+                {isPlaying ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
+              <audio
+                ref={audioRef}
+                preload="metadata"
+                playsInline
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                onError={() => setAudioError(true)}
+                className="hidden"
+              >
+                <source src={mediaUrl} type={mimeType} />
+              </audio>
+              <div className="flex-1">
+                <div className="h-1 bg-muted-foreground/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all"
+                    style={{ width: isPlaying ? '100%' : '0%' }}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 flex-1 text-xs text-muted-foreground">
+              <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+              <span>Não foi possível reproduzir</span>
+            </div>
+          )}
+          
+          {/* Download/Open fallback */}
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0"
-            onClick={handleAudioToggle}
+            asChild
+            title="Abrir áudio"
           >
-            {isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
+            <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4" />
+            </a>
           </Button>
-          <audio
-            ref={(ref) => setAudioRef(ref)}
-            src={mediaUrl}
-            onEnded={() => setIsPlaying(false)}
-            className="hidden"
-          />
-          <div className="flex-1">
-            <div className="h-1 bg-muted-foreground/20 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all"
-                style={{ width: isPlaying ? '100%' : '0%' }}
-              />
-            </div>
-          </div>
-          {messageId && !localTranscription && (
+          
+          {showTranscribeButton && (
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 shrink-0"
               onClick={handleTranscribe}
               disabled={isTranscribing}
-              title="Transcrever áudio"
+              title={canRetryTranscription ? "Transcrever novamente" : "Transcrever áudio"}
             >
               {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : canRetryTranscription ? (
+                <RotateCcw className="h-4 w-4" />
               ) : (
                 <FileAudio className="h-4 w-4" />
               )}
@@ -136,7 +195,7 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }
         </div>
         
         {/* Transcription */}
-        {localTranscription && (
+        {localTranscription && !canRetryTranscription && (
           <div className="px-2 py-1.5 bg-background/30 rounded text-xs italic">
             📝 {localTranscription}
           </div>
