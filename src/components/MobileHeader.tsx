@@ -5,6 +5,7 @@ import wideLogo from "@/assets/wide-logo.png";
 import { useConversations } from "@/hooks/useConversations";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
+import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
 
 export const MobileHeader = () => {
   const { openMobile } = useSidebarContext();
@@ -29,7 +30,8 @@ export const MobileHeader = () => {
       <img src={wideLogo} alt="Widezap" className="h-8 w-auto" />
 
       {/* Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
+        <SessionStatusBadge />
         <Button
           variant="ghost"
           size="icon"

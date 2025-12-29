@@ -4,6 +4,7 @@ import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { MobileHeader } from "@/components/MobileHeader";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { MobileSidebarDrawer } from "@/components/MobileSidebarDrawer";
+import { ActivityTracker } from "@/components/productivity/ActivityTracker";
 import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
@@ -16,6 +17,8 @@ const LayoutContent = ({ children, className }: DashboardLayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Activity Tracker - invisible, tracks user sessions */}
+      <ActivityTracker />
       {/* Desktop Sidebar */}
       {!isMobile && <DashboardSidebar />}
       
