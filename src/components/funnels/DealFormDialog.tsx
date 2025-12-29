@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFunnels, FunnelDeal } from "@/hooks/useFunnels";
 import { useContacts } from "@/hooks/useContacts";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
@@ -116,13 +115,13 @@ export const DealFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh]">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>{deal ? 'Editar Deal' : 'Novo Deal'}</DialogTitle>
+          <DialogTitle>{deal ? "Editar Deal" : "Novo Deal"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-120px)]">
-          <form onSubmit={handleSubmit} className="space-y-4 pr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {!deal && !initialContactId && (
               <div className="space-y-2">
                 <Label>Contato *</Label>
@@ -166,14 +165,16 @@ export const DealFormDialog = ({
                   <SelectValue placeholder="Selecionar etapa" />
                 </SelectTrigger>
                 <SelectContent>
-                  {stages.filter(s => !s.is_final).map((stage) => (
-                    <SelectItem key={stage.id} value={stage.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                        {stage.name}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {stages
+                    .filter((s) => !s.is_final)
+                    .map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                          {stage.name}
+                        </div>
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -235,24 +236,21 @@ export const DealFormDialog = ({
             </div>
 
             {/* Custom Fields */}
-            <DealCustomFieldsEditor
-              values={customFields}
-              onChange={setCustomFields}
-            />
+            <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
 
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={(!deal && !contactId) || createDeal.isPending || updateDeal.isPending}
               >
-                {deal ? 'Salvar' : 'Criar Deal'}
+                {deal ? "Salvar" : "Criar Deal"}
               </Button>
             </div>
           </form>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
