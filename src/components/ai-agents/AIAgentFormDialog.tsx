@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -60,6 +60,7 @@ export const AIAgentFormDialog = ({
   const [maxInteractions, setMaxInteractions] = useState(15);
   const [isActive, setIsActive] = useState(false);
   const [templateType, setTemplateType] = useState<string | null>(null);
+  const [elevenlabsAgentId, setElevenlabsAgentId] = useState("");
 
   // Load company context when dialog opens
   useEffect(() => {
@@ -234,6 +235,7 @@ export const AIAgentFormDialog = ({
     setTemplateType(null);
     setAgentId(null);
     setActiveTab("personality");
+    setElevenlabsAgentId("");
   };
 
   const loadAgentData = async (id: string) => {
@@ -264,6 +266,7 @@ export const AIAgentFormDialog = ({
       setMaxInteractions(data.max_interactions || 15);
       setIsActive(data.is_active ?? false);
       setTemplateType(data.template_type);
+      setElevenlabsAgentId(data.elevenlabs_agent_id || "");
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
@@ -298,6 +301,7 @@ export const AIAgentFormDialog = ({
         max_interactions: maxInteractions,
         is_active: isActive,
         template_type: templateType,
+        elevenlabs_agent_id: elevenlabsAgentId.trim() || null,
       };
 
       if (agentId) {
@@ -544,6 +548,32 @@ export const AIAgentFormDialog = ({
                 </TabsContent>
 
                 <TabsContent value="settings" className="space-y-6 mt-4">
+                  {/* ElevenLabs Agent ID for Voice Calls */}
+                  <div className="p-4 rounded-lg border bg-muted/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Phone className="h-4 w-4 text-primary" />
+                      <Label htmlFor="elevenlabsAgentId" className="font-medium">ElevenLabs Agent ID (para ligações com IA)</Label>
+                    </div>
+                    <Input
+                      id="elevenlabsAgentId"
+                      placeholder="agent_xxxxxxxxxxxx"
+                      value={elevenlabsAgentId}
+                      onChange={(e) => setElevenlabsAgentId(e.target.value)}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Crie um agente de voz no ElevenLabs e cole o ID aqui para habilitar ligações com IA.
+                    </p>
+                    <a 
+                      href="https://elevenlabs.io/conversational-ai" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                    >
+                      Criar agente no ElevenLabs <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+
                   <div>
                     <Label>Modo de Resposta</Label>
                     <Select value={responseMode} onValueChange={setResponseMode}>
