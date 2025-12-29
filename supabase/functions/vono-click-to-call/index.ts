@@ -128,7 +128,16 @@ serve(async (req) => {
 
     // Check if Vono returned an error (even with HTTP 200)
     const vonoHasError = !vonoResponse.ok || vonoData.error === 1 || vonoData.error === true;
-    const errorMessage = vonoData.message || vonoData.reason || vonoData.error || 'Erro ao iniciar chamada';
+    
+    // Create more helpful error messages based on the error reason
+    let errorMessage = vonoData.message || 'Erro ao iniciar chamada';
+    if (vonoData.reason === 'DEVICE_NOT_FOUND') {
+      errorMessage = `Linha não encontrada (device_id: ${callDeviceId}). O ID deve ser numérico (ex: 1, 2, 3). Verifique no painel PABX Vono em Configurações > Linhas.`;
+    } else if (vonoData.reason === 'INVALID_CREDENTIALS') {
+      errorMessage = 'Credenciais inválidas. Verifique o API Token e API Key.';
+    } else if (vonoData.reason) {
+      errorMessage = `${vonoData.message || vonoData.reason}`;
+    }
 
     if (vonoHasError) {
       console.error('[VONO-CLICK2CALL] Vono API returned error:', vonoData);

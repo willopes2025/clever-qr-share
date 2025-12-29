@@ -37,7 +37,6 @@ import {
   Search,
   Crown,
   Phone,
-  RefreshCw,
 } from "lucide-react";
 import { useIntegrations, IntegrationProvider } from "@/hooks/useIntegrations";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -259,7 +258,7 @@ const integrationConfigs: IntegrationConfig[] = [
       { key: 'domain', label: 'Domínio', type: 'text', placeholder: 'vono.me ou vono3.me' },
       { key: 'api_token', label: 'API Token', type: 'password', helpText: 'Token da API Vono' },
       { key: 'api_key', label: 'API Key', type: 'password', helpText: 'Chave da API Vono' },
-      { key: 'default_device_id', label: 'ID da Linha Padrão', type: 'text', placeholder: 'ID do dispositivo' },
+      { key: 'default_device_id', label: 'ID da Linha (numérico)', type: 'text', placeholder: 'Ex: 1, 2, 3...', helpText: 'ID numérico da linha no painel PABX Vono (Configurações > Linhas)' },
       { key: 'default_src_number', label: 'Número de Origem', type: 'text', placeholder: '5511999999999' },
     ],
     docsUrl: 'https://ajuda.falevono.com.br/api-click-to-call-0800-web/',
@@ -292,9 +291,6 @@ export const IntegrationsSettings = () => {
   const [configDialog, setConfigDialog] = useState<IntegrationConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingLines, setIsLoadingLines] = useState(false);
-  const [vonoLines, setVonoLines] = useState<Array<{ id: string; label: string }>>([]);
-
   const { integrations, isLoading, connectIntegration, disconnectIntegration, getIntegration } = useIntegrations();
   const { subscription } = useSubscription();
 
@@ -347,56 +343,11 @@ export const IntegrationsSettings = () => {
     }
   };
 
-  const handleFetchVonoLines = async () => {
-    if (!formData.api_token || !formData.api_key) {
-      toast.error('Preencha o API Token e API Key primeiro');
-      return;
-    }
-
-    setIsLoadingLines(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('vono-api', {
-        body: { action: 'list-lines' },
-      });
-
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Erro ao buscar linhas');
-
-      const lines = data.data;
-      console.log('Vono lines response:', lines);
-
-      // Handle different response formats
-      let parsedLines: Array<{ id: string; label: string }> = [];
-      
-      if (Array.isArray(lines)) {
-        parsedLines = lines.map((line: any) => ({
-          id: line.id || line.device_id || line.line_id || String(line),
-          label: line.name || line.label || line.number || line.id || String(line),
-        }));
-      } else if (lines && typeof lines === 'object') {
-        // Maybe it's an object with lines inside
-        const lineArray = lines.lines || lines.data || lines.devices || Object.values(lines);
-        if (Array.isArray(lineArray)) {
-          parsedLines = lineArray.map((line: any) => ({
-            id: line.id || line.device_id || line.line_id || String(line),
-            label: line.name || line.label || line.number || line.id || String(line),
-          }));
-        }
-      }
-
-      if (parsedLines.length === 0) {
-        toast.warning('Nenhuma linha encontrada. Verifique suas credenciais ou configure linhas no painel Vono.');
-        console.log('Raw lines data:', lines);
-      } else {
-        setVonoLines(parsedLines);
-        toast.success(`${parsedLines.length} linha(s) encontrada(s)`);
-      }
-    } catch (error: any) {
-      console.error('Error fetching Vono lines:', error);
-      toast.error(error.message || 'Erro ao buscar linhas');
-    } finally {
-      setIsLoadingLines(false);
-    }
+  // Validate if device_id looks like a numeric ID
+  const validateDeviceId = (deviceId: string): boolean => {
+    if (!deviceId) return true; // Empty is ok, will be validated on save
+    const numericPattern = /^\d+$/;
+    return numericPattern.test(deviceId.trim());
   };
 
   if (isLoading) {
@@ -569,51 +520,26 @@ export const IntegrationsSettings = () => {
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={field.key}>{field.label}</Label>
                 
-                {/* Special handling for VoIP device_id field with line selector */}
+                {/* Special handling for VoIP device_id field with help text */}
                 {configDialog.id === 'vono_voip' && field.key === 'default_device_id' ? (
                   <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        id={field.key}
-                        type={field.type}
-                        placeholder={field.placeholder}
-                        value={formData[field.key] || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleFetchVonoLines}
-                        disabled={isLoadingLines}
-                      >
-                        {isLoadingLines ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
-                        <span className="ml-1 hidden sm:inline">Buscar</span>
-                      </Button>
-                    </div>
-                    
-                    {vonoLines.length > 0 && (
-                      <Select
-                        value={formData[field.key] || ''}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Selecione uma linha..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {vonoLines.map((line) => (
-                            <SelectItem key={line.id} value={line.id}>
-                              {line.label} ({line.id})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <Input
+                      id={field.key}
+                      type={field.type}
+                      placeholder={field.placeholder}
+                      value={formData[field.key] || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData(prev => ({ ...prev, [field.key]: value }));
+                        // Warn if value doesn't look numeric
+                        if (value && !validateDeviceId(value)) {
+                          toast.warning('O ID da linha deve ser numérico (ex: 1, 2, 3). Verifique no painel PABX Vono.');
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                      💡 <strong>Como encontrar:</strong> Acesse o painel PABX Vono (meuvono.falevono.com.br) → Configurações → Linhas → Anote o <strong>ID numérico</strong> da linha desejada.
+                    </p>
                   </div>
                 ) : (
                   <Input
