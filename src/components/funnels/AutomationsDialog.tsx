@@ -3,6 +3,7 @@ import { Plus, Trash2, Zap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -84,6 +85,9 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
               <Zap className="h-5 w-5 text-yellow-500" />
               Automações
             </DialogTitle>
+            <DialogDescription>
+              Configure ações automáticas baseadas em gatilhos
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
