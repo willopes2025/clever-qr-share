@@ -29,6 +29,7 @@ import {
   Loader2,
   Search,
   Crown,
+  Phone,
 } from "lucide-react";
 import { useIntegrations, IntegrationProvider } from "@/hooks/useIntegrations";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -38,7 +39,7 @@ interface IntegrationConfig {
   name: string;
   description: string;
   icon: React.ElementType;
-  category: 'productivity' | 'payments' | 'ecommerce' | 'crm' | 'automation' | 'analytics';
+  category: 'productivity' | 'payments' | 'ecommerce' | 'crm' | 'automation' | 'analytics' | 'voip';
   minPlan: 'essencial' | 'profissional' | 'agencia' | 'avancado';
   fields: {
     key: string;
@@ -236,6 +237,23 @@ const integrationConfigs: IntegrationConfig[] = [
     ],
     docsUrl: 'https://developers.google.com/analytics/devguides/collection/ga4',
   },
+  // VoIP
+  {
+    id: 'vono_voip',
+    name: 'Vono VoIP',
+    description: 'Faça ligações Click-to-Call direto do Inbox com IA',
+    icon: Phone,
+    category: 'voip',
+    minPlan: 'profissional',
+    fields: [
+      { key: 'domain', label: 'Domínio', type: 'text', placeholder: 'vono.me ou vono3.me' },
+      { key: 'api_token', label: 'API Token', type: 'password', helpText: 'Token da API Vono' },
+      { key: 'api_key', label: 'API Key', type: 'password', helpText: 'Chave da API Vono' },
+      { key: 'default_device_id', label: 'ID da Linha Padrão', type: 'text', placeholder: 'ID do dispositivo' },
+      { key: 'default_src_number', label: 'Número de Origem', type: 'text', placeholder: '5511999999999' },
+    ],
+    docsUrl: 'https://ajuda.falevono.com.br/api-click-to-call-0800-web/',
+  },
 ];
 
 const categoryLabels: Record<string, string> = {
@@ -246,6 +264,7 @@ const categoryLabels: Record<string, string> = {
   crm: 'CRM',
   automation: 'Automação',
   analytics: 'Analytics',
+  voip: 'VoIP',
 };
 
 const planLabels: Record<string, string> = {

@@ -2805,6 +2805,236 @@ export type Database = {
         }
         Relationships: []
       }
+      voip_calls: {
+        Row: {
+          ai_enabled: boolean | null
+          ai_transcript: string | null
+          answered_at: string | null
+          called: string
+          caller: string
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          deal_id: string | null
+          device_id: string | null
+          direction: string | null
+          duration_seconds: number | null
+          elevenlabs_conversation_id: string | null
+          ended_at: string | null
+          external_call_id: string | null
+          id: string
+          organization_id: string | null
+          recording_id: string | null
+          recording_url: string | null
+          started_at: string | null
+          status: string | null
+          user_id: string
+          voip_config_id: string | null
+        }
+        Insert: {
+          ai_enabled?: boolean | null
+          ai_transcript?: string | null
+          answered_at?: string | null
+          called: string
+          caller: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          device_id?: string | null
+          direction?: string | null
+          duration_seconds?: number | null
+          elevenlabs_conversation_id?: string | null
+          ended_at?: string | null
+          external_call_id?: string | null
+          id?: string
+          organization_id?: string | null
+          recording_id?: string | null
+          recording_url?: string | null
+          started_at?: string | null
+          status?: string | null
+          user_id: string
+          voip_config_id?: string | null
+        }
+        Update: {
+          ai_enabled?: boolean | null
+          ai_transcript?: string | null
+          answered_at?: string | null
+          called?: string
+          caller?: string
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          deal_id?: string | null
+          device_id?: string | null
+          direction?: string | null
+          duration_seconds?: number | null
+          elevenlabs_conversation_id?: string | null
+          ended_at?: string | null
+          external_call_id?: string | null
+          id?: string
+          organization_id?: string | null
+          recording_id?: string | null
+          recording_url?: string | null
+          started_at?: string | null
+          status?: string | null
+          user_id?: string
+          voip_config_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voip_calls_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_calls_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_calls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_calls_voip_config_id_fkey"
+            columns: ["voip_config_id"]
+            isOneToOne: false
+            referencedRelation: "voip_configurations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voip_configurations: {
+        Row: {
+          api_key: string
+          api_token: string
+          created_at: string | null
+          default_device_id: string | null
+          default_src_number: string | null
+          domain: string
+          elevenlabs_agent_id: string | null
+          id: string
+          is_active: boolean | null
+          organization_id: string | null
+          provider: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          api_token: string
+          created_at?: string | null
+          default_device_id?: string | null
+          default_src_number?: string | null
+          domain?: string
+          elevenlabs_agent_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          provider?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          api_token?: string
+          created_at?: string | null
+          default_device_id?: string | null
+          default_src_number?: string | null
+          domain?: string
+          elevenlabs_agent_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string | null
+          provider?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voip_configurations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voip_lines: {
+        Row: {
+          caller_id: string | null
+          created_at: string | null
+          description: string | null
+          external_line_id: string
+          id: string
+          is_default: boolean | null
+          line_number: string
+          organization_id: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+          voip_config_id: string | null
+        }
+        Insert: {
+          caller_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          external_line_id: string
+          id?: string
+          is_default?: boolean | null
+          line_number: string
+          organization_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+          voip_config_id?: string | null
+        }
+        Update: {
+          caller_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          external_line_id?: string
+          id?: string
+          is_default?: boolean | null
+          line_number?: string
+          organization_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+          voip_config_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voip_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_lines_voip_config_id_fkey"
+            columns: ["voip_config_id"]
+            isOneToOne: false
+            referencedRelation: "voip_configurations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warming_activities: {
         Row: {
           activity_type: string

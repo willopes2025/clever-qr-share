@@ -40,6 +40,7 @@ import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
 import { TasksTab } from "./TasksTab";
 import { InternalChatTab } from "./InternalChatTab";
+import { PhoneCallButton } from "./PhoneCallButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -541,6 +542,16 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           {/* Desktop: Full buttons */}
           {!isMobile ? (
             <>
+              {/* Phone Call Button */}
+              {conversation.contact?.phone && (
+                <PhoneCallButton
+                  contactPhone={conversation.contact.phone}
+                  contactId={conversation.contact_id}
+                  conversationId={conversation.id}
+                  contactName={conversation.contact.name || undefined}
+                />
+              )}
+
               {/* Invoke AI Button */}
               <Tooltip>
                 <TooltipTrigger asChild>

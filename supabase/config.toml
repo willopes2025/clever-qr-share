@@ -125,3 +125,9 @@ verify_jwt = false
 
 [functions.personalize-agent-template]
 verify_jwt = false
+
+[functions.vono-click-to-call]
+verify_jwt = true
+
+[functions.vono-api]
+verify_jwt = true
