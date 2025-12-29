@@ -115,7 +115,7 @@ serve(async (req) => {
           agent_id: agentConfig.elevenlabs_agent_id,
           agent_phone_number_id: sipConfig.phone_number_id,
           to_number: formattedPhone,
-          conversation_initiation_client_data: JSON.stringify(conversationContext),
+          conversation_initiation_client_data: conversationContext,
         }),
       }
     );
