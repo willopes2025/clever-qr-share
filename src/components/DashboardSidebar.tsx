@@ -17,6 +17,7 @@ import wideLogo from "@/assets/wide-logo.png";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
+import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -206,18 +207,21 @@ export const DashboardSidebar = () => {
           {!isCollapsed && (
             <img src={wideLogo} alt="Widezap" className="h-10 w-auto" />
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggle}
-            className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            {isCollapsed ? (
-              <PanelLeft className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isCollapsed && <SessionStatusBadge />}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            >
+              {isCollapsed ? (
+                <PanelLeft className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Navigation */}
