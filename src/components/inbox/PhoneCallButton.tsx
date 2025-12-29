@@ -37,7 +37,7 @@ export const PhoneCallButton = ({
   contactName,
 }: PhoneCallButtonProps) => {
   const navigate = useNavigate();
-  const { isConfigured, config, defaultLine } = useVoipConfig();
+  const { isConfigured, config } = useVoipConfig();
   const { makeCall, activeCall, hasActiveCall, calls } = useVoipCalls(contactId, conversationId);
   const [showHistory, setShowHistory] = useState(false);
   const [showActiveCall, setShowActiveCall] = useState(false);
@@ -52,8 +52,8 @@ export const PhoneCallButton = ({
       contactPhone,
       contactId,
       conversationId,
-      srcNumber: config?.default_src_number || defaultLine?.line_number,
-      deviceId: defaultLine?.external_line_id || config?.default_device_id,
+      srcNumber: config?.default_src_number || undefined,
+      deviceId: config?.default_device_id || undefined,
       useAI,
     });
 
