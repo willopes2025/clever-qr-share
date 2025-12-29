@@ -57,6 +57,8 @@ export const ConversationList = ({
     instanceId: null,
     tagId: null,
     dateFilter: 'all',
+    funnelId: null,
+    stageIds: [],
   });
 
   // Sort: pinned first, then by last_message_at
@@ -106,6 +108,16 @@ export const ConversationList = ({
       } else if (filters.dateFilter === '30days') {
         if (messageDate < subDays(now, 30)) return false;
       }
+    }
+
+    // Apply funnel filter
+    if (filters.funnelId) {
+      if (!conv.deal || conv.deal.funnel_id !== filters.funnelId) return false;
+    }
+
+    // Apply stage filter (multi-select)
+    if (filters.stageIds.length > 0) {
+      if (!conv.deal || !filters.stageIds.includes(conv.deal.stage_id)) return false;
     }
 
     return matchesSearch;
