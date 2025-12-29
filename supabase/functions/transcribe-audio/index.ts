@@ -6,30 +6,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Detectar formato do áudio pela URL
-const getAudioFormat = (url: string): string => {
+// Map content-type to Whisper-supported extension
+const getExtensionFromContentType = (contentType: string | null, url: string): string => {
+  // Check content-type header first
+  if (contentType) {
+    const ct = contentType.toLowerCase();
+    if (ct.includes('audio/mpeg') || ct.includes('audio/mp3')) return 'mp3';
+    if (ct.includes('audio/mp4') || ct.includes('audio/m4a') || ct.includes('audio/x-m4a')) return 'm4a';
+    if (ct.includes('audio/webm')) return 'webm';
+    if (ct.includes('audio/wav') || ct.includes('audio/wave')) return 'wav';
+    if (ct.includes('audio/ogg') || ct.includes('audio/opus')) return 'ogg';
+    if (ct.includes('video/mp4')) return 'mp4'; // Some WhatsApp audios come as video/mp4
+    if (ct.includes('video/webm')) return 'webm';
+  }
+  
+  // Fallback to URL extension detection
   const urlLower = url.toLowerCase();
   if (urlLower.includes('.mp3')) return 'mp3';
-  if (urlLower.includes('.mp4') || urlLower.includes('.m4a')) return 'mp4';
-  if (urlLower.includes('.ogg')) return 'ogg';
+  if (urlLower.includes('.m4a')) return 'm4a';
+  if (urlLower.includes('.mp4')) return 'mp4';
+  if (urlLower.includes('.ogg') || urlLower.includes('.opus')) return 'ogg';
   if (urlLower.includes('.webm')) return 'webm';
   if (urlLower.includes('.wav')) return 'wav';
-  if (urlLower.includes('.mpeg') || urlLower.includes('.mpga')) return 'mpeg';
-  // Default para mp4 (comum em WhatsApp)
+  
+  // Default to mp4 (common for WhatsApp)
   return 'mp4';
 };
 
-// Obter extensão correta para o FormData
-const getFileExtension = (format: string): string => {
-  const extensions: Record<string, string> = {
-    'mp3': 'mp3',
-    'mp4': 'm4a',
-    'ogg': 'ogg',
-    'webm': 'webm',
-    'wav': 'wav',
-    'mpeg': 'mp3',
+// Get MIME type for FormData
+const getMimeType = (extension: string): string => {
+  const mimeTypes: Record<string, string> = {
+    'mp3': 'audio/mpeg',
+    'mp4': 'audio/mp4',
+    'm4a': 'audio/mp4',
+    'ogg': 'audio/ogg',
+    'webm': 'audio/webm',
+    'wav': 'audio/wav',
   };
-  return extensions[format] || 'mp4';
+  return mimeTypes[extension] || 'audio/mp4';
 };
 
 serve(async (req) => {
@@ -53,17 +67,21 @@ serve(async (req) => {
     console.log(`[TRANSCRIBE] Starting transcription for message ${messageId}`);
     console.log(`[TRANSCRIBE] Audio URL: ${audioUrl}`);
 
-    // Detectar formato do áudio
-    const audioFormat = getAudioFormat(audioUrl);
-    const fileExtension = getFileExtension(audioFormat);
-    console.log(`[TRANSCRIBE] Detected format: ${audioFormat}, extension: ${fileExtension}`);
-
     // Download do arquivo de áudio
     const audioResponse = await fetch(audioUrl);
     if (!audioResponse.ok) {
       console.error(`[TRANSCRIBE] Failed to download audio: ${audioResponse.status}`);
       throw new Error('Failed to download audio file');
     }
+
+    // Get content-type from response
+    const contentType = audioResponse.headers.get('content-type');
+    console.log(`[TRANSCRIBE] Content-Type from response: ${contentType}`);
+
+    // Detect format from content-type or URL
+    const fileExtension = getExtensionFromContentType(contentType, audioUrl);
+    const mimeType = getMimeType(fileExtension);
+    console.log(`[TRANSCRIBE] Using extension: ${fileExtension}, MIME type: ${mimeType}`);
 
     const audioBlob = await audioResponse.blob();
     const audioSize = audioBlob.size;
@@ -95,26 +113,56 @@ serve(async (req) => {
     // Usar OpenAI Whisper para transcrição
     console.log('[TRANSCRIBE] Using OpenAI Whisper API...');
     
-    const formData = new FormData();
-    formData.append('file', audioBlob, `audio.${fileExtension}`);
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'pt'); // Português para melhor precisão
+    // Try with detected extension first, then fallback to alternatives
+    const extensionsToTry = [fileExtension];
+    
+    // Add fallback extensions based on what we detected
+    if (fileExtension === 'mp4' || fileExtension === 'm4a') {
+      extensionsToTry.push('ogg', 'webm', 'mp3');
+    } else if (fileExtension === 'ogg') {
+      extensionsToTry.push('webm', 'mp4', 'mp3');
+    } else {
+      extensionsToTry.push('mp3', 'ogg', 'webm');
+    }
+    
+    let whisperResult = null;
+    let lastError = '';
+    
+    for (const ext of extensionsToTry) {
+      console.log(`[TRANSCRIBE] Trying with extension: ${ext}`);
+      
+      const formData = new FormData();
+      // Create a new blob with the correct MIME type
+      const correctMimeType = getMimeType(ext);
+      const audioBlobWithType = new Blob([await audioBlob.arrayBuffer()], { type: correctMimeType });
+      formData.append('file', audioBlobWithType, `audio.${ext}`);
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'pt');
 
-    const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIKey}`,
-      },
-      body: formData,
-    });
+      const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIKey}`,
+        },
+        body: formData,
+      });
 
-    if (!whisperResponse.ok) {
-      const errorText = await whisperResponse.text();
-      console.error(`[TRANSCRIBE] Whisper API error: ${whisperResponse.status} - ${errorText}`);
-      throw new Error(`Whisper API error: ${whisperResponse.status}`);
+      if (whisperResponse.ok) {
+        whisperResult = await whisperResponse.json();
+        console.log(`[TRANSCRIBE] Success with extension: ${ext}`);
+        break;
+      } else {
+        const errorText = await whisperResponse.text();
+        console.log(`[TRANSCRIBE] Failed with extension ${ext}: ${whisperResponse.status} - ${errorText}`);
+        lastError = errorText;
+      }
+    }
+    
+    if (!whisperResult) {
+      console.error(`[TRANSCRIBE] All format attempts failed. Last error: ${lastError}`);
+      throw new Error('Could not transcribe audio - format not supported');
     }
 
-    const whisperResult = await whisperResponse.json();
     const transcription = whisperResult.text || '[Transcrição não disponível]';
 
     console.log(`[TRANSCRIBE] Transcription successful: ${transcription.substring(0, 100)}...`);
