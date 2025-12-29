@@ -279,6 +279,92 @@ export type Database = {
           },
         ]
       }
+      ai_phone_calls: {
+        Row: {
+          agent_config_id: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          elevenlabs_conversation_id: string | null
+          ended_at: string | null
+          error_message: string | null
+          id: string
+          recording_url: string | null
+          sip_call_id: string | null
+          sip_config_id: string | null
+          status: string
+          to_number: string
+          transcript: string | null
+          user_id: string
+        }
+        Insert: {
+          agent_config_id?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          elevenlabs_conversation_id?: string | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          recording_url?: string | null
+          sip_call_id?: string | null
+          sip_config_id?: string | null
+          status?: string
+          to_number: string
+          transcript?: string | null
+          user_id: string
+        }
+        Update: {
+          agent_config_id?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          elevenlabs_conversation_id?: string | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          recording_url?: string | null
+          sip_call_id?: string | null
+          sip_config_id?: string | null
+          status?: string
+          to_number?: string
+          transcript?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_phone_calls_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_phone_calls_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_phone_calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_phone_calls_sip_config_id_fkey"
+            columns: ["sip_config_id"]
+            isOneToOne: false
+            referencedRelation: "elevenlabs_sip_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       broadcast_list_contacts: {
         Row: {
           added_at: string
@@ -1618,6 +1704,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      elevenlabs_sip_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          label: string
+          phone_number: string
+          phone_number_id: string
+          sip_domain: string | null
+          sip_username: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          label?: string
+          phone_number: string
+          phone_number_id: string
+          sip_domain?: string | null
+          sip_username?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          label?: string
+          phone_number?: string
+          phone_number_id?: string
+          sip_domain?: string | null
+          sip_username?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       funnel_automations: {
         Row: {
