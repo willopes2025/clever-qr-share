@@ -113,17 +113,10 @@ serve(async (req) => {
     // Usar OpenAI Whisper para transcrição
     console.log('[TRANSCRIBE] Using OpenAI Whisper API...');
     
-    // Try with detected extension first, then fallback to alternatives
-    const extensionsToTry = [fileExtension];
-    
-    // Add fallback extensions based on what we detected
-    if (fileExtension === 'mp4' || fileExtension === 'm4a') {
-      extensionsToTry.push('ogg', 'webm', 'mp3');
-    } else if (fileExtension === 'ogg') {
-      extensionsToTry.push('webm', 'mp4', 'mp3');
-    } else {
-      extensionsToTry.push('mp3', 'ogg', 'webm');
-    }
+    // Try with detected extension first, then fallback to ALL alternatives
+    // WhatsApp audio is notoriously tricky - sometimes it's Opus in mp4/ogg container
+    const allExtensions = ['mp4', 'm4a', 'ogg', 'webm', 'mp3', 'wav'];
+    const extensionsToTry = [fileExtension, ...allExtensions.filter(ext => ext !== fileExtension)];
     
     let whisperResult = null;
     let lastError = '';
