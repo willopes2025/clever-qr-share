@@ -150,48 +150,56 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY not configured');
     }
 
-    // Usar OpenAI Whisper para transcrição
-    console.log('[TRANSCRIBE] Using OpenAI Whisper API...');
+    // Usar OpenAI para transcrição
+    console.log('[TRANSCRIBE] Using OpenAI transcription API...');
 
-    // Try with detected extension first, then fallback to ALL alternatives
-    const allExtensions = ['mp4', 'm4a', 'ogg', 'webm', 'mp3', 'wav'];
+    // Prefer newer, higher-quality speech-to-text models first, then fallback
+    const modelsToTry = ['gpt-4o-mini-transcribe', 'whisper-1'];
+
+    // Supported input types per OpenAI docs: mp3, mp4, mpeg/mpga, m4a, wav, webm
+    const allExtensions = ['mp4', 'm4a', 'webm', 'mp3', 'wav'];
     const extensionsToTry = Array.from(new Set([fileExtension, headerExtension, ...allExtensions]));
+
+    console.log(`[TRANSCRIBE] Models to try: ${modelsToTry.join(', ')}`);
     console.log(`[TRANSCRIBE] Extensions to try: ${extensionsToTry.join(', ')}`);
 
-    let whisperResult = null;
+    let whisperResult: any = null;
     let lastError = '';
 
-    for (const ext of extensionsToTry) {
-      console.log(`[TRANSCRIBE] Trying with extension: ${ext}`);
+    for (const model of modelsToTry) {
+      for (const ext of extensionsToTry) {
+        console.log(`[TRANSCRIBE] Trying model=${model} extension=${ext}`);
 
-      const formData = new FormData();
-      const correctMimeType = getMimeType(ext);
-      const audioBlobWithType = new Blob([audioArrayBuffer], { type: correctMimeType });
-      formData.append('file', audioBlobWithType, `audio.${ext}`);
-      formData.append('model', 'whisper-1');
-      formData.append('language', 'pt');
+        const formData = new FormData();
+        const correctMimeType = getMimeType(ext);
+        const audioBlobWithType = new Blob([audioArrayBuffer], { type: correctMimeType });
+        formData.append('file', audioBlobWithType, `audio.${ext}`);
+        formData.append('model', model);
 
-      const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIKey}`,
-        },
-        body: formData,
-      });
+        const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openAIKey}`,
+          },
+          body: formData,
+        });
 
-      if (whisperResponse.ok) {
-        whisperResult = await whisperResponse.json();
-        console.log(`[TRANSCRIBE] Success with extension: ${ext}`);
-        break;
-      } else {
-        const errorText = await whisperResponse.text();
-        console.log(`[TRANSCRIBE] Failed with extension ${ext}: ${whisperResponse.status} - ${errorText}`);
-        lastError = errorText;
+        if (whisperResponse.ok) {
+          whisperResult = await whisperResponse.json();
+          console.log(`[TRANSCRIBE] Success with model=${model} extension=${ext}`);
+          break;
+        } else {
+          const errorText = await whisperResponse.text();
+          console.log(`[TRANSCRIBE] Failed model=${model} ext=${ext}: ${whisperResponse.status} - ${errorText}`);
+          lastError = errorText;
+        }
       }
+
+      if (whisperResult) break;
     }
-    
+
     if (!whisperResult) {
-      console.error(`[TRANSCRIBE] All format attempts failed. Last error: ${lastError}`);
+      console.error(`[TRANSCRIBE] All attempts failed. Last error: ${lastError}`);
       throw new Error('Could not transcribe audio - format not supported');
     }
 
