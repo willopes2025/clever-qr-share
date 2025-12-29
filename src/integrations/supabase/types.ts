@@ -2128,6 +2128,9 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          media_filename: string | null
+          media_type: string | null
+          media_url: string | null
           name: string
           updated_at: string
           user_id: string
@@ -2139,6 +2142,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           name: string
           updated_at?: string
           user_id: string
@@ -2150,6 +2156,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           name?: string
           updated_at?: string
           user_id?: string

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { MessageTemplate, previewTemplate } from '@/hooks/useMessageTemplates';
-import { Eye, Smartphone } from 'lucide-react';
+import { Eye, Smartphone, Image, Video, Mic } from 'lucide-react';
 
 interface TemplatePreviewDialogProps {
   open: boolean;
@@ -54,6 +54,50 @@ export const TemplatePreviewDialog = ({
 
   if (!template) return null;
 
+  const renderMediaPreview = () => {
+    if (!template.media_url || !template.media_type) return null;
+
+    return (
+      <div className="mb-2">
+        {template.media_type === 'image' && (
+          <img 
+            src={template.media_url} 
+            alt="Media" 
+            className="w-full rounded-lg object-cover max-h-40"
+          />
+        )}
+        {template.media_type === 'video' && (
+          <video 
+            src={template.media_url} 
+            className="w-full rounded-lg bg-black max-h-40"
+            controls
+          />
+        )}
+        {template.media_type === 'audio' && (
+          <div className="bg-emerald-900/30 rounded-lg p-2">
+            <audio src={template.media_url} controls className="w-full h-8" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMediaIndicator = () => {
+    if (!template.media_type) return null;
+
+    return (
+      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+        {template.media_type === 'image' && <Image className="h-3 w-3" />}
+        {template.media_type === 'video' && <Video className="h-3 w-3" />}
+        {template.media_type === 'audio' && <Mic className="h-3 w-3" />}
+        <span>
+          {template.media_type === 'image' ? 'Imagem anexada' : 
+           template.media_type === 'video' ? 'Vídeo anexado' : 'Áudio anexado'}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
@@ -94,6 +138,19 @@ export const TemplatePreviewDialog = ({
                 ))}
               </div>
             )}
+
+            {/* Media info in left column */}
+            {template.media_type && (
+              <div className="space-y-2 pt-4 border-t border-border">
+                <h3 className="font-medium text-sm text-muted-foreground">Mídia Anexada</h3>
+                <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                  {renderMediaIndicator()}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {template.media_filename || 'Arquivo de mídia'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Preview Section */}
@@ -106,6 +163,7 @@ export const TemplatePreviewDialog = ({
             <div className="bg-gradient-to-b from-emerald-900/30 to-emerald-950/50 rounded-2xl p-4 min-h-[200px] border border-emerald-500/20">
               {/* WhatsApp-like message bubble */}
               <div className="bg-emerald-800/40 rounded-lg p-3 max-w-[95%] ml-auto border border-emerald-500/20">
+                {renderMediaPreview()}
                 <p className="text-sm text-foreground whitespace-pre-wrap break-words">
                   {preview}
                 </p>

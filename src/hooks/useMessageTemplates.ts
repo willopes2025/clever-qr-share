@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
 export type TemplateCategory = 'promotional' | 'transactional' | 'notification' | 'welcome' | 'reminder' | 'other';
+export type MediaType = 'image' | 'video' | 'audio' | null;
 
 export interface MessageTemplate {
   id: string;
@@ -15,6 +16,9 @@ export interface MessageTemplate {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  media_type?: MediaType;
+  media_url?: string | null;
+  media_filename?: string | null;
 }
 
 export interface CreateTemplateData {
@@ -23,6 +27,9 @@ export interface CreateTemplateData {
   category: TemplateCategory;
   variables: string[];
   is_active?: boolean;
+  media_type?: MediaType;
+  media_url?: string | null;
+  media_filename?: string | null;
 }
 
 export interface UpdateTemplateData extends Partial<CreateTemplateData> {
@@ -82,7 +89,10 @@ export const useMessageTemplates = () => {
       return (data || []).map(template => ({
         ...template,
         category: template.category as TemplateCategory,
-        variables: (template.variables as string[]) || []
+        variables: (template.variables as string[]) || [],
+        media_type: template.media_type as MediaType,
+        media_url: template.media_url,
+        media_filename: template.media_filename
       })) as MessageTemplate[];
     },
     enabled: !!user?.id
@@ -100,7 +110,10 @@ export const useMessageTemplates = () => {
           content: data.content,
           category: data.category,
           variables: data.variables,
-          is_active: data.is_active ?? true
+          is_active: data.is_active ?? true,
+          media_type: data.media_type || null,
+          media_url: data.media_url || null,
+          media_filename: data.media_filename || null
         });
 
       if (error) throw error;
