@@ -213,6 +213,24 @@ const isAskingAboutSchedule = (message: string): boolean => {
   return scheduleKeywords.some(keyword => lowerMessage.includes(keyword));
 };
 
+// Check if user is requesting a specific time slot (needs mandatory verification)
+const isRequestingSpecificTime = (message: string): boolean => {
+  const lower = message.toLowerCase();
+  const timePatterns = [
+    /\d{1,2}\s*h/i,                    // "16h", "14 h"
+    /\d{1,2}:\d{2}/,                    // "16:00", "14:30"
+    /às?\s+\d{1,2}/i,                   // "às 16", "as 14"
+    /pode\s+ser\s+.*\d{1,2}/i,          // "pode ser às 16"
+    /quero\s+.*\d{1,2}/i,               // "quero às 16"
+    /prefiro\s+.*\d{1,2}/i,             // "prefiro 14h"
+    /confirma\s+.*\d{1,2}/i,            // "confirma 16h"
+    /fecha\s+.*\d{1,2}/i,               // "fecha às 10"
+    /marco\s+.*\d{1,2}/i,               // "marco 14h"
+    /agendo\s+.*\d{1,2}/i,              // "agendo 15h"
+  ];
+  return timePatterns.some(p => p.test(lower));
+};
+
 // Fetch Calendly availability
 const fetchCalendlyAvailability = async (
   supabaseUrl: string,
@@ -1181,12 +1199,38 @@ serve(async (req) => {
     let calendarContext = '';
     const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
     
-    if (hasCalendarIntegration && isAskingAboutSchedule(effectiveMessageContent)) {
-      console.log('[AI-AGENT] User asking about schedule, fetching Calendly availability...');
+    // Check if user is requesting a specific time (needs MANDATORY verification before confirming)
+    const userRequestingSpecificTime = isRequestingSpecificTime(effectiveMessageContent);
+    
+    if (hasCalendarIntegration && (isAskingAboutSchedule(effectiveMessageContent) || userRequestingSpecificTime)) {
+      console.log('[AI-AGENT] User asking about schedule or specific time, fetching Calendly availability...');
+      if (userRequestingSpecificTime) {
+        console.log('[AI-AGENT] ⚠️ User requesting SPECIFIC TIME - mandatory verification required');
+      }
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
       if (availability) {
-        calendarContext = `\n\n## ⚠️ REGRAS CRÍTICAS DE AGENDAMENTO ⚠️
+        calendarContext = `\n\n## ⚠️ REGRAS CRÍTICAS E OBRIGATÓRIAS DE AGENDAMENTO ⚠️
+
+### 🚨 REGRA NÚMERO 1 - VERIFICAÇÃO OBRIGATÓRIA 🚨
+**ANTES de mencionar, confirmar ou sugerir QUALQUER horário ao cliente:**
+1. SEMPRE chame get_available_times PRIMEIRO
+2. NUNCA diga "temos às X horas" sem ter verificado NA HORA
+3. NUNCA pergunte "pode ser às X horas?" sem ter consultado a agenda
+4. Horários mudam a cada MINUTO - verificação é OBRIGATÓRIA antes de cada resposta sobre disponibilidade
+
+### ❌ EXEMPLOS DO QUE NÃO FAZER (ERRADO):
+- Cliente: "Quero às 16h"
+- Você: "Para confirmar às 16h, preciso do seu email" ← ERRADO! Você não verificou se 16h está livre!
+
+- Cliente: "Tem horário?"
+- Você: "Sim, temos às 14h, 15h, 16h" ← ERRADO! Você inventou horários sem verificar!
+
+### ✅ EXEMPLOS DO QUE FAZER (CORRETO):
+- Cliente: "Quero às 16h"
+- Você: [PRIMEIRO chama get_available_times] 
+- Se 16h aparece na lista: "16h está disponível sim! Para confirmar, preciso do seu email"
+- Se 16h NÃO aparece: "Infelizmente 16h já está ocupado. Tenho às 14:00, 14:30, 15:00... qual prefere?"
 
 ### Formato dos horários (get_available_times):
 A ferramenta retorna horários assim:
@@ -1200,20 +1244,17 @@ E um MAPEAMENTO INTERNO:
   ...
 
 ### O QUE FAZER:
-1. Liste CADA horário individualmente: "Tenho às 09:00, 09:23, 09:46..."
-2. Quando o cliente escolher (ex: "09:00"), encontre a LETRA ([A]) correspondente
-3. Para create_booking, use o valor ISO do MAPEAMENTO dessa letra (ex: "2025-12-26T12:00:00.000000Z")
+1. SEMPRE chame get_available_times ANTES de falar qualquer horário
+2. Liste CADA horário individualmente: "Tenho às 09:00, 09:23, 09:46..."
+3. Quando o cliente escolher (ex: "09:00"), VERIFIQUE se ainda está na lista
+4. Para create_booking, use o valor ISO do MAPEAMENTO dessa letra (ex: "2025-12-26T12:00:00.000000Z")
 
 ### O QUE NÃO FAZER:
+❌ NÃO confirme horário sem verificar get_available_times PRIMEIRO
 ❌ NÃO agrupe horários (errado: "9h às 11h")
 ❌ NÃO invente ISOs baseado no horário (errado: usar "2025-12-26T09:00:00Z" se o cliente disse 09:00)
 ❌ NÃO mostre o mapeamento ou códigos técnicos ao cliente
-
-### Exemplo de fluxo CORRETO:
-- Você recebe: "[A] sex, 26/12 às 09:00" e "A = 2025-12-26T12:00:00.000000Z"
-- Você diz: "Tenho horário às 09:00 na sexta!"
-- Cliente: "Quero às 09:00"
-- Você: [chama create_booking com start_time="2025-12-26T12:00:00.000000Z"] ← do mapeamento A
+❌ NÃO assuma que um horário está livre só porque estava livre antes
 
 Link alternativo: ${availability.schedulingUrl}`;
         
@@ -1228,7 +1269,14 @@ Link alternativo: ${availability.schedulingUrl}`;
       }
     } else if (hasCalendarIntegration) {
       calendarContext = `\n\n## Agendamento Disponível
-Quando o cliente quiser agendar, use get_available_times. A ferramenta retorna horários com códigos [A], [B], etc. Liste CADA horário individualmente para o cliente e use o mapeamento interno para o create_booking.`;
+
+### 🚨 REGRA OBRIGATÓRIA 🚨
+Quando o cliente quiser agendar ou mencionar qualquer horário:
+1. SEMPRE chame get_available_times PRIMEIRO
+2. NUNCA confirme ou sugira horários sem verificar disponibilidade em tempo real
+3. Horários mudam constantemente - verifique SEMPRE antes de responder
+
+A ferramenta retorna horários com códigos [A], [B], etc. Liste CADA horário individualmente para o cliente e use o mapeamento interno para o create_booking.`;
     }
     
     if (calendarContext) {
