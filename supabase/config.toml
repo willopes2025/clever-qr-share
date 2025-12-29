@@ -134,3 +134,9 @@ verify_jwt = true
 
 [functions.elevenlabs-conversation-token]
 verify_jwt = true
+
+[functions.elevenlabs-sip-call]
+verify_jwt = true
+
+[functions.elevenlabs-call-webhook]
+verify_jwt = false
