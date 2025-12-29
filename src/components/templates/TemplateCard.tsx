@@ -9,7 +9,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles, Image, Video, Mic } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -92,6 +92,15 @@ export const TemplateCard = ({
             <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
               <Sparkles className="h-3 w-3 mr-1" />
               {variationsCount} variações
+            </Badge>
+          )}
+
+          {template.media_type && (
+            <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+              {template.media_type === 'image' && <Image className="h-3 w-3 mr-1" />}
+              {template.media_type === 'video' && <Video className="h-3 w-3 mr-1" />}
+              {template.media_type === 'audio' && <Mic className="h-3 w-3 mr-1" />}
+              {template.media_type === 'image' ? 'Imagem' : template.media_type === 'video' ? 'Vídeo' : 'Áudio'}
             </Badge>
           )}
         </div>

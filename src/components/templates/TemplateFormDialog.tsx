@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -12,9 +11,11 @@ import {
   CreateTemplateData, 
   TemplateCategory, 
   CATEGORY_LABELS,
-  extractVariables 
+  extractVariables,
+  MediaType
 } from '@/hooks/useMessageTemplates';
-import { Variable } from 'lucide-react';
+import { VariableAutocomplete } from './VariableAutocomplete';
+import { TemplateMediaUpload } from './TemplateMediaUpload';
 
 interface TemplateFormDialogProps {
   open: boolean;
@@ -23,17 +24,6 @@ interface TemplateFormDialogProps {
   onSubmit: (data: CreateTemplateData) => void;
   isLoading?: boolean;
 }
-
-const SAMPLE_VARIABLES = [
-  { name: 'nome', description: 'Nome do contato' },
-  { name: 'telefone', description: 'Telefone do contato' },
-  { name: 'email', description: 'Email do contato' },
-  { name: 'empresa', description: 'Nome da empresa' },
-  { name: 'produto', description: 'Nome do produto' },
-  { name: 'valor', description: 'Valor/Preço' },
-  { name: 'data', description: 'Data específica' },
-  { name: 'link', description: 'Link/URL' }
-];
 
 export const TemplateFormDialog = ({
   open,
@@ -47,6 +37,11 @@ export const TemplateFormDialog = ({
   const [category, setCategory] = useState<TemplateCategory>('other');
   const [isActive, setIsActive] = useState(true);
   const [detectedVariables, setDetectedVariables] = useState<string[]>([]);
+  
+  // Media state
+  const [mediaType, setMediaType] = useState<MediaType>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaFilename, setMediaFilename] = useState<string | null>(null);
 
   useEffect(() => {
     if (template) {
@@ -54,11 +49,17 @@ export const TemplateFormDialog = ({
       setContent(template.content);
       setCategory(template.category);
       setIsActive(template.is_active);
+      setMediaType(template.media_type || null);
+      setMediaUrl(template.media_url || null);
+      setMediaFilename(template.media_filename || null);
     } else {
       setName('');
       setContent('');
       setCategory('other');
       setIsActive(true);
+      setMediaType(null);
+      setMediaUrl(null);
+      setMediaFilename(null);
     }
   }, [template, open]);
 
@@ -66,8 +67,10 @@ export const TemplateFormDialog = ({
     setDetectedVariables(extractVariables(content));
   }, [content]);
 
-  const insertVariable = (varName: string) => {
-    setContent(prev => prev + `{{${varName}}}`);
+  const handleMediaChange = (type: MediaType, url: string | null, filename: string | null) => {
+    setMediaType(type);
+    setMediaUrl(url);
+    setMediaFilename(filename);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -77,7 +80,10 @@ export const TemplateFormDialog = ({
       content,
       category,
       variables: detectedVariables,
-      is_active: isActive
+      is_active: isActive,
+      media_type: mediaType,
+      media_url: mediaUrl,
+      media_filename: mediaFilename
     });
     onOpenChange(false);
   };
@@ -123,34 +129,23 @@ export const TemplateFormDialog = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Variáveis Disponíveis</Label>
-            <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border border-border">
-              {SAMPLE_VARIABLES.map((v) => (
-                <Button
-                  key={v.name}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => insertVariable(v.name)}
-                  className="text-xs"
-                  title={v.description}
-                >
-                  <Variable className="h-3 w-3 mr-1" />
-                  {`{{${v.name}}}`}
-                </Button>
-              ))}
-            </div>
-          </div>
+          {/* Media Upload Section */}
+          <TemplateMediaUpload
+            mediaType={mediaType}
+            mediaUrl={mediaUrl}
+            mediaFilename={mediaFilename}
+            onMediaChange={handleMediaChange}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="content">Conteúdo da Mensagem</Label>
-            <Textarea
-              id="content"
+            <p className="text-xs text-muted-foreground mb-2">
+              Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável
+            </p>
+            <VariableAutocomplete
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Digite o conteúdo do template. Use {{variavel}} para inserir variáveis dinâmicas."
-              required
+              onChange={setContent}
+              placeholder="Digite o conteúdo do template. Use {{ para inserir variáveis dinâmicas."
               rows={6}
               className="bg-background border-border font-mono text-sm"
             />
