@@ -437,6 +437,19 @@ const Index = () => {
               © 2024 <span className="text-primary">WIDEZAP</span>. Todos os direitos reservados.
             </p>
           </div>
+          
+          {/* Legal Links */}
+          <div className="mt-8 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 text-sm">
+            <Link to="/privacy" className="text-muted-foreground hover:text-primary transition-colors">
+              Política de Privacidade
+            </Link>
+            <Link to="/terms" className="text-muted-foreground hover:text-primary transition-colors">
+              Termos de Serviço
+            </Link>
+            <Link to="/data-deletion" className="text-muted-foreground hover:text-primary transition-colors">
+              Exclusão de Dados
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
