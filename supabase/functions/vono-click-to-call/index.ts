@@ -126,12 +126,52 @@ serve(async (req) => {
       vonoData = { raw: vonoResult };
     }
 
-    // Create call record in database
+    // Check if Vono returned an error (even with HTTP 200)
+    const vonoHasError = !vonoResponse.ok || vonoData.error === 1 || vonoData.error === true;
+    const errorMessage = vonoData.message || vonoData.reason || vonoData.error || 'Erro ao iniciar chamada';
+
+    if (vonoHasError) {
+      console.error('[VONO-CLICK2CALL] Vono API returned error:', vonoData);
+
+      // Still create a failed call record for tracking
+      const { error: insertError } = await supabase
+        .from('voip_calls')
+        .insert({
+          user_id: user.id,
+          voip_config_id: null, // Don't use integration.id to avoid FK violation
+          contact_id: contactId || null,
+          conversation_id: conversationId || null,
+          deal_id: dealId || null,
+          device_id: callDeviceId,
+          caller: src,
+          called: dst,
+          direction: 'outbound',
+          status: 'failed',
+          ai_enabled: useAI,
+          external_call_id: null,
+        });
+
+      if (insertError) {
+        console.error('[VONO-CLICK2CALL] Error inserting failed call record:', insertError);
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: errorMessage,
+          reason: vonoData.reason,
+          details: vonoData 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    // Create successful call record in database
     const { data: callRecord, error: insertError } = await supabase
       .from('voip_calls')
       .insert({
         user_id: user.id,
-        voip_config_id: integration.id,
+        voip_config_id: null, // Don't use integration.id to avoid FK violation with voip_configurations
         contact_id: contactId || null,
         conversation_id: conversationId || null,
         deal_id: dealId || null,
@@ -139,7 +179,7 @@ serve(async (req) => {
         caller: src,
         called: dst,
         direction: 'outbound',
-        status: vonoResponse.ok ? 'pending' : 'failed',
+        status: 'pending',
         ai_enabled: useAI,
         external_call_id: vonoData.call_id || vonoData.id || null,
       })
@@ -148,18 +188,6 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('[VONO-CLICK2CALL] Error inserting call record:', insertError);
-    }
-
-    if (!vonoResponse.ok) {
-      console.error('[VONO-CLICK2CALL] Vono API error:', vonoResult);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: vonoData.message || vonoData.error || 'Erro ao iniciar chamada',
-          details: vonoData 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
     }
 
     console.log('[VONO-CLICK2CALL] Call initiated successfully:', callRecord?.id);

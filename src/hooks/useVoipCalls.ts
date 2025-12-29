@@ -98,18 +98,37 @@ export const useVoipCalls = (contactId?: string, conversationId?: string) => {
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Erro ao iniciar chamada');
+      
+      // Check for Vono API errors (even with success: true)
+      if (!data.success) {
+        const errorMsg = data.error || data.reason || 'Erro ao iniciar chamada';
+        throw new Error(errorMsg);
+      }
+      
+      // Verify we got a callId - if not, something went wrong
+      if (!data.callId) {
+        console.warn('Call response missing callId:', data);
+      }
       
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['voip-calls'] });
       queryClient.invalidateQueries({ queryKey: ['voip-active-call'] });
-      toast.success('Chamada iniciada!');
+      
+      if (data.callId) {
+        toast.success('Chamada iniciada! Aguarde a conexão...');
+      } else {
+        toast.success('Solicitação enviada para a operadora');
+      }
     },
     onError: (error: Error) => {
       console.error('Error making call:', error);
-      toast.error(error.message || 'Erro ao fazer chamada');
+      // Show more specific error message
+      const errorMessage = error.message.includes('DEVICE_NOT_FOUND') 
+        ? 'Linha não encontrada. Verifique o ID da linha padrão nas Integrações.'
+        : error.message || 'Erro ao fazer chamada';
+      toast.error(errorMessage);
     },
   });
 
