@@ -263,21 +263,19 @@ export const ConversationList = ({
                         )}>
                           {conversation.contact?.name || "Contato Desconhecido"}
                         </span>
-                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
                           <span className={cn(
                             "text-[11px] whitespace-nowrap",
                             conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
                           )}>
                             {formatMessageTime(conversation.last_message_at)}
                           </span>
-                          <div className="md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                            <ConversationQuickActions
-                              conversationId={conversation.id}
-                              isPinned={conversation.is_pinned || false}
-                              contactName={conversation.contact?.name || "Contato Desconhecido"}
-                              contactPhone={conversation.contact?.phone || ""}
-                            />
-                          </div>
+                          <ConversationQuickActions
+                            conversationId={conversation.id}
+                            isPinned={conversation.is_pinned || false}
+                            contactName={conversation.contact?.name || "Contato Desconhecido"}
+                            contactPhone={conversation.contact?.phone || ""}
+                          />
                         </div>
                       </div>
                       {/* Phone Number - Always visible */}

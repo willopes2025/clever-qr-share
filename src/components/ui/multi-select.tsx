@@ -77,13 +77,19 @@ export function MultiSelect({
                   {displayValues.map((v) => (
                     <Badge key={v} variant="secondary" className="gap-1 pr-1">
                       <span className="max-w-[100px] truncate text-xs">{getLabel(v)}</span>
-                      <button
-                        type="button"
+                      <span
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => handleRemove(v, e)}
-                        className="hover:text-destructive rounded-full"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            handleRemove(v, e as unknown as React.MouseEvent);
+                          }
+                        }}
+                        className="hover:text-destructive rounded-full cursor-pointer"
                       >
                         <X className="h-3 w-3" />
-                      </button>
+                      </span>
                     </Badge>
                   ))}
                   {remaining > 0 && (
