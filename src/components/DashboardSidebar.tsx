@@ -96,27 +96,13 @@ export const DashboardSidebar = () => {
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
-  // Map premiumOnly features to FEATURE_ACCESS keys
-  const featureMap: Record<string, string> = {
-    '/warming': 'warming',
-    '/funnels': 'funnels',
-    '/broadcast-lists': 'broadcast',
-    '/analysis': 'analysis',
-    '/lead-search': 'lead_search',
-  };
-
-  // Filter nav items based on permissions and plan access
+  // Filter nav items based on permissions only (NOT plan-based)
+  // Plan-based restrictions should NOT hide menu items - they should be visible but locked
   const filterItems = (items: NavItem[]) => {
     // Se ainda está carregando organização, não mostrar nenhum item
     if (isLoadingOrg) return [];
     
     return items.filter(item => {
-      // Check plan-based feature access
-      const featureKey = featureMap[item.path];
-      if (featureKey && !hasFeatureAccess(currentPlan, featureKey)) {
-        return false;
-      }
-
       // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
       // Se não tem permissão definida, mostra o item
