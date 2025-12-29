@@ -254,7 +254,9 @@ export const AIAgentFormDialog = ({
       setGoodbyeMessage(data.goodbye_message || "");
       setFallbackMessage(data.fallback_message || "");
       setHandoffKeywords(data.handoff_keywords?.join(", ") || "");
-      setResponseMode(data.response_mode || "text");
+      // Normalize response_mode - convert 'auto' to 'adaptive' for DB compatibility
+      const normalizedMode = data.response_mode === 'auto' ? 'adaptive' : (data.response_mode || 'text');
+      setResponseMode(normalizedMode);
       setResponseDelayMin(data.response_delay_min || 3);
       setResponseDelayMax(data.response_delay_max || 8);
       setActiveHoursStart(data.active_hours_start || 8);
@@ -276,6 +278,9 @@ export const AIAgentFormDialog = ({
 
     setIsSaving(true);
     try {
+      // Normalize response_mode before saving - convert 'auto' to 'adaptive'
+      const normalizedResponseMode = responseMode === 'auto' ? 'adaptive' : responseMode;
+      
       const configData = {
         user_id: user.id,
         agent_name: agentName,
@@ -285,7 +290,7 @@ export const AIAgentFormDialog = ({
         goodbye_message: goodbyeMessage,
         fallback_message: fallbackMessage,
         handoff_keywords: handoffKeywords.split(",").map(k => k.trim()).filter(Boolean),
-        response_mode: responseMode,
+        response_mode: normalizedResponseMode,
         response_delay_min: responseDelayMin,
         response_delay_max: responseDelayMax,
         active_hours_start: activeHoursStart,
@@ -548,7 +553,8 @@ export const AIAgentFormDialog = ({
                       <SelectContent>
                         <SelectItem value="text">Apenas Texto</SelectItem>
                         <SelectItem value="audio">Apenas Áudio</SelectItem>
-                        <SelectItem value="auto">Automático (baseado no input)</SelectItem>
+                        <SelectItem value="both">Texto e Áudio</SelectItem>
+                        <SelectItem value="adaptive">Automático (baseado no input)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

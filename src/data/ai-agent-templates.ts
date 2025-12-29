@@ -12,7 +12,7 @@ export interface AIAgentTemplate {
   goodbyeMessage: string;
   fallbackMessage: string;
   handoffKeywords: string[];
-  responseMode: 'text' | 'audio' | 'auto';
+  responseMode: 'text' | 'audio' | 'both' | 'adaptive';
   responseDelayMin: number;
   responseDelayMax: number;
   activeHoursStart: number;
