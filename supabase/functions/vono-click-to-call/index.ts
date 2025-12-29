@@ -43,15 +43,16 @@ serve(async (req) => {
 
     console.log('[VONO-CLICK2CALL] Request:', { contactPhone, contactId, useAI });
 
-    // Get VoIP configuration for user
-    const { data: voipConfig, error: configError } = await supabase
-      .from('voip_configurations')
+    // Get VoIP configuration from integrations table
+    const { data: integration, error: configError } = await supabase
+      .from('integrations')
       .select('*')
       .eq('user_id', user.id)
+      .eq('provider', 'vono_voip')
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (configError || !voipConfig) {
+    if (configError || !integration) {
       console.error('[VONO-CLICK2CALL] No VoIP config found:', configError);
       return new Response(
         JSON.stringify({ success: false, error: 'VoIP não configurado. Configure nas Integrações.' }),
@@ -59,7 +60,12 @@ serve(async (req) => {
       );
     }
 
-    const { domain, api_token, api_key, default_device_id, default_src_number } = voipConfig;
+    const credentials = integration.credentials as Record<string, string>;
+    const domain = credentials?.domain || 'vono.me';
+    const api_token = credentials?.api_token;
+    const api_key = credentials?.api_key;
+    const default_device_id = credentials?.default_device_id;
+    const default_src_number = credentials?.default_src_number;
 
     // Determine device and source number
     const callDeviceId = deviceId || default_device_id;
@@ -125,7 +131,7 @@ serve(async (req) => {
       .from('voip_calls')
       .insert({
         user_id: user.id,
-        voip_config_id: voipConfig.id,
+        voip_config_id: integration.id,
         contact_id: contactId || null,
         conversation_id: conversationId || null,
         deal_id: dealId || null,
