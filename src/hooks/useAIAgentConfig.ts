@@ -22,6 +22,8 @@ export interface AIAgentConfig {
   is_active: boolean;
   response_mode: 'text' | 'audio' | 'both' | 'adaptive';
   voice_id: string | null;
+  template_type: string | null;
+  elevenlabs_agent_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Bot, PhoneOff, Mic, MicOff, Volume2, VolumeX, Loader2, Waves } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,9 +6,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useElevenLabsConversation } from "@/hooks/useElevenLabsConversation";
 import { motion, AnimatePresence } from "framer-motion";
+import { AIAgentConfig } from "@/hooks/useAIAgentConfig";
 
 interface AICallInterfaceProps {
   agentId: string;
+  agentConfig?: AIAgentConfig | null;
   contactName?: string;
   contactPhone?: string;
   conversationContext?: string;
@@ -18,6 +20,7 @@ interface AICallInterfaceProps {
 
 export const AICallInterface = ({
   agentId,
+  agentConfig,
   contactName,
   contactPhone,
   conversationContext,
@@ -29,6 +32,39 @@ export const AICallInterface = ({
   const [duration, setDuration] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
 
+  // Build dynamic conversation context from agent config
+  const dynamicContext = useMemo(() => {
+    if (!agentConfig) return conversationContext;
+
+    const parts: string[] = [];
+
+    if (agentConfig.personality_prompt) {
+      parts.push(`[Personalidade do Agente]\n${agentConfig.personality_prompt}`);
+    }
+
+    if (agentConfig.behavior_rules) {
+      parts.push(`[Regras de Comportamento]\n${agentConfig.behavior_rules}`);
+    }
+
+    if (agentConfig.greeting_message) {
+      parts.push(`[Mensagem de Saudação Sugerida]\n${agentConfig.greeting_message}`);
+    }
+
+    if (agentConfig.handoff_keywords?.length) {
+      parts.push(`[Palavras-Chave para Transferência]\nQuando o cliente mencionar: ${agentConfig.handoff_keywords.join(", ")}, ofereça transferência para atendente humano.`);
+    }
+
+    if (agentConfig.fallback_message) {
+      parts.push(`[Em caso de dúvida]\n${agentConfig.fallback_message}`);
+    }
+
+    if (conversationContext) {
+      parts.push(`[Contexto Adicional da Conversa]\n${conversationContext}`);
+    }
+
+    return parts.join("\n\n");
+  }, [agentConfig, conversationContext]);
+
   const {
     isConnecting,
     isConnected,
@@ -39,13 +75,11 @@ export const AICallInterface = ({
     startConversation,
     endConversation,
     setVolume: setAudioVolume,
-    getInputVolume,
-    getOutputVolume,
   } = useElevenLabsConversation({
     agentId,
     contactName,
     contactPhone,
-    conversationContext,
+    conversationContext: dynamicContext,
     onTranscriptUpdate,
     onStatusChange: (status) => {
       if (status === "connected") {
@@ -98,7 +132,6 @@ export const AICallInterface = ({
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
-    // Note: Actual mute implementation would need to control the audio input
   };
 
   const toggleVolume = () => {
@@ -119,6 +152,9 @@ export const AICallInterface = ({
         </motion.div>
         <div className="text-center space-y-1">
           <p className="text-lg font-medium">Conectando com IA...</p>
+          {agentConfig && (
+            <p className="text-sm text-primary">{agentConfig.agent_name}</p>
+          )}
           <p className="text-sm text-muted-foreground">Preparando agente de voz</p>
         </div>
         <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -180,8 +216,13 @@ export const AICallInterface = ({
           </AnimatePresence>
         </motion.div>
 
-        {/* Contact Info */}
+        {/* Agent & Contact Info */}
         <div className="text-center">
+          {agentConfig && (
+            <Badge variant="secondary" className="mb-2">
+              {agentConfig.agent_name}
+            </Badge>
+          )}
           <h3 className="text-lg font-semibold">{contactName || "Cliente"}</h3>
           {contactPhone && (
             <p className="text-sm text-muted-foreground">{contactPhone}</p>
@@ -236,7 +277,7 @@ export const AICallInterface = ({
                   )}
                 >
                   <span className="font-medium text-xs text-muted-foreground block mb-1">
-                    {msg.role === "user" ? "Cliente" : "IA"}
+                    {msg.role === "user" ? "Cliente" : agentConfig?.agent_name || "IA"}
                   </span>
                   {msg.content}
                 </div>
