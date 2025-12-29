@@ -291,6 +291,7 @@ export const IntegrationsSettings = () => {
   const [configDialog, setConfigDialog] = useState<IntegrationConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const { integrations, isLoading, connectIntegration, disconnectIntegration, getIntegration } = useIntegrations();
   const { subscription } = useSubscription();
 
@@ -317,6 +318,39 @@ export const IntegrationsSettings = () => {
       setFormData({});
     }
     setConfigDialog(config);
+  };
+
+  const handleTestVonoConfig = async () => {
+    if (!configDialog?.id) return;
+    
+    setIsTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('vono-api', {
+        body: {
+          action: 'test-config',
+          domain: formData.domain || '',
+          api_token: formData.api_token || '',
+          api_key: formData.api_key || '',
+          device_id: formData.default_device_id || '',
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success(data.message);
+        if (data.device_id_warning) {
+          toast.warning(data.device_id_warning, { duration: 5000 });
+        }
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.error('Error testing Vono config:', error);
+      toast.error('Erro ao testar configuração. Tente novamente.');
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const handleSaveConfig = async () => {
@@ -570,10 +604,20 @@ export const IntegrationsSettings = () => {
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setConfigDialog(null)}>
               Cancelar
             </Button>
+            {configDialog?.id === 'vono_voip' && (
+              <Button 
+                variant="secondary" 
+                onClick={handleTestVonoConfig} 
+                disabled={isTesting || !formData.domain || !formData.api_token || !formData.api_key}
+              >
+                {isTesting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isTesting ? "Testando..." : "Testar Conexão"}
+              </Button>
+            )}
             <Button onClick={handleSaveConfig} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salvar
