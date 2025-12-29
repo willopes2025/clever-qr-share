@@ -2855,6 +2855,127 @@ export type Database = {
           },
         ]
       }
+      user_activity_sessions: {
+        Row: {
+          created_at: string | null
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          notes: string | null
+          organization_id: string | null
+          session_type: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          session_type?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string | null
+          session_type?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_performance_metrics: {
+        Row: {
+          avg_response_time_seconds: number | null
+          conversations_handled: number | null
+          conversations_resolved: number | null
+          created_at: string | null
+          deals_created: number | null
+          deals_value: number | null
+          deals_won: number | null
+          first_activity_at: string | null
+          id: string
+          last_activity_at: string | null
+          messages_received: number | null
+          messages_sent: number | null
+          metric_date: string
+          organization_id: string | null
+          tasks_completed: number | null
+          total_break_seconds: number | null
+          total_lunch_seconds: number | null
+          total_work_seconds: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avg_response_time_seconds?: number | null
+          conversations_handled?: number | null
+          conversations_resolved?: number | null
+          created_at?: string | null
+          deals_created?: number | null
+          deals_value?: number | null
+          deals_won?: number | null
+          first_activity_at?: string | null
+          id?: string
+          last_activity_at?: string | null
+          messages_received?: number | null
+          messages_sent?: number | null
+          metric_date?: string
+          organization_id?: string | null
+          tasks_completed?: number | null
+          total_break_seconds?: number | null
+          total_lunch_seconds?: number | null
+          total_work_seconds?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avg_response_time_seconds?: number | null
+          conversations_handled?: number | null
+          conversations_resolved?: number | null
+          created_at?: string | null
+          deals_created?: number | null
+          deals_value?: number | null
+          deals_won?: number | null
+          first_activity_at?: string | null
+          id?: string
+          last_activity_at?: string | null
+          messages_received?: number | null
+          messages_sent?: number | null
+          metric_date?: string
+          organization_id?: string | null
+          tasks_completed?: number | null
+          total_break_seconds?: number | null
+          total_lunch_seconds?: number | null
+          total_work_seconds?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_performance_metrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -2932,6 +3053,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_status_history: {
+        Row: {
+          auto_detected: boolean | null
+          changed_at: string
+          id: string
+          organization_id: string | null
+          reason: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          auto_detected?: boolean | null
+          changed_at?: string
+          id?: string
+          organization_id?: string | null
+          reason?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          auto_detected?: boolean | null
+          changed_at?: string
+          id?: string
+          organization_id?: string | null
+          reason?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_status_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       voip_calls: {
         Row: {
