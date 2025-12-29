@@ -132,7 +132,17 @@ export const useElevenLabsSIP = () => {
       });
 
       if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Erro ao iniciar chamada');
+      
+      // Handle structured error responses
+      if (!data.success) {
+        const errorWithCode = new Error(data.error || 'Erro ao iniciar chamada') as Error & { 
+          code?: string; 
+          phoneNumber?: string;
+        };
+        errorWithCode.code = data.error_code;
+        errorWithCode.phoneNumber = data.phone_number;
+        throw errorWithCode;
+      }
       
       return data;
     },
@@ -143,10 +153,23 @@ export const useElevenLabsSIP = () => {
         description: "A ligação está sendo realizada pela IA.",
       });
     },
-    onError: (error) => {
+    onError: (error: Error & { code?: string; phoneNumber?: string }) => {
+      let title = "Erro ao iniciar chamada";
+      let description = error.message || "Erro desconhecido";
+      
+      // Provide specific guidance based on error code
+      if (error.code === 'invalid_provider_config') {
+        title = "Configuração SIP inválida";
+        description = `O SIP trunk para ${error.phoneNumber || 'este número'} precisa ser reconfigurado no ElevenLabs. Acesse o painel ElevenLabs, apague e recrie o número, depois atualize o Phone Number ID nas configurações.`;
+      } else if (error.code === 'agent_not_found') {
+        title = "Agente não encontrado";
+      } else if (error.code === 'phone_number_not_found') {
+        title = "Número SIP não encontrado";
+      }
+      
       toast({
-        title: "Erro ao iniciar chamada",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title,
+        description,
         variant: "destructive",
       });
     },

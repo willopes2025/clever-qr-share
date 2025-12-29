@@ -123,7 +123,43 @@ serve(async (req) => {
     if (!elevenlabsResponse.ok) {
       const errorText = await elevenlabsResponse.text();
       console.error('Erro ElevenLabs:', elevenlabsResponse.status, errorText);
-      throw new Error(`Erro ao iniciar chamada: ${errorText}`);
+      
+      // Parse error to provide structured response
+      let errorCode = 'unknown_error';
+      let userMessage = 'Erro ao iniciar chamada';
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        const detail = errorJson.detail || {};
+        
+        if (detail.status === 'invalid_provider_config') {
+          errorCode = 'invalid_provider_config';
+          userMessage = `Configuração SIP inválida para o número ${sipConfig.phone_number}. Por favor, apague e recrie o SIP trunk no ElevenLabs, depois atualize o Phone Number ID nas configurações.`;
+        } else if (detail.status === 'agent_not_found') {
+          errorCode = 'agent_not_found';
+          userMessage = 'Agente não encontrado no ElevenLabs. Verifique se o Agent ID está correto.';
+        } else if (detail.status === 'phone_number_not_found') {
+          errorCode = 'phone_number_not_found';
+          userMessage = 'Número de telefone não encontrado no ElevenLabs. Verifique o Phone Number ID nas configurações SIP.';
+        } else {
+          userMessage = detail.message || errorText;
+        }
+      } catch {
+        userMessage = errorText;
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error_code: errorCode,
+          error: userMessage,
+          phone_number: sipConfig.phone_number,
+        }),
+        { 
+          status: 200, // Return 200 so frontend can read the structured error
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     const elevenlabsData = await elevenlabsResponse.json();
