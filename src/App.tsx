@@ -25,6 +25,10 @@ import LeadSearch from "./pages/LeadSearch";
 import Calendar from "./pages/Calendar";
 import Chatbots from "./pages/Chatbots";
 import AIAgents from "./pages/AIAgents";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import DataDeletion from "./pages/DataDeletion";
+import DataDeletionCallback from "./pages/DataDeletionCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -187,6 +191,11 @@ const App = () => (
               </NotificationProvider>
             </ProtectedRoute>
           } />
+          {/* Public pages for Meta compliance */}
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/data-deletion" element={<DataDeletion />} />
+          <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

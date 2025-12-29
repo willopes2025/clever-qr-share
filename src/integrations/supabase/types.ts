@@ -1511,6 +1511,42 @@ export type Database = {
         }
         Relationships: []
       }
+      data_deletion_requests: {
+        Row: {
+          confirmation_code: string
+          created_at: string
+          email: string
+          id: string
+          notes: string | null
+          phone: string | null
+          processed_at: string | null
+          reason: string | null
+          status: string
+        }
+        Insert: {
+          confirmation_code?: string
+          created_at?: string
+          email: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          processed_at?: string | null
+          reason?: string | null
+          status?: string
+        }
+        Update: {
+          confirmation_code?: string
+          created_at?: string
+          email?: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          processed_at?: string | null
+          reason?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       deal_tasks: {
         Row: {
           assigned_to: string | null
