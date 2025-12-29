@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { User, FileText, AtSign, Phone, Mail, Loader2 } from 'lucide-react';
 
@@ -143,22 +142,6 @@ export const VariableAutocomplete = ({
     }, 0);
   };
 
-  // Close popover when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (textareaRef.current && !textareaRef.current.contains(e.target as Node)) {
-        // Check if click was inside popover
-        const popover = document.querySelector('[data-radix-popper-content-wrapper]');
-        if (popover && popover.contains(e.target as Node)) {
-          return;
-        }
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -187,7 +170,7 @@ export const VariableAutocomplete = ({
             Selecione uma variável
           </p>
         </div>
-        <ScrollArea className="h-[200px]">
+        <div className="max-h-[240px] overflow-y-auto pr-1">
           {isLoading ? (
             <div className="p-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -200,10 +183,10 @@ export const VariableAutocomplete = ({
           ) : (
             Object.entries(groupedVariables).map(([group, variables]) => (
               <div key={group}>
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30">
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30 sticky top-0">
                   {group}
                 </div>
-                {variables.map((variable, idx) => {
+                {variables.map((variable) => {
                   const globalIndex = flatFilteredList.findIndex(v => v.key === variable.key);
                   return (
                     <button
@@ -226,7 +209,7 @@ export const VariableAutocomplete = ({
               </div>
             ))
           )}
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );
