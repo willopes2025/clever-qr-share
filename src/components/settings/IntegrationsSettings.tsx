@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   FileSpreadsheet,
   CreditCard,
   ShoppingCart,
@@ -30,9 +37,12 @@ import {
   Search,
   Crown,
   Phone,
+  RefreshCw,
 } from "lucide-react";
 import { useIntegrations, IntegrationProvider } from "@/hooks/useIntegrations";
 import { useSubscription } from "@/hooks/useSubscription";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface IntegrationConfig {
   id: IntegrationProvider;
@@ -282,6 +292,8 @@ export const IntegrationsSettings = () => {
   const [configDialog, setConfigDialog] = useState<IntegrationConfig | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingLines, setIsLoadingLines] = useState(false);
+  const [vonoLines, setVonoLines] = useState<Array<{ id: string; label: string }>>([]);
 
   const { integrations, isLoading, connectIntegration, disconnectIntegration, getIntegration } = useIntegrations();
   const { subscription } = useSubscription();
@@ -332,6 +344,58 @@ export const IntegrationsSettings = () => {
     const existing = getIntegration(config.id);
     if (existing) {
       await disconnectIntegration.mutateAsync(existing.id);
+    }
+  };
+
+  const handleFetchVonoLines = async () => {
+    if (!formData.api_token || !formData.api_key) {
+      toast.error('Preencha o API Token e API Key primeiro');
+      return;
+    }
+
+    setIsLoadingLines(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('vono-api', {
+        body: { action: 'list-lines' },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Erro ao buscar linhas');
+
+      const lines = data.data;
+      console.log('Vono lines response:', lines);
+
+      // Handle different response formats
+      let parsedLines: Array<{ id: string; label: string }> = [];
+      
+      if (Array.isArray(lines)) {
+        parsedLines = lines.map((line: any) => ({
+          id: line.id || line.device_id || line.line_id || String(line),
+          label: line.name || line.label || line.number || line.id || String(line),
+        }));
+      } else if (lines && typeof lines === 'object') {
+        // Maybe it's an object with lines inside
+        const lineArray = lines.lines || lines.data || lines.devices || Object.values(lines);
+        if (Array.isArray(lineArray)) {
+          parsedLines = lineArray.map((line: any) => ({
+            id: line.id || line.device_id || line.line_id || String(line),
+            label: line.name || line.label || line.number || line.id || String(line),
+          }));
+        }
+      }
+
+      if (parsedLines.length === 0) {
+        toast.warning('Nenhuma linha encontrada. Verifique suas credenciais ou configure linhas no painel Vono.');
+        console.log('Raw lines data:', lines);
+      } else {
+        setVonoLines(parsedLines);
+        toast.success(`${parsedLines.length} linha(s) encontrada(s)`);
+      }
+    } catch (error: any) {
+      console.error('Error fetching Vono lines:', error);
+      toast.error(error.message || 'Erro ao buscar linhas');
+    } finally {
+      setIsLoadingLines(false);
     }
   };
 
@@ -504,13 +568,63 @@ export const IntegrationsSettings = () => {
             {configDialog?.fields.map((field) => (
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={field.key}>{field.label}</Label>
-                <Input
-                  id={field.key}
-                  type={field.type}
-                  placeholder={field.placeholder}
-                  value={formData[field.key] || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                />
+                
+                {/* Special handling for VoIP device_id field with line selector */}
+                {configDialog.id === 'vono_voip' && field.key === 'default_device_id' ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        id={field.key}
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        value={formData[field.key] || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFetchVonoLines}
+                        disabled={isLoadingLines}
+                      >
+                        {isLoadingLines ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        <span className="ml-1 hidden sm:inline">Buscar</span>
+                      </Button>
+                    </div>
+                    
+                    {vonoLines.length > 0 && (
+                      <Select
+                        value={formData[field.key] || ''}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Selecione uma linha..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vonoLines.map((line) => (
+                            <SelectItem key={line.id} value={line.id}>
+                              {line.label} ({line.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    id={field.key}
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    value={formData[field.key] || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  />
+                )}
+                
                 {field.helpText && (
                   <p className="text-xs text-muted-foreground">{field.helpText}</p>
                 )}
