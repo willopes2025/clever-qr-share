@@ -10,7 +10,8 @@ import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings
 import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
-import { User, MessageSquare, Megaphone, Server, Database, Users, Plug, Smartphone, Bell, Phone, LucideIcon } from "lucide-react";
+import { VoipSettings } from "@/components/settings/VoipSettings";
+import { User, MessageSquare, Megaphone, Server, Database, Users, Plug, Smartphone, Bell, Phone, PhoneCall, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
@@ -30,6 +31,7 @@ const allTabs: SettingsTab[] = [
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
   { value: "sip-calls", label: "Chamadas IA", icon: Phone, permission: "manage_settings", adminOnly: true, component: ElevenLabsSIPSettings },
+  { value: "voip", label: "VoIP", icon: PhoneCall, permission: "manage_settings", adminOnly: true, component: VoipSettings },
   { value: "integrations", label: "Integrações", icon: Plug, permission: "manage_settings", adminOnly: true, component: IntegrationsSettings },
   { value: "sending", label: "Envio", icon: MessageSquare, permission: "manage_settings", adminOnly: true, component: SendingSettings },
   { value: "campaigns", label: "Campanhas", icon: Megaphone, permission: "manage_settings", adminOnly: true, component: CampaignSettings },

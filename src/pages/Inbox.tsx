@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from "lucide-react";
+import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Phone } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageView } from "@/components/inbox/MessageView";
 import { EmptyInbox } from "@/components/inbox/EmptyInbox";
 import { NewConversationDialog } from "@/components/inbox/NewConversationDialog";
 import { RightSidePanel } from "@/components/inbox/RightSidePanel";
+import { SoftphoneWidget } from "@/components/softphone/SoftphoneWidget";
 import { Conversation, useConversations } from "@/hooks/useConversations";
+import { useFusionPBXConfig } from "@/hooks/useFusionPBXConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -17,10 +19,12 @@ import { cn } from "@/lib/utils";
 const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
+  const { isConfigured: isVoipConfigured } = useFusionPBXConfig();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showSoftphone, setShowSoftphone] = useState(false);
   const isMobile = useIsMobile();
 
   // Handle selection from URL params (reactive to changes)
@@ -140,6 +144,25 @@ const Inbox = () => {
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Softphone Button */}
+            {isVoipConfigured && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={showSoftphone ? "default" : "ghost"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowSoftphone(!showSoftphone)}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {showSoftphone ? "Fechar softphone" : "Abrir softphone"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            
             <NewConversationDialog onConversationCreated={handleConversationCreated} />
             
             {/* Toggle Right Panel Button */}
@@ -235,6 +258,11 @@ const Inbox = () => {
           isOpen={showRightPanel}
           onClose={() => setShowRightPanel(false)}
         />
+      )}
+      
+      {/* Softphone Widget */}
+      {showSoftphone && (
+        <SoftphoneWidget onClose={() => setShowSoftphone(false)} />
       )}
     </DashboardLayout>
   );
