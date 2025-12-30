@@ -32,7 +32,8 @@ export type IntegrationProvider =
   | 'n8n'
   | 'facebook_pixel'
   | 'google_analytics'
-  | 'vono_voip';
+  | 'vono_voip'
+  | 'meta_whatsapp';
 
 export const useIntegrations = () => {
   const { user } = useAuth();
