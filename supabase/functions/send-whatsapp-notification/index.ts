@@ -124,19 +124,122 @@ serve(async (req) => {
       }
     }
     
-    // If type is inbox-related, fetch from conversation
+    // If type is inbox-related (new_message or ai_handoff), fetch assigned_to + organization admins
     if ((type === 'new_message' || type === 'ai_handoff') && data.conversationId && !recipientUserId && userIds.length === 0) {
-      console.log('Fetching conversation owner:', data.conversationId);
+      console.log('Fetching conversation recipients:', data.conversationId);
       
       const { data: conv } = await supabase
         .from('conversations')
-        .select('user_id')
+        .select('user_id, assigned_to, instance_id')
         .eq('id', data.conversationId)
         .maybeSingle();
       
       if (conv) {
-        userIds = [conv.user_id];
-        console.log('Found conversation owner:', userIds);
+        console.log('Conversation data:', conv);
+        
+        // 1. Add assigned_to (responsible for the lead) if exists
+        if (conv.assigned_to) {
+          userIds.push(conv.assigned_to);
+          console.log('Added assigned_to:', conv.assigned_to);
+        }
+        
+        // 2. Try to get organization from instance
+        let organizationId: string | null = null;
+        
+        if (conv.instance_id) {
+          const { data: instance } = await supabase
+            .from('whatsapp_instances')
+            .select('organization_id, user_id')
+            .eq('id', conv.instance_id)
+            .maybeSingle();
+          
+          if (instance) {
+            organizationId = instance.organization_id;
+            console.log('Instance organization_id:', organizationId);
+            
+            // If no organization_id on instance, try to find via user's team membership
+            if (!organizationId && instance.user_id) {
+              const { data: tm } = await supabase
+                .from('team_members')
+                .select('organization_id')
+                .eq('user_id', instance.user_id)
+                .eq('status', 'active')
+                .maybeSingle();
+              
+              if (tm?.organization_id) {
+                organizationId = tm.organization_id;
+                console.log('Found organization via team_members:', organizationId);
+              }
+            }
+          }
+        }
+        
+        // If still no org, try via conversation user_id
+        if (!organizationId && conv.user_id) {
+          // Check if user is an org owner
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('id')
+            .eq('owner_id', conv.user_id)
+            .maybeSingle();
+          
+          if (org) {
+            organizationId = org.id;
+            console.log('Found organization via owner:', organizationId);
+          } else {
+            // Check team membership
+            const { data: tm } = await supabase
+              .from('team_members')
+              .select('organization_id')
+              .eq('user_id', conv.user_id)
+              .eq('status', 'active')
+              .maybeSingle();
+            
+            if (tm?.organization_id) {
+              organizationId = tm.organization_id;
+              console.log('Found organization via user team membership:', organizationId);
+            }
+          }
+        }
+        
+        // 3. If we have an organization, fetch all admins
+        if (organizationId) {
+          // Get organization owner
+          const { data: organization } = await supabase
+            .from('organizations')
+            .select('owner_id')
+            .eq('id', organizationId)
+            .maybeSingle();
+          
+          if (organization?.owner_id) {
+            userIds.push(organization.owner_id);
+            console.log('Added organization owner:', organization.owner_id);
+          }
+          
+          // Get all admin team members
+          const { data: admins } = await supabase
+            .from('team_members')
+            .select('user_id')
+            .eq('organization_id', organizationId)
+            .eq('role', 'admin')
+            .eq('status', 'active');
+          
+          if (admins && admins.length > 0) {
+            const adminIds = admins.map(a => a.user_id).filter(Boolean) as string[];
+            userIds.push(...adminIds);
+            console.log('Added organization admins:', adminIds);
+          }
+        }
+        
+        // If still no recipients, fallback to conversation owner
+        if (userIds.length === 0) {
+          userIds = [conv.user_id];
+          console.log('Fallback to conversation owner:', conv.user_id);
+        }
+        
+        // Remove duplicates
+        userIds = [...new Set(userIds)];
+        console.log('Final unique recipients:', userIds);
       }
     }
     
