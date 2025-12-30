@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 export interface FunnelAIAgentConfig {
   id: string;
   user_id: string;
-  funnel_id: string;
+  funnel_id: string | null;
   campaign_id: string | null;
   agent_name: string;
   personality_prompt: string | null;
@@ -23,6 +23,7 @@ export interface FunnelAIAgentConfig {
   is_active: boolean;
   response_mode: 'text' | 'audio' | 'both' | 'adaptive';
   voice_id: string | null;
+  template_type: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +47,28 @@ export const useFunnelAgentConfig = (funnelId: string | null) => {
       return data as FunnelAIAgentConfig | null;
     },
     enabled: !!funnelId && !!user,
+  });
+};
+
+// Fetch agent config by ID
+export const useAgentConfigById = (agentId: string | null) => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['agent-config-by-id', agentId],
+    queryFn: async () => {
+      if (!agentId || !user) return null;
+
+      const { data, error } = await supabase
+        .from('ai_agent_configs')
+        .select('*')
+        .eq('id', agentId)
+        .single();
+
+      if (error) throw error;
+      return data as FunnelAIAgentConfig;
+    },
+    enabled: !!agentId && !!user,
   });
 };
 
@@ -80,7 +103,7 @@ export const useFunnelAgentConfigMutations = () => {
           .insert({ 
             ...data, 
             user_id: user.id,
-            campaign_id: null, // Funnel configs don't have campaign_id
+            campaign_id: null,
           })
           .select()
           .single();
@@ -90,6 +113,8 @@ export const useFunnelAgentConfigMutations = () => {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['funnel-agent-config', variables.funnel_id] });
+      queryClient.invalidateQueries({ queryKey: ['available-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['all-agent-configs'] });
     },
     onError: (error) => {
       toast.error('Erro ao salvar configuração: ' + error.message);
@@ -113,7 +138,6 @@ export const useFunnelAgentConfigMutations = () => {
           .eq('id', existing.id);
         if (error) throw error;
       } else {
-        // Create a default config
         const { error } = await supabase
           .from('ai_agent_configs')
           .insert({
@@ -131,5 +155,106 @@ export const useFunnelAgentConfigMutations = () => {
     },
   });
 
-  return { upsertConfig, toggleActive };
+  // Link an existing agent to this funnel
+  const linkAgentToFunnel = useMutation({
+    mutationFn: async ({ agentId, funnelId }: { agentId: string; funnelId: string }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      // First, unlink any agent currently linked to this funnel
+      await supabase
+        .from('ai_agent_configs')
+        .update({ funnel_id: null })
+        .eq('funnel_id', funnelId)
+        .eq('user_id', user.id);
+
+      // Then link the selected agent
+      const { data, error } = await supabase
+        .from('ai_agent_configs')
+        .update({ funnel_id: funnelId })
+        .eq('id', agentId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['funnel-agent-config', variables.funnelId] });
+      queryClient.invalidateQueries({ queryKey: ['available-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['all-agent-configs'] });
+      toast.success('Agente vinculado ao funil');
+    },
+    onError: (error) => {
+      toast.error('Erro ao vincular agente: ' + error.message);
+    },
+  });
+
+  // Unlink agent from funnel
+  const unlinkAgentFromFunnel = useMutation({
+    mutationFn: async (funnelId: string) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { error } = await supabase
+        .from('ai_agent_configs')
+        .update({ funnel_id: null })
+        .eq('funnel_id', funnelId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, funnelId) => {
+      queryClient.invalidateQueries({ queryKey: ['funnel-agent-config', funnelId] });
+      queryClient.invalidateQueries({ queryKey: ['available-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['all-agent-configs'] });
+      toast.success('Agente desvinculado do funil');
+    },
+    onError: (error) => {
+      toast.error('Erro ao desvincular agente: ' + error.message);
+    },
+  });
+
+  // Create new agent for funnel
+  const createAgentForFunnel = useMutation({
+    mutationFn: async ({ funnelId, agentName, templateType }: { 
+      funnelId: string; 
+      agentName: string;
+      templateType?: string;
+    }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('ai_agent_configs')
+        .insert({
+          funnel_id: funnelId,
+          user_id: user.id,
+          agent_name: agentName,
+          template_type: templateType || null,
+          is_active: false,
+          fallback_message: 'Desculpe, não entendi. Poderia reformular?',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['funnel-agent-config', variables.funnelId] });
+      queryClient.invalidateQueries({ queryKey: ['available-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['all-agent-configs'] });
+      toast.success('Agente criado com sucesso');
+    },
+    onError: (error) => {
+      toast.error('Erro ao criar agente: ' + error.message);
+    },
+  });
+
+  return { 
+    upsertConfig, 
+    toggleActive, 
+    linkAgentToFunnel, 
+    unlinkAgentFromFunnel,
+    createAgentForFunnel 
+  };
 };
