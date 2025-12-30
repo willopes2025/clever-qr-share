@@ -152,3 +152,12 @@ verify_jwt = false
 
 [functions.fusionpbx-transfer]
 verify_jwt = true
+
+[functions.meta-whatsapp-webhook]
+verify_jwt = false
+
+[functions.meta-whatsapp-send]
+verify_jwt = true
+
+[functions.meta-whatsapp-templates]
+verify_jwt = true

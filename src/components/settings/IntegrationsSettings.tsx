@@ -37,6 +37,7 @@ import {
   Search,
   Crown,
   Phone,
+  MessageSquare,
 } from "lucide-react";
 import { useIntegrations, IntegrationProvider } from "@/hooks/useIntegrations";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -48,7 +49,7 @@ interface IntegrationConfig {
   name: string;
   description: string;
   icon: React.ElementType;
-  category: 'productivity' | 'payments' | 'ecommerce' | 'crm' | 'automation' | 'analytics' | 'voip';
+  category: 'productivity' | 'payments' | 'ecommerce' | 'crm' | 'automation' | 'analytics' | 'voip' | 'whatsapp';
   minPlan: 'essencial' | 'profissional' | 'agencia' | 'avancado';
   fields: {
     key: string;
@@ -58,9 +59,22 @@ interface IntegrationConfig {
     helpText?: string;
   }[];
   docsUrl?: string;
+  customComponent?: boolean;
 }
 
 const integrationConfigs: IntegrationConfig[] = [
+  // WhatsApp
+  {
+    id: 'meta_whatsapp',
+    name: 'WhatsApp Cloud API',
+    description: 'API oficial da Meta para WhatsApp Business',
+    icon: MessageSquare,
+    category: 'whatsapp',
+    minPlan: 'profissional',
+    fields: [],
+    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+    customComponent: true,
+  },
   // Productivity
   {
     id: 'google_sheets',
@@ -267,6 +281,7 @@ const integrationConfigs: IntegrationConfig[] = [
 
 const categoryLabels: Record<string, string> = {
   all: 'Todas',
+  whatsapp: 'WhatsApp',
   productivity: 'Produtividade',
   payments: 'Pagamentos',
   ecommerce: 'E-commerce',
