@@ -31,6 +31,9 @@ export interface Conversation {
   ai_handoff_requested?: boolean | null;
   ai_handoff_reason?: string | null;
   ai_interactions_count?: number | null;
+  // FASE 1: Lead distribution + SLA
+  assigned_to?: string | null;
+  first_response_at?: string | null;
   contact?: {
     id: string;
     name: string | null;

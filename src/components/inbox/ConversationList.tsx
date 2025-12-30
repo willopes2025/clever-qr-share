@@ -1,6 +1,6 @@
-import { format, isToday, isYesterday, subDays } from "date-fns";
+import { format, isToday, isYesterday, subDays, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target } from "lucide-react";
+import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { ConversationFiltersComponent, ConversationFilters } from "./ConversationFilters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface ConversationWithTags extends Conversation {
   tag_assignments?: { tag_id: string }[];
@@ -21,6 +22,8 @@ interface ConversationWithTags extends Conversation {
   ai_handled?: boolean | null;
   ai_paused?: boolean | null;
   ai_handoff_requested?: boolean | null;
+  assigned_to?: string | null;
+  first_response_at?: string | null;
 }
 
 interface ConversationListProps {
@@ -60,6 +63,32 @@ export const ConversationList = ({
     funnelId: null,
     stageIds: [],
   });
+  
+  const { members } = useTeamMembers();
+  
+  // Helper to get member name by user_id
+  const getMemberName = (userId: string | null | undefined) => {
+    if (!userId) return null;
+    const member = members.find(m => m.user_id === userId);
+    return member?.profile?.full_name || member?.email?.split('@')[0] || 'Atribuído';
+  };
+  
+  // Helper to get SLA status color
+  const getSLAStatus = (conversation: ConversationWithTags) => {
+    // Only check for conversations without first response (not responded yet)
+    if (conversation.first_response_at) return null;
+    if (!conversation.last_message_at) return null;
+    
+    const lastMessageDate = new Date(conversation.last_message_at);
+    const now = new Date();
+    const minutesAgo = differenceInMinutes(now, lastMessageDate);
+    const hoursAgo = differenceInHours(now, lastMessageDate);
+    
+    if (hoursAgo >= 24) return { color: 'bg-red-500', label: '+24h sem resposta' };
+    if (hoursAgo >= 1) return { color: 'bg-amber-500', label: `${hoursAgo}h sem resposta` };
+    if (minutesAgo >= 15) return { color: 'bg-orange-400', label: `${minutesAgo}min sem resposta` };
+    return null;
+  };
 
   // Sort: pinned first, then by last_message_at
   const sortedConversations = [...conversations].sort((a, b) => {
@@ -282,6 +311,36 @@ export const ConversationList = ({
                       <p className="text-xs text-muted-foreground truncate mb-0.5">
                         {formatForDisplay(conversation.contact?.phone || "")}
                       </p>
+                      {/* Assigned + SLA Badges */}
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        {/* Assigned To Badge */}
+                        {conversation.assigned_to && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
+                                <User className="h-2.5 w-2.5" />
+                                {getMemberName(conversation.assigned_to)}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>Responsável: {getMemberName(conversation.assigned_to)}</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {/* SLA Warning Badge */}
+                        {(() => {
+                          const slaStatus = getSLAStatus(conversation);
+                          if (!slaStatus) return null;
+                          return (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className={cn("h-4 px-1.5 text-[9px] gap-0.5 border-0 text-white", slaStatus.color)}>
+                                  <Clock className="h-2.5 w-2.5" />
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{slaStatus.label}</TooltipContent>
+                            </Tooltip>
+                          );
+                        })()}
+                      </div>
                       {/* Funnel/Stage Badge */}
                       {conversation.deal && (
                         <Tooltip>

@@ -761,7 +761,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     // Find or create conversation
     let { data: conversation } = await supabase
       .from('conversations')
-      .select('id, unread_count')
+      .select('id, unread_count, first_response_at, created_at, assigned_to')
       .eq('user_id', userId)
       .eq('contact_id', contact.id)
       .single();
@@ -777,6 +777,51 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     }
 
     if (!conversation) {
+      // Try to get assigned_to via round-robin distribution
+      let assignedTo: string | null = null;
+      
+      try {
+        // First, find the organization for this user via team_members
+        const { data: teamMember } = await supabase
+          .from('team_members')
+          .select('organization_id')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+        
+        const orgId = teamMember?.organization_id;
+        
+        if (orgId) {
+          // Check if lead distribution is enabled for this organization
+          const { data: distributionSettings } = await supabase
+            .from('lead_distribution_settings')
+            .select('*')
+            .eq('organization_id', orgId)
+            .eq('is_enabled', true)
+            .single();
+          
+          if (distributionSettings && distributionSettings.eligible_members?.length > 0) {
+            const eligibleMembers = distributionSettings.eligible_members;
+            const lastIndex = distributionSettings.last_assigned_index || 0;
+            
+            // Round-robin: get next member
+            const nextIndex = (lastIndex + 1) % eligibleMembers.length;
+            assignedTo = eligibleMembers[nextIndex];
+            
+            console.log(`[LEAD-DISTRIBUTION] Assigned conversation to member ${assignedTo} (index ${nextIndex})`);
+            
+            // Update last_assigned_index
+            await supabase
+              .from('lead_distribution_settings')
+              .update({ last_assigned_index: nextIndex })
+              .eq('id', distributionSettings.id);
+          }
+        }
+      } catch (distError) {
+        console.log('[LEAD-DISTRIBUTION] No distribution settings or not enabled:', distError);
+      }
+      
       // Create new conversation
       const { data: newConversation, error: convError } = await supabase
         .from('conversations')
@@ -788,6 +833,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           unread_count: isFromMe ? 0 : 1,
           last_message_at: new Date().toISOString(),
           last_message_preview: preview,
+          assigned_to: assignedTo,
         })
         .select('id')
         .single();
@@ -797,7 +843,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         continue;
       }
       conversation = newConversation;
-      console.log('Created new conversation:', conversation?.id);
+      console.log('Created new conversation:', conversation?.id, 'assigned_to:', assignedTo);
       
       // Auto-create deal if instance has default funnel and is incoming message
       if (defaultFunnelId && !isFromMe && conversation) {
@@ -815,6 +861,15 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       if (!isFromMe) {
         // Increment unread count for incoming messages
         updateData.unread_count = (conversation.unread_count || 0) + 1;
+      }
+      
+      // Track first_response_at for SLA calculation (outbound message after conversation creation)
+      if (isFromMe && !conversation.first_response_at) {
+        updateData.first_response_at = new Date().toISOString();
+        console.log('[SLA] First response tracked for conversation:', conversation.id);
+        
+        // Update SLA metrics for the user
+        await updateSLAMetrics(supabase, userId, conversation.id, conversation.created_at);
       }
 
       await supabase
@@ -1433,4 +1488,82 @@ async function handleConnectionUpdate(supabase: any, instanceId: string, data: a
     .from('whatsapp_instances')
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', instanceId);
+}
+
+// Update SLA metrics when first response is sent
+// deno-lint-ignore no-explicit-any
+async function updateSLAMetrics(supabase: any, userId: string, conversationId: string, conversationCreatedAt: string) {
+  try {
+    const now = new Date();
+    const created = new Date(conversationCreatedAt);
+    const responseTimeSeconds = Math.floor((now.getTime() - created.getTime()) / 1000);
+    
+    // Get today's date for metric_date
+    const today = now.toISOString().split('T')[0];
+    
+    // Find user's organization
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .limit(1)
+      .single();
+    
+    const orgId = teamMember?.organization_id || null;
+    
+    // Check if metric exists for today
+    const { data: existingMetric } = await supabase
+      .from('sla_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('metric_date', today)
+      .single();
+    
+    // Calculate SLA breaches
+    const breached15min = responseTimeSeconds > 900 ? 1 : 0;
+    const breached1h = responseTimeSeconds > 3600 ? 1 : 0;
+    const breached24h = responseTimeSeconds > 86400 ? 1 : 0;
+    
+    if (existingMetric) {
+      // Update existing metric
+      const newTotalResponses = existingMetric.conversations_responded + 1;
+      const newTotalSeconds = existingMetric.total_first_response_seconds + responseTimeSeconds;
+      const newAvgSeconds = Math.floor(newTotalSeconds / newTotalResponses);
+      
+      await supabase
+        .from('sla_metrics')
+        .update({
+          conversations_responded: newTotalResponses,
+          total_first_response_seconds: newTotalSeconds,
+          avg_first_response_seconds: newAvgSeconds,
+          sla_breached_15min: existingMetric.sla_breached_15min + breached15min,
+          sla_breached_1h: existingMetric.sla_breached_1h + breached1h,
+          sla_breached_24h: existingMetric.sla_breached_24h + breached24h,
+        })
+        .eq('id', existingMetric.id);
+      
+      console.log(`[SLA] Updated metrics for user ${userId}: avg=${newAvgSeconds}s`);
+    } else {
+      // Create new metric for today
+      await supabase
+        .from('sla_metrics')
+        .insert({
+          user_id: userId,
+          organization_id: orgId,
+          metric_date: today,
+          conversations_received: 1,
+          conversations_responded: 1,
+          total_first_response_seconds: responseTimeSeconds,
+          avg_first_response_seconds: responseTimeSeconds,
+          sla_breached_15min: breached15min,
+          sla_breached_1h: breached1h,
+          sla_breached_24h: breached24h,
+        });
+      
+      console.log(`[SLA] Created metrics for user ${userId}: first_response=${responseTimeSeconds}s`);
+    }
+  } catch (error) {
+    console.error('[SLA] Error updating SLA metrics:', error);
+  }
 }
