@@ -92,10 +92,10 @@ serve(async (req) => {
       });
     }
 
-    // Get instance from database to find user_id and default_funnel_id
+    // Get instance from database to find user_id, default_funnel_id, and is_notification_only
     const { data: instanceData, error: instanceError } = await supabase
       .from('whatsapp_instances')
-      .select('id, user_id, default_funnel_id')
+      .select('id, user_id, default_funnel_id, is_notification_only')
       .eq('instance_name', instance)
       .single();
 
@@ -109,8 +109,22 @@ serve(async (req) => {
 
     const userId = instanceData.user_id;
     const instanceId = instanceData.id;
+    const isNotificationOnly = instanceData.is_notification_only === true;
 
-    console.log(`Processing event ${event} for instance ${instance} (user: ${userId})`);
+    console.log(`Processing event ${event} for instance ${instance} (user: ${userId}, notification_only: ${isNotificationOnly})`);
+
+    // If this is a notification-only instance, ignore incoming messages
+    if (isNotificationOnly) {
+      const eventLower = event?.toLowerCase() || '';
+      // Only ignore message events, allow connection updates
+      if (eventLower === 'messages.upsert' || eventLower === 'messages_upsert' || 
+          eventLower === 'send.message' || eventLower === 'send_message') {
+        console.log(`[NOTIFICATION-ONLY] Ignoring message event for notification-only instance: ${instance}`);
+        return new Response(JSON.stringify({ success: true, message: 'Notification-only instance - message ignored' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     // Handle different event types - check multiple formats
     const eventLower = event?.toLowerCase() || '';
