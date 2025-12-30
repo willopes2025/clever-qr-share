@@ -110,6 +110,9 @@ export const useDealTasks = (dealId?: string) => {
   const overdueTasks = pendingTasks.filter(t => 
     t.due_date && new Date(t.due_date) < new Date()
   );
+  
+  // Next scheduled task (first pending task with due_date)
+  const nextTask = pendingTasks.find(t => t.due_date) || null;
 
   return {
     tasks,
@@ -122,6 +125,7 @@ export const useDealTasks = (dealId?: string) => {
     overdueTasks,
     pendingCount: pendingTasks.length,
     overdueCount: overdueTasks.length,
+    nextTask,
   };
 };
 

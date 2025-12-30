@@ -48,6 +48,8 @@ export interface FunnelDeal {
   created_at: string;
   updated_at: string;
   custom_fields?: Record<string, unknown>;
+  next_action_required?: boolean;
+  responsible_id?: string | null;
   contact?: {
     id: string;
     name: string | null;
