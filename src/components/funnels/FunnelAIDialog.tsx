@@ -10,14 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Bot, Brain, Variable, Workflow, Calendar, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Bot, Brain, Variable, Workflow, Calendar, Loader2, ArrowLeft } from 'lucide-react';
 import { AgentPersonalityTab } from '@/components/campaigns/agent/AgentPersonalityTab';
 import { AgentKnowledgeTab } from '@/components/campaigns/agent/AgentKnowledgeTab';
 import { AgentVariablesTab } from '@/components/campaigns/agent/AgentVariablesTab';
 import { AgentStagesTab } from '@/components/campaigns/agent/AgentStagesTab';
 import { AgentCalendarTab } from '@/components/campaigns/agent/AgentCalendarTab';
+import { AgentSelector } from '@/components/funnels/AgentSelector';
 import { useKnowledgeItems, useAgentVariables } from '@/hooks/useAIAgentConfig';
-import { useFunnelAgentConfig, useFunnelAgentConfigMutations } from '@/hooks/useFunnelAIAgent';
+import { useFunnelAgentConfig, useFunnelAgentConfigMutations, useAgentConfigById } from '@/hooks/useFunnelAIAgent';
 import { toast } from 'sonner';
 
 interface FunnelAIDialogProps {
@@ -27,18 +29,33 @@ interface FunnelAIDialogProps {
   funnelName: string;
 }
 
+type ViewMode = 'select' | 'create' | 'edit';
+
 export const FunnelAIDialog = ({
   open,
   onOpenChange,
   funnelId,
   funnelName,
 }: FunnelAIDialogProps) => {
-  const { data: agentConfig, isLoading } = useFunnelAgentConfig(funnelId);
-  const { upsertConfig } = useFunnelAgentConfigMutations();
+  const { data: agentConfig, isLoading, refetch } = useFunnelAgentConfig(funnelId);
+  const { upsertConfig, linkAgentToFunnel, unlinkAgentFromFunnel, createAgentForFunnel } = useFunnelAgentConfigMutations();
+  
+  const [viewMode, setViewMode] = useState<ViewMode>('select');
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [newAgentName, setNewAgentName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Fetch selected agent config when editing
+  const { data: selectedAgentConfig, isLoading: isLoadingSelected } = useAgentConfigById(
+    viewMode === 'edit' ? selectedAgentId : null
+  );
+
+  // Use either the funnel's linked agent or selected agent
+  const activeConfig = agentConfig || selectedAgentConfig;
   
   // Fetch knowledge and variables
-  const { data: knowledgeItems = [], isLoading: knowledgeLoading } = useKnowledgeItems(agentConfig?.id || null);
-  const { data: variables = [], isLoading: variablesLoading } = useAgentVariables(agentConfig?.id || null);
+  const { data: knowledgeItems = [], isLoading: knowledgeLoading } = useKnowledgeItems(activeConfig?.id || null);
+  const { data: variables = [], isLoading: variablesLoading } = useAgentVariables(activeConfig?.id || null);
 
   // State for agent config
   const [isActive, setIsActive] = useState(false);
@@ -58,28 +75,93 @@ export const FunnelAIDialog = ({
   const [voiceId, setVoiceId] = useState('EXAVITQu4vr4xnSDxMaL');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Set initial view mode based on whether agent is linked
+  useEffect(() => {
+    if (!isLoading && open) {
+      if (agentConfig) {
+        setViewMode('edit');
+        setSelectedAgentId(agentConfig.id);
+      } else {
+        setViewMode('select');
+        setSelectedAgentId(null);
+      }
+    }
+  }, [agentConfig, isLoading, open]);
+
   // Load existing config
   useEffect(() => {
-    if (agentConfig) {
-      setIsActive(agentConfig.is_active ?? false);
-      setAgentName(agentConfig.agent_name || 'Assistente');
-      setPersonalityPrompt(agentConfig.personality_prompt || '');
-      setBehaviorRules(agentConfig.behavior_rules || '');
-      setGreetingMessage(agentConfig.greeting_message || '');
-      setFallbackMessage(agentConfig.fallback_message || 'Desculpe, não entendi. Poderia reformular?');
-      setGoodbyeMessage(agentConfig.goodbye_message || '');
-      setMaxInteractions(agentConfig.max_interactions ?? 10);
-      setResponseDelayMin(agentConfig.response_delay_min ?? 3);
-      setResponseDelayMax(agentConfig.response_delay_max ?? 8);
-      setActiveHoursStart(agentConfig.active_hours_start ?? 8);
-      setActiveHoursEnd(agentConfig.active_hours_end ?? 20);
-      setHandoffKeywords(agentConfig.handoff_keywords || ['atendente', 'humano', 'pessoa']);
-      setResponseMode(agentConfig.response_mode || 'text');
-      setVoiceId(agentConfig.voice_id || 'EXAVITQu4vr4xnSDxMaL');
+    const config = activeConfig;
+    if (config) {
+      setIsActive(config.is_active ?? false);
+      setAgentName(config.agent_name || 'Assistente');
+      setPersonalityPrompt(config.personality_prompt || '');
+      setBehaviorRules(config.behavior_rules || '');
+      setGreetingMessage(config.greeting_message || '');
+      setFallbackMessage(config.fallback_message || 'Desculpe, não entendi. Poderia reformular?');
+      setGoodbyeMessage(config.goodbye_message || '');
+      setMaxInteractions(config.max_interactions ?? 10);
+      setResponseDelayMin(config.response_delay_min ?? 3);
+      setResponseDelayMax(config.response_delay_max ?? 8);
+      setActiveHoursStart(config.active_hours_start ?? 8);
+      setActiveHoursEnd(config.active_hours_end ?? 20);
+      setHandoffKeywords(config.handoff_keywords || ['atendente', 'humano', 'pessoa']);
+      setResponseMode(config.response_mode || 'text');
+      setVoiceId(config.voice_id || 'EXAVITQu4vr4xnSDxMaL');
     }
-  }, [agentConfig]);
+  }, [activeConfig]);
+
+  const handleSelectAgent = async (agentId: string) => {
+    try {
+      await linkAgentToFunnel.mutateAsync({ agentId, funnelId });
+      setSelectedAgentId(agentId);
+      setViewMode('edit');
+      refetch();
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleCreateNew = () => {
+    setNewAgentName('');
+    setViewMode('create');
+  };
+
+  const handleConfirmCreate = async () => {
+    if (!newAgentName.trim()) {
+      toast.error('Digite um nome para o agente');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const result = await createAgentForFunnel.mutateAsync({
+        funnelId,
+        agentName: newAgentName.trim(),
+      });
+      setSelectedAgentId(result.id);
+      setViewMode('edit');
+      refetch();
+    } catch (error) {
+      // Error handled by mutation
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleUnlink = async () => {
+    try {
+      await unlinkAgentFromFunnel.mutateAsync(funnelId);
+      setSelectedAgentId(null);
+      setViewMode('select');
+      refetch();
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
 
   const handleSave = async () => {
+    if (!activeConfig?.id) return;
+    
     setIsSaving(true);
     try {
       await upsertConfig.mutateAsync({
@@ -108,6 +190,10 @@ export const FunnelAIDialog = ({
     }
   };
 
+  const handleBack = () => {
+    setViewMode('select');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -117,7 +203,9 @@ export const FunnelAIDialog = ({
             Agente de IA - {funnelName}
           </DialogTitle>
           <DialogDescription>
-            Configure o agente de IA para responder automaticamente aos leads deste funil.
+            {viewMode === 'select' && 'Selecione ou crie um agente de IA para este funil.'}
+            {viewMode === 'create' && 'Crie um novo agente de IA para este funil.'}
+            {viewMode === 'edit' && 'Configure o agente de IA para responder automaticamente aos leads deste funil.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -125,8 +213,54 @@ export const FunnelAIDialog = ({
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
+        ) : viewMode === 'select' ? (
+          <div className="flex-1 overflow-y-auto py-4">
+            <AgentSelector
+              funnelId={funnelId}
+              currentAgentId={agentConfig?.id || null}
+              onSelectAgent={handleSelectAgent}
+              onCreateNew={handleCreateNew}
+              onUnlink={handleUnlink}
+            />
+          </div>
+        ) : viewMode === 'create' ? (
+          <div className="flex-1 py-4 space-y-4">
+            <Button variant="ghost" size="sm" onClick={handleBack} className="mb-2">
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Voltar
+            </Button>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-agent-name">Nome do Agente</Label>
+                <Input
+                  id="new-agent-name"
+                  placeholder="Ex: SDR Vendas, Suporte Técnico..."
+                  value={newAgentName}
+                  onChange={(e) => setNewAgentName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              
+              <Button 
+                onClick={handleConfirmCreate} 
+                disabled={isCreating || !newAgentName.trim()}
+                className="w-full"
+              >
+                {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Criar Agente
+              </Button>
+            </div>
+          </div>
         ) : (
           <>
+            <div className="flex items-center gap-2 mb-2">
+              <Button variant="ghost" size="sm" onClick={handleBack}>
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Trocar agente
+              </Button>
+            </div>
+
             <div className="flex items-center justify-between py-3 px-4 bg-muted/30 rounded-lg mb-4">
               <div className="flex items-center gap-3">
                 <Switch
@@ -208,7 +342,7 @@ export const FunnelAIDialog = ({
 
                 <TabsContent value="knowledge" className="m-0">
                   <AgentKnowledgeTab 
-                    agentConfigId={agentConfig?.id || null} 
+                    agentConfigId={activeConfig?.id || null} 
                     knowledgeItems={knowledgeItems}
                     isLoading={knowledgeLoading}
                   />
@@ -216,18 +350,18 @@ export const FunnelAIDialog = ({
 
                 <TabsContent value="variables" className="m-0">
                   <AgentVariablesTab 
-                    agentConfigId={agentConfig?.id || null}
+                    agentConfigId={activeConfig?.id || null}
                     variables={variables}
                     isLoading={variablesLoading}
                   />
                 </TabsContent>
 
                 <TabsContent value="stages" className="m-0">
-                  <AgentStagesTab agentConfigId={agentConfig?.id || null} />
+                  <AgentStagesTab agentConfigId={activeConfig?.id || null} />
                 </TabsContent>
 
                 <TabsContent value="calendar" className="m-0">
-                  <AgentCalendarTab agentConfigId={agentConfig?.id || null} />
+                  <AgentCalendarTab agentConfigId={activeConfig?.id || null} />
                 </TabsContent>
               </div>
             </Tabs>
