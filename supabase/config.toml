@@ -140,3 +140,15 @@ verify_jwt = true
 
 [functions.elevenlabs-call-webhook]
 verify_jwt = false
+
+[functions.fusionpbx-webrtc-config]
+verify_jwt = true
+
+[functions.fusionpbx-originate]
+verify_jwt = true
+
+[functions.fusionpbx-events-webhook]
+verify_jwt = false
+
+[functions.fusionpbx-transfer]
+verify_jwt = true
