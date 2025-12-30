@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'new_message' | 'new_deal' | 'deal_stage_change' | 'deal_assigned' | 'task_due' | 'task_assigned' | 'task_created' | 'task_updated' | 'task_deleted' | 'calendly_event' | 'ai_handoff' | 'campaign_complete' | 'instance_disconnect';
+  type: 'test' | 'new_message' | 'new_deal' | 'deal_stage_change' | 'deal_assigned' | 'task_due' | 'task_assigned' | 'task_created' | 'task_updated' | 'task_deleted' | 'calendly_event' | 'ai_handoff' | 'campaign_complete' | 'instance_disconnect' | 'internal_chat';
   data: {
     dealId?: string;
     conversationId?: string;
@@ -21,6 +21,8 @@ interface NotificationRequest {
     campaignName?: string;
     instanceName?: string;
     message?: string;
+    senderName?: string;
+    internalMessageId?: string;
   };
   recipientUserId?: string;
   organizationUserIds?: string[];
@@ -52,6 +54,7 @@ serve(async (req) => {
 
     // Build notification message based on type
     const notificationMessages: Record<string, string> = {
+      test: `✅ *Teste de notificação*\n\nSe você recebeu esta mensagem, suas notificações estão funcionando corretamente!`,
       new_message: `📩 Nova mensagem de *${data.contactName || 'contato'}*${data.message ? `:\n"${data.message}"` : ''}`,
       new_deal: `🎯 Novo deal criado: *${data.dealTitle || 'Sem título'}*`,
       deal_stage_change: `📊 Deal *${data.dealTitle}* movido para *${data.stageName}*`,
@@ -65,6 +68,7 @@ serve(async (req) => {
       ai_handoff: `🤖 IA solicitou atendimento humano para *${data.contactName}*`,
       campaign_complete: `✅ Campanha *${data.campaignName}* finalizada`,
       instance_disconnect: `⚠️ Instância *${data.instanceName}* desconectou`,
+      internal_chat: `💬 *[Chat Interno - ${data.contactName || 'Conversa'}]*\nDe: *${data.senderName}*\n\n${data.message}\n\n_Responda esta mensagem para enviar ao chat interno._`,
     };
 
     const message = notificationMessages[type] || `Notificação: ${type}`;

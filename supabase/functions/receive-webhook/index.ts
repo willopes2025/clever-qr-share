@@ -49,6 +49,84 @@ function getMimeType(messageType: string): string {
   }
 }
 
+// Helper function to check if a message is a reply to internal chat notification
+async function checkAndHandleInternalChatReply(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  senderPhone: string,
+  messageContent: string,
+  instanceUserId: string,
+  instanceId: string
+): Promise<boolean> {
+  // Format the phone to match stored format
+  let formattedPhone = senderPhone.replace(/\D/g, '');
+  if (!formattedPhone.startsWith('55')) {
+    formattedPhone = '55' + formattedPhone;
+  }
+
+  // Check if this phone has a recent internal chat session
+  const { data: session } = await supabase
+    .from('internal_chat_sessions')
+    .select('*')
+    .eq('whatsapp_phone', formattedPhone)
+    .order('last_activity_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!session) {
+    console.log('[INTERNAL-CHAT] No active session for phone:', formattedPhone);
+    return false;
+  }
+
+  // Check if the session is recent (within 24 hours)
+  const sessionTime = new Date(session.last_activity_at).getTime();
+  const now = Date.now();
+  const hoursDiff = (now - sessionTime) / (1000 * 60 * 60);
+
+  if (hoursDiff > 24) {
+    console.log('[INTERNAL-CHAT] Session too old, ignoring:', hoursDiff, 'hours');
+    return false;
+  }
+
+  // Check if the message looks like a reply to internal chat (doesn't start with certain keywords)
+  const ignorePrefixes = ['[chat interno', '💬 *[chat interno'];
+  const lowerContent = messageContent.toLowerCase();
+  for (const prefix of ignorePrefixes) {
+    if (lowerContent.startsWith(prefix)) {
+      console.log('[INTERNAL-CHAT] Message looks like our own notification, ignoring');
+      return false;
+    }
+  }
+
+  console.log('[INTERNAL-CHAT] Found active session, creating internal message:', session);
+
+  // Insert the message into internal_messages
+  const { error: insertError } = await supabase
+    .from('internal_messages')
+    .insert({
+      user_id: session.user_id,
+      conversation_id: session.conversation_id,
+      contact_id: session.contact_id,
+      content: messageContent,
+      source: 'whatsapp',
+      mentions: [],
+    });
+
+  if (insertError) {
+    console.error('[INTERNAL-CHAT] Error inserting internal message:', insertError);
+    return false;
+  }
+
+  // Update the session's last activity
+  await supabase
+    .from('internal_chat_sessions')
+    .update({ last_activity_at: new Date().toISOString() })
+    .eq('id', session.id);
+
+  console.log('[INTERNAL-CHAT] Internal message created successfully');
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -924,29 +1002,43 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       
       // Check if this is a warming message (inbound only)
       if (!isFromMe) {
-        // Send WhatsApp notification for inbound message
-        try {
-          console.log('[NOTIFICATION] Sending notification for inbound message');
-          const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              type: 'new_message',
-              data: {
-                conversationId: conversation.id,
-                contactName: contact.name || phone,
-                message: content?.substring(0, 100) || preview,
+        // Check if this is a reply to an internal chat notification
+        const isInternalChatReply = await checkAndHandleInternalChatReply(
+          supabase, 
+          phone, 
+          content || preview, 
+          userId,
+          instanceId
+        );
+
+        if (isInternalChatReply) {
+          console.log('[INTERNAL-CHAT] Message handled as internal chat reply');
+          // Skip normal notification and AI processing for internal chat replies
+        } else {
+          // Send WhatsApp notification for inbound message
+          try {
+            console.log('[NOTIFICATION] Sending notification for inbound message');
+            const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
               },
-            }),
-          });
-          
-          const notifResult = await notificationResponse.json();
-          console.log('[NOTIFICATION] Result:', notifResult);
-        } catch (notifError) {
-          console.error('[NOTIFICATION] Error sending notification:', notifError);
+              body: JSON.stringify({
+                type: 'new_message',
+                data: {
+                  conversationId: conversation.id,
+                  contactName: contact.name || phone,
+                  message: content?.substring(0, 100) || preview,
+                },
+              }),
+            });
+            
+            const notifResult = await notificationResponse.json();
+            console.log('[NOTIFICATION] Result:', notifResult);
+          } catch (notifError) {
+            console.error('[NOTIFICATION] Error sending notification:', notifError);
+          }
         }
         
         // For audio messages, transcribe before triggering AI

@@ -97,6 +97,7 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
           contact_id: contactId,
           content,
           mentions,
+          source: 'web',
         })
         .select(`
           *,
@@ -105,6 +106,51 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
         .single();
 
       if (error) throw error;
+
+      // Trigger WhatsApp notification for team members
+      try {
+        // Get contact name for context
+        let contactName = 'Conversa';
+        if (contactId) {
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('name, phone')
+            .eq('id', contactId)
+            .maybeSingle();
+          contactName = contact?.name || contact?.phone || 'Conversa';
+        } else if (conversationId) {
+          const { data: conv } = await supabase
+            .from('conversations')
+            .select('contact:contacts(name, phone)')
+            .eq('id', conversationId)
+            .maybeSingle();
+          const c = conv?.contact as { name?: string; phone?: string } | null;
+          contactName = c?.name || c?.phone || 'Conversa';
+        }
+
+        // Get sender name
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        await supabase.functions.invoke('internal-chat-whatsapp', {
+          body: {
+            messageId: data.id,
+            content,
+            senderUserId: user.id,
+            senderName: profile?.full_name || 'Usuário',
+            conversationId,
+            contactId,
+            contactName,
+          },
+        });
+      } catch (whatsappError) {
+        console.error('Error sending internal chat to WhatsApp:', whatsappError);
+        // Don't throw - the message was saved successfully
+      }
+
       return data;
     },
     onSuccess: () => {

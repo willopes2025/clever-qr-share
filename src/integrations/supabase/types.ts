@@ -2374,6 +2374,54 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_chat_sessions: {
+        Row: {
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          id: string
+          last_activity_at: string | null
+          last_message_preview: string | null
+          user_id: string
+          whatsapp_phone: string
+        }
+        Insert: {
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_activity_at?: string | null
+          last_message_preview?: string | null
+          user_id: string
+          whatsapp_phone: string
+        }
+        Update: {
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_activity_at?: string | null
+          last_message_preview?: string | null
+          user_id?: string
+          whatsapp_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_chat_sessions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_sessions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       internal_messages: {
         Row: {
           contact_id: string | null
@@ -2382,7 +2430,9 @@ export type Database = {
           created_at: string | null
           id: string
           mentions: string[] | null
+          source: string | null
           user_id: string
+          whatsapp_message_id: string | null
         }
         Insert: {
           contact_id?: string | null
@@ -2391,7 +2441,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           mentions?: string[] | null
+          source?: string | null
           user_id: string
+          whatsapp_message_id?: string | null
         }
         Update: {
           contact_id?: string | null
@@ -2400,7 +2452,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           mentions?: string[] | null
+          source?: string | null
           user_id?: string
+          whatsapp_message_id?: string | null
         }
         Relationships: [
           {
@@ -2587,6 +2641,7 @@ export type Database = {
           notify_deal_assigned: boolean | null
           notify_deal_stage_change: boolean | null
           notify_instance_disconnect: boolean | null
+          notify_internal_chat: boolean | null
           notify_new_deal: boolean | null
           notify_new_message: boolean | null
           notify_task_assigned: boolean | null
@@ -2608,6 +2663,7 @@ export type Database = {
           notify_deal_assigned?: boolean | null
           notify_deal_stage_change?: boolean | null
           notify_instance_disconnect?: boolean | null
+          notify_internal_chat?: boolean | null
           notify_new_deal?: boolean | null
           notify_new_message?: boolean | null
           notify_task_assigned?: boolean | null
@@ -2629,6 +2685,7 @@ export type Database = {
           notify_deal_assigned?: boolean | null
           notify_deal_stage_change?: boolean | null
           notify_instance_disconnect?: boolean | null
+          notify_internal_chat?: boolean | null
           notify_new_deal?: boolean | null
           notify_new_message?: boolean | null
           notify_task_assigned?: boolean | null

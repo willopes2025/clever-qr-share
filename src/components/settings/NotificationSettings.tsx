@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Phone, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings } from 'lucide-react';
+import { Bell, Phone, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings, TestTube } from 'lucide-react';
 import { useNotificationPreferences, NOTIFICATION_TYPES, NotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useProfile } from '@/hooks/useProfile';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const CATEGORY_CONFIG = {
   inbox: { label: 'Inbox', icon: MessageSquare, description: 'Notificações de mensagens e conversas' },
@@ -37,9 +39,11 @@ export function NotificationSettings() {
     notify_ai_handoff: true,
     notify_campaign_complete: false,
     notify_instance_disconnect: true,
+    notify_internal_chat: true,
     only_if_responsible: true,
     notification_instance_id: null,
   });
+  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     if (preferences) {
@@ -57,6 +61,7 @@ export function NotificationSettings() {
         notify_ai_handoff: preferences.notify_ai_handoff,
         notify_campaign_complete: preferences.notify_campaign_complete,
         notify_instance_disconnect: preferences.notify_instance_disconnect,
+        notify_internal_chat: preferences.notify_internal_chat ?? true,
         only_if_responsible: preferences.only_if_responsible,
         notification_instance_id: preferences.notification_instance_id,
       });
@@ -72,6 +77,40 @@ export function NotificationSettings() {
 
   const handleSave = async () => {
     await savePreferences(notificationSettings);
+  };
+
+  const handleTestNotification = async () => {
+    if (!notificationSettings.notification_instance_id) {
+      toast.error('Selecione uma instância de envio primeiro');
+      return;
+    }
+    if (!profile?.phone) {
+      toast.error('Configure seu telefone no perfil primeiro');
+      return;
+    }
+
+    setIsTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-notification', {
+        body: {
+          type: 'test',
+          data: {},
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data?.sent > 0) {
+        toast.success('Notificação de teste enviada! Verifique seu WhatsApp.');
+      } else {
+        toast.error('Não foi possível enviar a notificação. Verifique as configurações.');
+      }
+    } catch (error) {
+      console.error('Error testing notification:', error);
+      toast.error('Erro ao enviar notificação de teste');
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
@@ -143,6 +182,21 @@ export function NotificationSettings() {
             <p className="text-xs text-muted-foreground">
               Instância WhatsApp que será usada para enviar as notificações
             </p>
+          </div>
+
+          <div className="pt-2">
+            <Button 
+              variant="outline" 
+              onClick={handleTestNotification} 
+              disabled={isTesting || !notificationSettings.notification_instance_id}
+            >
+              {isTesting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <TestTube className="h-4 w-4 mr-2" />
+              )}
+              Testar Notificação
+            </Button>
           </div>
         </CardContent>
       </Card>
