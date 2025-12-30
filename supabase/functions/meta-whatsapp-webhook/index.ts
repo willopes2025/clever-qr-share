@@ -7,15 +7,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const VERIFY_TOKEN = Deno.env.get('META_WHATSAPP_VERIFY_TOKEN');
-const APP_SECRET = Deno.env.get('META_WHATSAPP_APP_SECRET');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-function verifySignature(payload: string, signature: string): boolean {
-  if (!APP_SECRET || !signature) return false;
+function verifySignature(payload: string, signature: string, appSecret: string): boolean {
+  if (!appSecret || !signature) return false;
   
-  const expectedSignature = createHmac('sha256', APP_SECRET)
+  const expectedSignature = createHmac('sha256', appSecret)
     .update(payload)
     .digest('hex');
   
@@ -29,6 +27,7 @@ serve(async (req) => {
   }
 
   const url = new URL(req.url);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // Webhook verification (GET request from Meta)
   if (req.method === 'GET') {
@@ -38,15 +37,33 @@ serve(async (req) => {
 
     console.log('[META-WEBHOOK] Verification request:', { mode, token, challenge: challenge?.substring(0, 10) });
 
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('[META-WEBHOOK] Verification successful');
-      return new Response(challenge, { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+    if (mode === 'subscribe' && token) {
+      // Find integration with matching verify_token
+      const { data: integration, error } = await supabase
+        .from('integrations')
+        .select('id, user_id, credentials')
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        console.log('[META-WEBHOOK] Error fetching integration:', error);
+      }
+
+      const savedToken = integration?.credentials?.verify_token;
+      
+      console.log('[META-WEBHOOK] Comparing tokens - received:', token, 'saved:', savedToken);
+
+      if (integration && savedToken === token) {
+        console.log('[META-WEBHOOK] Verification successful for integration:', integration.id);
+        return new Response(challenge, { 
+          status: 200,
+          headers: { 'Content-Type': 'text/plain' }
+        });
+      }
     }
 
-    console.log('[META-WEBHOOK] Verification failed');
+    console.log('[META-WEBHOOK] Verification failed - no matching integration found');
     return new Response('Forbidden', { status: 403 });
   }
 
@@ -55,40 +72,81 @@ serve(async (req) => {
     try {
       const rawBody = await req.text();
       const signature = req.headers.get('x-hub-signature-256') || '';
-
-      // Verify signature in production
-      if (APP_SECRET && !verifySignature(rawBody, signature)) {
-        console.error('[META-WEBHOOK] Invalid signature');
-        return new Response('Invalid signature', { status: 401 });
-      }
-
       const body = JSON.parse(rawBody);
+      
       console.log('[META-WEBHOOK] Received webhook:', JSON.stringify(body, null, 2));
 
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      // Get phone_number_id from webhook payload to find the correct integration
+      let webhookPhoneNumberId: string | null = null;
+      for (const entry of body.entry || []) {
+        for (const change of entry.changes || []) {
+          if (change.field === 'messages' && change.value?.metadata?.phone_number_id) {
+            webhookPhoneNumberId = change.value.metadata.phone_number_id;
+            break;
+          }
+        }
+        if (webhookPhoneNumberId) break;
+      }
+
+      console.log('[META-WEBHOOK] Phone Number ID from payload:', webhookPhoneNumberId);
+
+      // Find the integration by phone_number_id from credentials
+      let integration;
+      if (webhookPhoneNumberId) {
+        const { data: integrations } = await supabase
+          .from('integrations')
+          .select('*')
+          .eq('provider', 'meta_whatsapp')
+          .eq('is_active', true);
+
+        // Find integration matching the phone_number_id
+        integration = integrations?.find(
+          (i: any) => i.credentials?.phone_number_id === webhookPhoneNumberId
+        );
+      }
+
+      if (!integration) {
+        // Fallback: try to get the first active integration
+        const { data: fallbackIntegration } = await supabase
+          .from('integrations')
+          .select('*')
+          .eq('provider', 'meta_whatsapp')
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+        
+        integration = fallbackIntegration;
+      }
+
+      if (!integration) {
+        console.log('[META-WEBHOOK] No active Meta WhatsApp integration found');
+        return new Response(JSON.stringify({ success: true, message: 'No integration found' }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      console.log('[META-WEBHOOK] Using integration:', integration.id, 'for user:', integration.user_id);
+
+      // Verify signature using app_secret from integration credentials
+      const appSecret = integration.credentials?.app_secret;
+      if (appSecret) {
+        if (!verifySignature(rawBody, signature, appSecret)) {
+          console.error('[META-WEBHOOK] Invalid signature');
+          return new Response('Invalid signature', { status: 401 });
+        }
+        console.log('[META-WEBHOOK] Signature verified successfully');
+      } else {
+        console.warn('[META-WEBHOOK] No app_secret configured, skipping signature verification');
+      }
+
+      const userId = integration.user_id;
 
       // Process each entry
       for (const entry of body.entry || []) {
         for (const change of entry.changes || []) {
           if (change.field === 'messages') {
             const value = change.value;
-            const phoneNumberId = value.metadata?.phone_number_id;
-            const displayPhoneNumber = value.metadata?.display_phone_number;
-
-            // Find the integration by phone number ID
-            const { data: integration } = await supabase
-              .from('integrations')
-              .select('*')
-              .eq('provider', 'meta_whatsapp')
-              .eq('is_active', true)
-              .single();
-
-            if (!integration) {
-              console.log('[META-WEBHOOK] No active Meta WhatsApp integration found');
-              continue;
-            }
-
-            const userId = integration.user_id;
 
             // Process messages
             for (const message of value.messages || []) {

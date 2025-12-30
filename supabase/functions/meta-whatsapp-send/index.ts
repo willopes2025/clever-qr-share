@@ -6,8 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ACCESS_TOKEN = Deno.env.get('META_WHATSAPP_ACCESS_TOKEN');
-const PHONE_NUMBER_ID = Deno.env.get('META_WHATSAPP_PHONE_NUMBER_ID');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -38,7 +36,13 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Authorization header required');
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Sessão expirada, faça login novamente' 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -48,14 +52,70 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      throw new Error('Unauthorized');
+      console.log('[META-SEND] Auth error:', authError);
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Sessão expirada, faça login novamente' 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Get user's Meta WhatsApp integration from database
+    const { data: integration, error: integrationError } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('provider', 'meta_whatsapp')
+      .eq('is_active', true)
+      .single();
+
+    if (integrationError || !integration) {
+      console.log('[META-SEND] No integration found for user:', user.id);
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Integração Meta WhatsApp não configurada. Configure nas Settings.' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const accessToken = integration.credentials?.access_token;
+    const phoneNumberId = integration.credentials?.phone_number_id;
+
+    if (!accessToken) {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Access Token não configurado na integração' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!phoneNumberId) {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Phone Number ID não configurado na integração' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const body: SendMessageRequest = await req.json();
     console.log('[META-SEND] Request:', JSON.stringify(body, null, 2));
 
     if (!body.to) {
-      throw new Error('Recipient phone number (to) is required');
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Número do destinatário é obrigatório' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Format phone number (remove + and spaces)
@@ -75,7 +135,13 @@ serve(async (req) => {
         break;
       case 'template':
         if (!body.template?.name) {
-          throw new Error('Template name is required');
+          return new Response(JSON.stringify({ 
+            success: false,
+            error: 'Nome do template é obrigatório' 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
         messagePayload.template = body.template;
         break;
@@ -99,13 +165,13 @@ serve(async (req) => {
         messagePayload.text = { body: body.text?.body || '' };
     }
 
-    console.log('[META-SEND] Sending to Meta API:', JSON.stringify(messagePayload, null, 2));
+    console.log('[META-SEND] Sending to Meta API with phone_number_id:', phoneNumberId);
 
     // Send message via Meta API
-    const response = await fetch(`${META_API_URL}/${PHONE_NUMBER_ID}/messages`, {
+    const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ACCESS_TOKEN}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(messagePayload)
@@ -115,7 +181,14 @@ serve(async (req) => {
     console.log('[META-SEND] Meta API response:', JSON.stringify(result, null, 2));
 
     if (!response.ok) {
-      throw new Error(result.error?.message || 'Failed to send message');
+      console.error('[META-SEND] Meta API error:', result.error);
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: result.error?.message || 'Erro ao enviar mensagem' 
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const messageId = result.messages?.[0]?.id;
@@ -163,12 +236,12 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     console.error('[META-SEND] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(JSON.stringify({ 
       success: false,
       error: errorMessage 
     }), {
-      status: 400,
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
