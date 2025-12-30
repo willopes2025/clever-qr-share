@@ -1518,9 +1518,11 @@ export type Database = {
           ai_handoff_requested: boolean | null
           ai_interactions_count: number | null
           ai_paused: boolean | null
+          assigned_to: string | null
           campaign_id: string | null
           contact_id: string
           created_at: string
+          first_response_at: string | null
           id: string
           instance_id: string | null
           is_pinned: boolean | null
@@ -1538,9 +1540,11 @@ export type Database = {
           ai_handoff_requested?: boolean | null
           ai_interactions_count?: number | null
           ai_paused?: boolean | null
+          assigned_to?: string | null
           campaign_id?: string | null
           contact_id: string
           created_at?: string
+          first_response_at?: string | null
           id?: string
           instance_id?: string | null
           is_pinned?: boolean | null
@@ -1558,9 +1562,11 @@ export type Database = {
           ai_handoff_requested?: boolean | null
           ai_interactions_count?: number | null
           ai_paused?: boolean | null
+          assigned_to?: string | null
           campaign_id?: string | null
           contact_id?: string
           created_at?: string
+          first_response_at?: string | null
           id?: string
           instance_id?: string | null
           is_pinned?: boolean | null
@@ -1994,6 +2000,7 @@ export type Database = {
           expected_close_date: string | null
           funnel_id: string
           id: string
+          next_action_required: boolean | null
           notes: string | null
           responsible_id: string | null
           source: string | null
@@ -2015,6 +2022,7 @@ export type Database = {
           expected_close_date?: string | null
           funnel_id: string
           id?: string
+          next_action_required?: boolean | null
           notes?: string | null
           responsible_id?: string | null
           source?: string | null
@@ -2036,6 +2044,7 @@ export type Database = {
           expected_close_date?: string | null
           funnel_id?: string
           id?: string
+          next_action_required?: boolean | null
           notes?: string | null
           responsible_id?: string | null
           source?: string | null
@@ -2410,6 +2419,47 @@ export type Database = {
           },
         ]
       }
+      lead_distribution_settings: {
+        Row: {
+          created_at: string | null
+          distribution_mode: string | null
+          eligible_members: string[] | null
+          id: string
+          is_enabled: boolean | null
+          last_assigned_index: number | null
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          distribution_mode?: string | null
+          eligible_members?: string[] | null
+          id?: string
+          is_enabled?: boolean | null
+          last_assigned_index?: number | null
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          distribution_mode?: string | null
+          eligible_members?: string[] | null
+          id?: string
+          is_enabled?: boolean | null
+          last_assigned_index?: number | null
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_distribution_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_usage_log: {
         Row: {
           created_at: string | null
@@ -2731,6 +2781,62 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      sla_metrics: {
+        Row: {
+          avg_first_response_seconds: number | null
+          conversations_received: number | null
+          conversations_responded: number | null
+          created_at: string | null
+          id: string
+          metric_date: string
+          organization_id: string | null
+          sla_breached_15min: number | null
+          sla_breached_1h: number | null
+          sla_breached_24h: number | null
+          total_first_response_seconds: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avg_first_response_seconds?: number | null
+          conversations_received?: number | null
+          conversations_responded?: number | null
+          created_at?: string | null
+          id?: string
+          metric_date?: string
+          organization_id?: string | null
+          sla_breached_15min?: number | null
+          sla_breached_1h?: number | null
+          sla_breached_24h?: number | null
+          total_first_response_seconds?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avg_first_response_seconds?: number | null
+          conversations_received?: number | null
+          conversations_responded?: number | null
+          created_at?: string | null
+          id?: string
+          metric_date?: string
+          organization_id?: string | null
+          sla_breached_15min?: number | null
+          sla_breached_1h?: number | null
+          sla_breached_24h?: number | null
+          total_first_response_seconds?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sla_metrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscription_history: {
         Row: {

@@ -10,6 +10,10 @@ import { AutomationSection } from "@/components/dashboard/AutomationSection";
 import { AgentPerformanceSection } from "@/components/dashboard/AgentPerformanceSection";
 import { FinancialSection } from "@/components/dashboard/FinancialSection";
 import { AlertsSection } from "@/components/dashboard/AlertsSection";
+import { ChaosControlSection } from "@/components/dashboard/ChaosControlSection";
+import { SLAByMemberChart } from "@/components/dashboard/SLAByMemberChart";
+import { ResponseQueueList } from "@/components/dashboard/ResponseQueueList";
+import { DealsWithoutActionList } from "@/components/dashboard/DealsWithoutActionList";
 import { type DateRange } from "@/hooks/useDashboardMetricsV2";
 
 const Dashboard = () => {
@@ -30,6 +34,18 @@ const Dashboard = () => {
           </p>
         </div>
         <DashboardDateFilter value={dateRange} onChange={setDateRange} />
+      </div>
+
+      {/* 🚨 Controle do Caos - PRIORIDADE */}
+      <div className="mb-6">
+        <ChaosControlSection />
+      </div>
+
+      {/* 📊 SLA + Filas - Visibilidade de Gargalos */}
+      <div className="grid lg:grid-cols-3 gap-6 mb-6">
+        <SLAByMemberChart />
+        <ResponseQueueList />
+        <DealsWithoutActionList />
       </div>
 
       {/* 📊 Visão Geral */}
