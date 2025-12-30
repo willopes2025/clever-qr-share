@@ -254,15 +254,15 @@ export const MetaWhatsAppSettings = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="business_account_id">Business Account ID</Label>
+                <Label htmlFor="business_account_id">WhatsApp Business Account ID (opcional)</Label>
                 <Input
                   id="business_account_id"
                   value={formData.business_account_id}
                   onChange={(e) => setFormData(prev => ({ ...prev, business_account_id: e.target.value }))}
-                  placeholder="Ex: 123456789012345"
+                  placeholder="Deixe em branco para detectar automaticamente"
                 />
                 <p className="text-xs text-muted-foreground">
-                  ID da conta comercial do WhatsApp
+                  Se não informado, será detectado automaticamente usando o Phone Number ID
                 </p>
               </div>
 

@@ -38,24 +38,29 @@ serve(async (req) => {
     console.log('[META-WEBHOOK] Verification request:', { mode, token, challenge: challenge?.substring(0, 10) });
 
     if (mode === 'subscribe' && token) {
-      // Find integration with matching verify_token
-      const { data: integration, error } = await supabase
+      // Find ALL active integrations and search for matching verify_token
+      const { data: integrations, error } = await supabase
         .from('integrations')
         .select('id, user_id, credentials')
         .eq('provider', 'meta_whatsapp')
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
 
       if (error) {
-        console.log('[META-WEBHOOK] Error fetching integration:', error);
+        console.log('[META-WEBHOOK] Error fetching integrations:', error);
       }
 
-      const savedToken = integration?.credentials?.verify_token;
-      
-      console.log('[META-WEBHOOK] Comparing tokens - received:', token, 'saved:', savedToken);
+      console.log('[META-WEBHOOK] Found', integrations?.length || 0, 'active integrations');
 
-      if (integration && savedToken === token) {
-        console.log('[META-WEBHOOK] Verification successful for integration:', integration.id);
+      // Search for integration with matching verify_token
+      const matchingIntegration = integrations?.find(
+        (i: any) => i.credentials?.verify_token === token
+      );
+      
+      console.log('[META-WEBHOOK] Received token:', token);
+      console.log('[META-WEBHOOK] Matching integration:', matchingIntegration?.id || 'none');
+
+      if (matchingIntegration) {
+        console.log('[META-WEBHOOK] Verification successful for integration:', matchingIntegration.id);
         return new Response(challenge, { 
           status: 200,
           headers: { 'Content-Type': 'text/plain' }
@@ -63,7 +68,7 @@ serve(async (req) => {
       }
     }
 
-    console.log('[META-WEBHOOK] Verification failed - no matching integration found');
+    console.log('[META-WEBHOOK] Verification failed - no matching verify_token found');
     return new Response('Forbidden', { status: 403 });
   }
 
