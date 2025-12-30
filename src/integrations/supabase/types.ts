@@ -653,6 +653,38 @@ export type Database = {
           },
         ]
       }
+      call_events: {
+        Row: {
+          call_id: string
+          created_at: string
+          event_data: Json | null
+          event_type: string
+          id: string
+        }
+        Insert: {
+          call_id: string
+          created_at?: string
+          event_data?: Json | null
+          event_type: string
+          id?: string
+        }
+        Update: {
+          call_id?: string
+          created_at?: string
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_events_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "voip_calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_messages: {
         Row: {
           campaign_id: string
@@ -1744,6 +1776,72 @@ export type Database = {
         }
         Relationships: []
       }
+      extensions: {
+        Row: {
+          caller_id_name: string | null
+          caller_id_number: string | null
+          created_at: string
+          display_name: string | null
+          extension_number: string
+          fusionpbx_config_id: string
+          id: string
+          is_active: boolean
+          organization_id: string | null
+          sip_password: string
+          updated_at: string
+          user_id: string
+          voicemail_enabled: boolean | null
+          webrtc_enabled: boolean | null
+        }
+        Insert: {
+          caller_id_name?: string | null
+          caller_id_number?: string | null
+          created_at?: string
+          display_name?: string | null
+          extension_number: string
+          fusionpbx_config_id: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string | null
+          sip_password: string
+          updated_at?: string
+          user_id: string
+          voicemail_enabled?: boolean | null
+          webrtc_enabled?: boolean | null
+        }
+        Update: {
+          caller_id_name?: string | null
+          caller_id_number?: string | null
+          created_at?: string
+          display_name?: string | null
+          extension_number?: string
+          fusionpbx_config_id?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string | null
+          sip_password?: string
+          updated_at?: string
+          user_id?: string
+          voicemail_enabled?: boolean | null
+          webrtc_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extensions_fusionpbx_config_id_fkey"
+            columns: ["fusionpbx_config_id"]
+            isOneToOne: false
+            referencedRelation: "fusionpbx_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extensions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnel_automations: {
         Row: {
           action_config: Json | null
@@ -2064,6 +2162,68 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      fusionpbx_configs: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          domain: string
+          esl_password: string | null
+          esl_port: number
+          host: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string | null
+          stun_servers: string[] | null
+          turn_servers: Json | null
+          updated_at: string
+          user_id: string
+          verto_wss_url: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          domain: string
+          esl_password?: string | null
+          esl_port?: number
+          host: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string | null
+          stun_servers?: string[] | null
+          turn_servers?: Json | null
+          updated_at?: string
+          user_id: string
+          verto_wss_url?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          domain?: string
+          esl_password?: string | null
+          esl_port?: number
+          host?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string | null
+          stun_servers?: string[] | null
+          turn_servers?: Json | null
+          updated_at?: string
+          user_id?: string
+          verto_wss_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fusionpbx_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       google_calendar_integrations: {
         Row: {
@@ -3094,11 +3254,14 @@ export type Database = {
       }
       voip_calls: {
         Row: {
+          ai_agent_config_id: string | null
           ai_enabled: boolean | null
           ai_transcript: string | null
           answered_at: string | null
+          call_type: string | null
           called: string
           caller: string
+          channel_name: string | null
           contact_id: string | null
           conversation_id: string | null
           created_at: string | null
@@ -3108,22 +3271,31 @@ export type Database = {
           duration_seconds: number | null
           elevenlabs_conversation_id: string | null
           ended_at: string | null
+          extension_id: string | null
           external_call_id: string | null
+          freeswitch_uuid: string | null
+          fusionpbx_config_id: string | null
           id: string
           organization_id: string | null
           recording_id: string | null
+          recording_storage_path: string | null
           recording_url: string | null
           started_at: string | null
           status: string | null
+          transcription: string | null
+          transfer_from_call_id: string | null
           user_id: string
           voip_config_id: string | null
         }
         Insert: {
+          ai_agent_config_id?: string | null
           ai_enabled?: boolean | null
           ai_transcript?: string | null
           answered_at?: string | null
+          call_type?: string | null
           called: string
           caller: string
+          channel_name?: string | null
           contact_id?: string | null
           conversation_id?: string | null
           created_at?: string | null
@@ -3133,22 +3305,31 @@ export type Database = {
           duration_seconds?: number | null
           elevenlabs_conversation_id?: string | null
           ended_at?: string | null
+          extension_id?: string | null
           external_call_id?: string | null
+          freeswitch_uuid?: string | null
+          fusionpbx_config_id?: string | null
           id?: string
           organization_id?: string | null
           recording_id?: string | null
+          recording_storage_path?: string | null
           recording_url?: string | null
           started_at?: string | null
           status?: string | null
+          transcription?: string | null
+          transfer_from_call_id?: string | null
           user_id: string
           voip_config_id?: string | null
         }
         Update: {
+          ai_agent_config_id?: string | null
           ai_enabled?: boolean | null
           ai_transcript?: string | null
           answered_at?: string | null
+          call_type?: string | null
           called?: string
           caller?: string
+          channel_name?: string | null
           contact_id?: string | null
           conversation_id?: string | null
           created_at?: string | null
@@ -3158,17 +3339,30 @@ export type Database = {
           duration_seconds?: number | null
           elevenlabs_conversation_id?: string | null
           ended_at?: string | null
+          extension_id?: string | null
           external_call_id?: string | null
+          freeswitch_uuid?: string | null
+          fusionpbx_config_id?: string | null
           id?: string
           organization_id?: string | null
           recording_id?: string | null
+          recording_storage_path?: string | null
           recording_url?: string | null
           started_at?: string | null
           status?: string | null
+          transcription?: string | null
+          transfer_from_call_id?: string | null
           user_id?: string
           voip_config_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "voip_calls_ai_agent_config_id_fkey"
+            columns: ["ai_agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "voip_calls_contact_id_fkey"
             columns: ["contact_id"]
@@ -3191,10 +3385,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "voip_calls_extension_id_fkey"
+            columns: ["extension_id"]
+            isOneToOne: false
+            referencedRelation: "extensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_calls_fusionpbx_config_id_fkey"
+            columns: ["fusionpbx_config_id"]
+            isOneToOne: false
+            referencedRelation: "fusionpbx_configs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "voip_calls_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voip_calls_transfer_from_call_id_fkey"
+            columns: ["transfer_from_call_id"]
+            isOneToOne: false
+            referencedRelation: "voip_calls"
             referencedColumns: ["id"]
           },
           {
