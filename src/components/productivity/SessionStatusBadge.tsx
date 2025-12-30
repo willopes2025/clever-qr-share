@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Coffee, Utensils, Clock, Play, Pause } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { badgeVariants } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,10 +43,10 @@ export const SessionStatusBadge = () => {
 
   if (loading) {
     return (
-      <Badge variant="outline" className="animate-pulse">
+      <div className={cn(badgeVariants({ variant: 'outline' }), 'animate-pulse')}>
         <Clock className="h-3 w-3 mr-1" />
         --:--
-      </Badge>
+      </div>
     );
   }
 
@@ -93,9 +93,10 @@ export const SessionStatusBadge = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Badge 
-          variant="outline" 
+        <button 
+          type="button"
           className={cn(
+            badgeVariants({ variant: 'outline' }),
             'cursor-pointer hover:opacity-80 transition-opacity gap-1.5',
             config.color
           )}
@@ -103,7 +104,7 @@ export const SessionStatusBadge = () => {
           <Icon className="h-3 w-3" />
           <span className="hidden sm:inline">{config.label}</span>
           <span className="font-mono text-xs">{elapsed}</span>
-        </Badge>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="z-[100] bg-popover border border-border shadow-lg">
         <DropdownMenuItem onClick={() => currentSession ? switchSession('work') : startSession('work')}>
