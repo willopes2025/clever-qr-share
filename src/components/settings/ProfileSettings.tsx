@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserSettings } from "@/hooks/useUserSettings";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
-import { User, Globe, Save, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Globe, Save, Lock, Eye, EyeOff, Phone } from "lucide-react";
 import { toast } from "sonner";
 
 const TIMEZONES = [
@@ -23,9 +24,12 @@ const TIMEZONES = [
 export const ProfileSettings = () => {
   const { user } = useAuth();
   const { settings, updateSettings, defaultSettings } = useUserSettings();
+  const { profile, updateProfile, isLoading: isProfileLoading } = useProfile();
   
   const [timezone, setTimezone] = useState(defaultSettings.timezone);
   const [emailNotifications, setEmailNotifications] = useState(defaultSettings.email_notifications);
+  const [phone, setPhone] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -42,6 +46,12 @@ export const ProfileSettings = () => {
       setEmailNotifications(settings.email_notifications ?? defaultSettings.email_notifications);
     }
   }, [settings, defaultSettings]);
+
+  useEffect(() => {
+    if (profile?.phone) {
+      setPhone(profile.phone);
+    }
+  }, [profile]);
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -88,11 +98,21 @@ export const ProfileSettings = () => {
     }
   };
 
-  const handleSave = () => {
-    updateSettings.mutate({
-      timezone,
-      email_notifications: emailNotifications,
-    });
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Update profile phone if changed
+      if (phone !== profile?.phone) {
+        await updateProfile.mutateAsync({ phone });
+      }
+      
+      updateSettings.mutate({
+        timezone,
+        email_notifications: emailNotifications,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -136,6 +156,31 @@ export const ProfileSettings = () => {
               disabled 
               className="bg-muted"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Phone className="h-5 w-5" />
+            Telefone para Notificações
+          </CardTitle>
+          <CardDescription>
+            Número de WhatsApp onde você receberá as notificações do sistema
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Número WhatsApp</Label>
+            <Input 
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="5511999999999"
+            />
+            <p className="text-sm text-muted-foreground">
+              Inclua o código do país (55 para Brasil) e DDD. Ex: 5511999999999
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -263,11 +308,11 @@ export const ProfileSettings = () => {
 
       <Button 
         onClick={handleSave} 
-        disabled={updateSettings.isPending}
+        disabled={updateSettings.isPending || isSaving}
         className="w-full"
       >
         <Save className="h-4 w-4 mr-2" />
-        {updateSettings.isPending ? "Salvando..." : "Salvar Configurações de Perfil"}
+        {updateSettings.isPending || isSaving ? "Salvando..." : "Salvar Configurações de Perfil"}
       </Button>
     </div>
   );
