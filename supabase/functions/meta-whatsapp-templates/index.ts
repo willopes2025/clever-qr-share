@@ -6,8 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ACCESS_TOKEN = Deno.env.get('META_WHATSAPP_ACCESS_TOKEN');
-const BUSINESS_ACCOUNT_ID = Deno.env.get('META_WHATSAPP_BUSINESS_ACCOUNT_ID');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -21,7 +19,13 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Authorization header required');
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Sessão expirada, faça login novamente' 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -31,21 +35,71 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      throw new Error('Unauthorized');
+      console.log('[META-TEMPLATES] Auth error:', authError);
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Sessão expirada, faça login novamente' 
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Get user's Meta WhatsApp integration from database
+    const { data: integration, error: integrationError } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('provider', 'meta_whatsapp')
+      .eq('is_active', true)
+      .single();
+
+    if (integrationError || !integration) {
+      console.log('[META-TEMPLATES] No integration found for user:', user.id);
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Integração Meta WhatsApp não configurada. Configure nas Settings.' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const accessToken = integration.credentials?.access_token;
+    const businessAccountId = integration.credentials?.business_account_id;
+
+    if (!accessToken) {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Access Token não configurado na integração' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!businessAccountId) {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Business Account ID não configurado na integração' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action') || 'list';
 
-    console.log('[META-TEMPLATES] Action:', action);
+    console.log('[META-TEMPLATES] Action:', action, 'for user:', user.id);
 
     if (action === 'list') {
       // List all templates
       const response = await fetch(
-        `${META_API_URL}/${BUSINESS_ACCOUNT_ID}/message_templates?limit=100`,
+        `${META_API_URL}/${businessAccountId}/message_templates?limit=100`,
         {
           headers: {
-            'Authorization': `Bearer ${ACCESS_TOKEN}`
+            'Authorization': `Bearer ${accessToken}`
           }
         }
       );
@@ -54,7 +108,14 @@ serve(async (req) => {
       console.log('[META-TEMPLATES] Templates fetched:', result.data?.length || 0);
 
       if (!response.ok) {
-        throw new Error(result.error?.message || 'Failed to fetch templates');
+        console.error('[META-TEMPLATES] Meta API error:', result.error);
+        return new Response(JSON.stringify({ 
+          success: false,
+          error: result.error?.message || 'Erro ao buscar templates do Meta' 
+        }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       // Filter and format templates
@@ -81,14 +142,20 @@ serve(async (req) => {
     if (action === 'get') {
       const templateName = url.searchParams.get('name');
       if (!templateName) {
-        throw new Error('Template name is required');
+        return new Response(JSON.stringify({ 
+          success: false,
+          error: 'Nome do template é obrigatório' 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       const response = await fetch(
-        `${META_API_URL}/${BUSINESS_ACCOUNT_ID}/message_templates?name=${templateName}`,
+        `${META_API_URL}/${businessAccountId}/message_templates?name=${templateName}`,
         {
           headers: {
-            'Authorization': `Bearer ${ACCESS_TOKEN}`
+            'Authorization': `Bearer ${accessToken}`
           }
         }
       );
@@ -96,7 +163,14 @@ serve(async (req) => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error?.message || 'Failed to fetch template');
+        console.error('[META-TEMPLATES] Meta API error:', result.error);
+        return new Response(JSON.stringify({ 
+          success: false,
+          error: result.error?.message || 'Erro ao buscar template' 
+        }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
       return new Response(JSON.stringify({
@@ -108,16 +182,22 @@ serve(async (req) => {
       });
     }
 
-    throw new Error(`Unknown action: ${action}`);
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: `Ação desconhecida: ${action}` 
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error: unknown) {
     console.error('[META-TEMPLATES] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(JSON.stringify({ 
       success: false,
       error: errorMessage 
     }), {
-      status: 400,
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
