@@ -3925,6 +3925,7 @@ export type Database = {
           id: string
           instance_name: string
           is_notification_only: boolean | null
+          organization_id: string | null
           qr_code: string | null
           qr_code_updated_at: string | null
           status: string | null
@@ -3938,6 +3939,7 @@ export type Database = {
           id?: string
           instance_name: string
           is_notification_only?: boolean | null
+          organization_id?: string | null
           qr_code?: string | null
           qr_code_updated_at?: string | null
           status?: string | null
@@ -3951,6 +3953,7 @@ export type Database = {
           id?: string
           instance_name?: string
           is_notification_only?: boolean | null
+          organization_id?: string | null
           qr_code?: string | null
           qr_code_updated_at?: string | null
           status?: string | null
@@ -3964,6 +3967,13 @@ export type Database = {
             columns: ["default_funnel_id"]
             isOneToOne: false
             referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_instances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
