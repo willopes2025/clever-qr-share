@@ -38,11 +38,13 @@ import {
   Crown,
   Phone,
   MessageSquare,
+  ArrowLeft,
 } from "lucide-react";
 import { useIntegrations, IntegrationProvider } from "@/hooks/useIntegrations";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { MetaWhatsAppSettings } from "./MetaWhatsAppSettings";
 
 interface IntegrationConfig {
   id: IntegrationProvider;
@@ -307,6 +309,7 @@ export const IntegrationsSettings = () => {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [customComponentId, setCustomComponentId] = useState<IntegrationProvider | null>(null);
   const { integrations, isLoading, connectIntegration, disconnectIntegration, getIntegration } = useIntegrations();
   const { subscription } = useSubscription();
 
@@ -326,6 +329,12 @@ export const IntegrationsSettings = () => {
   });
 
   const handleOpenConfig = (config: IntegrationConfig) => {
+    // If integration has custom component, show it instead of dialog
+    if (config.customComponent) {
+      setCustomComponentId(config.id);
+      return;
+    }
+    
     const existing = getIntegration(config.id);
     if (existing) {
       setFormData(existing.credentials as Record<string, string> || {});
@@ -403,6 +412,24 @@ export const IntegrationsSettings = () => {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Render custom component if selected
+  if (customComponentId === 'meta_whatsapp') {
+    return (
+      <div className="space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setCustomComponentId(null)}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Integrações
+        </Button>
+        <MetaWhatsAppSettings />
       </div>
     );
   }
