@@ -58,7 +58,7 @@ export interface AgentVariable {
   updated_at: string;
 }
 
-// Fetch all active AI agent configs for the current user (for selection in chatbot)
+// Fetch all AI agent configs for the current user (for central management)
 export const useAllAgentConfigs = () => {
   const { user } = useAuth();
 
@@ -71,7 +71,6 @@ export const useAllAgentConfigs = () => {
         .from('ai_agent_configs')
         .select('*')
         .eq('user_id', user.id)
-        .eq('is_active', true)
         .order('agent_name', { ascending: true });
 
       if (error) throw error;
