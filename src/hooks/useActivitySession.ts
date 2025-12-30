@@ -13,17 +13,60 @@ interface ActivitySession {
   duration_seconds: number | null;
 }
 
+const SESSION_STORAGE_KEY = 'activity_session_cache';
+
+// Helper to get cached session from sessionStorage
+const getCachedSession = (): ActivitySession | null => {
+  try {
+    const cached = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    console.error('Error reading cached session:', e);
+  }
+  return null;
+};
+
+// Helper to cache session in sessionStorage
+const cacheSession = (session: ActivitySession | null) => {
+  try {
+    if (session) {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } else {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  } catch (e) {
+    console.error('Error caching session:', e);
+  }
+};
+
 export const useActivitySession = () => {
   const { user } = useAuth();
   const { organization } = useOrganization();
-  const [currentSession, setCurrentSession] = useState<ActivitySession | null>(null);
+  
+  // Initialize with cached session for instant display
+  const [currentSession, setCurrentSession] = useState<ActivitySession | null>(() => getCachedSession());
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<Date>(new Date());
+  const startSessionCalledRef = useRef(false);
+
+  // Update state and cache together
+  const updateSession = useCallback((session: ActivitySession | null) => {
+    setCurrentSession(session);
+    cacheSession(session);
+  }, []);
 
   // Fetch current active session
   const fetchCurrentSession = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      setIsInitialized(true);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -37,26 +80,45 @@ export const useActivitySession = () => {
 
       if (error) throw error;
       if (data) {
-        setCurrentSession({
+        const session = {
           ...data,
           session_type: data.session_type as SessionType
-        });
+        };
+        updateSession(session);
+      } else {
+        // No active session found, clear cache
+        updateSession(null);
       }
     } catch (err) {
       console.error('Error fetching current session:', err);
     } finally {
       setLoading(false);
+      setIsInitialized(true);
     }
-  }, [user]);
+  }, [user, updateSession]);
 
   // Start a new session
   const startSession = useCallback(async (sessionType: SessionType = 'work') => {
     if (!user) return null;
 
+    // Prevent duplicate calls
+    if (startSessionCalledRef.current) return null;
+    startSessionCalledRef.current = true;
+
     try {
       // End any existing session first
       if (currentSession) {
-        await endSession();
+        const endedAt = new Date();
+        const startedAt = new Date(currentSession.started_at);
+        const durationSeconds = Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000);
+
+        await supabase
+          .from('user_activity_sessions')
+          .update({
+            ended_at: endedAt.toISOString(),
+            duration_seconds: durationSeconds,
+          })
+          .eq('id', currentSession.id);
       }
 
       const { data, error } = await supabase
@@ -75,13 +137,15 @@ export const useActivitySession = () => {
         ...data,
         session_type: data.session_type as SessionType
       };
-      setCurrentSession(session);
+      updateSession(session);
       return session;
     } catch (err) {
       console.error('Error starting session:', err);
       return null;
+    } finally {
+      startSessionCalledRef.current = false;
     }
-  }, [user, organization, currentSession]);
+  }, [user, organization, currentSession, updateSession]);
 
   // End current session
   const endSession = useCallback(async () => {
@@ -101,11 +165,11 @@ export const useActivitySession = () => {
         .eq('id', currentSession.id);
 
       if (error) throw error;
-      setCurrentSession(null);
+      updateSession(null);
     } catch (err) {
       console.error('Error ending session:', err);
     }
-  }, [user, currentSession]);
+  }, [user, currentSession, updateSession]);
 
   // Switch session type
   const switchSession = useCallback(async (newType: SessionType) => {
@@ -116,12 +180,7 @@ export const useActivitySession = () => {
   // Track user activity (called on user interactions)
   const trackActivity = useCallback(() => {
     lastActivityRef.current = new Date();
-
-    // Auto-start work session if none exists
-    if (!currentSession && user) {
-      startSession('work');
-    }
-  }, [currentSession, user, startSession]);
+  }, []);
 
   // Auto-end session after inactivity
   useEffect(() => {
@@ -174,6 +233,7 @@ export const useActivitySession = () => {
   return {
     currentSession,
     loading,
+    isInitialized,
     startSession,
     endSession,
     switchSession,
