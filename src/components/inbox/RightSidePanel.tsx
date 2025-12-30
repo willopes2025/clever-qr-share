@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, User, Target, EyeOff, Eye } from "lucide-react";
+import { ChevronRight, User, Target, EyeOff, Eye, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -9,13 +9,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Conversation } from "@/hooks/useConversations";
 import { FunnelDealSection } from "./FunnelDealSection";
 import { ContactInfoContent } from "./ContactInfoContent";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
+import { useLeadDistribution } from "@/hooks/useLeadDistribution";
 
 interface RightSidePanelProps {
   conversation: Conversation;
@@ -27,6 +27,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
   const [showFunnel, setShowFunnel] = useState(true);
   const [showContactInfo, setShowContactInfo] = useState(true);
   const isMobile = useIsMobile();
+  const { assignConversation } = useLeadDistribution();
 
   const panelContent = (
     <div className="h-full flex flex-col">
@@ -42,6 +43,28 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
+          {/* Responsável Section */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 px-2">
+              <UserCheck className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Responsável</span>
+            </div>
+            <div className="px-2">
+              <AssigneeSelector
+                value={conversation.assigned_to || null}
+                onChange={(memberId) => {
+                  assignConversation.mutate({
+                    conversationId: conversation.id,
+                    memberId: memberId || '',
+                  });
+                }}
+                compact
+              />
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Funnel Section - Always visible when active */}
           <Collapsible open={showFunnel} onOpenChange={setShowFunnel}>
             <CollapsibleTrigger asChild>
