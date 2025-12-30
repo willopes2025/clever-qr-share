@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useActivitySession } from '@/hooks/useActivitySession';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -8,7 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
  */
 export const ActivityTracker = () => {
   const { user } = useAuth();
-  const { trackActivity, startSession, currentSession } = useActivitySession();
+  const { trackActivity, startSession, currentSession, isInitialized } = useActivitySession();
+  const hasAutoStarted = useRef(false);
 
   // Track various user interactions
   useEffect(() => {
@@ -16,17 +17,13 @@ export const ActivityTracker = () => {
 
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     
-    const handleActivity = () => {
-      trackActivity();
-    };
-
     // Throttle to avoid too many updates
     let lastTracked = 0;
     const throttledHandler = () => {
       const now = Date.now();
       if (now - lastTracked > 60000) { // Max once per minute
         lastTracked = now;
-        handleActivity();
+        trackActivity();
       }
     };
 
@@ -34,17 +31,30 @@ export const ActivityTracker = () => {
       window.addEventListener(event, throttledHandler, { passive: true });
     });
 
-    // Auto-start work session on mount if user is logged in
-    if (!currentSession) {
-      startSession('work');
-    }
-
     return () => {
       events.forEach(event => {
         window.removeEventListener(event, throttledHandler);
       });
     };
-  }, [user, trackActivity, startSession, currentSession]);
+  }, [user, trackActivity]);
+
+  // Auto-start work session only once after initialization
+  useEffect(() => {
+    // Only auto-start if:
+    // 1. We have a user
+    // 2. The hook has finished initializing (fetched from DB)
+    // 3. There's no current session
+    // 4. We haven't already tried to auto-start
+    if (user && isInitialized && !currentSession && !hasAutoStarted.current) {
+      hasAutoStarted.current = true;
+      startSession('work');
+    }
+  }, [user, isInitialized, currentSession, startSession]);
+
+  // Reset the flag when user changes
+  useEffect(() => {
+    hasAutoStarted.current = false;
+  }, [user?.id]);
 
   return null; // Invisible component
 };
