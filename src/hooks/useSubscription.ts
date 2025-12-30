@@ -236,46 +236,44 @@ export const useSubscription = () => {
 
     setLoading(true);
 
-    // Always use the freshest session (avoids stale tokens)
-    const { data: sessionData } = await supabase.auth.getSession();
-    const currentSession = sessionData?.session;
+    try {
+      // Always refresh session first to ensure we have a valid token
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      
+      let currentSession = refreshData?.session;
+      
+      // If refresh fails, try to get existing session
+      if (refreshError || !currentSession) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        currentSession = sessionData?.session;
+      }
 
-    if (!currentSession?.access_token) {
-      setSubscription(null);
-      setLoading(false);
-      return;
-    }
+      if (!currentSession?.access_token) {
+        setSubscription(null);
+        setLoading(false);
+        return;
+      }
 
-    const invokeCheck = async (accessToken: string) =>
-      supabase.functions.invoke('check-subscription', {
+      const { data, error } = await supabase.functions.invoke('check-subscription', {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
       });
 
-    try {
-      let { data, error } = await invokeCheck(currentSession.access_token);
-
       if (error) {
         const message = (error as any)?.message ?? '';
-        const isAuthError = /auth|session|jwt|unauthorized/i.test(message);
+        const isAuthError = /auth|session|jwt|unauthorized|401/i.test(message);
 
         if (isAuthError) {
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-          const refreshedSession = refreshData?.session;
-
-          if (!refreshError && refreshedSession?.access_token) {
-            ({ data, error } = await invokeCheck(refreshedSession.access_token));
-          } else {
-            // Session is invalid server-side, force re-login
-            await supabase.auth.signOut();
-            setSubscription(null);
-            setLoading(false);
-            return;
-          }
+          // Session is invalid, force re-login
+          console.warn('Session invalid, signing out');
+          await supabase.auth.signOut();
+          setSubscription(null);
+          setLoading(false);
+          return;
         }
 
-        if (error) throw error;
+        throw error;
       }
 
       setSubscription(data);
