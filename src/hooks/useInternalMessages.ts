@@ -99,13 +99,22 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
           mentions,
           source: 'web',
         })
-        .select(`
-          *,
-          profile:profiles(full_name, avatar_url)
-        `)
+        .select('*')
         .single();
 
       if (error) throw error;
+
+      // Buscar perfil separadamente para evitar problemas com join
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const messageWithProfile = {
+        ...data,
+        profile: userProfile || null,
+      };
 
       // Trigger WhatsApp notification for team members
       try {
@@ -137,7 +146,7 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
 
         await supabase.functions.invoke('internal-chat-whatsapp', {
           body: {
-            messageId: data.id,
+            messageId: messageWithProfile.id,
             content,
             senderUserId: user.id,
             senderName: profile?.full_name || 'Usuário',
@@ -151,7 +160,7 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
         // Don't throw - the message was saved successfully
       }
 
-      return data;
+      return messageWithProfile;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['internal-messages', conversationId, contactId] });
