@@ -19,6 +19,10 @@ import {
 import { useFunnels, FunnelDeal } from "@/hooks/useFunnels";
 import { useContacts } from "@/hooks/useContacts";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
+import { NextActionForm, NextActionData } from "./NextActionForm";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface DealFormDialogProps {
   open: boolean;
@@ -41,6 +45,7 @@ export const DealFormDialog = ({
 }: DealFormDialogProps) => {
   const { funnels, createDeal, updateDeal } = useFunnels();
   const { contacts } = useContacts();
+  const { user } = useAuth();
   
   const [title, setTitle] = useState(deal?.title || '');
   const [contactId, setContactId] = useState(deal?.contact_id || initialContactId || '');
@@ -53,6 +58,14 @@ export const DealFormDialog = ({
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(
     (deal?.custom_fields as Record<string, unknown>) || {}
   );
+  const [nextAction, setNextAction] = useState<NextActionData>({
+    title: '',
+    task_type_id: null,
+    due_date: new Date().toISOString().split('T')[0],
+    due_time: '',
+    assigned_to: null,
+    description: '',
+  });
 
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = currentFunnel?.stages || [];
@@ -69,6 +82,14 @@ export const DealFormDialog = ({
       setSelectedFunnelId(funnelId || deal?.funnel_id || funnels?.[0]?.id || '');
       setSelectedStageId(stageId || deal?.stage_id || '');
       setCustomFields((deal?.custom_fields as Record<string, unknown>) || {});
+      setNextAction({
+        title: '',
+        task_type_id: null,
+        due_date: new Date().toISOString().split('T')[0],
+        due_time: '',
+        assigned_to: null,
+        description: '',
+      });
     }
   }, [open, deal, initialContactId, stageId, funnelId, funnels]);
 
@@ -83,8 +104,16 @@ export const DealFormDialog = ({
     }
   }, [selectedFunnelId, funnels, selectedStageId]);
 
+  const isNextActionValid = !deal ? (nextAction.title && nextAction.due_date) : true;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate next action for new deals
+    if (!deal && !isNextActionValid) {
+      toast.error('Preencha a próxima ação obrigatória');
+      return;
+    }
     
     if (deal) {
       await updateDeal.mutateAsync({ 
@@ -97,17 +126,48 @@ export const DealFormDialog = ({
         custom_fields: customFields
       });
     } else {
-      await createDeal.mutateAsync({ 
-        funnel_id: selectedFunnelId,
-        stage_id: selectedStageId,
-        contact_id: contactId,
-        conversation_id: conversationId,
-        title: title || undefined,
-        value: Number(value) || 0,
-        expected_close_date: expectedCloseDate || undefined,
-        source: source || undefined,
-        custom_fields: customFields
-      });
+      // Create deal
+      const { data: newDeal, error: dealError } = await supabase
+        .from('funnel_deals')
+        .insert([{
+          user_id: user!.id,
+          funnel_id: selectedFunnelId,
+          stage_id: selectedStageId,
+          contact_id: contactId,
+          conversation_id: conversationId,
+          title: title || undefined,
+          value: Number(value) || 0,
+          expected_close_date: expectedCloseDate || undefined,
+          source: source || undefined,
+          custom_fields: (customFields || {}) as Record<string, never>,
+          next_action_required: false, // Will have task
+        }])
+        .select('id')
+        .single();
+
+      if (dealError) {
+        toast.error('Erro ao criar deal');
+        return;
+      }
+
+      // Create the next action task
+      if (newDeal && nextAction.title) {
+        await supabase
+          .from('deal_tasks')
+          .insert({
+            user_id: user!.id,
+            deal_id: newDeal.id,
+            title: nextAction.title,
+            description: nextAction.description || null,
+            due_date: nextAction.due_date || null,
+            due_time: nextAction.due_time || null,
+            task_type_id: nextAction.task_type_id || null,
+            assigned_to: nextAction.assigned_to || null,
+            priority: 'medium',
+          });
+      }
+
+      toast.success('Deal criado com próxima ação');
     }
     
     onOpenChange(false);
@@ -238,13 +298,22 @@ export const DealFormDialog = ({
             {/* Custom Fields */}
             <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
 
+            {/* Próxima Ação - Obrigatória para novos deals */}
+            {!deal && (
+              <NextActionForm
+                value={nextAction}
+                onChange={setNextAction}
+                required={true}
+              />
+            )}
+
             <div className="flex justify-end gap-2 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
               <Button
                 type="submit"
-                disabled={(!deal && !contactId) || createDeal.isPending || updateDeal.isPending}
+                disabled={(!deal && !contactId) || (!deal && !isNextActionValid) || createDeal.isPending || updateDeal.isPending}
               >
                 {deal ? "Salvar" : "Criar Deal"}
               </Button>
