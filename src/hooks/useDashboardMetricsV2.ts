@@ -164,7 +164,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
         .eq('direction', 'outbound');
 
       const messagesSent = messagesData?.length || 0;
-      const messagesDelivered = messagesData?.filter(m => m.status === 'delivered' || m.status === 'read').length || 0;
+      const messagesDelivered = messagesData?.filter(m => m.status === 'sent' || m.status === 'read').length || 0;
       const messagesFailed = messagesData?.filter(m => m.status === 'failed').length || 0;
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
@@ -322,26 +322,31 @@ export interface FunnelMetrics {
   avgSalesCycle: number; // in days
 }
 
-export const useFunnelMetrics = (dateRange: DateRange = '30d') => {
+export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string) => {
   return useQuery({
-    queryKey: ['funnel-metrics', dateRange],
+    queryKey: ['funnel-metrics', dateRange, funnelId],
     queryFn: async (): Promise<FunnelMetrics> => {
       const { start } = getDateRange(dateRange);
 
-      // Get all funnels and stages
-      const { data: funnels } = await supabase
-        .from('funnels')
-        .select('id, name');
-
-      const { data: stages } = await supabase
+      // Get stages for selected funnel or all
+      let stagesQuery = supabase
         .from('funnel_stages')
-        .select('id, name, color, probability, is_final, final_type, display_order')
+        .select('id, name, color, probability, is_final, final_type, display_order, funnel_id')
         .order('display_order', { ascending: true });
+      
+      if (funnelId) {
+        stagesQuery = stagesQuery.eq('funnel_id', funnelId);
+      }
 
-      // Get all deals
+      const { data: stages } = await stagesQuery;
+
+      // Get deals for stages
+      const stageIds = stages?.map(s => s.id) || [];
+      
       const { data: deals } = await supabase
         .from('funnel_deals')
-        .select('id, stage_id, value, closed_at, created_at');
+        .select('id, stage_id, value, closed_at, created_at')
+        .in('stage_id', stageIds.length > 0 ? stageIds : ['']);
 
       // Calculate stage metrics
       const stageMetrics: FunnelStageMetric[] = (stages || [])
@@ -419,6 +424,26 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d') => {
         valueLost,
         avgSalesCycle,
       };
+    },
+  });
+};
+
+// ==================== FUNNELS LIST ====================
+export interface FunnelListItem {
+  id: string;
+  name: string;
+}
+
+export const useFunnelsList = () => {
+  return useQuery({
+    queryKey: ['funnels-list'],
+    queryFn: async (): Promise<FunnelListItem[]> => {
+      const { data } = await supabase
+        .from('funnels')
+        .select('id, name')
+        .order('name', { ascending: true });
+      
+      return data || [];
     },
   });
 };

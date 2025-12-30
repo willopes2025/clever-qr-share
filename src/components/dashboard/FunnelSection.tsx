@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { useFunnelMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useFunnelMetrics, useFunnelsList, DateRange } from '@/hooks/useDashboardMetricsV2';
 import { TrendingUp, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 interface FunnelSectionProps {
@@ -15,7 +17,9 @@ const formatCurrency = (value: number): string => {
 };
 
 export const FunnelSection = ({ dateRange }: FunnelSectionProps) => {
-  const { data, isLoading } = useFunnelMetrics(dateRange);
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string | undefined>(undefined);
+  const { data: funnels } = useFunnelsList();
+  const { data, isLoading } = useFunnelMetrics(dateRange, selectedFunnelId);
 
   const summaryCards = [
     { 
@@ -55,9 +59,27 @@ export const FunnelSection = ({ dateRange }: FunnelSectionProps) => {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-2">
-          🔄 Funil / CRM
-        </CardTitle>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            🔄 Funil / CRM
+          </CardTitle>
+          <Select 
+            value={selectedFunnelId || 'all'} 
+            onValueChange={(value) => setSelectedFunnelId(value === 'all' ? undefined : value)}
+          >
+            <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectValue placeholder="Todos os funis" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os funis</SelectItem>
+              {funnels?.map((funnel) => (
+                <SelectItem key={funnel.id} value={funnel.id}>
+                  {funnel.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Summary Cards */}
