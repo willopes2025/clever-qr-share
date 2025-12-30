@@ -924,6 +924,31 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       
       // Check if this is a warming message (inbound only)
       if (!isFromMe) {
+        // Send WhatsApp notification for inbound message
+        try {
+          console.log('[NOTIFICATION] Sending notification for inbound message');
+          const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              type: 'new_message',
+              data: {
+                conversationId: conversation.id,
+                contactName: contact.name || phone,
+                message: content?.substring(0, 100) || preview,
+              },
+            }),
+          });
+          
+          const notifResult = await notificationResponse.json();
+          console.log('[NOTIFICATION] Result:', notifResult);
+        } catch (notifError) {
+          console.error('[NOTIFICATION] Error sending notification:', notifError);
+        }
+        
         // For audio messages, transcribe before triggering AI
         let effectiveContent = content || preview;
         
