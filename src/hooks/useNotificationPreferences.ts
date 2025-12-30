@@ -19,6 +19,7 @@ export interface NotificationPreferences {
   notify_ai_handoff: boolean;
   notify_campaign_complete: boolean;
   notify_instance_disconnect: boolean;
+  notify_internal_chat: boolean;
   only_if_responsible: boolean;
   notification_instance_id: string | null;
   created_at: string;
@@ -46,6 +47,7 @@ export const NOTIFICATION_TYPES = [
   { key: 'notify_calendly_event', label: 'Evento Calendly agendado', description: 'Receber notificação quando um evento Calendly for agendado', category: 'other' },
   { key: 'notify_campaign_complete', label: 'Campanha finalizada', description: 'Receber notificação quando uma campanha for concluída', category: 'other' },
   { key: 'notify_instance_disconnect', label: 'Instância desconectou', description: 'Receber notificação quando uma instância WhatsApp desconectar', category: 'other' },
+  { key: 'notify_internal_chat', label: 'Chat interno via WhatsApp', description: 'Receber mensagens do chat interno no seu WhatsApp pessoal', category: 'other' },
 ] as const;
 
 export function useNotificationPreferences() {

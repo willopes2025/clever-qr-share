@@ -161,3 +161,6 @@ verify_jwt = true
 
 [functions.meta-whatsapp-templates]
 verify_jwt = true
+
+[functions.internal-chat-whatsapp]
+verify_jwt = false
