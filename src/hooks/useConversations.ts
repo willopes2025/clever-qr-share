@@ -93,8 +93,23 @@ export const useConversations = () => {
     enabled: !!user && hasInstanceRestriction === true,
   });
 
+  // Get notification-only instance IDs to exclude from inbox
+  const { data: notificationInstanceIds } = useQuery({
+    queryKey: ['notification-instance-ids', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_instances')
+        .select('id')
+        .eq('is_notification_only', true);
+      
+      if (error) throw error;
+      return data?.map(i => i.id) || [];
+    },
+    enabled: !!user,
+  });
+
   const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction],
+    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds],
     queryFn: async () => {
       let query = supabase
         .from('conversations')
@@ -114,6 +129,11 @@ export const useConversations = () => {
           // Member has instance restrictions but no instances assigned - return empty
           return [];
         }
+      }
+
+      // Exclude conversations from notification-only instances
+      if (notificationInstanceIds && notificationInstanceIds.length > 0) {
+        query = query.not('instance_id', 'in', `(${notificationInstanceIds.join(',')})`);
       }
 
       const { data, error } = await query;

@@ -14,6 +14,21 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   const queryClient = useQueryClient();
   const { permission, requestPermission, notifyNewMessage } = useNotifications();
 
+  // Fetch notification-only instance IDs to exclude from notifications
+  const { data: notificationInstanceIds } = useQuery({
+    queryKey: ['notification-instance-ids', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_instances')
+        .select('id')
+        .eq('is_notification_only', true);
+      
+      if (error) throw error;
+      return data?.map(i => i.id) || [];
+    },
+    enabled: !!user,
+  });
+
   // Fetch conversations directly here to avoid hook order issues
   const { data: conversations } = useQuery({
     queryKey: ['conversations', user?.id],
@@ -105,6 +120,13 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
           // Only notify for messages belonging to this user
           if (message.user_id !== user.id) return;
 
+          // Check if this conversation is from a notification-only instance
+          const conversation = conversations?.find(c => c.id === message.conversation_id);
+          if (conversation?.instance_id && notificationInstanceIds?.includes(conversation.instance_id)) {
+            console.log('[NotificationProvider] Ignoring notification from notification-only instance');
+            return;
+          }
+
           // Get contact name
           const contactName = await getContactName(message.conversation_id);
           
@@ -126,7 +148,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, getContactName, notifyNewMessage, queryClient]);
+  }, [user?.id, getContactName, notifyNewMessage, queryClient, conversations, notificationInstanceIds]);
 
   return <>{children}</>;
 };
