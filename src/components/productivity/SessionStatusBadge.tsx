@@ -105,7 +105,7 @@ export const SessionStatusBadge = () => {
           <span className="font-mono text-xs">{elapsed}</span>
         </Badge>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="z-[100] bg-popover border border-border shadow-lg">
         <DropdownMenuItem onClick={() => currentSession ? switchSession('work') : startSession('work')}>
           <Play className="h-4 w-4 mr-2 text-green-600" />
           Iniciar Trabalho
