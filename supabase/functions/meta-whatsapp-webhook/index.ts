@@ -241,6 +241,44 @@ serve(async (req) => {
                 .eq('id', conversation.id);
 
               console.log('[META-WEBHOOK] Message saved successfully');
+
+              // ============ AUTO-CREATE DEAL IN FUNNEL "Seven ES" ============
+              const SEVEN_ES_FUNNEL_ID = '79c5f8c6-9859-4425-af4b-0234acce9562';
+              const FIRST_STAGE_ID = 'e65a59a6-cd53-4b34-bd0a-c7089ed579ff'; // Qualificação
+
+              // Check if there's already an open deal for this contact in "Seven ES"
+              const { data: existingDeal } = await supabase
+                .from('funnel_deals')
+                .select('id')
+                .eq('contact_id', contact.id)
+                .eq('funnel_id', SEVEN_ES_FUNNEL_ID)
+                .is('closed_at', null)
+                .maybeSingle();
+
+              if (!existingDeal) {
+                const { data: newDeal, error: dealError } = await supabase
+                  .from('funnel_deals')
+                  .insert({
+                    funnel_id: SEVEN_ES_FUNNEL_ID,
+                    stage_id: FIRST_STAGE_ID,
+                    contact_id: contact.id,
+                    conversation_id: conversation.id,
+                    user_id: userId,
+                    title: contactName || contactPhone,
+                    source: 'meta_whatsapp',
+                    entered_stage_at: new Date().toISOString()
+                  })
+                  .select()
+                  .single();
+
+                if (dealError) {
+                  console.error('[META-WEBHOOK] Error creating deal:', dealError);
+                } else {
+                  console.log('[META-WEBHOOK] Deal created in funnel Seven ES:', newDeal?.id);
+                }
+              } else {
+                console.log('[META-WEBHOOK] Contact already has open deal in Seven ES:', existingDeal.id);
+              }
             }
 
             // Process status updates
