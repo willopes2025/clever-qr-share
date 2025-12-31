@@ -263,7 +263,7 @@ serve(async (req) => {
       notify_campaign_complete: true,
       notify_instance_disconnect: true,
       notify_internal_chat: true,
-      only_if_responsible: false, // Default: receive all notifications
+      only_if_responsible: true, // Default: receive notifications when responsible
       schedule_enabled: false,
       schedule_days: [1, 2, 3, 4, 5],
       schedule_start_time: '08:00',
@@ -337,15 +337,22 @@ serve(async (req) => {
       }
 
       // Check only_if_responsible filter
-      const onlyIfResponsible = effectivePrefs.only_if_responsible ?? false;
-      if (onlyIfResponsible) {
-        const isResponsible = await checkIfUserIsResponsible(userId, type, data);
-        if (!isResponsible) {
-          console.log(`User ${userId} has only_if_responsible=true but is not responsible for ${type}, skipping`);
-          continue;
-        }
-        console.log(`User ${userId} is responsible, proceeding with notification`);
+      // If only_if_responsible = true (default): receive notification when responsible
+      // If only_if_responsible = false: user opted out, do NOT send notification
+      const onlyIfResponsible = effectivePrefs.only_if_responsible ?? true;
+      
+      if (!onlyIfResponsible) {
+        console.log(`User ${userId} has only_if_responsible=false, opted out of responsibility-based notifications, skipping`);
+        continue;
       }
+      
+      // User wants notifications when responsible, check if they are
+      const isResponsible = await checkIfUserIsResponsible(userId, type, data);
+      if (!isResponsible) {
+        console.log(`User ${userId} is not responsible for ${type}, skipping`);
+        continue;
+      }
+      console.log(`User ${userId} is responsible for ${type}, proceeding with notification`);
 
       // Get team member for this user (for phone and organization)
       const teamMember = teamMembers?.find(tm => tm.user_id === userId);
