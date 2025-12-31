@@ -79,17 +79,29 @@ serve(async (req) => {
     if (memberIds.length === 0) {
       console.log('[INTERNAL-CHAT-WHATSAPP] No other members to notify');
       return new Response(
-        JSON.stringify({ success: true, sent: 0 }),
+        JSON.stringify({ success: true, sent: 0, skipped_not_responsible: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log('[INTERNAL-CHAT-WHATSAPP] Members to notify:', memberIds);
 
+    // Get conversation responsible (assigned_to)
+    let conversationResponsibleId: string | null = null;
+    if (conversationId) {
+      const { data: convData } = await supabase
+        .from('conversations')
+        .select('assigned_to')
+        .eq('id', conversationId)
+        .maybeSingle();
+      conversationResponsibleId = convData?.assigned_to || null;
+      console.log('[INTERNAL-CHAT-WHATSAPP] Conversation responsible:', conversationResponsibleId);
+    }
+
     // Get notification preferences for members who have internal chat enabled
     const { data: preferences } = await supabase
       .from('notification_preferences')
-      .select('user_id, notify_internal_chat')
+      .select('user_id, notify_internal_chat, only_if_responsible')
       .in('user_id', memberIds);
 
     // Get team members with phone and organization
@@ -101,6 +113,7 @@ serve(async (req) => {
 
     const sentNotifications: string[] = [];
     const errors: string[] = [];
+    let skippedNotResponsible = 0;
 
     for (const userId of memberIds) {
       const pref = preferences?.find(p => p.user_id === userId);
@@ -109,6 +122,23 @@ serve(async (req) => {
       if (pref && pref.notify_internal_chat === false) {
         console.log(`[INTERNAL-CHAT-WHATSAPP] Internal chat disabled for user ${userId}`);
         continue;
+      }
+
+      // Check only_if_responsible preference
+      if (pref?.only_if_responsible === true) {
+        // If conversation has a responsible and this user is not the responsible, skip
+        if (conversationResponsibleId && conversationResponsibleId !== userId) {
+          console.log(`[INTERNAL-CHAT-WHATSAPP] User ${userId} has only_if_responsible=true but is not the conversation responsible (${conversationResponsibleId}), skipping`);
+          skippedNotResponsible++;
+          continue;
+        }
+        // If no responsible is assigned and user has only_if_responsible=true, also skip
+        // (they only want notifications for conversations they're responsible for)
+        if (!conversationResponsibleId) {
+          console.log(`[INTERNAL-CHAT-WHATSAPP] User ${userId} has only_if_responsible=true but conversation has no responsible assigned, skipping`);
+          skippedNotResponsible++;
+          continue;
+        }
       }
 
       // Get team member info (phone and organization)
@@ -219,6 +249,7 @@ serve(async (req) => {
         success: true,
         sent: sentNotifications.length,
         errors: errors.length,
+        skipped_not_responsible: skippedNotResponsible,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
