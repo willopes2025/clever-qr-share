@@ -43,6 +43,104 @@ const fetchCalendlyAvailableTimes = async (
   }
 };
 
+// Create a booking via Calendly
+const createCalendlyBooking = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  startTime: string,
+  inviteeName: string,
+  inviteeEmail: string,
+  inviteePhone?: string
+): Promise<{ success: boolean; booking?: Record<string, unknown>; error?: string }> => {
+  try {
+    console.log(`[TEST-AI-AGENT] Creating booking: ${startTime} for ${inviteeName} <${inviteeEmail}>`);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/calendly-integration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action: 'create-booking',
+        agentConfigId,
+        startTime,
+        inviteeName,
+        inviteeEmail,
+        inviteePhone,
+        timezone: 'America/Sao_Paulo',
+      }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      console.error('[TEST-AI-AGENT] Failed to create booking:', data.error);
+      return { success: false, error: data.error || 'Erro ao criar agendamento' };
+    }
+    
+    console.log('[TEST-AI-AGENT] Booking created successfully:', data.booking?.uri);
+    return { success: true, booking: data.booking };
+  } catch (e) {
+    console.error('[TEST-AI-AGENT] Failed to create Calendly booking:', e);
+    return { success: false, error: 'Erro de conexão ao criar agendamento' };
+  }
+};
+
+// Define Calendly tools for AI
+const getCalendlyTools = () => [
+  {
+    type: 'function',
+    function: {
+      name: 'get_available_times',
+      description: 'Busca horários disponíveis para agendamento no Calendly. Use quando o cliente perguntar sobre horários disponíveis ou quiser agendar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { 
+            type: 'string', 
+            description: 'Data de início para buscar horários (formato YYYY-MM-DD). Use a data de hoje ou a data mencionada pelo cliente.' 
+          },
+          end_date: { 
+            type: 'string', 
+            description: 'Data de fim para buscar horários (formato YYYY-MM-DD). Máximo 6 dias após start_date.' 
+          },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_booking',
+      description: 'Cria um agendamento confirmado no Calendly. Use APENAS quando o cliente confirmar um horário específico E você tiver coletado nome e email. O start_time DEVE ser EXATAMENTE o valor ISO retornado por get_available_times.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_time: { 
+            type: 'string', 
+            description: 'OBRIGATÓRIO: Use EXATAMENTE o valor ISO retornado por get_available_times (ex: 2025-12-29T12:00:00.000000Z). NUNCA modifique este valor.' 
+          },
+          invitee_name: { 
+            type: 'string', 
+            description: 'Nome completo do cliente' 
+          },
+          invitee_email: { 
+            type: 'string', 
+            description: 'Email do cliente (obrigatório para criar agendamento)' 
+          },
+          invitee_phone: { 
+            type: 'string', 
+            description: 'Telefone do cliente (opcional)' 
+          },
+        },
+        required: ['start_time', 'invitee_name', 'invitee_email'],
+      },
+    },
+  },
+];
+
 // Format slot to Brazilian Portuguese
 const formatSlotBR = (isoTime: string): string => {
   const date = new Date(isoTime);
@@ -225,11 +323,19 @@ serve(async (req) => {
 
     // Build calendar context with pre-fetched slots
     let calendarContext = '';
+    let slotsWithIso: Array<{ formatted: string; iso: string }> = [];
+    
     if (hasCalendarIntegration) {
       let slotsInfo = '';
       if (prefetchedSlots.length > 0) {
-        const slotsFormatted = prefetchedSlots.slice(0, 6).map((slot, i) => {
-          return `  ${i + 1}. ${formatSlotBR(slot.start_time)}`;
+        // Store both formatted and ISO times for tool reference
+        slotsWithIso = prefetchedSlots.slice(0, 6).map((slot) => ({
+          formatted: formatSlotBR(slot.start_time),
+          iso: slot.start_time,
+        }));
+        
+        const slotsFormatted = slotsWithIso.map((slot, i) => {
+          return `  ${i + 1}. ${slot.formatted} (ISO: ${slot.iso})`;
         }).join('\n');
         slotsInfo = `
 HORÁRIOS DISPONÍVEIS (JÁ CONSULTADOS DO CALENDLY):
@@ -242,14 +348,16 @@ ${slotsFormatted}
       }
 
       calendarContext = `
-## 🗓️ CALENDLY CONECTADO
+## 🗓️ CALENDLY CONECTADO - AGENDAMENTO REAL ATIVO
 ${slotsInfo}
 
 ### 🚨 REGRAS OBRIGATÓRIAS DE AGENDAMENTO 🚨
 1. Use SOMENTE os horários listados acima
 2. NUNCA invente datas ou horários
 3. Se o cliente perguntar "quando" ou "horário", ofereça slot1 e slot2
-4. Se os horários acima não servirem, diga que vai verificar outras opções`;
+4. Para AGENDAR: colete NOME e EMAIL do cliente, depois use a tool create_booking
+5. O start_time DEVE ser o valor ISO exato (ex: 2025-01-02T12:00:00.000000Z)
+6. SEMPRE confirme o agendamento após criar com sucesso`;
     }
 
     // Build system prompt with REPLACED content
@@ -282,7 +390,8 @@ INSTRUÇÕES FINAIS:
 - Mantenha respostas curtas e naturais (2-3 linhas).
 - Use a personalidade e regras definidas acima.
 - Use a base de conhecimento para responder perguntas específicas.
-${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot1Formatted}) e slot2 (${slot2Formatted}). NÃO INVENTE DATAS.` : ''}`;
+${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot1Formatted}) e slot2 (${slot2Formatted}). NÃO INVENTE DATAS.
+- Para criar agendamento real: colete nome e email, depois use create_booking com o ISO do slot escolhido.` : ''}`;
 
     // Build messages array for API
     const messages = [
@@ -305,16 +414,24 @@ ${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot
 
     console.log(`[TEST-AI-AGENT] Calling AI. First message: ${isFirstMessage}, Has calendar: ${hasCalendarIntegration}`);
 
+    // Prepare request body with tools if calendar is connected
+    const requestBody: Record<string, unknown> = {
+      model: "google/gemini-2.5-flash",
+      messages,
+    };
+    
+    if (hasCalendarIntegration) {
+      requestBody.tools = getCalendlyTools();
+      requestBody.tool_choice = "auto";
+    }
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!aiResponse.ok) {
@@ -342,18 +459,125 @@ ${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot
     }
 
     const aiData = await aiResponse.json();
-    let response = aiData.choices?.[0]?.message?.content || '';
+    const aiMessage = aiData.choices?.[0]?.message;
+    let response = aiMessage?.content || '';
+    
+    // Track if booking was created
+    let bookingCreated = false;
+    let bookingDetails: Record<string, unknown> | null = null;
 
-    // === GUARDRAIL: Validate response has correct slots ===
-    if (hasCalendarIntegration && prefetchedSlots.length > 0 && response) {
-      // Check if response mentions dates/times but not our slots
+    // === PROCESS TOOL CALLS ===
+    if (aiMessage?.tool_calls && aiMessage.tool_calls.length > 0) {
+      console.log(`[TEST-AI-AGENT] Processing ${aiMessage.tool_calls.length} tool calls`);
+      
+      const toolResults: Array<{ role: string; tool_call_id: string; content: string }> = [];
+      
+      for (const toolCall of aiMessage.tool_calls) {
+        const functionName = toolCall.function?.name;
+        let args: Record<string, unknown> = {};
+        
+        try {
+          args = JSON.parse(toolCall.function?.arguments || '{}');
+        } catch {
+          console.error('[TEST-AI-AGENT] Failed to parse tool arguments');
+        }
+        
+        console.log(`[TEST-AI-AGENT] Tool call: ${functionName}`, args);
+        
+        let toolResult = '';
+        
+        if (functionName === 'get_available_times') {
+          // Fetch available times
+          const startDate = args.start_date as string || new Date().toISOString().split('T')[0];
+          const endDate = args.end_date as string || new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          
+          const times = await fetchCalendlyAvailableTimes(supabaseUrl, agentId, startDate, endDate);
+          
+          if (times && times.length > 0) {
+            const timesFormatted = times.slice(0, 8).map(t => ({
+              formatted: formatSlotBR(t.start_time),
+              iso: t.start_time,
+            }));
+            toolResult = JSON.stringify({ success: true, availableTimes: timesFormatted });
+          } else {
+            toolResult = JSON.stringify({ success: false, error: 'Nenhum horário disponível' });
+          }
+        } else if (functionName === 'create_booking') {
+          // Create booking
+          const startTime = args.start_time as string;
+          const inviteeName = args.invitee_name as string;
+          const inviteeEmail = args.invitee_email as string;
+          const inviteePhone = args.invitee_phone as string | undefined;
+          
+          if (!startTime || !inviteeName || !inviteeEmail) {
+            toolResult = JSON.stringify({ 
+              success: false, 
+              error: 'Faltam dados obrigatórios: start_time, invitee_name e invitee_email são necessários' 
+            });
+          } else {
+            const result = await createCalendlyBooking(
+              supabaseUrl,
+              agentId,
+              startTime,
+              inviteeName,
+              inviteeEmail,
+              inviteePhone
+            );
+            
+            if (result.success) {
+              bookingCreated = true;
+              bookingDetails = result.booking || null;
+              toolResult = JSON.stringify({ 
+                success: true, 
+                message: `Agendamento criado com sucesso para ${inviteeName}!`,
+                booking: result.booking,
+              });
+            } else {
+              toolResult = JSON.stringify({ success: false, error: result.error });
+            }
+          }
+        }
+        
+        toolResults.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: toolResult,
+        });
+      }
+      
+      // Make follow-up call with tool results
+      const followUpMessages = [
+        ...messages,
+        aiMessage,
+        ...toolResults,
+      ];
+      
+      const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: followUpMessages,
+        }),
+      });
+      
+      if (followUpResponse.ok) {
+        const followUpData = await followUpResponse.json();
+        response = followUpData.choices?.[0]?.message?.content || response;
+      }
+    }
+
+    // === GUARDRAIL: Validate response has correct slots (only if no tool calls) ===
+    if (!aiMessage?.tool_calls && hasCalendarIntegration && prefetchedSlots.length > 0 && response) {
       const mentionsDates = /\d{1,2}\/\d{1,2}|\d{1,2}h|\d{1,2}:\d{2}/.test(response);
       const hasCorrectSlot = slot1Formatted && response.includes(slot1Formatted.split(' às ')[1] || '');
       
       if (mentionsDates && !hasCorrectSlot) {
         console.log('[TEST-AI-AGENT] Guardrail triggered - response has wrong dates, fixing...');
         
-        // Make a correction call
         const correctionMessages = [
           ...messages,
           { role: "assistant", content: response },
@@ -398,7 +622,11 @@ ${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot
         response,
         agentName: agent.agent_name,
         hasCalendarIntegration,
-        calendlyDebug,
+        calendlyDebug: {
+          ...calendlyDebug,
+          bookingCreated,
+          bookingDetails,
+        },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
