@@ -272,23 +272,37 @@ serve(async (req) => {
 
     // Helper function to check if user is responsible for the resource
     const checkIfUserIsResponsible = async (userId: string, notificationType: string, notificationData: any): Promise<boolean> => {
-      // For tasks: check if user is assigned_to
+      // For tasks: check if user is assigned_to OR user_id (creator) when no assignee
       if (notificationType.startsWith('task_') && notificationData.taskId) {
         const { data: convTask } = await supabase
           .from('conversation_tasks')
-          .select('assigned_to')
+          .select('assigned_to, user_id')
           .eq('id', notificationData.taskId)
           .maybeSingle();
         
-        if (convTask?.assigned_to === userId) return true;
+        if (convTask) {
+          // If task has an assignee, check if user is the assignee
+          if (convTask.assigned_to) {
+            return convTask.assigned_to === userId;
+          }
+          // If no assignee, check if user is the creator
+          return convTask.user_id === userId;
+        }
         
         const { data: dealTask } = await supabase
           .from('deal_tasks')
-          .select('assigned_to')
+          .select('assigned_to, user_id')
           .eq('id', notificationData.taskId)
           .maybeSingle();
         
-        if (dealTask?.assigned_to === userId) return true;
+        if (dealTask) {
+          // If task has an assignee, check if user is the assignee
+          if (dealTask.assigned_to) {
+            return dealTask.assigned_to === userId;
+          }
+          // If no assignee, check if user is the creator
+          return dealTask.user_id === userId;
+        }
         
         return false;
       }
