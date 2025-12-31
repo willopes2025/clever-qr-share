@@ -213,6 +213,41 @@ const isAskingAboutSchedule = (message: string): boolean => {
   return scheduleKeywords.some(keyword => lowerMessage.includes(keyword));
 };
 
+// Format slot to Brazilian Portuguese
+const formatSlotBR = (isoTime: string): string => {
+  const date = new Date(isoTime);
+  const dia = date.toLocaleDateString('pt-BR', { 
+    weekday: 'long',
+    day: '2-digit', 
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo'
+  });
+  const hora = date.toLocaleTimeString('pt-BR', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo'
+  });
+  return `${dia} às ${hora}`;
+};
+
+// Replace slot placeholders in text
+const replaceSlotPlaceholders = (text: string, slot1: string, slot2: string, slot1Iso: string, slot2Iso: string): string => {
+  if (!text) return text;
+  return text
+    .replace(/\{\{slot1\}\}/gi, slot1)
+    .replace(/\{\{slot2\}\}/gi, slot2)
+    .replace(/\{\{p_slot1\}\}/gi, slot1)
+    .replace(/\{\{p_slot2\}\}/gi, slot2)
+    .replace(/\{\{slot1_iso\}\}/gi, slot1Iso)
+    .replace(/\{\{slot2_iso\}\}/gi, slot2Iso);
+};
+
+// Check if text contains slot placeholders
+const hasSlotPlaceholders = (text: string): boolean => {
+  if (!text) return false;
+  return /\{\{(slot1|slot2|p_slot1|p_slot2)\}\}/i.test(text);
+};
+
 // Check if user is requesting a specific time slot (needs mandatory verification)
 const isRequestingSpecificTime = (message: string): boolean => {
   const lower = message.toLowerCase();
@@ -1137,6 +1172,71 @@ serve(async (req) => {
       .limit(20);
 
     // Build conversation history for AI
+    const conversationHistoryForSlots: ConversationMessage[] = (messages || []).map(msg => ({
+      role: msg.direction === 'inbound' ? 'user' : 'assistant',
+      content: msg.content,
+    }));
+
+    // === PRE-FETCH CALENDLY SLOTS ===
+    // Check if first response or agent uses slot placeholders
+    const assistantMessagesCount = conversationHistoryForSlots.filter(m => m.role === 'assistant').length;
+    const isFirstResponse = assistantMessagesCount === 0;
+    const needsSlots = hasSlotPlaceholders(config.greeting_message || '') || 
+                       hasSlotPlaceholders(config.behavior_rules || '') ||
+                       hasSlotPlaceholders(config.personality_prompt || '');
+
+    const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
+    let slot1Formatted = '';
+    let slot2Formatted = '';
+    let slot1Iso = '';
+    let slot2Iso = '';
+    let prefetchedSlots: Array<{ start_time: string; status: string }> = [];
+
+    if (hasCalendarIntegration && (isFirstResponse || needsSlots)) {
+      console.log('[AI-AGENT] Pre-fetching Calendly slots (first response or needs slots)...');
+      
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      console.log(`[AI-AGENT] Fetching slots from ${startDate} to ${endDate}`);
+      
+      const availableTimes = await fetchCalendlyAvailableTimes(supabaseUrl, agentConfig.id, startDate, endDate);
+      
+      if (availableTimes && availableTimes.length > 0) {
+        prefetchedSlots = availableTimes;
+        
+        if (availableTimes[0]) {
+          slot1Formatted = formatSlotBR(availableTimes[0].start_time);
+          slot1Iso = availableTimes[0].start_time;
+        }
+        if (availableTimes[1]) {
+          slot2Formatted = formatSlotBR(availableTimes[1].start_time);
+          slot2Iso = availableTimes[1].start_time;
+        }
+        
+        console.log(`[AI-AGENT] Pre-fetched ${availableTimes.length} slots. slot1: ${slot1Formatted}, slot2: ${slot2Formatted}`);
+      } else {
+        console.log('[AI-AGENT] No slots available from Calendly');
+        slot1Formatted = 'sem horários disponíveis no momento';
+        slot2Formatted = 'sem horários disponíveis no momento';
+      }
+    }
+
+    // Apply slot placeholder substitution
+    let effectiveGreeting = config.greeting_message || '';
+    let effectiveBehaviorRules = config.behavior_rules || '';
+    let effectivePersonality = config.personality_prompt || '';
+
+    if (slot1Formatted && slot2Formatted) {
+      effectiveGreeting = replaceSlotPlaceholders(effectiveGreeting, slot1Formatted, slot2Formatted, slot1Iso, slot2Iso);
+      effectiveBehaviorRules = replaceSlotPlaceholders(effectiveBehaviorRules, slot1Formatted, slot2Formatted, slot1Iso, slot2Iso);
+      effectivePersonality = replaceSlotPlaceholders(effectivePersonality, slot1Formatted, slot2Formatted, slot1Iso, slot2Iso);
+    }
+
+    // Re-build conversation history (use previously fetched data)
+
+    // Build conversation history for AI
     const conversationHistory: ConversationMessage[] = (messages || []).map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
       content: msg.content,
@@ -1170,8 +1270,8 @@ serve(async (req) => {
     });
     const anoAtual = agora.getFullYear();
     
-    // Start with personality prompt
-    let systemPrompt = config.personality_prompt || 
+    // Start with personality prompt (use effective version with slot placeholders replaced)
+    let systemPrompt = effectivePersonality || 
       `Você é ${config.agent_name}, um assistente virtual amigável e profissional.`;
     
     // Add mandatory current date/time context at the very beginning
@@ -1185,9 +1285,9 @@ serve(async (req) => {
 
 ` + systemPrompt;
     
-    // Add behavior rules
-    if (config.behavior_rules) {
-      systemPrompt += `\n\n## Regras de Comportamento\n${config.behavior_rules}`;
+    // Add behavior rules (use effective version with slot placeholders replaced)
+    if (effectiveBehaviorRules) {
+      systemPrompt += `\n\n## Regras de Comportamento\n${effectiveBehaviorRules}`;
     }
     
     // Add current stage prompt if exists
@@ -1220,7 +1320,7 @@ serve(async (req) => {
     
     // Check if user is asking about scheduling and we have calendar integration
     let calendarContext = '';
-    const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
+    // hasCalendarIntegration is already defined above in the pre-fetch section
     
     // Check if user is requesting a specific time (needs MANDATORY verification before confirming)
     const userRequestingSpecificTime = isRequestingSpecificTime(effectiveMessageContent);
@@ -1305,7 +1405,28 @@ A ferramenta retorna horários com códigos [A], [B], etc. Liste CADA horário i
     if (calendarContext) {
       systemPrompt += calendarContext;
     }
-    
+
+    // Add pre-fetched slots context for first response
+    if (isFirstResponse && prefetchedSlots.length > 0) {
+      systemPrompt += `\n\n## 📌 HORÁRIOS PRÉ-CARREGADOS (PRIMEIRA RESPOSTA)
+Os seguintes horários JÁ FORAM verificados no Calendly e estão DISPONÍVEIS:
+- SLOT1 = ${slot1Formatted} (ISO: ${slot1Iso})
+- SLOT2 = ${slot2Formatted} (ISO: ${slot2Iso})
+
+🚨 IMPORTANTE PARA PRIMEIRA MENSAGEM:
+- OFEREÇA estes horários DIRETAMENTE ao cliente na sua primeira resposta
+- NÃO precisa chamar get_available_times agora - já verificamos para você
+- Use exatamente o texto do greeting message configurado abaixo
+- Se o cliente escolher um desses horários posteriormente, use o valor ISO correspondente`;
+
+      // Add effective greeting as model for first response
+      if (effectiveGreeting) {
+        systemPrompt += `\n\n## MODELO PARA PRIMEIRA RESPOSTA (USE ESTE FORMATO):
+"${effectiveGreeting}"
+
+SIGA este formato na sua primeira mensagem, oferecendo os horários pré-carregados.`;
+      }
+    }
     // Analyze conversation history to detect what has already been said
     const historicoJaSaudou = conversationHistory.some(msg => 
       msg.role === 'assistant' && 
