@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Plus, Calendar, Trash2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Calendar, Trash2, AlertCircle, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { useDealTasks, DealTask } from "@/hooks/useDealTasks";
+import { useUnifiedTasks, UnifiedTask } from "@/hooks/useUnifiedTasks";
 import { cn } from "@/lib/utils";
 
 interface DealTasksSectionProps {
@@ -13,7 +13,7 @@ interface DealTasksSectionProps {
 }
 
 export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
-  const { tasks, createTask, toggleComplete, deleteTask, isLoading } = useDealTasks(dealId);
+  const { tasks, pendingTasks, completedTasks, createTask, toggleComplete, deleteTask, isLoading } = useUnifiedTasks({ dealId });
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
@@ -24,10 +24,10 @@ export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
     if (!newTaskTitle.trim()) return;
     
     createTask.mutate({
-      deal_id: dealId,
       title: newTaskTitle.trim(),
       description: newTaskDescription.trim() || undefined,
       due_date: newTaskDueDate || undefined,
+      source: 'deal',
     });
     
     setNewTaskTitle("");
@@ -36,7 +36,7 @@ export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
     setShowAddForm(false);
   };
 
-  const isOverdue = (task: DealTask) => {
+  const isOverdue = (task: UnifiedTask) => {
     if (!task.due_date || task.completed_at) return false;
     return new Date(task.due_date) < new Date();
   };
@@ -133,19 +133,25 @@ export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
               <div className="flex items-start gap-2">
                 <Checkbox
                   checked={!!task.completed_at}
-                  onCheckedChange={(checked) => 
-                    toggleComplete.mutate({ id: task.id, completed: !!checked })
-                  }
+                  onCheckedChange={() => toggleComplete.mutate(task)}
                   className="mt-0.5"
                 />
                 
                 <div className="flex-1 min-w-0">
-                  <p className={cn(
-                    "text-sm",
-                    task.completed_at && "line-through text-muted-foreground"
-                  )}>
-                    {task.title}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className={cn(
+                      "text-sm",
+                      task.completed_at && "line-through text-muted-foreground"
+                    )}>
+                      {task.title}
+                    </p>
+                    {task.source === 'conversation' && (
+                      <Badge variant="outline" className="text-[10px] h-4 gap-0.5 px-1">
+                        <MessageSquare className="h-2.5 w-2.5" />
+                        Chat
+                      </Badge>
+                    )}
+                  </div>
                   
                   {/* Description preview or expanded */}
                   {task.description && (
@@ -183,7 +189,7 @@ export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
                     variant="ghost"
                     size="icon"
                     className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                    onClick={() => deleteTask.mutate(task.id)}
+                    onClick={() => deleteTask.mutate(task)}
                   >
                     <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
