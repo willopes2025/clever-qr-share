@@ -302,57 +302,61 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="p-4 border-b">
+      <div className="border-b flex flex-col max-h-[50vh]">
         {isCreating ? (
-          <div className="space-y-3">
-            <Input
-              placeholder="Título da tarefa"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              autoFocus
-            />
-            <Textarea
-              placeholder="Descrição (opcional)"
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              className="min-h-[60px]"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                value={newDueDate}
-                onChange={(e) => setNewDueDate(e.target.value)}
-              />
-              <Input
-                type="time"
-                value={newDueTime}
-                onChange={(e) => setNewDueTime(e.target.value)}
-              />
-            </div>
-            <Select value={newPriority} onValueChange={setNewPriority}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Baixa</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="urgent">Urgente</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex gap-2">
-              <TaskTypeSelector
-                value={newTaskTypeId}
-                onChange={setNewTaskTypeId}
-                compact
-              />
-              <AssigneeSelector
-                value={newAssignedTo}
-                onChange={setNewAssignedTo}
-                compact
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
+          <>
+            <ScrollArea className="flex-1 px-4 pt-4">
+              <div className="space-y-3 pb-2">
+                <Input
+                  placeholder="Título da tarefa"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  autoFocus
+                />
+                <Textarea
+                  placeholder="Descrição (opcional)"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  className="min-h-[60px]"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                  />
+                  <Input
+                    type="time"
+                    value={newDueTime}
+                    onChange={(e) => setNewDueTime(e.target.value)}
+                  />
+                </div>
+                <Select value={newPriority} onValueChange={setNewPriority}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <TaskTypeSelector
+                    value={newTaskTypeId}
+                    onChange={setNewTaskTypeId}
+                    compact
+                  />
+                  <AssigneeSelector
+                    value={newAssignedTo}
+                    onChange={setNewAssignedTo}
+                    compact
+                  />
+                </div>
+              </div>
+            </ScrollArea>
+            <div className="flex gap-2 justify-end px-4 py-3 border-t bg-card">
               <Button size="sm" variant="ghost" onClick={resetForm}>
                 <X className="h-4 w-4 mr-1" />
                 Cancelar
@@ -362,12 +366,14 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 Criar
               </Button>
             </div>
-          </div>
+          </>
         ) : (
-          <Button onClick={() => setIsCreating(true)} className="w-full">
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Tarefa
-          </Button>
+          <div className="p-4">
+            <Button onClick={() => setIsCreating(true)} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Tarefa
+            </Button>
+          </div>
         )}
       </div>
 
