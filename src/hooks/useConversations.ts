@@ -40,6 +40,7 @@ export interface Conversation {
     phone: string;
     notes?: string | null;
     custom_fields?: Record<string, any> | null;
+    avatar_url?: string | null;
   };
   deal?: ConversationDeal | null;
 }
@@ -118,7 +119,7 @@ export const useConversations = () => {
         .from('conversations')
         .select(`
           *,
-          contact:contacts(id, name, phone, notes, custom_fields),
+          contact:contacts(id, name, phone, notes, custom_fields, avatar_url),
           tag_assignments:conversation_tag_assignments(tag_id)
         `)
         .order('is_pinned', { ascending: false })

@@ -4,6 +4,7 @@ import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, Cl
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
@@ -155,7 +156,7 @@ export const ConversationList = ({
   const unreadCount = conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length;
 
   return (
-    <div className="w-full md:w-80 border-r border-border flex flex-col h-full bg-card">
+    <div className="w-full border-r border-border flex flex-col h-full bg-card">
       {/* Header */}
       <div className="p-4 border-b border-border space-y-3">
         <h2 className="text-lg font-semibold text-foreground">Conversas</h2>
@@ -251,9 +252,17 @@ export const ConversationList = ({
                   >
                     {/* Avatar */}
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0">
-                        {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
-                      </div>
+                      <Avatar className="w-12 h-12 shrink-0">
+                        {conversation.contact?.avatar_url && (
+                          <AvatarImage 
+                            src={conversation.contact.avatar_url} 
+                            alt={conversation.contact?.name || "Contato"} 
+                          />
+                        )}
+                        <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-medium">
+                          {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                       {conversation.unread_count > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-card" />
                       )}
