@@ -741,6 +741,13 @@ serve(async (req) => {
       // No more messages - mark campaign as completed
       console.log(`All messages processed for campaign ${campaignId}. Marking as completed.`);
       
+      // Get campaign name for notification
+      const { data: campaignData } = await supabase
+        .from('campaigns')
+        .select('name, user_id')
+        .eq('id', campaignId)
+        .single();
+      
       await supabase
         .from('campaigns')
         .update({
@@ -748,6 +755,27 @@ serve(async (req) => {
           completed_at: new Date().toISOString()
         })
         .eq('id', campaignId);
+
+      // Send campaign_complete notification
+      if (campaignData) {
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              type: 'campaign_complete',
+              data: { campaignId, campaignName: campaignData.name },
+              recipientUserId: campaignData.user_id,
+            }),
+          });
+          console.log(`Sent campaign_complete notification for campaign ${campaignId}`);
+        } catch (e) {
+          console.error('Failed to send campaign_complete notification:', e);
+        }
+      }
     }
 
     return new Response(

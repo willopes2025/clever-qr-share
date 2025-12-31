@@ -21,6 +21,27 @@ export interface ConversationTask {
   updated_at: string;
 }
 
+// Helper to send notification
+const sendTaskNotification = async (
+  type: 'task_created' | 'task_assigned' | 'task_updated' | 'task_deleted',
+  taskId: string,
+  taskTitle: string,
+  recipientUserId?: string | null
+) => {
+  try {
+    await supabase.functions.invoke('send-whatsapp-notification', {
+      body: {
+        type,
+        data: { taskId, taskTitle },
+        recipientUserId,
+      },
+    });
+    console.log(`[TASK-NOTIFICATION] Sent ${type} notification for task ${taskId}`);
+  } catch (error) {
+    console.error(`[TASK-NOTIFICATION] Failed to send ${type} notification:`, error);
+  }
+};
+
 export const useConversationTasks = (conversationId: string | null, contactId: string | null) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -80,9 +101,16 @@ export const useConversationTasks = (conversationId: string | null, contactId: s
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', conversationId, contactId] });
       toast.success('Tarefa criada com sucesso');
+      
+      // Send notification
+      if (data.assigned_to) {
+        sendTaskNotification('task_assigned', data.id, data.title, data.assigned_to);
+      } else {
+        sendTaskNotification('task_created', data.id, data.title);
+      }
     },
     onError: (error) => {
       console.error('Error creating task:', error);
@@ -102,9 +130,12 @@ export const useConversationTasks = (conversationId: string | null, contactId: s
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', conversationId, contactId] });
       toast.success('Tarefa atualizada');
+      
+      // Send notification to assigned user
+      sendTaskNotification('task_updated', data.id, data.title, data.assigned_to);
     },
     onError: (error) => {
       console.error('Error updating task:', error);
@@ -138,16 +169,29 @@ export const useConversationTasks = (conversationId: string | null, contactId: s
 
   const deleteTask = useMutation({
     mutationFn: async (id: string) => {
+      // First fetch the task to get assigned_to and title for notification
+      const { data: taskToDelete } = await supabase
+        .from('conversation_tasks')
+        .select('id, title, assigned_to')
+        .eq('id', id)
+        .single();
+
       const { error } = await supabase
         .from('conversation_tasks')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      return taskToDelete;
     },
-    onSuccess: () => {
+    onSuccess: (taskData) => {
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', conversationId, contactId] });
       toast.success('Tarefa excluída');
+      
+      // Send notification to assigned user
+      if (taskData) {
+        sendTaskNotification('task_deleted', taskData.id, taskData.title, taskData.assigned_to);
+      }
     },
     onError: (error) => {
       console.error('Error deleting task:', error);

@@ -308,8 +308,9 @@ export const useFunnels = () => {
       expected_close_date?: string;
       source?: string;
       custom_fields?: Record<string, unknown>;
+      responsible_id?: string | null;
     }) => {
-      const { error } = await supabase.from('funnel_deals').insert([{
+      const { data: createdDeal, error } = await supabase.from('funnel_deals').insert([{
         user_id: user!.id,
         funnel_id: data.funnel_id,
         stage_id: data.stage_id,
@@ -319,14 +320,27 @@ export const useFunnels = () => {
         value: data.value || 0,
         expected_close_date: data.expected_close_date,
         source: data.source,
-        custom_fields: (data.custom_fields || {}) as Record<string, never>
-      }]);
+        custom_fields: (data.custom_fields || {}) as Record<string, never>,
+        responsible_id: data.responsible_id,
+      }]).select().single();
       if (error) throw error;
+      return createdDeal;
     },
-    onSuccess: () => {
+    onSuccess: (createdDeal) => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
       toast.success("Deal criado");
+      
+      // Send new_deal notification
+      if (createdDeal) {
+        supabase.functions.invoke('send-whatsapp-notification', {
+          body: {
+            type: 'new_deal',
+            data: { dealId: createdDeal.id, dealTitle: createdDeal.title || 'Novo deal' },
+            recipientUserId: createdDeal.responsible_id,
+          },
+        }).catch(e => console.error('Error sending new_deal notification:', e));
+      }
     },
     onError: () => toast.error("Erro ao criar deal")
   });
@@ -343,18 +357,23 @@ export const useFunnels = () => {
       close_reason_id?: string | null;
       notes?: string;
       custom_fields?: Record<string, unknown>;
+      responsible_id?: string | null;
     }) => {
-      // Get current deal to check stage change
+      // Get current deal to check stage and responsible changes
       const { data: currentDeal } = await supabase
         .from('funnel_deals')
-        .select('stage_id')
+        .select('stage_id, responsible_id, title')
         .eq('id', id)
         .single();
 
       const updateData: Record<string, unknown> = { ...data };
+      let stageChanged = false;
+      let responsibleChanged = false;
+      let newStageName: string | null = null;
       
       // If stage changed, update entered_stage_at and create history
       if (data.stage_id && currentDeal && data.stage_id !== currentDeal.stage_id) {
+        stageChanged = true;
         updateData.entered_stage_at = new Date().toISOString();
         
         // Create history entry
@@ -363,6 +382,14 @@ export const useFunnels = () => {
           from_stage_id: currentDeal.stage_id,
           to_stage_id: data.stage_id
         });
+
+        // Get new stage name for notification
+        const { data: stageData } = await supabase
+          .from('funnel_stages')
+          .select('name')
+          .eq('id', data.stage_id)
+          .single();
+        newStageName = stageData?.name || null;
 
         // Trigger automations
         try {
@@ -373,9 +400,27 @@ export const useFunnels = () => {
           console.error('Error triggering automations:', e);
         }
       }
+      
+      // Check if responsible changed
+      if (data.responsible_id !== undefined && currentDeal && data.responsible_id !== currentDeal.responsible_id) {
+        responsibleChanged = true;
+      }
 
-      const { error } = await supabase.from('funnel_deals').update(updateData).eq('id', id);
+      const { data: updatedDeal, error } = await supabase
+        .from('funnel_deals')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
+      
+      return { 
+        deal: updatedDeal, 
+        stageChanged, 
+        responsibleChanged, 
+        newStageName,
+        dealTitle: updatedDeal?.title || currentDeal?.title || 'Deal'
+      };
     },
     // OPTIMISTIC UPDATE - Move card instantly
     onMutate: async ({ id, stage_id }) => {
@@ -431,6 +476,33 @@ export const useFunnels = () => {
       if (context?.previousFunnels) {
         queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
         toast.error("Erro ao mover deal");
+      }
+    },
+    onSuccess: (result) => {
+      if (!result) return;
+      
+      const { deal, stageChanged, responsibleChanged, newStageName, dealTitle } = result;
+      
+      // Send stage change notification
+      if (stageChanged && deal) {
+        supabase.functions.invoke('send-whatsapp-notification', {
+          body: {
+            type: 'deal_stage_change',
+            data: { dealId: deal.id, dealTitle, stageName: newStageName },
+            recipientUserId: deal.responsible_id,
+          },
+        }).catch(e => console.error('Error sending deal_stage_change notification:', e));
+      }
+      
+      // Send assigned notification
+      if (responsibleChanged && deal?.responsible_id) {
+        supabase.functions.invoke('send-whatsapp-notification', {
+          body: {
+            type: 'deal_assigned',
+            data: { dealId: deal.id, dealTitle },
+            recipientUserId: deal.responsible_id,
+          },
+        }).catch(e => console.error('Error sending deal_assigned notification:', e));
       }
     },
     onSettled: () => {

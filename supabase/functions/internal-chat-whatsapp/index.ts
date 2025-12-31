@@ -89,20 +89,15 @@ serve(async (req) => {
     // Get notification preferences for members who have internal chat enabled
     const { data: preferences } = await supabase
       .from('notification_preferences')
-      .select('user_id, notification_instance_id, notify_internal_chat')
+      .select('user_id, notify_internal_chat')
       .in('user_id', memberIds);
 
-    // Get profiles with phone numbers
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, phone')
-      .in('id', memberIds);
-
-    // Also get from team_members
+    // Get team members with phone and organization
     const { data: teamMembers } = await supabase
       .from('team_members')
-      .select('user_id, phone')
-      .in('user_id', memberIds);
+      .select('user_id, phone, organization_id')
+      .in('user_id', memberIds)
+      .eq('status', 'active');
 
     const sentNotifications: string[] = [];
     const errors: string[] = [];
@@ -110,25 +105,40 @@ serve(async (req) => {
     for (const userId of memberIds) {
       const pref = preferences?.find(p => p.user_id === userId);
       
-      // Check if internal chat notification is enabled
+      // Check if internal chat notification is enabled (default to true if no preferences)
       if (pref && pref.notify_internal_chat === false) {
         console.log(`[INTERNAL-CHAT-WHATSAPP] Internal chat disabled for user ${userId}`);
         continue;
       }
 
-      // Get phone number
-      const profile = profiles?.find(p => p.id === userId);
+      // Get team member info (phone and organization)
       const teamMember = teamMembers?.find(tm => tm.user_id === userId);
-      const phone = profile?.phone || teamMember?.phone;
+      
+      if (!teamMember) {
+        console.log(`[INTERNAL-CHAT-WHATSAPP] No team member found for user ${userId}`);
+        continue;
+      }
 
+      const phone = teamMember.phone;
       if (!phone) {
         console.log(`[INTERNAL-CHAT-WHATSAPP] No phone for user ${userId}`);
         continue;
       }
 
-      const instanceId = pref?.notification_instance_id;
-      if (!instanceId) {
-        console.log(`[INTERNAL-CHAT-WHATSAPP] No instance for user ${userId}`);
+      if (!teamMember.organization_id) {
+        console.log(`[INTERNAL-CHAT-WHATSAPP] No organization for user ${userId}`);
+        continue;
+      }
+
+      // Get organization's notification instance
+      const { data: organization } = await supabase
+        .from('organizations')
+        .select('notification_instance_id')
+        .eq('id', teamMember.organization_id)
+        .maybeSingle();
+
+      if (!organization?.notification_instance_id) {
+        console.log(`[INTERNAL-CHAT-WHATSAPP] No notification instance for organization ${teamMember.organization_id}`);
         continue;
       }
 
@@ -136,11 +146,11 @@ serve(async (req) => {
       const { data: instance } = await supabase
         .from('whatsapp_instances')
         .select('instance_name')
-        .eq('id', instanceId)
+        .eq('id', organization.notification_instance_id)
         .maybeSingle();
 
       if (!instance) {
-        console.log(`[INTERNAL-CHAT-WHATSAPP] Instance ${instanceId} not found`);
+        console.log(`[INTERNAL-CHAT-WHATSAPP] Instance ${organization.notification_instance_id} not found`);
         continue;
       }
 
