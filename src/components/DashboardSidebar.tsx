@@ -85,14 +85,14 @@ const navGroups: NavGroup[] = [
 
 export const DashboardSidebar = () => {
   const { signOut, user } = useAuth();
-  const { isAdmin } = useAdmin();
+  const { isAdmin: isSystemAdmin } = useAdmin();
   const navigate = useNavigate();
   const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
   const { conversations } = useConversations();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
-  const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
+  const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
   const { profile } = useProfile();
   
   // Calculate total unread messages
@@ -300,7 +300,7 @@ export const DashboardSidebar = () => {
           ))}
           
           {/* Admin Link */}
-          {isAdmin && (
+          {isSystemAdmin && (
             isCollapsed ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -381,7 +381,7 @@ export const DashboardSidebar = () => {
               </Tooltip>
 
               {/* Token Balance Widget - Collapsed - Admin Only */}
-              {isAdmin && <TokenBalanceWidget isCollapsed={true} />}
+              {isOrgAdmin && <TokenBalanceWidget isCollapsed={true} />}
               
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -427,7 +427,7 @@ export const DashboardSidebar = () => {
               </NavLink>
 
               {/* Token Balance Widget - Admin Only */}
-              {isAdmin && <TokenBalanceWidget isCollapsed={false} />}
+              {isOrgAdmin && <TokenBalanceWidget isCollapsed={false} />}
               
               <Button 
                 variant="ghost" 
