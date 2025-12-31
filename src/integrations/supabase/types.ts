@@ -2616,6 +2616,39 @@ export type Database = {
           },
         ]
       }
+      lead_panel_tabs: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          field_keys: Json | null
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          field_keys?: Json | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          field_keys?: Json | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       lead_usage_log: {
         Row: {
           created_at: string | null
