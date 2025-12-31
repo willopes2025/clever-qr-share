@@ -12,6 +12,7 @@ import { useContacts } from "@/hooks/useContacts";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { CreateFieldInlineDialog, NewFieldConfig } from "@/components/contacts/CreateFieldInlineDialog";
 import { toast } from "sonner";
+import { toTitleCase } from "@/lib/utils";
 
 interface ImportLeadsDialogProps {
   open: boolean;
@@ -267,6 +268,12 @@ export const ImportLeadsDialog = ({
           normalizedPhone = '55' + normalizedPhone;
         }
 
+        // Campos que devem receber formatação Primeira Maiúscula
+        const titleCaseFields = [
+          'razao_social', 'nome_fantasia', 'porte', 'natureza_juridica', 
+          'cnae_principal', 'municipio', 'bairro', 'endereco_completo'
+        ];
+
         // Build custom_fields based on mappings
         const customFields: Record<string, string> = {};
         
@@ -284,7 +291,11 @@ export const ImportLeadsDialog = ({
             : mapping.newFieldConfig?.field_key;
           
           if (targetKey) {
-            customFields[targetKey] = String(value);
+            // Aplica toTitleCase apenas em campos de texto específicos
+            const formattedValue = titleCaseFields.includes(mapping.sourceKey) 
+              ? toTitleCase(String(value))
+              : String(value);
+            customFields[targetKey] = formattedValue;
           }
         });
 
@@ -293,14 +304,18 @@ export const ImportLeadsDialog = ({
           .map(field => {
             const value = field.getValue(company);
             if (!value) return null;
-            return `${field.label}: ${value}`;
+            // Aplica toTitleCase nas notas também se for um campo de texto
+            const formattedValue = titleCaseFields.includes(field.key) 
+              ? toTitleCase(String(value))
+              : String(value);
+            return `${field.label}: ${formattedValue}`;
           })
           .filter(Boolean);
 
         return {
           phone: normalizedPhone,
-          name: company.nome_fantasia || company.razao_social,
-          email: company.email || undefined,
+          name: toTitleCase(company.nome_fantasia || company.razao_social),
+          email: company.email?.toLowerCase() || undefined,
           notes: notesLines.length > 0 ? notesLines.join('\n') : undefined,
           custom_fields: customFields,
         };
