@@ -14,6 +14,7 @@ interface InternalChatRequest {
   conversationId?: string;
   contactId?: string;
   contactName?: string;
+  targetMemberId?: string | null;
 }
 
 serve(async (req) => {
@@ -36,9 +37,18 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { messageId, content, senderUserId, senderName, conversationId, contactId, contactName }: InternalChatRequest = await req.json();
+    const { 
+      messageId, 
+      content, 
+      senderUserId, 
+      senderName, 
+      conversationId, 
+      contactId, 
+      contactName,
+      targetMemberId 
+    }: InternalChatRequest = await req.json();
 
-    console.log('[INTERNAL-CHAT-WHATSAPP] Processing:', { messageId, senderUserId, conversationId, contactId });
+    console.log('[INTERNAL-CHAT-WHATSAPP] Processing:', { messageId, senderUserId, conversationId, contactId, targetMemberId });
 
     // Get the conversation owner to find organization members
     let ownerUserId: string | null = null;
@@ -71,13 +81,21 @@ serve(async (req) => {
       );
     }
 
-    // Get all organization members (except sender)
-    const { data: orgMembers } = await supabase.rpc('get_organization_member_ids', { _user_id: ownerUserId });
+    // If targetMemberId is specified, only send to that specific member
+    let memberIds: string[] = [];
     
-    const memberIds = (orgMembers as string[] || []).filter(id => id !== senderUserId);
+    if (targetMemberId) {
+      // Send only to the specific target member
+      console.log('[INTERNAL-CHAT-WHATSAPP] Sending to specific member:', targetMemberId);
+      memberIds = [targetMemberId];
+    } else {
+      // Get all organization members (except sender)
+      const { data: orgMembers } = await supabase.rpc('get_organization_member_ids', { _user_id: ownerUserId });
+      memberIds = (orgMembers as string[] || []).filter(id => id !== senderUserId);
+    }
     
     if (memberIds.length === 0) {
-      console.log('[INTERNAL-CHAT-WHATSAPP] No other members to notify');
+      console.log('[INTERNAL-CHAT-WHATSAPP] No members to notify');
       return new Response(
         JSON.stringify({ success: true, sent: 0, skipped_not_responsible: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,9 +104,9 @@ serve(async (req) => {
 
     console.log('[INTERNAL-CHAT-WHATSAPP] Members to notify:', memberIds);
 
-    // Get conversation responsible (assigned_to)
+    // Get conversation responsible (assigned_to) - only check if not targeting a specific member
     let conversationResponsibleId: string | null = null;
-    if (conversationId) {
+    if (!targetMemberId && conversationId) {
       const { data: convData } = await supabase
         .from('conversations')
         .select('assigned_to')
@@ -118,26 +136,28 @@ serve(async (req) => {
     for (const userId of memberIds) {
       const pref = preferences?.find(p => p.user_id === userId);
       
-      // Check if internal chat notification is enabled (default to true if no preferences)
-      if (pref && pref.notify_internal_chat === false) {
-        console.log(`[INTERNAL-CHAT-WHATSAPP] Internal chat disabled for user ${userId}`);
-        continue;
-      }
-
-      // Check only_if_responsible preference
-      if (pref?.only_if_responsible === true) {
-        // If conversation has a responsible and this user is not the responsible, skip
-        if (conversationResponsibleId && conversationResponsibleId !== userId) {
-          console.log(`[INTERNAL-CHAT-WHATSAPP] User ${userId} has only_if_responsible=true but is not the conversation responsible (${conversationResponsibleId}), skipping`);
-          skippedNotResponsible++;
+      // Skip preference checks if targeting a specific member
+      if (!targetMemberId) {
+        // Check if internal chat notification is enabled (default to true if no preferences)
+        if (pref && pref.notify_internal_chat === false) {
+          console.log(`[INTERNAL-CHAT-WHATSAPP] Internal chat disabled for user ${userId}`);
           continue;
         }
-        // If no responsible is assigned and user has only_if_responsible=true, also skip
-        // (they only want notifications for conversations they're responsible for)
-        if (!conversationResponsibleId) {
-          console.log(`[INTERNAL-CHAT-WHATSAPP] User ${userId} has only_if_responsible=true but conversation has no responsible assigned, skipping`);
-          skippedNotResponsible++;
-          continue;
+
+        // Check only_if_responsible preference
+        if (pref?.only_if_responsible === true) {
+          // If conversation has a responsible and this user is not the responsible, skip
+          if (conversationResponsibleId && conversationResponsibleId !== userId) {
+            console.log(`[INTERNAL-CHAT-WHATSAPP] User ${userId} has only_if_responsible=true but is not the conversation responsible (${conversationResponsibleId}), skipping`);
+            skippedNotResponsible++;
+            continue;
+          }
+          // If no responsible is assigned and user has only_if_responsible=true, also skip
+          if (!conversationResponsibleId) {
+            console.log(`[INTERNAL-CHAT-WHATSAPP] User ${userId} has only_if_responsible=true but conversation has no responsible assigned, skipping`);
+            skippedNotResponsible++;
+            continue;
+          }
         }
       }
 
@@ -205,8 +225,9 @@ serve(async (req) => {
           ignoreDuplicates: false,
         });
 
-      // Build the message
-      const message = `💬 *[Chat Interno - ${contactName || 'Conversa'}]*\nDe: *${senderName}*\n\n${content}\n\n_Responda esta mensagem para enviar ao chat interno._`;
+      // Build the message - indicate if it's a direct message
+      const directLabel = targetMemberId ? ' (Mensagem Direta)' : '';
+      const message = `💬 *[Chat Interno${directLabel} - ${contactName || 'Conversa'}]*\nDe: *${senderName}*\n\n${content}\n\n_Responda esta mensagem para enviar ao chat interno._`;
 
       try {
         const response = await fetch(`${evolutionApiUrl}/message/sendText/${instance.instance_name}`, {
@@ -250,6 +271,7 @@ serve(async (req) => {
         sent: sentNotifications.length,
         errors: errors.length,
         skipped_not_responsible: skippedNotResponsible,
+        targetMemberId: targetMemberId || null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
