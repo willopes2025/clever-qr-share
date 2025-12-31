@@ -10,10 +10,12 @@ import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { VoipSettings } from "@/components/settings/VoipSettings";
-import { User, Megaphone, Server, Database, Users, Plug, Smartphone, Bell, Phone, PhoneCall, LucideIcon } from "lucide-react";
+import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
+import { User, Megaphone, Server, Database, Users, Plug, Smartphone, Bell, Phone, PhoneCall, Coins, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 interface SettingsTab {
   value: string;
@@ -26,6 +28,7 @@ interface SettingsTab {
 
 const allTabs: SettingsTab[] = [
   { value: "profile", label: "Perfil", icon: User, component: ProfileSettings },
+  { value: "ai-tokens", label: "Tokens AI", icon: Coins, component: AITokensSettings },
   { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
@@ -39,14 +42,15 @@ const allTabs: SettingsTab[] = [
 
 const Settings = () => {
   const { isAdmin, checkPermission, organization, isLoading } = useOrganization();
+  const [searchParams] = useSearchParams();
 
   // Filtrar abas baseado em permissões
   const visibleTabs = useMemo(() => {
     if (isLoading) return [allTabs[0]]; // Só mostra perfil enquanto carrega
     
     return allTabs.filter(tab => {
-      // Perfil sempre visível
-      if (tab.value === "profile") return true;
+      // Perfil e ai-tokens sempre visível
+      if (tab.value === "profile" || tab.value === "ai-tokens") return true;
       
       // Se não tem organização, mostra tudo (legado)
       if (!organization) return true;
@@ -66,8 +70,11 @@ const Settings = () => {
     });
   }, [isLoading, organization, isAdmin, checkPermission]);
 
-  // Determinar aba padrão (primeira visível)
-  const defaultTab = visibleTabs[0]?.value || "profile";
+  // Determinar aba padrão (do URL ou primeira visível)
+  const tabFromUrl = searchParams.get('tab');
+  const defaultTab = (tabFromUrl && visibleTabs.some(t => t.value === tabFromUrl)) 
+    ? tabFromUrl 
+    : visibleTabs[0]?.value || "profile";
 
   return (
     <DashboardLayout className="p-8 animated-gradient cyber-grid relative">

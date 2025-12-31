@@ -170,3 +170,15 @@ verify_jwt = false
 
 [functions.fetch-profile-picture]
 verify_jwt = false
+
+[functions.purchase-ai-tokens]
+verify_jwt = true
+
+[functions.stripe-tokens-webhook]
+verify_jwt = false
+
+[functions.consume-ai-tokens]
+verify_jwt = true
+
+[functions.check-ai-tokens]
+verify_jwt = true
