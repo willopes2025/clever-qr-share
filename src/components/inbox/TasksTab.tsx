@@ -5,9 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { useConversationTasks, ConversationTask } from "@/hooks/useConversationTasks";
+import { useUnifiedTasks, UnifiedTask } from "@/hooks/useUnifiedTasks";
 import { useTaskTypes } from "@/hooks/useTaskTypes";
-import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, User, Tag } from "lucide-react";
+import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,7 @@ const priorityLabels: Record<string, string> = {
 };
 
 export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
-  const { pendingTasks, completedTasks, isLoading, createTask, updateTask, toggleComplete, deleteTask } = useConversationTasks(conversationId, contactId);
+  const { pendingTasks, completedTasks, isLoading, createTask, updateTask, toggleComplete, deleteTask } = useUnifiedTasks({ conversationId, contactId });
   const { taskTypes } = useTaskTypes();
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -67,8 +67,8 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
   const [newTaskTypeId, setNewTaskTypeId] = useState<string | null>(null);
   const [newAssignedTo, setNewAssignedTo] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTask, setEditTask] = useState<Partial<ConversationTask> & { task_type_id?: string | null; assigned_to?: string | null }>({});
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editTask, setEditTask] = useState<Partial<UnifiedTask> & { task_type_id?: string | null; assigned_to?: string | null }>({});
+  const [deleteTarget, setDeleteTarget] = useState<UnifiedTask | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
   const handleCreate = async () => {
@@ -81,6 +81,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       priority: newPriority,
       task_type_id: newTaskTypeId,
       assigned_to: newAssignedTo,
+      source: 'conversation',
     });
     resetForm();
   };
@@ -96,19 +97,19 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
     setIsCreating(false);
   };
 
-  const handleUpdate = async (id: string) => {
-    await updateTask.mutateAsync({ id, ...editTask });
+  const handleUpdate = async (task: UnifiedTask) => {
+    await updateTask.mutateAsync({ id: task.id, source: task.source, ...editTask });
     setEditingId(null);
     setEditTask({});
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
-    await deleteTask.mutateAsync(deleteId);
-    setDeleteId(null);
+    if (!deleteTarget) return;
+    await deleteTask.mutateAsync(deleteTarget);
+    setDeleteTarget(null);
   };
 
-  const startEditing = (task: ConversationTask) => {
+  const startEditing = (task: UnifiedTask) => {
     setEditingId(task.id);
     setEditTask({
       title: task.title,
@@ -116,8 +117,8 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       due_date: task.due_date || "",
       due_time: task.due_time || "",
       priority: task.priority,
-      task_type_id: (task as any).task_type_id || null,
-      assigned_to: (task as any).assigned_to || null,
+      task_type_id: task.task_type_id || null,
+      assigned_to: task.assigned_to || null,
     });
   };
 
@@ -141,7 +142,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
     return "text-muted-foreground";
   };
 
-  const renderTask = (task: ConversationTask) => {
+  const renderTask = (task: UnifiedTask) => {
     const isEditing = editingId === task.id;
 
     if (isEditing) {
@@ -201,7 +202,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
             <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
               <X className="h-4 w-4" />
             </Button>
-            <Button size="sm" onClick={() => handleUpdate(task.id)} disabled={updateTask.isPending}>
+            <Button size="sm" onClick={() => handleUpdate(task)} disabled={updateTask.isPending}>
               <Check className="h-4 w-4" />
             </Button>
           </div>
@@ -226,9 +227,17 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
-                <p className={cn("font-medium", task.completed_at && "line-through")}>
-                  {task.title}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className={cn("font-medium", task.completed_at && "line-through")}>
+                    {task.title}
+                  </p>
+                  {task.source === 'deal' && (
+                    <Badge variant="outline" className="text-[10px] h-5 gap-1">
+                      <Briefcase className="h-3 w-3" />
+                      {task.deal_title || 'Negócio'}
+                    </Badge>
+                  )}
+                </div>
                 {task.description && (
                   <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
                 )}
@@ -273,7 +282,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
               size="icon"
               variant="ghost"
               className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => setDeleteId(task.id)}
+              onClick={() => setDeleteTarget(task)}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -390,7 +399,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
         )}
       </ScrollArea>
 
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
