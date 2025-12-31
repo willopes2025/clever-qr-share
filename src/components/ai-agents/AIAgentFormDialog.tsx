@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker } from "lucide-react";
+import { AIAgentTestDialog } from "./AIAgentTestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -37,6 +38,7 @@ export const AIAgentFormDialog = ({
   const [isPersonalizing, setIsPersonalizing] = useState(false);
   const [activeTab, setActiveTab] = useState("personality");
   const [agentId, setAgentId] = useState<string | null>(editingAgentId);
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<DialogStep>("agent_form");
@@ -676,6 +678,15 @@ export const AIAgentFormDialog = ({
                 <Button variant="outline" onClick={() => handleClose(false)}>
                   Cancelar
                 </Button>
+                {agentId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsTestDialogOpen(true)}
+                  >
+                    <Beaker className="h-4 w-4 mr-2" />
+                    Testar IA
+                  </Button>
+                )}
                 <Button onClick={handleSave} disabled={isSaving}>
                   {isSaving ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -687,6 +698,16 @@ export const AIAgentFormDialog = ({
               </div>
             </div>
           </>
+        )}
+
+        {/* Test Dialog */}
+        {agentId && (
+          <AIAgentTestDialog
+            open={isTestDialogOpen}
+            onOpenChange={setIsTestDialogOpen}
+            agentId={agentId}
+            agentName={agentName}
+          />
         )}
       </DialogContent>
     </Dialog>
