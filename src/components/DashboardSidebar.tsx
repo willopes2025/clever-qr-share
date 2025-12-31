@@ -380,8 +380,8 @@ export const DashboardSidebar = () => {
                 </TooltipContent>
               </Tooltip>
 
-              {/* Token Balance Widget - Collapsed */}
-              <TokenBalanceWidget isCollapsed={true} />
+              {/* Token Balance Widget - Collapsed - Admin Only */}
+              {isAdmin && <TokenBalanceWidget isCollapsed={true} />}
               
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -426,8 +426,8 @@ export const DashboardSidebar = () => {
                 </div>
               </NavLink>
 
-              {/* Token Balance Widget */}
-              <TokenBalanceWidget isCollapsed={false} />
+              {/* Token Balance Widget - Admin Only */}
+              {isAdmin && <TokenBalanceWidget isCollapsed={false} />}
               
               <Button 
                 variant="ghost" 
