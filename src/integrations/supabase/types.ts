@@ -1150,6 +1150,8 @@ export type Database = {
       contacts: {
         Row: {
           avatar_url: string | null
+          contact_display_id: string | null
+          contact_number: number
           created_at: string
           custom_fields: Json | null
           email: string | null
@@ -1167,6 +1169,8 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          contact_display_id?: string | null
+          contact_number?: number
           created_at?: string
           custom_fields?: Json | null
           email?: string | null
@@ -1184,6 +1188,8 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          contact_display_id?: string | null
+          contact_number?: number
           created_at?: string
           custom_fields?: Json | null
           email?: string | null

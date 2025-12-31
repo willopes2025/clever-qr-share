@@ -18,6 +18,7 @@ export interface Contact {
   created_at: string;
   updated_at: string;
   tags?: Tag[];
+  contact_display_id?: string | null;
 }
 
 export interface Tag {

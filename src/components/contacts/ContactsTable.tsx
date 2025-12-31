@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ContactWithTags, Tag } from "@/hooks/useContacts";
 import { ContactTagBadges, TagSelector } from "./TagManager";
+import { ContactIdBadge } from "./ContactIdBadge";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -84,6 +85,7 @@ export const ContactsTable = ({
                 onCheckedChange={onSelectAll}
               />
             </TableHead>
+            <TableHead className="w-24">ID</TableHead>
             <TableHead>Telefone</TableHead>
             <TableHead>Nome</TableHead>
             <TableHead>Tags</TableHead>
@@ -95,7 +97,7 @@ export const ContactsTable = ({
         <TableBody>
           {contacts.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                 Nenhum contato encontrado
               </TableCell>
             </TableRow>
@@ -107,6 +109,9 @@ export const ContactsTable = ({
                     checked={selectedIds.includes(contact.id)}
                     onCheckedChange={(checked) => onSelectOne(contact.id, !!checked)}
                   />
+                </TableCell>
+                <TableCell>
+                  <ContactIdBadge displayId={contact.contact_display_id} size="sm" />
                 </TableCell>
                 <TableCell className="font-mono text-sm">
                   {formatPhone(contact.phone)}

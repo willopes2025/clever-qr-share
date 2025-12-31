@@ -6,7 +6,6 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Conversation } from "@/hooks/useConversations";
@@ -17,6 +16,7 @@ import { formatForDisplay } from "@/lib/phone-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 
 interface ContactInfoContentProps {
   conversation: Conversation;
@@ -36,6 +36,7 @@ export const ContactInfoContent = ({ conversation }: ContactInfoContentProps) =>
 
   const contactName = conversation.contact?.name;
   const contactPhone = conversation.contact?.phone || "";
+  const contactDisplayId = (conversation.contact as any)?.contact_display_id;
 
   const handleSaveName = async () => {
     try {
@@ -120,6 +121,9 @@ export const ContactInfoContent = ({ conversation }: ContactInfoContentProps) =>
               <Edit2 className="h-3 w-3" />
             </Button>
           </div>
+        )}
+        {contactDisplayId && (
+          <ContactIdBadge displayId={contactDisplayId} className="mt-1" />
         )}
         <Badge variant="secondary" className="mt-1 text-xs">
           {conversation.status === 'archived' ? 'Arquivada' : 'Ativa'}
