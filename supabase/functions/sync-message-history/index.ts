@@ -169,8 +169,74 @@ serve(async (req) => {
 
         if (existingContact) {
           contactId = existingContact.id;
+          
+          // Try to update profile picture if contact doesn't have one
+          const { data: contactData } = await supabase
+            .from('contacts')
+            .select('avatar_url')
+            .eq('id', contactId)
+            .single();
+          
+          if (!contactData?.avatar_url) {
+            try {
+              console.log(`[SYNC] Fetching profile picture for existing contact ${phone}...`);
+              const profileResponse = await fetch(
+                `${evolutionApiUrl}/chat/fetchProfile/${instanceName}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': evolutionApiKey,
+                  },
+                  body: JSON.stringify({ number: phone }),
+                }
+              );
+              
+              if (profileResponse.ok) {
+                const profileData = await profileResponse.json();
+                const avatarUrl = profileData.profilePictureUrl || profileData.picture || profileData.imgUrl || profileData.profilePicUrl;
+                if (avatarUrl) {
+                  await supabase
+                    .from('contacts')
+                    .update({ avatar_url: avatarUrl })
+                    .eq('id', contactId);
+                  console.log(`[SYNC] Updated avatar_url for contact ${phone}`);
+                }
+              }
+            } catch (profileError) {
+              console.error('[SYNC] Error fetching profile:', profileError);
+            }
+          }
         } else {
           const contactName = chat.name || chat.pushName || normalizedPhone;
+          
+          // Fetch profile picture for new contact
+          let avatarUrl: string | null = null;
+          try {
+            console.log(`[SYNC] Fetching profile picture for new contact ${phone}...`);
+            const profileResponse = await fetch(
+              `${evolutionApiUrl}/chat/fetchProfile/${instanceName}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': evolutionApiKey,
+                },
+                body: JSON.stringify({ number: phone }),
+              }
+            );
+            
+            if (profileResponse.ok) {
+              const profileData = await profileResponse.json();
+              avatarUrl = profileData.profilePictureUrl || profileData.picture || profileData.imgUrl || profileData.profilePicUrl || null;
+              if (avatarUrl) {
+                console.log(`[SYNC] Found profile picture for ${phone}`);
+              }
+            }
+          } catch (profileError) {
+            console.error('[SYNC] Error fetching profile:', profileError);
+          }
+          
           const { data: newContact, error: contactError } = await supabase
             .from('contacts')
             .insert({
@@ -178,6 +244,7 @@ serve(async (req) => {
               phone: normalizedPhone,
               name: contactName,
               status: 'active',
+              avatar_url: avatarUrl,
             })
             .select('id')
             .single();

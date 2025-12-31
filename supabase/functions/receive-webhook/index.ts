@@ -803,6 +803,33 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     }
 
     if (!contact) {
+      // Fetch profile picture from WhatsApp before creating contact
+      let avatarUrl: string | null = null;
+      try {
+        console.log(`[PROFILE-PIC] Fetching profile picture for new contact ${phone}...`);
+        const profileResponse = await fetch(
+          `${evolutionApiUrl}/chat/fetchProfile/${instanceName}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey,
+            },
+            body: JSON.stringify({ number: phone }),
+          }
+        );
+        
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          avatarUrl = profileData.profilePictureUrl || profileData.picture || profileData.imgUrl || profileData.profilePicUrl || null;
+          if (avatarUrl) {
+            console.log(`[PROFILE-PIC] Found profile picture for ${phone}`);
+          }
+        }
+      } catch (profileError) {
+        console.error('[PROFILE-PIC] Error fetching profile:', profileError);
+      }
+
       // Create new contact with label_id if available
       const { data: newContact, error: contactError } = await supabase
         .from('contacts')
@@ -812,6 +839,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           name: contactName,
           status: 'active',
           label_id: labelId,
+          avatar_url: avatarUrl,
         })
         .select('id')
         .single();
@@ -821,7 +849,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         continue;
       }
       contact = newContact;
-      console.log('Created new contact:', contact?.id, 'with label_id:', labelId);
+      console.log('Created new contact:', contact?.id, 'with label_id:', labelId, 'avatar_url:', avatarUrl ? 'yes' : 'no');
     } else if (labelId && !contact.label_id) {
       // Update existing contact to add label_id for future matching
       console.log(`Updating contact ${contact.id} with label_id: ${labelId}`);
