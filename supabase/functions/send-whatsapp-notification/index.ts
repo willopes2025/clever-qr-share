@@ -28,6 +28,56 @@ interface NotificationRequest {
   organizationUserIds?: string[];
 }
 
+// Check if current time is within the user's notification schedule
+function isWithinSchedule(
+  scheduleDays: number[],
+  startTime: string,
+  endTime: string,
+  timezone: string = 'America/Sao_Paulo'
+): boolean {
+  try {
+    const now = new Date();
+    
+    // Get current day and time in user's timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const dayName = parts.find(p => p.type === 'weekday')?.value;
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+    
+    // Map day name to number (0 = Sunday, 6 = Saturday)
+    const dayMap: Record<string, number> = {
+      'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6
+    };
+    const currentDay = dayMap[dayName || 'Mon'] ?? 1;
+    
+    // Check if today is in scheduled days
+    if (!scheduleDays.includes(currentDay)) {
+      return false;
+    }
+    
+    // Parse start and end times
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    
+    const currentMinutes = hour * 60 + minute;
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+    
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  } catch (error) {
+    console.error('Error checking schedule:', error);
+    return true; // Default to allowing if there's an error
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -198,6 +248,7 @@ serve(async (req) => {
     console.log('Team members found:', teamMembers);
 
     const sentNotifications: string[] = [];
+    const queuedNotifications: string[] = [];
     const errors: string[] = [];
 
     for (const userId of userIds) {
@@ -258,6 +309,39 @@ serve(async (req) => {
         formattedPhone = '55' + formattedPhone;
       }
 
+      // Check if schedule is enabled and if we're within the schedule
+      const scheduleEnabled = pref?.schedule_enabled ?? false;
+      const scheduleDays = pref?.schedule_days ?? [1, 2, 3, 4, 5];
+      const scheduleStartTime = pref?.schedule_start_time ?? '08:00';
+      const scheduleEndTime = pref?.schedule_end_time ?? '18:00';
+
+      if (scheduleEnabled && !isWithinSchedule(scheduleDays, scheduleStartTime, scheduleEndTime)) {
+        console.log(`Outside schedule for user ${userId}, queueing notification`);
+        
+        // Queue the notification for later
+        const { error: queueError } = await supabase
+          .from('notification_queue')
+          .insert({
+            user_id: userId,
+            organization_id: teamMember.organization_id,
+            notification_type: type,
+            notification_data: data,
+            message,
+            phone: formattedPhone,
+            instance_name: instance.instance_name,
+          });
+
+        if (queueError) {
+          console.error('Error queueing notification:', queueError);
+          errors.push(`Failed to queue for user ${userId}: ${queueError.message}`);
+        } else {
+          queuedNotifications.push(userId);
+          console.log(`Notification queued for user ${userId}`);
+        }
+        
+        continue;
+      }
+
       // Send via Evolution API
       try {
         console.log(`Sending notification to ${formattedPhone} via instance ${instance.instance_name}`);
@@ -313,8 +397,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         sent: sentNotifications.length,
+        queued: queuedNotifications.length,
         errors: errors.length,
-        details: { sent: sentNotifications, errors },
+        details: { sent: sentNotifications, queued: queuedNotifications, errors },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

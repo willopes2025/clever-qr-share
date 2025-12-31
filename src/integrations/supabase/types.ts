@@ -2657,6 +2657,10 @@ export type Database = {
           notify_task_due: boolean | null
           notify_task_updated: boolean | null
           only_if_responsible: boolean | null
+          schedule_days: number[] | null
+          schedule_enabled: boolean | null
+          schedule_end_time: string | null
+          schedule_start_time: string | null
           updated_at: string | null
           user_id: string
         }
@@ -2679,6 +2683,10 @@ export type Database = {
           notify_task_due?: boolean | null
           notify_task_updated?: boolean | null
           only_if_responsible?: boolean | null
+          schedule_days?: number[] | null
+          schedule_enabled?: boolean | null
+          schedule_end_time?: string | null
+          schedule_start_time?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -2701,6 +2709,10 @@ export type Database = {
           notify_task_due?: boolean | null
           notify_task_updated?: boolean | null
           only_if_responsible?: boolean | null
+          schedule_days?: number[] | null
+          schedule_enabled?: boolean | null
+          schedule_end_time?: string | null
+          schedule_start_time?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -2710,6 +2722,56 @@ export type Database = {
             columns: ["notification_instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_queue: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_name: string
+          message: string
+          notification_data: Json
+          notification_type: string
+          organization_id: string | null
+          phone: string
+          processed: boolean | null
+          processed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_name: string
+          message: string
+          notification_data: Json
+          notification_type: string
+          organization_id?: string | null
+          phone: string
+          processed?: boolean | null
+          processed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_name?: string
+          message?: string
+          notification_data?: Json
+          notification_type?: string
+          organization_id?: string | null
+          phone?: string
+          processed?: boolean | null
+          processed_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

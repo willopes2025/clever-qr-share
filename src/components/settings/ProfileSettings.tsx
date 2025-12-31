@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserSettings } from "@/hooks/useUserSettings";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
-import { User, Globe, Save, Lock, Eye, EyeOff, Phone } from "lucide-react";
+import { User, Globe, Save, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 const TIMEZONES = [
@@ -28,7 +28,6 @@ export const ProfileSettings = () => {
   
   const [timezone, setTimezone] = useState(defaultSettings.timezone);
   const [emailNotifications, setEmailNotifications] = useState(defaultSettings.email_notifications);
-  const [phone, setPhone] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
   // Password change states
@@ -47,11 +46,6 @@ export const ProfileSettings = () => {
     }
   }, [settings, defaultSettings]);
 
-  useEffect(() => {
-    if (profile?.phone) {
-      setPhone(profile.phone);
-    }
-  }, [profile]);
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -101,11 +95,6 @@ export const ProfileSettings = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Update profile phone if changed
-      if (phone !== profile?.phone) {
-        await updateProfile.mutateAsync({ phone });
-      }
-      
       updateSettings.mutate({
         timezone,
         email_notifications: emailNotifications,
@@ -156,31 +145,6 @@ export const ProfileSettings = () => {
               disabled 
               className="bg-muted"
             />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5" />
-            Telefone para Notificações
-          </CardTitle>
-          <CardDescription>
-            Número de WhatsApp onde você receberá as notificações do sistema
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Número WhatsApp</Label>
-            <Input 
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="5511999999999"
-            />
-            <p className="text-sm text-muted-foreground">
-              Inclua o código do país (55 para Brasil) e DDD. Ex: 5511999999999
-            </p>
           </div>
         </CardContent>
       </Card>

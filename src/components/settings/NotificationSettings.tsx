@@ -3,12 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Bell, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings, TestTube } from 'lucide-react';
-import { useNotificationPreferences, NOTIFICATION_TYPES, NotificationPreferences } from '@/hooks/useNotificationPreferences';
+import { Input } from '@/components/ui/input';
+import { Bell, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings, TestTube, Clock, Calendar } from 'lucide-react';
+import { useNotificationPreferences, NOTIFICATION_TYPES, NotificationPreferences, WEEKDAYS } from '@/hooks/useNotificationPreferences';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const CATEGORY_CONFIG = {
   inbox: { label: 'Inbox', icon: MessageSquare, description: 'Notificações de mensagens e conversas' },
@@ -37,6 +39,10 @@ export function NotificationSettings() {
     notify_instance_disconnect: true,
     notify_internal_chat: true,
     only_if_responsible: true,
+    schedule_enabled: false,
+    schedule_days: [1, 2, 3, 4, 5],
+    schedule_start_time: '08:00',
+    schedule_end_time: '18:00',
   });
   const [isTesting, setIsTesting] = useState(false);
   const [teamMemberPhone, setTeamMemberPhone] = useState<string | null>(null);
@@ -74,6 +80,10 @@ export function NotificationSettings() {
         notify_instance_disconnect: preferences.notify_instance_disconnect,
         notify_internal_chat: preferences.notify_internal_chat ?? true,
         only_if_responsible: preferences.only_if_responsible,
+        schedule_enabled: preferences.schedule_enabled ?? false,
+        schedule_days: preferences.schedule_days ?? [1, 2, 3, 4, 5],
+        schedule_start_time: preferences.schedule_start_time ?? '08:00',
+        schedule_end_time: preferences.schedule_end_time ?? '18:00',
       });
     }
   }, [preferences]);
@@ -82,6 +92,23 @@ export function NotificationSettings() {
     setNotificationSettings(prev => ({
       ...prev,
       [key]: value,
+    }));
+  };
+
+  const handleDayToggle = (day: number) => {
+    setNotificationSettings(prev => {
+      const currentDays = prev.schedule_days || [];
+      const newDays = currentDays.includes(day)
+        ? currentDays.filter(d => d !== day)
+        : [...currentDays, day].sort((a, b) => a - b);
+      return { ...prev, schedule_days: newDays };
+    });
+  };
+
+  const handleTimeChange = (field: 'schedule_start_time' | 'schedule_end_time', value: string) => {
+    setNotificationSettings(prev => ({
+      ...prev,
+      [field]: value,
     }));
   };
 
@@ -182,6 +209,94 @@ export function NotificationSettings() {
               Testar Notificação
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Schedule Settings */}
+      <Card className="bg-card/50 backdrop-blur border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            Janela de Horário
+          </CardTitle>
+          <CardDescription>
+            Configure dias e horários para receber notificações. Fora desse período, as notificações serão acumuladas e enviadas em um resumo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between py-2">
+            <div className="space-y-0.5">
+              <Label htmlFor="schedule_enabled" className="font-medium cursor-pointer">
+                Ativar janela de horário
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Quando ativado, notificações fora do horário serão agrupadas e enviadas no início do próximo período autorizado.
+              </p>
+            </div>
+            <Switch
+              id="schedule_enabled"
+              checked={notificationSettings.schedule_enabled}
+              onCheckedChange={(checked) => handleToggle('schedule_enabled', checked)}
+            />
+          </div>
+
+          {notificationSettings.schedule_enabled && (
+            <>
+              {/* Days Selection */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Dias da semana
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map((day) => (
+                    <div key={day.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`day-${day.value}`}
+                        checked={notificationSettings.schedule_days?.includes(day.value)}
+                        onCheckedChange={() => handleDayToggle(day.value)}
+                      />
+                      <label
+                        htmlFor={`day-${day.value}`}
+                        className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {day.short}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Time Range */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="schedule_start_time">Início</Label>
+                  <Input
+                    id="schedule_start_time"
+                    type="time"
+                    value={notificationSettings.schedule_start_time}
+                    onChange={(e) => handleTimeChange('schedule_start_time', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="schedule_end_time">Fim</Label>
+                  <Input
+                    id="schedule_end_time"
+                    type="time"
+                    value={notificationSettings.schedule_end_time}
+                    onChange={(e) => handleTimeChange('schedule_end_time', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Notificações recebidas fora do horário configurado serão arquivadas. No início do próximo período autorizado, você receberá uma única mensagem resumindo todas as notificações pendentes.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
         </CardContent>
       </Card>
 
