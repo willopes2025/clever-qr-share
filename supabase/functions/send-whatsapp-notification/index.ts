@@ -247,6 +247,28 @@ serve(async (req) => {
 
     console.log('Team members found:', teamMembers);
 
+    // Default preferences for users without explicit configuration
+    const defaultPrefs = {
+      notify_new_message: true,
+      notify_new_deal: true,
+      notify_deal_stage_change: true,
+      notify_deal_assigned: true,
+      notify_task_due: true,
+      notify_task_assigned: true,
+      notify_task_created: true,
+      notify_task_updated: true,
+      notify_task_deleted: true,
+      notify_calendly_event: true,
+      notify_ai_handoff: true,
+      notify_campaign_complete: true,
+      notify_instance_disconnect: true,
+      notify_internal_chat: true,
+      schedule_enabled: false,
+      schedule_days: [1, 2, 3, 4, 5],
+      schedule_start_time: '08:00',
+      schedule_end_time: '18:00',
+    };
+
     const sentNotifications: string[] = [];
     const queuedNotifications: string[] = [];
     const errors: string[] = [];
@@ -254,8 +276,12 @@ serve(async (req) => {
     for (const userId of userIds) {
       const pref = preferences?.find(p => p.user_id === userId);
       
+      // Use default preferences if user has no explicit preferences
+      const effectivePrefs = pref || defaultPrefs;
+      
       // Check if notification is enabled for this type
-      if (pref && pref[notificationKey] === false) {
+      const prefKey = notificationKey as keyof typeof defaultPrefs;
+      if (effectivePrefs[prefKey] === false) {
         console.log(`Notification ${type} disabled for user ${userId}`);
         continue;
       }
@@ -310,10 +336,11 @@ serve(async (req) => {
       }
 
       // Check if schedule is enabled and if we're within the schedule
-      const scheduleEnabled = pref?.schedule_enabled ?? false;
-      const scheduleDays = pref?.schedule_days ?? [1, 2, 3, 4, 5];
-      const scheduleStartTime = pref?.schedule_start_time ?? '08:00';
-      const scheduleEndTime = pref?.schedule_end_time ?? '18:00';
+      // Use effective preferences (defaults if no explicit prefs)
+      const scheduleEnabled = effectivePrefs.schedule_enabled ?? false;
+      const scheduleDays = (pref?.schedule_days as number[] | null) ?? [1, 2, 3, 4, 5];
+      const scheduleStartTime = (pref?.schedule_start_time as string | null) ?? '08:00';
+      const scheduleEndTime = (pref?.schedule_end_time as string | null) ?? '18:00';
 
       if (scheduleEnabled && !isWithinSchedule(scheduleDays, scheduleStartTime, scheduleEndTime)) {
         console.log(`Outside schedule for user ${userId}, queueing notification`);

@@ -946,6 +946,29 @@ serve(async (req) => {
         })
         .eq('id', conversationId);
 
+      // Send ai_handoff notification
+      try {
+        // Get contact name for notification
+        const contactsData = conversation.contacts as { name?: string }[] | { name?: string };
+        const contactData = Array.isArray(contactsData) ? contactsData[0] : contactsData;
+        const contactNameForNotif = contactData?.name || 'Cliente';
+        
+        await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            type: 'ai_handoff',
+            data: { conversationId, contactName: contactNameForNotif },
+          }),
+        });
+        console.log('[AI-AGENT] Sent ai_handoff notification');
+      } catch (e) {
+        console.error('[AI-AGENT] Failed to send ai_handoff notification:', e);
+      }
+
       // Send handoff message
       const handoffMessage = 'Entendi! Vou transferir você para um de nossos atendentes. Aguarde um momento, por favor.';
       

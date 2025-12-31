@@ -12,9 +12,31 @@ export interface DealTask {
   due_date: string | null;
   completed_at: string | null;
   priority: string;
+  assigned_to?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// Helper to send notification
+const sendTaskNotification = async (
+  type: 'task_created' | 'task_assigned' | 'task_updated' | 'task_deleted',
+  taskId: string,
+  taskTitle: string,
+  recipientUserId?: string | null
+) => {
+  try {
+    await supabase.functions.invoke('send-whatsapp-notification', {
+      body: {
+        type,
+        data: { taskId, taskTitle },
+        recipientUserId,
+      },
+    });
+    console.log(`[DEAL-TASK-NOTIFICATION] Sent ${type} notification for task ${taskId}`);
+  } catch (error) {
+    console.error(`[DEAL-TASK-NOTIFICATION] Failed to send ${type} notification:`, error);
+  }
+};
 
 export const useDealTasks = (dealId?: string) => {
   const { user } = useAuth();
@@ -44,19 +66,30 @@ export const useDealTasks = (dealId?: string) => {
       description?: string;
       due_date?: string;
       priority?: string;
+      assigned_to?: string | null;
     }) => {
-      const { error } = await supabase
+      const { data: createdTask, error } = await supabase
         .from('deal_tasks')
         .insert({
           ...data,
           user_id: user!.id,
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+      return createdTask;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['deal-tasks'] });
       toast.success('Tarefa criada');
+      
+      // Send notification
+      if (data.assigned_to) {
+        sendTaskNotification('task_assigned', data.id, data.title, data.assigned_to);
+      } else {
+        sendTaskNotification('task_created', data.id, data.title);
+      }
     },
     onError: () => {
       toast.error('Erro ao criar tarefa');
@@ -65,15 +98,23 @@ export const useDealTasks = (dealId?: string) => {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, ...data }: Partial<DealTask> & { id: string }) => {
-      const { error } = await supabase
+      const { data: updatedTask, error } = await supabase
         .from('deal_tasks')
         .update(data)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) throw error;
+      return updatedTask;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['deal-tasks'] });
+      
+      // Send notification
+      if (data) {
+        sendTaskNotification('task_updated', data.id, data.title, data.assigned_to);
+      }
     },
   });
 
@@ -93,16 +134,29 @@ export const useDealTasks = (dealId?: string) => {
 
   const deleteTask = useMutation({
     mutationFn: async (id: string) => {
+      // First fetch the task to get info for notification
+      const { data: taskToDelete } = await supabase
+        .from('deal_tasks')
+        .select('id, title, assigned_to')
+        .eq('id', id)
+        .single();
+
       const { error } = await supabase
         .from('deal_tasks')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      return taskToDelete;
     },
-    onSuccess: () => {
+    onSuccess: (taskData) => {
       queryClient.invalidateQueries({ queryKey: ['deal-tasks'] });
       toast.success('Tarefa removida');
+      
+      // Send notification
+      if (taskData) {
+        sendTaskNotification('task_deleted', taskData.id, taskData.title, taskData.assigned_to);
+      }
     },
   });
 
