@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Table, 
   TableBody, 
@@ -32,7 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { 
   MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, 
-  RefreshCw, Pencil, Key, Smartphone 
+  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2 
 } from 'lucide-react';
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
@@ -47,6 +50,8 @@ import { TeamMember } from '@/hooks/useOrganization';
 import { TeamRole } from '@/config/permissions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export function TeamSettings() {
   const { 
@@ -66,6 +71,7 @@ export function TeamSettings() {
     resendInvite,
     resetPassword 
   } = useTeamMembers();
+  const { instances } = useWhatsAppInstances();
   
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
@@ -77,6 +83,48 @@ export function TeamSettings() {
   const [instancesDialogOpen, setInstancesDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
+  const [notificationInstanceId, setNotificationInstanceId] = useState<string | null>(null);
+  const [isSavingNotificationInstance, setIsSavingNotificationInstance] = useState(false);
+
+  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
+
+  // Load organization's notification instance
+  useEffect(() => {
+    if (organization?.id) {
+      supabase
+        .from('organizations')
+        .select('notification_instance_id')
+        .eq('id', organization.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.notification_instance_id) {
+            setNotificationInstanceId(data.notification_instance_id);
+          }
+        });
+    }
+  }, [organization?.id]);
+
+  const handleSaveNotificationInstance = async (instanceId: string | null) => {
+    if (!organization?.id) return;
+    
+    setIsSavingNotificationInstance(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ notification_instance_id: instanceId })
+        .eq('id', organization.id);
+
+      if (error) throw error;
+      
+      setNotificationInstanceId(instanceId);
+      toast.success('Instância de notificação atualizada');
+    } catch (error) {
+      console.error('Error saving notification instance:', error);
+      toast.error('Erro ao salvar instância de notificação');
+    } finally {
+      setIsSavingNotificationInstance(false);
+    }
+  };
 
   // Sincroniza o selectedMember com os dados atualizados do members
   // Não atualiza enquanto algum dialog está aberto para evitar reset de estado
@@ -235,6 +283,51 @@ export function TeamSettings() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Notification Instance - Only visible for owner/admin */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Instância de Notificações
+            </CardTitle>
+            <CardDescription>
+              Instância WhatsApp usada para enviar notificações para toda a equipe
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="notification-instance">Instância para envio</Label>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={notificationInstanceId || 'none'}
+                  onValueChange={(value) => handleSaveNotificationInstance(value === 'none' ? null : value)}
+                  disabled={isSavingNotificationInstance}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Selecionar instância" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma selecionada</SelectItem>
+                    {connectedInstances.map((instance) => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        {instance.instance_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isSavingNotificationInstance && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                As notificações serão enviadas desta instância para o telefone cadastrado de cada membro da equipe.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Lista de Membros */}
       <Card>

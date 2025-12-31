@@ -143,94 +143,6 @@ serve(async (req) => {
           console.log('Added assigned_to:', conv.assigned_to);
         }
         
-        // 2. Try to get organization from instance
-        let organizationId: string | null = null;
-        
-        if (conv.instance_id) {
-          const { data: instance } = await supabase
-            .from('whatsapp_instances')
-            .select('organization_id, user_id')
-            .eq('id', conv.instance_id)
-            .maybeSingle();
-          
-          if (instance) {
-            organizationId = instance.organization_id;
-            console.log('Instance organization_id:', organizationId);
-            
-            // If no organization_id on instance, try to find via user's team membership
-            if (!organizationId && instance.user_id) {
-              const { data: tm } = await supabase
-                .from('team_members')
-                .select('organization_id')
-                .eq('user_id', instance.user_id)
-                .eq('status', 'active')
-                .maybeSingle();
-              
-              if (tm?.organization_id) {
-                organizationId = tm.organization_id;
-                console.log('Found organization via team_members:', organizationId);
-              }
-            }
-          }
-        }
-        
-        // If still no org, try via conversation user_id
-        if (!organizationId && conv.user_id) {
-          // Check if user is an org owner
-          const { data: org } = await supabase
-            .from('organizations')
-            .select('id')
-            .eq('owner_id', conv.user_id)
-            .maybeSingle();
-          
-          if (org) {
-            organizationId = org.id;
-            console.log('Found organization via owner:', organizationId);
-          } else {
-            // Check team membership
-            const { data: tm } = await supabase
-              .from('team_members')
-              .select('organization_id')
-              .eq('user_id', conv.user_id)
-              .eq('status', 'active')
-              .maybeSingle();
-            
-            if (tm?.organization_id) {
-              organizationId = tm.organization_id;
-              console.log('Found organization via user team membership:', organizationId);
-            }
-          }
-        }
-        
-        // 3. If we have an organization, fetch all admins
-        if (organizationId) {
-          // Get organization owner
-          const { data: organization } = await supabase
-            .from('organizations')
-            .select('owner_id')
-            .eq('id', organizationId)
-            .maybeSingle();
-          
-          if (organization?.owner_id) {
-            userIds.push(organization.owner_id);
-            console.log('Added organization owner:', organization.owner_id);
-          }
-          
-          // Get all admin team members
-          const { data: admins } = await supabase
-            .from('team_members')
-            .select('user_id')
-            .eq('organization_id', organizationId)
-            .eq('role', 'admin')
-            .eq('status', 'active');
-          
-          if (admins && admins.length > 0) {
-            const adminIds = admins.map(a => a.user_id).filter(Boolean) as string[];
-            userIds.push(...adminIds);
-            console.log('Added organization admins:', adminIds);
-          }
-        }
-        
         // If still no recipients, fallback to conversation owner
         if (userIds.length === 0) {
           userIds = [conv.user_id];
@@ -272,25 +184,18 @@ serve(async (req) => {
       console.error('Error fetching preferences:', prefError);
     }
 
-    // Get profiles with phone numbers
-    const { data: profiles, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, phone')
-      .in('id', userIds);
-
-    if (profileError) {
-      console.error('Error fetching profiles:', profileError);
-    }
-
-    // Also check team_members for phone
+    // Get team members with phone for all users - this is the source of phone numbers
     const { data: teamMembers, error: tmError } = await supabase
       .from('team_members')
-      .select('user_id, phone')
-      .in('user_id', userIds);
+      .select('user_id, phone, organization_id')
+      .in('user_id', userIds)
+      .eq('status', 'active');
 
     if (tmError) {
       console.error('Error fetching team members:', tmError);
     }
+
+    console.log('Team members found:', teamMembers);
 
     const sentNotifications: string[] = [];
     const errors: string[] = [];
@@ -304,20 +209,34 @@ serve(async (req) => {
         continue;
       }
 
-      // Get phone number (from profile or team_member)
-      const profile = profiles?.find(p => p.id === userId);
+      // Get team member for this user (for phone and organization)
       const teamMember = teamMembers?.find(tm => tm.user_id === userId);
-      const phone = profile?.phone || teamMember?.phone;
+      
+      if (!teamMember) {
+        console.log(`No team member found for user ${userId}`);
+        continue;
+      }
 
+      const phone = teamMember.phone;
       if (!phone) {
         console.log(`No phone number for user ${userId}`);
         continue;
       }
 
-      // Get the instance to send from
-      const instanceId = pref?.notification_instance_id;
-      if (!instanceId) {
-        console.log(`No notification instance configured for user ${userId}`);
+      // Get the organization's notification instance
+      if (!teamMember.organization_id) {
+        console.log(`No organization for user ${userId}`);
+        continue;
+      }
+
+      const { data: organization } = await supabase
+        .from('organizations')
+        .select('notification_instance_id')
+        .eq('id', teamMember.organization_id)
+        .maybeSingle();
+
+      if (!organization?.notification_instance_id) {
+        console.log(`No notification instance configured for organization ${teamMember.organization_id}`);
         continue;
       }
 
@@ -325,11 +244,11 @@ serve(async (req) => {
       const { data: instance } = await supabase
         .from('whatsapp_instances')
         .select('instance_name')
-        .eq('id', instanceId)
+        .eq('id', organization.notification_instance_id)
         .maybeSingle();
 
       if (!instance) {
-        console.log(`Instance ${instanceId} not found`);
+        console.log(`Instance ${organization.notification_instance_id} not found`);
         continue;
       }
 
@@ -341,6 +260,8 @@ serve(async (req) => {
 
       // Send via Evolution API
       try {
+        console.log(`Sending notification to ${formattedPhone} via instance ${instance.instance_name}`);
+        
         const response = await fetch(`${evolutionApiUrl}/message/sendText/${instance.instance_name}`, {
           method: 'POST',
           headers: {
