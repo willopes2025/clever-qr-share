@@ -514,7 +514,14 @@ serve(async (req) => {
         }
         
         // Parse end date - use end of day in Brazil timezone
-        const endDateTime = new Date(endDate + 'T23:59:59-03:00');
+        let endDateTime = new Date(endDate + 'T23:59:59-03:00');
+        
+        // SAFETY: Ensure range never exceeds 6 days 23 hours (Calendly limits to 7 days)
+        const maxRangeMs = 6 * 24 * 60 * 60 * 1000 + 23 * 60 * 60 * 1000; // 6 days + 23 hours
+        if (endDateTime.getTime() - startDateTime.getTime() > maxRangeMs) {
+          endDateTime = new Date(startDateTime.getTime() + maxRangeMs);
+          console.log(`[CALENDLY] Range exceeded 7 days, adjusted end to: ${endDateTime.toISOString()}`);
+        }
         
         const startTime = startDateTime.toISOString();
         const endTime = endDateTime.toISOString();
