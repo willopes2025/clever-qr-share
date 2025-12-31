@@ -182,3 +182,9 @@ verify_jwt = true
 
 [functions.check-ai-tokens]
 verify_jwt = true
+
+[functions.test-ai-agent]
+verify_jwt = true
+
+[functions.admin-transfer-tokens]
+verify_jwt = true
