@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
+import { TokenBalanceWidget } from "@/components/sidebar/TokenBalanceWidget";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -378,6 +379,9 @@ export const DashboardSidebar = () => {
                   </p>
                 </TooltipContent>
               </Tooltip>
+
+              {/* Token Balance Widget - Collapsed */}
+              <TokenBalanceWidget isCollapsed={true} />
               
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -421,6 +425,9 @@ export const DashboardSidebar = () => {
                   </p>
                 </div>
               </NavLink>
+
+              {/* Token Balance Widget */}
+              <TokenBalanceWidget isCollapsed={false} />
               
               <Button 
                 variant="ghost" 
