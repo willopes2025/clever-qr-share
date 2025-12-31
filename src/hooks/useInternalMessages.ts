@@ -86,7 +86,7 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
   }, [conversationId, contactId, refetch]);
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, mentions = [] }: { content: string; mentions?: string[] }) => {
+    mutationFn: async ({ content, mentions = [], targetMemberId }: { content: string; mentions?: string[]; targetMemberId?: string | null }) => {
       if (!user) throw new Error('Usuário não autenticado');
       
       const { data, error } = await supabase
@@ -153,6 +153,7 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
             conversationId,
             contactId,
             contactName,
+            targetMemberId: targetMemberId || null,
           },
         });
       } catch (whatsappError) {
