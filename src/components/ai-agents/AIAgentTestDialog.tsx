@@ -3,10 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, RotateCcw, Bot, User, Beaker, Clock } from "lucide-react";
+import { Loader2, Send, RotateCcw, Bot, User, Beaker, Clock, Calendar, CalendarOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 interface AIAgentTestDialogProps {
   open: boolean;
@@ -23,6 +24,14 @@ interface TestMessage {
   responseTime?: number;
 }
 
+interface CalendlyDebug {
+  connected: boolean;
+  prefetched: boolean;
+  slotsCount: number;
+  slot1: string | null;
+  slot2: string | null;
+}
+
 export const AIAgentTestDialog = ({
   open,
   onOpenChange,
@@ -32,6 +41,7 @@ export const AIAgentTestDialog = ({
   const [messages, setMessages] = useState<TestMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [calendlyStatus, setCalendlyStatus] = useState<CalendlyDebug | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -47,6 +57,7 @@ export const AIAgentTestDialog = ({
         },
       ]);
       setInputMessage("");
+      setCalendlyStatus(null);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open, agentName]);
@@ -95,6 +106,19 @@ export const AIAgentTestDialog = ({
 
       const responseTime = Date.now() - startTime;
 
+      // Update Calendly status from response
+      if (data?.calendlyDebug) {
+        setCalendlyStatus(data.calendlyDebug);
+      } else if (data?.hasCalendarIntegration !== undefined) {
+        setCalendlyStatus({
+          connected: data.hasCalendarIntegration,
+          prefetched: false,
+          slotsCount: 0,
+          slot1: null,
+          slot2: null,
+        });
+      }
+
       if (data?.response) {
         const assistantMessage: TestMessage = {
           id: `assistant-${Date.now()}`,
@@ -141,6 +165,7 @@ export const AIAgentTestDialog = ({
       },
     ]);
     setInputMessage("");
+    setCalendlyStatus(null);
     inputRef.current?.focus();
   };
 
@@ -148,10 +173,32 @@ export const AIAgentTestDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl h-[600px] flex flex-col p-0">
         <DialogHeader className="px-6 py-4 border-b">
-          <DialogTitle className="flex items-center gap-2">
-            <Beaker className="h-5 w-5 text-primary" />
-            Testar Agente: {agentName}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Beaker className="h-5 w-5 text-primary" />
+              Testar Agente: {agentName}
+            </DialogTitle>
+            
+            {/* Calendly Status Badge */}
+            {calendlyStatus && (
+              <div className="flex items-center gap-2">
+                {calendlyStatus.connected ? (
+                  <Badge variant="outline" className="flex items-center gap-1 text-green-600 border-green-300 bg-green-50">
+                    <Calendar className="h-3 w-3" />
+                    Calendly
+                    {calendlyStatus.prefetched && calendlyStatus.slotsCount > 0 && (
+                      <span className="ml-1 text-xs">({calendlyStatus.slotsCount} slots)</span>
+                    )}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground">
+                    <CalendarOff className="h-3 w-3" />
+                    Sem agenda
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Messages Area */}

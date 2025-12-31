@@ -6,18 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Check if message is asking about scheduling/availability
-const isAskingAboutSchedule = (message: string): boolean => {
-  const scheduleKeywords = [
-    'horário', 'horarios', 'hora', 'agendar', 'agenda', 'marcar', 
-    'disponível', 'disponibilidade', 'reunião', 'reuniao', 'meeting',
-    'quando', 'que horas', 'amanhã', 'amanha', 'próxima', 'proxima',
-    'semana', 'dia', 'calendário', 'calendario', 'livre', 'vaga'
-  ];
-  const lowerMessage = message.toLowerCase();
-  return scheduleKeywords.some(keyword => lowerMessage.includes(keyword));
-};
-
 // Fetch available time slots from Calendly
 const fetchCalendlyAvailableTimes = async (
   supabaseUrl: string,
@@ -55,30 +43,38 @@ const fetchCalendlyAvailableTimes = async (
   }
 };
 
-// Define tools for AI agent (Calendly)
-const getCalendlyTools = () => [
-  {
-    type: 'function',
-    function: {
-      name: 'get_available_times',
-      description: 'Busca horários disponíveis para agendamento no Calendly. Use quando o cliente perguntar sobre horários disponíveis ou quiser agendar.',
-      parameters: {
-        type: 'object',
-        properties: {
-          start_date: { 
-            type: 'string', 
-            description: 'Data de início para buscar horários (formato YYYY-MM-DD). Use a data de hoje ou a data mencionada pelo cliente.' 
-          },
-          end_date: { 
-            type: 'string', 
-            description: 'Data de fim para buscar horários (formato YYYY-MM-DD). Máximo 7 dias após start_date.' 
-          },
-        },
-        required: ['start_date', 'end_date'],
-      },
-    },
-  },
-];
+// Format slot to Brazilian Portuguese
+const formatSlotBR = (isoTime: string): string => {
+  const date = new Date(isoTime);
+  const dia = date.toLocaleDateString('pt-BR', { 
+    weekday: 'long',
+    day: '2-digit', 
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo'
+  });
+  const hora = date.toLocaleTimeString('pt-BR', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo'
+  });
+  return `${dia} às ${hora}`;
+};
+
+// Replace slot placeholders in text
+const replaceSlotPlaceholders = (text: string, slot1: string, slot2: string): string => {
+  if (!text) return text;
+  return text
+    .replace(/\{\{slot1\}\}/gi, slot1)
+    .replace(/\{\{slot2\}\}/gi, slot2)
+    .replace(/\{\{p_slot1\}\}/gi, slot1)
+    .replace(/\{\{p_slot2\}\}/gi, slot2);
+};
+
+// Check if text contains slot placeholders
+const hasSlotPlaceholders = (text: string): boolean => {
+  if (!text) return false;
+  return /\{\{(slot1|slot2|p_slot1|p_slot2)\}\}/i.test(text);
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -139,6 +135,64 @@ serve(async (req) => {
     const hasCalendarIntegration = !!calendarIntegration;
     console.log(`[TEST-AI-AGENT] Calendar integration: ${hasCalendarIntegration ? 'enabled' : 'disabled'}`);
 
+    // Debug info for response
+    const calendlyDebug = {
+      connected: hasCalendarIntegration,
+      prefetched: false,
+      slotsCount: 0,
+      slot1: null as string | null,
+      slot2: null as string | null,
+    };
+
+    // === PRE-FETCH CALENDLY SLOTS ===
+    // Check if we need to pre-fetch slots (first message or agent uses slot placeholders)
+    const isFirstMessage = conversationHistory.length === 0;
+    const needsSlots = hasSlotPlaceholders(agent.greeting_message) || 
+                       hasSlotPlaceholders(agent.behavior_rules) ||
+                       hasSlotPlaceholders(agent.personality_prompt);
+    
+    let slot1Formatted = '';
+    let slot2Formatted = '';
+    let prefetchedSlots: Array<{ start_time: string; status: string }> = [];
+
+    if (hasCalendarIntegration && (isFirstMessage || needsSlots)) {
+      console.log('[TEST-AI-AGENT] Pre-fetching Calendly slots...');
+      
+      // Fetch next 7 days
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const availableTimes = await fetchCalendlyAvailableTimes(supabaseUrl, agentId, startDate, endDate);
+      
+      if (availableTimes && availableTimes.length > 0) {
+        prefetchedSlots = availableTimes;
+        calendlyDebug.prefetched = true;
+        calendlyDebug.slotsCount = availableTimes.length;
+        
+        // Get first two slots
+        if (availableTimes[0]) {
+          slot1Formatted = formatSlotBR(availableTimes[0].start_time);
+          calendlyDebug.slot1 = slot1Formatted;
+        }
+        if (availableTimes[1]) {
+          slot2Formatted = formatSlotBR(availableTimes[1].start_time);
+          calendlyDebug.slot2 = slot2Formatted;
+        }
+        
+        console.log(`[TEST-AI-AGENT] Pre-fetched ${availableTimes.length} slots. slot1: ${slot1Formatted}, slot2: ${slot2Formatted}`);
+      } else {
+        console.log('[TEST-AI-AGENT] No slots available from Calendly');
+        slot1Formatted = 'sem horários disponíveis no momento';
+        slot2Formatted = 'sem horários disponíveis no momento';
+      }
+    }
+
+    // === REPLACE PLACEHOLDERS IN AGENT CONFIG ===
+    const greetingMessage = replaceSlotPlaceholders(agent.greeting_message || '', slot1Formatted, slot2Formatted);
+    const behaviorRules = replaceSlotPlaceholders(agent.behavior_rules || '', slot1Formatted, slot2Formatted);
+    const personalityPrompt = replaceSlotPlaceholders(agent.personality_prompt || '', slot1Formatted, slot2Formatted);
+
     // Build knowledge base text
     let knowledgeText = "";
     if (knowledgeItems && knowledgeItems.length > 0) {
@@ -167,54 +221,66 @@ serve(async (req) => {
     });
     const anoAtual = agora.getFullYear();
 
-    // Build calendar context
+    // Build calendar context with pre-fetched slots
     let calendarContext = '';
     if (hasCalendarIntegration) {
-      calendarContext = `\n\n## AGENDAMENTO DISPONÍVEL (CALENDLY)
+      let slotsInfo = '';
+      if (prefetchedSlots.length > 0) {
+        const slotsFormatted = prefetchedSlots.slice(0, 6).map((slot, i) => {
+          return `  ${i + 1}. ${formatSlotBR(slot.start_time)}`;
+        }).join('\n');
+        slotsInfo = `
+HORÁRIOS DISPONÍVEIS (JÁ CONSULTADOS DO CALENDLY):
+${slotsFormatted}
 
-### 🚨 REGRA OBRIGATÓRIA 🚨
-Quando o cliente quiser agendar ou mencionar qualquer horário:
-1. SEMPRE chame get_available_times PRIMEIRO
-2. NUNCA confirme ou sugira horários sem verificar disponibilidade em tempo real
-3. Horários mudam constantemente - verifique SEMPRE antes de responder
-4. NUNCA invente horários - use APENAS os retornados pela ferramenta
+📌 SLOT1 = ${slot1Formatted}
+📌 SLOT2 = ${slot2Formatted}`;
+      } else {
+        slotsInfo = '\n⚠️ Não há horários disponíveis nos próximos 7 dias.';
+      }
 
-A ferramenta retorna horários com códigos [A], [B], etc. Liste CADA horário individualmente para o cliente.`;
+      calendarContext = `
+## 🗓️ CALENDLY CONECTADO
+${slotsInfo}
+
+### 🚨 REGRAS OBRIGATÓRIAS DE AGENDAMENTO 🚨
+1. Use SOMENTE os horários listados acima
+2. NUNCA invente datas ou horários
+3. Se o cliente perguntar "quando" ou "horário", ofereça slot1 e slot2
+4. Se os horários acima não servirem, diga que vai verificar outras opções`;
     }
 
-    // Build system prompt
-    const systemPrompt = `## DATA E HORA ATUAIS (OBRIGATÓRIO - USE SEMPRE)
+    // Build system prompt with REPLACED content
+    const systemPrompt = `## DATA E HORA ATUAIS (OBRIGATÓRIO)
 - Hoje é ${dataAtualFormatada}
 - Agora são ${horaAtual} (horário de Brasília)
 - O ano atual é ${anoAtual}
-- NUNCA mencione o ano 2024. Estamos em ${anoAtual}.
 
 Você é ${agent.agent_name}, um assistente virtual.
 
 PERSONALIDADE:
-${agent.personality_prompt || "Seja profissional e prestativo."}
+${personalityPrompt || "Seja profissional e prestativo."}
 
 REGRAS DE COMPORTAMENTO:
-${agent.behavior_rules || "Responda de forma clara e objetiva."}
+${behaviorRules || "Responda de forma clara e objetiva."}
 
 MENSAGEM DE SAUDAÇÃO (use como referência de tom):
-${agent.greeting_message || ""}
+${greetingMessage || ""}
 
-MENSAGEM DE DESPEDIDA (use como referência):
+MENSAGEM DE DESPEDIDA:
 ${agent.goodbye_message || ""}
 
-MENSAGEM DE FALLBACK (quando não souber responder):
+MENSAGEM DE FALLBACK:
 ${agent.fallback_message || "Desculpe, não entendi. Pode reformular?"}
 ${knowledgeText}
 ${calendarContext}
 
-INSTRUÇÕES:
+INSTRUÇÕES FINAIS:
 - Este é um TESTE de simulação. Responda como se estivesse em uma conversa real via WhatsApp.
-- Mantenha respostas curtas e naturais.
+- Mantenha respostas curtas e naturais (2-3 linhas).
 - Use a personalidade e regras definidas acima.
 - Use a base de conhecimento para responder perguntas específicas.
-- Se não souber algo, use a mensagem de fallback.
-${hasCalendarIntegration ? '- Para agendamentos: SEMPRE use a ferramenta get_available_times antes de mencionar horários.' : ''}`;
+${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot1Formatted}) e slot2 (${slot2Formatted}). NÃO INVENTE DATAS.` : ''}`;
 
     // Build messages array for API
     const messages = [
@@ -235,26 +301,18 @@ ${hasCalendarIntegration ? '- Para agendamentos: SEMPRE use a ferramenta get_ava
       );
     }
 
-    // Build AI request with tools if calendar is available
-    const aiRequestBody: Record<string, unknown> = {
-      model: "google/gemini-2.5-flash",
-      messages,
-    };
+    console.log(`[TEST-AI-AGENT] Calling AI. First message: ${isFirstMessage}, Has calendar: ${hasCalendarIntegration}`);
 
-    if (hasCalendarIntegration) {
-      aiRequestBody.tools = getCalendlyTools();
-      aiRequestBody.tool_choice = "auto";
-    }
-
-    console.log(`[TEST-AI-AGENT] Calling AI with tools: ${hasCalendarIntegration}`);
-
-    let aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(aiRequestBody),
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages,
+      }),
     });
 
     if (!aiResponse.ok) {
@@ -281,100 +339,29 @@ ${hasCalendarIntegration ? '- Para agendamentos: SEMPRE use a ferramenta get_ava
       );
     }
 
-    let aiData = await aiResponse.json();
+    const aiData = await aiResponse.json();
     let response = aiData.choices?.[0]?.message?.content || '';
-    
-    // Process tool calls if present
-    const toolCalls = aiData.choices?.[0]?.message?.tool_calls;
-    if (toolCalls && toolCalls.length > 0 && hasCalendarIntegration) {
-      console.log(`[TEST-AI-AGENT] Processing ${toolCalls.length} tool calls`);
-      
-      const toolResults: Array<{ role: string; tool_call_id: string; content: string }> = [];
-      
-      for (const toolCall of toolCalls) {
-        const functionName = toolCall.function?.name;
-        const args = JSON.parse(toolCall.function?.arguments || '{}');
-        
-        console.log(`[TEST-AI-AGENT] Executing tool: ${functionName}`, args);
-        
-        if (functionName === 'get_available_times') {
-          const availableTimes = await fetchCalendlyAvailableTimes(
-            supabaseUrl,
-            agentId,
-            args.start_date,
-            args.end_date
-          );
-          
-          if (availableTimes && availableTimes.length > 0) {
-            console.log(`[TEST-AI-AGENT] Found ${availableTimes.length} available times`);
-            
-            const timesSlice = availableTimes.slice(0, 10);
-            
-            // Format times for display
-            const listaParaCliente = timesSlice.map((slot, index) => {
-              const utcDate = new Date(slot.start_time);
-              const codigo = String.fromCharCode(65 + index);
-              
-              const dataBRT = utcDate.toLocaleDateString('pt-BR', { 
-                weekday: 'short',
-                day: '2-digit', 
-                month: '2-digit',
-                timeZone: 'America/Sao_Paulo'
-              });
-              const horaBRT = utcDate.toLocaleTimeString('pt-BR', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                timeZone: 'America/Sao_Paulo'
-              });
-              
-              return `[${codigo}] ${dataBRT} às ${horaBRT}`;
-            }).join('\n');
-            
-            // Internal mapping
-            const mapeamento = timesSlice.map((slot, index) => {
-              const codigo = String.fromCharCode(65 + index);
-              return `${codigo} = ${slot.start_time}`;
-            }).join('\n');
-            
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: `## HORÁRIOS DISPONÍVEIS
 
-MOSTRE AO CLIENTE ESTES HORÁRIOS:
-${listaParaCliente}
-
----
-⚠️ MAPEAMENTO INTERNO (NÃO MOSTRE AO CLIENTE):
-${mapeamento}
-
----
-📋 REGRAS:
-1. Liste CADA horário individualmente
-2. NÃO agrupe em faixas (ex: "9h às 11h" está ERRADO)
-3. Pergunte qual horário o cliente prefere`
-            });
-          } else {
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: 'Nenhum horário disponível encontrado para o período solicitado. Sugira ao cliente tentar outro dia.'
-            });
-          }
-        }
-      }
+    // === GUARDRAIL: Validate response has correct slots ===
+    if (hasCalendarIntegration && prefetchedSlots.length > 0 && response) {
+      // Check if response mentions dates/times but not our slots
+      const mentionsDates = /\d{1,2}\/\d{1,2}|\d{1,2}h|\d{1,2}:\d{2}/.test(response);
+      const hasCorrectSlot = slot1Formatted && response.includes(slot1Formatted.split(' às ')[1] || '');
       
-      // If we have tool results, call AI again with the results
-      if (toolResults.length > 0) {
-        console.log('[TEST-AI-AGENT] Calling AI again with tool results');
+      if (mentionsDates && !hasCorrectSlot) {
+        console.log('[TEST-AI-AGENT] Guardrail triggered - response has wrong dates, fixing...');
         
-        const followUpMessages = [
+        // Make a correction call
+        const correctionMessages = [
           ...messages,
-          aiData.choices[0].message, // Include the assistant's tool call message
-          ...toolResults
+          { role: "assistant", content: response },
+          { 
+            role: "user", 
+            content: `CORREÇÃO OBRIGATÓRIA: Sua resposta contém horários incorretos. Reescreva usando EXATAMENTE estes horários: ${slot1Formatted} ou ${slot2Formatted}. Mantenha o mesmo tom e estrutura, apenas corrija os horários.`
+          }
         ];
-        
-        const followUpResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+
+        const correctionResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -382,13 +369,17 @@ ${mapeamento}
           },
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
-            messages: followUpMessages,
+            messages: correctionMessages,
           }),
         });
-        
-        if (followUpResponse.ok) {
-          const followUpData = await followUpResponse.json();
-          response = followUpData.choices?.[0]?.message?.content || response;
+
+        if (correctionResponse.ok) {
+          const correctionData = await correctionResponse.json();
+          const correctedResponse = correctionData.choices?.[0]?.message?.content;
+          if (correctedResponse) {
+            console.log('[TEST-AI-AGENT] Guardrail applied, using corrected response');
+            response = correctedResponse;
+          }
         }
       }
     }
@@ -405,6 +396,7 @@ ${mapeamento}
         response,
         agentName: agent.agent_name,
         hasCalendarIntegration,
+        calendlyDebug,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
