@@ -158,10 +158,12 @@ serve(async (req) => {
     if (hasCalendarIntegration && (isFirstMessage || needsSlots)) {
       console.log('[TEST-AI-AGENT] Pre-fetching Calendly slots...');
       
-      // Fetch next 7 days
+      // Fetch next 6 days (safety margin - Calendly API limits to 7 days max)
       const today = new Date();
       const startDate = today.toISOString().split('T')[0];
-      const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endDate = new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      console.log(`[TEST-AI-AGENT] Fetching Calendly slots from ${startDate} to ${endDate}`);
       
       const availableTimes = await fetchCalendlyAvailableTimes(supabaseUrl, agentId, startDate, endDate);
       
