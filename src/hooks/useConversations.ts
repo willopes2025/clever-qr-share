@@ -119,7 +119,7 @@ export const useConversations = () => {
         .from('conversations')
         .select(`
           *,
-          contact:contacts(id, name, phone, notes, custom_fields, avatar_url),
+          contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
           tag_assignments:conversation_tag_assignments(tag_id)
         `)
         .order('is_pinned', { ascending: false })

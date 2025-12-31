@@ -15,6 +15,7 @@ import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { ConversationFiltersComponent, ConversationFilters } from "./ConversationFilters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 
 interface ConversationWithTags extends Conversation {
@@ -101,8 +102,9 @@ export const ConversationList = ({
   const filteredConversations = sortedConversations.filter(conv => {
     const name = conv.contact?.name || "";
     const phone = conv.contact?.phone || "";
+    const displayId = (conv.contact as any)?.contact_display_id || "";
     const search = searchTerm.toLowerCase();
-    const matchesSearch = name.toLowerCase().includes(search) || phone.includes(search);
+    const matchesSearch = name.toLowerCase().includes(search) || phone.includes(search) || displayId.includes(search);
     
     // Apply tab filter
     if (activeTab === "unread") {
@@ -316,10 +318,15 @@ export const ConversationList = ({
                           />
                         </div>
                       </div>
-                      {/* Phone Number - Always visible */}
-                      <p className="text-xs text-muted-foreground truncate mb-0.5">
-                        {formatForDisplay(conversation.contact?.phone || "")}
-                      </p>
+                      {/* Contact ID + Phone Number */}
+                      <div className="flex items-center gap-2 mb-0.5">
+                        {(conversation.contact as any)?.contact_display_id && (
+                          <ContactIdBadge displayId={(conversation.contact as any).contact_display_id} size="sm" />
+                        )}
+                        <p className="text-xs text-muted-foreground truncate">
+                          {formatForDisplay(conversation.contact?.phone || "")}
+                        </p>
+                      </div>
                       {/* Assigned + SLA Badges */}
                       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                         {/* Assigned To Badge */}
