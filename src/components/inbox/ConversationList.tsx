@@ -64,6 +64,12 @@ export const ConversationList = ({
     dateFilter: 'all',
     funnelId: null,
     stageIds: [],
+    responseStatus: 'all',
+    assignedTo: null,
+    aiStatus: 'all',
+    hasDeal: 'all',
+    campaignId: null,
+    isPinned: false,
   });
   
   const { members } = useTeamMembers();
@@ -150,6 +156,59 @@ export const ConversationList = ({
     // Apply stage filter (multi-select)
     if (filters.stageIds.length > 0) {
       if (!conv.deal || !filters.stageIds.includes(conv.deal.stage_id)) return false;
+    }
+
+    // Apply response status filter
+    if (filters.responseStatus !== 'all') {
+      const lastMsgDate = conv.last_message_at ? new Date(conv.last_message_at) : null;
+      const now = new Date();
+      
+      if (filters.responseStatus === 'no_response') {
+        if (conv.first_response_at) return false;
+      } else {
+        const minutesThreshold: Record<string, number> = {
+          '15min': 15,
+          '1h': 60,
+          '4h': 240,
+          '24h': 1440,
+        };
+        const threshold = minutesThreshold[filters.responseStatus];
+        if (!lastMsgDate || conv.first_response_at) return false;
+        if (differenceInMinutes(now, lastMsgDate) < threshold) return false;
+      }
+    }
+
+    // Apply assigned to filter
+    if (filters.assignedTo) {
+      if (filters.assignedTo === 'unassigned') {
+        if (conv.assigned_to) return false;
+      } else {
+        if (conv.assigned_to !== filters.assignedTo) return false;
+      }
+    }
+
+    // Apply AI status filter
+    if (filters.aiStatus !== 'all') {
+      if (filters.aiStatus === 'no_ai' && conv.ai_handled) return false;
+      if (filters.aiStatus === 'ai_active' && (!conv.ai_handled || conv.ai_paused)) return false;
+      if (filters.aiStatus === 'ai_paused' && !conv.ai_paused) return false;
+      if (filters.aiStatus === 'handoff' && !conv.ai_handoff_requested) return false;
+    }
+
+    // Apply has deal filter
+    if (filters.hasDeal !== 'all') {
+      if (filters.hasDeal === 'with_deal' && !conv.deal) return false;
+      if (filters.hasDeal === 'without_deal' && conv.deal) return false;
+    }
+
+    // Apply campaign filter
+    if (filters.campaignId && conv.campaign_id !== filters.campaignId) {
+      return false;
+    }
+
+    // Apply pinned filter
+    if (filters.isPinned && !conv.is_pinned) {
+      return false;
     }
 
     return matchesSearch;
