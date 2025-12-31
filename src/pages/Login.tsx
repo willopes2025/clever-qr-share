@@ -33,8 +33,13 @@ const Login = () => {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (user) {
+      navigate('/instances');
+    }
+  }, [user, navigate]);
+
   if (user) {
-    navigate('/instances');
     return null;
   }
 
