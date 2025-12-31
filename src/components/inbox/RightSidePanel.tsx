@@ -1,20 +1,19 @@
-import { useState } from "react";
-import { ChevronRight, Target, EyeOff, Eye, User, UserCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Conversation } from "@/hooks/useConversations";
-import { FunnelDealSection } from "./FunnelDealSection";
-import { ContactInfoContent } from "./ContactInfoContent";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
-import { useLeadDistribution } from "@/hooks/useLeadDistribution";
+
+// New lead panel components
+import { LeadPanelHeader } from "./lead-panel/LeadPanelHeader";
+import { LeadPanelTagsSection } from "./lead-panel/LeadPanelTagsSection";
+import { LeadPanelFunnelBar } from "./lead-panel/LeadPanelFunnelBar";
+import { LeadPanelTabs } from "./lead-panel/LeadPanelTabs";
+import { LeadPanelTabContent } from "./lead-panel/LeadPanelTabContent";
+import { LeadPanelContactInfo } from "./lead-panel/LeadPanelContactInfo";
+import { LeadPanelNotes } from "./lead-panel/LeadPanelNotes";
 
 interface RightSidePanelProps {
   conversation: Conversation;
@@ -23,102 +22,50 @@ interface RightSidePanelProps {
 }
 
 export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanelProps) => {
-  const [showFunnel, setShowFunnel] = useState(true);
-  const [showContactInfo, setShowContactInfo] = useState(true);
   const isMobile = useIsMobile();
-  const { assignConversation } = useLeadDistribution();
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  // Reset tab when conversation changes
+  useEffect(() => {
+    setActiveTab(null);
+  }, [conversation.id]);
 
   const panelContent = (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      {!isMobile && (
-        <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
-          <h3 className="font-semibold text-sm">Painel do Lead</h3>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+    <div className="h-full flex flex-col bg-card">
+      {/* Header with contact name */}
+      <LeadPanelHeader 
+        conversation={conversation} 
+        onClose={isMobile ? onClose : undefined}
+        isMobile={isMobile}
+      />
 
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-3">
-          {/* Responsável Section */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 px-2">
-              <UserCheck className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Responsável</span>
-            </div>
-            <div className="px-2">
-              <AssigneeSelector
-                value={conversation.assigned_to || null}
-                onChange={(memberId) => {
-                  assignConversation.mutate({
-                    conversationId: conversation.id,
-                    memberId: memberId || '',
-                  });
-                }}
-                compact
-              />
-            </div>
-          </div>
+        {/* Tags Section */}
+        <LeadPanelTagsSection conversationId={conversation.id} />
 
-          <Separator />
+        {/* Funnel Bar */}
+        <LeadPanelFunnelBar 
+          contactId={conversation.contact_id} 
+          conversationId={conversation.id}
+        />
 
-          {/* Funnel Section - Always visible when active */}
-          <Collapsible open={showFunnel} onOpenChange={setShowFunnel}>
-            <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-between h-8 px-2 hover:bg-muted/50"
-              >
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Funil de Vendas</span>
-                </div>
-                {showFunnel ? (
-                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="pt-2">
-                <FunnelDealSection 
-                  contactId={conversation.contact_id}
-                  conversationId={conversation.id}
-                />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+        {/* Custom Tabs */}
+        <LeadPanelTabs 
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
 
-          <Separator />
+        {/* Tab Content (Custom Fields) */}
+        <LeadPanelTabContent 
+          conversation={conversation}
+          activeTabId={activeTab}
+        />
 
-          {/* Contact Info Section - Collapsible */}
-          <Collapsible open={showContactInfo} onOpenChange={setShowContactInfo}>
-            <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-between h-8 px-2 hover:bg-muted/50"
-              >
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Informações do Contato</span>
-                </div>
-                {showContactInfo ? (
-                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="pt-2">
-                <ContactInfoContent conversation={conversation} />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+        {/* Contact Info */}
+        <LeadPanelContactInfo conversation={conversation} />
+
+        {/* Notes */}
+        <LeadPanelNotes conversation={conversation} />
       </ScrollArea>
     </div>
   );
@@ -128,7 +75,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
     return (
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <SheetContent side="right" className="w-full sm:max-w-md p-0">
-          <SheetHeader className="p-4 border-b border-border">
+          <SheetHeader className="sr-only">
             <SheetTitle>Painel do Lead</SheetTitle>
           </SheetHeader>
           {panelContent}
@@ -137,9 +84,15 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
     );
   }
 
-  // Desktop: Simple panel (width controlled by ResizablePanel parent)
+  // Desktop: Simple panel
   return (
-    <div className="h-full w-full border-l border-border bg-card overflow-hidden">
+    <div className="h-full w-full border-l border-border/50 bg-card overflow-hidden">
+      {/* Desktop close button */}
+      <div className="absolute top-2 right-2 z-10">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
       {panelContent}
     </div>
   );
