@@ -263,10 +263,60 @@ serve(async (req) => {
       notify_campaign_complete: true,
       notify_instance_disconnect: true,
       notify_internal_chat: true,
+      only_if_responsible: false, // Default: receive all notifications
       schedule_enabled: false,
       schedule_days: [1, 2, 3, 4, 5],
       schedule_start_time: '08:00',
       schedule_end_time: '18:00',
+    };
+
+    // Helper function to check if user is responsible for the resource
+    const checkIfUserIsResponsible = async (userId: string, notificationType: string, notificationData: any): Promise<boolean> => {
+      // For tasks: check if user is assigned_to
+      if (notificationType.startsWith('task_') && notificationData.taskId) {
+        const { data: convTask } = await supabase
+          .from('conversation_tasks')
+          .select('assigned_to')
+          .eq('id', notificationData.taskId)
+          .maybeSingle();
+        
+        if (convTask?.assigned_to === userId) return true;
+        
+        const { data: dealTask } = await supabase
+          .from('deal_tasks')
+          .select('assigned_to')
+          .eq('id', notificationData.taskId)
+          .maybeSingle();
+        
+        if (dealTask?.assigned_to === userId) return true;
+        
+        return false;
+      }
+      
+      // For deals: check if user is responsible_id
+      if ((notificationType.startsWith('deal_') || notificationType === 'new_deal') && notificationData.dealId) {
+        const { data: deal } = await supabase
+          .from('funnel_deals')
+          .select('responsible_id')
+          .eq('id', notificationData.dealId)
+          .maybeSingle();
+        
+        return deal?.responsible_id === userId;
+      }
+      
+      // For conversations/messages: check if user is assigned_to
+      if ((notificationType === 'new_message' || notificationType === 'ai_handoff') && notificationData.conversationId) {
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('assigned_to')
+          .eq('id', notificationData.conversationId)
+          .maybeSingle();
+        
+        return conv?.assigned_to === userId;
+      }
+      
+      // For other types (campaign, instance, calendly, internal_chat, etc), always allow
+      return true;
     };
 
     const sentNotifications: string[] = [];
@@ -284,6 +334,17 @@ serve(async (req) => {
       if (effectivePrefs[prefKey] === false) {
         console.log(`Notification ${type} disabled for user ${userId}`);
         continue;
+      }
+
+      // Check only_if_responsible filter
+      const onlyIfResponsible = effectivePrefs.only_if_responsible ?? false;
+      if (onlyIfResponsible) {
+        const isResponsible = await checkIfUserIsResponsible(userId, type, data);
+        if (!isResponsible) {
+          console.log(`User ${userId} has only_if_responsible=true but is not responsible for ${type}, skipping`);
+          continue;
+        }
+        console.log(`User ${userId} is responsible, proceeding with notification`);
       }
 
       // Get team member for this user (for phone and organization)

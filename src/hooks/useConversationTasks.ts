@@ -105,11 +105,11 @@ export const useConversationTasks = (conversationId: string | null, contactId: s
       queryClient.invalidateQueries({ queryKey: ['conversation-tasks', conversationId, contactId] });
       toast.success('Tarefa criada com sucesso');
       
-      // Send notification
+      // Send notification - always pass taskId for only_if_responsible filter to work
       if (data.assigned_to) {
         sendTaskNotification('task_assigned', data.id, data.title, data.assigned_to);
       } else {
-        sendTaskNotification('task_created', data.id, data.title);
+        sendTaskNotification('task_created', data.id, data.title, null);
       }
     },
     onError: (error) => {
