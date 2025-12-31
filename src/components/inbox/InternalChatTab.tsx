@@ -30,13 +30,11 @@ export const InternalChatTab = ({ conversationId, contactId }: InternalChatTabPr
   const { messages, isLoading, sendMessage, deleteMessage } = useInternalMessages(conversationId, contactId);
   const [newMessage, setNewMessage] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = async () => {
@@ -85,7 +83,7 @@ export const InternalChatTab = ({ conversationId, contactId }: InternalChatTabPr
 
   return (
     <div className="flex-1 flex flex-col">
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <Users className="h-12 w-12 mb-2 opacity-50" />
@@ -103,17 +101,21 @@ export const InternalChatTab = ({ conversationId, contactId }: InternalChatTabPr
                   key={msg.id}
                   className={cn(
                     "flex gap-2",
-                    isOwn && "flex-row-reverse"
+                    isOwn ? "flex-row-reverse" : "flex-row"
                   )}
                 >
                   <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarImage src={msg.profile?.avatar_url || undefined} />
                     <AvatarFallback className="text-xs">
-                      {getInitials(msg.profile?.full_name || null)}
+                      {getInitials(msg.profile?.full_name || "?")}
                     </AvatarFallback>
                   </Avatar>
-                  <div className={cn("max-w-[75%]", isOwn && "items-end")}>
-                    <div className={cn("flex items-center gap-2 mb-1", isOwn && "flex-row-reverse")}>
+                  <div
+                    className={cn(
+                      "flex flex-col max-w-[70%]",
+                      isOwn ? "items-end" : "items-start"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium">
                         {isOwn ? "Você" : msg.profile?.full_name || "Membro"}
                       </span>
@@ -145,6 +147,7 @@ export const InternalChatTab = ({ conversationId, contactId }: InternalChatTabPr
                 </div>
               );
             })}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </ScrollArea>

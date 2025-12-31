@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, User, Target, EyeOff, Eye, UserCheck } from "lucide-react";
+import { ChevronRight, Target, EyeOff, Eye, User, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -9,7 +9,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { motion, AnimatePresence } from "framer-motion";
 import { Conversation } from "@/hooks/useConversations";
 import { FunnelDealSection } from "./FunnelDealSection";
 import { ContactInfoContent } from "./ContactInfoContent";
@@ -138,20 +137,10 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
     );
   }
 
-  // Desktop: Animated side panel
+  // Desktop: Simple panel (width controlled by ResizablePanel parent)
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 320, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="border-l border-border bg-card overflow-hidden shrink-0 h-full"
-        >
-          {panelContent}
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div className="h-full w-full border-l border-border bg-card overflow-hidden">
+      {panelContent}
+    </div>
   );
 };
