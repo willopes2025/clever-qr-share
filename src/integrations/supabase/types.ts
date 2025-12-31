@@ -2720,6 +2720,7 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
+          notification_instance_id: string | null
           owner_id: string
           updated_at: string | null
         }
@@ -2728,6 +2729,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           name: string
+          notification_instance_id?: string | null
           owner_id: string
           updated_at?: string | null
         }
@@ -2736,10 +2738,19 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string
+          notification_instance_id?: string | null
           owner_id?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_notification_instance_id_fkey"
+            columns: ["notification_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

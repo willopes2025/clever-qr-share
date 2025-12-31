@@ -3,15 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Phone, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings, TestTube } from 'lucide-react';
+import { Bell, Save, Loader2, Info, MessageSquare, Target, CheckSquare, Settings, TestTube } from 'lucide-react';
 import { useNotificationPreferences, NOTIFICATION_TYPES, NotificationPreferences } from '@/hooks/useNotificationPreferences';
-import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
-import { useProfile } from '@/hooks/useProfile';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 const CATEGORY_CONFIG = {
   inbox: { label: 'Inbox', icon: MessageSquare, description: 'Notificações de mensagens e conversas' },
@@ -22,8 +19,7 @@ const CATEGORY_CONFIG = {
 
 export function NotificationSettings() {
   const { preferences, isLoading, savePreferences, isSaving } = useNotificationPreferences();
-  const { instances } = useWhatsAppInstances();
-  const { profile } = useProfile();
+  const { user } = useAuth();
   
   const [notificationSettings, setNotificationSettings] = useState<Partial<NotificationPreferences>>({
     notify_new_message: false,
@@ -41,9 +37,24 @@ export function NotificationSettings() {
     notify_instance_disconnect: true,
     notify_internal_chat: true,
     only_if_responsible: true,
-    notification_instance_id: null,
   });
   const [isTesting, setIsTesting] = useState(false);
+  const [teamMemberPhone, setTeamMemberPhone] = useState<string | null>(null);
+
+  // Load team member phone
+  useEffect(() => {
+    if (user?.id) {
+      supabase
+        .from('team_members')
+        .select('phone')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+        .then(({ data }) => {
+          setTeamMemberPhone(data?.phone || null);
+        });
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (preferences) {
@@ -63,7 +74,6 @@ export function NotificationSettings() {
         notify_instance_disconnect: preferences.notify_instance_disconnect,
         notify_internal_chat: preferences.notify_internal_chat ?? true,
         only_if_responsible: preferences.only_if_responsible,
-        notification_instance_id: preferences.notification_instance_id,
       });
     }
   }, [preferences]);
@@ -80,12 +90,8 @@ export function NotificationSettings() {
   };
 
   const handleTestNotification = async () => {
-    if (!notificationSettings.notification_instance_id) {
-      toast.error('Selecione uma instância de envio primeiro');
-      return;
-    }
-    if (!profile?.phone) {
-      toast.error('Configure seu telefone no perfil primeiro');
+    if (!teamMemberPhone) {
+      toast.error('Você não tem telefone cadastrado. Peça ao administrador para configurar.');
       return;
     }
 
@@ -95,6 +101,7 @@ export function NotificationSettings() {
         body: {
           type: 'test',
           data: {},
+          recipientUserId: user?.id,
         },
       });
 
@@ -103,7 +110,8 @@ export function NotificationSettings() {
       if (data?.sent > 0) {
         toast.success('Notificação de teste enviada! Verifique seu WhatsApp.');
       } else {
-        toast.error('Não foi possível enviar a notificação. Verifique as configurações.');
+        const errorDetails = data?.details?.errors?.join(', ') || 'Verifique se a organização tem uma instância de notificação configurada.';
+        toast.error(`Não foi possível enviar: ${errorDetails}`);
       }
     } catch (error) {
       console.error('Error testing notification:', error);
@@ -112,8 +120,6 @@ export function NotificationSettings() {
       setIsTesting(false);
     }
   };
-
-  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
   // Group notification types by category
   const groupedNotifications = NOTIFICATION_TYPES.reduce((acc, type) => {
@@ -137,58 +143,36 @@ export function NotificationSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Phone Info Card */}
+      {/* Info Card */}
       <Card className="bg-card/50 backdrop-blur border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5 text-primary" />
-            Configuração de Envio
+            <Bell className="h-5 w-5 text-primary" />
+            Notificações WhatsApp
           </CardTitle>
           <CardDescription>
-            Configure a instância para envio das notificações
+            Configure quais notificações você deseja receber
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              As notificações serão enviadas para o telefone cadastrado no seu perfil
-              {profile?.phone ? (
-                <span className="font-medium">: {profile.phone}</span>
+              As notificações serão enviadas para o telefone cadastrado na sua conta de membro
+              {teamMemberPhone ? (
+                <span className="font-medium">: {teamMemberPhone}</span>
               ) : (
-                <span className="text-muted-foreground"> (não configurado - configure na aba Perfil)</span>
+                <span className="text-muted-foreground"> (não configurado - peça ao administrador)</span>
               )}
+              . A instância de envio é configurada pelo administrador na aba Equipe.
             </AlertDescription>
           </Alert>
-
-          <div className="space-y-2">
-            <Label htmlFor="notification-instance">Instância para envio</Label>
-            <Select
-              value={notificationSettings.notification_instance_id || 'none'}
-              onValueChange={(value) => handleToggle('notification_instance_id' as any, value === 'none' ? null : value as any)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecionar instância" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhuma selecionada</SelectItem>
-                {connectedInstances.map((instance) => (
-                  <SelectItem key={instance.id} value={instance.id}>
-                    {instance.instance_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Instância WhatsApp que será usada para enviar as notificações
-            </p>
-          </div>
 
           <div className="pt-2">
             <Button 
               variant="outline" 
               onClick={handleTestNotification} 
-              disabled={isTesting || !notificationSettings.notification_instance_id}
+              disabled={isTesting || !teamMemberPhone}
             >
               {isTesting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
