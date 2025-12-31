@@ -124,84 +124,177 @@ serve(async (req) => {
     const message = notificationMessages[type] || `Notificação: ${type}`;
     const notificationKey = `notify_${type.replace(/-/g, '_')}`;
 
-    // Determine recipients - automatically fetch responsible based on type
+    // ============================================
+    // UNIFIED FUNCTION TO RESOLVE RESPONSIBLE USER
+    // ============================================
+    const resolveResponsibleUserId = async (notificationType: string, notificationData: any): Promise<string | null> => {
+      // For tasks: check assigned_to, then fallback to deal/conversation responsible, then creator
+      if (notificationType.startsWith('task_') && notificationData.taskId) {
+        // Try conversation_tasks first
+        const { data: convTask } = await supabase
+          .from('conversation_tasks')
+          .select('assigned_to, user_id, conversation_id')
+          .eq('id', notificationData.taskId)
+          .maybeSingle();
+        
+        if (convTask) {
+          // 1. If task has an assignee, use it
+          if (convTask.assigned_to) {
+            console.log('Task responsible from assigned_to:', convTask.assigned_to);
+            return convTask.assigned_to;
+          }
+          // 2. If task is linked to a conversation, try conversation's assigned_to
+          if (convTask.conversation_id) {
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('assigned_to')
+              .eq('id', convTask.conversation_id)
+              .maybeSingle();
+            if (conv?.assigned_to) {
+              console.log('Task responsible from conversation.assigned_to:', conv.assigned_to);
+              return conv.assigned_to;
+            }
+          }
+          // 3. Fallback to task creator
+          console.log('Task responsible from user_id (creator):', convTask.user_id);
+          return convTask.user_id;
+        }
+        
+        // Try deal_tasks
+        const { data: dealTask } = await supabase
+          .from('deal_tasks')
+          .select('assigned_to, user_id, deal_id')
+          .eq('id', notificationData.taskId)
+          .maybeSingle();
+        
+        if (dealTask) {
+          // 1. If task has an assignee, use it
+          if (dealTask.assigned_to) {
+            console.log('Deal task responsible from assigned_to:', dealTask.assigned_to);
+            return dealTask.assigned_to;
+          }
+          // 2. If task is linked to a deal, try deal's responsible or conversation's assigned_to
+          if (dealTask.deal_id) {
+            const { data: deal } = await supabase
+              .from('funnel_deals')
+              .select('responsible_id, user_id, conversation_id')
+              .eq('id', dealTask.deal_id)
+              .maybeSingle();
+            if (deal) {
+              if (deal.responsible_id) {
+                console.log('Deal task responsible from deal.responsible_id:', deal.responsible_id);
+                return deal.responsible_id;
+              }
+              // Try conversation's assigned_to
+              if (deal.conversation_id) {
+                const { data: conv } = await supabase
+                  .from('conversations')
+                  .select('assigned_to')
+                  .eq('id', deal.conversation_id)
+                  .maybeSingle();
+                if (conv?.assigned_to) {
+                  console.log('Deal task responsible from conversation.assigned_to:', conv.assigned_to);
+                  return conv.assigned_to;
+                }
+              }
+              // Fallback to deal creator
+              console.log('Deal task responsible from deal.user_id:', deal.user_id);
+              return deal.user_id;
+            }
+          }
+          // 3. Fallback to task creator
+          console.log('Deal task responsible from user_id (creator):', dealTask.user_id);
+          return dealTask.user_id;
+        }
+        
+        return null;
+      }
+      
+      // For deals: check responsible_id, then conversation's assigned_to, then creator
+      if ((notificationType.startsWith('deal_') || notificationType === 'new_deal') && notificationData.dealId) {
+        const { data: deal } = await supabase
+          .from('funnel_deals')
+          .select('responsible_id, user_id, conversation_id')
+          .eq('id', notificationData.dealId)
+          .maybeSingle();
+        
+        if (deal) {
+          // 1. If deal has a responsible, use it
+          if (deal.responsible_id) {
+            console.log('Deal responsible from responsible_id:', deal.responsible_id);
+            return deal.responsible_id;
+          }
+          // 2. If deal is linked to a conversation, try conversation's assigned_to
+          if (deal.conversation_id) {
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('assigned_to')
+              .eq('id', deal.conversation_id)
+              .maybeSingle();
+            if (conv?.assigned_to) {
+              console.log('Deal responsible from conversation.assigned_to:', conv.assigned_to);
+              return conv.assigned_to;
+            }
+          }
+          // 3. Fallback to deal creator
+          console.log('Deal responsible from user_id (creator):', deal.user_id);
+          return deal.user_id;
+        }
+        return null;
+      }
+      
+      // For conversations/messages: use assigned_to or fallback to owner
+      if ((notificationType === 'new_message' || notificationType === 'ai_handoff') && notificationData.conversationId) {
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('assigned_to, user_id')
+          .eq('id', notificationData.conversationId)
+          .maybeSingle();
+        
+        if (conv) {
+          if (conv.assigned_to) {
+            console.log('Conversation responsible from assigned_to:', conv.assigned_to);
+            return conv.assigned_to;
+          }
+          console.log('Conversation responsible from user_id (owner):', conv.user_id);
+          return conv.user_id;
+        }
+        return null;
+      }
+      
+      return null;
+    };
+
+    // Determine recipients using unified function
     let userIds: string[] = [];
     
     // If type is task-related and no recipientUserId is provided, fetch from task
     if (type.startsWith('task_') && data.taskId && !recipientUserId) {
-      console.log('Fetching task responsible for task:', data.taskId);
-      
-      // Check both conversation_tasks and deal_tasks
-      const { data: convTask } = await supabase
-        .from('conversation_tasks')
-        .select('assigned_to, user_id')
-        .eq('id', data.taskId)
-        .maybeSingle();
-      
-      if (convTask) {
-        // Use assigned_to if available, otherwise use user_id (creator)
-        userIds = [convTask.assigned_to || convTask.user_id].filter(Boolean);
-        console.log('Found conversation task responsible:', userIds);
-      } else {
-        // Try deal_tasks
-        const { data: dealTask } = await supabase
-          .from('deal_tasks')
-          .select('assigned_to, user_id')
-          .eq('id', data.taskId)
-          .maybeSingle();
-        
-        if (dealTask) {
-          userIds = [dealTask.assigned_to || dealTask.user_id].filter(Boolean);
-          console.log('Found deal task responsible:', userIds);
-        }
+      console.log('Resolving responsible for task:', data.taskId);
+      const responsibleId = await resolveResponsibleUserId(type, data);
+      if (responsibleId) {
+        userIds = [responsibleId];
+        console.log('Task responsible resolved to:', responsibleId);
       }
     }
     
     // If type is deal-related and no recipientUserId is provided, fetch responsible_id
-    if (type.startsWith('deal_') && data.dealId && !recipientUserId && userIds.length === 0) {
-      console.log('Fetching deal responsible for deal:', data.dealId);
-      
-      const { data: deal } = await supabase
-        .from('funnel_deals')
-        .select('responsible_id, user_id')
-        .eq('id', data.dealId)
-        .maybeSingle();
-      
-      if (deal) {
-        // Use responsible_id if available, otherwise use user_id (creator)
-        userIds = [deal.responsible_id || deal.user_id].filter(Boolean);
-        console.log('Found deal responsible:', userIds);
+    if ((type.startsWith('deal_') || type === 'new_deal') && data.dealId && !recipientUserId && userIds.length === 0) {
+      console.log('Resolving responsible for deal:', data.dealId);
+      const responsibleId = await resolveResponsibleUserId(type, data);
+      if (responsibleId) {
+        userIds = [responsibleId];
+        console.log('Deal responsible resolved to:', responsibleId);
       }
     }
     
-    // If type is inbox-related (new_message or ai_handoff), fetch assigned_to + organization admins
+    // If type is inbox-related (new_message or ai_handoff), fetch assigned_to
     if ((type === 'new_message' || type === 'ai_handoff') && data.conversationId && !recipientUserId && userIds.length === 0) {
-      console.log('Fetching conversation recipients:', data.conversationId);
-      
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('user_id, assigned_to, instance_id')
-        .eq('id', data.conversationId)
-        .maybeSingle();
-      
-      if (conv) {
-        console.log('Conversation data:', conv);
-        
-        // 1. Add assigned_to (responsible for the lead) if exists
-        if (conv.assigned_to) {
-          userIds.push(conv.assigned_to);
-          console.log('Added assigned_to:', conv.assigned_to);
-        }
-        
-        // If still no recipients, fallback to conversation owner
-        if (userIds.length === 0) {
-          userIds = [conv.user_id];
-          console.log('Fallback to conversation owner:', conv.user_id);
-        }
-        
-        // Remove duplicates
-        userIds = [...new Set(userIds)];
-        console.log('Final unique recipients:', userIds);
+      console.log('Resolving responsible for conversation:', data.conversationId);
+      const responsibleId = await resolveResponsibleUserId(type, data);
+      if (responsibleId) {
+        userIds = [responsibleId];
+        console.log('Conversation responsible resolved to:', responsibleId);
       }
     }
     
@@ -217,7 +310,7 @@ serve(async (req) => {
     if (userIds.length === 0) {
       console.log('No recipients determined');
       return new Response(
-        JSON.stringify({ success: false, message: 'No recipients' }),
+        JSON.stringify({ success: false, message: 'No recipients', skipped: { no_recipients: 1 } }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -247,6 +340,18 @@ serve(async (req) => {
 
     console.log('Team members found:', teamMembers);
 
+    // Get profiles as fallback for phone numbers
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, phone')
+      .in('id', userIds);
+
+    if (profilesError) {
+      console.error('Error fetching profiles:', profilesError);
+    }
+
+    console.log('Profiles found:', profiles);
+
     // Default preferences for users without explicit configuration
     const defaultPrefs = {
       notify_new_message: true,
@@ -270,72 +375,41 @@ serve(async (req) => {
       schedule_end_time: '18:00',
     };
 
-    // Helper function to check if user is responsible for the resource
+    // Helper function to check if user is responsible for the resource (using unified logic)
     const checkIfUserIsResponsible = async (userId: string, notificationType: string, notificationData: any): Promise<boolean> => {
-      // For tasks: check if user is assigned_to OR user_id (creator) when no assignee
-      if (notificationType.startsWith('task_') && notificationData.taskId) {
-        const { data: convTask } = await supabase
-          .from('conversation_tasks')
-          .select('assigned_to, user_id')
-          .eq('id', notificationData.taskId)
-          .maybeSingle();
-        
-        if (convTask) {
-          // If task has an assignee, check if user is the assignee
-          if (convTask.assigned_to) {
-            return convTask.assigned_to === userId;
-          }
-          // If no assignee, check if user is the creator
-          return convTask.user_id === userId;
-        }
-        
-        const { data: dealTask } = await supabase
-          .from('deal_tasks')
-          .select('assigned_to, user_id')
-          .eq('id', notificationData.taskId)
-          .maybeSingle();
-        
-        if (dealTask) {
-          // If task has an assignee, check if user is the assignee
-          if (dealTask.assigned_to) {
-            return dealTask.assigned_to === userId;
-          }
-          // If no assignee, check if user is the creator
-          return dealTask.user_id === userId;
-        }
-        
-        return false;
+      const responsibleId = await resolveResponsibleUserId(notificationType, notificationData);
+      
+      // If we couldn't determine responsible, allow (for types like campaign, instance, etc.)
+      if (responsibleId === null) {
+        console.log(`Could not determine responsible for ${notificationType}, allowing notification`);
+        return true;
       }
       
-      // For deals: check if user is responsible_id
-      if ((notificationType.startsWith('deal_') || notificationType === 'new_deal') && notificationData.dealId) {
-        const { data: deal } = await supabase
-          .from('funnel_deals')
-          .select('responsible_id')
-          .eq('id', notificationData.dealId)
-          .maybeSingle();
-        
-        return deal?.responsible_id === userId;
-      }
-      
-      // For conversations/messages: check if user is assigned_to
-      if ((notificationType === 'new_message' || notificationType === 'ai_handoff') && notificationData.conversationId) {
-        const { data: conv } = await supabase
-          .from('conversations')
-          .select('assigned_to')
-          .eq('id', notificationData.conversationId)
-          .maybeSingle();
-        
-        return conv?.assigned_to === userId;
-      }
-      
-      // For other types (campaign, instance, calendly, internal_chat, etc), always allow
-      return true;
+      const isResponsible = responsibleId === userId;
+      console.log(`checkIfUserIsResponsible: userId=${userId}, responsibleId=${responsibleId}, isResponsible=${isResponsible}`);
+      return isResponsible;
     };
 
     const sentNotifications: string[] = [];
     const queuedNotifications: string[] = [];
     const errors: string[] = [];
+    const skipped: { 
+      pref_disabled: string[]; 
+      opted_out: string[]; 
+      not_responsible: string[]; 
+      missing_phone: string[];
+      no_team_member: string[];
+      no_organization: string[];
+      no_instance: string[];
+    } = {
+      pref_disabled: [],
+      opted_out: [],
+      not_responsible: [],
+      missing_phone: [],
+      no_team_member: [],
+      no_organization: [],
+      no_instance: [],
+    };
 
     for (const userId of userIds) {
       const pref = preferences?.find(p => p.user_id === userId);
@@ -347,6 +421,7 @@ serve(async (req) => {
       const prefKey = notificationKey as keyof typeof defaultPrefs;
       if (effectivePrefs[prefKey] === false) {
         console.log(`Notification ${type} disabled for user ${userId}`);
+        skipped.pref_disabled.push(userId);
         continue;
       }
 
@@ -357,6 +432,7 @@ serve(async (req) => {
       
       if (!onlyIfResponsible) {
         console.log(`User ${userId} has only_if_responsible=false, opted out of responsibility-based notifications, skipping`);
+        skipped.opted_out.push(userId);
         continue;
       }
       
@@ -364,6 +440,7 @@ serve(async (req) => {
       const isResponsible = await checkIfUserIsResponsible(userId, type, data);
       if (!isResponsible) {
         console.log(`User ${userId} is not responsible for ${type}, skipping`);
+        skipped.not_responsible.push(userId);
         continue;
       }
       console.log(`User ${userId} is responsible for ${type}, proceeding with notification`);
@@ -373,18 +450,42 @@ serve(async (req) => {
       
       if (!teamMember) {
         console.log(`No team member found for user ${userId}`);
+        skipped.no_team_member.push(userId);
         continue;
       }
 
-      const phone = teamMember.phone;
+      // Try to get phone from team_members, fallback to profiles
+      let phone = teamMember.phone;
       if (!phone) {
-        console.log(`No phone number for user ${userId}`);
+        const profile = profiles?.find(p => p.id === userId);
+        phone = profile?.phone || null;
+        if (phone) {
+          console.log(`Using phone from profiles for user ${userId}: ${phone}`);
+        }
+      }
+
+      if (!phone) {
+        console.log(`No phone number for user ${userId} (checked team_members and profiles)`);
+        skipped.missing_phone.push(userId);
+        
+        // Log to notification_log as failed with missing_phone error
+        await supabase.from('notification_log').insert({
+          user_id: userId,
+          notification_type: type,
+          message,
+          sent_to_phone: null,
+          related_id: data.dealId || data.conversationId || data.taskId || data.campaignId || data.instanceId,
+          status: 'failed',
+          error_message: 'missing_phone: Telefone não cadastrado em team_members nem profiles',
+        });
+        
         continue;
       }
 
       // Get the organization's notification instance
       if (!teamMember.organization_id) {
         console.log(`No organization for user ${userId}`);
+        skipped.no_organization.push(userId);
         continue;
       }
 
@@ -396,6 +497,7 @@ serve(async (req) => {
 
       if (!organization?.notification_instance_id) {
         console.log(`No notification instance configured for organization ${teamMember.organization_id}`);
+        skipped.no_instance.push(userId);
         continue;
       }
 
@@ -408,6 +510,7 @@ serve(async (req) => {
 
       if (!instance) {
         console.log(`Instance ${organization.notification_instance_id} not found`);
+        skipped.no_instance.push(userId);
         continue;
       }
 
@@ -502,13 +605,37 @@ serve(async (req) => {
       }
     }
 
+    // Build skipped summary
+    const skippedSummary = {
+      pref_disabled: skipped.pref_disabled.length,
+      opted_out: skipped.opted_out.length,
+      not_responsible: skipped.not_responsible.length,
+      missing_phone: skipped.missing_phone.length,
+      no_team_member: skipped.no_team_member.length,
+      no_organization: skipped.no_organization.length,
+      no_instance: skipped.no_instance.length,
+    };
+
+    console.log('Notification processing complete:', {
+      sent: sentNotifications.length,
+      queued: queuedNotifications.length,
+      errors: errors.length,
+      skipped: skippedSummary,
+    });
+
     return new Response(
       JSON.stringify({
         success: true,
         sent: sentNotifications.length,
         queued: queuedNotifications.length,
         errors: errors.length,
-        details: { sent: sentNotifications, queued: queuedNotifications, errors },
+        skipped: skippedSummary,
+        details: { 
+          sent: sentNotifications, 
+          queued: queuedNotifications, 
+          errors,
+          skipped,
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
