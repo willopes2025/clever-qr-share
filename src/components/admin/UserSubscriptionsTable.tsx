@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Edit, History, UserPlus, Trash2 } from "lucide-react";
+import { Edit, History, UserPlus, Trash2, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,12 +30,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 
 interface UserWithSubscription {
   id: string;
   email: string;
   created_at: string;
+  token_balance?: number;
   subscription: {
     id: string;
     plan: string;
@@ -54,7 +56,9 @@ interface UserSubscriptionsTableProps {
   onEditUser: (user: UserWithSubscription) => void;
   onViewHistory: (subscriptionId: string) => void;
   onDeleteUser: (userId: string) => void;
+  onTransferTokens?: (user: UserWithSubscription) => void;
   deletingUserId?: string | null;
+  formatTokens?: (tokens: number) => string;
 }
 
 const planColors: Record<string, string> = {
@@ -79,7 +83,9 @@ export const UserSubscriptionsTable = ({
   onEditUser,
   onViewHistory,
   onDeleteUser,
-  deletingUserId
+  onTransferTokens,
+  deletingUserId,
+  formatTokens = (t) => t.toLocaleString('pt-BR'),
 }: UserSubscriptionsTableProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPlan, setFilterPlan] = useState("all");
@@ -145,6 +151,7 @@ export const UserSubscriptionsTable = ({
               <TableHead>Email</TableHead>
               <TableHead>Plano</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Tokens IA</TableHead>
               <TableHead>Instâncias</TableHead>
               <TableHead>Mensagens</TableHead>
               <TableHead>Válido até</TableHead>
@@ -154,7 +161,7 @@ export const UserSubscriptionsTable = ({
           <TableBody>
             {filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Nenhum usuário encontrado
                 </TableCell>
               </TableRow>
@@ -167,14 +174,22 @@ export const UserSubscriptionsTable = ({
                       {user.subscription?.plan?.toUpperCase() || "SEM PLANO"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <Badge className={`${statusColors[user.subscription?.status || "inactive"]} rounded-lg`}>
-                      {user.subscription?.status?.toUpperCase() || "INATIVO"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.subscription?.max_instances ?? "-"}
-                  </TableCell>
+                    <TableCell>
+                      <Badge className={`${statusColors[user.subscription?.status || "inactive"]} rounded-lg`}>
+                        {user.subscription?.status?.toUpperCase() || "INATIVO"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Coins className="h-3.5 w-3.5 text-yellow-500" />
+                        <span className="font-medium">
+                          {formatTokens(user.token_balance || 0)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {user.subscription?.max_instances ?? "-"}
+                    </TableCell>
                   <TableCell>
                     {user.subscription?.max_messages ?? "∞"}
                   </TableCell>
@@ -183,30 +198,45 @@ export const UserSubscriptionsTable = ({
                       ? format(new Date(user.subscription.current_period_end), "dd/MM/yyyy", { locale: ptBR })
                       : "-"}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onEditUser(user)}
-                        className="h-8 w-8 p-0 rounded-xl hover:bg-primary/10"
-                      >
-                        {user.subscription ? (
-                          <Edit className="h-4 w-4" />
-                        ) : (
-                          <UserPlus className="h-4 w-4" />
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {onTransferTokens && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onTransferTokens(user)}
+                                className="h-8 w-8 p-0 rounded-xl hover:bg-yellow-500/10 text-yellow-600"
+                              >
+                                <Coins className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Transferir Tokens</TooltipContent>
+                          </Tooltip>
                         )}
-                      </Button>
-                      {user.subscription && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onViewHistory(user.subscription!.id)}
+                          onClick={() => onEditUser(user)}
                           className="h-8 w-8 p-0 rounded-xl hover:bg-primary/10"
                         >
-                          <History className="h-4 w-4" />
+                          {user.subscription ? (
+                            <Edit className="h-4 w-4" />
+                          ) : (
+                            <UserPlus className="h-4 w-4" />
+                          )}
                         </Button>
-                      )}
+                        {user.subscription && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onViewHistory(user.subscription!.id)}
+                            className="h-8 w-8 p-0 rounded-xl hover:bg-primary/10"
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
+                        )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
