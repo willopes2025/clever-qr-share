@@ -355,20 +355,22 @@ export const ConversationList = ({
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <span className={cn(
-                          "font-medium truncate min-w-0",
-                          conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
-                        )}>
-                          {conversation.contact?.name || "Contato Desconhecido"}
-                        </span>
-                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className={cn(
-                            "text-[11px] whitespace-nowrap",
+                            "font-medium truncate",
+                            conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
+                          )}>
+                            {conversation.contact?.name || "Contato Desconhecido"}
+                          </span>
+                          <span className={cn(
+                            "text-[11px] whitespace-nowrap shrink-0",
                             conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
                           )}>
                             {formatMessageTime(conversation.last_message_at)}
                           </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
                           <ConversationQuickActions
                             conversationId={conversation.id}
                             isPinned={conversation.is_pinned || false}
