@@ -527,8 +527,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
-      <div className="flex flex-col h-full w-full bg-background overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 w-full">
+      <div className="flex flex-col flex-1 min-h-0 bg-background">
       {/* Header */}
       <div className={cn(
         "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card",
@@ -821,7 +821,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
         <TabsList className={cn(
           "mx-2 md:mx-4 mt-2 justify-start bg-muted/50 p-1 h-auto",
           isMobile ? "flex overflow-x-auto gap-1" : "flex-wrap"
@@ -847,10 +847,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden relative">
+        <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Messages */}
       <ScrollArea 
-        className="flex-1 overflow-auto p-3 md:p-4" 
+        className="flex-1 overflow-y-auto p-3 md:p-4" 
         onScrollCapture={handleScroll}
         ref={scrollAreaRef}
       >
@@ -922,7 +922,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       />
 
       {/* Input */}
-      <div className="sticky bottom-0 left-0 right-0 p-2 md:p-4 border-t border-border bg-card z-10">
+      <div className="mt-auto sticky bottom-0 z-20 p-2 md:p-4 border-t border-border bg-background">
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
