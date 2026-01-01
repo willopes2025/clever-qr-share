@@ -922,7 +922,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       />
 
       {/* Input */}
-      <div className="p-2 md:p-4 border-t border-border bg-card relative">
+      <div className="p-2 md:p-4 border-t border-border bg-card relative mt-auto shrink-0">
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
