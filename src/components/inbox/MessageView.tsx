@@ -850,7 +850,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden">
       {/* Messages */}
       <ScrollArea 
-        className="flex-1 p-3 md:p-4" 
+        className="flex-1 min-h-0 p-3 md:p-4" 
         onScrollCapture={handleScroll}
         ref={scrollAreaRef}
       >
