@@ -737,6 +737,33 @@ serve(async (req) => {
 
     console.log(`[AI-AGENT] Processing message for conversation ${conversationId}, instanceId: ${instanceId}`);
 
+    // === DEBOUNCE CHECK: Prevent multiple rapid responses ===
+    // Check if agent sent a message very recently (within 15 seconds)
+    if (!manualTrigger) {
+      const { data: recentAgentMessage } = await supabase
+        .from('inbox_messages')
+        .select('created_at')
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'outbound')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (recentAgentMessage?.created_at) {
+        const lastAgentMessageTime = new Date(recentAgentMessage.created_at).getTime();
+        const now = Date.now();
+        const timeSinceLastAgentMessage = (now - lastAgentMessageTime) / 1000; // in seconds
+        
+        if (timeSinceLastAgentMessage < 15) {
+          console.log(`[AI-AGENT] DEBOUNCE: Agent sent message ${timeSinceLastAgentMessage.toFixed(1)}s ago - skipping to avoid duplicate`);
+          return new Response(
+            JSON.stringify({ success: false, reason: 'Debounce - recent agent message', timeSinceLastAgentMessage }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     // Fetch conversation with campaign info and preferred format
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
@@ -1177,6 +1204,35 @@ serve(async (req) => {
       content: msg.content,
     }));
 
+    // === DETECT REPETITIVE QUESTIONS IN HISTORY ===
+    // Analyze agent messages to avoid repeating the same questions
+    const agentMessages = (messages || []).filter(m => m.direction === 'outbound').map(m => m.content.toLowerCase());
+    
+    // Track what has already been asked/mentioned
+    const alreadyAsked = {
+      oticaIndicada: agentMessages.some(m => 
+        m.includes('ótica indicada') || m.includes('otica indicada') || 
+        m.includes('qual ótica') || m.includes('qual otica') ||
+        m.includes('indicação de ótica') || m.includes('indicacao de otica')
+      ),
+      nome: agentMessages.some(m => 
+        m.includes('qual seu nome') || m.includes('qual o seu nome') ||
+        m.includes('seu nome por favor') || m.includes('como posso chamar')
+      ),
+      horarioPreferido: agentMessages.some(m => 
+        m.includes('qual horário') || m.includes('qual horario') ||
+        m.includes('melhor horário') || m.includes('melhor horario') ||
+        m.includes('horário te atende') || m.includes('horario te atende')
+      ),
+      slotsOferecidos: agentMessages.some(m => 
+        m.includes('tenho às') || m.includes('tenho as') ||
+        m.includes('disponível às') || m.includes('disponivel as') ||
+        m.match(/\d{1,2}:\d{2}/) !== null
+      ),
+    };
+    
+    console.log('[AI-AGENT] Already asked in conversation:', JSON.stringify(alreadyAsked));
+
     // === PRE-FETCH CALENDLY SLOTS ===
     // Check if first response or agent uses slot placeholders
     const assistantMessagesCount = conversationHistoryForSlots.filter(m => m.role === 'assistant').length;
@@ -1318,6 +1374,30 @@ serve(async (req) => {
       systemPrompt += `\n\n## Dados já coletados\n${JSON.stringify(collectedData, null, 2)}`;
     }
     
+    // === ADD REPETITIVE QUESTIONS GUARD ===
+    // Prevent agent from asking the same things multiple times
+    const repetitiveQuestionsGuard: string[] = [];
+    
+    if (alreadyAsked.oticaIndicada) {
+      repetitiveQuestionsGuard.push('- ❌ NÃO pergunte sobre "ótica indicada" - você já perguntou isso antes');
+    }
+    if (alreadyAsked.nome) {
+      repetitiveQuestionsGuard.push('- ❌ NÃO pergunte o nome do cliente - você já tem ou já perguntou');
+    }
+    if (alreadyAsked.horarioPreferido) {
+      repetitiveQuestionsGuard.push('- ❌ NÃO pergunte novamente qual horário prefere - foque em confirmar um horário específico');
+    }
+    if (alreadyAsked.slotsOferecidos) {
+      repetitiveQuestionsGuard.push('- ⚠️ Você já ofereceu horários antes - se o cliente não escolheu, pergunte diretamente qual ele prefere ou ofereça NOVOS horários');
+    }
+    
+    if (repetitiveQuestionsGuard.length > 0) {
+      systemPrompt += `\n\n## 🚫 PERGUNTAS QUE VOCÊ JÁ FEZ (NÃO REPITA!)
+${repetitiveQuestionsGuard.join('\n')}
+
+**REGRA OBRIGATÓRIA**: Revise o histórico antes de perguntar qualquer coisa. Se você já perguntou algo, não repita. Avance a conversa.`;
+    }
+    
     // Check if user is asking about scheduling and we have calendar integration
     let calendarContext = '';
     // hasCalendarIntegration is already defined above in the pre-fetch section
@@ -1332,8 +1412,22 @@ serve(async (req) => {
       }
       const availability = await fetchCalendlyAvailability(supabaseUrl, agentConfig.id);
       
+      // Add specific time warning if user requested a specific time
+      const specificTimeWarning = userRequestingSpecificTime ? `
+### 🚨🚨🚨 ATENÇÃO MÁXIMA - CLIENTE PEDIU HORÁRIO ESPECÍFICO 🚨🚨🚨
+O cliente está pedindo um HORÁRIO ESPECÍFICO na mensagem atual.
+**VOCÊ DEVE OBRIGATORIAMENTE:**
+1. Chamar get_available_times AGORA MESMO antes de responder
+2. Verificar se o horário pedido está na lista de disponíveis
+3. Se NÃO estiver disponível: informar que está ocupado e oferecer alternativas
+4. Se estiver disponível: confirmar e prosseguir com o agendamento
+5. NUNCA diga "vou verificar" - verifique AGORA usando a ferramenta!
+
+` : '';
+      
       if (availability) {
         calendarContext = `\n\n## ⚠️ REGRAS CRÍTICAS E OBRIGATÓRIAS DE AGENDAMENTO ⚠️
+${specificTimeWarning}
 
 ### 🚨 REGRA NÚMERO 1 - VERIFICAÇÃO OBRIGATÓRIA 🚨
 **ANTES de mencionar, confirmar ou sugerir QUALQUER horário ao cliente:**
@@ -1633,8 +1727,29 @@ ${mapeamento}
           }
         } else if (functionName === 'create_booking') {
           const startTimeArg = args.start_time || '';
+          let inviteeEmailArg = args.invitee_email || '';
+          const inviteeNameArg = args.invitee_name || '';
+          const inviteePhoneArg = args.invitee_phone || '';
           
-          console.log(`[AI-AGENT] create_booking called with start_time: "${startTimeArg}"`);
+          console.log(`[AI-AGENT] create_booking called with start_time: "${startTimeArg}", email: "${inviteeEmailArg}"`);
+          
+          // AUTO-GENERATE EMAIL IF NOT PROVIDED
+          // Use phone number as fallback to create unique email
+          if (!inviteeEmailArg || inviteeEmailArg.trim() === '') {
+            const contactPhoneForEmail = contact?.phone?.replace(/\D/g, '') || '';
+            if (contactPhoneForEmail) {
+              inviteeEmailArg = `${contactPhoneForEmail}@paciente.csv.com`;
+              console.log(`[AI-AGENT] Auto-generated email from phone: ${inviteeEmailArg}`);
+            } else {
+              console.log(`[AI-AGENT] No email or phone available for booking`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ ERRO: Não foi possível criar o agendamento. Precisamos do telefone ou email do cliente. Pergunte gentilmente como podemos entrar em contato para confirmar a consulta.`,
+              });
+              continue;
+            }
+          }
           
           // Validate start_time format - MUST be ISO UTC with Z or timezone offset
           const hasTimezone = startTimeArg.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(startTimeArg);
@@ -1651,9 +1766,9 @@ ${mapeamento}
               supabaseUrl,
               agentConfig.id,
               startTimeArg,
-              args.invitee_name,
-              args.invitee_email,
-              args.invitee_phone
+              inviteeNameArg,
+              inviteeEmailArg,
+              inviteePhoneArg
             );
             
             if (bookingResult.success && bookingResult.booking) {
@@ -1687,145 +1802,6 @@ ${mapeamento}
                 role: 'tool',
                 tool_call_id: toolCall.id,
                 content: `❌ Erro ao criar agendamento: ${bookingResult.error}. Verifique se o horário ainda está disponível ou ofereça o link de agendamento manual.`,
-              });
-            }
-          }
-        } else if (functionName === 'get_patient_appointments') {
-          const inviteeEmail = args.invitee_email || '';
-          
-          console.log(`[AI-AGENT] get_patient_appointments called for email: "${inviteeEmail}"`);
-          
-          if (!inviteeEmail) {
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: '❌ ERRO: Email não fornecido. Pergunte o email do paciente para buscar seus agendamentos.',
-            });
-          } else {
-            const appointmentsResult = await fetchPatientAppointments(
-              supabaseUrl,
-              agentConfig.id,
-              inviteeEmail
-            );
-            
-            if (appointmentsResult.success && appointmentsResult.appointments && appointmentsResult.appointments.length > 0) {
-              const appointments = appointmentsResult.appointments;
-              
-              const appointmentsList = appointments.map((apt, index) => {
-                const startDate = new Date(String(apt.start_time));
-                const dataBRT = startDate.toLocaleDateString('pt-BR', { 
-                  weekday: 'long',
-                  day: '2-digit', 
-                  month: '2-digit',
-                  year: 'numeric',
-                  timeZone: 'America/Sao_Paulo'
-                });
-                const horaBRT = startDate.toLocaleTimeString('pt-BR', { 
-                  hour: '2-digit', 
-                  minute: '2-digit',
-                  timeZone: 'America/Sao_Paulo'
-                });
-                
-                return `[${index + 1}] ${apt.event_name}\n    📅 ${dataBRT} às ${horaBRT}\n    👤 ${apt.invitee_name}\n    📧 ${apt.invitee_email}\n    🔗 event_uri: ${apt.event_uri}\n    🔗 invitee_uri: ${apt.invitee_uri}`;
-              }).join('\n\n');
-              
-              console.log(`[AI-AGENT] Found ${appointments.length} appointments for ${inviteeEmail}`);
-              
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `## AGENDAMENTOS ENCONTRADOS (${appointments.length})
-
-${appointmentsList}
-
----
-📋 INSTRUÇÕES:
-- Para CANCELAR: use a ferramenta cancel_booking com o event_uri do agendamento
-- Para REMARCAR: use a ferramenta get_reschedule_link com o invitee_uri do agendamento
-- Confirme com o paciente qual agendamento ele deseja cancelar/remarcar`,
-              });
-            } else if (appointmentsResult.success && (!appointmentsResult.appointments || appointmentsResult.appointments.length === 0)) {
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `Nenhum agendamento encontrado para o email ${inviteeEmail}. Verifique se o email está correto ou ofereça ao paciente a opção de fazer um novo agendamento.`,
-              });
-            } else {
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `❌ Erro ao buscar agendamentos: ${appointmentsResult.error}`,
-              });
-            }
-          }
-        } else if (functionName === 'cancel_booking') {
-          const eventUri = args.event_uri || '';
-          const reason = args.reason || 'Cancelado pelo paciente via chat';
-          
-          console.log(`[AI-AGENT] cancel_booking called for event: "${eventUri}"`);
-          
-          if (!eventUri) {
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: '❌ ERRO: event_uri não fornecido. Use get_patient_appointments primeiro para obter o URI do agendamento.',
-            });
-          } else {
-            // Extract invitee_uri from the event - we need to pass the invitee_uri for cancellation
-            const cancelResult = await cancelCalendlyBooking(
-              supabaseUrl,
-              agentConfig.id,
-              eventUri,
-              reason
-            );
-            
-            if (cancelResult.success) {
-              console.log(`[AI-AGENT] Booking canceled successfully`);
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `✅ Agendamento cancelado com sucesso!\n\nMotivo: ${reason}\n\nInforme o paciente sobre o cancelamento e ofereça a opção de agendar uma nova consulta quando desejar.`,
-              });
-            } else {
-              console.log(`[AI-AGENT] Cancel failed: ${cancelResult.error}`);
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `❌ Erro ao cancelar agendamento: ${cancelResult.error}. Tente novamente ou ofereça ao paciente o link de cancelamento manual.`,
-              });
-            }
-          }
-        } else if (functionName === 'get_reschedule_link') {
-          const inviteeUri = args.invitee_uri || '';
-          
-          console.log(`[AI-AGENT] get_reschedule_link called for invitee: "${inviteeUri}"`);
-          
-          if (!inviteeUri) {
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: '❌ ERRO: invitee_uri não fornecido. Use get_patient_appointments primeiro para obter o URI do paciente.',
-            });
-          } else {
-            const rescheduleResult = await getRescheduleLink(
-              supabaseUrl,
-              agentConfig.id,
-              inviteeUri
-            );
-            
-            if (rescheduleResult.success && rescheduleResult.rescheduleUrl) {
-              console.log(`[AI-AGENT] Reschedule link obtained: ${rescheduleResult.rescheduleUrl}`);
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `✅ Link de reagendamento obtido!\n\n🔗 Link: ${rescheduleResult.rescheduleUrl}\n\nEnvie este link ao paciente para que ele possa escolher um novo horário. O link já está pré-preenchido com os dados dele.`,
-              });
-            } else {
-              console.log(`[AI-AGENT] Get reschedule link failed: ${rescheduleResult.error}`);
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: `❌ Erro ao obter link de reagendamento: ${rescheduleResult.error}. Tente buscar os agendamentos novamente.`,
               });
             }
           }
