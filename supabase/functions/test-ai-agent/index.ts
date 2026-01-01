@@ -351,12 +351,12 @@ ${slotsFormatted}
 ## 🗓️ CALENDLY CONECTADO - AGENDAMENTO REAL ATIVO
 ${slotsInfo}
 
-### 🚨 REGRAS OBRIGATÓRIAS DE AGENDAMENTO 🚨
-1. Use SOMENTE os horários listados acima
-2. NUNCA invente datas ou horários
-3. Se o cliente perguntar "quando" ou "horário", ofereça slot1 e slot2
-4. Para AGENDAR: colete NOME e EMAIL do cliente, depois use a tool create_booking
-5. O start_time DEVE ser o valor ISO exato (ex: 2025-01-02T12:00:00.000000Z)
+### 🚨 REGRAS DE AGENDAMENTO 🚨
+1. PRIMEIRA MENSAGEM: ofereça slot1 (${slot1Formatted}) e slot2 (${slot2Formatted})
+2. SE CLIENTE PEDIR OUTROS HORÁRIOS: use a ferramenta get_available_times para buscar mais opções
+3. Existem ${prefetchedSlots.length} horários disponíveis no total - ofereça alternativas se cliente não gostar
+4. NUNCA invente datas ou horários - use apenas valores retornados pela ferramenta
+5. Para AGENDAR: colete NOME e EMAIL do cliente, depois use create_booking com ISO exato
 6. SEMPRE confirme o agendamento após criar com sucesso`;
     }
 
@@ -390,8 +390,10 @@ INSTRUÇÕES FINAIS:
 - Mantenha respostas curtas e naturais (2-3 linhas).
 - Use a personalidade e regras definidas acima.
 - Use a base de conhecimento para responder perguntas específicas.
-${hasCalendarIntegration ? `- CRÍTICO: Para horários, use APENAS slot1 (${slot1Formatted}) e slot2 (${slot2Formatted}). NÃO INVENTE DATAS.
-- Para criar agendamento real: colete nome e email, depois use create_booking com o ISO do slot escolhido.` : ''}`;
+${hasCalendarIntegration ? `- PRIMEIRA OFERTA: use slot1 (${slot1Formatted}) e slot2 (${slot2Formatted})
+- CLIENTE QUER OUTROS HORÁRIOS? Use get_available_times para buscar mais opções (há ${prefetchedSlots.length} slots disponíveis!)
+- NÃO diga que só existem 2 horários - use a ferramenta para buscar mais
+- Para criar agendamento: colete nome e email, depois use create_booking com o ISO exato` : ''}`;
 
     // Build messages array for API
     const messages = [
