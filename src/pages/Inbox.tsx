@@ -220,7 +220,7 @@ const Inbox = () => {
       )}
 
       {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {isMobile ? (
           // Mobile: Show either list OR messages, not both
           mobileShowMessages && selectedConversation ? (

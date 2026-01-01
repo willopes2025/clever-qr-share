@@ -527,8 +527,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   return (
-    <div className="flex-1 flex h-full w-full">
-      <div className="flex-1 flex flex-col h-full bg-background relative">
+    <div className="flex-1 flex h-full w-full min-h-0">
+      <div className="flex-1 flex flex-col h-full min-h-0 bg-background relative">
       {/* Header */}
       <div className={cn(
         "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card",
@@ -821,7 +821,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <TabsList className={cn(
           "mx-2 md:mx-4 mt-2 justify-start bg-muted/50 p-1 h-auto",
           isMobile ? "flex overflow-x-auto gap-1" : "flex-wrap"
@@ -847,7 +847,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden">
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 mt-0 overflow-hidden">
       {/* Messages */}
       <ScrollArea 
         className="flex-1 min-h-0 p-3 md:p-4" 
