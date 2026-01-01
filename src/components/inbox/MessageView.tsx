@@ -527,8 +527,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 w-full">
-      <div className="flex flex-col flex-1 min-h-0 bg-background">
+    <div className="flex flex-col h-full min-h-0 w-full overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-background">
       {/* Header */}
       <div className={cn(
         "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card",
@@ -821,7 +821,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 h-full">
         <TabsList className={cn(
           "mx-2 md:mx-4 mt-2 justify-start bg-muted/50 p-1 h-auto",
           isMobile ? "flex overflow-x-auto gap-1" : "flex-wrap"
@@ -847,11 +847,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <TabsContent value="chat" className="hidden data-[state=active]:flex flex-col flex-1 min-h-0 h-full overflow-hidden mt-0 relative">
       {/* Messages */}
-      <ScrollArea 
-        className="flex-1 overflow-y-auto p-3 md:p-4" 
-        onScrollCapture={handleScroll}
+      <div 
+        className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4" 
+        onScroll={handleScroll}
         ref={scrollAreaRef}
       >
         <div className="space-y-3 max-w-3xl mx-auto">
@@ -912,7 +912,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           )}
           <div ref={scrollEndRef} />
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Scroll to bottom button */}
       <ScrollToBottomButton
@@ -922,7 +922,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       />
 
       {/* Input */}
-      <div className="mt-auto sticky bottom-0 z-20 p-2 md:p-4 border-t border-border bg-background">
+      <div className="mt-auto shrink-0 border-t bg-background z-20 p-2 md:p-4">
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
