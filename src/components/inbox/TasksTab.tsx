@@ -301,11 +301,11 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="border-b flex flex-col max-h-[50vh]">
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="border-b flex flex-col max-h-[50vh] min-h-0 overflow-hidden">
         {isCreating ? (
           <>
-            <ScrollArea className="flex-1 px-4 pt-4">
+            <ScrollArea className="flex-1 min-h-0 px-4 pt-4">
               <div className="space-y-3 pb-2">
                 <Input
                   placeholder="Título da tarefa"
@@ -356,7 +356,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 </div>
               </div>
             </ScrollArea>
-            <div className="flex gap-2 justify-end px-4 py-3 border-t bg-card">
+            <div className="shrink-0 flex gap-2 justify-end px-4 py-3 border-t bg-card">
               <Button size="sm" variant="ghost" onClick={resetForm}>
                 <X className="h-4 w-4 mr-1" />
                 Cancelar
@@ -377,7 +377,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
         )}
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         {pendingTasks.length === 0 && completedTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
             <CheckSquare className="h-12 w-12 mb-2 opacity-50" />
