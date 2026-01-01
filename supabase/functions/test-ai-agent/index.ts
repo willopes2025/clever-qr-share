@@ -93,7 +93,7 @@ const getCalendlyTools = () => [
     type: 'function',
     function: {
       name: 'get_available_times',
-      description: 'Busca horários disponíveis para agendamento no Calendly. Use quando o cliente perguntar sobre horários disponíveis ou quiser agendar.',
+      description: 'Busca horários disponíveis para agendamento no Calendly. Use SEMPRE que o cliente pedir horários de outro dia, outra semana, ou um dia específico (terça, quarta, etc.).',
       parameters: {
         type: 'object',
         properties: {
@@ -114,7 +114,7 @@ const getCalendlyTools = () => [
     type: 'function',
     function: {
       name: 'create_booking',
-      description: 'Cria um agendamento confirmado no Calendly. Use APENAS quando o cliente confirmar um horário específico E você tiver coletado nome e email. O start_time DEVE ser EXATAMENTE o valor ISO retornado por get_available_times.',
+      description: 'Cria um agendamento confirmado no Calendly. Use APENAS quando o cliente confirmar um horário específico E você tiver coletado nome (obrigatório) e opcionalmente email. O start_time DEVE ser EXATAMENTE o valor ISO retornado por get_available_times.',
       parameters: {
         type: 'object',
         properties: {
@@ -124,22 +124,133 @@ const getCalendlyTools = () => [
           },
           invitee_name: { 
             type: 'string', 
-            description: 'Nome completo do cliente' 
+            description: 'Nome completo do cliente (OBRIGATÓRIO)' 
           },
           invitee_email: { 
             type: 'string', 
-            description: 'Email do cliente (obrigatório para criar agendamento)' 
+            description: 'Email do cliente (OPCIONAL - se não tiver, o sistema gera automaticamente)' 
           },
           invitee_phone: { 
             type: 'string', 
-            description: 'Telefone do cliente (opcional)' 
+            description: 'Telefone do cliente (use para gerar email se não tiver email)' 
           },
         },
-        required: ['start_time', 'invitee_name', 'invitee_email'],
+        required: ['start_time', 'invitee_name'],
       },
     },
   },
 ];
+
+// Detect conversation state from history
+interface ConversationState {
+  horarioJaEscolhido: boolean;
+  oticaIndicadaJaPerguntou: boolean;
+  nomeJaColetou: boolean;
+  emailJaColetou: boolean;
+  saudacaoJaFeita: boolean;
+  ultimaPerguntaAgente: string | null;
+  horarioEscolhido: string | null;
+}
+
+const detectConversationState = (conversationHistory: Array<{ role: string; content: string }>): ConversationState => {
+  const state: ConversationState = {
+    horarioJaEscolhido: false,
+    oticaIndicadaJaPerguntou: false,
+    nomeJaColetou: false,
+    emailJaColetou: false,
+    saudacaoJaFeita: conversationHistory.length > 0,
+    ultimaPerguntaAgente: null,
+    horarioEscolhido: null,
+  };
+
+  const assistantMessages = conversationHistory.filter(m => m.role === 'assistant');
+  const userMessages = conversationHistory.filter(m => m.role === 'user');
+
+  for (const msg of assistantMessages) {
+    const content = msg.content.toLowerCase();
+    
+    // Detect if greeting was done
+    if (/ol[aá]|bom dia|boa tarde|boa noite|bem-vindo/i.test(content)) {
+      state.saudacaoJaFeita = true;
+    }
+    
+    // Detect if asked about optical/referral
+    if (/[oó]tica indicada|indicada\?|indica[çc][aã]o|vindo por alguma/i.test(content)) {
+      state.oticaIndicadaJaPerguntou = true;
+    }
+    
+    // Detect if asked for name
+    if (/seu nome|qual.*nome|como posso te chamar|nome completo/i.test(content)) {
+      state.nomeJaColetou = true;
+    }
+    
+    // Detect if asked for email
+    if (/seu e-?mail|qual.*e-?mail|endere[çc]o de e-?mail/i.test(content)) {
+      state.emailJaColetou = true;
+    }
+  }
+
+  // Check if user selected a time slot
+  for (let i = 0; i < userMessages.length; i++) {
+    const userContent = userMessages[i].content.toLowerCase();
+    
+    // Detect time selection patterns
+    const timePatterns = [
+      /(?:às?\s*)?\d{1,2}[h:]\d{0,2}/i,  // 9h, 09:30, às 10h
+      /(?:quero|escolho|prefiro|pode ser|esse|essa|primeiro|segundo|op[çc][aã]o\s*\d)/i,
+      /horário.*\d/i,
+    ];
+    
+    for (const pattern of timePatterns) {
+      if (pattern.test(userContent)) {
+        state.horarioJaEscolhido = true;
+        state.horarioEscolhido = userContent;
+        break;
+      }
+    }
+  }
+
+  // Get last assistant message
+  if (assistantMessages.length > 0) {
+    state.ultimaPerguntaAgente = assistantMessages[assistantMessages.length - 1].content;
+  }
+
+  return state;
+};
+
+// Build continuity context for ongoing conversations
+const buildContinuityContext = (state: ConversationState): string => {
+  const rules: string[] = [];
+  
+  if (state.saudacaoJaFeita) {
+    rules.push('🚫 NÃO cumprimente novamente (Olá, Bom dia, etc) - a conversa já começou');
+  }
+  
+  if (state.horarioJaEscolhido) {
+    rules.push(`✅ O CLIENTE JÁ ESCOLHEU UM HORÁRIO (${state.horarioEscolhido || 'confirmado'}). NÃO pergunte "qual horário te atende?" novamente. Próximo passo: coletar dados para confirmar.`);
+  }
+  
+  if (state.oticaIndicadaJaPerguntou) {
+    rules.push('✅ Já perguntou sobre ótica indicada - NÃO repita essa pergunta');
+  }
+  
+  if (state.nomeJaColetou) {
+    rules.push('✅ Já pediu o nome do cliente - NÃO repita');
+  }
+  
+  if (state.emailJaColetou) {
+    rules.push('✅ Já pediu o email do cliente - NÃO repita');
+  }
+  
+  if (rules.length === 0) return '';
+  
+  return `
+## 🔄 CONTINUIDADE DA CONVERSA - REGRAS OBRIGATÓRIAS
+${rules.join('\n')}
+
+⚠️ NUNCA reinicie o fluxo do zero após uma resposta curta ("não", "ok", "sim").
+⚠️ Continue de onde parou, avançando para o próximo passo.`;
+};
 
 // Format slot to Brazilian Portuguese
 const formatSlotBR = (isoTime: string): string => {
@@ -353,12 +464,19 @@ ${slotsInfo}
 
 ### 🚨 REGRAS DE AGENDAMENTO 🚨
 1. PRIMEIRA MENSAGEM: ofereça slot1 (${slot1Formatted}) e slot2 (${slot2Formatted})
-2. SE CLIENTE PEDIR OUTROS HORÁRIOS: use a ferramenta get_available_times para buscar mais opções
-3. Existem ${prefetchedSlots.length} horários disponíveis no total - ofereça alternativas se cliente não gostar
+2. SE CLIENTE PEDIR OUTROS HORÁRIOS (terça, outra semana, etc.): use get_available_times
+3. Existem ${prefetchedSlots.length} horários disponíveis no total - NUNCA diga que só há 2
 4. NUNCA invente datas ou horários - use apenas valores retornados pela ferramenta
-5. Para AGENDAR: colete NOME e EMAIL do cliente, depois use create_booking com ISO exato
-6. SEMPRE confirme o agendamento após criar com sucesso`;
+5. Para AGENDAR: colete NOME (obrigatório), email é OPCIONAL (sistema gera automaticamente)
+6. SEMPRE confirme o agendamento após criar com sucesso
+7. Se cliente já escolheu horário, NÃO ofereça novos horários - avance para coleta de dados`;
     }
+
+    // Detect conversation state for anti-repetition
+    const conversationState = detectConversationState(conversationHistory);
+    const continuityContext = buildContinuityContext(conversationState);
+    
+    console.log(`[TEST-AI-AGENT] Conversation state: ${JSON.stringify(conversationState)}`);
 
     // Build system prompt with REPLACED content
     const systemPrompt = `## DATA E HORA ATUAIS (OBRIGATÓRIO)
@@ -367,6 +485,7 @@ ${slotsInfo}
 - O ano atual é ${anoAtual}
 
 Você é ${agent.agent_name}, um assistente virtual.
+${continuityContext}
 
 PERSONALIDADE:
 ${personalityPrompt || "Seja profissional e prestativo."}
@@ -391,9 +510,12 @@ INSTRUÇÕES FINAIS:
 - Use a personalidade e regras definidas acima.
 - Use a base de conhecimento para responder perguntas específicas.
 ${hasCalendarIntegration ? `- PRIMEIRA OFERTA: use slot1 (${slot1Formatted}) e slot2 (${slot2Formatted})
-- CLIENTE QUER OUTROS HORÁRIOS? Use get_available_times para buscar mais opções (há ${prefetchedSlots.length} slots disponíveis!)
+- CLIENTE QUER OUTROS HORÁRIOS? Use get_available_times (há ${prefetchedSlots.length} slots!)
 - NÃO diga que só existem 2 horários - use a ferramenta para buscar mais
-- Para criar agendamento: colete nome e email, depois use create_booking com o ISO exato` : ''}`;
+- EMAIL É OPCIONAL - se cliente não tiver, prossiga apenas com nome e telefone` : ''}
+${conversationState.horarioJaEscolhido ? `
+⚠️ ATENÇÃO: O cliente JÁ ESCOLHEU um horário. NÃO pergunte "qual horário te atende?" novamente.
+Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o agendamento.` : ''}`;
 
     // Build messages array for API
     const messages = [
@@ -508,15 +630,31 @@ ${hasCalendarIntegration ? `- PRIMEIRA OFERTA: use slot1 (${slot1Formatted}) e s
           // Create booking
           const startTime = args.start_time as string;
           const inviteeName = args.invitee_name as string;
-          const inviteeEmail = args.invitee_email as string;
+          let inviteeEmail = args.invitee_email as string | undefined;
           const inviteePhone = args.invitee_phone as string | undefined;
           
-          if (!startTime || !inviteeName || !inviteeEmail) {
+          // Validate required fields (name is mandatory, email is optional)
+          if (!startTime || !inviteeName) {
             toolResult = JSON.stringify({ 
               success: false, 
-              error: 'Faltam dados obrigatórios: start_time, invitee_name e invitee_email são necessários' 
+              error: 'Faltam dados obrigatórios: start_time e invitee_name são necessários' 
             });
           } else {
+            // Generate email automatically if not provided
+            if (!inviteeEmail) {
+              if (inviteePhone) {
+                // Clean phone and create email
+                const cleanPhone = inviteePhone.replace(/\D/g, '');
+                inviteeEmail = `${cleanPhone}@paciente.csv.com`;
+                console.log(`[TEST-AI-AGENT] Generated email from phone: ${inviteeEmail}`);
+              } else {
+                // Generate random email
+                const randomId = Math.random().toString(36).substring(2, 10);
+                inviteeEmail = `cliente-${randomId}@paciente.csv.com`;
+                console.log(`[TEST-AI-AGENT] Generated random email: ${inviteeEmail}`);
+              }
+            }
+            
             const result = await createCalendlyBooking(
               supabaseUrl,
               agentId,
