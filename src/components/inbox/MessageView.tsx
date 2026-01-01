@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, Fragment } from "react";
+import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
 import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +41,8 @@ import { NotesTab } from "./NotesTab";
 import { TasksTab } from "./TasksTab";
 import { InternalChatTab } from "./InternalChatTab";
 import { PhoneCallButton } from "./PhoneCallButton";
+import { SlashCommandPopup } from "./SlashCommandPopup";
+import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -73,6 +75,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
+  const { templates } = useMessageTemplates();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
@@ -90,6 +93,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const [isInvokingAI, setIsInvokingAI] = useState(false);
   const [isAutoCorrect, setIsAutoCorrect] = useState(false);
   const [activeTab, setActiveTab] = useState("chat");
+  const [slashCommandOpen, setSlashCommandOpen] = useState(false);
+  const [slashSearchTerm, setSlashSearchTerm] = useState("");
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -99,6 +105,22 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
 
   // Get connected instances only
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
+
+  // Filter active templates for slash commands
+  const activeTemplates = useMemo(() => 
+    templates.filter(t => t.is_active), 
+    [templates]
+  );
+
+  // Filtered templates based on slash search
+  const filteredSlashTemplates = useMemo(() => {
+    if (!slashSearchTerm) return activeTemplates;
+    const search = slashSearchTerm.toLowerCase();
+    return activeTemplates.filter(template => 
+      template.name.toLowerCase().includes(search) ||
+      template.content.toLowerCase().includes(search)
+    );
+  }, [activeTemplates, slashSearchTerm]);
 
   // Set default instance when instances load or conversation changes
   useEffect(() => {
@@ -309,6 +331,34 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle slash command navigation
+    if (slashCommandOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashSelectedIndex(prev => 
+          Math.min(prev + 1, Math.min(filteredSlashTemplates.length - 1, 7))
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashSelectedIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (filteredSlashTemplates[slashSelectedIndex]) {
+          handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashCommandOpen(false);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -316,11 +366,63 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNewMessage(e.target.value);
+    const value = e.target.value;
+    setNewMessage(value);
+    
+    // Detect slash command trigger
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/(\w*)$/);
+    
+    if (slashMatch) {
+      setSlashCommandOpen(true);
+      setSlashSearchTerm(slashMatch[1] || "");
+      setSlashSelectedIndex(0);
+    } else {
+      setSlashCommandOpen(false);
+      setSlashSearchTerm("");
+    }
     
     // Auto-resize
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+  };
+
+  const handleSlashSelect = (template: MessageTemplate) => {
+    const cursorPos = textareaRef.current?.selectionStart || newMessage.length;
+    const textBeforeCursor = newMessage.substring(0, cursorPos);
+    const textAfterCursor = newMessage.substring(cursorPos);
+    
+    // Find where the /command starts
+    const slashMatch = textBeforeCursor.match(/(?:^|\s)(\/\w*)$/);
+    if (!slashMatch) {
+      setSlashCommandOpen(false);
+      return;
+    }
+    
+    const slashStart = textBeforeCursor.lastIndexOf(slashMatch[1]);
+    
+    // Replace variables with contact data
+    let processedContent = template.content
+      .replace(/\{\{nome\}\}/gi, conversation.contact?.name || "")
+      .replace(/\{\{name\}\}/gi, conversation.contact?.name || "")
+      .replace(/\{\{telefone\}\}/gi, conversation.contact?.phone || "")
+      .replace(/\{\{phone\}\}/gi, conversation.contact?.phone || "");
+    
+    // Build new message
+    const newText = textBeforeCursor.substring(0, slashStart) + processedContent + textAfterCursor;
+    setNewMessage(newText);
+    setSlashCommandOpen(false);
+    setSlashSearchTerm("");
+    
+    // Focus and resize
+    textareaRef.current?.focus();
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      }
+    }, 0);
   };
 
   const handleEmojiSelect = (emoji: string) => {
@@ -820,7 +922,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       />
 
       {/* Input */}
-      <div className="p-2 md:p-4 border-t border-border bg-card">
+      <div className="p-2 md:p-4 border-t border-border bg-card relative">
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
@@ -867,15 +969,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
-          <Textarea
-            ref={textareaRef}
-            placeholder="Digite sua mensagem..."
-            value={newMessage}
-            onChange={handleMessageChange}
-            onKeyDown={handleKeyDown}
-            className="flex-1 bg-muted/50 min-h-[40px] max-h-[150px] resize-none py-2 text-sm md:text-base"
-            rows={1}
-          />
+          <div className="relative flex-1">
+            <Textarea
+              ref={textareaRef}
+              placeholder="Digite / para atalhos..."
+              value={newMessage}
+              onChange={handleMessageChange}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-muted/50 min-h-[40px] max-h-[150px] resize-none py-2 text-sm md:text-base"
+              rows={1}
+            />
+          </div>
 
           {!isMobile && (
             <AIAssistantButton
@@ -925,6 +1029,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
             Selecione uma instância para enviar mensagens
           </motion.p>
         )}
+
+        {/* Slash Command Popup */}
+        <SlashCommandPopup
+          isOpen={slashCommandOpen}
+          templates={activeTemplates}
+          searchTerm={slashSearchTerm}
+          selectedIndex={slashSelectedIndex}
+          onSelect={handleSlashSelect}
+          onClose={() => setSlashCommandOpen(false)}
+          contactName={conversation.contact?.name || undefined}
+        />
       </div>
         </TabsContent>
 
