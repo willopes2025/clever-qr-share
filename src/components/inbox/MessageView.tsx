@@ -527,8 +527,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 w-full overflow-hidden">
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-background">
+    <div className="flex flex-col h-full min-h-0 w-full">
+      <div className="flex flex-col flex-1 min-h-0 bg-background">
       {/* Header */}
       <div className={cn(
         "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card",
@@ -847,7 +847,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chat" className="hidden data-[state=active]:flex flex-col flex-1 min-h-0 h-full overflow-hidden mt-0 relative">
+        <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0 relative">
       {/* Messages - WhatsApp style background */}
       <div 
         className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 whatsapp-chat-bg" 
@@ -922,7 +922,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       />
 
       {/* Input - WhatsApp style */}
-      <div className="mt-auto shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20 px-3 py-2 md:px-4 md:py-3">
+      <div className="shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20 px-3 py-2 md:px-4 md:py-3">
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
