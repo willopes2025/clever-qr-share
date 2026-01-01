@@ -848,13 +848,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         </TabsList>
 
         <TabsContent value="chat" className="hidden data-[state=active]:flex flex-col flex-1 min-h-0 h-full overflow-hidden mt-0 relative">
-      {/* Messages */}
+      {/* Messages - WhatsApp style background */}
       <div 
-        className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4" 
+        className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 whatsapp-chat-bg" 
         onScroll={handleScroll}
         ref={scrollAreaRef}
       >
-        <div className="space-y-3 max-w-3xl mx-auto">
+        <div className="space-y-1 max-w-3xl mx-auto">
           {isLoading ? (
             <div className="space-y-4">
               {[...Array(5)].map((_, i) => (
@@ -921,8 +921,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         newMessagesCount={newMessagesCount}
       />
 
-      {/* Input */}
-      <div className="mt-auto shrink-0 border-t bg-background z-20 p-2 md:p-4">
+      {/* Input - WhatsApp style */}
+      <div className="mt-auto shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20 px-3 py-2 md:px-4 md:py-3">
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
@@ -940,7 +940,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                 }
               }}
             >
-              <SelectTrigger className="w-full h-8 text-xs">
+              <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
                 <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Selecionar número" />
               </SelectTrigger>
@@ -961,22 +961,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           </div>
         )}
         
-        <div className="flex gap-1.5 md:gap-2 max-w-3xl mx-auto items-end">
+        <div className="flex gap-2 max-w-3xl mx-auto items-end">
+          {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
+          
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
             disabled={!selectedInstanceId}
           />
           
-          {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
-          
-          <div className="relative flex-1">
+          {/* Input container - pill style */}
+          <div className="relative flex-1 flex items-center bg-white dark:bg-[#2a3942] rounded-full px-3 py-1">
             <Textarea
               ref={textareaRef}
-              placeholder="Digite / para atalhos..."
+              placeholder="Digite uma mensagem"
               value={newMessage}
               onChange={handleMessageChange}
               onKeyDown={handleKeyDown}
-              className="w-full bg-muted/50 min-h-[40px] max-h-[150px] resize-none py-2 text-sm md:text-base"
+              className="w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-[100px] resize-none py-2 text-sm md:text-[15px] placeholder:text-[#667781]"
               rows={1}
             />
           </div>
