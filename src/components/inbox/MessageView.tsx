@@ -932,7 +932,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           <NotesTab conversationId={conversation.id} contactId={conversation.contact_id} />
         </TabsContent>
 
-        <TabsContent value="tasks" className="flex-1 mt-0 overflow-hidden">
+        <TabsContent value="tasks" className="flex-1 flex flex-col min-h-0 mt-0 overflow-hidden">
           <TasksTab conversationId={conversation.id} contactId={conversation.contact_id} />
         </TabsContent>
 
