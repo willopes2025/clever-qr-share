@@ -152,18 +152,6 @@ export interface AsaasPaymentLink {
   dateCreated?: string;
 }
 
-export interface AsaasNegativation {
-  id: string;
-  payment: string;
-  status: 'PENDING' | 'AWAITING_APPROVAL' | 'PROCESSED' | 'CANCELLED' | 'AWAITING_CANCELLATION';
-  requestDate: string;
-  description?: string;
-  canBeCancelled: boolean;
-  value: number;
-  customerName: string;
-  customerCpfCnpj: string;
-}
-
 export const useAsaas = () => {
   const { isConnected, getIntegration } = useIntegrations();
   const queryClient = useQueryClient();
@@ -239,27 +227,6 @@ export const useAsaas = () => {
     queryKey: ['asaas', 'payment-links'],
     queryFn: () => callAsaasApi('list-payment-links', { limit: 100 }),
     enabled: hasAsaas,
-  });
-
-  // Negativations (Serasa) - com tratamento de erro para quando não está habilitado
-  const { data: negativationsData, isLoading: isLoadingNegativations, refetch: refetchNegativations, error: negativationsError } = useQuery({
-    queryKey: ['asaas', 'negativations'],
-    queryFn: async () => {
-      try {
-        return await callAsaasApi('list-negativations', { limit: 100 });
-      } catch (error) {
-        // Se a funcionalidade não está habilitada, retorna array vazio silenciosamente
-        const errorMessage = error instanceof Error ? error.message : '';
-        if (errorMessage.includes('NEGATIVATION_NOT_ENABLED') || errorMessage.includes('não habilitada')) {
-          console.warn('Negativation feature not enabled:', errorMessage);
-          return { data: [], notEnabled: true };
-        }
-        throw error;
-      }
-    },
-    enabled: hasAsaas,
-    retry: false, // Não repetir se falhar
-    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
   });
 
   // Função para sincronizar todos os dados
@@ -427,30 +394,6 @@ export const useAsaas = () => {
     }
   });
 
-  // Negativation mutations
-  const createNegativation = useMutation({
-    mutationFn: ({ paymentId, description }: { paymentId: string; description?: string }) => 
-      callAsaasApi('create-negativation', { paymentId, description }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asaas', 'negativations'] });
-      toast.success('Negativação solicitada com sucesso!');
-    },
-    onError: (error: Error) => {
-      toast.error('Erro ao criar negativação: ' + error.message);
-    }
-  });
-
-  const cancelNegativation = useMutation({
-    mutationFn: (id: string) => callAsaasApi('cancel-negativation', { id }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asaas', 'negativations'] });
-      toast.success('Negativação cancelada!');
-    },
-    onError: (error: Error) => {
-      toast.error('Erro ao cancelar negativação: ' + error.message);
-    }
-  });
-
   return {
     hasAsaas,
     // Sync
@@ -498,12 +441,5 @@ export const useAsaas = () => {
     isLoadingPaymentLinks,
     refetchPaymentLinks,
     createPaymentLink,
-    // Negativations
-    negativations: (negativationsData?.data || []) as AsaasNegativation[],
-    isLoadingNegativations,
-    refetchNegativations,
-    createNegativation,
-    cancelNegativation,
-    hasNegativationFeature: hasAsaas && !negativationsData?.notEnabled,
   };
 };

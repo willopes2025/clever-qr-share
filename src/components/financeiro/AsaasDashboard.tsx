@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAsaas } from '@/hooks/useAsaas';
-import { useFinancialMetrics, DateRange, TopDebtor } from '@/hooks/useFinancialMetrics';
+import { useFinancialMetrics, DateRange } from '@/hooks/useFinancialMetrics';
 import { FinancialDateFilter } from './FinancialDateFilter';
 import { FinancialKPICard } from './FinancialKPICard';
 import { DelinquencyAnalysis } from './DelinquencyAnalysis';
@@ -9,7 +9,6 @@ import { TopDebtorsTable } from './TopDebtorsTable';
 import { RevenueChart } from './RevenueChart';
 import { PaymentMethodChart } from './PaymentMethodChart';
 import { MRRCard } from './MRRCard';
-import { NegativationDialog } from './NegativationDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Wallet, TrendingUp, Receipt, AlertCircle, RefreshCw, Loader2, Calendar, TrendingDown } from 'lucide-react';
@@ -30,30 +29,12 @@ export const AsaasDashboard = () => {
     start: startOfDay(subDays(today, 29)),
     end: endOfDay(today),
   });
-  const [negativationDialogOpen, setNegativationDialogOpen] = useState(false);
-  const [selectedDebtor, setSelectedDebtor] = useState<TopDebtor | null>(null);
 
-  const { syncAll, isSyncing, lastSync, createNegativation, refetchNegativations } = useAsaas();
+  const { syncAll, isSyncing, lastSync } = useAsaas();
   const metrics = useFinancialMetrics(dateRange);
 
   const handleSync = async () => {
     await syncAll();
-  };
-
-  const handleNegativar = (debtor: TopDebtor) => {
-    setSelectedDebtor(debtor);
-    setNegativationDialogOpen(true);
-  };
-
-  const handleConfirmNegativation = async (paymentId: string, description?: string) => {
-    try {
-      await createNegativation.mutateAsync({ paymentId, description });
-      setNegativationDialogOpen(false);
-      setSelectedDebtor(null);
-      refetchNegativations();
-    } catch (error) {
-      // Error handled by mutation
-    }
   };
 
   return (
@@ -157,7 +138,6 @@ export const AsaasDashboard = () => {
           <div className="grid gap-4 lg:grid-cols-2">
             <TopDebtorsTable 
               debtors={metrics.topDebtors} 
-              onNegativar={handleNegativar}
             />
             <div className="space-y-4">
               <PaymentMethodChart data={metrics.byPaymentMethod} />
@@ -241,15 +221,6 @@ export const AsaasDashboard = () => {
           </div>
         </>
       )}
-
-      {/* Negativation Dialog */}
-      <NegativationDialog
-        open={negativationDialogOpen}
-        onOpenChange={setNegativationDialogOpen}
-        debtor={selectedDebtor}
-        onConfirm={handleConfirmNegativation}
-        isLoading={createNegativation.isPending}
-      />
     </div>
   );
 };
