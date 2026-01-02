@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas, AsaasPayment } from "@/hooks/useAsaas";
 import { useOrganization } from "@/hooks/useOrganization";
-import { Plus, Loader2, ExternalLink, Copy, Trash2 } from "lucide-react";
+import { Plus, Loader2, ExternalLink, Copy, Trash2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AsaasPaymentForm } from "./AsaasPaymentForm";
 import { AsaasPaymentFilters, PaymentFilters, initialPaymentFilters } from "./AsaasPaymentFilters";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +52,17 @@ const billingTypeLabels: Record<string, string> = {
 };
 
 export const AsaasPaymentList = () => {
-  const { payments, isLoadingPayments, deletePayment, getPixQrCode, customers } = useAsaas();
+  const { 
+    payments, 
+    isLoadingPayments, 
+    deletePayment, 
+    getPixQrCode, 
+    customers,
+    paymentsCount,
+    lastSync,
+    isSyncing,
+    syncAll
+  } = useAsaas();
   const { checkPermission } = useOrganization();
   const [filters, setFilters] = useState<PaymentFilters>(initialPaymentFilters);
   const [showForm, setShowForm] = useState(false);
@@ -126,13 +137,36 @@ export const AsaasPaymentList = () => {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Cobranças</CardTitle>
-        {canCreate && (
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Cobrança
+        <div className="flex items-center gap-3">
+          <CardTitle>Cobranças</CardTitle>
+          {!isLoadingPayments && (
+            <Badge variant="secondary" className="font-normal">
+              {paymentsCount} registros
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {lastSync && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Atualizado: {format(new Date(lastSync), "HH:mm", { locale: ptBR })}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncAll}
+            disabled={isSyncing}
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", isSyncing && "animate-spin")} />
+            Sincronizar
           </Button>
-        )}
+          {canCreate && (
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Cobrança
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="mb-4">
@@ -144,8 +178,11 @@ export const AsaasPaymentList = () => {
         </div>
 
         {isLoadingPayments ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">
+              Carregando cobranças do Asaas...
+            </span>
           </div>
         ) : (
           <Table>

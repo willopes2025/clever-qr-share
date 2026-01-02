@@ -92,6 +92,44 @@ Deno.serve(async (req) => {
       return responseData;
     };
 
+    // Função para buscar todas as páginas de uma entidade
+    const fetchAllPages = async (endpoint: string, filters: string = '') => {
+      const allData: unknown[] = [];
+      let offset = 0;
+      let hasMore = true;
+      const pageLimit = 100;
+      let totalFetched = 0;
+      
+      console.log(`Starting full pagination for ${endpoint}${filters}`);
+      
+      while (hasMore) {
+        const response = await asaasRequest('GET', 
+          `${endpoint}?limit=${pageLimit}&offset=${offset}${filters}`);
+        
+        const pageData = response.data || [];
+        allData.push(...pageData);
+        totalFetched += pageData.length;
+        hasMore = response.hasMore === true;
+        offset += pageLimit;
+        
+        console.log(`Fetched ${totalFetched} records from ${endpoint}...`);
+        
+        // Safety: evitar loops infinitos (máximo 50 páginas = 5000 registros)
+        if (offset >= 5000) {
+          console.log(`Reached safety limit of 5000 records for ${endpoint}`);
+          break;
+        }
+      }
+      
+      console.log(`Finished fetching ${allData.length} total records from ${endpoint}`);
+      
+      return { 
+        data: allData, 
+        totalCount: allData.length,
+        fetchedAt: new Date().toISOString()
+      };
+    };
+
     let result;
 
     switch (action) {
@@ -103,6 +141,9 @@ Deno.serve(async (req) => {
       // Customers
       case 'list-customers':
         result = await asaasRequest('GET', `/customers?limit=${params.limit || 100}&offset=${params.offset || 0}`);
+        break;
+      case 'list-all-customers':
+        result = await fetchAllPages('/customers');
         break;
       case 'get-customer':
         result = await asaasRequest('GET', `/customers/${params.id}`);
@@ -123,6 +164,15 @@ Deno.serve(async (req) => {
         if (params.customer) paymentsEndpoint += `&customer=${params.customer}`;
         if (params.status) paymentsEndpoint += `&status=${params.status}`;
         result = await asaasRequest('GET', paymentsEndpoint);
+        break;
+      case 'list-all-payments':
+        let paymentFilters = '';
+        if (params.status) paymentFilters += `&status=${params.status}`;
+        if (params.customer) paymentFilters += `&customer=${params.customer}`;
+        if (params.billingType) paymentFilters += `&billingType=${params.billingType}`;
+        if (params.dueDateGe) paymentFilters += `&dueDate[ge]=${params.dueDateGe}`;
+        if (params.dueDateLe) paymentFilters += `&dueDate[le]=${params.dueDateLe}`;
+        result = await fetchAllPages('/payments', paymentFilters);
         break;
       case 'get-payment':
         result = await asaasRequest('GET', `/payments/${params.id}`);
@@ -149,6 +199,9 @@ Deno.serve(async (req) => {
       // Subscriptions
       case 'list-subscriptions':
         result = await asaasRequest('GET', `/subscriptions?limit=${params.limit || 100}&offset=${params.offset || 0}`);
+        break;
+      case 'list-all-subscriptions':
+        result = await fetchAllPages('/subscriptions');
         break;
       case 'get-subscription':
         result = await asaasRequest('GET', `/subscriptions/${params.id}`);
