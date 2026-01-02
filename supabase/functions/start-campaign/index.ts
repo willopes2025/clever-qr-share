@@ -201,7 +201,68 @@ serve(async (req) => {
       throw new Error('No contacts found in the broadcast list');
     }
 
-    console.log(`Found ${contacts.length} contacts to send messages to`);
+    console.log(`Found ${contacts.length} contacts in list`);
+
+    // Filter out contacts that already received messages based on skip settings
+    let filteredContacts = contacts;
+    let skippedCount = 0;
+
+    if (campaign.skip_already_sent !== false) {
+      const skipMode = campaign.skip_mode || 'same_template';
+      const skipDaysPeriod = campaign.skip_days_period || 30;
+
+      // Calculate period start date
+      const periodStart = new Date();
+      periodStart.setDate(periodStart.getDate() - skipDaysPeriod);
+      const periodStartISO = periodStart.toISOString();
+
+      let campaignIdsToCheck: string[] = [];
+
+      // Determine which campaigns to check based on skip_mode
+      if (skipMode === 'same_campaign') {
+        campaignIdsToCheck = [campaignId];
+      } else if (skipMode === 'same_template' && campaign.template_id) {
+        const { data: sameTemplateCampaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('template_id', campaign.template_id);
+        campaignIdsToCheck = sameTemplateCampaigns?.map(c => c.id) || [];
+      } else if (skipMode === 'same_list' && campaign.list_id) {
+        const { data: sameListCampaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('list_id', campaign.list_id);
+        campaignIdsToCheck = sameListCampaigns?.map(c => c.id) || [];
+      }
+      // For 'any_campaign', we don't filter by campaign_id
+
+      // Query already sent contacts
+      let alreadySentQuery = supabase
+        .from('campaign_messages')
+        .select('contact_id')
+        .in('status', ['sent', 'delivered'])
+        .gte('sent_at', periodStartISO);
+
+      // Apply campaign filter if not 'any_campaign'
+      if (skipMode !== 'any_campaign' && campaignIdsToCheck.length > 0) {
+        alreadySentQuery = alreadySentQuery.in('campaign_id', campaignIdsToCheck);
+      }
+
+      const { data: alreadySent } = await alreadySentQuery;
+      const alreadySentIds = new Set(alreadySent?.map(m => m.contact_id) || []);
+
+      const originalCount = contacts.length;
+      filteredContacts = contacts.filter(c => !alreadySentIds.has(c.id));
+      skippedCount = originalCount - filteredContacts.length;
+
+      console.log(`Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days)`);
+    }
+
+    if (filteredContacts.length === 0) {
+      throw new Error(`Todos os ${contacts.length} contatos já receberam mensagens no período configurado`);
+    }
+
+    console.log(`${filteredContacts.length} contacts will receive messages`);
 
     // Update campaign status to sending with multiple instance IDs
     const { error: updateError } = await supabase
@@ -212,7 +273,7 @@ serve(async (req) => {
         instance_id: instanceIds[0], // Keep first instance for backwards compatibility
         instance_ids: instanceIds,
         sending_mode: sendingMode,
-        total_contacts: contacts.length,
+        total_contacts: filteredContacts.length,
         sent: 0,
         delivered: 0,
         failed: 0
@@ -239,7 +300,7 @@ serve(async (req) => {
     console.log(`Using ${messageOptions.length} message variations (1 original + ${variations?.length || 0} variations)`);
 
     // Create campaign_messages records
-    const messageRecords = contacts.map((contact: Contact, index: number) => {
+    const messageRecords = filteredContacts.map((contact: Contact, index: number) => {
       // Select a random message option for this contact
       const randomIndex = Math.floor(Math.random() * messageOptions.length);
       let messageContent = messageOptions[randomIndex];
@@ -303,7 +364,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Campaign started',
-        totalContacts: contacts.length,
+        totalContacts: filteredContacts.length,
+        skippedContacts: skippedCount,
         instanceCount: validInstances.length,
         sendingMode
       }),
