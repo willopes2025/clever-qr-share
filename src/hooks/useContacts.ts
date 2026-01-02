@@ -153,12 +153,27 @@ export const useContacts = () => {
 
   const deleteMultipleContacts = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("contacts").delete().in("id", ids);
-      if (error) throw error;
+      const BATCH_SIZE = 50;
+      const batches: string[][] = [];
+      
+      // Split IDs into batches to avoid URL length limits
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        batches.push(ids.slice(i, i + BATCH_SIZE));
+      }
+      
+      let deletedCount = 0;
+      
+      for (const batch of batches) {
+        const { error } = await supabase.from("contacts").delete().in("id", batch);
+        if (error) throw error;
+        deletedCount += batch.length;
+      }
+      
+      return deletedCount;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast.success("Contatos excluídos!");
+      toast.success(`${count} contato(s) excluído(s)!`);
     },
     onError: (error: Error) => {
       toast.error("Erro ao excluir contatos", {
