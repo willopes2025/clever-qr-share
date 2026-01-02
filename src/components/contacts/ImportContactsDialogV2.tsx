@@ -32,10 +32,12 @@ import {
   Columns,
   Filter,
   RefreshCw,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CreateFieldInlineDialog, NewFieldConfig, FieldType } from "./CreateFieldInlineDialog";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
+import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
 
 export interface TagOption {
   id: string;
@@ -45,8 +47,13 @@ export interface TagOption {
 
 export interface DeduplicationConfig {
   enabled: boolean;
-  field: 'phone' | 'email' | 'contact_display_id' | string; // string para campos personalizados custom:field_key
+  field: 'phone' | 'email' | 'contact_display_id' | string;
   action: 'skip' | 'update';
+}
+
+export interface PhoneNormalizationConfig {
+  mode: 'none' | 'add_ddi' | 'remove_ddi';
+  countryCode: string;
 }
 
 export interface ImportStats {
@@ -63,7 +70,8 @@ interface ImportContactsDialogV2Props {
     contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[],
     tagIds?: string[],
     newFields?: NewFieldConfig[],
-    deduplication?: DeduplicationConfig
+    deduplication?: DeduplicationConfig,
+    phoneNormalization?: PhoneNormalizationConfig
   ) => Promise<ImportStats | void>;
   isLoading?: boolean;
   tags?: TagOption[];
@@ -110,6 +118,12 @@ export const ImportContactsDialogV2 = ({
     enabled: true,
     field: 'phone',
     action: 'skip',
+  });
+  
+  // Phone normalization state
+  const [phoneNormalization, setPhoneNormalization] = useState<PhoneNormalizationConfig>({
+    mode: 'add_ddi',
+    countryCode: '55',
   });
   
   // Create field dialog state
@@ -386,7 +400,8 @@ export const ImportContactsDialogV2 = ({
         contacts,
         selectedTagIds.length > 0 ? selectedTagIds : undefined,
         newFields.length > 0 ? newFields : undefined,
-        deduplication.enabled ? deduplication : undefined
+        deduplication.enabled ? deduplication : undefined,
+        phoneNormalization.mode !== 'none' ? phoneNormalization : undefined
       );
       
       // Reset state
@@ -399,6 +414,7 @@ export const ImportContactsDialogV2 = ({
       setSelectedTagIds([]);
       setNewFields([]);
       setDeduplication({ enabled: true, field: 'phone', action: 'skip' });
+      setPhoneNormalization({ mode: 'add_ddi', countryCode: '55' });
     } catch (error) {
       // Error handled by parent
     }
@@ -575,8 +591,129 @@ export const ImportContactsDialogV2 = ({
     </div>
   );
 
+  // Preview phone normalization examples
+  const phoneNormalizationExamples = useMemo(() => {
+    const phoneColumn = Object.entries(columnMappings).find(
+      ([, m]) => m.targetField === "phone"
+    )?.[0];
+    
+    if (!phoneColumn) return [];
+    
+    const phoneIndex = csvHeaders.indexOf(phoneColumn);
+    return csvPreview.slice(0, 3).map((row) => {
+      const original = row[phoneIndex]?.replace(/\D/g, '') || '';
+      let normalized = original;
+      
+      if (phoneNormalization.mode === 'add_ddi') {
+        normalized = normalizePhoneWithCountryCode(original, phoneNormalization.countryCode);
+      } else if (phoneNormalization.mode === 'remove_ddi') {
+        normalized = normalizePhoneWithoutCountryCode(original, phoneNormalization.countryCode);
+      }
+      
+      return { original, normalized, changed: original !== normalized };
+    }).filter(e => e.original);
+  }, [csvPreview, columnMappings, csvHeaders, phoneNormalization]);
+
   const renderDeduplicationStep = () => (
     <div className="space-y-4">
+      {/* Phone normalization config */}
+      <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+        <div className="space-y-0.5">
+          <Label className="text-base font-medium flex items-center gap-2">
+            <Phone className="h-4 w-4" />
+            Padronização de Telefones
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Adicione ou remova o DDI para manter os números consistentes
+          </p>
+        </div>
+
+        <RadioGroup
+          value={phoneNormalization.mode}
+          onValueChange={(mode: 'none' | 'add_ddi' | 'remove_ddi') => 
+            setPhoneNormalization(prev => ({ ...prev, mode }))
+          }
+          className="space-y-2"
+        >
+          <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer">
+            <RadioGroupItem value="none" id="phone_none" className="mt-0.5" />
+            <div className="space-y-1">
+              <Label htmlFor="phone_none" className="font-medium cursor-pointer">
+                Não alterar números
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Mantém os telefones exatamente como estão no arquivo
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer">
+            <RadioGroupItem value="add_ddi" id="phone_add" className="mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="phone_add" className="font-medium cursor-pointer">
+                Adicionar DDI se não tiver
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Ex: 11999999999 → 5511999999999
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer">
+            <RadioGroupItem value="remove_ddi" id="phone_remove" className="mt-0.5" />
+            <div className="space-y-1">
+              <Label htmlFor="phone_remove" className="font-medium cursor-pointer">
+                Remover DDI se tiver
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Ex: 5511999999999 → 11999999999
+              </p>
+            </div>
+          </div>
+        </RadioGroup>
+
+        {phoneNormalization.mode !== 'none' && (
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-sm font-medium">Código do país (DDI):</Label>
+            <Select
+              value={phoneNormalization.countryCode}
+              onValueChange={(countryCode) => 
+                setPhoneNormalization(prev => ({ ...prev, countryCode }))
+              }
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="55">🇧🇷 +55 (Brasil)</SelectItem>
+                <SelectItem value="1">🇺🇸 +1 (EUA/Canadá)</SelectItem>
+                <SelectItem value="351">🇵🇹 +351 (Portugal)</SelectItem>
+                <SelectItem value="54">🇦🇷 +54 (Argentina)</SelectItem>
+                <SelectItem value="56">🇨🇱 +56 (Chile)</SelectItem>
+                <SelectItem value="57">🇨🇴 +57 (Colômbia)</SelectItem>
+                <SelectItem value="52">🇲🇽 +52 (México)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {phoneNormalization.mode !== 'none' && phoneNormalizationExamples.length > 0 && (
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-sm font-medium">Preview dos seus números:</Label>
+            <div className="space-y-1 text-sm font-mono bg-card p-2 rounded border">
+              {phoneNormalizationExamples.map((example, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{example.original}</span>
+                  <span className="text-muted-foreground">→</span>
+                  <span className={example.changed ? "text-primary font-medium" : "text-muted-foreground"}>
+                    {example.normalized}
+                  </span>
+                  {!example.changed && <span className="text-xs text-muted-foreground">(mantido)</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Deduplication config */}
       <div className="p-4 bg-muted/50 rounded-lg space-y-4">
         <div className="flex items-center justify-between">
@@ -672,6 +809,11 @@ export const ImportContactsDialogV2 = ({
           <div>Inválidos (serão ignorados):</div>
           <div className="font-medium text-amber-500">{csvData.length - validContacts.length}</div>
         </div>
+        {phoneNormalization.mode !== 'none' && (
+          <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+            📱 DDI +{phoneNormalization.countryCode} será {phoneNormalization.mode === 'add_ddi' ? 'adicionado' : 'removido'} dos números
+          </p>
+        )}
         {deduplication.enabled && (
           <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
             💡 Duplicatas serão verificadas pelo campo "{availableDeduplicationFields.find(f => f.value === deduplication.field)?.label || deduplication.field}" 

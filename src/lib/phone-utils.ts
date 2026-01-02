@@ -65,3 +65,41 @@ export const formatForDisplay = (phone: string): string => {
   
   return formatPhoneNumber(nationalNumber);
 };
+
+/**
+ * Normaliza telefone adicionando DDI se necessário
+ */
+export const normalizePhoneWithCountryCode = (
+  phone: string, 
+  countryCode: string = '55'
+): string => {
+  const digits = phone.replace(/\D/g, '');
+  
+  // Se já começa com o código do país, retorna como está
+  if (digits.startsWith(countryCode)) {
+    return digits;
+  }
+  
+  // Se tem 10-11 dígitos (número nacional brasileiro), adiciona DDI
+  if (digits.length >= 10 && digits.length <= 11) {
+    return `${countryCode}${digits}`;
+  }
+  
+  return digits;
+};
+
+/**
+ * Remove DDI do telefone
+ */
+export const normalizePhoneWithoutCountryCode = (
+  phone: string,
+  countryCode: string = '55'
+): string => {
+  const digits = phone.replace(/\D/g, '');
+  
+  if (digits.startsWith(countryCode) && digits.length > 11) {
+    return digits.slice(countryCode.length);
+  }
+  
+  return digits;
+};
