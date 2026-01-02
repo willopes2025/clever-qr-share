@@ -93,13 +93,13 @@ const getSsoticaTools = () => [
     type: 'function',
     function: {
       name: 'consultar_os_cliente',
-      description: 'Consulta ordens de serviço (OS) de um cliente pelo CPF. Retorna status, previsão de entrega, itens e valores. Use quando o cliente perguntar sobre status do pedido, prazo de entrega, ou "meus óculos".',
+      description: 'Consulta ordens de serviço (OS) de um cliente pelo CPF. Busca nos últimos 365 dias automaticamente. Retorna status, previsão de entrega, itens e valores. Use quando o cliente perguntar sobre status do pedido, prazo de entrega, ou "meus óculos".',
       parameters: {
         type: 'object',
         properties: {
           cpf: { 
             type: 'string', 
-            description: 'CPF do cliente (apenas números ou formatado com pontos e traço)' 
+            description: 'CPF do cliente (apenas números ou formatado com pontos e traço). DEVE ter 11 dígitos.' 
           }
         },
         required: ['cpf']
@@ -109,14 +109,31 @@ const getSsoticaTools = () => [
   {
     type: 'function',
     function: {
+      name: 'consultar_os_por_numero',
+      description: 'Consulta uma ordem de serviço específica pelo NÚMERO da OS. Use quando o cliente informar um número curto (ex: 11758, 12345). Busca nos últimos 365 dias.',
+      parameters: {
+        type: 'object',
+        properties: {
+          numero_os: { 
+            type: 'string', 
+            description: 'Número da OS (ex: 11758, 12345). Geralmente tem 4-6 dígitos.' 
+          }
+        },
+        required: ['numero_os']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'consultar_vendas_cliente',
-      description: 'Consulta vendas de um cliente pelo CPF. Retorna itens comprados, valores e forma de pagamento.',
+      description: 'Consulta vendas de um cliente pelo CPF. Busca nos últimos 365 dias. Retorna itens comprados, valores e forma de pagamento.',
       parameters: {
         type: 'object',
         properties: {
           cpf: { 
             type: 'string', 
-            description: 'CPF do cliente' 
+            description: 'CPF do cliente (11 dígitos)' 
           }
         },
         required: ['cpf']
@@ -127,13 +144,13 @@ const getSsoticaTools = () => [
     type: 'function',
     function: {
       name: 'consultar_parcelas_cliente',
-      description: 'Consulta parcelas e boletos em aberto do cliente. Retorna valores, vencimentos e status de pagamento.',
+      description: 'Consulta parcelas e boletos em aberto do cliente. Busca nos últimos 365 dias. Retorna valores, vencimentos e status de pagamento.',
       parameters: {
         type: 'object',
         properties: {
           cpf: { 
             type: 'string', 
-            description: 'CPF do cliente' 
+            description: 'CPF do cliente (11 dígitos)' 
           }
         },
         required: ['cpf']
@@ -796,21 +813,36 @@ ${slotsInfo}
     let ssoticaContext = '';
     if (hasSsoticaIntegration) {
       ssoticaContext = `
-## 🔌 INTEGRAÇÃO SSOTICA ATIVA - CONSULTAS EM TEMPO REAL
+## 🔌 INTEGRAÇÃO SSOTICA ATIVA - CONSULTAS EM TEMPO REAL (BUSCA 365 DIAS)
 
 Você tem acesso a consultas em tempo real do sistema ssOtica.
-Quando o cliente perguntar sobre:
-- Status do pedido, prazo de entrega, "meus óculos" → use consultar_os_cliente(cpf)
-- Valor, forma de pagamento, itens comprados → use consultar_vendas_cliente(cpf)
-- Parcelas, boletos, vencimentos → use consultar_parcelas_cliente(cpf)
+O sistema busca automaticamente nos últimos 365 dias (12 meses), em janelas de 30 dias.
+
+### FERRAMENTAS DISPONÍVEIS:
+- **consultar_os_cliente(cpf)** - Busca OS pelo CPF do cliente. Use quando souber o CPF (11 dígitos).
+- **consultar_os_por_numero(numero_os)** - Busca OS pelo NÚMERO da OS (ex: 11758). Use quando o cliente informar o número do pedido.
+- **consultar_vendas_cliente(cpf)** - Busca vendas pelo CPF.
+- **consultar_parcelas_cliente(cpf)** - Busca parcelas/boletos em aberto pelo CPF.
 
 ### 🚨 REGRAS OBRIGATÓRIAS SSOTICA 🚨
-1. SEMPRE pergunte e confirme o CPF antes de consultar
-2. Use APENAS os dados retornados pela consulta - NUNCA invente valores, datas ou status
-3. Se a consulta retornar vazio, informe que não encontrou registros para aquele CPF
-4. Se a consulta falhar, informe que vai verificar manualmente e encaminhar para um atendente
-5. Formate os valores em Reais (R$) e datas no formato brasileiro (DD/MM/AAAA)
-6. CPF pode ser informado com ou sem pontuação - aceite ambos formatos`;
+
+**IDENTIFICAÇÃO DO CLIENTE:**
+1. Pergunte: "Para consultar, preciso do seu CPF (11 dígitos) ou número da OS (se tiver)."
+2. CPF tem 11 dígitos (ex: 670.082.676-49 ou 67008267649)
+3. Número de OS geralmente tem 4-6 dígitos (ex: 11758, 12345)
+4. Se o cliente informar um número CURTO (4-6 dígitos), trate como NÚMERO DA OS e use consultar_os_por_numero
+5. Se o cliente informar 11 dígitos, trate como CPF e use consultar_os_cliente
+
+**INTERPRETAÇÃO DOS RESULTADOS:**
+6. Se total = 0: diga "Não encontrei registros para esse CPF/OS nos últimos 12 meses. Pode confirmar os dados?"
+7. Se total = 1: apresente os dados encontrados
+8. Se total > 1: liste as OS encontradas e pergunte qual deseja consultar
+9. NUNCA afirme dados sem ter recebido da API - se não veio no retorno, diga que vai verificar
+
+**FORMATAÇÃO:**
+10. Valores em Reais (R$): R$ 1.234,56
+11. Datas no formato brasileiro: DD/MM/AAAA
+12. CPF pode ser informado com ou sem pontuação - aceite ambos`;
     }
 
     // Detect conversation state for anti-repetition - INCLUDE CURRENT MESSAGE
@@ -1031,11 +1063,22 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
         // === ssOtica tool calls ===
         else if (functionName === 'consultar_os_cliente') {
           const cpf = (args.cpf as string)?.replace(/\D/g, '');
-          if (!cpf) {
-            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório', total: 0 });
+          if (!cpf || cpf.length !== 11) {
+            toolResult = JSON.stringify({ success: false, error: 'CPF inválido - deve ter 11 dígitos', total: 0 });
           } else {
             const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_os_cliente', { cpf_cnpj: cpf });
-            // Return data directly for cleaner AI interpretation
+            if (result.success && result.data) {
+              toolResult = JSON.stringify(result.data);
+            } else {
+              toolResult = JSON.stringify({ success: false, error: result.error || 'Erro ao consultar', total: 0 });
+            }
+          }
+        } else if (functionName === 'consultar_os_por_numero') {
+          const numeroOS = args.numero_os as string;
+          if (!numeroOS) {
+            toolResult = JSON.stringify({ success: false, error: 'Número da OS é obrigatório', total: 0 });
+          } else {
+            const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_os_por_numero', { numero_os: numeroOS });
             if (result.success && result.data) {
               toolResult = JSON.stringify(result.data);
             } else {
@@ -1044,8 +1087,8 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
           }
         } else if (functionName === 'consultar_vendas_cliente') {
           const cpf = (args.cpf as string)?.replace(/\D/g, '');
-          if (!cpf) {
-            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório', total: 0 });
+          if (!cpf || cpf.length !== 11) {
+            toolResult = JSON.stringify({ success: false, error: 'CPF inválido - deve ter 11 dígitos', total: 0 });
           } else {
             const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_vendas_cliente', { cpf_cnpj: cpf });
             if (result.success && result.data) {
@@ -1056,8 +1099,8 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
           }
         } else if (functionName === 'consultar_parcelas_cliente') {
           const cpf = (args.cpf as string)?.replace(/\D/g, '');
-          if (!cpf) {
-            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório', total: 0 });
+          if (!cpf || cpf.length !== 11) {
+            toolResult = JSON.stringify({ success: false, error: 'CPF inválido - deve ter 11 dígitos', total: 0 });
           } else {
             const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_parcelas_cliente', { cpf_cnpj: cpf });
             if (result.success && result.data) {

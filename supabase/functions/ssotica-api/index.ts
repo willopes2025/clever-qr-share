@@ -16,7 +16,7 @@ interface SsoticaQueryParams {
   page?: number;
   perPage?: number;
   cpf?: string;
-  cpf_cnpj?: string; // Alias for cpf - accepts both
+  cpf_cnpj?: string;
   telefone?: string;
   termo?: string;
 }
@@ -52,6 +52,260 @@ async function ssoticaRequest(
   }
 
   return response.json();
+}
+
+// Helper to generate 30-day windows for lookback search
+function generateDateWindows(lookbackDays: number = 365): Array<{ inicio: string; fim: string }> {
+  const windows: Array<{ inicio: string; fim: string }> = [];
+  const hoje = new Date();
+  
+  let fimJanela = new Date(hoje);
+  
+  while (lookbackDays > 0) {
+    const diasNaJanela = Math.min(30, lookbackDays);
+    const inicioJanela = new Date(fimJanela);
+    inicioJanela.setDate(fimJanela.getDate() - diasNaJanela);
+    
+    windows.push({
+      inicio: inicioJanela.toISOString().split('T')[0],
+      fim: fimJanela.toISOString().split('T')[0],
+    });
+    
+    fimJanela = new Date(inicioJanela);
+    fimJanela.setDate(fimJanela.getDate() - 1);
+    lookbackDays -= diasNaJanela;
+  }
+  
+  return windows;
+}
+
+// Search OS with lookback in 30-day windows
+async function searchOSWithLookback(
+  token: string,
+  empresaCnpj: string,
+  cpfCliente: string | null,
+  lookbackDays: number = 365
+): Promise<{ data: any[]; windowsSearched: number; periodStart: string; periodEnd: string }> {
+  const windows = generateDateWindows(lookbackDays);
+  let allResults: any[] = [];
+  let windowsSearched = 0;
+  let periodStart = '';
+  let periodEnd = '';
+  
+  for (const window of windows) {
+    windowsSearched++;
+    
+    const params: SsoticaQueryParams = {
+      cnpj: empresaCnpj,
+      inicio_periodo: window.inicio,
+      fim_periodo: window.fim,
+      page: 1,
+      perPage: 100,
+      ...(cpfCliente && { cpf_cnpj: cpfCliente }),
+    };
+    
+    console.log(`[ssOtica] Searching window ${windowsSearched}/${windows.length}: ${window.inicio} to ${window.fim}`);
+    
+    try {
+      const osData = await ssoticaRequest('/integracoes/ordens-servico/periodo', token, params);
+      let items = osData.data || osData;
+      
+      if (!Array.isArray(items)) items = [];
+      
+      // Filter by CPF locally as fallback
+      if (cpfCliente && items.length > 0) {
+        items = items.filter((os: any) => {
+          const osCpf = (os.cliente?.cpf || os.cpf_cliente || '').replace(/\D/g, '');
+          return osCpf === cpfCliente || !osCpf; // Keep if CPF matches or not present (API already filtered)
+        });
+      }
+      
+      if (items.length > 0) {
+        allResults = items;
+        periodStart = window.inicio;
+        periodEnd = window.fim;
+        console.log(`[ssOtica] Found ${items.length} OS in window ${window.inicio} to ${window.fim}`);
+        break; // Stop at first window with results
+      }
+    } catch (error) {
+      console.error(`[ssOtica] Error in window ${window.inicio} to ${window.fim}:`, error);
+    }
+  }
+  
+  return { data: allResults, windowsSearched, periodStart, periodEnd };
+}
+
+// Search OS by number with lookback
+async function searchOSByNumber(
+  token: string,
+  empresaCnpj: string,
+  numeroOS: string,
+  lookbackDays: number = 365
+): Promise<{ data: any | null; windowsSearched: number; periodFound: string | null }> {
+  const windows = generateDateWindows(lookbackDays);
+  let windowsSearched = 0;
+  
+  for (const window of windows) {
+    windowsSearched++;
+    
+    console.log(`[ssOtica] Searching OS ${numeroOS} in window ${windowsSearched}/${windows.length}: ${window.inicio} to ${window.fim}`);
+    
+    // Paginate through each window
+    for (let page = 1; page <= 10; page++) {
+      const params: SsoticaQueryParams = {
+        cnpj: empresaCnpj,
+        inicio_periodo: window.inicio,
+        fim_periodo: window.fim,
+        page,
+        perPage: 100,
+      };
+      
+      try {
+        const osData = await ssoticaRequest('/integracoes/ordens-servico/periodo', token, params);
+        let items = osData.data || osData;
+        
+        if (!Array.isArray(items) || items.length === 0) break;
+        
+        // Find by OS number
+        const found = items.find((os: any) => {
+          const osNum = String(os.numero || os.id || '');
+          return osNum === numeroOS || osNum.endsWith(numeroOS);
+        });
+        
+        if (found) {
+          console.log(`[ssOtica] Found OS ${numeroOS} in window ${window.inicio} to ${window.fim}`);
+          return { 
+            data: found, 
+            windowsSearched, 
+            periodFound: `${window.inicio} a ${window.fim}` 
+          };
+        }
+        
+        // If less than perPage items, no more pages
+        if (items.length < 100) break;
+      } catch (error) {
+        console.error(`[ssOtica] Error searching OS ${numeroOS} page ${page}:`, error);
+        break;
+      }
+    }
+  }
+  
+  return { data: null, windowsSearched, periodFound: null };
+}
+
+// Search sales with lookback
+async function searchVendasWithLookback(
+  token: string,
+  empresaCnpj: string,
+  cpfCliente: string | null,
+  lookbackDays: number = 365
+): Promise<{ data: any[]; windowsSearched: number; periodStart: string; periodEnd: string }> {
+  const windows = generateDateWindows(lookbackDays);
+  let allResults: any[] = [];
+  let windowsSearched = 0;
+  let periodStart = '';
+  let periodEnd = '';
+  
+  for (const window of windows) {
+    windowsSearched++;
+    
+    const params: SsoticaQueryParams = {
+      cnpj: empresaCnpj,
+      inicio_periodo: window.inicio,
+      fim_periodo: window.fim,
+      page: 1,
+      perPage: 100,
+      ...(cpfCliente && { cpf_cnpj: cpfCliente }),
+    };
+    
+    console.log(`[ssOtica] Searching vendas window ${windowsSearched}/${windows.length}: ${window.inicio} to ${window.fim}`);
+    
+    try {
+      const vendasData = await ssoticaRequest('/integracoes/vendas/periodo', token, params);
+      let items = vendasData.data || vendasData;
+      
+      if (!Array.isArray(items)) items = [];
+      
+      if (cpfCliente && items.length > 0) {
+        items = items.filter((v: any) => {
+          const vCpf = (v.cliente?.cpf || v.cpf_cliente || '').replace(/\D/g, '');
+          return vCpf === cpfCliente || !vCpf;
+        });
+      }
+      
+      if (items.length > 0) {
+        allResults = items;
+        periodStart = window.inicio;
+        periodEnd = window.fim;
+        console.log(`[ssOtica] Found ${items.length} vendas in window ${window.inicio} to ${window.fim}`);
+        break;
+      }
+    } catch (error) {
+      console.error(`[ssOtica] Error in vendas window:`, error);
+    }
+  }
+  
+  return { data: allResults, windowsSearched, periodStart, periodEnd };
+}
+
+// Search parcelas with lookback
+async function searchParcelasWithLookback(
+  token: string,
+  empresaCnpj: string,
+  cpfCliente: string | null,
+  lookbackDays: number = 365
+): Promise<{ data: any[]; windowsSearched: number; periodStart: string; periodEnd: string }> {
+  const windows = generateDateWindows(lookbackDays);
+  let allResults: any[] = [];
+  let windowsSearched = 0;
+  let periodStart = '';
+  let periodEnd = '';
+  
+  for (const window of windows) {
+    windowsSearched++;
+    
+    const params: SsoticaQueryParams = {
+      cnpj: empresaCnpj,
+      inicio_periodo: window.inicio,
+      fim_periodo: window.fim,
+      page: 1,
+      perPage: 100,
+      ...(cpfCliente && { cpf_cnpj: cpfCliente }),
+    };
+    
+    console.log(`[ssOtica] Searching parcelas window ${windowsSearched}/${windows.length}: ${window.inicio} to ${window.fim}`);
+    
+    try {
+      const contasData = await ssoticaRequest('/integracoes/financeiro/contas-a-receber/periodo', token, params);
+      let items = contasData.data || contasData;
+      
+      if (!Array.isArray(items)) items = [];
+      
+      if (cpfCliente && items.length > 0) {
+        items = items.filter((c: any) => {
+          const cCpf = (c.cliente?.cpf || c.cpf_cliente || '').replace(/\D/g, '');
+          return cCpf === cpfCliente || !cCpf;
+        });
+      }
+      
+      // Filter open accounts
+      const contasAbertas = items.filter((c: any) => 
+        c.status === 'em_aberto' || c.status === 'aberto' || c.situacao === 'pendente' || !c.data_pagamento
+      );
+      
+      if (contasAbertas.length > 0) {
+        allResults = contasAbertas;
+        periodStart = window.inicio;
+        periodEnd = window.fim;
+        console.log(`[ssOtica] Found ${contasAbertas.length} parcelas abertas in window ${window.inicio} to ${window.fim}`);
+        break;
+      }
+    } catch (error) {
+      console.error(`[ssOtica] Error in parcelas window:`, error);
+    }
+  }
+  
+  return { data: allResults, windowsSearched, periodStart, periodEnd };
 }
 
 serve(async (req) => {
@@ -98,64 +352,30 @@ serve(async (req) => {
     }
 
     const empresaCnpj = params?.cnpj || cnpj;
-
-    // Define date range (default: last 30 days - ssOtica API limit)
-    const hoje = new Date();
-    const inicio = new Date();
-    inicio.setDate(hoje.getDate() - 30);
-    
-    const defaultParams: SsoticaQueryParams = {
-      cnpj: empresaCnpj,
-      inicio_periodo: params?.inicio_periodo || inicio.toISOString().split('T')[0],
-      fim_periodo: params?.fim_periodo || hoje.toISOString().split('T')[0],
-      page: params?.page || 1,
-      perPage: params?.perPage || 50,
-    };
+    const lookbackDays = params?.lookback_days || 365;
 
     let result: any;
 
     switch (action) {
       case 'consultar_os_cliente': {
-        // Get CPF from either cpf_cnpj or cpf parameter
         const cpfCliente = params?.cpf_cnpj || params?.cpf;
         const cpfLimpo = cpfCliente ? cpfCliente.replace(/\D/g, '') : null;
         
-        console.log(`[ssOtica] consultar_os_cliente - CPF: ${cpfLimpo}`);
+        console.log(`[ssOtica] consultar_os_cliente - CPF: ${cpfLimpo}, lookback: ${lookbackDays} days`);
         
-        // Include cpf_cnpj in request to let ssOtica API filter server-side
-        const osParams: SsoticaQueryParams = {
-          ...defaultParams,
-          ...(cpfLimpo && { cpf_cnpj: cpfLimpo }),
-        };
+        const searchResult = await searchOSWithLookback(token, empresaCnpj, cpfLimpo, lookbackDays);
         
-        const osData = await ssoticaRequest('/integracoes/ordens-servico/periodo', token, osParams);
-        
-        // Also filter locally as fallback (in case ssOtica API doesn't filter)
-        let filteredOS = osData.data || osData;
-        
-        if (cpfLimpo && Array.isArray(filteredOS)) {
-          filteredOS = filteredOS.filter((os: any) => {
-            const osCpf = (os.cliente?.cpf || os.cpf_cliente || '').replace(/\D/g, '');
-            return osCpf === cpfLimpo;
-          });
-        }
-        
-        if (params?.telefone) {
-          const telLimpo = params.telefone.replace(/\D/g, '');
-          filteredOS = filteredOS.filter((os: any) => {
-            const osTel = (os.cliente?.telefone || os.telefone_cliente || '').replace(/\D/g, '');
-            return osTel.includes(telLimpo) || telLimpo.includes(osTel);
-          });
-        }
+        console.log(`[ssOtica] OS encontradas para CPF ${cpfLimpo}: ${searchResult.data.length} (buscou ${searchResult.windowsSearched} janelas)`);
 
-        console.log(`[ssOtica] OS encontradas para CPF ${cpfLimpo}: ${filteredOS.length}`);
-
-        // Format response for agent
         result = {
           success: true,
-          total: filteredOS.length,
+          total: searchResult.data.length,
           cpf_consultado: cpfLimpo,
-          ordens_servico: filteredOS.map((os: any) => ({
+          periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
+            ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
+            : `últimos ${lookbackDays} dias`,
+          janelas_verificadas: searchResult.windowsSearched,
+          ordens_servico: searchResult.data.map((os: any) => ({
             numero_os: os.numero || os.id,
             status: os.status || os.situacao,
             previsao_entrega: os.previsao_entrega || os.data_previsao,
@@ -174,36 +394,72 @@ serve(async (req) => {
         break;
       }
 
+      case 'consultar_os_por_numero': {
+        const numeroOS = params?.numero_os || params?.numero;
+        
+        if (!numeroOS) {
+          throw new Error('Número da OS é obrigatório');
+        }
+        
+        console.log(`[ssOtica] consultar_os_por_numero - OS: ${numeroOS}, lookback: ${lookbackDays} days`);
+        
+        const searchResult = await searchOSByNumber(token, empresaCnpj, String(numeroOS), lookbackDays);
+        
+        if (searchResult.data) {
+          const os = searchResult.data;
+          result = {
+            success: true,
+            total: 1,
+            numero_os_consultado: numeroOS,
+            periodo_encontrado: searchResult.periodFound,
+            janelas_verificadas: searchResult.windowsSearched,
+            ordem_servico: {
+              numero_os: os.numero || os.id,
+              status: os.status || os.situacao,
+              previsao_entrega: os.previsao_entrega || os.data_previsao,
+              data_entrada: os.data_entrada || os.created_at,
+              cliente: {
+                nome: os.cliente?.nome || os.nome_cliente,
+                cpf: os.cliente?.cpf || os.cpf_cliente,
+                telefone: os.cliente?.telefone || os.telefone_cliente,
+              },
+              receita: os.receita || os.prescricao,
+              itens: os.itens || os.produtos,
+              valor_total: os.valor_total || os.total,
+              observacoes: os.observacoes || os.obs,
+            },
+          };
+        } else {
+          result = {
+            success: true,
+            total: 0,
+            numero_os_consultado: numeroOS,
+            janelas_verificadas: searchResult.windowsSearched,
+            mensagem: `Não encontrei OS com número ${numeroOS} nos últimos ${lookbackDays} dias.`,
+          };
+        }
+        break;
+      }
+
       case 'consultar_vendas_cliente': {
-        // Get CPF from either cpf_cnpj or cpf parameter
         const cpfCliente = params?.cpf_cnpj || params?.cpf;
         const cpfLimpo = cpfCliente ? cpfCliente.replace(/\D/g, '') : null;
         
-        console.log(`[ssOtica] consultar_vendas_cliente - CPF: ${cpfLimpo}`);
+        console.log(`[ssOtica] consultar_vendas_cliente - CPF: ${cpfLimpo}, lookback: ${lookbackDays} days`);
         
-        const vendasParams: SsoticaQueryParams = {
-          ...defaultParams,
-          ...(cpfLimpo && { cpf_cnpj: cpfLimpo }),
-        };
+        const searchResult = await searchVendasWithLookback(token, empresaCnpj, cpfLimpo, lookbackDays);
         
-        const vendasData = await ssoticaRequest('/integracoes/vendas/periodo', token, vendasParams);
-        
-        let filteredVendas = vendasData.data || vendasData;
-        
-        if (cpfLimpo && Array.isArray(filteredVendas)) {
-          filteredVendas = filteredVendas.filter((v: any) => {
-            const vCpf = (v.cliente?.cpf || v.cpf_cliente || '').replace(/\D/g, '');
-            return vCpf === cpfLimpo;
-          });
-        }
-
-        console.log(`[ssOtica] Vendas encontradas para CPF ${cpfLimpo}: ${filteredVendas.length}`);
+        console.log(`[ssOtica] Vendas encontradas para CPF ${cpfLimpo}: ${searchResult.data.length} (buscou ${searchResult.windowsSearched} janelas)`);
 
         result = {
           success: true,
-          total: filteredVendas.length,
+          total: searchResult.data.length,
           cpf_consultado: cpfLimpo,
-          vendas: filteredVendas.map((v: any) => ({
+          periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
+            ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
+            : `últimos ${lookbackDays} dias`,
+          janelas_verificadas: searchResult.windowsSearched,
+          vendas: searchResult.data.map((v: any) => ({
             numero_venda: v.numero || v.id,
             data_venda: v.data_venda || v.created_at,
             cliente: {
@@ -220,40 +476,28 @@ serve(async (req) => {
       }
 
       case 'consultar_parcelas_cliente': {
-        // Get CPF from either cpf_cnpj or cpf parameter
         const cpfCliente = params?.cpf_cnpj || params?.cpf;
         const cpfLimpo = cpfCliente ? cpfCliente.replace(/\D/g, '') : null;
         
-        console.log(`[ssOtica] consultar_parcelas_cliente - CPF: ${cpfLimpo}`);
+        console.log(`[ssOtica] consultar_parcelas_cliente - CPF: ${cpfLimpo}, lookback: ${lookbackDays} days`);
         
-        const contasParams: SsoticaQueryParams = {
-          ...defaultParams,
-          ...(cpfLimpo && { cpf_cnpj: cpfLimpo }),
-        };
+        const searchResult = await searchParcelasWithLookback(token, empresaCnpj, cpfLimpo, lookbackDays);
         
-        const contasData = await ssoticaRequest('/integracoes/financeiro/contas-a-receber/periodo', token, contasParams);
-        
-        let filteredContas = contasData.data || contasData;
-        
-        if (cpfLimpo && Array.isArray(filteredContas)) {
-          filteredContas = filteredContas.filter((c: any) => {
-            const cCpf = (c.cliente?.cpf || c.cpf_cliente || '').replace(/\D/g, '');
-            return cCpf === cpfLimpo;
-          });
-        }
+        console.log(`[ssOtica] Parcelas encontradas para CPF ${cpfLimpo}: ${searchResult.data.length} (buscou ${searchResult.windowsSearched} janelas)`);
 
-        // Filter only open accounts
-        const contasAbertas = filteredContas.filter((c: any) => 
-          c.status === 'em_aberto' || c.status === 'aberto' || c.situacao === 'pendente' || !c.data_pagamento
+        const valorTotalAberto = searchResult.data.reduce((sum: number, c: any) => 
+          sum + (parseFloat(c.valor) || parseFloat(c.valor_parcela) || 0), 0
         );
-
-        console.log(`[ssOtica] Parcelas encontradas para CPF ${cpfLimpo}: ${contasAbertas.length}`);
 
         result = {
           success: true,
-          total: contasAbertas.length,
+          total: searchResult.data.length,
           cpf_consultado: cpfLimpo,
-          parcelas: contasAbertas.map((c: any) => ({
+          periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
+            ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
+            : `últimos ${lookbackDays} dias`,
+          janelas_verificadas: searchResult.windowsSearched,
+          parcelas: searchResult.data.map((c: any) => ({
             numero_parcela: c.numero_parcela || c.parcela,
             documento: c.documento || c.numero_documento,
             valor: c.valor || c.valor_parcela,
@@ -266,9 +510,7 @@ serve(async (req) => {
             boleto_url: c.boleto_url || c.link_boleto,
             pix_copia_cola: c.pix_copia_cola || c.pix,
           })),
-          valor_total_aberto: contasAbertas.reduce((sum: number, c: any) => 
-            sum + (parseFloat(c.valor) || parseFloat(c.valor_parcela) || 0), 0
-          ),
+          valor_total_aberto: valorTotalAberto,
         };
         break;
       }
@@ -287,7 +529,17 @@ serve(async (req) => {
       }
 
       case 'consultar_extrato_financeiro': {
-        const extratoData = await ssoticaRequest('/integracoes/financeiro/extrato/periodo', token, defaultParams);
+        const hoje = new Date();
+        const inicio = new Date();
+        inicio.setDate(hoje.getDate() - 30);
+        
+        const extratoData = await ssoticaRequest('/integracoes/financeiro/extrato/periodo', token, {
+          cnpj: empresaCnpj,
+          inicio_periodo: params?.inicio_periodo || inicio.toISOString().split('T')[0],
+          fim_periodo: params?.fim_periodo || hoje.toISOString().split('T')[0],
+          page: params?.page || 1,
+          perPage: params?.perPage || 50,
+        });
         
         result = {
           success: true,
@@ -300,7 +552,7 @@ serve(async (req) => {
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    console.log(`[ssOtica] Success:`, result);
+    console.log(`[ssOtica] Success:`, JSON.stringify(result).substring(0, 500));
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
