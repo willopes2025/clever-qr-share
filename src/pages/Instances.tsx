@@ -118,7 +118,7 @@ const Instances = () => {
       return;
     }
     
-    if (!canCreate) {
+    if (!canCreateInstance) {
       if (!isSubscribed) {
         toast.error("Você precisa de uma assinatura ativa para criar instâncias");
       } else if (maxInstances !== null) {
@@ -201,7 +201,7 @@ const Instances = () => {
         </Alert>
       )}
       
-      {isSubscribed && maxInstances !== null && !canCreate && (
+      {isSubscribed && maxInstances !== null && !canCreateInstance && (
         <Alert className="mb-6 border-orange-500/50 bg-orange-500/10">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
           <AlertTitle className="text-orange-500">Limite atingido</AlertTitle>
@@ -254,7 +254,7 @@ const Instances = () => {
               <Button 
                 size="lg" 
                 className="bg-gradient-neon hover:opacity-90 transition-opacity"
-                disabled={!canCreate}
+                disabled={!canCreateInstance}
               >
                 <Plus className="h-5 w-5 mr-2" />
                 Nova Instância
@@ -455,7 +455,7 @@ const Instances = () => {
           </p>
           <Button
             onClick={() => {
-              if (canCreate) {
+              if (canCreateInstance) {
                 setDialogOpen(true);
                 return;
               }
@@ -576,10 +576,6 @@ const Instances = () => {
         />
       )}
     </DashboardLayout>
-  );
-};
-
-export default Instances;
   );
 };
 
