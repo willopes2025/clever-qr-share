@@ -13,9 +13,10 @@ interface FinancialDateFilterProps {
   onDateRangeChange: (range: DateRange) => void;
 }
 
-type PresetKey = 'today' | '7days' | '30days' | '90days' | 'thisMonth' | 'lastMonth' | 'custom';
+type PresetKey = 'all' | 'today' | '7days' | '30days' | '90days' | 'thisMonth' | 'lastMonth' | 'custom';
 
 const presets: { key: PresetKey; label: string }[] = [
+  { key: 'all', label: 'Desde o início' },
   { key: 'today', label: 'Hoje' },
   { key: '7days', label: '7 dias' },
   { key: '30days', label: '30 dias' },
@@ -28,6 +29,8 @@ const getPresetRange = (key: PresetKey): DateRange => {
   const today = new Date();
   
   switch (key) {
+    case 'all':
+      return { start: new Date(2015, 0, 1), end: endOfDay(today) };
     case 'today':
       return { start: startOfDay(today), end: endOfDay(today) };
     case '7days':
