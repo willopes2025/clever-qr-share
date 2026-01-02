@@ -33,6 +33,10 @@ export interface Campaign {
   allowed_end_hour: number | null;
   allowed_days: string[] | null;
   timezone: string | null;
+  // Duplicate control settings
+  skip_already_sent: boolean | null;
+  skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | null;
+  skip_days_period: number | null;
   // AI Agent settings
   ai_enabled: boolean | null;
   ai_prompt: string | null;
@@ -181,6 +185,10 @@ export const useCampaignMutations = () => {
       allowed_end_hour?: number;
       allowed_days?: string[];
       timezone?: string;
+      // Duplicate control settings
+      skip_already_sent?: boolean;
+      skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+      skip_days_period?: number;
       // AI settings
       ai_enabled?: boolean;
       ai_prompt?: string;
@@ -221,6 +229,9 @@ export const useCampaignMutations = () => {
           allowed_end_hour: data.allowed_end_hour,
           allowed_days: data.allowed_days,
           timezone: data.timezone,
+          skip_already_sent: data.skip_already_sent,
+          skip_mode: data.skip_mode,
+          skip_days_period: data.skip_days_period,
           ai_enabled: data.ai_enabled,
           ai_prompt: data.ai_prompt,
           ai_knowledge_base: data.ai_knowledge_base,
@@ -261,6 +272,9 @@ export const useCampaignMutations = () => {
       allowed_end_hour?: number;
       allowed_days?: string[];
       timezone?: string;
+      skip_already_sent?: boolean;
+      skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+      skip_days_period?: number;
       ai_enabled?: boolean;
       ai_prompt?: string;
       ai_knowledge_base?: string;

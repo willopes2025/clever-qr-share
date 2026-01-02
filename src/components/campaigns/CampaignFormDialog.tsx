@@ -10,7 +10,7 @@ import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { Campaign } from '@/hooks/useCampaigns';
 import { useAgentConfig, useKnowledgeItems, useAgentVariables, useAgentConfigMutations, useVariableMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, Smile, BookOpen, Variable, CalendarDays } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, Smile, BookOpen, Variable, CalendarDays, UserX } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AgentPersonalityTab } from './agent/AgentPersonalityTab';
@@ -34,6 +34,9 @@ interface CampaignFormDialogProps {
     allowed_end_hour: number;
     allowed_days: string[];
     timezone: string;
+    skip_already_sent: boolean;
+    skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+    skip_days_period: number;
     ai_enabled: boolean;
     ai_prompt: string;
     ai_knowledge_base: string;
@@ -81,6 +84,11 @@ export const CampaignFormDialog = ({
   const [endHour, setEndHour] = useState(20);
   const [allowedDays, setAllowedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri']);
   const [timezone] = useState('America/Sao_Paulo');
+
+  // Duplicate control settings
+  const [skipAlreadySent, setSkipAlreadySent] = useState(true);
+  const [skipMode, setSkipMode] = useState<'same_campaign' | 'same_template' | 'same_list' | 'any_campaign'>('same_template');
+  const [skipDaysPeriod, setSkipDaysPeriod] = useState(30);
 
   // AI Agent settings
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -140,6 +148,9 @@ export const CampaignFormDialog = ({
       setStartHour(campaign.allowed_start_hour ?? 8);
       setEndHour(campaign.allowed_end_hour ?? 20);
       setAllowedDays(campaign.allowed_days ?? ['mon', 'tue', 'wed', 'thu', 'fri']);
+      setSkipAlreadySent(campaign.skip_already_sent ?? true);
+      setSkipMode(campaign.skip_mode ?? 'same_template');
+      setSkipDaysPeriod(campaign.skip_days_period ?? 30);
       setAiEnabled(campaign.ai_enabled ?? false);
       setTempAgentConfigId(null); // Reset temp config for existing campaigns
     } else {
@@ -155,6 +166,9 @@ export const CampaignFormDialog = ({
       setStartHour(8);
       setEndHour(20);
       setAllowedDays(['mon', 'tue', 'wed', 'thu', 'fri']);
+      setSkipAlreadySent(true);
+      setSkipMode('same_template');
+      setSkipDaysPeriod(30);
       setAiEnabled(false);
       setTempAgentConfigId(null); // Reset temp config for new campaigns
     }
@@ -244,6 +258,9 @@ export const CampaignFormDialog = ({
       allowed_end_hour: endHour,
       allowed_days: allowedDays,
       timezone,
+      skip_already_sent: skipAlreadySent,
+      skip_mode: skipMode,
+      skip_days_period: skipDaysPeriod,
       ai_enabled: aiEnabled,
       ai_prompt: fullPrompt,
       ai_knowledge_base: '', // Knowledge is now stored separately
@@ -490,6 +507,61 @@ export const CampaignFormDialog = ({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Duplicate Control Section */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="flex items-center gap-2">
+                      <UserX className="h-4 w-4" />
+                      Evitar Duplicatas
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Não enviar para quem já recebeu mensagens
+                    </p>
+                  </div>
+                  <Switch checked={skipAlreadySent} onCheckedChange={setSkipAlreadySent} />
+                </div>
+
+                {skipAlreadySent && (
+                  <div className="space-y-4 pl-4 border-l-2 border-muted">
+                    <div className="space-y-2">
+                      <Label>Critério de Exclusão</Label>
+                      <Select value={skipMode} onValueChange={(v) => setSkipMode(v as typeof skipMode)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="same_template">Mesmo Template (recomendado)</SelectItem>
+                          <SelectItem value="same_list">Mesma Lista</SelectItem>
+                          <SelectItem value="any_campaign">Qualquer Campanha</SelectItem>
+                          <SelectItem value="same_campaign">Esta Campanha (para retomadas)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {skipMode === 'same_template' && 'Exclui contatos que já receberam este template específico'}
+                        {skipMode === 'same_list' && 'Exclui contatos que já receberam campanhas desta lista'}
+                        {skipMode === 'any_campaign' && 'Exclui contatos que já receberam qualquer campanha'}
+                        {skipMode === 'same_campaign' && 'Exclui apenas contatos já enviados nesta campanha (útil para retomar)'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Período (dias)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={skipDaysPeriod}
+                        onChange={(e) => setSkipDaysPeriod(parseInt(e.target.value) || 30)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Considerar envios dos últimos {skipDaysPeriod} dias
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CollapsibleContent>
           </Collapsible>

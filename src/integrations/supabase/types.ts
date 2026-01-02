@@ -981,6 +981,9 @@ export type Database = {
           scheduled_at: string | null
           sending_mode: string | null
           sent: number
+          skip_already_sent: boolean | null
+          skip_days_period: number | null
+          skip_mode: string | null
           started_at: string | null
           status: string
           template_id: string | null
@@ -1017,6 +1020,9 @@ export type Database = {
           scheduled_at?: string | null
           sending_mode?: string | null
           sent?: number
+          skip_already_sent?: boolean | null
+          skip_days_period?: number | null
+          skip_mode?: string | null
           started_at?: string | null
           status?: string
           template_id?: string | null
@@ -1053,6 +1059,9 @@ export type Database = {
           scheduled_at?: string | null
           sending_mode?: string | null
           sent?: number
+          skip_already_sent?: boolean | null
+          skip_days_period?: number | null
+          skip_mode?: string | null
           started_at?: string | null
           status?: string
           template_id?: string | null
