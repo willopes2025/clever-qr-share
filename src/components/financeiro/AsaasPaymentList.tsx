@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas, AsaasPayment } from "@/hooks/useAsaas";
 import { useOrganization } from "@/hooks/useOrganization";
-import { Plus, Search, Loader2, ExternalLink, Copy, Trash2 } from "lucide-react";
+import { Plus, Loader2, ExternalLink, Copy, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AsaasPaymentForm } from "./AsaasPaymentForm";
+import { AsaasPaymentFilters, PaymentFilters, initialPaymentFilters } from "./AsaasPaymentFilters";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -53,7 +53,7 @@ const billingTypeLabels: Record<string, string> = {
 export const AsaasPaymentList = () => {
   const { payments, isLoadingPayments, deletePayment, getPixQrCode, customers } = useAsaas();
   const { checkPermission } = useOrganization();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<PaymentFilters>(initialPaymentFilters);
   const [showForm, setShowForm] = useState(false);
   const [deletingPayment, setDeletingPayment] = useState<AsaasPayment | null>(null);
   const [loadingQr, setLoadingQr] = useState<string | null>(null);
@@ -73,10 +73,33 @@ export const AsaasPaymentList = () => {
     return customer?.name || customerId;
   };
 
-  const filteredPayments = payments.filter(payment =>
-    payment.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    getCustomerName(payment.customer).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPayments = payments.filter(payment => {
+    // Filtro por busca texto
+    if (filters.searchQuery && 
+        !payment.description?.toLowerCase().includes(filters.searchQuery.toLowerCase()) &&
+        !getCustomerName(payment.customer).toLowerCase().includes(filters.searchQuery.toLowerCase())) {
+      return false;
+    }
+    
+    // Filtro por cliente
+    if (filters.customer && payment.customer !== filters.customer) return false;
+    
+    // Filtro por status
+    if (filters.status !== "all" && payment.status !== filters.status) return false;
+    
+    // Filtro por tipo
+    if (filters.billingType !== "all" && payment.billingType !== filters.billingType) return false;
+    
+    // Filtro por data de vencimento
+    if (filters.dueDateStart && payment.dueDate < filters.dueDateStart) return false;
+    if (filters.dueDateEnd && payment.dueDate > filters.dueDateEnd) return false;
+    
+    // Filtro por valor
+    if (filters.valueMin && payment.value < parseFloat(filters.valueMin)) return false;
+    if (filters.valueMax && payment.value > parseFloat(filters.valueMax)) return false;
+    
+    return true;
+  });
 
   const handleDelete = async () => {
     if (deletingPayment) {
@@ -113,15 +136,11 @@ export const AsaasPaymentList = () => {
       </CardHeader>
       <CardContent>
         <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por descrição ou cliente..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <AsaasPaymentFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            customers={customers}
+          />
         </div>
 
         {isLoadingPayments ? (
