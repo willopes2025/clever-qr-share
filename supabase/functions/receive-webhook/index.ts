@@ -864,13 +864,24 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
-    // Find or create conversation
+    // Find or create conversation - buscar por contact_id independente da instância
     let { data: conversation } = await supabase
       .from('conversations')
-      .select('id, unread_count, first_response_at, created_at, assigned_to')
+      .select('id, unread_count, first_response_at, created_at, assigned_to, instance_id')
       .eq('user_id', userId)
       .eq('contact_id', contact.id)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
       .single();
+
+    // Se a conversa existe mas com instância diferente, atualizar instance_id
+    if (conversation && conversation.instance_id !== instanceId) {
+      console.log(`[CONVERSATION] Updating instance_id from ${conversation.instance_id} to ${instanceId} for conversation ${conversation.id}`);
+      await supabase
+        .from('conversations')
+        .update({ instance_id: instanceId })
+        .eq('id', conversation.id);
+    }
 
     // Generate preview for conversation list
     let preview = content?.substring(0, 100) || '';
