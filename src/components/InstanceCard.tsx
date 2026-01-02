@@ -1,10 +1,13 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings, Download } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings, Download, Smartphone, Calendar, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
 import { WARMING_LEVELS } from "@/hooks/useWhatsAppInstances";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface InstanceCardProps {
   name: string;
@@ -12,11 +15,18 @@ interface InstanceCardProps {
   warmingLevel: number;
   funnelName?: string | null;
   funnelColor?: string | null;
+  phoneNumber?: string | null;
+  profileName?: string | null;
+  profilePictureUrl?: string | null;
+  isBusiness?: boolean;
+  deviceLabel?: string | null;
+  connectedAt?: string | null;
   onQRCode: () => void;
   onDelete: () => void;
   onWarmingChange: (level: number) => void;
   onConfigureFunnel: () => void;
   onSyncHistory: () => void;
+  onEditDevice?: () => void;
 }
 
 export const InstanceCard = ({ 
@@ -25,11 +35,18 @@ export const InstanceCard = ({
   warmingLevel = 1,
   funnelName,
   funnelColor,
+  phoneNumber,
+  profileName,
+  profilePictureUrl,
+  isBusiness,
+  deviceLabel,
+  connectedAt,
   onQRCode, 
   onDelete,
   onWarmingChange,
   onConfigureFunnel,
   onSyncHistory,
+  onEditDevice,
 }: InstanceCardProps) => {
   const statusConfig = {
     connected: { color: "bg-accent", text: "Conectado", icon: Check },
@@ -53,6 +70,18 @@ export const InstanceCard = ({
     }
   };
 
+  const formatPhone = (phone: string | null) => {
+    if (!phone) return null;
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 13) {
+      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 9)}-${cleaned.slice(9)}`;
+    }
+    if (cleaned.length === 12) {
+      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} ${cleaned.slice(4, 8)}-${cleaned.slice(8)}`;
+    }
+    return phone;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -61,47 +90,92 @@ export const InstanceCard = ({
     >
       <Card className="p-6 depth-card hover:shadow-hover transition-all">
         <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h3 className="font-semibold text-lg mb-2 text-foreground">{name}</h3>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className={`h-2 w-2 rounded-full ${config.color} animate-pulse`} />
-              <span className="text-sm text-muted-foreground">{config.text}</span>
-              {funnelName && (
-                <Badge 
-                  variant="outline" 
-                  className="gap-1 text-xs"
-                  style={{ borderColor: funnelColor || '#3B82F6' }}
-                >
-                  <GitBranch className="h-3 w-3" style={{ color: funnelColor || '#3B82F6' }} />
-                  {funnelName}
-                </Badge>
-              )}
+          <div className="flex items-start gap-3 flex-1">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={profilePictureUrl || undefined} />
+              <AvatarFallback className="bg-muted">
+                <Smartphone className="h-5 w-5" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-lg text-foreground truncate">{name}</h3>
+                {isBusiness && (
+                  <Badge variant="outline" className="text-xs shrink-0">Business</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <div className={`h-2 w-2 rounded-full ${config.color} animate-pulse`} />
+                <span className="text-sm text-muted-foreground">{config.text}</span>
+                {funnelName && (
+                  <Badge 
+                    variant="outline" 
+                    className="gap-1 text-xs"
+                    style={{ borderColor: funnelColor || '#3B82F6' }}
+                  >
+                    <GitBranch className="h-3 w-3" style={{ color: funnelColor || '#3B82F6' }} />
+                    {funnelName}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onConfigureFunnel}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Configurar funil de captura</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Phone & Device Info */}
+        <div className="mb-4 p-3 rounded-xl bg-muted/30 space-y-2">
+          {phoneNumber && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Número:</span>
+              <span className="font-mono">{formatPhone(phoneNumber)}</span>
+            </div>
+          )}
+          {profileName && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Perfil:</span>
+              <span>{profileName}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Dispositivo:</span>
+            <div className="flex items-center gap-1">
+              <span>{deviceLabel || '-'}</span>
+              {onEditDevice && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
-                  onClick={onConfigureFunnel}
+                  className="h-5 w-5"
+                  onClick={onEditDevice}
                 >
-                  <Settings className="h-4 w-4" />
+                  <Pencil className="h-3 w-3" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Configurar funil de captura</p>
-              </TooltipContent>
-            </Tooltip>
-            <Badge 
-              variant={status === "connected" ? "default" : "secondary"} 
-              className={`gap-1 ${status === "connected" ? "bg-accent text-white" : ""}`}
-            >
-              <StatusIcon className="h-3 w-3" />
-              {config.text}
-            </Badge>
+              )}
+            </div>
           </div>
+          {connectedAt && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Conectado em:</span>
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-muted-foreground" />
+                <span>{format(new Date(connectedAt), "dd MMM yyyy", { locale: ptBR })}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Warming Level Section */}

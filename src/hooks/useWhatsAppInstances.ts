@@ -15,6 +15,14 @@ export interface WhatsAppInstance {
   warming_level: number;
   default_funnel_id: string | null;
   is_notification_only: boolean | null;
+  // New fields
+  connected_at: string | null;
+  phone_number: string | null;
+  profile_name: string | null;
+  profile_picture_url: string | null;
+  profile_status: string | null;
+  is_business: boolean;
+  device_label: string | null;
 }
 
 export const WARMING_LEVELS = [
@@ -190,6 +198,24 @@ export const useWhatsAppInstances = () => {
     },
   });
 
+  // Atualizar device label
+  const updateDeviceLabel = useMutation({
+    mutationFn: async ({ instanceId, deviceLabel }: { instanceId: string; deviceLabel: string }) => {
+      const { error } = await supabase
+        .from('whatsapp_instances')
+        .update({ device_label: deviceLabel })
+        .eq('id', instanceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+      toast.success('Dispositivo atualizado!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao atualizar dispositivo: ${error.message}`);
+    },
+  });
+
   return {
     instances,
     isLoading,
@@ -201,5 +227,6 @@ export const useWhatsAppInstances = () => {
     updateWarmingLevel,
     configureWebhook,
     updateDefaultFunnel,
+    updateDeviceLabel,
   };
 };

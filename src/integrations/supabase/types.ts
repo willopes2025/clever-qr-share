@@ -4360,12 +4360,19 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          connected_at: string | null
           created_at: string | null
           default_funnel_id: string | null
+          device_label: string | null
           id: string
           instance_name: string
+          is_business: boolean | null
           is_notification_only: boolean | null
           organization_id: string | null
+          phone_number: string | null
+          profile_name: string | null
+          profile_picture_url: string | null
+          profile_status: string | null
           qr_code: string | null
           qr_code_updated_at: string | null
           status: string | null
@@ -4374,12 +4381,19 @@ export type Database = {
           warming_level: number
         }
         Insert: {
+          connected_at?: string | null
           created_at?: string | null
           default_funnel_id?: string | null
+          device_label?: string | null
           id?: string
           instance_name: string
+          is_business?: boolean | null
           is_notification_only?: boolean | null
           organization_id?: string | null
+          phone_number?: string | null
+          profile_name?: string | null
+          profile_picture_url?: string | null
+          profile_status?: string | null
           qr_code?: string | null
           qr_code_updated_at?: string | null
           status?: string | null
@@ -4388,12 +4402,19 @@ export type Database = {
           warming_level?: number
         }
         Update: {
+          connected_at?: string | null
           created_at?: string | null
           default_funnel_id?: string | null
+          device_label?: string | null
           id?: string
           instance_name?: string
+          is_business?: boolean | null
           is_notification_only?: boolean | null
           organization_id?: string | null
+          phone_number?: string | null
+          profile_name?: string | null
+          profile_picture_url?: string | null
+          profile_status?: string | null
           qr_code?: string | null
           qr_code_updated_at?: string | null
           status?: string | null
