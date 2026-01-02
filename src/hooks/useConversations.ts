@@ -65,6 +65,12 @@ export interface InboxMessage {
     full_name: string | null;
     avatar_url?: string | null;
   } | null;
+  // AI fields
+  sent_by_ai_agent_id?: string | null;
+  is_ai_generated?: boolean;
+  ai_agent?: {
+    agent_name: string;
+  } | null;
 }
 
 export const useConversations = () => {
@@ -253,11 +259,18 @@ export const useMessages = (conversationId: string | null) => {
 
       if (error) throw error;
       
-      // Get unique sender IDs
+      // Get unique sender IDs (users)
       const senderIds = [...new Set(
         messagesData
           ?.filter(m => m.sent_by_user_id)
           .map(m => m.sent_by_user_id) || []
+      )] as string[];
+
+      // Get unique AI agent IDs
+      const aiAgentIds = [...new Set(
+        messagesData
+          ?.filter(m => m.sent_by_ai_agent_id)
+          .map(m => m.sent_by_ai_agent_id) || []
       )] as string[];
       
       // Fetch profiles for senders if any
@@ -276,12 +289,30 @@ export const useMessages = (conversationId: string | null) => {
           }, {} as Record<string, { full_name: string | null; avatar_url: string | null }>);
         }
       }
+
+      // Fetch AI agent names if any
+      let aiAgentsMap: Record<string, { agent_name: string }> = {};
+
+      if (aiAgentIds.length > 0) {
+        const { data: agents } = await supabase
+          .from('ai_agent_configs')
+          .select('id, agent_name')
+          .in('id', aiAgentIds);
+
+        if (agents) {
+          aiAgentsMap = agents.reduce((acc, a) => {
+            acc[a.id] = { agent_name: a.agent_name };
+            return acc;
+          }, {} as Record<string, { agent_name: string }>);
+        }
+      }
       
       // Map messages with sender info
       return messagesData?.map(msg => ({
         ...msg,
         direction: msg.direction as 'inbound' | 'outbound',
-        sent_by_user: msg.sent_by_user_id ? profilesMap[msg.sent_by_user_id] || null : null
+        sent_by_user: msg.sent_by_user_id ? profilesMap[msg.sent_by_user_id] || null : null,
+        ai_agent: msg.sent_by_ai_agent_id ? aiAgentsMap[msg.sent_by_ai_agent_id] || null : null
       })) as InboxMessage[];
     },
     enabled: !!conversationId && !!user,
