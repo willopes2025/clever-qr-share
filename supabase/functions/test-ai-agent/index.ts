@@ -820,7 +820,7 @@ O sistema busca automaticamente nos últimos 365 dias (12 meses), em janelas de 
 
 ### FERRAMENTAS DISPONÍVEIS:
 - **consultar_os_cliente(cpf)** - Busca OS pelo CPF do cliente. Use quando souber o CPF (11 dígitos).
-- **consultar_os_por_numero(numero_os)** - Busca OS pelo NÚMERO da OS (ex: 11758). Use quando o cliente informar o número do pedido.
+- **consultar_os_por_numero(numero_os)** - Busca OS pelo NÚMERO da OS (ex: 11758). Caminho MAIS CONFIÁVEL.
 - **consultar_vendas_cliente(cpf)** - Busca vendas pelo CPF.
 - **consultar_parcelas_cliente(cpf)** - Busca parcelas/boletos em aberto pelo CPF.
 
@@ -833,16 +833,22 @@ O sistema busca automaticamente nos últimos 365 dias (12 meses), em janelas de 
 4. Se o cliente informar um número CURTO (4-6 dígitos), trate como NÚMERO DA OS e use consultar_os_por_numero
 5. Se o cliente informar 11 dígitos, trate como CPF e use consultar_os_cliente
 
-**INTERPRETAÇÃO DOS RESULTADOS:**
-6. Se total = 0: diga "Não encontrei registros para esse CPF/OS nos últimos 12 meses. Pode confirmar os dados?"
-7. Se total = 1: apresente os dados encontrados
-8. Se total > 1: liste as OS encontradas e pergunte qual deseja consultar
-9. NUNCA afirme dados sem ter recebido da API - se não veio no retorno, diga que vai verificar
+**INTERPRETAÇÃO DOS RESULTADOS - SEGURANÇA DE DADOS:**
+6. VERIFIQUE O CAMPO \`cpf_validado\` no retorno:
+   - Se \`cpf_validado = true\`: os dados pertencem ao CPF informado. Pode apresentar.
+   - Se \`cpf_validado = false\`: NÃO CONSEGUIMOS CONFIRMAR que os dados são do cliente!
+     → Diga: "Não consegui validar sua consulta pelo CPF. Para sua segurança, preciso do número da OS ou você pode aguardar atendimento humano."
+     → NUNCA liste nomes ou dados de OS quando cpf_validado=false
+7. Se total = 0: diga "Não encontrei registros para esse CPF/OS nos últimos 12 meses. Pode confirmar os dados?"
+8. Se total = 1 E cpf_validado = true: apresente os dados encontrados
+9. Se total > 1 E cpf_validado = true: liste as OS encontradas e pergunte qual deseja consultar
+10. NUNCA afirme dados sem ter recebido da API - se não veio no retorno, diga que vai verificar
+11. NUNCA liste nomes de pessoas diferentes em uma resposta - isso indica dados de terceiros!
 
 **FORMATAÇÃO:**
-10. Valores em Reais (R$): R$ 1.234,56
-11. Datas no formato brasileiro: DD/MM/AAAA
-12. CPF pode ser informado com ou sem pontuação - aceite ambos`;
+12. Valores em Reais (R$): R$ 1.234,56
+13. Datas no formato brasileiro: DD/MM/AAAA
+14. CPF pode ser informado com ou sem pontuação - aceite ambos`;
     }
 
     // Detect conversation state for anti-repetition - INCLUDE CURRENT MESSAGE
