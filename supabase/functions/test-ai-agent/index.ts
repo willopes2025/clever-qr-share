@@ -145,6 +145,9 @@ const getCalendlyTools = () => [
 interface ConversationState {
   horarioJaEscolhido: boolean;
   horarioAmbiguo: boolean; // User gave generic response ("pode ser") when multiple times were offered
+  horarioPossivelFracionado: boolean; // User gave partial time (e.g., "03", "23")
+  horarioSugerido: string | null; // The time we think they meant
+  horarioInexistente: boolean; // User asked for a time not offered
   oticaIndicadaJaPerguntou: boolean;
   nomeJaColetou: boolean;
   emailJaColetou: boolean;
@@ -154,10 +157,94 @@ interface ConversationState {
   horariosOferecidos: string | null; // The times that were offered by agent
 }
 
+// Match partial/fractional time input against offered times
+const matchPartialTime = (userInput: string, horariosOferecidos: string | null): {
+  match: 'exact' | 'partial' | 'inexistent' | 'none';
+  suggestedTime: string | null;
+} => {
+  if (!horariosOferecidos) return { match: 'none', suggestedTime: null };
+  
+  const input = userInput.toLowerCase().trim();
+  
+  // Extract offered times (e.g., "09:00 ou 09:23" -> ["09:00", "09:23"])
+  const timesMatch = horariosOferecidos.match(/(\d{1,2}[h:]\d{0,2})/g);
+  if (!timesMatch || timesMatch.length < 1) return { match: 'none', suggestedTime: null };
+  
+  // Normalize input: remove "às", "h", ":" etc
+  const numericInput = input.replace(/[^0-9]/g, '');
+  
+  // Check for explicit time format like "às 09", "9h", "09:00"
+  const explicitTimeMatch = input.match(/(?:[àa]s\s+)?(\d{1,2})(?:[h:](\d{0,2}))?/i);
+  if (explicitTimeMatch) {
+    const requestedHour = explicitTimeMatch[1].padStart(2, '0');
+    const requestedMinutes = explicitTimeMatch[2] || '';
+    
+    // Check if exact match exists in offered times
+    for (const time of timesMatch) {
+      const timeHour = time.match(/(\d{1,2})/)?.[1]?.padStart(2, '0');
+      const timeMinutes = time.match(/[h:](\d{2})/)?.[1] || '00';
+      
+      // Full match (hour + minutes)
+      if (requestedMinutes && timeHour === requestedHour && timeMinutes === requestedMinutes) {
+        return { match: 'exact', suggestedTime: time };
+      }
+      // Hour only match (e.g., "às 09" matches "09:00")
+      if (!requestedMinutes && timeHour === requestedHour) {
+        return { match: 'exact', suggestedTime: time };
+      }
+    }
+    
+    // If has explicit time format but no match - inexistent
+    if (input.match(/(?:[àa]s\s+)?\d{1,2}[h:]/i) || input.match(/[àa]s\s+\d{1,2}/i)) {
+      return { match: 'inexistent', suggestedTime: null };
+    }
+  }
+  
+  // Check for isolated number (e.g., "03", "23", "9")
+  if (/^\d{1,2}$/.test(numericInput) && numericInput.length <= 2) {
+    // First check: ordinal selection ("1" = first, "2" = second)
+    if (numericInput === '1' && timesMatch.length >= 1) {
+      return { match: 'partial', suggestedTime: timesMatch[0] };
+    }
+    if (numericInput === '2' && timesMatch.length >= 2) {
+      return { match: 'partial', suggestedTime: timesMatch[1] };
+    }
+    
+    // Second check: partial match against minutes or hours
+    for (const time of timesMatch) {
+      const timeNormalized = time.replace(/[^0-9]/g, '');
+      const inputPadded = numericInput.padStart(2, '0');
+      
+      // "03" matches "0923" (minutes end with 23? no, but 03 could be confused)
+      // "23" matches "0923" (minutes are 23)
+      // "9" or "09" matches "0900" or "0923" (hour is 09)
+      if (timeNormalized.endsWith(inputPadded) || timeNormalized.startsWith(inputPadded)) {
+        return { match: 'partial', suggestedTime: time };
+      }
+    }
+    
+    // Number doesn't match any offered time
+    return { match: 'inexistent', suggestedTime: null };
+  }
+  
+  // Check for ordinal words
+  if (/^(primeiro|primeira|um|1|one)$/i.test(input) && timesMatch.length >= 1) {
+    return { match: 'exact', suggestedTime: timesMatch[0] };
+  }
+  if (/^(segundo|segunda|dois|2|two)$/i.test(input) && timesMatch.length >= 2) {
+    return { match: 'exact', suggestedTime: timesMatch[1] };
+  }
+  
+  return { match: 'none', suggestedTime: null };
+};
+
 const detectConversationState = (conversationHistory: Array<{ role: string; content: string }>, currentUserMessage?: string): ConversationState => {
   const state: ConversationState = {
     horarioJaEscolhido: false,
     horarioAmbiguo: false,
+    horarioPossivelFracionado: false,
+    horarioSugerido: null,
+    horarioInexistente: false,
     oticaIndicadaJaPerguntou: false,
     nomeJaColetou: false,
     emailJaColetou: false,
@@ -285,10 +372,33 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
       }
     }
     
-    // Only mark as selected if it's a SPECIFIC choice
-    if (lastAgentOfferedTimes && !state.horarioJaEscolhido && !state.horarioAmbiguo) {
+    // NEW: Check for partial/fractional time or inexistent time
+    if (lastAgentOfferedTimes && state.horariosOferecidos && !state.horarioJaEscolhido && !state.horarioAmbiguo) {
+      const partialMatch = matchPartialTime(currentUserMessage, state.horariosOferecidos);
+      
+      if (partialMatch.match === 'partial' && partialMatch.suggestedTime) {
+        // User gave fractional/partial time - need confirmation
+        state.horarioPossivelFracionado = true;
+        state.horarioSugerido = partialMatch.suggestedTime;
+        state.horarioJaEscolhido = false; // NOT confirmed yet!
+        console.log(`[DETECT-STATE] PARTIAL time response: "${currentUserMessage}" -> suggesting "${partialMatch.suggestedTime}"`);
+      } else if (partialMatch.match === 'inexistent') {
+        // User asked for a time not in the offered list
+        state.horarioInexistente = true;
+        state.horarioJaEscolhido = false;
+        console.log(`[DETECT-STATE] INEXISTENT time response: "${currentUserMessage}" - not in offered times`);
+      } else if (partialMatch.match === 'exact' && partialMatch.suggestedTime) {
+        // Exact match from ordinal words like "primeiro", "segundo"
+        state.horarioJaEscolhido = true;
+        state.horarioEscolhido = partialMatch.suggestedTime;
+        console.log(`[DETECT-STATE] EXACT match via ordinal: "${currentUserMessage}" => ${partialMatch.suggestedTime}`);
+      }
+    }
+    
+    // Only mark as selected if it's a SPECIFIC choice (fallback)
+    if (lastAgentOfferedTimes && !state.horarioJaEscolhido && !state.horarioAmbiguo && !state.horarioPossivelFracionado && !state.horarioInexistente) {
       // Specific ordinal selection or "esse horário" when only one time was offered
-      const specificChoice = /^(?:esse|essa|primeiro|segundo|o\s*primeiro|o\s*segundo)$/i.test(lowerMessage);
+      const specificChoice = /^(?:esse|essa|o\s*primeiro|o\s*segundo)$/i.test(lowerMessage);
       if (specificChoice) {
         state.horarioJaEscolhido = true;
         state.horarioEscolhido = 'opção específica selecionada';
@@ -297,7 +407,7 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
     }
   }
 
-  console.log(`[DETECT-STATE] Final state: horarioJaEscolhido=${state.horarioJaEscolhido}, horarioAmbiguo=${state.horarioAmbiguo}, horarioEscolhido=${state.horarioEscolhido}`);
+  console.log(`[DETECT-STATE] Final state: horarioJaEscolhido=${state.horarioJaEscolhido}, horarioAmbiguo=${state.horarioAmbiguo}, horarioPossivelFracionado=${state.horarioPossivelFracionado}, horarioInexistente=${state.horarioInexistente}, horarioEscolhido=${state.horarioEscolhido}`);
 
   return state;
 };
@@ -310,13 +420,29 @@ const buildContinuityContext = (state: ConversationState): string => {
     rules.push('🚫 NÃO cumprimente novamente (Olá, Bom dia, etc) - a conversa já começou');
   }
   
-  // CRITICAL: Handle ambiguous time response BEFORE horarioJaEscolhido
-  if (state.horarioAmbiguo && state.horariosOferecidos) {
+  // CRITICAL: Handle partial/fractional time response FIRST
+  if (state.horarioPossivelFracionado && state.horarioSugerido) {
+    rules.push(`⚠️ ATENÇÃO: O cliente respondeu com um número parcial/fracionado.
+Você DEVE perguntar para confirmar: "Você quis dizer às ${state.horarioSugerido}?"
+Aguarde a confirmação do cliente antes de avançar para próxima etapa.
+NÃO mude de assunto. NÃO pergunte sobre ótica indicada ainda.`);
+  }
+  // Handle inexistent time
+  else if (state.horarioInexistente && state.horariosOferecidos) {
+    rules.push(`⚠️ ATENÇÃO: O cliente pediu um horário que NÃO está disponível.
+Você DEVE responder: "Desculpa, não entendi. Os horários disponíveis são ${state.horariosOferecidos}. Qual te atende melhor?"
+NÃO invente outros horários. Use APENAS os horários oferecidos.
+NÃO mude de assunto. NÃO pergunte sobre ótica indicada ainda.`);
+  }
+  // Handle ambiguous time response
+  else if (state.horarioAmbiguo && state.horariosOferecidos) {
     rules.push(`⚠️ ATENÇÃO: O cliente respondeu genericamente ("pode ser", "ok") mas NÃO escolheu um horário ESPECÍFICO.
 Você ofereceu ${state.horariosOferecidos}.
 ANTES de perguntar sobre ótica indicada, você DEVE confirmar: "Qual horário te atende melhor? O das ${state.horariosOferecidos}?"
 Só avance quando o cliente disser um horário específico (ex: "às 09", "o primeiro", "09h").`);
-  } else if (state.horarioJaEscolhido) {
+  } 
+  // Time already selected - move forward
+  else if (state.horarioJaEscolhido) {
     rules.push(`✅ O CLIENTE JÁ ESCOLHEU UM HORÁRIO (${state.horarioEscolhido || 'confirmado'}). NÃO pergunte "qual horário te atende?" novamente. Próximo passo: coletar dados para confirmar.`);
   }
   
