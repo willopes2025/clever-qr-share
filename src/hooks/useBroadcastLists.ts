@@ -144,28 +144,71 @@ export const useBroadcastLists = () => {
   });
 
   // Fetch contacts for a specific list
-  const useListContacts = (listId: string) => {
+  const useListContacts = (listId: string, listType?: "manual" | "dynamic", filterCriteria?: FilterCriteria) => {
     return useQuery({
-      queryKey: ["broadcast-list-contacts", listId],
+      queryKey: ["broadcast-list-contacts", listId, listType],
       queryFn: async () => {
-        const { data, error } = await supabase
-          .from("broadcast_list_contacts")
-          .select(`
-            id,
-            contact_id,
-            added_at,
-            contacts (
-              id,
-              name,
-              phone,
-              email,
-              status
-            )
-          `)
-          .eq("list_id", listId);
+        if (listType === "dynamic") {
+          // Para listas dinâmicas, buscar contatos baseado nos filtros
+          let contactIds: string[] = [];
+          
+          // Se há tags, primeiro buscar contact_ids pelas tags
+          if (filterCriteria?.tags && filterCriteria.tags.length > 0) {
+            const { data: taggedContacts } = await supabase
+              .from("contact_tags")
+              .select("contact_id")
+              .in("tag_id", filterCriteria.tags);
+            
+            if (!taggedContacts || taggedContacts.length === 0) {
+              return [];
+            }
+            contactIds = [...new Set(taggedContacts.map(tc => tc.contact_id))];
+          }
 
-        if (error) throw error;
-        return data;
+          // Buscar contatos aplicando filtros
+          let query = supabase.from("contacts").select("id, name, phone, email, status");
+          
+          if (contactIds.length > 0) {
+            query = query.in("id", contactIds);
+          }
+          if (filterCriteria?.status) {
+            query = query.eq("status", filterCriteria.status);
+          }
+          if (filterCriteria?.optedOut !== undefined) {
+            query = query.eq("opted_out", filterCriteria.optedOut);
+          }
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          // Mapear para formato compatível
+          return (data || []).map((contact) => ({
+            id: contact.id,
+            contact_id: contact.id,
+            added_at: new Date().toISOString(),
+            contacts: contact,
+          }));
+        } else {
+          // Para listas manuais, buscar da tabela de relacionamento
+          const { data, error } = await supabase
+            .from("broadcast_list_contacts")
+            .select(`
+              id,
+              contact_id,
+              added_at,
+              contacts (
+                id,
+                name,
+                phone,
+                email,
+                status
+              )
+            `)
+            .eq("list_id", listId);
+
+          if (error) throw error;
+          return data;
+        }
       },
       enabled: !!listId,
     });

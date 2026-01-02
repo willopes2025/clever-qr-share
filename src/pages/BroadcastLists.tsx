@@ -41,7 +41,11 @@ const BroadcastLists = () => {
   const [deleteConfirmList, setDeleteConfirmList] = useState<BroadcastListWithContacts | null>(null);
 
   // Queries for viewing list
-  const { data: listContacts = [], isLoading: contactsLoading } = useListContacts(viewingList?.id || "");
+  const { data: listContacts = [], isLoading: contactsLoading } = useListContacts(
+    viewingList?.id || "",
+    viewingList?.type,
+    viewingList?.filter_criteria
+  );
   const { data: sendHistory = [], isLoading: historyLoading } = useListSendHistory(historyList?.id || "");
 
   // Filter lists
