@@ -190,30 +190,30 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
     }
   }
 
-  // Enhanced time detection function
-  const detectTimeSelection = (content: string): { detected: boolean; time: string | null } => {
-    const lowerContent = content.toLowerCase();
+  // Enhanced time detection function - ONLY detects explicit time selections
+  // This should NOT detect generic phrases like "quero agendar" or "tenho interesse"
+  const detectTimeSelection = (content: string, hasTimeContext: boolean = false): { detected: boolean; time: string | null } => {
+    const lowerContent = content.toLowerCase().trim();
     
-    // Pattern 1: "às 09", "as 9", "às 10h", "as 14:30"
-    const asTimeMatch = lowerContent.match(/[àa]s?\s*(\d{1,2})(?:[h:]?\d{0,2})?/i);
+    // Pattern 1: Explicit time with "às" - "às 09", "às 9h", "às 14:30"
+    const asTimeMatch = lowerContent.match(/[àa]s\s+(\d{1,2})(?:[h:]\d{0,2})?/i);
     if (asTimeMatch) {
       return { detected: true, time: asTimeMatch[0] };
     }
     
-    // Pattern 2: "9h", "09:30", "14h30"
+    // Pattern 2: Direct time format - "9h", "09:30", "14h30" (must have h or :)
     const directTimeMatch = lowerContent.match(/\b(\d{1,2})[h:]\d{0,2}/i);
     if (directTimeMatch) {
       return { detected: true, time: directTimeMatch[0] };
     }
     
-    // Pattern 3: Selection words like "primeiro", "segundo", "esse", "essa opção"
-    if (/(?:quero|escolho|prefiro|pode ser|esse|essa|primeiro|segundo|op[çc][aã]o\s*\d)/i.test(lowerContent)) {
-      return { detected: true, time: 'opção selecionada' };
-    }
-    
-    // Pattern 4: Confirmation with context (when last agent message offered times)
-    if (/^(?:sim|ok|pode|fechou|beleza|perfeito|combinado|confirma)/i.test(lowerContent.trim())) {
-      return { detected: true, time: 'confirmado' };
+    // Pattern 3: Selection words ONLY when context suggests time was offered
+    // Must be specific selection words, not generic "quero"
+    if (hasTimeContext) {
+      // Only match ordinal selections or explicit choice phrases
+      if (/(?:primeiro|segundo|terceiro|essa?\s+(?:op[çc][aã]o|hor[aá]rio)|op[çc][aã]o\s*(?:1|2|um|dois))/i.test(lowerContent)) {
+        return { detected: true, time: 'opção selecionada' };
+      }
     }
     
     return { detected: false, time: null };
@@ -228,18 +228,28 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
   const lastAgentOfferedTimes = state.ultimaPerguntaAgente && 
     /(?:hor[aá]rio|disponibilidade|slot|atende\?|às\s*\d|te atende)/i.test(state.ultimaPerguntaAgente);
 
-  // Check if user selected a time slot in history
-  for (let i = 0; i < userMessages.length; i++) {
-    const detection = detectTimeSelection(userMessages[i].content);
-    if (detection.detected) {
-      state.horarioJaEscolhido = true;
-      state.horarioEscolhido = detection.time;
+  // Check conversation history for time offers and selections
+  // We need to track which assistant message offered times, and if the next user message selected
+  for (let i = 0; i < conversationHistory.length; i++) {
+    const msg = conversationHistory[i];
+    if (msg.role === 'user') {
+      // Check if previous message (if assistant) offered times
+      const prevMsg = i > 0 ? conversationHistory[i - 1] : null;
+      const prevOfferedTimes = prevMsg?.role === 'assistant' && 
+        /(?:hor[aá]rio|disponibilidade|slot|atende\?|às\s*\d|te atende)/i.test(prevMsg.content);
+      
+      const detection = detectTimeSelection(msg.content, prevOfferedTimes);
+      if (detection.detected) {
+        state.horarioJaEscolhido = true;
+        state.horarioEscolhido = detection.time;
+      }
     }
   }
 
   // CRITICAL: Also check current user message (the one being sent now)
   if (currentUserMessage) {
-    const currentDetection = detectTimeSelection(currentUserMessage);
+    // Only pass context if agent just offered times
+    const currentDetection = detectTimeSelection(currentUserMessage, !!lastAgentOfferedTimes);
     if (currentDetection.detected) {
       state.horarioJaEscolhido = true;
       state.horarioEscolhido = currentDetection.time;
@@ -247,8 +257,9 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
     }
     
     // Extra guardrail: if agent just offered times and user gave short affirmative
+    // Be more restrictive - only for confirmations that clearly mean "yes to the time"
     if (lastAgentOfferedTimes && !state.horarioJaEscolhido) {
-      const shortAffirmative = /^(?:sim|ok|pode|beleza|esse|primeiro|segundo|quero|fechou|combinado|vou|vamos|bora)/i.test(currentUserMessage.trim());
+      const shortAffirmative = /^(?:sim|ok|pode|fechou|beleza|perfeito|combinado|esse|essa|primeiro|segundo)$/i.test(currentUserMessage.trim());
       if (shortAffirmative) {
         state.horarioJaEscolhido = true;
         state.horarioEscolhido = 'confirmado pelo contexto';
