@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
+import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
 
 export interface Contact {
   id: string;
@@ -172,11 +173,13 @@ export const useContacts = () => {
       tagIds = [],
       newFields = [],
       deduplication,
+      phoneNormalization,
     }: {
       contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[];
       tagIds?: string[];
       newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean }[];
       deduplication?: { enabled: boolean; field: string; action: 'skip' | 'update' };
+      phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
@@ -203,15 +206,26 @@ export const useContacts = () => {
         }
       }
 
-      const normalizedContacts = contacts.map((c) => ({
-        phone: c.phone.replace(/\D/g, ""),
-        name: c.name || null,
-        email: c.email || null,
-        notes: c.notes || null,
-        contact_display_id: c.contact_display_id || null,
-        custom_fields: (c.custom_fields || {}) as Json,
-        user_id: userData.user!.id,
-      }));
+      const normalizedContacts = contacts.map((c) => {
+        let phone = c.phone.replace(/\D/g, "");
+        
+        // Apply phone normalization if configured
+        if (phoneNormalization?.mode === 'add_ddi') {
+          phone = normalizePhoneWithCountryCode(phone, phoneNormalization.countryCode);
+        } else if (phoneNormalization?.mode === 'remove_ddi') {
+          phone = normalizePhoneWithoutCountryCode(phone, phoneNormalization.countryCode);
+        }
+        
+        return {
+          phone,
+          name: c.name || null,
+          email: c.email || null,
+          notes: c.notes || null,
+          contact_display_id: c.contact_display_id || null,
+          custom_fields: (c.custom_fields || {}) as Json,
+          user_id: userData.user!.id,
+        };
+      });
 
       // Deduplicate within the import file (keep last occurrence)
       const uniqueContacts = Array.from(
