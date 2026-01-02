@@ -42,6 +42,65 @@ export interface AsaasPayment {
     qrCodeImage?: string;
     payload?: string;
   };
+  clientPaymentDate?: string;
+  paymentDate?: string;
+  originalValue?: number;
+  interestValue?: number;
+}
+
+// Tipo para criação de cobrança com campos completos
+export interface AsaasPaymentCreateData {
+  customer: string;
+  billingType: 'BOLETO' | 'CREDIT_CARD' | 'PIX' | 'UNDEFINED';
+  value: number;
+  dueDate: string;
+  description?: string;
+  externalReference?: string;
+  canBePaidAfterDueDate?: boolean;
+  
+  // Parcelamento
+  installmentCount?: number;
+  installmentValue?: number;
+  
+  // Desconto
+  discount?: {
+    value: number;
+    type: 'FIXED' | 'PERCENTAGE';
+    dueDateLimitDays: number;
+  };
+  
+  // Multa
+  fine?: {
+    value: number;
+    type: 'FIXED' | 'PERCENTAGE';
+  };
+  
+  // Juros
+  interest?: {
+    value: number;
+  };
+  
+  // Boleto específico
+  postalService?: boolean;
+  daysAfterDueDateToRegistrationCancellation?: number;
+  
+  // Cartão de crédito
+  creditCard?: {
+    holderName: string;
+    number: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
+  };
+  creditCardHolderInfo?: {
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    postalCode: string;
+    addressNumber: string;
+    phone: string;
+  };
+  authorizeOnly?: boolean;
 }
 
 export interface AsaasSubscription {
@@ -185,7 +244,7 @@ export const useAsaas = () => {
   });
 
   const createPayment = useMutation({
-    mutationFn: (payment: Partial<AsaasPayment> & { customer: string; billingType: string; dueDate: string; value: number }) => 
+    mutationFn: (payment: AsaasPaymentCreateData) => 
       callAsaasApi('create-payment', { payment }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asaas', 'payments'] });
@@ -195,6 +254,16 @@ export const useAsaas = () => {
       toast.error('Erro ao criar cobrança: ' + error.message);
     }
   });
+
+  // Função para buscar cobranças de um cliente
+  const getCustomerPayments = async (customerId: string) => {
+    return callAsaasApi('list-payments', { customer: customerId, limit: 100 });
+  };
+
+  // Função para buscar assinaturas de um cliente
+  const getCustomerSubscriptions = async (customerId: string) => {
+    return callAsaasApi('list-subscriptions', { customer: customerId, limit: 100 });
+  };
 
   const deletePayment = useMutation({
     mutationFn: (id: string) => callAsaasApi('delete-payment', { id }),
@@ -296,6 +365,8 @@ export const useAsaas = () => {
     createCustomer,
     updateCustomer,
     deleteCustomer,
+    getCustomerPayments,
+    getCustomerSubscriptions,
     // Payments
     payments: (paymentsData?.data || []) as AsaasPayment[],
     isLoadingPayments,

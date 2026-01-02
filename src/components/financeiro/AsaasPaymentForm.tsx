@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useAsaas } from "@/hooks/useAsaas";
+import { useAsaas, AsaasPaymentCreateData } from "@/hooks/useAsaas";
 import { Loader2, ChevronDown, ChevronUp, CreditCard, Percent, Clock, Info } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -135,15 +135,15 @@ export const AsaasPaymentForm = ({ onClose }: AsaasPaymentFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const paymentData = {
+    const paymentData: AsaasPaymentCreateData = {
       customer: formData.customer,
-      billingType: formData.billingType as "PIX" | "BOLETO" | "CREDIT_CARD",
+      billingType: formData.billingType,
       value: parseFloat(formData.value),
       dueDate: formData.dueDate,
       description: formData.description || undefined,
       externalReference: formData.externalReference || undefined,
       canBePaidAfterDueDate: formData.canBePaidAfterDueDate,
-    } as Parameters<typeof createPayment.mutateAsync>[0];
+    };
 
     // Parcelamento
     if (showInstallments && formData.installmentCount > 1) {
