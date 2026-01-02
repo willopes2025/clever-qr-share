@@ -171,10 +171,12 @@ export const useContacts = () => {
       contacts,
       tagIds = [],
       newFields = [],
+      deduplication,
     }: {
-      contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, unknown> }[];
+      contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[];
       tagIds?: string[];
       newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean }[];
+      deduplication?: { enabled: boolean; field: string; action: 'skip' | 'update' };
     }) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
@@ -206,11 +208,12 @@ export const useContacts = () => {
         name: c.name || null,
         email: c.email || null,
         notes: c.notes || null,
+        contact_display_id: c.contact_display_id || null,
         custom_fields: (c.custom_fields || {}) as Json,
         user_id: userData.user!.id,
       }));
 
-      // Deduplicate by phone number (keep last occurrence)
+      // Deduplicate within the import file (keep last occurrence)
       const uniqueContacts = Array.from(
         normalizedContacts.reduce((map, contact) => {
           map.set(contact.phone, contact);
@@ -218,20 +221,157 @@ export const useContacts = () => {
         }, new Map<string, typeof normalizedContacts[0]>()).values()
       );
 
-      const { data, error } = await supabase
-        .from("contacts")
-        .upsert(uniqueContacts, {
-          onConflict: "user_id,phone",
-          ignoreDuplicates: false,
-        })
-        .select();
+      let contactsToInsert = uniqueContacts;
+      let contactsToUpdate: typeof uniqueContacts = [];
+      let skippedCount = 0;
 
-      if (error) throw error;
+      // If deduplication is enabled, check for existing contacts
+      if (deduplication?.enabled) {
+        // Fetch all existing contacts for this user
+        const { data: existingContacts, error: fetchError } = await supabase
+          .from("contacts")
+          .select("id, phone, email, contact_display_id, custom_fields")
+          .eq("user_id", userData.user.id);
 
-      // Apply tags to imported contacts if any were selected
-      if (tagIds.length > 0 && data && data.length > 0) {
-        const contactIds = data.map((c) => c.id);
-        const tagInserts = contactIds.flatMap((contactId) =>
+        if (fetchError) {
+          console.error("Error fetching existing contacts:", fetchError);
+          throw fetchError;
+        }
+
+        // Create a map of existing contacts by the deduplication field
+        const existingMap = new Map<string, { id: string }>();
+        
+        existingContacts?.forEach((contact) => {
+          let key: string | null = null;
+          
+          switch (deduplication.field) {
+            case 'phone':
+              key = contact.phone;
+              break;
+            case 'email':
+              key = contact.email?.toLowerCase() || null;
+              break;
+            case 'contact_display_id':
+              key = contact.contact_display_id || null;
+              break;
+            default:
+              if (deduplication.field.startsWith('custom:')) {
+                const customKey = deduplication.field.replace('custom:', '');
+                const customFields = contact.custom_fields as Record<string, unknown> | null;
+                key = customFields?.[customKey]?.toString() || null;
+              }
+          }
+          
+          if (key) {
+            existingMap.set(key, { id: contact.id });
+          }
+        });
+
+        // Process contacts based on deduplication action
+        if (deduplication.action === 'skip') {
+          contactsToInsert = uniqueContacts.filter((contact) => {
+            let key: string | null = null;
+            
+            switch (deduplication.field) {
+              case 'phone':
+                key = contact.phone;
+                break;
+              case 'email':
+                key = contact.email?.toLowerCase() || null;
+                break;
+              case 'contact_display_id':
+                key = contact.contact_display_id || null;
+                break;
+              default:
+                if (deduplication.field.startsWith('custom:')) {
+                  const customKey = deduplication.field.replace('custom:', '');
+                  const customFields = contact.custom_fields as Record<string, unknown> | null;
+                  key = customFields?.[customKey]?.toString() || null;
+                }
+            }
+            
+            if (key && existingMap.has(key)) {
+              skippedCount++;
+              return false;
+            }
+            return true;
+          });
+        } else {
+          // action === 'update'
+          contactsToInsert = [];
+          
+          uniqueContacts.forEach((contact) => {
+            let key: string | null = null;
+            
+            switch (deduplication.field) {
+              case 'phone':
+                key = contact.phone;
+                break;
+              case 'email':
+                key = contact.email?.toLowerCase() || null;
+                break;
+              case 'contact_display_id':
+                key = contact.contact_display_id || null;
+                break;
+              default:
+                if (deduplication.field.startsWith('custom:')) {
+                  const customKey = deduplication.field.replace('custom:', '');
+                  const customFields = contact.custom_fields as Record<string, unknown> | null;
+                  key = customFields?.[customKey]?.toString() || null;
+                }
+            }
+            
+            if (key && existingMap.has(key)) {
+              contactsToUpdate.push({ ...contact, id: existingMap.get(key)!.id } as typeof contact & { id: string });
+            } else {
+              contactsToInsert.push(contact);
+            }
+          });
+        }
+      }
+
+      let insertedData: { id: string }[] = [];
+      let updatedData: { id: string }[] = [];
+
+      // Insert new contacts
+      if (contactsToInsert.length > 0) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .upsert(contactsToInsert, {
+            onConflict: "user_id,phone",
+            ignoreDuplicates: false,
+          })
+          .select("id");
+
+        if (error) throw error;
+        insertedData = data || [];
+      }
+
+      // Update existing contacts
+      if (contactsToUpdate.length > 0) {
+        for (const contact of contactsToUpdate) {
+          const { id, ...updateData } = contact as typeof contact & { id: string };
+          const { data, error } = await supabase
+            .from("contacts")
+            .update(updateData)
+            .eq("id", id)
+            .select("id");
+
+          if (error) {
+            console.error("Error updating contact:", error);
+            continue;
+          }
+          if (data) {
+            updatedData.push(...data);
+          }
+        }
+      }
+
+      const allContactIds = [...insertedData.map(c => c.id), ...updatedData.map(c => c.id)];
+
+      // Apply tags to imported/updated contacts if any were selected
+      if (tagIds.length > 0 && allContactIds.length > 0) {
+        const tagInserts = allContactIds.flatMap((contactId) =>
           tagIds.map((tagId) => ({ contact_id: contactId, tag_id: tagId }))
         );
 
@@ -240,12 +380,23 @@ export const useContacts = () => {
           .upsert(tagInserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
       }
 
-      return data;
+      return {
+        total: contacts.length,
+        new: insertedData.length,
+        updated: updatedData.length,
+        skipped: skippedCount,
+      };
     },
-    onSuccess: (data) => {
+    onSuccess: (stats) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["custom-field-definitions"] });
-      toast.success(`${data.length} contatos importados!`);
+      
+      const messages: string[] = [];
+      if (stats.new > 0) messages.push(`${stats.new} novo(s)`);
+      if (stats.updated > 0) messages.push(`${stats.updated} atualizado(s)`);
+      if (stats.skipped > 0) messages.push(`${stats.skipped} ignorado(s)`);
+      
+      toast.success(`Importação concluída: ${messages.join(', ')}`);
     },
     onError: (error: Error) => {
       toast.error("Erro ao importar contatos", {
