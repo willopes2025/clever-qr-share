@@ -98,10 +98,10 @@ serve(async (req) => {
 
     const empresaCnpj = params?.cnpj || cnpj;
 
-    // Define date range (default: last 90 days)
+    // Define date range (default: last 30 days - ssOtica API limit)
     const hoje = new Date();
     const inicio = new Date();
-    inicio.setDate(hoje.getDate() - 90);
+    inicio.setDate(hoje.getDate() - 30);
     
     const defaultParams: SsoticaQueryParams = {
       cnpj: empresaCnpj,
