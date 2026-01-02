@@ -153,7 +153,7 @@ serve(async (req) => {
           if (change.field === 'messages') {
             const value = change.value;
 
-            // Process messages
+            // Process incoming messages
             for (const message of value.messages || []) {
               const contactPhone = message.from;
               const contactName = value.contacts?.[0]?.profile?.name || contactPhone;
@@ -175,7 +175,7 @@ serve(async (req) => {
                 .single();
 
               if (!contact) {
-                const { data: newContact } = await supabase
+                const { data: newContact, error: contactError } = await supabase
                   .from('contacts')
                   .insert({
                     user_id: userId,
@@ -185,7 +185,13 @@ serve(async (req) => {
                   })
                   .select()
                   .single();
+                
+                if (contactError) {
+                  console.error('[META-WEBHOOK] Error creating contact:', contactError);
+                  continue;
+                }
                 contact = newContact;
+                console.log('[META-WEBHOOK] Created new contact:', contact?.id);
               }
 
               if (!contact) {
@@ -202,7 +208,7 @@ serve(async (req) => {
                 .single();
 
               if (!conversation) {
-                const { data: newConversation } = await supabase
+                const { data: newConversation, error: convError } = await supabase
                   .from('conversations')
                   .insert({
                     user_id: userId,
@@ -212,7 +218,13 @@ serve(async (req) => {
                   })
                   .select()
                   .single();
+                
+                if (convError) {
+                  console.error('[META-WEBHOOK] Error creating conversation:', convError);
+                  continue;
+                }
                 conversation = newConversation;
+                console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
               }
 
               if (!conversation) {
@@ -274,26 +286,41 @@ serve(async (req) => {
                   content = `[${message.type}]`;
               }
 
-              // Save message
+              // Check if message already exists (avoid duplicates)
+              const { data: existingMessage } = await supabase
+                .from('inbox_messages')
+                .select('id')
+                .eq('whatsapp_message_id', messageId)
+                .maybeSingle();
+
+              if (existingMessage) {
+                console.log('[META-WEBHOOK] Message already exists, skipping:', messageId);
+                continue;
+              }
+
+              // Save message to inbox_messages table (CORRECTED SCHEMA)
               const { error: msgError } = await supabase
-                .from('messages')
+                .from('inbox_messages')
                 .insert({
+                  user_id: userId,
                   conversation_id: conversation.id,
                   content,
-                  sender_type: 'contact',
+                  direction: 'inbound',
                   status: 'received',
-                  external_id: messageId,
+                  whatsapp_message_id: messageId,
                   media_url: mediaUrl || null,
-                  media_type: messageType !== 'text' ? messageType : null,
+                  message_type: messageType,
                   created_at: timestamp
                 });
 
               if (msgError) {
                 console.error('[META-WEBHOOK] Error saving message:', msgError);
+              } else {
+                console.log('[META-WEBHOOK] Message saved successfully to inbox_messages');
               }
 
               // Update conversation
-              await supabase
+              const { error: convUpdateError } = await supabase
                 .from('conversations')
                 .update({
                   last_message_at: timestamp,
@@ -303,71 +330,71 @@ serve(async (req) => {
                 })
                 .eq('id', conversation.id);
 
-              console.log('[META-WEBHOOK] Message saved successfully');
-
-              // ============ AUTO-CREATE DEAL IN FUNNEL "Seven ES" ============
-              const SEVEN_ES_FUNNEL_ID = '79c5f8c6-9859-4425-af4b-0234acce9562';
-              const FIRST_STAGE_ID = 'e65a59a6-cd53-4b34-bd0a-c7089ed579ff'; // Qualificação
-
-              // Check if there's already an open deal for this contact in "Seven ES"
-              const { data: existingDeal } = await supabase
-                .from('funnel_deals')
-                .select('id')
-                .eq('contact_id', contact.id)
-                .eq('funnel_id', SEVEN_ES_FUNNEL_ID)
-                .is('closed_at', null)
-                .maybeSingle();
-
-              if (!existingDeal) {
-                const { data: newDeal, error: dealError } = await supabase
-                  .from('funnel_deals')
-                  .insert({
-                    funnel_id: SEVEN_ES_FUNNEL_ID,
-                    stage_id: FIRST_STAGE_ID,
-                    contact_id: contact.id,
-                    conversation_id: conversation.id,
-                    user_id: userId,
-                    title: contactName || contactPhone,
-                    source: 'meta_whatsapp',
-                    entered_stage_at: new Date().toISOString()
-                  })
-                  .select()
-                  .single();
-
-                if (dealError) {
-                  console.error('[META-WEBHOOK] Error creating deal:', dealError);
-                } else {
-                  console.log('[META-WEBHOOK] Deal created in funnel Seven ES:', newDeal?.id);
-                }
-              } else {
-                console.log('[META-WEBHOOK] Contact already has open deal in Seven ES:', existingDeal.id);
+              if (convUpdateError) {
+                console.error('[META-WEBHOOK] Error updating conversation:', convUpdateError);
               }
+
+              // Update contact last_message_at
+              await supabase
+                .from('contacts')
+                .update({ last_message_at: timestamp })
+                .eq('id', contact.id);
             }
 
-            // Process status updates
+            // Process status updates for sent messages
             for (const status of value.statuses || []) {
               console.log('[META-WEBHOOK] Status update:', {
                 id: status.id,
                 status: status.status,
-                recipientId: status.recipient_id
+                recipientId: status.recipient_id,
+                timestamp: status.timestamp
               });
 
-              // Update message status
-              const newStatus = status.status === 'delivered' ? 'delivered' :
-                               status.status === 'read' ? 'read' :
-                               status.status === 'sent' ? 'sent' :
-                               status.status === 'failed' ? 'failed' : null;
+              const statusTimestamp = status.timestamp 
+                ? new Date(parseInt(status.timestamp) * 1000).toISOString() 
+                : new Date().toISOString();
 
-              if (newStatus) {
-                await supabase
-                  .from('messages')
-                  .update({ status: newStatus })
-                  .eq('external_id', status.id);
+              // Build update object based on status
+              const updateData: Record<string, any> = {};
+
+              switch (status.status) {
+                case 'sent':
+                  updateData.status = 'sent';
+                  updateData.sent_at = statusTimestamp;
+                  break;
+                case 'delivered':
+                  updateData.status = 'delivered';
+                  updateData.delivered_at = statusTimestamp;
+                  break;
+                case 'read':
+                  updateData.status = 'read';
+                  updateData.read_at = statusTimestamp;
+                  break;
+                case 'failed':
+                  updateData.status = 'failed';
+                  if (status.errors?.length > 0) {
+                    console.error('[META-WEBHOOK] Message failed:', status.errors);
+                  }
+                  break;
+                default:
+                  console.log('[META-WEBHOOK] Unknown status:', status.status);
+                  continue;
               }
 
-              // Handle errors
-              if (status.errors) {
-                console.error('[META-WEBHOOK] Message error:', status.errors);
+              // Update message status in inbox_messages
+              const { error: statusError, data: updatedMsg } = await supabase
+                .from('inbox_messages')
+                .update(updateData)
+                .eq('whatsapp_message_id', status.id)
+                .select('id')
+                .maybeSingle();
+
+              if (statusError) {
+                console.error('[META-WEBHOOK] Error updating message status:', statusError);
+              } else if (updatedMsg) {
+                console.log('[META-WEBHOOK] Message status updated:', status.id, '->', status.status);
+              } else {
+                console.log('[META-WEBHOOK] No message found for status update:', status.id);
               }
             }
           }
