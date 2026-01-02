@@ -107,6 +107,83 @@ export type Database = {
           },
         ]
       }
+      ai_agent_integrations: {
+        Row: {
+          agent_config_id: string
+          api_auth_type: string | null
+          api_base_url: string | null
+          api_credentials: Json | null
+          api_headers: Json | null
+          created_at: string | null
+          description: string | null
+          id: string
+          integration_type: string
+          is_active: boolean | null
+          last_error: string | null
+          last_used_at: string | null
+          name: string
+          updated_at: string | null
+          user_id: string
+          webhook_events: string[] | null
+          webhook_payload_template: Json | null
+          webhook_target_url: string | null
+          webhook_token: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          agent_config_id: string
+          api_auth_type?: string | null
+          api_base_url?: string | null
+          api_credentials?: Json | null
+          api_headers?: Json | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          integration_type: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_used_at?: string | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+          webhook_events?: string[] | null
+          webhook_payload_template?: Json | null
+          webhook_target_url?: string | null
+          webhook_token?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          agent_config_id?: string
+          api_auth_type?: string | null
+          api_base_url?: string | null
+          api_credentials?: Json | null
+          api_headers?: Json | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          integration_type?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_used_at?: string | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+          webhook_events?: string[] | null
+          webhook_payload_template?: Json | null
+          webhook_target_url?: string | null
+          webhook_token?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_integrations_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_knowledge_items: {
         Row: {
           agent_config_id: string
@@ -275,6 +352,53 @@ export type Database = {
             columns: ["agent_config_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_webhook_logs: {
+        Row: {
+          created_at: string | null
+          direction: string
+          error_message: string | null
+          event_type: string | null
+          id: string
+          integration_id: string
+          payload: Json | null
+          response_body: string | null
+          response_status: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          direction: string
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          integration_id: string
+          payload?: Json | null
+          response_body?: string | null
+          response_status?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          integration_id?: string
+          payload?: Json | null
+          response_body?: string | null
+          response_status?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_webhook_logs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_integrations"
             referencedColumns: ["id"]
           },
         ]
