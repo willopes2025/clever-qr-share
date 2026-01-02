@@ -26,6 +26,8 @@ export interface TopDebtor {
   value: number;
   daysOverdue: number;
   paymentsCount: number;
+  customerCpfCnpj: string;
+  overduePaymentIds: string[];
 }
 
 export interface PaymentMethodStats {
@@ -177,7 +179,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
     });
     
     // Top devedores
-    const debtorMap = new Map<string, { value: number; maxDaysOverdue: number; count: number }>();
+    const debtorMap = new Map<string, { value: number; maxDaysOverdue: number; count: number; paymentIds: string[] }>();
     
     overduePayments.forEach(payment => {
       const customerId = payment.customer;
@@ -189,9 +191,15 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
           value: existing.value + payment.value,
           maxDaysOverdue: Math.max(existing.maxDaysOverdue, daysOverdue),
           count: existing.count + 1,
+          paymentIds: [...existing.paymentIds, payment.id],
         });
       } else {
-        debtorMap.set(customerId, { value: payment.value, maxDaysOverdue: daysOverdue, count: 1 });
+        debtorMap.set(customerId, { 
+          value: payment.value, 
+          maxDaysOverdue: daysOverdue, 
+          count: 1,
+          paymentIds: [payment.id],
+        });
       }
     });
     
@@ -204,6 +212,8 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
           value: data.value,
           daysOverdue: data.maxDaysOverdue,
           paymentsCount: data.count,
+          customerCpfCnpj: customer?.cpfCnpj || '',
+          overduePaymentIds: data.paymentIds,
         };
       })
       .sort((a, b) => b.value - a.value)

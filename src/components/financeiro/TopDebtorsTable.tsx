@@ -1,13 +1,18 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { TopDebtor } from '@/hooks/useFinancialMetrics';
 import { cn } from '@/lib/utils';
-import { AlertCircle, User } from 'lucide-react';
+import { AlertCircle, User, FileX, Eye, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TopDebtorsTableProps {
   debtors: TopDebtor[];
   isLoading?: boolean;
+  onNegativar?: (debtor: TopDebtor) => void;
+  showActions?: boolean;
 }
 
 const formatCurrency = (value: number): string => {
@@ -23,7 +28,14 @@ const getDaysOverdueColor = (days: number): string => {
   return 'bg-red-500/10 text-red-600 border-red-500/20';
 };
 
-export const TopDebtorsTable = ({ debtors, isLoading = false }: TopDebtorsTableProps) => {
+export const TopDebtorsTable = ({ 
+  debtors, 
+  isLoading = false,
+  onNegativar,
+  showActions = true
+}: TopDebtorsTableProps) => {
+  const navigate = useNavigate();
+
   if (debtors.length === 0) {
     return (
       <Card>
@@ -45,8 +57,21 @@ export const TopDebtorsTable = ({ debtors, isLoading = false }: TopDebtorsTableP
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Maiores Devedores</CardTitle>
-        <CardDescription>Top 10 clientes com maior valor em atraso</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Maiores Devedores</CardTitle>
+            <CardDescription>Top 10 clientes com maior valor em atraso</CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-primary hover:text-primary/80"
+            onClick={() => navigate('/financeiro/devedores')}
+          >
+            Ver todos
+            <ArrowRight className="ml-1 h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -56,6 +81,7 @@ export const TopDebtorsTable = ({ debtors, isLoading = false }: TopDebtorsTableP
               <TableHead className="text-right">Cobranças</TableHead>
               <TableHead className="text-right">Valor</TableHead>
               <TableHead className="text-right">Atraso</TableHead>
+              {showActions && <TableHead className="text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -71,7 +97,7 @@ export const TopDebtorsTable = ({ debtors, isLoading = false }: TopDebtorsTableP
                         {debtor.name}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        #{index + 1}
+                        {debtor.customerCpfCnpj || `#${index + 1}`}
                       </span>
                     </div>
                   </div>
@@ -87,6 +113,40 @@ export const TopDebtorsTable = ({ debtors, isLoading = false }: TopDebtorsTableP
                     {debtor.daysOverdue}d
                   </Badge>
                 </TableCell>
+                {showActions && (
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => onNegativar?.(debtor)}
+                          >
+                            <FileX className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Negativar no Serasa</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => navigate('/financeiro/devedores', { 
+                              state: { selectedDebtor: debtor }
+                            })}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver detalhes</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

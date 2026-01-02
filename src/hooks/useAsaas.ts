@@ -152,6 +152,18 @@ export interface AsaasPaymentLink {
   dateCreated?: string;
 }
 
+export interface AsaasNegativation {
+  id: string;
+  payment: string;
+  status: 'PENDING' | 'AWAITING_APPROVAL' | 'PROCESSED' | 'CANCELLED' | 'AWAITING_CANCELLATION';
+  requestDate: string;
+  description?: string;
+  canBeCancelled: boolean;
+  value: number;
+  customerName: string;
+  customerCpfCnpj: string;
+}
+
 export const useAsaas = () => {
   const { isConnected, getIntegration } = useIntegrations();
   const queryClient = useQueryClient();
@@ -226,6 +238,13 @@ export const useAsaas = () => {
   const { data: paymentLinksData, isLoading: isLoadingPaymentLinks, refetch: refetchPaymentLinks } = useQuery({
     queryKey: ['asaas', 'payment-links'],
     queryFn: () => callAsaasApi('list-payment-links', { limit: 100 }),
+    enabled: hasAsaas,
+  });
+
+  // Negativations (Serasa)
+  const { data: negativationsData, isLoading: isLoadingNegativations, refetch: refetchNegativations } = useQuery({
+    queryKey: ['asaas', 'negativations'],
+    queryFn: () => callAsaasApi('list-negativations', { limit: 100 }),
     enabled: hasAsaas,
   });
 
@@ -394,6 +413,30 @@ export const useAsaas = () => {
     }
   });
 
+  // Negativation mutations
+  const createNegativation = useMutation({
+    mutationFn: ({ paymentId, description }: { paymentId: string; description?: string }) => 
+      callAsaasApi('create-negativation', { paymentId, description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asaas', 'negativations'] });
+      toast.success('Negativação solicitada com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao criar negativação: ' + error.message);
+    }
+  });
+
+  const cancelNegativation = useMutation({
+    mutationFn: (id: string) => callAsaasApi('cancel-negativation', { id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asaas', 'negativations'] });
+      toast.success('Negativação cancelada!');
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao cancelar negativação: ' + error.message);
+    }
+  });
+
   return {
     hasAsaas,
     // Sync
@@ -441,5 +484,11 @@ export const useAsaas = () => {
     isLoadingPaymentLinks,
     refetchPaymentLinks,
     createPaymentLink,
+    // Negativations
+    negativations: (negativationsData?.data || []) as AsaasNegativation[],
+    isLoadingNegativations,
+    refetchNegativations,
+    createNegativation,
+    cancelNegativation,
   };
 };

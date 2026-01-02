@@ -29,6 +29,7 @@ import Calendar from "./pages/Calendar";
 import Chatbots from "./pages/Chatbots";
 import AIAgents from "./pages/AIAgents";
 import Financeiro from "./pages/Financeiro";
+import DebtorsManagement from "./pages/DebtorsManagement";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import DataDeletion from "./pages/DataDeletion";
@@ -214,6 +215,15 @@ const App = () => (
                 <NotificationProvider>
                   <PermissionGate permission="view_finances">
                     <Financeiro />
+                  </PermissionGate>
+                </NotificationProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/financeiro/devedores" element={
+              <ProtectedRoute>
+                <NotificationProvider>
+                  <PermissionGate permission="view_finances">
+                    <DebtorsManagement />
                   </PermissionGate>
                 </NotificationProvider>
               </ProtectedRoute>
