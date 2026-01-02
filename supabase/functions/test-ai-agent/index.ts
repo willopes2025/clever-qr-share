@@ -144,23 +144,27 @@ const getCalendlyTools = () => [
 // Detect conversation state from history
 interface ConversationState {
   horarioJaEscolhido: boolean;
+  horarioAmbiguo: boolean; // User gave generic response ("pode ser") when multiple times were offered
   oticaIndicadaJaPerguntou: boolean;
   nomeJaColetou: boolean;
   emailJaColetou: boolean;
   saudacaoJaFeita: boolean;
   ultimaPerguntaAgente: string | null;
   horarioEscolhido: string | null;
+  horariosOferecidos: string | null; // The times that were offered by agent
 }
 
 const detectConversationState = (conversationHistory: Array<{ role: string; content: string }>, currentUserMessage?: string): ConversationState => {
   const state: ConversationState = {
     horarioJaEscolhido: false,
+    horarioAmbiguo: false,
     oticaIndicadaJaPerguntou: false,
     nomeJaColetou: false,
     emailJaColetou: false,
     saudacaoJaFeita: conversationHistory.length > 0,
     ultimaPerguntaAgente: null,
     horarioEscolhido: null,
+    horariosOferecidos: null,
   };
 
   const assistantMessages = conversationHistory.filter(m => m.role === 'assistant');
@@ -246,8 +250,20 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
     }
   }
 
+  // Extract times from last agent message if it offered multiple times
+  if (lastAgentOfferedTimes && state.ultimaPerguntaAgente) {
+    // Look for multiple time patterns like "09:00 ou 09:23" or "às 09 ou às 10"
+    const timePattern = /(\d{1,2}[h:]\d{0,2})/gi;
+    const timesFound = state.ultimaPerguntaAgente.match(timePattern);
+    if (timesFound && timesFound.length >= 2) {
+      state.horariosOferecidos = timesFound.slice(0, 2).join(' ou ');
+    }
+  }
+
   // CRITICAL: Also check current user message (the one being sent now)
   if (currentUserMessage) {
+    const lowerMessage = currentUserMessage.toLowerCase().trim();
+    
     // Only pass context if agent just offered times
     const currentDetection = detectTimeSelection(currentUserMessage, !!lastAgentOfferedTimes);
     if (currentDetection.detected) {
@@ -256,19 +272,32 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
       console.log(`[DETECT-STATE] Time detected in CURRENT message: "${currentUserMessage}" => ${currentDetection.time}`);
     }
     
-    // Extra guardrail: if agent just offered times and user gave short affirmative
-    // Be more restrictive - only for confirmations that clearly mean "yes to the time"
-    if (lastAgentOfferedTimes && !state.horarioJaEscolhido) {
-      const shortAffirmative = /^(?:sim|ok|pode|fechou|beleza|perfeito|combinado|esse|essa|primeiro|segundo)$/i.test(currentUserMessage.trim());
-      if (shortAffirmative) {
+    // Check for AMBIGUOUS response when multiple times were offered
+    // "pode ser", "sim", "ok" WITHOUT specifying which time
+    if (lastAgentOfferedTimes && state.horariosOferecidos && !state.horarioJaEscolhido) {
+      const genericAffirmative = /^(?:pode\s*(?:ser)?|sim|ok|beleza|bom|ta\s*bom|t[áa]\s*(?:bom|certo)|certo|legal|blz)$/i.test(lowerMessage);
+      
+      if (genericAffirmative) {
+        // User gave generic response but agent offered 2+ times - AMBIGUOUS!
+        state.horarioAmbiguo = true;
+        state.horarioJaEscolhido = false; // NOT selected yet!
+        console.log(`[DETECT-STATE] AMBIGUOUS time response: "${currentUserMessage}" when offered "${state.horariosOferecidos}"`);
+      }
+    }
+    
+    // Only mark as selected if it's a SPECIFIC choice
+    if (lastAgentOfferedTimes && !state.horarioJaEscolhido && !state.horarioAmbiguo) {
+      // Specific ordinal selection or "esse horário" when only one time was offered
+      const specificChoice = /^(?:esse|essa|primeiro|segundo|o\s*primeiro|o\s*segundo)$/i.test(lowerMessage);
+      if (specificChoice) {
         state.horarioJaEscolhido = true;
-        state.horarioEscolhido = 'confirmado pelo contexto';
-        console.log(`[DETECT-STATE] Time detected via CONTEXT (agent offered, user affirmed): "${currentUserMessage}"`);
+        state.horarioEscolhido = 'opção específica selecionada';
+        console.log(`[DETECT-STATE] Specific time selection: "${currentUserMessage}"`);
       }
     }
   }
 
-  console.log(`[DETECT-STATE] Final state: horarioJaEscolhido=${state.horarioJaEscolhido}, horarioEscolhido=${state.horarioEscolhido}`);
+  console.log(`[DETECT-STATE] Final state: horarioJaEscolhido=${state.horarioJaEscolhido}, horarioAmbiguo=${state.horarioAmbiguo}, horarioEscolhido=${state.horarioEscolhido}`);
 
   return state;
 };
@@ -281,7 +310,13 @@ const buildContinuityContext = (state: ConversationState): string => {
     rules.push('🚫 NÃO cumprimente novamente (Olá, Bom dia, etc) - a conversa já começou');
   }
   
-  if (state.horarioJaEscolhido) {
+  // CRITICAL: Handle ambiguous time response BEFORE horarioJaEscolhido
+  if (state.horarioAmbiguo && state.horariosOferecidos) {
+    rules.push(`⚠️ ATENÇÃO: O cliente respondeu genericamente ("pode ser", "ok") mas NÃO escolheu um horário ESPECÍFICO.
+Você ofereceu ${state.horariosOferecidos}.
+ANTES de perguntar sobre ótica indicada, você DEVE confirmar: "Qual horário te atende melhor? O das ${state.horariosOferecidos}?"
+Só avance quando o cliente disser um horário específico (ex: "às 09", "o primeiro", "09h").`);
+  } else if (state.horarioJaEscolhido) {
     rules.push(`✅ O CLIENTE JÁ ESCOLHEU UM HORÁRIO (${state.horarioEscolhido || 'confirmado'}). NÃO pergunte "qual horário te atende?" novamente. Próximo passo: coletar dados para confirmar.`);
   }
   
