@@ -241,11 +241,25 @@ export const useAsaas = () => {
     enabled: hasAsaas,
   });
 
-  // Negativations (Serasa)
-  const { data: negativationsData, isLoading: isLoadingNegativations, refetch: refetchNegativations } = useQuery({
+  // Negativations (Serasa) - com tratamento de erro para quando não está habilitado
+  const { data: negativationsData, isLoading: isLoadingNegativations, refetch: refetchNegativations, error: negativationsError } = useQuery({
     queryKey: ['asaas', 'negativations'],
-    queryFn: () => callAsaasApi('list-negativations', { limit: 100 }),
+    queryFn: async () => {
+      try {
+        return await callAsaasApi('list-negativations', { limit: 100 });
+      } catch (error) {
+        // Se a funcionalidade não está habilitada, retorna array vazio silenciosamente
+        const errorMessage = error instanceof Error ? error.message : '';
+        if (errorMessage.includes('NEGATIVATION_NOT_ENABLED') || errorMessage.includes('não habilitada')) {
+          console.warn('Negativation feature not enabled:', errorMessage);
+          return { data: [], notEnabled: true };
+        }
+        throw error;
+      }
+    },
     enabled: hasAsaas,
+    retry: false, // Não repetir se falhar
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
   });
 
   // Função para sincronizar todos os dados
@@ -490,5 +504,6 @@ export const useAsaas = () => {
     refetchNegativations,
     createNegativation,
     cancelNegativation,
+    hasNegativationFeature: hasAsaas && !negativationsData?.notEnabled,
   };
 };

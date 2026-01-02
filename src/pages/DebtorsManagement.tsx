@@ -61,7 +61,8 @@ const DebtorsManagement = () => {
     isLoadingNegativations, 
     refetchNegativations,
     createNegativation,
-    cancelNegativation 
+    cancelNegativation,
+    hasNegativationFeature
   } = useAsaas();
 
   // Pegar todos os devedores (não só top 10) - precisamos recalcular
@@ -156,6 +157,29 @@ const DebtorsManagement = () => {
           </TabsList>
 
           <TabsContent value="debtors" className="space-y-4">
+            {/* Aviso se negativação não está habilitada */}
+            {!hasNegativationFeature && (
+              <Card className="border-yellow-500/50 bg-yellow-500/10">
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-medium text-yellow-700">Negativação no Serasa não disponível</p>
+                      <p className="text-sm text-yellow-600">
+                        A funcionalidade de negativação não está habilitada na sua conta Asaas. 
+                        Para utilizar este recurso, você precisa:
+                      </p>
+                      <ul className="text-sm text-yellow-600 list-disc list-inside space-y-0.5 mt-2">
+                        <li>Ter uma conta PJ (Pessoa Jurídica) verificada</li>
+                        <li>Contatar seu gerente de conta Asaas</li>
+                        <li>Solicitar a habilitação da API de Negativações</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Filtros */}
             <Card>
               <CardHeader className="pb-3">
@@ -294,6 +318,8 @@ const DebtorsManagement = () => {
                                 size="sm"
                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => handleOpenNegativation(debtor)}
+                                disabled={!hasNegativationFeature}
+                                title={!hasNegativationFeature ? 'Funcionalidade não habilitada na sua conta Asaas' : undefined}
                               >
                                 <FileX className="h-4 w-4 mr-1" />
                                 Negativar

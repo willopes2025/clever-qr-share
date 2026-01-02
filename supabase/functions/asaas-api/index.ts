@@ -82,6 +82,22 @@ Deno.serve(async (req) => {
       }
 
       const response = await fetch(url, options);
+      
+      // Verificar Content-Type antes de fazer parse
+      const contentType = response.headers.get('content-type') || '';
+      
+      // Se retornar HTML, significa erro do servidor (403, 404, etc)
+      if (contentType.includes('text/html') || (!contentType.includes('application/json') && !response.ok)) {
+        console.error(`Asaas returned non-JSON response. Status: ${response.status}, Content-Type: ${contentType}`);
+        
+        // Verificar se é endpoint de negativação
+        if (endpoint.includes('/negativations')) {
+          throw new Error('NEGATIVATION_NOT_ENABLED: Funcionalidade de negativação não habilitada. Contate seu gerente de conta Asaas para solicitar acesso.');
+        }
+        
+        throw new Error(`Erro do servidor Asaas (status ${response.status}). Verifique suas credenciais e permissões.`);
+      }
+      
       const responseData = await response.json();
 
       if (!response.ok) {
