@@ -472,8 +472,8 @@ const Contacts = () => {
       <ImportContactsDialogV2
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
-        onImport={async (contacts, tagIds, newFields) => {
-          await importContacts.mutateAsync({ contacts, tagIds, newFields });
+        onImport={async (contacts, tagIds, newFields, deduplication, phoneNormalization) => {
+          await importContacts.mutateAsync({ contacts, tagIds, newFields, deduplication, phoneNormalization });
           setShowImportDialog(false);
         }}
         isLoading={importContacts.isPending}
