@@ -79,28 +79,13 @@ export const useBroadcastLists = () => {
             // For dynamic lists, count based on filter criteria
             const criteria = (list.filter_criteria || {}) as FilterCriteria;
             
-            // If tags are defined, filter by tags first
+            // If tags are defined, use inner join to filter by tags (avoids .in() limit)
             if (criteria.tags && criteria.tags.length > 0) {
-              const { data: taggedContacts } = await supabase
-                .from("contact_tags")
-                .select("contact_id")
-                .in("tag_id", criteria.tags);
-
-              if (!taggedContacts || taggedContacts.length === 0) {
-                return { 
-                  ...list, 
-                  type: list.type as "manual" | "dynamic",
-                  filter_criteria: criteria,
-                  contact_count: 0 
-                };
-              }
-
-              const contactIds = [...new Set(taggedContacts.map(tc => tc.contact_id))];
-              
+              // Use inner join with contact_tags to filter efficiently
               let query = supabase
                 .from("contacts")
-                .select("*", { count: "exact", head: true })
-                .in("id", contactIds);
+                .select("id, contact_tags!inner(tag_id)", { count: "exact", head: true })
+                .in("contact_tags.tag_id", criteria.tags);
 
               if (criteria.status) {
                 query = query.eq("status", criteria.status);
@@ -109,7 +94,10 @@ export const useBroadcastLists = () => {
                 query = query.eq("opted_out", criteria.optedOut);
               }
 
-              const { count } = await query;
+              const { count, error } = await query;
+              if (error) {
+                console.error("Error counting contacts for list:", list.id, error);
+              }
               return { 
                 ...list, 
                 type: list.type as "manual" | "dynamic",
@@ -146,31 +134,42 @@ export const useBroadcastLists = () => {
   // Fetch contacts for a specific list
   const useListContacts = (listId: string, listType?: "manual" | "dynamic", filterCriteria?: FilterCriteria) => {
     return useQuery({
-      queryKey: ["broadcast-list-contacts", listId, listType],
+      queryKey: ["broadcast-list-contacts", listId, listType, JSON.stringify(filterCriteria ?? {})],
       queryFn: async () => {
         if (listType === "dynamic") {
-          // Para listas dinâmicas, buscar contatos baseado nos filtros
-          let contactIds: string[] = [];
-          
-          // Se há tags, primeiro buscar contact_ids pelas tags
+          // For dynamic lists with tags, use inner join (avoids .in() limit with large lists)
           if (filterCriteria?.tags && filterCriteria.tags.length > 0) {
-            const { data: taggedContacts } = await supabase
-              .from("contact_tags")
-              .select("contact_id")
-              .in("tag_id", filterCriteria.tags);
-            
-            if (!taggedContacts || taggedContacts.length === 0) {
-              return [];
+            let query = supabase
+              .from("contacts")
+              .select("id, name, phone, email, status, contact_tags!inner(tag_id)")
+              .in("contact_tags.tag_id", filterCriteria.tags);
+
+            if (filterCriteria?.status) {
+              query = query.eq("status", filterCriteria.status);
             }
-            contactIds = [...new Set(taggedContacts.map(tc => tc.contact_id))];
+            if (filterCriteria?.optedOut !== undefined) {
+              query = query.eq("opted_out", filterCriteria.optedOut);
+            }
+
+            const { data, error } = await query.limit(1000);
+            if (error) throw error;
+
+            // Remove duplicates (contact may have multiple matching tags)
+            const uniqueContacts = Array.from(
+              new Map((data || []).map(c => [c.id, c])).values()
+            );
+
+            return uniqueContacts.map((contact) => ({
+              id: contact.id,
+              contact_id: contact.id,
+              added_at: new Date().toISOString(),
+              contacts: { id: contact.id, name: contact.name, phone: contact.phone, email: contact.email, status: contact.status },
+            }));
           }
 
-          // Buscar contatos aplicando filtros
+          // Dynamic list without tags - use other filters
           let query = supabase.from("contacts").select("id, name, phone, email, status");
           
-          if (contactIds.length > 0) {
-            query = query.in("id", contactIds);
-          }
           if (filterCriteria?.status) {
             query = query.eq("status", filterCriteria.status);
           }
@@ -178,10 +177,9 @@ export const useBroadcastLists = () => {
             query = query.eq("opted_out", filterCriteria.optedOut);
           }
 
-          const { data, error } = await query;
+          const { data, error } = await query.limit(1000);
           if (error) throw error;
 
-          // Mapear para formato compatível
           return (data || []).map((contact) => ({
             id: contact.id,
             contact_id: contact.id,
@@ -189,7 +187,7 @@ export const useBroadcastLists = () => {
             contacts: contact,
           }));
         } else {
-          // Para listas manuais, buscar da tabela de relacionamento
+          // For manual lists, fetch from relationship table
           const { data, error } = await supabase
             .from("broadcast_list_contacts")
             .select(`
