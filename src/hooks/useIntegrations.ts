@@ -33,7 +33,8 @@ export type IntegrationProvider =
   | 'facebook_pixel'
   | 'google_analytics'
   | 'vono_voip'
-  | 'meta_whatsapp';
+  | 'meta_whatsapp'
+  | 'asaas';
 
 export const useIntegrations = () => {
   const { user } = useAuth();

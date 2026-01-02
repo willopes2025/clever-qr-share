@@ -1433,6 +1433,7 @@ export type Database = {
       }
       contacts: {
         Row: {
+          asaas_customer_id: string | null
           avatar_url: string | null
           contact_display_id: string | null
           contact_number: number
@@ -1452,6 +1453,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          asaas_customer_id?: string | null
           avatar_url?: string | null
           contact_display_id?: string | null
           contact_number?: number
@@ -1471,6 +1473,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          asaas_customer_id?: string | null
           avatar_url?: string | null
           contact_display_id?: string | null
           contact_number?: number
