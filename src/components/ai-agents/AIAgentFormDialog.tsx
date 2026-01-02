@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug } from "lucide-react";
+import { AgentIntegrationsTab } from "@/components/campaigns/agent/AgentIntegrationsTab";
 import { AIAgentTestDialog } from "./AIAgentTestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -441,7 +442,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-5 w-full">
+                <TabsList className="grid grid-cols-6 w-full">
                   <TabsTrigger value="personality" className="gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
@@ -459,6 +460,10 @@ export const AIAgentFormDialog = ({
                   </TabsTrigger>
                   <TabsTrigger value="stages" disabled={!agentId}>
                     Etapas
+                  </TabsTrigger>
+                  <TabsTrigger value="integrations" disabled={!agentId} className="gap-1">
+                    <Plug className="h-4 w-4" />
+                    <span className="hidden sm:inline">Integrações</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -671,6 +676,10 @@ export const AIAgentFormDialog = ({
                       Salve o agente primeiro para configurar etapas
                     </p>
                   )}
+                </TabsContent>
+
+                <TabsContent value="integrations" className="mt-4">
+                  <AgentIntegrationsTab agentConfigId={agentId} />
                 </TabsContent>
               </Tabs>
 

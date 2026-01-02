@@ -188,3 +188,6 @@ verify_jwt = true
 
 [functions.admin-transfer-tokens]
 verify_jwt = true
+
+[functions.agent-integration-webhook]
+verify_jwt = false
