@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas, AsaasCustomer } from "@/hooks/useAsaas";
 import { useOrganization } from "@/hooks/useOrganization";
-import { Plus, Search, Loader2, Trash2, Edit } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, Edit, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AsaasCustomerForm } from "./AsaasCustomerForm";
+import { AsaasCustomerDetail } from "./AsaasCustomerDetail";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +27,7 @@ export const AsaasCustomerList = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<AsaasCustomer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<AsaasCustomer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<AsaasCustomer | null>(null);
 
   const canCreate = checkPermission('create_customers_asaas');
   const canEdit = checkPermission('edit_customers_asaas');
@@ -90,49 +92,57 @@ export const AsaasCustomerList = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>CPF/CNPJ</TableHead>
                 <TableHead>Telefone</TableHead>
-                {(canEdit || canDelete) && <TableHead className="text-right">Ações</TableHead>}
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredCustomers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canEdit || canDelete ? 5 : 4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     Nenhum cliente encontrado
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
+                  <TableRow key={customer.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setViewingCustomer(customer)}>
                     <TableCell className="font-medium">{customer.name}</TableCell>
                     <TableCell>{customer.email || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{customer.cpfCnpj || '-'}</Badge>
                     </TableCell>
                     <TableCell>{customer.mobilePhone || customer.phone || '-'}</TableCell>
-                    {(canEdit || canDelete) && (
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {canEdit && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(customer)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setDeletingCustomer(customer)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => { e.stopPropagation(); setViewingCustomer(customer); }}
+                          title="Ver detalhes"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {canEdit && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); handleEdit(customer); }}
+                            title="Editar"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); setDeletingCustomer(customer); }}
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -145,6 +155,13 @@ export const AsaasCustomerList = () => {
         <AsaasCustomerForm
           customer={editingCustomer}
           onClose={handleFormClose}
+        />
+      )}
+
+      {viewingCustomer && (
+        <AsaasCustomerDetail
+          customer={viewingCustomer}
+          onClose={() => setViewingCustomer(null)}
         />
       )}
 
