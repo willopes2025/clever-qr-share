@@ -257,6 +257,23 @@ Deno.serve(async (req) => {
         result = await asaasRequest('GET', `/financialTransactions?limit=${params.limit || 100}`);
         break;
 
+      // Negativations (Serasa)
+      case 'list-negativations':
+        result = await asaasRequest('GET', `/negativations?limit=${params.limit || 100}&offset=${params.offset || 0}`);
+        break;
+      case 'create-negativation':
+        result = await asaasRequest('POST', '/negativations', {
+          payment: params.paymentId,
+          description: params.description
+        });
+        break;
+      case 'cancel-negativation':
+        result = await asaasRequest('DELETE', `/negativations/${params.id}`);
+        break;
+      case 'get-negativation':
+        result = await asaasRequest('GET', `/negativations/${params.id}`);
+        break;
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
