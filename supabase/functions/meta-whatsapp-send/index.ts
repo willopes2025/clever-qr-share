@@ -9,7 +9,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-const META_API_URL = 'https://graph.facebook.com/v18.0';
+const META_API_URL = 'https://graph.facebook.com/v19.0';
 
 interface SendMessageRequest {
   to: string;
@@ -204,14 +204,15 @@ serve(async (req) => {
                      '[Mensagem]';
 
       await supabase
-        .from('messages')
+        .from('inbox_messages')
         .insert({
           conversation_id: body.conversationId,
           content,
-          sender_type: 'user',
+          direction: 'outbound',
           status: 'sent',
-          external_id: messageId,
-          media_type: body.type !== 'text' && body.type !== 'template' ? body.type : null
+          whatsapp_message_id: messageId,
+          message_type: body.type || 'text',
+          user_id: user.id
         });
 
       // Update conversation

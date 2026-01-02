@@ -18,7 +18,9 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
+  Send,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -39,6 +41,10 @@ export const MetaWhatsAppSettings = () => {
     app_secret: '',
     verify_token: '',
   });
+  const [testPhone, setTestPhone] = useState('5527999400707');
+  const [testMessage, setTestMessage] = useState('Teste WhatsApp Cloud API funcionando 🚀');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const integration = getIntegration('meta_whatsapp');
 
@@ -93,6 +99,49 @@ export const MetaWhatsAppSettings = () => {
       toast.error(`Erro na conexão: ${error.message}`);
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleSendTestMessage = async () => {
+    if (!testPhone || !testMessage) {
+      toast.error("Número e mensagem são obrigatórios");
+      return;
+    }
+
+    setIsSendingTest(true);
+    setTestResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', {
+        body: {
+          to: testPhone,
+          type: 'text',
+          text: { body: testMessage }
+        }
+      });
+
+      console.log('[TEST-SEND] Response:', data, error);
+
+      if (error) throw error;
+
+      if (data.success) {
+        setTestResult({ 
+          success: true, 
+          message: `Mensagem enviada com sucesso! ID: ${data.messageId}` 
+        });
+        toast.success("Mensagem de teste enviada!");
+      } else {
+        throw new Error(data.error || 'Erro desconhecido');
+      }
+    } catch (error: any) {
+      console.error('[TEST-SEND] Error:', error);
+      setTestResult({ 
+        success: false, 
+        message: `Erro: ${error.message}` 
+      });
+      toast.error(`Erro ao enviar: ${error.message}`);
+    } finally {
+      setIsSendingTest(false);
     }
   };
 
@@ -321,6 +370,74 @@ export const MetaWhatsAppSettings = () => {
               </Button>
             )}
           </div>
+
+          <Separator />
+
+          {/* Seção de Teste de Envio */}
+          <div className="space-y-4">
+            <h3 className="font-semibold">3. Testar Envio de Mensagem</h3>
+            
+            <Alert>
+              <Send className="h-4 w-4" />
+              <AlertDescription>
+                Envie uma mensagem de teste para verificar se a integração está funcionando corretamente.
+              </AlertDescription>
+            </Alert>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="test_phone">Número de Destino</Label>
+                <Input
+                  id="test_phone"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="5527999400707"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Formato: código do país + DDD + número (sem espaços ou símbolos)
+                </p>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="test_message">Mensagem de Teste</Label>
+                <Textarea
+                  id="test_message"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  placeholder="Digite sua mensagem de teste..."
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={handleSendTestMessage}
+              disabled={isSendingTest || !formData.access_token || !formData.phone_number_id}
+              className="w-full"
+            >
+              {isSendingTest ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Enviar Mensagem de Teste
+            </Button>
+
+            {testResult && (
+              <Alert className={testResult.success ? "bg-green-500/10 border-green-500/30" : "bg-red-500/10 border-red-500/30"}>
+                {testResult.success ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <X className="h-4 w-4 text-red-500" />
+                )}
+                <AlertDescription className={testResult.success ? "text-green-200" : "text-red-200"}>
+                  {testResult.message}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <Separator />
 
           {/* Link para documentação */}
           <Alert className="bg-blue-500/10 border-blue-500/30">
