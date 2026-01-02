@@ -16,6 +16,7 @@ interface SsoticaQueryParams {
   page?: number;
   perPage?: number;
   cpf?: string;
+  cpf_cnpj?: string; // Alias for cpf - accepts both
   telefone?: string;
   termo?: string;
 }
@@ -115,14 +116,24 @@ serve(async (req) => {
 
     switch (action) {
       case 'consultar_os_cliente': {
-        // Search for orders by customer CPF/phone
-        const osData = await ssoticaRequest('/integracoes/ordens-servico/periodo', token, defaultParams);
+        // Get CPF from either cpf_cnpj or cpf parameter
+        const cpfCliente = params?.cpf_cnpj || params?.cpf;
+        const cpfLimpo = cpfCliente ? cpfCliente.replace(/\D/g, '') : null;
         
-        // Filter by CPF or phone if provided
+        console.log(`[ssOtica] consultar_os_cliente - CPF: ${cpfLimpo}`);
+        
+        // Include cpf_cnpj in request to let ssOtica API filter server-side
+        const osParams: SsoticaQueryParams = {
+          ...defaultParams,
+          ...(cpfLimpo && { cpf_cnpj: cpfLimpo }),
+        };
+        
+        const osData = await ssoticaRequest('/integracoes/ordens-servico/periodo', token, osParams);
+        
+        // Also filter locally as fallback (in case ssOtica API doesn't filter)
         let filteredOS = osData.data || osData;
         
-        if (params?.cpf) {
-          const cpfLimpo = params.cpf.replace(/\D/g, '');
+        if (cpfLimpo && Array.isArray(filteredOS)) {
           filteredOS = filteredOS.filter((os: any) => {
             const osCpf = (os.cliente?.cpf || os.cpf_cliente || '').replace(/\D/g, '');
             return osCpf === cpfLimpo;
@@ -137,10 +148,13 @@ serve(async (req) => {
           });
         }
 
+        console.log(`[ssOtica] OS encontradas para CPF ${cpfLimpo}: ${filteredOS.length}`);
+
         // Format response for agent
         result = {
           success: true,
           total: filteredOS.length,
+          cpf_consultado: cpfLimpo,
           ordens_servico: filteredOS.map((os: any) => ({
             numero_os: os.numero || os.id,
             status: os.status || os.situacao,
@@ -161,21 +175,34 @@ serve(async (req) => {
       }
 
       case 'consultar_vendas_cliente': {
-        const vendasData = await ssoticaRequest('/integracoes/vendas/periodo', token, defaultParams);
+        // Get CPF from either cpf_cnpj or cpf parameter
+        const cpfCliente = params?.cpf_cnpj || params?.cpf;
+        const cpfLimpo = cpfCliente ? cpfCliente.replace(/\D/g, '') : null;
+        
+        console.log(`[ssOtica] consultar_vendas_cliente - CPF: ${cpfLimpo}`);
+        
+        const vendasParams: SsoticaQueryParams = {
+          ...defaultParams,
+          ...(cpfLimpo && { cpf_cnpj: cpfLimpo }),
+        };
+        
+        const vendasData = await ssoticaRequest('/integracoes/vendas/periodo', token, vendasParams);
         
         let filteredVendas = vendasData.data || vendasData;
         
-        if (params?.cpf) {
-          const cpfLimpo = params.cpf.replace(/\D/g, '');
+        if (cpfLimpo && Array.isArray(filteredVendas)) {
           filteredVendas = filteredVendas.filter((v: any) => {
             const vCpf = (v.cliente?.cpf || v.cpf_cliente || '').replace(/\D/g, '');
             return vCpf === cpfLimpo;
           });
         }
 
+        console.log(`[ssOtica] Vendas encontradas para CPF ${cpfLimpo}: ${filteredVendas.length}`);
+
         result = {
           success: true,
           total: filteredVendas.length,
+          cpf_consultado: cpfLimpo,
           vendas: filteredVendas.map((v: any) => ({
             numero_venda: v.numero || v.id,
             data_venda: v.data_venda || v.created_at,
@@ -193,12 +220,22 @@ serve(async (req) => {
       }
 
       case 'consultar_parcelas_cliente': {
-        const contasData = await ssoticaRequest('/integracoes/financeiro/contas-a-receber/periodo', token, defaultParams);
+        // Get CPF from either cpf_cnpj or cpf parameter
+        const cpfCliente = params?.cpf_cnpj || params?.cpf;
+        const cpfLimpo = cpfCliente ? cpfCliente.replace(/\D/g, '') : null;
+        
+        console.log(`[ssOtica] consultar_parcelas_cliente - CPF: ${cpfLimpo}`);
+        
+        const contasParams: SsoticaQueryParams = {
+          ...defaultParams,
+          ...(cpfLimpo && { cpf_cnpj: cpfLimpo }),
+        };
+        
+        const contasData = await ssoticaRequest('/integracoes/financeiro/contas-a-receber/periodo', token, contasParams);
         
         let filteredContas = contasData.data || contasData;
         
-        if (params?.cpf) {
-          const cpfLimpo = params.cpf.replace(/\D/g, '');
+        if (cpfLimpo && Array.isArray(filteredContas)) {
           filteredContas = filteredContas.filter((c: any) => {
             const cCpf = (c.cliente?.cpf || c.cpf_cliente || '').replace(/\D/g, '');
             return cCpf === cpfLimpo;
@@ -210,9 +247,12 @@ serve(async (req) => {
           c.status === 'em_aberto' || c.status === 'aberto' || c.situacao === 'pendente' || !c.data_pagamento
         );
 
+        console.log(`[ssOtica] Parcelas encontradas para CPF ${cpfLimpo}: ${contasAbertas.length}`);
+
         result = {
           success: true,
           total: contasAbertas.length,
+          cpf_consultado: cpfLimpo,
           parcelas: contasAbertas.map((c: any) => ({
             numero_parcela: c.numero_parcela || c.parcela,
             documento: c.documento || c.numero_documento,

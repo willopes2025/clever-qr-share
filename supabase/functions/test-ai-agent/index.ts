@@ -1032,26 +1032,39 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
         else if (functionName === 'consultar_os_cliente') {
           const cpf = (args.cpf as string)?.replace(/\D/g, '');
           if (!cpf) {
-            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório' });
+            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório', total: 0 });
           } else {
             const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_os_cliente', { cpf_cnpj: cpf });
-            toolResult = JSON.stringify(result);
+            // Return data directly for cleaner AI interpretation
+            if (result.success && result.data) {
+              toolResult = JSON.stringify(result.data);
+            } else {
+              toolResult = JSON.stringify({ success: false, error: result.error || 'Erro ao consultar', total: 0 });
+            }
           }
         } else if (functionName === 'consultar_vendas_cliente') {
           const cpf = (args.cpf as string)?.replace(/\D/g, '');
           if (!cpf) {
-            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório' });
+            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório', total: 0 });
           } else {
             const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_vendas_cliente', { cpf_cnpj: cpf });
-            toolResult = JSON.stringify(result);
+            if (result.success && result.data) {
+              toolResult = JSON.stringify(result.data);
+            } else {
+              toolResult = JSON.stringify({ success: false, error: result.error || 'Erro ao consultar', total: 0 });
+            }
           }
         } else if (functionName === 'consultar_parcelas_cliente') {
           const cpf = (args.cpf as string)?.replace(/\D/g, '');
           if (!cpf) {
-            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório' });
+            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório', total: 0 });
           } else {
             const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_parcelas_cliente', { cpf_cnpj: cpf });
-            toolResult = JSON.stringify(result);
+            if (result.success && result.data) {
+              toolResult = JSON.stringify(result.data);
+            } else {
+              toolResult = JSON.stringify({ success: false, error: result.error || 'Erro ao consultar', total: 0 });
+            }
           }
         }
         
