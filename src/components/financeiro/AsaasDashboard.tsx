@@ -1,143 +1,224 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAsaas } from "@/hooks/useAsaas";
-import { Wallet, TrendingUp, Receipt, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react';
+import { useAsaas } from '@/hooks/useAsaas';
+import { useFinancialMetrics, DateRange } from '@/hooks/useFinancialMetrics';
+import { FinancialDateFilter } from './FinancialDateFilter';
+import { FinancialKPICard } from './FinancialKPICard';
+import { DelinquencyAnalysis } from './DelinquencyAnalysis';
+import { AgingTable } from './AgingTable';
+import { TopDebtorsTable } from './TopDebtorsTable';
+import { RevenueChart } from './RevenueChart';
+import { PaymentMethodChart } from './PaymentMethodChart';
+import { MRRCard } from './MRRCard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Wallet, TrendingUp, Receipt, AlertCircle, RefreshCw, Loader2, Calendar, TrendingDown } from 'lucide-react';
+import { startOfDay, endOfDay, subDays, format, addDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+};
 
 export const AsaasDashboard = () => {
-  const { 
-    balance, 
-    isLoadingBalance, 
-    refetchBalance,
-    payments,
-    isLoadingPayments,
-    subscriptions,
-    isLoadingSubscriptions
-  } = useAsaas();
+  const today = new Date();
+  const [dateRange, setDateRange] = useState<DateRange>({
+    start: startOfDay(subDays(today, 29)),
+    end: endOfDay(today),
+  });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
+  const { syncAll, isSyncing, lastSync } = useAsaas();
+  const metrics = useFinancialMetrics(dateRange);
+
+  const handleSync = async () => {
+    await syncAll();
   };
-
-  const pendingPayments = payments.filter(p => p.status === 'PENDING');
-  const overduePayments = payments.filter(p => p.status === 'OVERDUE');
-  const receivedPayments = payments.filter(p => ['RECEIVED', 'CONFIRMED'].includes(p.status));
-  const activeSubscriptions = subscriptions.filter(s => s.status === 'ACTIVE');
-
-  const totalPending = pendingPayments.reduce((sum, p) => sum + p.value, 0);
-  const totalOverdue = overduePayments.reduce((sum, p) => sum + p.value, 0);
-  const totalReceived = receivedPayments.reduce((sum, p) => sum + p.value, 0);
-  const totalRecurring = activeSubscriptions.reduce((sum, s) => sum + s.value, 0);
-
-  const isLoading = isLoadingBalance || isLoadingPayments || isLoadingSubscriptions;
 
   return (
     <div className="space-y-6">
-      {/* Refresh Button */}
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetchBalance()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
-      </div>
-
-      {/* Main Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Disponível</CardTitle>
-            <Wallet className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {isLoadingBalance ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <div className="text-2xl font-bold text-primary">
-                {formatCurrency(balance || 0)}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-accent/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Recebido</CardTitle>
-            <TrendingUp className="h-4 w-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            {isLoadingPayments ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold text-accent">{formatCurrency(totalReceived)}</div>
-                <p className="text-xs text-muted-foreground">{receivedPayments.length} cobranças</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-yellow-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">A Receber</CardTitle>
-            <Receipt className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            {isLoadingPayments ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold text-yellow-500">{formatCurrency(totalPending)}</div>
-                <p className="text-xs text-muted-foreground">{pendingPayments.length} cobranças pendentes</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-destructive/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Vencido</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            {isLoadingPayments ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold text-destructive">{formatCurrency(totalOverdue)}</div>
-                <p className="text-xs text-muted-foreground">{overduePayments.length} cobranças vencidas</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recurring Revenue */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Receita Recorrente</CardTitle>
-          <CardDescription>Valor das assinaturas ativas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingSubscriptions ? (
-            <Loader2 className="h-6 w-6 animate-spin" />
-          ) : (
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold">{formatCurrency(totalRecurring)}</span>
-              <span className="text-muted-foreground">/mês</span>
-              <span className="text-sm text-muted-foreground ml-4">
-                ({activeSubscriptions.length} assinaturas ativas)
-              </span>
-            </div>
+      {/* Header with filters and sync */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Dashboard Financeiro</h2>
+          <p className="text-muted-foreground text-sm">
+            Visão geral das finanças e análise de inadimplência
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {lastSync && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Atualizado: {format(new Date(lastSync), 'HH:mm', { locale: ptBR })}
+            </span>
           )}
-        </CardContent>
-      </Card>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSync}
+            disabled={isSyncing}
+          >
+            <RefreshCw className={cn('h-4 w-4 mr-2', isSyncing && 'animate-spin')} />
+            Sincronizar
+          </Button>
+        </div>
+      </div>
+
+      {/* Date filter */}
+      <FinancialDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+
+      {/* Loading indicator */}
+      {metrics.isLoading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Carregando dados financeiros...</span>
+        </div>
+      )}
+
+      {!metrics.isLoading && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <FinancialKPICard
+              title="Saldo Disponível"
+              value={metrics.balance}
+              icon={Wallet}
+              iconColor="text-primary"
+              borderColor="border-primary/20"
+              subtitle="Saldo na conta Asaas"
+            />
+            <FinancialKPICard
+              title="Recebido no Período"
+              value={metrics.receivedInPeriod}
+              growth={metrics.receivedGrowth}
+              icon={TrendingUp}
+              iconColor="text-green-500"
+              borderColor="border-green-500/20"
+              subtitle={`${metrics.receivedCountInPeriod} cobranças recebidas`}
+            />
+            <FinancialKPICard
+              title="A Receber no Período"
+              value={metrics.pendingInPeriod}
+              icon={Receipt}
+              iconColor="text-yellow-500"
+              borderColor="border-yellow-500/20"
+              subtitle={`${metrics.pendingCountInPeriod} cobranças pendentes`}
+            />
+            <FinancialKPICard
+              title="Total Vencido"
+              value={metrics.overdueTotal}
+              icon={AlertCircle}
+              iconColor="text-destructive"
+              borderColor="border-destructive/20"
+              subtitle={`${metrics.overdueCount} cobranças em atraso`}
+            />
+          </div>
+
+          {/* Revenue Chart */}
+          <RevenueChart
+            data={metrics.dailyReceived}
+            title="Recebimentos no Período"
+            description="Evolução diária dos recebimentos"
+          />
+
+          {/* Delinquency Analysis Row */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <DelinquencyAnalysis
+              rate={metrics.delinquencyRate}
+              overdueTotal={metrics.overdueTotal}
+              overdueCount={metrics.overdueCount}
+            />
+            <div className="lg:col-span-2">
+              <AgingTable aging={metrics.aging} />
+            </div>
+          </div>
+
+          {/* Top Debtors & Payment Methods */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TopDebtorsTable debtors={metrics.topDebtors} />
+            <div className="space-y-4">
+              <PaymentMethodChart data={metrics.byPaymentMethod} />
+              <MRRCard
+                mrr={metrics.currentMRR}
+                subscriptionsCount={metrics.activeSubscriptionsCount}
+              />
+            </div>
+          </div>
+
+          {/* Forecast Section */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="border-blue-500/20">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Previsão Próximos 30 Dias</CardTitle>
+                    <CardDescription>Cobranças pendentes com vencimento em 30 dias</CardDescription>
+                  </div>
+                  <Calendar className="h-5 w-5 text-blue-500" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-blue-500">
+                    {formatCurrency(metrics.forecast30Days)}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {metrics.forecast30DaysCount} cobranças com vencimento até{' '}
+                  {format(addDays(new Date(), 30), "dd 'de' MMMM", { locale: ptBR })}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Resumo do Período</CardTitle>
+                <CardDescription>
+                  {format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} - {format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total de cobranças</span>
+                    <span className="font-medium">{metrics.totalPaymentsCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Valor total</span>
+                    <span className="font-medium">{formatCurrency(metrics.totalPaymentsValue)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Taxa de inadimplência</span>
+                    <span className={cn(
+                      'font-medium',
+                      metrics.delinquencyRate > 15 ? 'text-destructive' : 'text-green-500'
+                    )}>
+                      {metrics.delinquencyRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  {metrics.receivedGrowth !== 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Crescimento vs período anterior</span>
+                      <span className={cn(
+                        'font-medium flex items-center gap-1',
+                        metrics.receivedGrowth > 0 ? 'text-green-500' : 'text-destructive'
+                      )}>
+                        {metrics.receivedGrowth > 0 ? (
+                          <TrendingUp className="h-3 w-3" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3" />
+                        )}
+                        {Math.abs(metrics.receivedGrowth).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 };
