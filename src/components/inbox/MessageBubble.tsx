@@ -1,9 +1,10 @@
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, AlertCircle, Loader2 } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 const formatMessageTime = (message: InboxMessage) => {
   const date = new Date(message.created_at);
@@ -42,7 +43,9 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
     return <Clock className="h-3 w-3 text-[#667781]" />;
   };
 
-  const senderName = (message as any).sent_by_user?.full_name;
+  const senderName = message.sent_by_user?.full_name;
+  const isAIMessage = message.is_ai_generated || !!message.sent_by_ai_agent_id;
+  const aiAgentName = message.ai_agent?.agent_name;
 
   return (
     <div
@@ -51,10 +54,24 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
         isOutbound ? "ml-auto items-end" : "mr-auto items-start"
       )}
     >
-      {isOutbound && senderName && (
-        <span className="text-[11px] text-[#667781] mb-0.5 px-1">
-          {senderName}
-        </span>
+      {isOutbound && (senderName || isAIMessage) && (
+        <div className="flex items-center gap-1.5 mb-0.5 px-1">
+          {isAIMessage ? (
+            <>
+              <Bot className="h-3 w-3 text-primary" />
+              <span className="text-[11px] text-primary font-medium">
+                {aiAgentName || 'Agente IA'}
+              </span>
+              <Badge variant="outline" className="h-4 px-1 text-[9px] border-primary/30 text-primary">
+                IA
+              </Badge>
+            </>
+          ) : (
+            <span className="text-[11px] text-[#667781]">
+              {senderName}
+            </span>
+          )}
+        </div>
       )}
       
       {/* Message bubble with tail */}

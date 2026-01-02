@@ -1321,6 +1321,71 @@ export type Database = {
           },
         ]
       }
+      contact_activity_log: {
+        Row: {
+          activity_type: string
+          ai_agent_id: string | null
+          contact_id: string
+          conversation_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type: string
+          ai_agent_id?: string | null
+          contact_id: string
+          conversation_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: string
+          ai_agent_id?: string | null
+          contact_id?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_activity_log_ai_agent_id_fkey"
+            columns: ["ai_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_activity_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_activity_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_tags: {
         Row: {
           contact_id: string
@@ -2500,10 +2565,12 @@ export type Database = {
           delivered_at: string | null
           direction: string
           id: string
+          is_ai_generated: boolean | null
           media_url: string | null
           message_type: string
           read_at: string | null
           sent_at: string | null
+          sent_by_ai_agent_id: string | null
           sent_by_user_id: string | null
           status: string
           transcription: string | null
@@ -2517,10 +2584,12 @@ export type Database = {
           delivered_at?: string | null
           direction: string
           id?: string
+          is_ai_generated?: boolean | null
           media_url?: string | null
           message_type?: string
           read_at?: string | null
           sent_at?: string | null
+          sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
           status?: string
           transcription?: string | null
@@ -2534,10 +2603,12 @@ export type Database = {
           delivered_at?: string | null
           direction?: string
           id?: string
+          is_ai_generated?: boolean | null
           media_url?: string | null
           message_type?: string
           read_at?: string | null
           sent_at?: string | null
+          sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
           status?: string
           transcription?: string | null
@@ -2550,6 +2621,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbox_messages_sent_by_ai_agent_id_fkey"
+            columns: ["sent_by_ai_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
             referencedColumns: ["id"]
           },
         ]
