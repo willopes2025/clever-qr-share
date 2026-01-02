@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas } from "@/hooks/useAsaas";
+import { useOrganization } from "@/hooks/useOrganization";
 import { Plus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -25,6 +26,9 @@ const statusLabels: Record<string, string> = {
 
 export const AsaasTransferList = () => {
   const { transfers, isLoadingTransfers, balance } = useAsaas();
+  const { checkPermission } = useOrganization();
+
+  const canCreate = checkPermission('create_transfers_asaas');
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -44,10 +48,12 @@ export const AsaasTransferList = () => {
             </p>
           )}
         </div>
-        <Button disabled>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Transferência
-        </Button>
+        {canCreate && (
+          <Button disabled>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Transferência
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         {isLoadingTransfers ? (

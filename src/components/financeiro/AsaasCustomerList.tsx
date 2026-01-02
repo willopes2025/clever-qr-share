@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas, AsaasCustomer } from "@/hooks/useAsaas";
-import { Plus, Search, Loader2, Trash2, Edit, ExternalLink } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Plus, Search, Loader2, Trash2, Edit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AsaasCustomerForm } from "./AsaasCustomerForm";
 import {
@@ -20,10 +21,15 @@ import {
 
 export const AsaasCustomerList = () => {
   const { customers, isLoadingCustomers, deleteCustomer } = useAsaas();
+  const { checkPermission } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<AsaasCustomer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<AsaasCustomer | null>(null);
+
+  const canCreate = checkPermission('create_customers_asaas');
+  const canEdit = checkPermission('edit_customers_asaas');
+  const canDelete = checkPermission('delete_customers_asaas');
 
   const filteredCustomers = customers.filter(customer => 
     customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -52,10 +58,12 @@ export const AsaasCustomerList = () => {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Clientes</CardTitle>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Cliente
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="mb-4">
@@ -82,13 +90,13 @@ export const AsaasCustomerList = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>CPF/CNPJ</TableHead>
                 <TableHead>Telefone</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                {(canEdit || canDelete) && <TableHead className="text-right">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredCustomers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={canEdit || canDelete ? 5 : 4} className="text-center text-muted-foreground py-8">
                     Nenhum cliente encontrado
                   </TableCell>
                 </TableRow>
@@ -101,24 +109,30 @@ export const AsaasCustomerList = () => {
                       <Badge variant="outline">{customer.cpfCnpj || '-'}</Badge>
                     </TableCell>
                     <TableCell>{customer.mobilePhone || customer.phone || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(customer)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingCustomer(customer)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {(canEdit || canDelete) && (
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(customer)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingCustomer(customer)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

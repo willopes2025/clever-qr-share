@@ -56,12 +56,24 @@ export type PermissionKey =
   | 'view_ai_agents'
   | 'create_ai_agents'
   | 'manage_ai_agents'
-  // Finances (Asaas)
+  // Finances (Asaas) - Granular permissions
   | 'view_finances'
-  | 'manage_customers_asaas'
-  | 'manage_payments_asaas'
-  | 'manage_subscriptions_asaas'
-  | 'manage_transfers_asaas'
+  | 'view_customers_asaas'
+  | 'create_customers_asaas'
+  | 'edit_customers_asaas'
+  | 'delete_customers_asaas'
+  | 'view_payments_asaas'
+  | 'create_payments_asaas'
+  | 'edit_payments_asaas'
+  | 'delete_payments_asaas'
+  | 'view_subscriptions_asaas'
+  | 'edit_subscriptions_asaas'
+  | 'delete_subscriptions_asaas'
+  | 'view_transfers_asaas'
+  | 'create_transfers_asaas'
+  | 'view_payment_links_asaas'
+  | 'create_payment_links_asaas'
+  | 'delete_payment_links_asaas'
   // Settings
   | 'manage_subscription'
   | 'manage_settings'
@@ -198,12 +210,24 @@ export const PERMISSIONS: Permission[] = [
   { key: 'create_ai_agents', label: 'Criar Agentes IA', description: 'Criar novos agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
   { key: 'manage_ai_agents', label: 'Gerenciar Agentes IA', description: 'Editar e excluir agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
   
-  // Finances (Asaas)
-  { key: 'view_finances', label: 'Ver Financeiro', description: 'Visualizar painel financeiro Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
-  { key: 'manage_customers_asaas', label: 'Gerenciar Clientes Asaas', description: 'Criar/editar clientes no Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
-  { key: 'manage_payments_asaas', label: 'Gerenciar Cobranças', description: 'Criar/editar cobranças e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
-  { key: 'manage_subscriptions_asaas', label: 'Gerenciar Assinaturas Asaas', description: 'Criar/editar assinaturas recorrentes', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
-  { key: 'manage_transfers_asaas', label: 'Gerenciar Transferências', description: 'Realizar transferências PIX/TED', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  // Finances (Asaas) - Granular permissions
+  { key: 'view_finances', label: 'Ver Dashboard Financeiro', description: 'Visualizar saldo e métricas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'view_customers_asaas', label: 'Ver Clientes', description: 'Visualizar lista de clientes Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'create_customers_asaas', label: 'Criar Clientes', description: 'Adicionar novos clientes no Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'edit_customers_asaas', label: 'Editar Clientes', description: 'Editar dados de clientes', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'delete_customers_asaas', label: 'Excluir Clientes', description: 'Remover clientes do Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'view_payments_asaas', label: 'Ver Cobranças', description: 'Visualizar lista de cobranças', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'create_payments_asaas', label: 'Criar Cobranças', description: 'Criar novas cobranças (boleto, PIX, cartão)', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'edit_payments_asaas', label: 'Editar Cobranças', description: 'Cancelar ou reembolsar cobranças', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'delete_payments_asaas', label: 'Excluir Cobranças', description: 'Excluir cobranças do Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'view_subscriptions_asaas', label: 'Ver Assinaturas', description: 'Visualizar assinaturas recorrentes', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'edit_subscriptions_asaas', label: 'Editar Assinaturas', description: 'Modificar assinaturas existentes', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'delete_subscriptions_asaas', label: 'Cancelar Assinaturas', description: 'Cancelar assinaturas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'view_transfers_asaas', label: 'Ver Transferências', description: 'Visualizar histórico de transferências', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'create_transfers_asaas', label: 'Realizar Transferências', description: 'Fazer transferências PIX/TED', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'view_payment_links_asaas', label: 'Ver Links de Pagamento', description: 'Visualizar links de pagamento', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'create_payment_links_asaas', label: 'Criar Links de Pagamento', description: 'Criar novos links de pagamento', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'delete_payment_links_asaas', label: 'Excluir Links de Pagamento', description: 'Remover links de pagamento', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
   
   // Settings
   { key: 'manage_subscription', label: 'Gerenciar Assinatura', description: 'Gerenciar plano e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
