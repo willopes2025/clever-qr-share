@@ -327,7 +327,7 @@ export const ImportLeadsDialog = ({
         tagIds: selectedTags.length > 0 ? selectedTags : undefined,
       });
 
-      const importedCount = result?.length || 0;
+      const importedCount = (result?.new || 0) + (result?.updated || 0);
       toast.success(`${importedCount} contatos importados com sucesso!`);
       onSuccess();
       

@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -28,6 +30,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Columns,
+  Filter,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CreateFieldInlineDialog, NewFieldConfig, FieldType } from "./CreateFieldInlineDialog";
@@ -39,14 +43,28 @@ export interface TagOption {
   color: string;
 }
 
+export interface DeduplicationConfig {
+  enabled: boolean;
+  field: 'phone' | 'email' | 'contact_display_id' | string; // string para campos personalizados custom:field_key
+  action: 'skip' | 'update';
+}
+
+export interface ImportStats {
+  total: number;
+  new: number;
+  duplicates: number;
+  invalid: number;
+}
+
 interface ImportContactsDialogV2Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string; custom_fields?: Record<string, unknown> }[],
+    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[],
     tagIds?: string[],
-    newFields?: NewFieldConfig[]
-  ) => Promise<void>;
+    newFields?: NewFieldConfig[],
+    deduplication?: DeduplicationConfig
+  ) => Promise<ImportStats | void>;
   isLoading?: boolean;
   tags?: TagOption[];
   existingFields?: CustomFieldDefinition[];
@@ -54,12 +72,12 @@ interface ImportContactsDialogV2Props {
 
 interface ColumnMapping {
   csvColumn: string;
-  targetField: string; // 'ignore' | 'name' | 'phone' | 'email' | 'notes' | `custom:${field_key}` | `new:${index}`
+  targetField: string; // 'ignore' | 'name' | 'phone' | 'email' | 'notes' | 'contact_display_id' | `custom:${field_key}` | `new:${index}`
   isNewField?: boolean;
   newFieldConfig?: NewFieldConfig;
 }
 
-type ImportStep = "upload" | "mapping" | "tags";
+type ImportStep = "upload" | "mapping" | "deduplication" | "tags";
 
 const STANDARD_FIELDS = [
   { value: "ignore", label: "Ignorar coluna", icon: "🚫" },
@@ -67,6 +85,7 @@ const STANDARD_FIELDS = [
   { value: "name", label: "Nome", icon: "👤" },
   { value: "email", label: "E-mail", icon: "✉️" },
   { value: "notes", label: "Notas", icon: "📝" },
+  { value: "contact_display_id", label: "ID Externo", icon: "🔗" },
 ];
 
 export const ImportContactsDialogV2 = ({
@@ -85,6 +104,13 @@ export const ImportContactsDialogV2 = ({
   const [columnMappings, setColumnMappings] = useState<Record<string, ColumnMapping>>({});
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [newFields, setNewFields] = useState<NewFieldConfig[]>([]);
+  
+  // Deduplication state
+  const [deduplication, setDeduplication] = useState<DeduplicationConfig>({
+    enabled: true,
+    field: 'phone',
+    action: 'skip',
+  });
   
   // Create field dialog state
   const [showCreateField, setShowCreateField] = useState(false);
@@ -155,6 +181,16 @@ export const ImportContactsDialogV2 = ({
         targetField = "email";
       } else if (headerLower.includes("notes") || headerLower.includes("notas") || headerLower.includes("observ")) {
         targetField = "notes";
+      } else if (headerLower.includes("id") || headerLower.includes("codigo") || headerLower.includes("código") || headerLower.includes("external")) {
+        targetField = "contact_display_id";
+      } else if (headerLower.includes("cpf") || headerLower.includes("cnpj") || headerLower.includes("documento")) {
+        // Mapear CPF/CNPJ para campo personalizado se existir, ou sugerir criação
+        const existingField = existingFields.find(
+          (f) => f.field_key.toLowerCase() === "cpf" || f.field_key.toLowerCase() === "cnpj" || f.field_key.toLowerCase() === "documento"
+        );
+        if (existingField) {
+          targetField = `custom:${existingField.field_key}`;
+        }
       } else {
         // Check existing custom fields
         const existingField = existingFields.find(
@@ -243,6 +279,50 @@ export const ImportContactsDialogV2 = ({
     });
   }, [csvData, csvHeaders, columnMappings]);
 
+  // Get available deduplication fields based on mappings
+  const availableDeduplicationFields = useMemo(() => {
+    const fields: { value: string; label: string }[] = [
+      { value: 'phone', label: 'Telefone' },
+    ];
+
+    // Add email if mapped
+    const hasEmail = Object.values(columnMappings).some(m => m.targetField === 'email');
+    if (hasEmail) {
+      fields.push({ value: 'email', label: 'E-mail' });
+    }
+
+    // Add contact_display_id if mapped
+    const hasExternalId = Object.values(columnMappings).some(m => m.targetField === 'contact_display_id');
+    if (hasExternalId) {
+      fields.push({ value: 'contact_display_id', label: 'ID Externo' });
+    }
+
+    // Add custom fields that are mapped
+    Object.values(columnMappings).forEach(mapping => {
+      if (mapping.targetField.startsWith('custom:')) {
+        const fieldKey = mapping.targetField.replace('custom:', '');
+        const existingField = existingFields.find(f => f.field_key === fieldKey);
+        if (existingField) {
+          fields.push({ 
+            value: `custom:${fieldKey}`, 
+            label: existingField.field_name 
+          });
+        }
+      } else if (mapping.targetField.startsWith('new:')) {
+        const fieldIndex = parseInt(mapping.targetField.replace('new:', ''));
+        const newField = newFields[fieldIndex];
+        if (newField) {
+          fields.push({ 
+            value: `custom:${newField.field_key}`, 
+            label: newField.field_name 
+          });
+        }
+      }
+    });
+
+    return fields;
+  }, [columnMappings, existingFields, newFields]);
+
   const handleImport = async () => {
     const phoneColumn = Object.entries(columnMappings).find(
       ([, m]) => m.targetField === "phone"
@@ -254,7 +334,7 @@ export const ImportContactsDialogV2 = ({
     }
 
     const contacts = validContacts.map((row) => {
-      const contact: { phone: string; name?: string; email?: string; notes?: string; custom_fields: Record<string, unknown> } = {
+      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown> } = {
         phone: "",
         custom_fields: {},
       };
@@ -277,6 +357,9 @@ export const ImportContactsDialogV2 = ({
             break;
           case "notes":
             contact.notes = value;
+            break;
+          case "contact_display_id":
+            contact.contact_display_id = value;
             break;
           case "ignore":
             break;
@@ -302,7 +385,8 @@ export const ImportContactsDialogV2 = ({
       await onImport(
         contacts,
         selectedTagIds.length > 0 ? selectedTagIds : undefined,
-        newFields.length > 0 ? newFields : undefined
+        newFields.length > 0 ? newFields : undefined,
+        deduplication.enabled ? deduplication : undefined
       );
       
       // Reset state
@@ -314,6 +398,7 @@ export const ImportContactsDialogV2 = ({
       setColumnMappings({});
       setSelectedTagIds([]);
       setNewFields([]);
+      setDeduplication({ enabled: true, field: 'phone', action: 'skip' });
     } catch (error) {
       // Error handled by parent
     }
@@ -482,7 +567,126 @@ export const ImportContactsDialogV2 = ({
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
-        <Button onClick={() => setStep("tags")} disabled={validContacts.length === 0}>
+        <Button onClick={() => setStep("deduplication")} disabled={validContacts.length === 0}>
+          Próximo
+          <ArrowRight className="w-4 h-4 ml-2" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderDeduplicationStep = () => (
+    <div className="space-y-4">
+      {/* Deduplication config */}
+      <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-base font-medium flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Evitar contatos duplicados
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Identifica contatos que já existem na base
+            </p>
+          </div>
+          <Switch
+            checked={deduplication.enabled}
+            onCheckedChange={(enabled) => 
+              setDeduplication(prev => ({ ...prev, enabled }))
+            }
+          />
+        </div>
+
+        {deduplication.enabled && (
+          <>
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-sm font-medium">Campo de identificação:</Label>
+              <Select
+                value={deduplication.field}
+                onValueChange={(field) => 
+                  setDeduplication(prev => ({ ...prev, field }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableDeduplicationFields.map((field) => (
+                    <SelectItem key={field.value} value={field.value}>
+                      {field.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Contatos serão identificados como duplicados se tiverem o mesmo valor neste campo
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-sm font-medium">Quando encontrar duplicata:</Label>
+              <RadioGroup
+                value={deduplication.action}
+                onValueChange={(action: 'skip' | 'update') => 
+                  setDeduplication(prev => ({ ...prev, action }))
+                }
+                className="space-y-2"
+              >
+                <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer">
+                  <RadioGroupItem value="skip" id="skip" className="mt-0.5" />
+                  <div className="space-y-1">
+                    <Label htmlFor="skip" className="font-medium cursor-pointer">
+                      Ignorar (manter dados existentes)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Contatos duplicados não serão importados
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer">
+                  <RadioGroupItem value="update" id="update" className="mt-0.5" />
+                  <div className="space-y-1">
+                    <Label htmlFor="update" className="font-medium cursor-pointer flex items-center gap-2">
+                      <RefreshCw className="h-3 w-3" />
+                      Atualizar (sobrescrever com novos dados)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Dados existentes serão substituídos pelos novos
+                    </p>
+                  </div>
+                </div>
+              </RadioGroup>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Summary preview */}
+      <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+        <h4 className="font-medium text-sm mb-2">Resumo da importação</h4>
+        <div className="grid grid-cols-2 gap-1 text-sm">
+          <div>Total no arquivo:</div>
+          <div className="font-medium">{csvData.length} contatos</div>
+          <div>Válidos para importar:</div>
+          <div className="font-medium text-green-600">{validContacts.length} contatos</div>
+          <div>Inválidos (serão ignorados):</div>
+          <div className="font-medium text-amber-500">{csvData.length - validContacts.length}</div>
+        </div>
+        {deduplication.enabled && (
+          <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+            💡 Duplicatas serão verificadas pelo campo "{availableDeduplicationFields.find(f => f.value === deduplication.field)?.label || deduplication.field}" 
+            e {deduplication.action === 'skip' ? 'ignoradas' : 'atualizadas'}
+          </p>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between pt-2">
+        <Button variant="outline" onClick={() => setStep("mapping")}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Voltar
+        </Button>
+        <Button onClick={() => setStep("tags")}>
           Próximo
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
@@ -557,7 +761,7 @@ export const ImportContactsDialogV2 = ({
 
       {/* Navigation */}
       <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={() => setStep("mapping")}>
+        <Button variant="outline" onClick={() => setStep("deduplication")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
@@ -574,6 +778,8 @@ export const ImportContactsDialogV2 = ({
         return "Importar Contatos";
       case "mapping":
         return "Mapear Colunas";
+      case "deduplication":
+        return "Configurar Deduplicação";
       case "tags":
         return "Finalizar Importação";
     }
@@ -585,6 +791,8 @@ export const ImportContactsDialogV2 = ({
         return "Envie um arquivo CSV com os dados dos contatos";
       case "mapping":
         return "Defina como cada coluna será importada";
+      case "deduplication":
+        return "Configure como identificar e tratar contatos duplicados";
       case "tags":
         return "Revise e confirme a importação";
     }
@@ -601,32 +809,37 @@ export const ImportContactsDialogV2 = ({
 
           {/* Progress indicator */}
           <div className="flex items-center gap-2 mb-4">
-            {(["upload", "mapping", "tags"] as ImportStep[]).map((s, idx) => (
-              <div key={s} className="flex items-center gap-2">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                    step === s
-                      ? "bg-primary text-primary-foreground"
-                      : ["mapping", "tags"].indexOf(step) > idx
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {idx + 1}
-                </div>
-                {idx < 2 && (
+            {(["upload", "mapping", "deduplication", "tags"] as ImportStep[]).map((s, idx) => {
+              const steps: ImportStep[] = ["upload", "mapping", "deduplication", "tags"];
+              const currentIdx = steps.indexOf(step);
+              return (
+                <div key={s} className="flex items-center gap-2">
                   <div
-                    className={`w-12 h-0.5 ${
-                      ["mapping", "tags"].indexOf(step) > idx ? "bg-primary" : "bg-muted"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                      step === s
+                        ? "bg-primary text-primary-foreground"
+                        : currentIdx > idx
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground"
                     }`}
-                  />
-                )}
-              </div>
-            ))}
+                  >
+                    {idx + 1}
+                  </div>
+                  {idx < 3 && (
+                    <div
+                      className={`w-8 h-0.5 ${
+                        currentIdx > idx ? "bg-primary" : "bg-muted"
+                      }`}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {step === "upload" && renderUploadStep()}
           {step === "mapping" && renderMappingStep()}
+          {step === "deduplication" && renderDeduplicationStep()}
           {step === "tags" && renderTagsStep()}
         </DialogContent>
       </Dialog>
