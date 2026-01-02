@@ -75,10 +75,56 @@ serve(async (req) => {
       status = 'connecting';
     }
 
-    // Atualizar status no banco
+    // Se conectado, buscar dados do perfil via fetchInstances
+    let phoneNumber: string | null = null;
+    let profileName: string | null = null;
+    let profilePictureUrl: string | null = null;
+    let profileStatus: string | null = null;
+    let isBusiness = false;
+
+    if (status === 'connected') {
+      try {
+        const detailsResponse = await fetch(
+          `${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': evolutionApiKey,
+            },
+          }
+        );
+        const detailsData = await detailsResponse.json();
+        console.log('Instance details response:', JSON.stringify(detailsData));
+
+        // Extract profile data from response
+        const instanceDetails = Array.isArray(detailsData) ? detailsData[0] : detailsData;
+        if (instanceDetails?.instance) {
+          phoneNumber = instanceDetails.instance.owner?.replace('@s.whatsapp.net', '') || null;
+          profileName = instanceDetails.instance.profileName || null;
+          profilePictureUrl = instanceDetails.instance.profilePictureUrl || null;
+          profileStatus = instanceDetails.instance.profileStatus || null;
+          // Check if it's a business account (usually indicated by the owner format or other fields)
+          isBusiness = instanceDetails.instance.isBusiness || false;
+        }
+      } catch (detailsError) {
+        console.error('Error fetching instance details:', detailsError);
+      }
+    }
+
+    // Atualizar status e dados do perfil no banco
+    const updateData: Record<string, unknown> = { status };
+    
+    if (status === 'connected') {
+      updateData.phone_number = phoneNumber;
+      updateData.profile_name = profileName;
+      updateData.profile_picture_url = profilePictureUrl;
+      updateData.profile_status = profileStatus;
+      updateData.is_business = isBusiness;
+    }
+
     const { error: updateError } = await supabase
       .from('whatsapp_instances')
-      .update({ status })
+      .update(updateData)
       .eq('id', instance.id);
 
     if (updateError) {
@@ -87,7 +133,11 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      status, 
+      status,
+      phoneNumber,
+      profileName,
+      profilePictureUrl,
+      isBusiness,
       raw: statusData 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

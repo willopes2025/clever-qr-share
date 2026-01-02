@@ -6,15 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle, Webhook } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useWhatsAppInstances, WhatsAppInstance } from "@/hooks/useWhatsAppInstances";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useFunnels } from "@/hooks/useFunnels";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Link } from "react-router-dom";
 import { InstanceFunnelDialog } from "@/components/instances/InstanceFunnelDialog";
 import { SyncHistoryDialog } from "@/components/instances/SyncHistoryDialog";
+import { InstanceFilters, InstanceFiltersState } from "@/components/instances/InstanceFilters";
+import { InstancesListView } from "@/components/instances/InstancesListView";
+import { EditDeviceDialog } from "@/components/instances/EditDeviceDialog";
 
 const Instances = () => {
   const {
@@ -28,9 +32,11 @@ const Instances = () => {
     updateWarmingLevel,
     configureWebhook,
     updateDefaultFunnel,
+    updateDeviceLabel,
   } = useWhatsAppInstances();
   
   const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
+  const { funnels } = useFunnels();
 
   const [newInstanceName, setNewInstanceName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,6 +50,16 @@ const Instances = () => {
   const [funnelDialogInstance, setFunnelDialogInstance] = useState<WhatsAppInstance | null>(null);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [syncDialogInstance, setSyncDialogInstance] = useState<WhatsAppInstance | null>(null);
+  const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
+  const [deviceDialogInstance, setDeviceDialogInstance] = useState<WhatsAppInstance | null>(null);
+  
+  // Filters and view mode
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filters, setFilters] = useState<InstanceFiltersState>({
+    status: 'all',
+    warmingLevel: null,
+    funnelId: null,
+  });
 
   // Polling para verificar status de instâncias "connecting"
   useEffect(() => {
@@ -61,8 +77,37 @@ const Instances = () => {
     return () => clearInterval(interval);
   }, [instances]);
 
+  // Filter instances
+  const filteredInstances = useMemo(() => {
+    if (!instances) return [];
+    
+    return instances.filter(instance => {
+      // Status filter
+      if (filters.status !== 'all') {
+        if (filters.status === 'connected' && instance.status !== 'connected') return false;
+        if (filters.status === 'disconnected' && instance.status !== 'connected') {
+          // Include both 'disconnected' and 'connecting' as disconnected
+        } else if (filters.status === 'disconnected' && instance.status === 'connected') {
+          return false;
+        }
+      }
+      
+      // Warming level filter
+      if (filters.warmingLevel !== null && instance.warming_level !== filters.warmingLevel) {
+        return false;
+      }
+      
+      // Funnel filter
+      if (filters.funnelId !== null) {
+        if (filters.funnelId === 'none' && instance.default_funnel_id !== null) return false;
+        if (filters.funnelId !== 'none' && instance.default_funnel_id !== filters.funnelId) return false;
+      }
+      
+      return true;
+    });
+  }, [instances, filters]);
+
   const instanceCount = instances?.length || 0;
-  const canCreate = canCreateInstance(instanceCount);
   const maxInstances = subscription?.max_instances;
 
   const handleCreateInstance = async (forceRecreate = false) => {
@@ -172,7 +217,7 @@ const Instances = () => {
         </Alert>
       )}
 
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Instâncias</h1>
           <p className="text-muted-foreground">
@@ -311,41 +356,94 @@ const Instances = () => {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="mb-6">
+        <InstanceFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          funnels={funnels || []}
+        />
+      </div>
+
       {isLoading ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-40 rounded-xl bg-dark-800/50" />
           ))}
         </div>
+      ) : filteredInstances.length > 0 ? (
+        viewMode === 'grid' ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredInstances.map((instance, index) => (
+              <motion.div
+                key={instance.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+              >
+                <InstanceCard
+                  name={instance.instance_name}
+                  status={instance.status}
+                  warmingLevel={instance.warming_level}
+                  funnelName={instance.funnel?.name}
+                  funnelColor={instance.funnel?.color}
+                  phoneNumber={instance.phone_number}
+                  profileName={instance.profile_name}
+                  profilePictureUrl={instance.profile_picture_url}
+                  isBusiness={instance.is_business}
+                  deviceLabel={instance.device_label}
+                  connectedAt={instance.connected_at}
+                  onQRCode={() => handleShowQRCode(instance)}
+                  onDelete={() => handleDeleteInstance(instance.instance_name)}
+                  onWarmingChange={(level) => handleWarmingChange(instance.id, level)}
+                  onConfigureFunnel={() => {
+                    setFunnelDialogInstance(instance);
+                    setFunnelDialogOpen(true);
+                  }}
+                  onSyncHistory={() => {
+                    setSyncDialogInstance(instance);
+                    setSyncDialogOpen(true);
+                  }}
+                  onEditDevice={() => {
+                    setDeviceDialogInstance(instance);
+                    setDeviceDialogOpen(true);
+                  }}
+                />
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <InstancesListView
+            instances={filteredInstances}
+            onQRCode={handleShowQRCode}
+            onDelete={handleDeleteInstance}
+            onConfigureFunnel={(instance) => {
+              setFunnelDialogInstance(instance);
+              setFunnelDialogOpen(true);
+            }}
+            onSyncHistory={(instance) => {
+              setSyncDialogInstance(instance);
+              setSyncDialogOpen(true);
+            }}
+            onEditDevice={(instance) => {
+              setDeviceDialogInstance(instance);
+              setDeviceDialogOpen(true);
+            }}
+          />
+        )
       ) : instances && instances.length > 0 ? (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {instances.map((instance, index) => (
-            <motion.div
-              key={instance.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-            >
-              <InstanceCard
-                name={instance.instance_name}
-                status={instance.status}
-                warmingLevel={instance.warming_level}
-                funnelName={instance.funnel?.name}
-                funnelColor={instance.funnel?.color}
-                onQRCode={() => handleShowQRCode(instance)}
-                onDelete={() => handleDeleteInstance(instance.instance_name)}
-                onWarmingChange={(level) => handleWarmingChange(instance.id, level)}
-                onConfigureFunnel={() => {
-                  setFunnelDialogInstance(instance);
-                  setFunnelDialogOpen(true);
-                }}
-                onSyncHistory={() => {
-                  setSyncDialogInstance(instance);
-                  setSyncDialogOpen(true);
-                }}
-              />
-            </motion.div>
-          ))}
+        <div className="text-center py-16">
+          <p className="text-muted-foreground mb-4">
+            Nenhuma instância encontrada com os filtros selecionados.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => setFilters({ status: 'all', warmingLevel: null, funnelId: null })}
+          >
+            Limpar filtros
+          </Button>
         </div>
       ) : (
         <div className="text-center py-16">
@@ -460,7 +558,28 @@ const Instances = () => {
           onSuccess={() => refetch()}
         />
       )}
+
+      {/* Edit Device Dialog */}
+      {deviceDialogInstance && (
+        <EditDeviceDialog
+          open={deviceDialogOpen}
+          onOpenChange={setDeviceDialogOpen}
+          instanceName={deviceDialogInstance.instance_name}
+          currentDeviceLabel={deviceDialogInstance.device_label}
+          onSave={async (deviceLabel) => {
+            await updateDeviceLabel.mutateAsync({
+              instanceId: deviceDialogInstance.id,
+              deviceLabel,
+            });
+          }}
+          isLoading={updateDeviceLabel.isPending}
+        />
+      )}
     </DashboardLayout>
+  );
+};
+
+export default Instances;
   );
 };
 
