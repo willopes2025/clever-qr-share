@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIntegrations } from "./useIntegrations";
@@ -155,6 +156,8 @@ export const useAsaas = () => {
   const { isConnected, getIntegration } = useIntegrations();
   const queryClient = useQueryClient();
   const hasAsaas = isConnected('asaas');
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const callAsaasApi = async (action: string, params?: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke('asaas-api', {
@@ -173,25 +176,43 @@ export const useAsaas = () => {
     enabled: hasAsaas,
   });
 
-  // Customers
+  // Customers - buscar todos com paginação automática
   const { data: customersData, isLoading: isLoadingCustomers, refetch: refetchCustomers } = useQuery({
-    queryKey: ['asaas', 'customers'],
-    queryFn: () => callAsaasApi('list-customers', { limit: 100 }),
+    queryKey: ['asaas', 'all-customers'],
+    queryFn: async () => {
+      const result = await callAsaasApi('list-all-customers', {});
+      setLastSync(result.fetchedAt);
+      return result;
+    },
     enabled: hasAsaas,
+    staleTime: 2 * 60 * 1000, // Cache por 2 minutos
+    gcTime: 5 * 60 * 1000,    // Manter em memória por 5 minutos
   });
 
-  // Payments
+  // Payments - buscar todos com paginação automática
   const { data: paymentsData, isLoading: isLoadingPayments, refetch: refetchPayments } = useQuery({
-    queryKey: ['asaas', 'payments'],
-    queryFn: () => callAsaasApi('list-payments', { limit: 100 }),
+    queryKey: ['asaas', 'all-payments'],
+    queryFn: async () => {
+      const result = await callAsaasApi('list-all-payments', {});
+      setLastSync(result.fetchedAt);
+      return result;
+    },
     enabled: hasAsaas,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
-  // Subscriptions
+  // Subscriptions - buscar todos com paginação automática
   const { data: subscriptionsData, isLoading: isLoadingSubscriptions, refetch: refetchSubscriptions } = useQuery({
-    queryKey: ['asaas', 'subscriptions'],
-    queryFn: () => callAsaasApi('list-subscriptions', { limit: 100 }),
+    queryKey: ['asaas', 'all-subscriptions'],
+    queryFn: async () => {
+      const result = await callAsaasApi('list-all-subscriptions', {});
+      setLastSync(result.fetchedAt);
+      return result;
+    },
     enabled: hasAsaas,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   // Transfers
@@ -207,6 +228,27 @@ export const useAsaas = () => {
     queryFn: () => callAsaasApi('list-payment-links', { limit: 100 }),
     enabled: hasAsaas,
   });
+
+  // Função para sincronizar todos os dados
+  const syncAll = async () => {
+    setIsSyncing(true);
+    try {
+      await Promise.all([
+        refetchCustomers(),
+        refetchPayments(),
+        refetchSubscriptions(),
+        refetchTransfers(),
+        refetchPaymentLinks(),
+        refetchBalance(),
+      ]);
+      toast.success("Dados sincronizados com sucesso!");
+    } catch (error) {
+      toast.error("Erro ao sincronizar dados");
+      console.error('Sync error:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Mutations
   const createCustomer = useMutation({
@@ -354,12 +396,17 @@ export const useAsaas = () => {
 
   return {
     hasAsaas,
+    // Sync
+    lastSync,
+    isSyncing,
+    syncAll,
     // Balance
     balance: balance?.balance as number | undefined,
     isLoadingBalance,
     refetchBalance,
     // Customers
     customers: (customersData?.data || []) as AsaasCustomer[],
+    customersCount: customersData?.totalCount || 0,
     isLoadingCustomers,
     refetchCustomers,
     createCustomer,
@@ -369,6 +416,7 @@ export const useAsaas = () => {
     getCustomerSubscriptions,
     // Payments
     payments: (paymentsData?.data || []) as AsaasPayment[],
+    paymentsCount: paymentsData?.totalCount || 0,
     isLoadingPayments,
     refetchPayments,
     createPayment,
@@ -377,6 +425,7 @@ export const useAsaas = () => {
     getPixQrCode,
     // Subscriptions
     subscriptions: (subscriptionsData?.data || []) as AsaasSubscription[],
+    subscriptionsCount: subscriptionsData?.totalCount || 0,
     isLoadingSubscriptions,
     refetchSubscriptions,
     createSubscription,
