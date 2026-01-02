@@ -4,15 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TopDebtor } from '@/hooks/useFinancialMetrics';
 import { cn } from '@/lib/utils';
-import { AlertCircle, User, FileX, Eye, ArrowRight } from 'lucide-react';
+import { AlertCircle, User, Eye, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface TopDebtorsTableProps {
   debtors: TopDebtor[];
   isLoading?: boolean;
-  onNegativar?: (debtor: TopDebtor) => void;
-  showActions?: boolean;
 }
 
 const formatCurrency = (value: number): string => {
@@ -30,9 +28,7 @@ const getDaysOverdueColor = (days: number): string => {
 
 export const TopDebtorsTable = ({ 
   debtors, 
-  isLoading = false,
-  onNegativar,
-  showActions = true
+  isLoading = false
 }: TopDebtorsTableProps) => {
   const navigate = useNavigate();
 
@@ -81,7 +77,7 @@ export const TopDebtorsTable = ({
               <TableHead className="text-right">Cobranças</TableHead>
               <TableHead className="text-right">Valor</TableHead>
               <TableHead className="text-right">Atraso</TableHead>
-              {showActions && <TableHead className="text-right">Ações</TableHead>}
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -113,40 +109,23 @@ export const TopDebtorsTable = ({
                     {debtor.daysOverdue}d
                   </Badge>
                 </TableCell>
-                {showActions && (
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => onNegativar?.(debtor)}
-                          >
-                            <FileX className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Negativar no Serasa</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => navigate('/financeiro/devedores', { 
-                              state: { selectedDebtor: debtor }
-                            })}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ver detalhes</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TableCell>
-                )}
+                <TableCell className="text-right">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => navigate('/financeiro/devedores', { 
+                          state: { selectedDebtor: debtor }
+                        })}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Ver detalhes</TooltipContent>
+                  </Tooltip>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
