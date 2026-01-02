@@ -87,6 +87,99 @@ const createCalendlyBooking = async (
   }
 };
 
+// Define ssOtica tools for AI
+const getSsoticaTools = () => [
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_os_cliente',
+      description: 'Consulta ordens de serviço (OS) de um cliente pelo CPF. Retorna status, previsão de entrega, itens e valores. Use quando o cliente perguntar sobre status do pedido, prazo de entrega, ou "meus óculos".',
+      parameters: {
+        type: 'object',
+        properties: {
+          cpf: { 
+            type: 'string', 
+            description: 'CPF do cliente (apenas números ou formatado com pontos e traço)' 
+          }
+        },
+        required: ['cpf']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_vendas_cliente',
+      description: 'Consulta vendas de um cliente pelo CPF. Retorna itens comprados, valores e forma de pagamento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cpf: { 
+            type: 'string', 
+            description: 'CPF do cliente' 
+          }
+        },
+        required: ['cpf']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_parcelas_cliente',
+      description: 'Consulta parcelas e boletos em aberto do cliente. Retorna valores, vencimentos e status de pagamento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cpf: { 
+            type: 'string', 
+            description: 'CPF do cliente' 
+          }
+        },
+        required: ['cpf']
+      }
+    }
+  }
+];
+
+// Helper to call ssOtica API
+const callSsoticaApi = async (
+  supabaseUrl: string,
+  agentConfigId: string,
+  action: string,
+  params: Record<string, unknown>
+): Promise<{ success: boolean; data?: unknown; error?: string }> => {
+  try {
+    console.log(`[TEST-AI-AGENT] Calling ssOtica API: ${action}`, params);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/ssotica-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({
+        action,
+        params,
+        agent_config_id: agentConfigId
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error(`[TEST-AI-AGENT] ssOtica API error:`, data);
+      return { success: false, error: data.error || 'Erro ao consultar ssOtica' };
+    }
+    
+    console.log(`[TEST-AI-AGENT] ssOtica API response:`, JSON.stringify(data).substring(0, 500));
+    return { success: true, data };
+  } catch (e) {
+    console.error('[TEST-AI-AGENT] Failed to call ssOtica API:', e);
+    return { success: false, error: 'Erro de conexão com ssOtica' };
+  }
+};
+
 // Define Calendly tools for AI
 const getCalendlyTools = () => [
   {
@@ -560,6 +653,17 @@ serve(async (req) => {
     const hasCalendarIntegration = !!calendarIntegration;
     console.log(`[TEST-AI-AGENT] Calendar integration: ${hasCalendarIntegration ? 'enabled' : 'disabled'}`);
 
+    // Check for API integrations (like ssOtica)
+    const { data: apiIntegrations } = await supabase
+      .from("ai_agent_integrations")
+      .select("*")
+      .eq("agent_config_id", agentId)
+      .eq("integration_type", "api")
+      .eq("is_active", true);
+
+    const hasSsoticaIntegration = apiIntegrations?.some(i => i.name?.toLowerCase().includes('ssotica'));
+    console.log(`[TEST-AI-AGENT] ssOtica integration: ${hasSsoticaIntegration ? 'enabled' : 'disabled'}`);
+
     // Debug info for response
     const calendlyDebug = {
       connected: hasCalendarIntegration,
@@ -688,6 +792,27 @@ ${slotsInfo}
 7. Se cliente já escolheu horário, NÃO ofereça novos horários - avance para coleta de dados`;
     }
 
+    // Build ssOtica context
+    let ssoticaContext = '';
+    if (hasSsoticaIntegration) {
+      ssoticaContext = `
+## 🔌 INTEGRAÇÃO SSOTICA ATIVA - CONSULTAS EM TEMPO REAL
+
+Você tem acesso a consultas em tempo real do sistema ssOtica.
+Quando o cliente perguntar sobre:
+- Status do pedido, prazo de entrega, "meus óculos" → use consultar_os_cliente(cpf)
+- Valor, forma de pagamento, itens comprados → use consultar_vendas_cliente(cpf)
+- Parcelas, boletos, vencimentos → use consultar_parcelas_cliente(cpf)
+
+### 🚨 REGRAS OBRIGATÓRIAS SSOTICA 🚨
+1. SEMPRE pergunte e confirme o CPF antes de consultar
+2. Use APENAS os dados retornados pela consulta - NUNCA invente valores, datas ou status
+3. Se a consulta retornar vazio, informe que não encontrou registros para aquele CPF
+4. Se a consulta falhar, informe que vai verificar manualmente e encaminhar para um atendente
+5. Formate os valores em Reais (R$) e datas no formato brasileiro (DD/MM/AAAA)
+6. CPF pode ser informado com ou sem pontuação - aceite ambos formatos`;
+    }
+
     // Detect conversation state for anti-repetition - INCLUDE CURRENT MESSAGE
     const conversationState = detectConversationState(conversationHistory, userMessage);
     const continuityContext = buildContinuityContext(conversationState);
@@ -720,7 +845,7 @@ MENSAGEM DE FALLBACK:
 ${agent.fallback_message || "Desculpe, não entendi. Pode reformular?"}
 ${knowledgeText}
 ${calendarContext}
-
+${ssoticaContext}
 INSTRUÇÕES FINAIS:
 - Este é um TESTE de simulação. Responda como se estivesse em uma conversa real via WhatsApp.
 - Mantenha respostas curtas e naturais (2-3 linhas).
@@ -753,16 +878,25 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
       );
     }
 
-    console.log(`[TEST-AI-AGENT] Calling AI. First message: ${isFirstMessage}, Has calendar: ${hasCalendarIntegration}`);
+    console.log(`[TEST-AI-AGENT] Calling AI. First message: ${isFirstMessage}, Has calendar: ${hasCalendarIntegration}, Has ssOtica: ${hasSsoticaIntegration}`);
 
-    // Prepare request body with tools if calendar is connected
+    // Prepare request body with tools
     const requestBody: Record<string, unknown> = {
       model: "google/gemini-2.5-flash",
       messages,
     };
     
+    // Combine tools from different integrations
+    const allTools: unknown[] = [];
     if (hasCalendarIntegration) {
-      requestBody.tools = getCalendlyTools();
+      allTools.push(...getCalendlyTools());
+    }
+    if (hasSsoticaIntegration) {
+      allTools.push(...getSsoticaTools());
+    }
+    
+    if (allTools.length > 0) {
+      requestBody.tools = allTools;
       requestBody.tool_choice = "auto";
     }
 
@@ -892,6 +1026,32 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
             } else {
               toolResult = JSON.stringify({ success: false, error: result.error });
             }
+          }
+        } 
+        // === ssOtica tool calls ===
+        else if (functionName === 'consultar_os_cliente') {
+          const cpf = (args.cpf as string)?.replace(/\D/g, '');
+          if (!cpf) {
+            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório' });
+          } else {
+            const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_os_cliente', { cpf_cnpj: cpf });
+            toolResult = JSON.stringify(result);
+          }
+        } else if (functionName === 'consultar_vendas_cliente') {
+          const cpf = (args.cpf as string)?.replace(/\D/g, '');
+          if (!cpf) {
+            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório' });
+          } else {
+            const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_vendas_cliente', { cpf_cnpj: cpf });
+            toolResult = JSON.stringify(result);
+          }
+        } else if (functionName === 'consultar_parcelas_cliente') {
+          const cpf = (args.cpf as string)?.replace(/\D/g, '');
+          if (!cpf) {
+            toolResult = JSON.stringify({ success: false, error: 'CPF é obrigatório' });
+          } else {
+            const result = await callSsoticaApi(supabaseUrl, agentId, 'consultar_parcelas_cliente', { cpf_cnpj: cpf });
+            toolResult = JSON.stringify(result);
           }
         }
         
