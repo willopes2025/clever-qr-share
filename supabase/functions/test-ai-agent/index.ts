@@ -152,7 +152,7 @@ interface ConversationState {
   horarioEscolhido: string | null;
 }
 
-const detectConversationState = (conversationHistory: Array<{ role: string; content: string }>): ConversationState => {
+const detectConversationState = (conversationHistory: Array<{ role: string; content: string }>, currentUserMessage?: string): ConversationState => {
   const state: ConversationState = {
     horarioJaEscolhido: false,
     oticaIndicadaJaPerguntou: false,
@@ -190,30 +190,74 @@ const detectConversationState = (conversationHistory: Array<{ role: string; cont
     }
   }
 
-  // Check if user selected a time slot
-  for (let i = 0; i < userMessages.length; i++) {
-    const userContent = userMessages[i].content.toLowerCase();
+  // Enhanced time detection function
+  const detectTimeSelection = (content: string): { detected: boolean; time: string | null } => {
+    const lowerContent = content.toLowerCase();
     
-    // Detect time selection patterns
-    const timePatterns = [
-      /(?:às?\s*)?\d{1,2}[h:]\d{0,2}/i,  // 9h, 09:30, às 10h
-      /(?:quero|escolho|prefiro|pode ser|esse|essa|primeiro|segundo|op[çc][aã]o\s*\d)/i,
-      /horário.*\d/i,
-    ];
-    
-    for (const pattern of timePatterns) {
-      if (pattern.test(userContent)) {
-        state.horarioJaEscolhido = true;
-        state.horarioEscolhido = userContent;
-        break;
-      }
+    // Pattern 1: "às 09", "as 9", "às 10h", "as 14:30"
+    const asTimeMatch = lowerContent.match(/[àa]s?\s*(\d{1,2})(?:[h:]?\d{0,2})?/i);
+    if (asTimeMatch) {
+      return { detected: true, time: asTimeMatch[0] };
     }
-  }
+    
+    // Pattern 2: "9h", "09:30", "14h30"
+    const directTimeMatch = lowerContent.match(/\b(\d{1,2})[h:]\d{0,2}/i);
+    if (directTimeMatch) {
+      return { detected: true, time: directTimeMatch[0] };
+    }
+    
+    // Pattern 3: Selection words like "primeiro", "segundo", "esse", "essa opção"
+    if (/(?:quero|escolho|prefiro|pode ser|esse|essa|primeiro|segundo|op[çc][aã]o\s*\d)/i.test(lowerContent)) {
+      return { detected: true, time: 'opção selecionada' };
+    }
+    
+    // Pattern 4: Confirmation with context (when last agent message offered times)
+    if (/^(?:sim|ok|pode|fechou|beleza|perfeito|combinado|confirma)/i.test(lowerContent.trim())) {
+      return { detected: true, time: 'confirmado' };
+    }
+    
+    return { detected: false, time: null };
+  };
 
   // Get last assistant message
   if (assistantMessages.length > 0) {
     state.ultimaPerguntaAgente = assistantMessages[assistantMessages.length - 1].content;
   }
+
+  // Check if last agent message was offering times
+  const lastAgentOfferedTimes = state.ultimaPerguntaAgente && 
+    /(?:hor[aá]rio|disponibilidade|slot|atende\?|às\s*\d|te atende)/i.test(state.ultimaPerguntaAgente);
+
+  // Check if user selected a time slot in history
+  for (let i = 0; i < userMessages.length; i++) {
+    const detection = detectTimeSelection(userMessages[i].content);
+    if (detection.detected) {
+      state.horarioJaEscolhido = true;
+      state.horarioEscolhido = detection.time;
+    }
+  }
+
+  // CRITICAL: Also check current user message (the one being sent now)
+  if (currentUserMessage) {
+    const currentDetection = detectTimeSelection(currentUserMessage);
+    if (currentDetection.detected) {
+      state.horarioJaEscolhido = true;
+      state.horarioEscolhido = currentDetection.time;
+      console.log(`[DETECT-STATE] Time detected in CURRENT message: "${currentUserMessage}" => ${currentDetection.time}`);
+    }
+    
+    // Extra guardrail: if agent just offered times and user gave short affirmative
+    if (lastAgentOfferedTimes && !state.horarioJaEscolhido) {
+      const shortAffirmative = /^(?:sim|ok|pode|beleza|esse|primeiro|segundo|quero|fechou|combinado|vou|vamos|bora)/i.test(currentUserMessage.trim());
+      if (shortAffirmative) {
+        state.horarioJaEscolhido = true;
+        state.horarioEscolhido = 'confirmado pelo contexto';
+        console.log(`[DETECT-STATE] Time detected via CONTEXT (agent offered, user affirmed): "${currentUserMessage}"`);
+      }
+    }
+  }
+
+  console.log(`[DETECT-STATE] Final state: horarioJaEscolhido=${state.horarioJaEscolhido}, horarioEscolhido=${state.horarioEscolhido}`);
 
   return state;
 };
@@ -472,10 +516,11 @@ ${slotsInfo}
 7. Se cliente já escolheu horário, NÃO ofereça novos horários - avance para coleta de dados`;
     }
 
-    // Detect conversation state for anti-repetition
-    const conversationState = detectConversationState(conversationHistory);
+    // Detect conversation state for anti-repetition - INCLUDE CURRENT MESSAGE
+    const conversationState = detectConversationState(conversationHistory, userMessage);
     const continuityContext = buildContinuityContext(conversationState);
     
+    console.log(`[TEST-AI-AGENT] Current userMessage: "${userMessage}"`);
     console.log(`[TEST-AI-AGENT] Conversation state: ${JSON.stringify(conversationState)}`);
 
     // Build system prompt with REPLACED content
