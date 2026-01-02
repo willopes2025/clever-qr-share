@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas, AsaasPayment } from "@/hooks/useAsaas";
-import { Plus, Search, Loader2, ExternalLink, QrCode, Copy, Trash2 } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Plus, Search, Loader2, ExternalLink, Copy, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -51,10 +52,14 @@ const billingTypeLabels: Record<string, string> = {
 
 export const AsaasPaymentList = () => {
   const { payments, isLoadingPayments, deletePayment, getPixQrCode, customers } = useAsaas();
+  const { checkPermission } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [deletingPayment, setDeletingPayment] = useState<AsaasPayment | null>(null);
   const [loadingQr, setLoadingQr] = useState<string | null>(null);
+
+  const canCreate = checkPermission('create_payments_asaas');
+  const canDelete = checkPermission('delete_payments_asaas');
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -99,10 +104,12 @@ export const AsaasPaymentList = () => {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Cobranças</CardTitle>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Cobrança
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Cobrança
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="mb-4">
@@ -183,7 +190,7 @@ export const AsaasPaymentList = () => {
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         )}
-                        {payment.status === 'PENDING' && (
+                        {canDelete && payment.status === 'PENDING' && (
                           <Button
                             variant="ghost"
                             size="icon"

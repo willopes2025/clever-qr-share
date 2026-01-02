@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAsaas, AsaasSubscription } from "@/hooks/useAsaas";
-import { Plus, Loader2, Trash2 } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Loader2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -42,7 +43,10 @@ const cycleLabels: Record<string, string> = {
 
 export const AsaasSubscriptionList = () => {
   const { subscriptions, isLoadingSubscriptions, deleteSubscription, customers } = useAsaas();
+  const { checkPermission } = useOrganization();
   const [deletingSubscription, setDeletingSubscription] = useState<AsaasSubscription | null>(null);
+
+  const canDelete = checkPermission('delete_subscriptions_asaas');
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -65,12 +69,8 @@ export const AsaasSubscriptionList = () => {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader>
         <CardTitle>Assinaturas</CardTitle>
-        <Button disabled>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Assinatura
-        </Button>
       </CardHeader>
       <CardContent>
         {isLoadingSubscriptions ? (
@@ -87,13 +87,13 @@ export const AsaasSubscriptionList = () => {
                 <TableHead>Ciclo</TableHead>
                 <TableHead>Próximo Venc.</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                {canDelete && <TableHead className="text-right">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {subscriptions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={canDelete ? 7 : 6} className="text-center text-muted-foreground py-8">
                     Nenhuma assinatura encontrada
                   </TableCell>
                 </TableRow>
@@ -114,17 +114,19 @@ export const AsaasSubscriptionList = () => {
                         {statusLabels[subscription.status] || subscription.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      {subscription.status === 'ACTIVE' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeletingSubscription(subscription)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </TableCell>
+                    {canDelete && (
+                      <TableCell className="text-right">
+                        {subscription.status === 'ACTIVE' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeletingSubscription(subscription)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

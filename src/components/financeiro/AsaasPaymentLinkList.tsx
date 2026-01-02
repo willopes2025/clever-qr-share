@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAsaas, AsaasPaymentLink } from "@/hooks/useAsaas";
+import { useAsaas } from "@/hooks/useAsaas";
+import { useOrganization } from "@/hooks/useOrganization";
 import { Plus, Loader2, ExternalLink, Copy, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -11,8 +12,11 @@ import { AsaasPaymentLinkForm } from "./AsaasPaymentLinkForm";
 
 export const AsaasPaymentLinkList = () => {
   const { paymentLinks, isLoadingPaymentLinks } = useAsaas();
+  const { checkPermission } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+
+  const canCreate = checkPermission('create_payment_links_asaas');
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -34,10 +38,12 @@ export const AsaasPaymentLinkList = () => {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Links de Pagamento</CardTitle>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Link
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Link
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="mb-4">

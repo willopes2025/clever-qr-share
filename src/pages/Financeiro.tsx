@@ -2,7 +2,8 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsaas } from "@/hooks/useAsaas";
-import { Wallet, Users, Receipt, RefreshCcw, CreditCard, Link2, Loader2 } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Wallet, Users, Receipt, RefreshCcw, CreditCard, Link2 } from "lucide-react";
 import { AsaasDashboard } from "@/components/financeiro/AsaasDashboard";
 import { AsaasCustomerList } from "@/components/financeiro/AsaasCustomerList";
 import { AsaasPaymentList } from "@/components/financeiro/AsaasPaymentList";
@@ -13,6 +14,26 @@ import { AsaasPaymentLinkList } from "@/components/financeiro/AsaasPaymentLinkLi
 const Financeiro = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const { hasAsaas } = useAsaas();
+  const { checkPermission } = useOrganization();
+
+  // Permission checks for each tab
+  const canViewDashboard = checkPermission('view_finances');
+  const canViewCustomers = checkPermission('view_customers_asaas');
+  const canViewPayments = checkPermission('view_payments_asaas');
+  const canViewSubscriptions = checkPermission('view_subscriptions_asaas');
+  const canViewTransfers = checkPermission('view_transfers_asaas');
+  const canViewPaymentLinks = checkPermission('view_payment_links_asaas');
+
+  // Get first available tab
+  const getDefaultTab = () => {
+    if (canViewDashboard) return "dashboard";
+    if (canViewCustomers) return "customers";
+    if (canViewPayments) return "payments";
+    if (canViewSubscriptions) return "subscriptions";
+    if (canViewTransfers) return "transfers";
+    if (canViewPaymentLinks) return "payment-links";
+    return "dashboard";
+  };
 
   if (!hasAsaas) {
     return (
@@ -28,6 +49,9 @@ const Financeiro = () => {
     );
   }
 
+  // Set initial tab to first available
+  const effectiveTab = activeTab === "dashboard" && !canViewDashboard ? getDefaultTab() : activeTab;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -38,57 +62,81 @@ const Financeiro = () => {
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={effectiveTab} onValueChange={setActiveTab}>
           <TabsList className="bg-secondary/50 p-1">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
-              <Wallet className="h-4 w-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="customers" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Clientes
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="flex items-center gap-2">
-              <Receipt className="h-4 w-4" />
-              Cobranças
-            </TabsTrigger>
-            <TabsTrigger value="subscriptions" className="flex items-center gap-2">
-              <RefreshCcw className="h-4 w-4" />
-              Assinaturas
-            </TabsTrigger>
-            <TabsTrigger value="transfers" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Transferências
-            </TabsTrigger>
-            <TabsTrigger value="payment-links" className="flex items-center gap-2">
-              <Link2 className="h-4 w-4" />
-              Links
-            </TabsTrigger>
+            {canViewDashboard && (
+              <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+            )}
+            {canViewCustomers && (
+              <TabsTrigger value="customers" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Clientes
+              </TabsTrigger>
+            )}
+            {canViewPayments && (
+              <TabsTrigger value="payments" className="flex items-center gap-2">
+                <Receipt className="h-4 w-4" />
+                Cobranças
+              </TabsTrigger>
+            )}
+            {canViewSubscriptions && (
+              <TabsTrigger value="subscriptions" className="flex items-center gap-2">
+                <RefreshCcw className="h-4 w-4" />
+                Assinaturas
+              </TabsTrigger>
+            )}
+            {canViewTransfers && (
+              <TabsTrigger value="transfers" className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Transferências
+              </TabsTrigger>
+            )}
+            {canViewPaymentLinks && (
+              <TabsTrigger value="payment-links" className="flex items-center gap-2">
+                <Link2 className="h-4 w-4" />
+                Links
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          <TabsContent value="dashboard" className="mt-6">
-            <AsaasDashboard />
-          </TabsContent>
+          {canViewDashboard && (
+            <TabsContent value="dashboard" className="mt-6">
+              <AsaasDashboard />
+            </TabsContent>
+          )}
 
-          <TabsContent value="customers" className="mt-6">
-            <AsaasCustomerList />
-          </TabsContent>
+          {canViewCustomers && (
+            <TabsContent value="customers" className="mt-6">
+              <AsaasCustomerList />
+            </TabsContent>
+          )}
 
-          <TabsContent value="payments" className="mt-6">
-            <AsaasPaymentList />
-          </TabsContent>
+          {canViewPayments && (
+            <TabsContent value="payments" className="mt-6">
+              <AsaasPaymentList />
+            </TabsContent>
+          )}
 
-          <TabsContent value="subscriptions" className="mt-6">
-            <AsaasSubscriptionList />
-          </TabsContent>
+          {canViewSubscriptions && (
+            <TabsContent value="subscriptions" className="mt-6">
+              <AsaasSubscriptionList />
+            </TabsContent>
+          )}
 
-          <TabsContent value="transfers" className="mt-6">
-            <AsaasTransferList />
-          </TabsContent>
+          {canViewTransfers && (
+            <TabsContent value="transfers" className="mt-6">
+              <AsaasTransferList />
+            </TabsContent>
+          )}
 
-          <TabsContent value="payment-links" className="mt-6">
-            <AsaasPaymentLinkList />
-          </TabsContent>
+          {canViewPaymentLinks && (
+            <TabsContent value="payment-links" className="mt-6">
+              <AsaasPaymentLinkList />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
