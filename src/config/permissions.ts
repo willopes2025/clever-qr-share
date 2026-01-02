@@ -56,6 +56,12 @@ export type PermissionKey =
   | 'view_ai_agents'
   | 'create_ai_agents'
   | 'manage_ai_agents'
+  // Finances (Asaas)
+  | 'view_finances'
+  | 'manage_customers_asaas'
+  | 'manage_payments_asaas'
+  | 'manage_subscriptions_asaas'
+  | 'manage_transfers_asaas'
   // Settings
   | 'manage_subscription'
   | 'manage_settings'
@@ -94,6 +100,7 @@ export type PermissionCategory =
   | 'campaigns'
   | 'chatbots'
   | 'ai_agents'
+  | 'finances'
   | 'settings'
   | 'team'
   | 'notifications';
@@ -113,6 +120,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   campaigns: 'Campanhas',
   chatbots: 'Chatbots',
   ai_agents: 'Agentes IA',
+  finances: 'Financeiro',
   settings: 'Configurações',
   team: 'Equipe',
   notifications: 'Notificações',
@@ -190,6 +198,13 @@ export const PERMISSIONS: Permission[] = [
   { key: 'create_ai_agents', label: 'Criar Agentes IA', description: 'Criar novos agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
   { key: 'manage_ai_agents', label: 'Gerenciar Agentes IA', description: 'Editar e excluir agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
   
+  // Finances (Asaas)
+  { key: 'view_finances', label: 'Ver Financeiro', description: 'Visualizar painel financeiro Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'manage_customers_asaas', label: 'Gerenciar Clientes Asaas', description: 'Criar/editar clientes no Asaas', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'manage_payments_asaas', label: 'Gerenciar Cobranças', description: 'Criar/editar cobranças e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'manage_subscriptions_asaas', label: 'Gerenciar Assinaturas Asaas', description: 'Criar/editar assinaturas recorrentes', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  { key: 'manage_transfers_asaas', label: 'Gerenciar Transferências', description: 'Realizar transferências PIX/TED', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
+  
   // Settings
   { key: 'manage_subscription', label: 'Gerenciar Assinatura', description: 'Gerenciar plano e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
   { key: 'manage_settings', label: 'Gerenciar Configurações', description: 'Acessar configurações do sistema', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
@@ -225,6 +240,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/campaigns', permission: 'view_campaigns' },
   { path: '/chatbots', permission: 'view_chatbots' },
   { path: '/ai-agents', permission: 'view_ai_agents' },
+  { path: '/financeiro', permission: 'view_finances' },
   { path: '/subscription', permission: 'manage_subscription' },
   { path: '/settings', permission: 'manage_settings' },
 ];

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
 import { TokenBalanceWidget } from "@/components/sidebar/TokenBalanceWidget";
+import { useAsaas } from "@/hooks/useAsaas";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -94,6 +95,21 @@ export const DashboardSidebar = () => {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
   const { profile } = useProfile();
+  const { hasAsaas } = useAsaas();
+
+  // Build dynamic nav groups with Financeiro if Asaas is connected
+  const dynamicNavGroups = navGroups.map(group => {
+    if (group.label === "Sua Conta" && hasAsaas) {
+      return {
+        ...group,
+        items: [
+          { icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const },
+          ...group.items,
+        ],
+      };
+    }
+    return group;
+  });
   
   // Calculate total unread messages
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
@@ -230,7 +246,7 @@ export const DashboardSidebar = () => {
           "flex-1 py-4 overflow-y-auto",
           isCollapsed ? "px-2" : "px-3"
         )}>
-          {navGroups.map((group, groupIndex) => (
+          {dynamicNavGroups.map((group, groupIndex) => (
             <div 
               key={group.label} 
               className={cn(groupIndex > 0 && "mt-2")}

@@ -279,6 +279,20 @@ const integrationConfigs: IntegrationConfig[] = [
     ],
     docsUrl: 'https://ajuda.falevono.com.br/api-click-to-call-0800-web/',
   },
+  // Payments - Asaas
+  {
+    id: 'asaas',
+    name: 'Asaas',
+    description: 'Crie cobranças, gerencie clientes e receba via PIX, boleto ou cartão',
+    icon: CreditCard,
+    category: 'payments',
+    minPlan: 'profissional',
+    fields: [
+      { key: 'access_token', label: 'API Key', type: 'password', helpText: 'Chave de produção do Asaas (Minha Conta > Integrações)' },
+      { key: 'environment', label: 'Ambiente', type: 'text', placeholder: 'production ou sandbox' },
+    ],
+    docsUrl: 'https://docs.asaas.com/',
+  },
 ];
 
 const categoryLabels: Record<string, string> = {
