@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 import { BroadcastList, FilterCriteria } from "@/hooks/useBroadcastLists";
 import { Tag } from "@/hooks/useContacts";
 
@@ -38,6 +38,7 @@ export const BroadcastListFormDialog = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [status, setStatus] = useState<string>("all");
   const [excludeOptedOut, setExcludeOptedOut] = useState(true);
+  const [asaasPaymentStatus, setAsaasPaymentStatus] = useState<string>("all");
 
   useEffect(() => {
     if (list) {
@@ -47,6 +48,7 @@ export const BroadcastListFormDialog = ({
       setSelectedTags(list.filter_criteria?.tags || []);
       setStatus(list.filter_criteria?.status || "all");
       setExcludeOptedOut(list.filter_criteria?.optedOut === false);
+      setAsaasPaymentStatus(list.filter_criteria?.asaasPaymentStatus || "all");
     } else {
       setName("");
       setDescription("");
@@ -54,6 +56,7 @@ export const BroadcastListFormDialog = ({
       setSelectedTags([]);
       setStatus("all");
       setExcludeOptedOut(true);
+      setAsaasPaymentStatus("all");
     }
   }, [list, open]);
 
@@ -65,6 +68,9 @@ export const BroadcastListFormDialog = ({
       if (selectedTags.length > 0) filterCriteria.tags = selectedTags;
       if (status && status !== "all") filterCriteria.status = status;
       if (excludeOptedOut) filterCriteria.optedOut = false;
+      if (asaasPaymentStatus && asaasPaymentStatus !== "all") {
+        filterCriteria.asaasPaymentStatus = asaasPaymentStatus as 'overdue' | 'pending' | 'current';
+      }
     }
 
     onSubmit({
@@ -179,6 +185,48 @@ export const BroadcastListFormDialog = ({
                     <SelectItem value="inactive">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Filtro de Status de Pagamento Asaas */}
+              <div className="space-y-2">
+                <Label htmlFor="asaasPaymentStatus" className="flex items-center gap-2">
+                  Status de Pagamento (Asaas)
+                  {asaasPaymentStatus === "overdue" && (
+                    <Badge variant="destructive" className="text-xs">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Vencidos
+                    </Badge>
+                  )}
+                </Label>
+                <Select value={asaasPaymentStatus} onValueChange={setAsaasPaymentStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="overdue">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-red-500" />
+                        Cobranças Vencidas
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="pending">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                        Cobranças Pendentes
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="current">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                        Em Dia
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Filtre contatos com base no status de pagamento no Asaas
+                </p>
               </div>
 
               <div className="flex items-center space-x-2">
