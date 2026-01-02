@@ -1434,6 +1434,7 @@ export type Database = {
       contacts: {
         Row: {
           asaas_customer_id: string | null
+          asaas_payment_status: string | null
           avatar_url: string | null
           contact_display_id: string | null
           contact_number: number
@@ -1454,6 +1455,7 @@ export type Database = {
         }
         Insert: {
           asaas_customer_id?: string | null
+          asaas_payment_status?: string | null
           avatar_url?: string | null
           contact_display_id?: string | null
           contact_number?: number
@@ -1474,6 +1476,7 @@ export type Database = {
         }
         Update: {
           asaas_customer_id?: string | null
+          asaas_payment_status?: string | null
           avatar_url?: string | null
           contact_display_id?: string | null
           contact_number?: number

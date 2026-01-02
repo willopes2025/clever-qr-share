@@ -7,6 +7,7 @@ export interface FilterCriteria {
   tags?: string[];
   status?: string;
   optedOut?: boolean;
+  asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
 }
 
 export interface BroadcastList {
@@ -114,6 +115,9 @@ export const useBroadcastLists = () => {
             }
             if (criteria.optedOut !== undefined) {
               query = query.eq("opted_out", criteria.optedOut);
+            }
+            if (criteria.asaasPaymentStatus) {
+              query = query.eq("asaas_payment_status", criteria.asaasPaymentStatus);
             }
             
             const { count } = await query;
