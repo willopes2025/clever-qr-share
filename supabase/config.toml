@@ -194,3 +194,6 @@ verify_jwt = false
 
 [functions.ssotica-api]
 verify_jwt = false
+
+[functions.process-agent-correction]
+verify_jwt = true
