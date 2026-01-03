@@ -174,19 +174,38 @@ serve(async (req) => {
     }).join('\n\n');
 
     const systemPrompt = `Você é um especialista em análise de conversas de atendimento ao cliente.
-Sua tarefa é identificar perguntas frequentes e suas respostas para construir uma base de conhecimento.
+Sua tarefa é identificar perguntas frequentes dos CLIENTES e suas respostas para construir uma base de conhecimento (FAQ).
 
-Analise as conversas e extraia pares de pergunta/resposta que seriam úteis para treinar um agente de IA.
+REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
 
-REGRAS:
-1. Identifique perguntas claras feitas pelos clientes
-2. Encontre as respostas dadas pelo agente
-3. Classifique cada par em categorias: FAQ, Produto, Preço, Prazo, Pagamento, Suporte, Objeção, Outro
-4. Dê um score de confiança de 0.5 a 1.0 baseado na qualidade da resposta
-5. Sugira um título curto para cada item de conhecimento
-6. Agrupe perguntas similares e conte a frequência
-7. Ignore conversas sem perguntas claras ou respostas úteis
-8. Máximo de 10 sugestões`;
+1. PERGUNTA = SOMENTE mensagens que começam com "CLIENTE:" que expressam uma DÚVIDA REAL ou PEDIDO DE INFORMAÇÃO
+   - O cliente está PERGUNTANDO algo que não sabe
+   - Exemplos válidos: "Qual o valor?", "Vocês atendem convênio?", "Como funciona?", "Qual a forma de pagamento?"
+
+2. RESPOSTA = A mensagem do "AGENTE:" que responde aquela pergunta do cliente
+
+3. IGNORE COMPLETAMENTE perguntas feitas pelo AGENTE:
+   - "Que dia seria bom para você?" ❌ (isso é o agente perguntando, NÃO o cliente)
+   - "Qual horário você prefere?" ❌ (técnica de vendas do agente)
+   - "Você já usa óculos?" ❌ (qualificação feita pelo agente)
+   - "Posso te ajudar com algo?" ❌ (abordagem do agente)
+
+4. IGNORE respostas curtas ou confirmações do cliente:
+   - "Sim", "Não", "Ok", "Pode ser", "Qualquer horário" ❌ (não são perguntas)
+
+5. Classifique em categorias: FAQ, Produto, Preço, Prazo, Pagamento, Suporte, Objeção, Outro
+6. Score de confiança 0.5 a 1.0 baseado na qualidade
+7. Máximo de 10 sugestões
+
+EXEMPLOS CORRETOS DE EXTRAÇÃO:
+✅ CLIENTE: "Qual o valor do exame?" → AGENTE: "O exame custa R$29,99" (pergunta do cliente sobre preço)
+✅ CLIENTE: "Vocês atendem Unimed?" → AGENTE: "Não atendemos convênios, mas temos preço especial" (dúvida sobre convênio)
+✅ CLIENTE: "Precisa de pedido médico?" → AGENTE: "Não precisa, você pode agendar diretamente" (dúvida sobre procedimento)
+
+EXEMPLOS INCORRETOS - NÃO EXTRAIR:
+❌ AGENTE: "Que dia da semana seria bom para você?" (isso é pergunta do AGENTE, não do cliente)
+❌ AGENTE: "Você prefere manhã ou tarde?" (qualificação do agente)
+❌ CLIENTE: "Pode ser segunda" (não é uma pergunta, é uma resposta do cliente)`;
 
     const userPrompt = `Analise as seguintes conversas e extraia sugestões de conhecimento:
 
