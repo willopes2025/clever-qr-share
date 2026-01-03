@@ -2,15 +2,29 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, X, Check, RefreshCw, Lightbulb, AlertCircle } from "lucide-react";
+import { Loader2, X, Check, RefreshCw, Lightbulb, AlertCircle, FileText, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface CorrectionSuggestion {
-  title: string;
-  category: string;
-  content: string;
+export type TargetSection = 
+  | 'personality_prompt' 
+  | 'behavior_rules' 
+  | 'greeting_message' 
+  | 'fallback_message' 
+  | 'goodbye_message' 
+  | 'knowledge';
+
+export interface CorrectionSuggestion {
+  targetSection: TargetSection;
+  targetSectionLabel: string;
+  currentContent: string;
+  suggestedEdit: {
+    type: 'append' | 'replace' | 'prepend';
+    newContent: string;
+    previewFull: string;
+  };
   confidence: number;
   reasoning: string;
 }
@@ -25,6 +39,21 @@ interface MessageCorrectionPanelProps {
 }
 
 type PanelMode = 'input' | 'analyzing' | 'review' | 'refining';
+
+const SECTION_ICONS: Record<TargetSection, string> = {
+  personality_prompt: '🎭',
+  behavior_rules: '📋',
+  greeting_message: '👋',
+  fallback_message: '🤷',
+  goodbye_message: '👋',
+  knowledge: '📚',
+};
+
+const EDIT_TYPE_LABELS: Record<string, string> = {
+  append: 'Será adicionado ao final',
+  prepend: 'Será adicionado no início',
+  replace: 'Substituirá o conteúdo atual',
+};
 
 export const MessageCorrectionPanel = ({
   userQuestion,
@@ -57,6 +86,7 @@ export const MessageCorrectionPanel = ({
           agentResponse,
           userCorrection: correctionInput.trim(),
           agentName,
+          agentId,
         },
       });
 
@@ -101,6 +131,70 @@ export const MessageCorrectionPanel = ({
     if (confidence >= 80) return 'text-green-600 bg-green-50 border-green-200';
     if (confidence >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
     return 'text-red-600 bg-red-50 border-red-200';
+  };
+
+  const renderDiff = () => {
+    if (!suggestion) return null;
+    
+    const { currentContent, suggestedEdit } = suggestion;
+    const { type, newContent } = suggestedEdit;
+
+    if (suggestion.targetSection === 'knowledge') {
+      return (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Novo conhecimento a ser adicionado:</p>
+          <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md p-3">
+            <p className="text-sm text-green-800 dark:text-green-200 whitespace-pre-wrap">
+              + {newContent}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {/* Current Content */}
+        {currentContent && (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium">Conteúdo Atual:</p>
+            <ScrollArea className="max-h-[120px]">
+              <div className="bg-muted/50 rounded-md p-3 text-sm whitespace-pre-wrap">
+                {currentContent || <span className="italic text-muted-foreground">(vazio)</span>}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+
+        {/* Arrow */}
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <ArrowRight className="h-4 w-4" />
+          <span className="text-xs">{EDIT_TYPE_LABELS[type]}</span>
+        </div>
+
+        {/* New Content */}
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground font-medium">Alteração:</p>
+          <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md p-3">
+            <p className="text-sm text-green-800 dark:text-green-200 whitespace-pre-wrap">
+              + {newContent}
+            </p>
+          </div>
+        </div>
+
+        {/* Preview Full (only if there's existing content) */}
+        {currentContent && type !== 'replace' && (
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium">Como ficará:</p>
+            <ScrollArea className="max-h-[150px]">
+              <div className="bg-background border rounded-md p-3 text-sm whitespace-pre-wrap">
+                {suggestedEdit.previewFull}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -173,19 +267,21 @@ export const MessageCorrectionPanel = ({
       {mode === 'analyzing' && (
         <div className="flex flex-col items-center justify-center py-6 gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Analisando correção com IA...</p>
+          <p className="text-sm text-muted-foreground">Analisando correção e identificando seção...</p>
         </div>
       )}
 
       {/* Review Mode */}
       {mode === 'review' && suggestion && (
         <div className="space-y-4">
-          {/* Suggestion Header */}
+          {/* Target Section Header */}
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-primary" />
-              Sugestão de Conhecimento
-            </h4>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                <span className="mr-1">{SECTION_ICONS[suggestion.targetSection]}</span>
+                {suggestion.targetSectionLabel}
+              </Badge>
+            </div>
             <Badge 
               variant="outline" 
               className={cn("text-xs", getConfidenceColor(suggestion.confidence))}
@@ -194,42 +290,36 @@ export const MessageCorrectionPanel = ({
             </Badge>
           </div>
 
-          {/* Suggestion Content */}
-          <div className="bg-background rounded-md border p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">{suggestion.title}</span>
-              <Badge variant="secondary" className="text-xs">
-                {suggestion.category}
-              </Badge>
-            </div>
-            
-            <p className="text-sm text-foreground whitespace-pre-wrap">
-              {suggestion.content}
-            </p>
+          {/* Diff View */}
+          {renderDiff()}
 
-            <div className="pt-2 border-t">
-              <p className="text-xs text-muted-foreground italic">
-                💡 {suggestion.reasoning}
-              </p>
-            </div>
+          {/* Reasoning */}
+          <div className="bg-muted/30 rounded-md p-3 border-l-2 border-primary/50">
+            <p className="text-xs text-muted-foreground">
+              💡 {suggestion.reasoning}
+            </p>
           </div>
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={handleReanalyze}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refazer
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleRefine}>
-              Refinar
-            </Button>
-            <Button variant="outline" size="sm" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button size="sm" onClick={handleApprove} className="bg-green-600 hover:bg-green-700 ml-auto">
-              <Check className="h-4 w-4 mr-2" />
-              Adicionar
-            </Button>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2">
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleReanalyze}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refazer
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleRefine}>
+                Refinar
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={onCancel}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleApprove} className="bg-green-600 hover:bg-green-700">
+                <Check className="h-4 w-4 mr-2" />
+                Aprovar Edição
+              </Button>
+            </div>
           </div>
         </div>
       )}

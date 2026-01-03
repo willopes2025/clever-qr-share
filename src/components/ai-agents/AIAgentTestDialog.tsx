@@ -8,8 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { MessageCorrectionPanel } from "./MessageCorrectionPanel";
-import { useKnowledgeItemMutations } from "@/hooks/useAIAgentConfig";
+import { MessageCorrectionPanel, CorrectionSuggestion } from "./MessageCorrectionPanel";
+import { useKnowledgeItemMutations, useAgentConfigMutations } from "@/hooks/useAIAgentConfig";
 
 interface AIAgentTestDialogProps {
   open: boolean;
@@ -35,14 +35,6 @@ interface CalendlyDebug {
   slot2: string | null;
 }
 
-interface CorrectionSuggestion {
-  title: string;
-  category: string;
-  content: string;
-  confidence: number;
-  reasoning: string;
-}
-
 export const AIAgentTestDialog = ({
   open,
   onOpenChange,
@@ -56,8 +48,8 @@ export const AIAgentTestDialog = ({
   const [correctionMessageId, setCorrectionMessageId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
   const { addTextKnowledge } = useKnowledgeItemMutations();
+  const { updateAgentSection } = useAgentConfigMutations();
 
   // Reset messages when dialog opens
   useEffect(() => {
@@ -194,15 +186,31 @@ export const AIAgentTestDialog = ({
 
   const handleCorrectionApprove = async (suggestion: CorrectionSuggestion) => {
     try {
-      await addTextKnowledge.mutateAsync({
-        agentConfigId: agentId,
-        title: suggestion.title,
-        content: suggestion.content,
-      });
+      const { targetSection, targetSectionLabel, suggestedEdit } = suggestion;
 
-      toast.success("Conhecimento adicionado com sucesso!", {
-        description: `"${suggestion.title}" foi adicionado à base de conhecimento.`,
-      });
+      if (targetSection === 'knowledge') {
+        // Add as knowledge item
+        await addTextKnowledge.mutateAsync({
+          agentConfigId: agentId,
+          title: `Correção: ${targetSectionLabel}`,
+          content: suggestedEdit.newContent,
+        });
+
+        toast.success("Conhecimento adicionado!", {
+          description: `Novo item adicionado à base de conhecimento.`,
+        });
+      } else {
+        // Update the specific agent section
+        await updateAgentSection.mutateAsync({
+          agentConfigId: agentId,
+          section: targetSection,
+          newContent: suggestedEdit.previewFull,
+        });
+
+        toast.success(`${targetSectionLabel} atualizada!`, {
+          description: `A seção foi editada com sucesso.`,
+        });
+      }
 
       setCorrectionMessageId(null);
 
@@ -210,13 +218,13 @@ export const AIAgentTestDialog = ({
       const confirmMessage: TestMessage = {
         id: `system-${Date.now()}`,
         role: "system",
-        content: `✅ Conhecimento "${suggestion.title}" adicionado à base. O agente usará essa informação em futuras conversas.`,
+        content: `✅ ${targetSectionLabel} ${targetSection === 'knowledge' ? 'adicionado à base' : 'atualizada'}. O agente usará essa informação em futuras conversas.`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, confirmMessage]);
     } catch (error: any) {
-      console.error("Error adding knowledge:", error);
-      toast.error("Erro ao adicionar conhecimento: " + error.message);
+      console.error("Error applying correction:", error);
+      toast.error("Erro ao aplicar correção: " + error.message);
     }
   };
 

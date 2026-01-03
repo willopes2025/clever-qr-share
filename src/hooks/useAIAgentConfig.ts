@@ -250,7 +250,34 @@ export const useAgentConfigMutations = () => {
     },
   });
 
-  return { upsertConfig, createTempConfig, linkConfigToCampaign, updateConfig };
+  // Update a specific section of the agent config
+  const updateAgentSection = useMutation({
+    mutationFn: async ({ 
+      agentConfigId, 
+      section, 
+      newContent 
+    }: { 
+      agentConfigId: string;
+      section: 'personality_prompt' | 'behavior_rules' | 'greeting_message' | 'fallback_message' | 'goodbye_message';
+      newContent: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('ai_agent_configs')
+        .update({ [section]: newContent })
+        .eq('id', agentConfigId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data as AIAgentConfig;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['agent-config', data.campaign_id] });
+      queryClient.invalidateQueries({ queryKey: ['all-agent-configs'] });
+    },
+  });
+
+  return { upsertConfig, createTempConfig, linkConfigToCampaign, updateConfig, updateAgentSection };
 };
 
 // Mutations for knowledge items
