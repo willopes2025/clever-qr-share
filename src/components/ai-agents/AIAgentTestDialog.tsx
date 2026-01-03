@@ -335,7 +335,7 @@ export const AIAgentTestDialog = ({
 
                 {/* Correction Panel */}
                 {message.role === "assistant" && correctionMessageId === message.id && (
-                  <div className="ml-11">
+                  <div className="ml-11 max-w-[80%] w-full">
                     <MessageCorrectionPanel
                       userQuestion={getPreviousUserQuestion(message.id)}
                       agentResponse={message.content}
