@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, X, Check, RefreshCw, Lightbulb, AlertCircle, FileText, ArrowRight } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, X, Check, RefreshCw, Lightbulb, AlertCircle, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export interface CorrectionSuggestion {
   };
   confidence: number;
   reasoning: string;
+  warning?: string;
 }
 
 interface MessageCorrectionPanelProps {
@@ -292,6 +294,16 @@ export const MessageCorrectionPanel = ({
 
           {/* Diff View */}
           {renderDiff()}
+
+          {/* Warning */}
+          {suggestion.warning && (
+            <Alert variant="destructive" className="bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800 dark:text-yellow-200 text-sm">
+                {suggestion.warning}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Reasoning */}
           <div className="bg-muted/30 rounded-md p-3 border-l-2 border-primary/50">
