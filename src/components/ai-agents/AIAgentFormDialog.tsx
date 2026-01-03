@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow } from "lucide-react";
 import { AgentIntegrationsTab } from "@/components/campaigns/agent/AgentIntegrationsTab";
 import { AgentCalendarTab } from "@/components/campaigns/agent/AgentCalendarTab";
 import { AIAgentTestDialog } from "./AIAgentTestDialog";
@@ -444,29 +444,31 @@ export const AIAgentFormDialog = ({
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid grid-cols-7 w-full">
-                  <TabsTrigger value="personality" className="gap-1">
+                  <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
                   </TabsTrigger>
-                  <TabsTrigger value="messages" className="gap-1">
+                  <TabsTrigger value="messages" className="flex items-center gap-1">
                     <MessageSquare className="h-4 w-4" />
                     <span className="hidden sm:inline">Mensagens</span>
                   </TabsTrigger>
-                  <TabsTrigger value="settings" className="gap-1">
+                  <TabsTrigger value="settings" className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    <span className="hidden sm:inline">Configurações</span>
+                    <span className="hidden sm:inline">Config</span>
                   </TabsTrigger>
-                  <TabsTrigger value="knowledge" disabled={!agentId}>
-                    Base de Conhecimento
+                  <TabsTrigger value="knowledge" disabled={!agentId} className="flex items-center gap-1">
+                    <Brain className="h-4 w-4" />
+                    <span className="hidden sm:inline">Conhecimento</span>
                   </TabsTrigger>
-                  <TabsTrigger value="stages" disabled={!agentId}>
-                    Etapas
+                  <TabsTrigger value="stages" disabled={!agentId} className="flex items-center gap-1">
+                    <Workflow className="h-4 w-4" />
+                    <span className="hidden sm:inline">Etapas</span>
                   </TabsTrigger>
-                  <TabsTrigger value="calendar" disabled={!agentId} className="gap-1">
+                  <TabsTrigger value="calendar" disabled={!agentId} className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
                     <span className="hidden sm:inline">Agenda</span>
                   </TabsTrigger>
-                  <TabsTrigger value="integrations" disabled={!agentId} className="gap-1">
+                  <TabsTrigger value="integrations" disabled={!agentId} className="flex items-center gap-1">
                     <Plug className="h-4 w-4" />
                     <span className="hidden sm:inline">Integrações</span>
                   </TabsTrigger>
