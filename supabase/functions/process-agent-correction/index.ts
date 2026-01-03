@@ -91,12 +91,34 @@ serve(async (req) => {
       hasBehaviorRules: !!agentConfig.behavior_rules,
     });
 
-    const systemPrompt = `Você é um assistente especializado em analisar correções de respostas de agentes de IA e identificar EXATAMENTE onde a correção deve ser aplicada na configuração do agente.
+const systemPrompt = `Você é um assistente especializado em analisar correções de respostas de agentes de IA e identificar EXATAMENTE onde a correção deve ser aplicada na configuração do agente.
 
-SEÇÕES DISPONÍVEIS PARA EDIÇÃO:
+=== CONTEXTO DO SISTEMA ===
+
+PLACEHOLDERS DISPONÍVEIS (USE APENAS ESTES):
+- {{slot1}} - Primeiro horário disponível no Calendly (já formatado: "segunda-feira, 05/01 às 09:00")
+- {{slot2}} - Segundo horário disponível no Calendly (já formatado)
+- {{p_slot1}} - Alias de slot1
+- {{p_slot2}} - Alias de slot2
+
+⚠️ NUNCA INVENTE PLACEHOLDERS! Variáveis como {{slot_manha}}, {{horario_tarde}}, {{bom_dia}} NÃO EXISTEM e não funcionam.
+
+SAUDAÇÃO POR HORÁRIO:
+O sistema já fornece a hora atual ao agente. Para saudações dinâmicas:
+- NÃO use texto literal como "[bom dia/boa tarde]" - isso NÃO é processado
+- ADICIONE uma REGRA nas behavior_rules: "Inicie com saudação adequada ao horário (Bom dia antes das 12h, Boa tarde 12h-18h, Boa noite após 18h)"
+- O agente receberá a hora atual automaticamente e saberá qual saudação usar
+
+HORÁRIOS MANHÃ vs TARDE:
+Os slots {{slot1}} e {{slot2}} são os PRÓXIMOS horários disponíveis, não necessariamente um de manhã e outro de tarde.
+- Para oferecer um de manhã e um de tarde, instrua nas behavior_rules que o agente deve buscar horários em diferentes períodos
+- Exemplo de regra: "Ao oferecer horários, busque opções em períodos diferentes (manhã e tarde) quando possível"
+
+=== SEÇÕES DISPONÍVEIS PARA EDIÇÃO ===
+
 1. personality_prompt - Personalidade e identidade do agente (tom de voz, estilo de comunicação)
 2. behavior_rules - Regras de comportamento e procedimentos obrigatórios
-3. greeting_message - Mensagem de saudação inicial
+3. greeting_message - Mensagem de saudação inicial (modelo/referência de tom)
 4. fallback_message - Mensagem quando não sabe responder
 5. goodbye_message - Mensagem de despedida
 6. knowledge - Base de conhecimento (informações factuais, FAQs)
@@ -126,11 +148,13 @@ REGRAS DE DECISÃO:
 - Se a correção é sobre QUANDO NÃO SABE RESPONDER → fallback_message
 - Se a correção é sobre ENCERRAR CONVERSA → goodbye_message
 - Se a correção é sobre INFORMAÇÃO FACTUAL (preços, horários, dados) → knowledge
+- Se a correção pede SAUDAÇÃO DINÂMICA (bom dia/boa tarde) → behavior_rules (adicionar regra)
 
 REGRAS DE EDIÇÃO:
 - Para behavior_rules e personality_prompt: prefira "append" (adicionar ao final) se estiver complementando
 - Para mensagens fixas (greeting, fallback, goodbye): use "replace" se precisa mudar completamente
 - O "previewFull" deve mostrar EXATAMENTE como ficará o campo após a edição
+- Use APENAS os placeholders válidos: {{slot1}}, {{slot2}}, {{p_slot1}}, {{p_slot2}}
 
 Responda APENAS em JSON válido com este formato:
 {
@@ -235,7 +259,7 @@ Analise e identifique em qual seção esta correção deve ser aplicada. Retorne
     }
 
     // Build the suggestion
-    const suggestion: CorrectionSuggestion = {
+    const suggestion: CorrectionSuggestion & { warning?: string } = {
       targetSection,
       targetSectionLabel: SECTION_LABELS[targetSection],
       currentContent,
@@ -256,6 +280,25 @@ Analise e identifique em qual seção esta correção deve ser aplicada. Retorne
       suggestion.suggestedEdit.previewFull = suggestion.suggestedEdit.newContent + '\n' + currentContent;
     } else if (suggestion.suggestedEdit.type === 'replace' || !currentContent) {
       suggestion.suggestedEdit.previewFull = suggestion.suggestedEdit.newContent;
+    }
+
+    // Validate placeholders
+    const VALID_PLACEHOLDERS = ['{{slot1}}', '{{slot2}}', '{{p_slot1}}', '{{p_slot2}}'];
+    const placeholderRegex = /\{\{[^}]+\}\}/g;
+    const contentToCheck = suggestion.suggestedEdit.previewFull + ' ' + suggestion.suggestedEdit.newContent;
+    const foundPlaceholders = contentToCheck.match(placeholderRegex) || [];
+    const invalidPlaceholders = [...new Set(foundPlaceholders.filter(p => !VALID_PLACEHOLDERS.includes(p)))];
+
+    if (invalidPlaceholders.length > 0) {
+      suggestion.warning = `Atenção: Os placeholders ${invalidPlaceholders.join(', ')} não existem no sistema. Use apenas: ${VALID_PLACEHOLDERS.join(', ')}`;
+      console.warn('Invalid placeholders detected:', invalidPlaceholders);
+    }
+
+    // Check for literal dynamic text patterns that won't work
+    const literalPatterns = /\[(bom dia|boa tarde|boa noite)[^\]]*\]/gi;
+    if (literalPatterns.test(contentToCheck)) {
+      const existingWarning = suggestion.warning ? suggestion.warning + ' | ' : '';
+      suggestion.warning = existingWarning + 'Texto como "[bom dia/boa tarde]" não é processado dinamicamente. Adicione uma regra de comportamento para saudação por horário.';
     }
 
     console.log('Final suggestion:', suggestion);
