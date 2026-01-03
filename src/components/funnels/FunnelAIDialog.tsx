@@ -11,12 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Bot, Brain, Variable, Workflow, Calendar, Loader2, ArrowLeft } from 'lucide-react';
+import { Bot, Brain, Variable, Workflow, Calendar, Loader2, ArrowLeft, Sparkles } from 'lucide-react';
 import { AgentPersonalityTab } from '@/components/campaigns/agent/AgentPersonalityTab';
 import { AgentKnowledgeTab } from '@/components/campaigns/agent/AgentKnowledgeTab';
 import { AgentVariablesTab } from '@/components/campaigns/agent/AgentVariablesTab';
 import { AgentStagesTab } from '@/components/campaigns/agent/AgentStagesTab';
 import { AgentCalendarTab } from '@/components/campaigns/agent/AgentCalendarTab';
+import { AgentLearningSuggestionsTab } from '@/components/campaigns/agent/AgentLearningSuggestionsTab';
 import { AgentSelector } from '@/components/funnels/AgentSelector';
 import { useKnowledgeItems, useAgentVariables } from '@/hooks/useAIAgentConfig';
 import { useFunnelAgentConfig, useFunnelAgentConfigMutations, useAgentConfigById } from '@/hooks/useFunnelAIAgent';
@@ -283,7 +284,7 @@ export const FunnelAIDialog = ({
             </div>
 
             <Tabs defaultValue="personality" className="flex-1 overflow-hidden flex flex-col">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="personality" className="flex items-center gap-1">
                   <Bot className="h-4 w-4" />
                   <span className="hidden sm:inline">Personalidade</span>
@@ -291,6 +292,10 @@ export const FunnelAIDialog = ({
                 <TabsTrigger value="knowledge" className="flex items-center gap-1">
                   <Brain className="h-4 w-4" />
                   <span className="hidden sm:inline">Conhecimento</span>
+                </TabsTrigger>
+                <TabsTrigger value="learning" className="flex items-center gap-1">
+                  <Sparkles className="h-4 w-4" />
+                  <span className="hidden sm:inline">Aprendizado</span>
                 </TabsTrigger>
                 <TabsTrigger value="variables" className="flex items-center gap-1">
                   <Variable className="h-4 w-4" />
@@ -346,6 +351,12 @@ export const FunnelAIDialog = ({
                     knowledgeItems={knowledgeItems}
                     isLoading={knowledgeLoading}
                   />
+                </TabsContent>
+
+                <TabsContent value="learning" className="m-0">
+                  {activeConfig?.id && (
+                    <AgentLearningSuggestionsTab agentConfigId={activeConfig.id} />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="variables" className="m-0">

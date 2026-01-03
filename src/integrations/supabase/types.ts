@@ -403,6 +403,81 @@ export type Database = {
           },
         ]
       }
+      ai_knowledge_suggestions: {
+        Row: {
+          agent_config_id: string
+          analysis_date: string
+          answer: string
+          category: string | null
+          confidence_score: number | null
+          created_at: string | null
+          dismissed_reason: string | null
+          frequency_count: number | null
+          id: string
+          question: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_conversation_id: string | null
+          source_message_ids: string[] | null
+          status: string | null
+          suggested_title: string | null
+          user_id: string
+        }
+        Insert: {
+          agent_config_id: string
+          analysis_date?: string
+          answer: string
+          category?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          dismissed_reason?: string | null
+          frequency_count?: number | null
+          id?: string
+          question: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_conversation_id?: string | null
+          source_message_ids?: string[] | null
+          status?: string | null
+          suggested_title?: string | null
+          user_id: string
+        }
+        Update: {
+          agent_config_id?: string
+          analysis_date?: string
+          answer?: string
+          category?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          dismissed_reason?: string | null
+          frequency_count?: number | null
+          id?: string
+          question?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_conversation_id?: string | null
+          source_message_ids?: string[] | null
+          status?: string | null
+          suggested_title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_knowledge_suggestions_agent_config_id_fkey"
+            columns: ["agent_config_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_knowledge_suggestions_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_phone_calls: {
         Row: {
           agent_config_id: string | null
