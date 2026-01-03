@@ -2035,6 +2035,8 @@ ${mapeamento}
           message_type: 'text',
           whatsapp_message_id: textMessageId,
           sent_at: new Date().toISOString(),
+          is_ai_generated: true,
+          sent_by_ai_agent_id: config.id,
         });
     }
 
@@ -2052,6 +2054,8 @@ ${mapeamento}
           media_url: audioUrl,
           whatsapp_message_id: audioMessageId,
           sent_at: new Date().toISOString(),
+          is_ai_generated: true,
+          sent_by_ai_agent_id: config.id,
         });
     }
 
