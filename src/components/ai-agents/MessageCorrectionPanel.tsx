@@ -104,7 +104,7 @@ export const MessageCorrectionPanel = ({
   };
 
   return (
-    <div className="mt-3 p-4 bg-muted/50 rounded-lg border space-y-4 animate-in slide-in-from-top-2">
+    <div className="mt-3 p-4 bg-background rounded-lg border shadow-sm space-y-4 animate-in slide-in-from-top-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
@@ -151,18 +151,18 @@ export const MessageCorrectionPanel = ({
             </div>
           )}
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel}>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onCancel} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button size="sm" onClick={handleAnalyze} disabled={!correctionInput.trim() || isLoading}>
+            <Button size="sm" onClick={handleAnalyze} disabled={!correctionInput.trim() || isLoading} className="w-full sm:w-auto">
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Analisando...
                 </>
               ) : (
-                'Analisar Correção'
+                'Analisar'
               )}
             </Button>
           </div>
