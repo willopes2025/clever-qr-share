@@ -36,6 +36,9 @@ import DataDeletion from "./pages/DataDeletion";
 import DataDeletionCallback from "./pages/DataDeletionCallback";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import Forms from "./pages/Forms";
+import FormBuilder from "./pages/FormBuilder";
+import PublicFormPage from "./pages/PublicFormPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -202,6 +205,24 @@ const App = () => (
                 </NotificationProvider>
               </ProtectedRoute>
             } />
+            <Route path="/forms" element={
+              <ProtectedRoute>
+                <NotificationProvider>
+                  <PermissionGate permission="view_forms">
+                    <Forms />
+                  </PermissionGate>
+                </NotificationProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/forms/:id" element={
+              <ProtectedRoute>
+                <NotificationProvider>
+                  <PermissionGate permission="view_forms">
+                    <FormBuilder />
+                  </PermissionGate>
+                </NotificationProvider>
+              </ProtectedRoute>
+            } />
             <Route path="/ai-agents" element={
               <ProtectedRoute>
                 <NotificationProvider>
@@ -235,6 +256,7 @@ const App = () => (
             <Route path="/data-deletion" element={<DataDeletion />} />
             <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/f/:slug" element={<PublicFormPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
