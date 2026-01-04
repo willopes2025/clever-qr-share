@@ -11,6 +11,8 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import wideLogo from "@/assets/wide-logo.png";
+import GoogleIcon from '@/components/auth/GoogleIcon';
+import ForgotPasswordDialog from '@/components/auth/ForgotPasswordDialog';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -20,11 +22,13 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -127,46 +131,89 @@ const Login = () => {
             </TabsList>
 
             <TabsContent value="login" className="relative z-50">
-              <form onSubmit={handleSignIn} className="space-y-4 relative z-50">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email" className="text-foreground">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password" className="text-foreground">Senha</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
-                  />
-                </div>
+              <div className="space-y-4 relative z-50">
                 <Button 
-                  type="submit" 
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:shadow-medium text-white font-semibold transition-all duration-300 rounded-xl relative z-50" 
-                  disabled={loading}
+                  type="button"
+                  variant="outline"
+                  className="w-full rounded-xl"
+                  onClick={async () => {
+                    setGoogleLoading(true);
+                    const { error } = await signInWithGoogle();
+                    if (error) {
+                      toast.error('Erro ao fazer login com Google');
+                      setGoogleLoading(false);
+                    }
+                  }}
+                  disabled={googleLoading}
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Entrando...
-                    </>
+                  {googleLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    'Entrar'
+                    <GoogleIcon className="h-4 w-4 mr-2" />
                   )}
+                  Continuar com Google
                 </Button>
-              </form>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">ou</span>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email" className="text-foreground">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password" className="text-foreground">Senha</Label>
+                      <Button 
+                        type="button"
+                        variant="link" 
+                        className="p-0 h-auto text-xs text-muted-foreground hover:text-primary"
+                        onClick={() => setShowForgotPassword(true)}
+                      >
+                        Esqueci minha senha
+                      </Button>
+                    </div>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="bg-card border-border focus:border-primary focus:ring-primary rounded-xl relative z-50"
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-gradient-to-r from-primary to-accent hover:shadow-medium text-white font-semibold transition-all duration-300 rounded-xl relative z-50" 
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Entrando...
+                      </>
+                    ) : (
+                      'Entrar'
+                    )}
+                  </Button>
+                </form>
+              </div>
             </TabsContent>
 
             <TabsContent value="register" className="relative z-50">
@@ -214,6 +261,11 @@ const Login = () => {
           </Tabs>
         </CardContent>
       </Card>
+
+      <ForgotPasswordDialog 
+        open={showForgotPassword} 
+        onOpenChange={setShowForgotPassword} 
+      />
     </div>
   );
 };
