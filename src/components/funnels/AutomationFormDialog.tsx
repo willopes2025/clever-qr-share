@@ -25,6 +25,7 @@ import { useChatbotFlows } from "@/hooks/useChatbotFlows";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
+import { useForms } from "@/hooks/useForms";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AutomationFormDialogProps {
@@ -32,6 +33,7 @@ interface AutomationFormDialogProps {
   onOpenChange: (open: boolean) => void;
   funnelId?: string;
   automation?: FunnelAutomation | null;
+  defaultStageId?: string;
 }
 
 type TriggerType = 
@@ -48,7 +50,8 @@ type TriggerType =
   | 'on_inactivity'
   | 'on_deal_value_changed'
   | 'on_custom_field_changed'
-  | 'on_webhook';
+  | 'on_webhook'
+  | 'on_form_submission';
 
 type ActionType = 
   | 'send_message' 
@@ -147,13 +150,14 @@ const WebhookTriggerConfig = ({
   );
 };
 
-export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation }: AutomationFormDialogProps) => {
+export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation, defaultStageId }: AutomationFormDialogProps) => {
   const { funnels, createAutomation, updateAutomation } = useFunnels();
   const { templates } = useMessageTemplates();
   const { flows } = useChatbotFlows();
   const { fieldDefinitions } = useCustomFields();
   const { members } = useTeamMembers();
   const { data: agentConfigs } = useAllAgentConfigs();
+  const { forms } = useForms();
   
   const [name, setName] = useState('');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || '');
@@ -180,14 +184,14 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
     } else if (open) {
       setName('');
       setSelectedFunnelId(funnelId || '');
-      setStageId('');
+      setStageId(defaultStageId || '');
       setTriggerType('on_stage_enter');
       setTriggerConfig({});
       setActionType('send_message');
       setActionConfig({});
       setSelectedAgentId('');
     }
-  }, [open, automation, funnelId]);
+  }, [open, automation, funnelId, defaultStageId]);
 
   const handleGenerateIntents = async () => {
     if (!selectedAgentId) {
@@ -319,6 +323,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
                 <SelectItem value="on_deal_value_changed">Quando valor do deal mudar</SelectItem>
                 <SelectItem value="on_custom_field_changed">Quando campo personalizado mudar</SelectItem>
                 <SelectItem value="on_webhook">Webhook externo</SelectItem>
+                <SelectItem value="on_form_submission">📝 Quando formulário for enviado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -424,6 +429,31 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation 
           {triggerType === 'on_webhook' && !automation?.id && (
             <div className="p-3 bg-muted rounded-lg text-sm text-muted-foreground">
               <p>💡 Salve a automação para gerar a URL do webhook.</p>
+            </div>
+          )}
+
+          {triggerType === 'on_form_submission' && (
+            <div className="space-y-2">
+              <Label>Formulário</Label>
+              <Select 
+                value={triggerConfig.form_id as string || 'any'} 
+                onValueChange={(v) => setTriggerConfig({ ...triggerConfig, form_id: v === 'any' ? null : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar formulário" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Qualquer formulário</SelectItem>
+                  {forms?.filter(f => f.status === 'published').map((form) => (
+                    <SelectItem key={form.id} value={form.id}>
+                      {form.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                A automação será acionada quando o formulário selecionado for enviado
+              </p>
             </div>
           )}
 

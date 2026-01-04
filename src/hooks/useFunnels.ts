@@ -574,8 +574,9 @@ export const useFunnels = () => {
   });
 
   const updateAutomation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; is_active?: boolean; name?: string; trigger_type?: string; action_type?: string; trigger_config?: unknown; action_config?: unknown }) => {
+    mutationFn: async ({ id, ...data }: { id: string; stage_id?: string | null; is_active?: boolean; name?: string; trigger_type?: string; action_type?: string; trigger_config?: unknown; action_config?: unknown }) => {
       const updateData: Record<string, unknown> = {};
+      if (data.stage_id !== undefined) updateData.stage_id = data.stage_id;
       if (data.is_active !== undefined) updateData.is_active = data.is_active;
       if (data.name) updateData.name = data.name;
       if (data.trigger_type) updateData.trigger_type = data.trigger_type;

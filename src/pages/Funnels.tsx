@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
@@ -30,12 +30,13 @@ import { FunnelDashboard } from "@/components/funnels/FunnelDashboard";
 import { CloseReasonsManager } from "@/components/funnels/CloseReasonsManager";
 import { AutomationsDialog } from "@/components/funnels/AutomationsDialog";
 import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
+import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAutomationsView";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
   const { funnels, isLoading, deleteFunnel } = useFunnels();
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'dashboard'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'automations' | 'dashboard'>('kanban');
   const [showFunnelForm, setShowFunnelForm] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<{ id: string; name: string; description?: string; color?: string } | null>(null);
   const [showCloseReasons, setShowCloseReasons] = useState(false);
@@ -169,7 +170,7 @@ const Funnels = () => {
                 )}
               </div>
 
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'dashboard')}>
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'automations' | 'dashboard')}>
                 <TabsList>
                   <TabsTrigger value="kanban">
                     <LayoutGrid className="h-4 w-4 mr-2" />
@@ -178,6 +179,10 @@ const Funnels = () => {
                   <TabsTrigger value="list">
                     <List className="h-4 w-4 mr-2" />
                     Lista
+                  </TabsTrigger>
+                  <TabsTrigger value="automations">
+                    <Workflow className="h-4 w-4 mr-2" />
+                    Automatize
                   </TabsTrigger>
                   <TabsTrigger value="dashboard">
                     <BarChart3 className="h-4 w-4 mr-2" />
@@ -188,7 +193,7 @@ const Funnels = () => {
             </div>
 
             {/* Metrics (only in kanban/list view) */}
-            {currentFunnel && viewMode !== 'dashboard' && <FunnelMetricsCard funnel={currentFunnel} />}
+            {currentFunnel && viewMode !== 'dashboard' && viewMode !== 'automations' && <FunnelMetricsCard funnel={currentFunnel} />}
 
             {/* View */}
             {currentFunnel && (
@@ -196,7 +201,9 @@ const Funnels = () => {
                 ? <FunnelKanbanView funnel={currentFunnel} />
                 : viewMode === 'list'
                   ? <FunnelListView funnel={currentFunnel} />
-                  : <FunnelDashboard funnel={currentFunnel} />
+                  : viewMode === 'automations'
+                    ? <FunnelAutomationsView funnel={currentFunnel} />
+                    : <FunnelDashboard funnel={currentFunnel} />
             )}
           </>
         )}

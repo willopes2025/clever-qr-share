@@ -238,6 +238,48 @@ serve(async (req) => {
       }
     }
 
+    // Trigger funnel automations with on_form_submission trigger
+    if (contactId) {
+      try {
+        // Find automations with on_form_submission trigger
+        const { data: automations } = await supabase
+          .from('funnel_automations')
+          .select('*')
+          .eq('user_id', form.user_id)
+          .eq('trigger_type', 'on_form_submission')
+          .eq('is_active', true);
+
+        if (automations && automations.length > 0) {
+          for (const automation of automations) {
+            const triggerConfig = automation.trigger_config as Record<string, any> || {};
+            
+            // Check if this automation is for this specific form or any form
+            if (triggerConfig.form_id && triggerConfig.form_id !== formId) {
+              continue; // Skip if it's for a different form
+            }
+
+            // Trigger the automation via process-funnel-automations edge function
+            try {
+              await supabase.functions.invoke('process-funnel-automations', {
+                body: {
+                  automationId: automation.id,
+                  contactId: contactId,
+                  formSubmissionId: submission.id,
+                  formId: formId,
+                  triggerType: 'on_form_submission',
+                },
+              });
+              console.log(`Triggered automation ${automation.id} for form submission`);
+            } catch (automationError) {
+              console.error('Automation trigger error:', automationError);
+            }
+          }
+        }
+      } catch (automationError) {
+        console.error('Error processing form automations:', automationError);
+      }
+    }
+
     console.log(`Form submission saved: ${submission.id} for form ${formId}`);
 
     return new Response(
