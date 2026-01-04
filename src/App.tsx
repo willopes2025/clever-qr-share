@@ -257,6 +257,7 @@ const App = () => (
             <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
+            <Route path="/form/:slug/*" element={<PublicFormPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

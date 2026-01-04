@@ -61,8 +61,20 @@ serve(async (req) => {
 
     const formFields = fields || [];
 
-    // Extract submission data (remove form_id from data)
-    const { form_id, ...submissionData } = body;
+    // Extract submission data (remove form_id and static params from visible data)
+    const { form_id, ...rawSubmissionData } = body;
+    
+    // Separate static params from regular submission data
+    const staticParams: Record<string, string> = {};
+    const submissionData: Record<string, any> = {};
+    
+    for (const [key, value] of Object.entries(rawSubmissionData)) {
+      if (key.startsWith('_static_')) {
+        staticParams[key.replace('_static_', '')] = String(value);
+      } else {
+        submissionData[key] = value;
+      }
+    }
 
     // Process field mappings to find contact info
     let contactData: { name?: string; email?: string; phone?: string; custom_fields?: Record<string, any> } = {
@@ -175,12 +187,13 @@ serve(async (req) => {
       }
     }
 
-    // Get metadata from request
+    // Get metadata from request, including static params
     const metadata = {
       ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown',
       user_agent: req.headers.get('user-agent') || 'unknown',
       referrer: req.headers.get('referer') || null,
       submitted_at: new Date().toISOString(),
+      static_params: Object.keys(staticParams).length > 0 ? staticParams : undefined,
     };
 
     // Save submission

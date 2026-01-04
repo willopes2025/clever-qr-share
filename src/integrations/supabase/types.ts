@@ -2401,6 +2401,7 @@ export type Database = {
           submit_button_text: string | null
           success_message: string | null
           updated_at: string | null
+          url_static_params: Json | null
           user_id: string
         }
         Insert: {
@@ -2424,6 +2425,7 @@ export type Database = {
           submit_button_text?: string | null
           success_message?: string | null
           updated_at?: string | null
+          url_static_params?: Json | null
           user_id: string
         }
         Update: {
@@ -2447,6 +2449,7 @@ export type Database = {
           submit_button_text?: string | null
           success_message?: string | null
           updated_at?: string | null
+          url_static_params?: Json | null
           user_id?: string
         }
         Relationships: []

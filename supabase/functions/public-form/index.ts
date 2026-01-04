@@ -15,12 +15,23 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const slug = url.searchParams.get('slug');
+    const staticParamsJson = url.searchParams.get('static_params');
 
     if (!slug) {
       return new Response(
         JSON.stringify({ error: 'Slug é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Parse static params
+    let staticParams: { key: string; value: string }[] = [];
+    if (staticParamsJson) {
+      try {
+        staticParams = JSON.parse(staticParamsJson);
+      } catch (e) {
+        console.log('Error parsing static params:', e);
+      }
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -75,8 +86,8 @@ serve(async (req) => {
 
     const formFields = fields || [];
 
-    // Generate form HTML
-    const html = generateFormHTML(form, formFields);
+    // Generate form HTML with static params
+    const html = generateFormHTML(form, formFields, staticParams);
 
     return new Response(html, {
       headers: { ...corsHeaders, 'Content-Type': 'text/html' },
@@ -91,10 +102,15 @@ serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[]): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[]): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
     .map(field => generateFieldHTML(field))
+    .join('\n');
+
+  // Generate hidden fields for static params
+  const staticParamsHTML = staticParams
+    .map(p => `<input type="hidden" name="_static_${escapeHtml(p.key)}" value="${escapeHtml(p.value)}">`)
     .join('\n');
 
   return `<!DOCTYPE html>
@@ -205,6 +221,7 @@ function generateFormHTML(form: any, fields: any[]): string {
     
     <form id="public-form">
       <input type="hidden" name="form_id" value="${form.id}">
+      ${staticParamsHTML}
       ${fieldsHTML}
       <button type="submit" class="submit-btn">${escapeHtml(form.submit_button_text || 'Enviar')}</button>
     </form>

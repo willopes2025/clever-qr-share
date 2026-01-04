@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+export interface StaticUrlParam {
+  key: string;
+  value: string;
+}
+
 export interface Form {
   id: string;
   user_id: string;
@@ -23,6 +28,7 @@ export interface Form {
   meta_description: string | null;
   og_image_url: string | null;
   settings: Record<string, any>;
+  url_static_params?: StaticUrlParam[] | any;
   created_at: string;
   updated_at: string;
 }
