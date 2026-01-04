@@ -1,16 +1,37 @@
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 
 const PublicFormPage = () => {
   const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
 
   useEffect(() => {
-    // Redirect to the edge function that renders the form
     if (slug) {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      window.location.href = `${supabaseUrl}/functions/v1/public-form?slug=${slug}`;
+      
+      // Extract static params from the URL path after the slug
+      // URL format: /form/slug/key1=value1/key2=value2
+      const pathAfterSlug = location.pathname.split(`/${slug}/`)[1] || '';
+      const staticParams = pathAfterSlug
+        .split('/')
+        .filter(Boolean)
+        .map(param => {
+          const [key, value] = param.split('=');
+          return { key: decodeURIComponent(key || ''), value: decodeURIComponent(value || '') };
+        })
+        .filter(p => p.key && p.value);
+
+      // Build URL with params as query string for the edge function
+      const params = new URLSearchParams();
+      params.set('slug', slug);
+      
+      if (staticParams.length > 0) {
+        params.set('static_params', JSON.stringify(staticParams));
+      }
+
+      window.location.href = `${supabaseUrl}/functions/v1/public-form?${params.toString()}`;
     }
-  }, [slug]);
+  }, [slug, location.pathname]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted">
