@@ -1,0 +1,259 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    const body = await req.json();
+    const formId = body.form_id;
+
+    if (!formId) {
+      return new Response(
+        JSON.stringify({ error: 'form_id é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch form
+    const { data: form, error: formError } = await supabase
+      .from('forms')
+      .select('*')
+      .eq('id', formId)
+      .single();
+
+    if (formError || !form) {
+      console.error('Form not found:', formError);
+      return new Response(
+        JSON.stringify({ error: 'Formulário não encontrado' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Fetch form fields for mapping
+    const { data: fields, error: fieldsError } = await supabase
+      .from('form_fields')
+      .select('*')
+      .eq('form_id', formId);
+
+    if (fieldsError) {
+      console.error('Error fetching fields:', fieldsError);
+    }
+
+    const formFields = fields || [];
+
+    // Extract submission data (remove form_id from data)
+    const { form_id, ...submissionData } = body;
+
+    // Process field mappings to find contact info
+    let contactData: { name?: string; email?: string; phone?: string; custom_fields?: Record<string, any> } = {
+      custom_fields: {}
+    };
+
+    for (const field of formFields) {
+      const fieldValue = submissionData[field.id];
+      
+      if (!fieldValue) continue;
+
+      if (field.mapping_type === 'contact_field') {
+        if (field.mapping_target === 'name') {
+          // Handle name field (first + last)
+          if (submissionData[`${field.id}_first`]) {
+            contactData.name = `${submissionData[`${field.id}_first`]} ${submissionData[`${field.id}_last`] || ''}`.trim();
+          } else {
+            contactData.name = String(fieldValue);
+          }
+        } else if (field.mapping_target === 'email') {
+          contactData.email = String(fieldValue);
+        } else if (field.mapping_target === 'phone') {
+          contactData.phone = String(fieldValue).replace(/\D/g, '');
+        }
+      } else if (field.mapping_type === 'custom_field' && field.mapping_target) {
+        contactData.custom_fields![field.mapping_target] = fieldValue;
+      } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit) {
+        // Create new custom field definition if it doesn't exist
+        const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        
+        const { data: existingField } = await supabase
+          .from('custom_field_definitions')
+          .select('id')
+          .eq('user_id', form.user_id)
+          .eq('field_key', fieldKey)
+          .single();
+
+        if (!existingField) {
+          await supabase
+            .from('custom_field_definitions')
+            .insert({
+              user_id: form.user_id,
+              field_name: field.mapping_target,
+              field_key: fieldKey,
+              field_type: 'text',
+              is_required: false,
+              display_order: 999,
+            });
+        }
+
+        contactData.custom_fields![fieldKey] = fieldValue;
+      }
+    }
+
+    let contactId: string | null = null;
+
+    // Find or create contact if we have phone or email
+    if (contactData.phone || contactData.email) {
+      // Try to find existing contact
+      let query = supabase
+        .from('contacts')
+        .select('id, custom_fields')
+        .eq('user_id', form.user_id);
+
+      if (contactData.phone) {
+        query = query.eq('phone', contactData.phone);
+      } else if (contactData.email) {
+        query = query.eq('email', contactData.email);
+      }
+
+      const { data: existingContact } = await query.single();
+
+      if (existingContact) {
+        contactId = existingContact.id;
+
+        // Merge custom fields
+        const mergedCustomFields = {
+          ...(existingContact.custom_fields || {}),
+          ...contactData.custom_fields,
+        };
+
+        // Update contact
+        await supabase
+          .from('contacts')
+          .update({
+            name: contactData.name || undefined,
+            email: contactData.email || undefined,
+            custom_fields: Object.keys(mergedCustomFields).length > 0 ? mergedCustomFields : undefined,
+          })
+          .eq('id', contactId);
+      } else if (contactData.phone) {
+        // Create new contact
+        const { data: newContact, error: contactError } = await supabase
+          .from('contacts')
+          .insert({
+            user_id: form.user_id,
+            phone: contactData.phone,
+            name: contactData.name || null,
+            email: contactData.email || null,
+            custom_fields: Object.keys(contactData.custom_fields || {}).length > 0 ? contactData.custom_fields : null,
+          })
+          .select('id')
+          .single();
+
+        if (contactError) {
+          console.error('Error creating contact:', contactError);
+        } else {
+          contactId = newContact.id;
+        }
+      }
+    }
+
+    // Get metadata from request
+    const metadata = {
+      ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown',
+      user_agent: req.headers.get('user-agent') || 'unknown',
+      referrer: req.headers.get('referer') || null,
+      submitted_at: new Date().toISOString(),
+    };
+
+    // Save submission
+    const { data: submission, error: submissionError } = await supabase
+      .from('form_submissions')
+      .insert({
+        form_id: formId,
+        user_id: form.user_id,
+        contact_id: contactId,
+        data: submissionData,
+        metadata,
+      })
+      .select('id')
+      .single();
+
+    if (submissionError) {
+      console.error('Error saving submission:', submissionError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao salvar resposta' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Trigger webhooks (if any configured)
+    const { data: webhooks } = await supabase
+      .from('form_webhooks')
+      .select('*')
+      .eq('form_id', formId)
+      .eq('is_active', true);
+
+    if (webhooks && webhooks.length > 0) {
+      for (const webhook of webhooks) {
+        if (webhook.events.includes('submission')) {
+          try {
+            await fetch(webhook.target_url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(webhook.headers || {}),
+              },
+              body: JSON.stringify({
+                event: 'submission',
+                form_id: formId,
+                form_name: form.name,
+                submission_id: submission.id,
+                contact_id: contactId,
+                data: submissionData,
+                metadata,
+              }),
+            });
+          } catch (webhookError) {
+            console.error('Webhook error:', webhookError);
+          }
+        }
+      }
+    }
+
+    console.log(`Form submission saved: ${submission.id} for form ${formId}`);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        submission_id: submission.id,
+        contact_id: contactId,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error in submit-form:', error);
+    return new Response(
+      JSON.stringify({ error: 'Erro interno do servidor' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

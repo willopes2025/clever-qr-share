@@ -197,3 +197,9 @@ verify_jwt = false
 
 [functions.process-agent-correction]
 verify_jwt = true
+
+[functions.public-form]
+verify_jwt = false
+
+[functions.submit-form]
+verify_jwt = false

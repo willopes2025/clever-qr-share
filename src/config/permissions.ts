@@ -52,6 +52,10 @@ export type PermissionKey =
   | 'view_chatbots'
   | 'create_chatbots'
   | 'manage_chatbots'
+  // Forms
+  | 'view_forms'
+  | 'create_forms'
+  | 'manage_forms'
   // AI Agents
   | 'view_ai_agents'
   | 'create_ai_agents'
@@ -111,6 +115,7 @@ export type PermissionCategory =
   | 'templates'
   | 'campaigns'
   | 'chatbots'
+  | 'forms'
   | 'ai_agents'
   | 'finances'
   | 'settings'
@@ -131,6 +136,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   templates: 'Templates',
   campaigns: 'Campanhas',
   chatbots: 'Chatbots',
+  forms: 'Formulários',
   ai_agents: 'Agentes IA',
   finances: 'Financeiro',
   settings: 'Configurações',
@@ -205,9 +211,15 @@ export const PERMISSIONS: Permission[] = [
   { key: 'create_chatbots', label: 'Criar Chatbots', description: 'Criar novos chatbots', defaultForAdmin: true, defaultForMember: false, category: 'chatbots' },
   { key: 'manage_chatbots', label: 'Gerenciar Chatbots', description: 'Editar e excluir chatbots', defaultForAdmin: true, defaultForMember: false, category: 'chatbots' },
   
+  // Forms
+  { key: 'view_forms', label: 'Ver Formulários', description: 'Visualizar formulários', defaultForAdmin: true, defaultForMember: true, category: 'forms' },
+  { key: 'create_forms', label: 'Criar Formulários', description: 'Criar novos formulários', defaultForAdmin: true, defaultForMember: false, category: 'forms' },
+  { key: 'manage_forms', label: 'Gerenciar Formulários', description: 'Editar e excluir formulários', defaultForAdmin: true, defaultForMember: false, category: 'forms' },
+  
   // AI Agents
   { key: 'view_ai_agents', label: 'Ver Agentes IA', description: 'Visualizar agentes de IA', defaultForAdmin: true, defaultForMember: true, category: 'ai_agents' },
   { key: 'create_ai_agents', label: 'Criar Agentes IA', description: 'Criar novos agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
+  { key: 'manage_ai_agents', label: 'Gerenciar Agentes IA', description: 'Editar e excluir agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
   { key: 'manage_ai_agents', label: 'Gerenciar Agentes IA', description: 'Editar e excluir agentes de IA', defaultForAdmin: true, defaultForMember: false, category: 'ai_agents' },
   
   // Finances (Asaas) - Granular permissions
@@ -263,6 +275,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/templates', permission: 'view_templates' },
   { path: '/campaigns', permission: 'view_campaigns' },
   { path: '/chatbots', permission: 'view_chatbots' },
+  { path: '/forms', permission: 'view_forms' },
   { path: '/ai-agents', permission: 'view_ai_agents' },
   { path: '/financeiro', permission: 'view_finances' },
   { path: '/subscription', permission: 'manage_subscription' },

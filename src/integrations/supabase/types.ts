@@ -2222,6 +2222,235 @@ export type Database = {
           },
         ]
       }
+      form_fields: {
+        Row: {
+          conditional_logic: Json | null
+          create_custom_field_on_submit: boolean | null
+          created_at: string | null
+          field_type: string
+          form_id: string
+          help_text: string | null
+          id: string
+          label: string
+          mapping_target: string | null
+          mapping_type: string | null
+          options: Json | null
+          placeholder: string | null
+          position: number
+          required: boolean | null
+          settings: Json | null
+          user_id: string
+          validation: Json | null
+        }
+        Insert: {
+          conditional_logic?: Json | null
+          create_custom_field_on_submit?: boolean | null
+          created_at?: string | null
+          field_type: string
+          form_id: string
+          help_text?: string | null
+          id?: string
+          label: string
+          mapping_target?: string | null
+          mapping_type?: string | null
+          options?: Json | null
+          placeholder?: string | null
+          position: number
+          required?: boolean | null
+          settings?: Json | null
+          user_id: string
+          validation?: Json | null
+        }
+        Update: {
+          conditional_logic?: Json | null
+          create_custom_field_on_submit?: boolean | null
+          created_at?: string | null
+          field_type?: string
+          form_id?: string
+          help_text?: string | null
+          id?: string
+          label?: string
+          mapping_target?: string | null
+          mapping_type?: string | null
+          options?: Json | null
+          placeholder?: string | null
+          position?: number
+          required?: boolean | null
+          settings?: Json | null
+          user_id?: string
+          validation?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_fields_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_submissions: {
+        Row: {
+          contact_id: string | null
+          created_at: string | null
+          data: Json
+          form_id: string
+          id: string
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string | null
+          data: Json
+          form_id: string
+          id?: string
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string | null
+          data?: Json
+          form_id?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_webhooks: {
+        Row: {
+          created_at: string | null
+          events: string[] | null
+          form_id: string
+          headers: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          target_url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          events?: string[] | null
+          form_id: string
+          headers?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          target_url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          events?: string[] | null
+          form_id?: string
+          headers?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          target_url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_webhooks_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forms: {
+        Row: {
+          background_color: string | null
+          created_at: string | null
+          description: string | null
+          font_family: string | null
+          header_text: string | null
+          id: string
+          logo_url: string | null
+          meta_description: string | null
+          name: string
+          og_image_url: string | null
+          page_title: string | null
+          primary_color: string | null
+          redirect_url: string | null
+          settings: Json | null
+          slug: string
+          status: string | null
+          subheader_text: string | null
+          submit_button_text: string | null
+          success_message: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          background_color?: string | null
+          created_at?: string | null
+          description?: string | null
+          font_family?: string | null
+          header_text?: string | null
+          id?: string
+          logo_url?: string | null
+          meta_description?: string | null
+          name: string
+          og_image_url?: string | null
+          page_title?: string | null
+          primary_color?: string | null
+          redirect_url?: string | null
+          settings?: Json | null
+          slug: string
+          status?: string | null
+          subheader_text?: string | null
+          submit_button_text?: string | null
+          success_message?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          background_color?: string | null
+          created_at?: string | null
+          description?: string | null
+          font_family?: string | null
+          header_text?: string | null
+          id?: string
+          logo_url?: string | null
+          meta_description?: string | null
+          name?: string
+          og_image_url?: string | null
+          page_title?: string | null
+          primary_color?: string | null
+          redirect_url?: string | null
+          settings?: Json | null
+          slug?: string
+          status?: string | null
+          subheader_text?: string | null
+          submit_button_text?: string | null
+          success_message?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       funnel_automations: {
         Row: {
           action_config: Json | null
@@ -4597,6 +4826,7 @@ export type Database = {
         | "on_deal_value_changed"
         | "on_custom_field_changed"
         | "on_webhook"
+        | "on_form_submission"
       template_category:
         | "promotional"
         | "transactional"
@@ -4766,6 +4996,7 @@ export const Constants = {
         "on_deal_value_changed",
         "on_custom_field_changed",
         "on_webhook",
+        "on_form_submission",
       ],
       template_category: [
         "promotional",
