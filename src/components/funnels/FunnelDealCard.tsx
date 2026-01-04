@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Clock, DollarSign, MoreHorizontal, User, Calendar, CheckSquare, 
-  AlertCircle, MessageCircle, Flame, Phone, ListTodo, ArrowRight
+  AlertCircle, MessageCircle, Flame, Phone, ListTodo, ArrowRight, ArrowRightLeft
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { DealFormDialog } from "./DealFormDialog";
+import { MoveDealFunnelDialog } from "./MoveDealFunnelDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
 import { useDealTasks } from "@/hooks/useDealTasks";
@@ -35,6 +37,7 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
   const navigate = useNavigate();
   const { deleteDeal } = useFunnels();
   const [showEdit, setShowEdit] = useState(false);
+  const [showMoveFunnel, setShowMoveFunnel] = useState(false);
   const { pendingCount, overdueCount, nextTask } = useDealTasks(deal.id);
   const { members } = useTeamMembers();
 
@@ -200,6 +203,11 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
                     <DropdownMenuItem onClick={() => setShowEdit(true)}>
                       Editar
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowMoveFunnel(true)}>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Mover para outro funil
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       className="text-destructive"
                       onClick={() => deleteDeal.mutate(deal.id)}
@@ -284,6 +292,13 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
         funnelId={deal.funnel_id}
         stageId={deal.stage_id}
         deal={deal}
+      />
+
+      <MoveDealFunnelDialog
+        deal={deal}
+        currentFunnelId={deal.funnel_id}
+        open={showMoveFunnel}
+        onOpenChange={setShowMoveFunnel}
       />
     </>
   );
