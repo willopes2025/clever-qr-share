@@ -208,7 +208,7 @@ serve(async (req) => {
     }
     logStep("Authorization header found");
 
-    // Use getClaims for more reliable JWT validation
+    // Use getClaims for JWT validation
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     logStep("Token parsed", { length: token.length });
 
@@ -218,7 +218,9 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
+    // Note: On some auth-js builds, passing the token to getClaims()/getUser()
+    // can incorrectly fall back to "stored session" and throw Auth session missing.
+    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims();
 
     if (claimsError || !claimsData?.claims) {
       logStep("AUTH_ERROR", { message: claimsError?.message || "Invalid token" });
