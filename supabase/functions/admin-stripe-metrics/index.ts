@@ -69,14 +69,15 @@ serve(async (req) => {
     logStep("User authenticated", { userId: user.id });
 
     // Check if user is admin
-    const { data: roleData } = await supabaseClient
+    const { data: roleData, error: roleError } = await supabaseClient
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["admin", "owner"])
-      .maybeSingle();
+      .single();
 
-    if (!roleData) {
+    logStep("Role check result", { roleData, roleError: roleError?.message });
+
+    if (!roleData || !["admin", "owner"].includes(roleData.role)) {
       throw new Error("Unauthorized: Admin access required");
     }
     logStep("Admin access verified", { role: roleData.role });
