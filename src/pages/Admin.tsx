@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { Link } from "react-router-dom";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Users, RefreshCw, Coins } from "lucide-react";
+import { Shield, Users, RefreshCw, Coins, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
@@ -166,6 +167,12 @@ const Admin = () => {
                   </p>
                 </div>
               </div>
+              <Link to="/owner">
+                <Button variant="outline" className="gap-2 rounded-xl">
+                  <BarChart3 className="h-4 w-4" />
+                  Dashboard Owner
+                </Button>
+              </Link>
               <Button onClick={fetchUsers} variant="outline" className="gap-2 rounded-xl">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 Atualizar
