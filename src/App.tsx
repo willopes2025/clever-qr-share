@@ -39,6 +39,7 @@ import NotFound from "./pages/NotFound";
 import Forms from "./pages/Forms";
 import FormBuilder from "./pages/FormBuilder";
 import PublicFormPage from "./pages/PublicFormPage";
+import Owner from "./pages/Owner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -148,6 +149,13 @@ const App = () => (
               <ProtectedRoute>
                 <NotificationProvider>
                   <Admin />
+                </NotificationProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/owner" element={
+              <ProtectedRoute>
+                <NotificationProvider>
+                  <Owner />
                 </NotificationProvider>
               </ProtectedRoute>
             } />
