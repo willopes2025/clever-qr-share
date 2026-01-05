@@ -208,25 +208,20 @@ serve(async (req) => {
     }
     logStep("Authorization header found");
 
-    // Use getClaims for JWT validation
-    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-    logStep("Token parsed", { length: token.length });
-
-    // Validate JWT using a user-scoped client (anon key + incoming Authorization header)
+    // Validate JWT using getUser() with the Authorization header
     const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false },
     });
 
-    // Note: On some auth-js builds, passing the token to getClaims()/getUser()
-    // can incorrectly fall back to "stored session" and throw Auth session missing.
-    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims();
+    // Use getUser() without arguments - it uses the Authorization header from the client
+    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser();
 
-    if (claimsError || !claimsData?.claims) {
-      logStep("AUTH_ERROR", { message: claimsError?.message || "Invalid token" });
+    if (userError || !userData?.user) {
+      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token" });
       return new Response(
         JSON.stringify({
-          error: `Authentication error: ${claimsError?.message || "Invalid token"}`,
+          error: `Authentication error: ${userError?.message || "Invalid token"}`,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -235,8 +230,8 @@ serve(async (req) => {
       );
     }
 
-    const userId = claimsData.claims.sub as string;
-    const userEmail = claimsData.claims.email as string;
+    const userId = userData.user.id;
+    const userEmail = userData.user.email as string;
 
     if (!userId || !userEmail) {
       logStep("AUTH_ERROR", { message: "Missing user ID or email in token" });
