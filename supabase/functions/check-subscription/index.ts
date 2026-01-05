@@ -208,23 +208,18 @@ serve(async (req) => {
     }
     logStep("Authorization header found");
 
-    // Use an auth-scoped client and try to fetch the user from the incoming JWT.
-    // This avoids relying on a server-side persisted session.
+    // Use getClaims for more reliable JWT validation
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     logStep("Token parsed", { length: token.length });
 
-    const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
-
-    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser(token);
-
-    if (userError || !userData?.user?.email) {
-      logStep("AUTH_ERROR", { message: userError?.message || "User not authenticated" });
+    // Validate JWT using getClaims
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      logStep("AUTH_ERROR", { message: claimsError?.message || "Invalid token" });
       return new Response(
         JSON.stringify({
-          error: `Authentication error: ${userError?.message || "User not authenticated"}`,
+          error: `Authentication error: ${claimsError?.message || "Invalid token"}`,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -233,8 +228,24 @@ serve(async (req) => {
       );
     }
 
-    const user = userData.user;
-    logStep("User authenticated", { userId: user.id, email: user.email });
+    const userId = claimsData.claims.sub as string;
+    const userEmail = claimsData.claims.email as string;
+
+    if (!userId || !userEmail) {
+      logStep("AUTH_ERROR", { message: "Missing user ID or email in token" });
+      return new Response(
+        JSON.stringify({ error: "Authentication error: Invalid token claims" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        }
+      );
+    }
+
+    // Create a user object for compatibility with rest of code
+    const user = { id: userId, email: userEmail };
+    logStep("User authenticated via getClaims", { userId: user.id, email: user.email });
+
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
