@@ -16,6 +16,7 @@ import { SubscriptionHistoryDialog } from "@/components/admin/SubscriptionHistor
 import { TransferTokensDialog } from "@/components/admin/TransferTokensDialog";
 import { useAITokens } from "@/hooks/useAITokens";
 import { useOwnerMetrics } from "@/hooks/useOwnerMetrics";
+import { useStripeMetrics } from "@/hooks/useStripeMetrics";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import OwnerOverview from "@/components/owner/OwnerOverview";
 import OwnerFinanceiro from "@/components/owner/OwnerFinanceiro";
@@ -44,6 +45,7 @@ const Admin = () => {
   const { user, signOut } = useAuth();
   const { balance, formatTokens, fetchBalance } = useAITokens();
   const { metrics, loading: metricsLoading, refetch: refetchMetrics } = useOwnerMetrics();
+  const { metrics: stripeMetrics, loading: stripeLoading, refetch: refetchStripe } = useStripeMetrics();
   const [users, setUsers] = useState<UserWithSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -80,6 +82,7 @@ const Admin = () => {
   const handleRefresh = () => {
     fetchUsers();
     refetchMetrics();
+    refetchStripe();
   };
 
   const handleEditUser = (user: UserWithSubscription) => {
@@ -248,7 +251,12 @@ const Admin = () => {
 
             {/* Tab Financeiro */}
             <TabsContent value="financeiro">
-              <OwnerFinanceiro metrics={metrics} loading={metricsLoading} />
+              <OwnerFinanceiro 
+                metrics={metrics} 
+                stripeMetrics={stripeMetrics} 
+                loading={metricsLoading} 
+                stripeLoading={stripeLoading} 
+              />
             </TabsContent>
 
             {/* Tab Operacional */}
