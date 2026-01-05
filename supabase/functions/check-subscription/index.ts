@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -212,9 +212,14 @@ serve(async (req) => {
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     logStep("Token parsed", { length: token.length });
 
-    // Validate JWT using getClaims
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
-    
+    // Validate JWT using a user-scoped client (anon key + incoming Authorization header)
+    const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+
+    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
+
     if (claimsError || !claimsData?.claims) {
       logStep("AUTH_ERROR", { message: claimsError?.message || "Invalid token" });
       return new Response(
