@@ -1,21 +1,25 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Shield, Users, RefreshCw, Coins, BarChart3 } from "lucide-react";
+import { Shield, Users, RefreshCw, Coins, LogOut, LayoutDashboard, DollarSign, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
 import { UserSubscriptionsTable } from "@/components/admin/UserSubscriptionsTable";
 import { EditSubscriptionDialog } from "@/components/admin/EditSubscriptionDialog";
 import { SubscriptionHistoryDialog } from "@/components/admin/SubscriptionHistoryDialog";
 import { TransferTokensDialog } from "@/components/admin/TransferTokensDialog";
 import { useAITokens } from "@/hooks/useAITokens";
+import { useOwnerMetrics } from "@/hooks/useOwnerMetrics";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import OwnerOverview from "@/components/owner/OwnerOverview";
+import OwnerFinanceiro from "@/components/owner/OwnerFinanceiro";
+import OwnerOperacional from "@/components/owner/OwnerOperacional";
 
 interface UserWithSubscription {
   id: string;
@@ -35,9 +39,11 @@ interface UserWithSubscription {
 }
 
 const Admin = () => {
+  const navigate = useNavigate();
   const { isAdmin, loading: adminLoading } = useAdmin();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { balance, formatTokens, fetchBalance } = useAITokens();
+  const { metrics, loading: metricsLoading, refetch: refetchMetrics } = useOwnerMetrics();
   const [users, setUsers] = useState<UserWithSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -70,6 +76,11 @@ const Admin = () => {
       fetchUsers();
     }
   }, [isAdmin]);
+
+  const handleRefresh = () => {
+    fetchUsers();
+    refetchMetrics();
+  };
 
   const handleEditUser = (user: UserWithSubscription) => {
     setSelectedUser(user);
@@ -116,6 +127,11 @@ const Admin = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
   if (adminLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -138,82 +154,111 @@ const Admin = () => {
   }, {} as Record<string, number>);
 
   return (
-    <DashboardLayout className="p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <TooltipProvider>
-        <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header */}
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto p-6 space-y-6">
+          {/* Header Standalone */}
+          <header className="flex items-center justify-between bg-card/50 backdrop-blur-sm rounded-2xl p-4 border border-border/50">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-medium">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
                 <Shield className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-foreground">
-                  Painel Administrativo
-                </h1>
-                <p className="text-muted-foreground">
-                  Gerencie assinaturas e usuários do sistema
-                </p>
+                <h1 className="text-2xl font-bold text-foreground">Painel Administrativo</h1>
+                <p className="text-sm text-muted-foreground">{user?.email}</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Admin Token Balance */}
-              <div className="flex items-center gap-3 px-4 py-2 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-                <Coins className="h-5 w-5 text-yellow-500" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Meu Estoque</p>
-                  <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
-                    {formatTokens(balance?.balance || 0)}
-                  </p>
-                </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
+                <Coins className="h-4 w-4 text-yellow-500" />
+                <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                  {formatTokens(balance?.balance || 0)}
+                </span>
               </div>
-              <Link to="/owner">
-                <Button variant="outline" className="gap-2 rounded-xl">
-                  <BarChart3 className="h-4 w-4" />
-                  Dashboard Owner
-                </Button>
-              </Link>
-              <Button onClick={fetchUsers} variant="outline" className="gap-2 rounded-xl">
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <Button onClick={handleRefresh} variant="outline" size="sm" className="gap-2">
+                <RefreshCw className={`h-4 w-4 ${loading || metricsLoading ? 'animate-spin' : ''}`} />
                 Atualizar
               </Button>
+              <Button onClick={handleSignOut} variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                <LogOut className="h-4 w-4" />
+                Sair
+              </Button>
             </div>
-          </div>
+          </header>
 
-          {/* Stats Cards */}
-          <AdminStatsCards
-            totalUsers={totalUsers}
-            activeSubscriptions={activeSubscriptions}
-            planCounts={planCounts}
-          />
+          {/* Tabs com todo conteúdo */}
+          <Tabs defaultValue="usuarios" className="space-y-6">
+            <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-card/50 backdrop-blur-sm">
+              <TabsTrigger value="usuarios" className="gap-2">
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">Usuários</span>
+              </TabsTrigger>
+              <TabsTrigger value="metricas" className="gap-2">
+                <LayoutDashboard className="h-4 w-4" />
+                <span className="hidden sm:inline">Métricas</span>
+              </TabsTrigger>
+              <TabsTrigger value="financeiro" className="gap-2">
+                <DollarSign className="h-4 w-4" />
+                <span className="hidden sm:inline">Financeiro</span>
+              </TabsTrigger>
+              <TabsTrigger value="operacional" className="gap-2">
+                <Activity className="h-4 w-4" />
+                <span className="hidden sm:inline">Operacional</span>
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Users Table */}
-          <Card className="depth-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Usuários e Assinaturas
-              </CardTitle>
-              <CardDescription>
-                Lista de todos os usuários e suas assinaturas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UserSubscriptionsTable
-                users={users}
-                loading={loading}
-                onEditUser={handleEditUser}
-                onViewHistory={handleViewHistory}
-                onDeleteUser={handleDeleteUser}
-                onTransferTokens={handleTransferTokens}
-                deletingUserId={deletingUserId}
-                formatTokens={formatTokens}
+            {/* Tab Usuários (Admin original) */}
+            <TabsContent value="usuarios" className="space-y-6">
+              <AdminStatsCards
+                totalUsers={totalUsers}
+                activeSubscriptions={activeSubscriptions}
+                planCounts={planCounts}
               />
-            </CardContent>
-          </Card>
+
+              <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Usuários e Assinaturas
+                  </CardTitle>
+                  <CardDescription>
+                    Lista de todos os usuários e suas assinaturas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <UserSubscriptionsTable
+                    users={users}
+                    loading={loading}
+                    onEditUser={handleEditUser}
+                    onViewHistory={handleViewHistory}
+                    onDeleteUser={handleDeleteUser}
+                    onTransferTokens={handleTransferTokens}
+                    deletingUserId={deletingUserId}
+                    formatTokens={formatTokens}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab Métricas (Owner Overview) */}
+            <TabsContent value="metricas">
+              <OwnerOverview metrics={metrics} loading={metricsLoading} />
+            </TabsContent>
+
+            {/* Tab Financeiro */}
+            <TabsContent value="financeiro">
+              <OwnerFinanceiro metrics={metrics} loading={metricsLoading} />
+            </TabsContent>
+
+            {/* Tab Operacional */}
+            <TabsContent value="operacional">
+              <OwnerOperacional metrics={metrics} loading={metricsLoading} />
+            </TabsContent>
+          </Tabs>
         </div>
 
-        {/* Edit Dialog */}
+        {/* Dialogs */}
         <EditSubscriptionDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
@@ -221,14 +266,12 @@ const Admin = () => {
           onSuccess={handleSubscriptionUpdated}
         />
 
-        {/* History Dialog */}
         <SubscriptionHistoryDialog
           open={historyDialogOpen}
           onOpenChange={setHistoryDialogOpen}
           subscriptionId={historySubscriptionId}
         />
 
-        {/* Transfer Tokens Dialog */}
         <TransferTokensDialog
           open={transferDialogOpen}
           onOpenChange={setTransferDialogOpen}
@@ -236,7 +279,7 @@ const Admin = () => {
           onSuccess={handleTransferSuccess}
         />
       </TooltipProvider>
-    </DashboardLayout>
+    </div>
   );
 };
 
