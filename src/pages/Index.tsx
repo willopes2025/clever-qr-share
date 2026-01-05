@@ -67,8 +67,8 @@ const stats = [
 
 const pricingTiers = [
   {
-    name: "Essencial",
-    price: "97",
+      name: "Essencial",
+      price: "147",
     period: "mês",
     description: "Perfeito para quem está começando",
     planKey: "essencial" as const,
