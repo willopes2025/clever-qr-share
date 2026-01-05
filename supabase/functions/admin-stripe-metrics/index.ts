@@ -68,18 +68,18 @@ serve(async (req) => {
     if (!user?.id) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    // Check if user is admin (has owner role)
+    // Check if user is admin
     const { data: roleData } = await supabaseClient
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .eq("role", "owner")
-      .single();
+      .in("role", ["admin", "owner"])
+      .maybeSingle();
 
     if (!roleData) {
       throw new Error("Unauthorized: Admin access required");
     }
-    logStep("Admin access verified");
+    logStep("Admin access verified", { role: roleData.role });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
