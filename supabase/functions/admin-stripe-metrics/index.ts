@@ -84,10 +84,10 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // Fetch all data in parallel
+    // Fetch all data in parallel (avoid expanding more than 4 levels)
     const [balanceResult, subscriptionsResult, invoicesResult, customersResult] = await Promise.all([
       stripe.balance.retrieve(),
-      stripe.subscriptions.list({ status: "all", limit: 100, expand: ["data.customer", "data.items.data.price.product"] }),
+      stripe.subscriptions.list({ status: "all", limit: 100, expand: ["data.customer", "data.items.data.price"] }),
       stripe.invoices.list({ limit: 50, expand: ["data.customer"] }),
       stripe.customers.list({ limit: 100 }),
     ]);
@@ -97,6 +97,26 @@ serve(async (req) => {
       invoices: invoicesResult.data.length,
       customers: customersResult.data.length,
     });
+
+    // Fetch products separately to avoid Stripe's 4-level expand limit
+    const productIds = new Set<string>();
+    for (const sub of subscriptionsResult.data) {
+      const priceItem = sub.items.data[0];
+      const productId = priceItem?.price?.product;
+      if (productId && typeof productId === "string") {
+        productIds.add(productId);
+      }
+    }
+
+    const productsMap = new Map<string, Stripe.Product>();
+    if (productIds.size > 0) {
+      const productPromises = Array.from(productIds).map(id => stripe.products.retrieve(id));
+      const products = await Promise.all(productPromises);
+      for (const product of products) {
+        productsMap.set(product.id, product);
+      }
+      logStep("Products fetched", { count: productsMap.size });
+    }
 
     // Calculate balance
     const availableBalance = balanceResult.available.reduce((sum: number, b: Stripe.Balance.Available) => sum + b.amount, 0) / 100;
@@ -112,7 +132,8 @@ serve(async (req) => {
       const customer = sub.customer as Stripe.Customer;
       const priceItem = sub.items.data[0];
       const price = priceItem?.price;
-      const product = price?.product as Stripe.Product;
+      const productId = typeof price?.product === "string" ? price.product : (price?.product as Stripe.Product)?.id;
+      const product = productId ? productsMap.get(productId) : undefined;
       
       // Calculate monthly amount
       let monthlyAmount = 0;
