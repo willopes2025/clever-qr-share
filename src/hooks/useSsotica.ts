@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useIntegrations } from "./useIntegrations";
+import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 
 export interface SsoticaOS {
@@ -48,11 +48,35 @@ export interface SsoticaParcela {
 }
 
 export const useSsotica = () => {
-  const { isConnected, getIntegration } = useIntegrations();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const hasSsotica = isConnected('ssotica');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Check if SSOTica integration exists in ai_agent_integrations
+  const { data: ssoticaIntegration } = useQuery({
+    queryKey: ['ssotica-integration', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('ai_agent_integrations')
+        .select('id, is_active')
+        .or('name.ilike.%ssotica%,integration_type.ilike.%ssotica%')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking ssotica integration:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const hasSsotica = !!ssoticaIntegration;
 
   const callSsoticaApi = async (action: string, params?: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke('ssotica-api', {
