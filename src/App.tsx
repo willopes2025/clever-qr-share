@@ -30,6 +30,7 @@ import Chatbots from "./pages/Chatbots";
 import AIAgents from "./pages/AIAgents";
 import Financeiro from "./pages/Financeiro";
 import DebtorsManagement from "./pages/DebtorsManagement";
+import Ssotica from "./pages/Ssotica";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import DataDeletion from "./pages/DataDeletion";
@@ -247,6 +248,15 @@ const App = () => (
                 <NotificationProvider>
                   <PermissionGate permission="view_finances">
                     <DebtorsManagement />
+                  </PermissionGate>
+                </NotificationProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/ssotica" element={
+              <ProtectedRoute>
+                <NotificationProvider>
+                  <PermissionGate permission="view_ssotica">
+                    <Ssotica />
                   </PermissionGate>
                 </NotificationProvider>
               </ProtectedRoute>

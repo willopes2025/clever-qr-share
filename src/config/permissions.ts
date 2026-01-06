@@ -78,6 +78,8 @@ export type PermissionKey =
   | 'view_payment_links_asaas'
   | 'create_payment_links_asaas'
   | 'delete_payment_links_asaas'
+  // SSOtica
+  | 'view_ssotica'
   // Settings
   | 'manage_subscription'
   | 'manage_settings'
@@ -118,6 +120,7 @@ export type PermissionCategory =
   | 'forms'
   | 'ai_agents'
   | 'finances'
+  | 'ssotica'
   | 'settings'
   | 'team'
   | 'notifications';
@@ -139,6 +142,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   forms: 'Formulários',
   ai_agents: 'Agentes IA',
   finances: 'Financeiro',
+  ssotica: 'ssOtica',
   settings: 'Configurações',
   team: 'Equipe',
   notifications: 'Notificações',
@@ -241,6 +245,9 @@ export const PERMISSIONS: Permission[] = [
   { key: 'create_payment_links_asaas', label: 'Criar Links de Pagamento', description: 'Criar novos links de pagamento', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
   { key: 'delete_payment_links_asaas', label: 'Excluir Links de Pagamento', description: 'Remover links de pagamento', defaultForAdmin: true, defaultForMember: false, category: 'finances' },
   
+  // SSOtica
+  { key: 'view_ssotica', label: 'Ver ssOtica', description: 'Visualizar dados do ssOtica', defaultForAdmin: true, defaultForMember: false, category: 'ssotica' },
+  
   // Settings
   { key: 'manage_subscription', label: 'Gerenciar Assinatura', description: 'Gerenciar plano e pagamentos', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
   { key: 'manage_settings', label: 'Gerenciar Configurações', description: 'Acessar configurações do sistema', defaultForAdmin: true, defaultForMember: false, category: 'settings' },
@@ -278,6 +285,7 @@ export const SIDEBAR_PERMISSIONS: SidebarItem[] = [
   { path: '/forms', permission: 'view_forms' },
   { path: '/ai-agents', permission: 'view_ai_agents' },
   { path: '/financeiro', permission: 'view_finances' },
+  { path: '/ssotica', permission: 'view_ssotica' },
   { path: '/subscription', permission: 'manage_subscription' },
   { path: '/settings', permission: 'manage_settings' },
 ];
