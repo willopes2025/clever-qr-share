@@ -14,6 +14,7 @@ interface ActivitySession {
 }
 
 const SESSION_STORAGE_KEY = 'activity_session_cache';
+const END_SESSION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/end-session`;
 
 // Helper to get cached session from sessionStorage
 const getCachedSession = (): ActivitySession | null => {
@@ -210,25 +211,42 @@ export const useActivitySession = () => {
     fetchCurrentSession();
   }, [fetchCurrentSession]);
 
-  // End session on page unload
+  // End session on page unload using edge function
   useEffect(() => {
     const handleUnload = () => {
       if (currentSession) {
-        // Use sendBeacon for reliable delivery
-        const endedAt = new Date().toISOString();
-        const startedAt = new Date(currentSession.started_at);
-        const durationSeconds = Math.floor((new Date().getTime() - startedAt.getTime()) / 1000);
-
-        navigator.sendBeacon(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_activity_sessions?id=eq.${currentSession.id}`,
-          JSON.stringify({ ended_at: endedAt, duration_seconds: durationSeconds })
-        );
+        // Use sendBeacon with edge function for reliable delivery
+        const payload = JSON.stringify({ session_id: currentSession.id });
+        navigator.sendBeacon(END_SESSION_URL, payload);
+        
+        // Clear cache immediately
+        cacheSession(null);
       }
     };
 
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, [currentSession]);
+
+  // End session when user signs out (auth state change)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' && currentSession) {
+        // Call edge function to end session on sign out
+        fetch(END_SESSION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: currentSession.id }),
+          keepalive: true, // Ensure request completes even during navigation
+        }).catch(console.error);
+        
+        // Clear local state
+        updateSession(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [currentSession, updateSession]);
 
   return {
     currentSession,

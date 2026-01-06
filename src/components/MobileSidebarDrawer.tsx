@@ -16,6 +16,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { Sheet, SheetContent, SheetHeader } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useActivitySession } from "@/hooks/useActivitySession";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -108,8 +109,14 @@ export const MobileSidebarDrawer = () => {
     });
   };
 
+  const { endSession } = useActivitySession();
+
   const handleLogout = async () => {
     closeMobile();
+    
+    // End activity session before logout
+    await endSession();
+    
     const { error } = await signOut();
     if (error) {
       toast.error("Erro ao sair: " + error.message);
