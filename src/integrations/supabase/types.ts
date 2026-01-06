@@ -3919,6 +3919,7 @@ export type Database = {
           duration_seconds: number | null
           ended_at: string | null
           id: string
+          last_activity: string | null
           notes: string | null
           organization_id: string | null
           session_type: string
@@ -3930,6 +3931,7 @@ export type Database = {
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
+          last_activity?: string | null
           notes?: string | null
           organization_id?: string | null
           session_type?: string
@@ -3941,6 +3943,7 @@ export type Database = {
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
+          last_activity?: string | null
           notes?: string | null
           organization_id?: string | null
           session_type?: string
@@ -4769,6 +4772,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      close_abandoned_sessions: { Args: never; Returns: number }
       get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
       get_organization_member_ids: {
         Args: { _user_id: string }
