@@ -18,7 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
-import { TokenBalanceWidget } from "@/components/sidebar/TokenBalanceWidget";
+
 import { useAsaas } from "@/hooks/useAsaas";
 
 interface NavItem {
@@ -397,9 +397,6 @@ export const DashboardSidebar = () => {
                 </TooltipContent>
               </Tooltip>
 
-              {/* Token Balance Widget - Collapsed - Admin Only */}
-              {isOrgAdmin && <TokenBalanceWidget isCollapsed={true} />}
-              
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -443,9 +440,6 @@ export const DashboardSidebar = () => {
                 </div>
               </NavLink>
 
-              {/* Token Balance Widget - Admin Only */}
-              {isOrgAdmin && <TokenBalanceWidget isCollapsed={false} />}
-              
               <Button 
                 variant="ghost" 
                 onClick={handleLogout}
