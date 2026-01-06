@@ -787,6 +787,7 @@ serve(async (req) => {
             },
             valor_total: os.valor_total || os.total,
             observacoes: os.observacoes || os.obs,
+            raw_data: os,
           })),
         };
         break;
@@ -817,6 +818,7 @@ serve(async (req) => {
             valor_total: v.valor_total || v.total,
             forma_pagamento: v.forma_pagamento || v.pagamento,
             status: v.status,
+            raw_data: v,
           })),
         };
         break;
@@ -854,6 +856,7 @@ serve(async (req) => {
             },
             boleto_url: c.boleto_url || c.link_boleto,
             pix_copia_cola: c.pix_copia_cola || c.pix,
+            raw_data: c,
           })),
         };
         break;

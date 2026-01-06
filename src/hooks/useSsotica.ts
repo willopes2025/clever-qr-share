@@ -17,6 +17,7 @@ export interface SsoticaOS {
   };
   valor_total?: number;
   observacoes?: string;
+  raw_data?: Record<string, any>;
 }
 
 export interface SsoticaVenda {
@@ -30,6 +31,7 @@ export interface SsoticaVenda {
   valor_total: number;
   forma_pagamento?: string;
   status?: string;
+  raw_data?: Record<string, any>;
 }
 
 export interface SsoticaParcela {
@@ -45,6 +47,7 @@ export interface SsoticaParcela {
   status: string;
   boleto_url?: string;
   pix_copia_cola?: string;
+  raw_data?: Record<string, any>;
 }
 
 export const useSsotica = () => {

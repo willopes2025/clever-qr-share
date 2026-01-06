@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useSsotica } from "@/hooks/useSsotica";
+import { useSsotica, SsoticaParcela } from "@/hooks/useSsotica";
 import { Loader2, Search, Receipt, AlertTriangle } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,10 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SsoticaDetailSheet } from "./SsoticaDetailSheet";
 
 export const SsoticaParcelasList = () => {
   const { parcelas, isLoading } = useSsotica();
   const [search, setSearch] = useState("");
+  const [selectedParcela, setSelectedParcela] = useState<SsoticaParcela | null>(null);
 
   const filteredParcelas = parcelas.filter((parcela: any) => {
     const searchLower = search.toLowerCase();
@@ -59,66 +61,84 @@ export const SsoticaParcelasList = () => {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" />
-            Parcelas em Aberto
-          </CardTitle>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar parcela..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              Parcelas em Aberto
+            </CardTitle>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar parcela..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {sortedParcelas.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            {search ? "Nenhuma parcela encontrada para esta busca" : "Nenhuma parcela em aberto encontrada"}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Documento</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedParcelas.map((parcela: any, index: number) => (
-                  <TableRow key={parcela.id || index}>
-                    <TableCell className="font-medium">
-                      {parcela.documento || parcela.numero || '-'}
-                    </TableCell>
-                    <TableCell>{parcela.cliente?.nome || '-'}</TableCell>
-                    <TableCell>
-                      {parcela.vencimento 
-                        ? format(new Date(parcela.vencimento), "dd/MM/yyyy", { locale: ptBR })
-                        : '-'}
-                    </TableCell>
-                    <TableCell>{getVencimentoBadge(parcela.vencimento)}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {parcela.valor 
-                        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parcela.valor)
-                        : '-'}
-                    </TableCell>
+        </CardHeader>
+        <CardContent>
+          {sortedParcelas.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {search ? "Nenhuma parcela encontrada para esta busca" : "Nenhuma parcela em aberto encontrada"}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Documento</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {sortedParcelas.map((parcela: any, index: number) => (
+                    <TableRow 
+                      key={parcela.id || index}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setSelectedParcela(parcela)}
+                    >
+                      <TableCell className="font-medium">
+                        {parcela.documento || parcela.numero || '-'}
+                      </TableCell>
+                      <TableCell>
+                        {parcela.cliente?.nome || (
+                          <span className="text-muted-foreground italic">Não disponível</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {parcela.vencimento 
+                          ? format(new Date(parcela.vencimento), "dd/MM/yyyy", { locale: ptBR })
+                          : '-'}
+                      </TableCell>
+                      <TableCell>{getVencimentoBadge(parcela.vencimento)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {parcela.valor 
+                          ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parcela.valor)
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <SsoticaDetailSheet
+        open={!!selectedParcela}
+        onOpenChange={(open) => !open && setSelectedParcela(null)}
+        title={`Parcela ${selectedParcela?.documento || selectedParcela?.numero || ''}`}
+        data={selectedParcela}
+        type="parcela"
+      />
+    </>
   );
 };
