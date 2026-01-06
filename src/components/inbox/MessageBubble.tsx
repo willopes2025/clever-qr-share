@@ -18,9 +18,10 @@ const formatMessageTime = (message: InboxMessage) => {
 interface MessageBubbleProps {
   message: InboxMessage;
   isOptimistic?: boolean;
+  instancePhoneNumber?: string | null;
 }
 
-export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: MessageBubbleProps) => {
   const isOutbound = message.direction === "outbound";
   
   const getStatusIcon = () => {
@@ -77,11 +78,23 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
               <span className="text-[11px] text-muted-foreground italic">
                 Enviado pelo WhatsApp
               </span>
+              {instancePhoneNumber && (
+                <span className="text-[11px] text-muted-foreground">
+                  • {instancePhoneNumber}
+                </span>
+              )}
             </>
           ) : (
-            <span className="text-[11px] text-[#667781]">
-              {senderName}
-            </span>
+            <>
+              <span className="text-[11px] text-[#667781]">
+                {senderName}
+              </span>
+              {instancePhoneNumber && (
+                <span className="text-[11px] text-muted-foreground">
+                  • {instancePhoneNumber}
+                </span>
+              )}
+            </>
           )}
         </div>
       )}

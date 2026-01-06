@@ -906,6 +906,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                     <MessageBubble
                       message={message}
                       isOptimistic={'isOptimistic' in message}
+                      instancePhoneNumber={connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
                     />
                   </Fragment>
                 );
