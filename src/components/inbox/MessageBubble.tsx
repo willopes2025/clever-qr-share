@@ -1,11 +1,10 @@
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-
 const formatMessageTime = (message: InboxMessage) => {
   const date = new Date(message.created_at);
   if (isToday(date)) {
@@ -46,6 +45,12 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
   const senderName = message.sent_by_user?.full_name;
   const isAIMessage = message.is_ai_generated || !!message.sent_by_ai_agent_id;
   const aiAgentName = message.ai_agent?.agent_name;
+  
+  // Detectar se foi enviado externamente (fora do sistema - pelo WhatsApp celular/web)
+  const isExternalSend = isOutbound && 
+    !message.sent_by_user_id && 
+    !message.sent_by_ai_agent_id && 
+    !message.is_ai_generated;
 
   return (
     <div
@@ -54,7 +59,7 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
         isOutbound ? "ml-auto items-end" : "mr-auto items-start"
       )}
     >
-      {isOutbound && (senderName || isAIMessage) && (
+      {isOutbound && (senderName || isAIMessage || isExternalSend) && (
         <div className="flex items-center gap-1.5 mb-0.5 px-1">
           {isAIMessage ? (
             <>
@@ -65,6 +70,13 @@ export const MessageBubble = ({ message, isOptimistic }: MessageBubbleProps) => 
               <Badge variant="outline" className="h-4 px-1 text-[9px] border-primary/30 text-primary">
                 IA
               </Badge>
+            </>
+          ) : isExternalSend ? (
+            <>
+              <Smartphone className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground italic">
+                Enviado pelo WhatsApp
+              </span>
             </>
           ) : (
             <span className="text-[11px] text-[#667781]">

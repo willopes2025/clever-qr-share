@@ -717,7 +717,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                   }
                 }}
               >
-                <SelectTrigger className="w-[180px] h-9">
+                <SelectTrigger className="w-[200px] h-9">
                   <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Selecionar número" />
                 </SelectTrigger>
@@ -729,12 +729,27 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                   ) : (
                     connectedInstances.map((instance) => (
                       <SelectItem key={instance.id} value={instance.id}>
-                        {instance.instance_name}
+                        <div className="flex flex-col items-start">
+                          <span>{instance.instance_name}</span>
+                          {instance.phone_number && (
+                            <span className="text-xs text-muted-foreground">
+                              {instance.phone_number}
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
+              
+              {/* Show selected instance phone number */}
+              {connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number && (
+                <Badge variant="outline" className="text-xs text-muted-foreground gap-1 h-9 px-2">
+                  <Smartphone className="h-3 w-3" />
+                  {connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
+                </Badge>
+              )}
               
               {/* Transfer Button */}
               <Tooltip>
