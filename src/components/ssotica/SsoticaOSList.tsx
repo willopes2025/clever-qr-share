@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,28 +14,60 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SsoticaDetailSheet } from "./SsoticaDetailSheet";
+import { SsoticaDateRange } from "./SsoticaDateFilter";
 
-export const SsoticaOSList = () => {
+interface SsoticaOSListProps {
+  dateRange: SsoticaDateRange;
+}
+
+export const SsoticaOSList = ({ dateRange }: SsoticaOSListProps) => {
   const { ordensServico, isLoading } = useSsotica();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOS, setSelectedOS] = useState<SsoticaOS | null>(null);
 
-  const filteredOS = ordensServico.filter((os: any) => {
-    const searchLower = search.toLowerCase();
-    return (
-      os.numero?.toString().includes(search) ||
-      os.cliente?.nome?.toLowerCase().includes(searchLower) ||
-      os.status?.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredOS = useMemo(() => {
+    return ordensServico.filter((os: any) => {
+      // Date filter
+      if (os.data_entrada) {
+        const dataEntrada = new Date(os.data_entrada);
+        if (dataEntrada < dateRange.from || dataEntrada > dateRange.to) {
+          return false;
+        }
+      }
+
+      // Status filter
+      if (statusFilter !== "all") {
+        const osStatus = normalizeStatusKey(os.status);
+        if (osStatus !== statusFilter) {
+          return false;
+        }
+      }
+
+      // Search filter
+      const searchLower = search.toLowerCase();
+      return (
+        os.numero?.toString().includes(search) ||
+        os.cliente?.nome?.toLowerCase().includes(searchLower) ||
+        os.status?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [ordensServico, dateRange, statusFilter, search]);
 
   const getStatusBadge = (status: string) => {
     const statusLower = status?.toLowerCase() || '';
-    if (statusLower === 'concluido' || statusLower === 'entregue') {
+    if (statusLower === 'concluido' || statusLower === 'entregue' || statusLower === 'finalizado') {
       return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">Concluído</Badge>;
     }
-    if (statusLower === 'em_andamento' || statusLower === 'producao') {
+    if (statusLower === 'em_andamento' || statusLower === 'producao' || statusLower === 'em andamento') {
       return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">Em Andamento</Badge>;
     }
     if (statusLower === 'pendente' || statusLower === 'aguardando') {
@@ -56,26 +88,41 @@ export const SsoticaOSList = () => {
     <>
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex flex-col gap-4">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Ordens de Serviço
             </CardTitle>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar O.S...."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar O.S...."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filtrar status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="em_andamento">Em Andamento</SelectItem>
+                  <SelectItem value="concluido">Concluído</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {filteredOS.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {search ? "Nenhuma O.S. encontrada para esta busca" : "Nenhuma O.S. nos últimos 30 dias"}
+              {search || statusFilter !== "all" 
+                ? "Nenhuma O.S. encontrada com os filtros aplicados" 
+                : "Nenhuma O.S. no período selecionado"}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -134,3 +181,11 @@ export const SsoticaOSList = () => {
     </>
   );
 };
+
+function normalizeStatusKey(status: string | undefined): string {
+  const s = (status || '').toLowerCase();
+  if (s === 'concluido' || s === 'concluída' || s === 'entregue' || s === 'finalizado') return 'concluido';
+  if (s === 'em_andamento' || s === 'producao' || s === 'em andamento') return 'em_andamento';
+  if (s === 'pendente' || s === 'aguardando') return 'pendente';
+  return 'outros';
+}
