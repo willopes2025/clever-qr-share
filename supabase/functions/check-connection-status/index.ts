@@ -39,15 +39,27 @@ serve(async (req) => {
 
     console.log(`Checking status for instance: ${instanceName}`);
 
-    // Verificar se a instância pertence ao usuário
+    // Verificar se a instância pertence ao usuário ou à sua organização
+    // Primeiro, buscar IDs de membros da organização do usuário
+    const { data: memberIds } = await supabase
+      .rpc('get_organization_member_ids', { _user_id: user.id });
+    
+    const userIds = memberIds && memberIds.length > 0 ? memberIds : [user.id];
+    
     const { data: instance, error: instanceError } = await supabase
       .from('whatsapp_instances')
       .select('*')
       .eq('instance_name', instanceName)
-      .eq('user_id', user.id)
+      .in('user_id', userIds)
       .maybeSingle();
 
-    if (instanceError || !instance) {
+    if (instanceError) {
+      console.error('Instance query error:', instanceError);
+      throw new Error('Erro ao buscar instância');
+    }
+    
+    if (!instance) {
+      console.log('Instance not found. Looking for:', instanceName, 'in user_ids:', userIds);
       throw new Error('Instância não encontrada');
     }
 
