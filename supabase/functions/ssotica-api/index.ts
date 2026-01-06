@@ -759,6 +759,106 @@ serve(async (req) => {
         break;
       }
 
+      // === LISTAGEM GERAL (sem filtro de CPF) para dashboard ===
+      case 'listar_os': {
+        console.log(`[ssOtica] listar_os - lookback: ${lookbackDays} days`);
+        
+        const searchResult = await searchOSWithLookback(token, empresaCnpj, null, lookbackDays);
+        
+        console.log(`[ssOtica] OS listadas: ${searchResult.data.length} (raw: ${searchResult.rawTotal})`);
+
+        result = {
+          success: true,
+          total: searchResult.data.length,
+          periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
+            ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
+            : `últimos ${lookbackDays} dias`,
+          janelas_verificadas: searchResult.windowsSearched,
+          data: searchResult.data.map((os: any) => ({
+            id: os.id,
+            numero: os.numero || os.id,
+            status: os.status || os.situacao,
+            previsao_entrega: os.previsao_entrega || os.data_previsao,
+            data_entrada: os.data_entrada || os.created_at,
+            cliente: {
+              nome: os.cliente?.nome || os.nome_cliente,
+              cpf: os.cliente?.cpf || os.cpf_cliente,
+              telefone: os.cliente?.telefone || os.telefone_cliente,
+            },
+            valor_total: os.valor_total || os.total,
+            observacoes: os.observacoes || os.obs,
+          })),
+        };
+        break;
+      }
+
+      case 'listar_vendas': {
+        console.log(`[ssOtica] listar_vendas - lookback: ${lookbackDays} days`);
+        
+        const searchResult = await searchVendasWithLookback(token, empresaCnpj, null, lookbackDays);
+        
+        console.log(`[ssOtica] Vendas listadas: ${searchResult.data.length} (raw: ${searchResult.rawTotal})`);
+
+        result = {
+          success: true,
+          total: searchResult.data.length,
+          periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
+            ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
+            : `últimos ${lookbackDays} dias`,
+          janelas_verificadas: searchResult.windowsSearched,
+          data: searchResult.data.map((v: any) => ({
+            id: v.id,
+            numero: v.numero || v.id,
+            data_venda: v.data_venda || v.created_at,
+            cliente: {
+              nome: v.cliente?.nome || v.nome_cliente,
+              cpf: v.cliente?.cpf || v.cpf_cliente,
+            },
+            valor_total: v.valor_total || v.total,
+            forma_pagamento: v.forma_pagamento || v.pagamento,
+            status: v.status,
+          })),
+        };
+        break;
+      }
+
+      case 'listar_parcelas': {
+        console.log(`[ssOtica] listar_parcelas - lookback: ${lookbackDays} days`);
+        
+        const searchResult = await searchParcelasWithLookback(token, empresaCnpj, null, lookbackDays);
+        
+        console.log(`[ssOtica] Parcelas listadas: ${searchResult.data.length} (raw: ${searchResult.rawTotal})`);
+
+        const valorTotalAberto = searchResult.data.reduce((sum: number, c: any) => 
+          sum + (parseFloat(c.valor) || parseFloat(c.valor_parcela) || 0), 0
+        );
+
+        result = {
+          success: true,
+          total: searchResult.data.length,
+          periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
+            ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
+            : `últimos ${lookbackDays} dias`,
+          janelas_verificadas: searchResult.windowsSearched,
+          valor_total_aberto: valorTotalAberto,
+          data: searchResult.data.map((c: any) => ({
+            id: c.id,
+            numero: c.numero_parcela || c.parcela,
+            documento: c.documento || c.numero_documento,
+            valor: c.valor || c.valor_parcela,
+            vencimento: c.vencimento || c.data_vencimento,
+            status: c.status || c.situacao || 'em_aberto',
+            cliente: {
+              nome: c.cliente?.nome || c.nome_cliente,
+              cpf: c.cliente?.cpf || c.cpf_cliente,
+            },
+            boleto_url: c.boleto_url || c.link_boleto,
+            pix_copia_cola: c.pix_copia_cola || c.pix,
+          })),
+        };
+        break;
+      }
+
       default:
         throw new Error(`Ação desconhecida: ${action}`);
     }
