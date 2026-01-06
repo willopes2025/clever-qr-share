@@ -2547,6 +2547,7 @@ export type Database = {
       funnel_deal_history: {
         Row: {
           changed_at: string | null
+          changed_by: string | null
           deal_id: string
           from_stage_id: string | null
           id: string
@@ -2555,6 +2556,7 @@ export type Database = {
         }
         Insert: {
           changed_at?: string | null
+          changed_by?: string | null
           deal_id: string
           from_stage_id?: string | null
           id?: string
@@ -2563,6 +2565,7 @@ export type Database = {
         }
         Update: {
           changed_at?: string | null
+          changed_by?: string | null
           deal_id?: string
           from_stage_id?: string | null
           id?: string

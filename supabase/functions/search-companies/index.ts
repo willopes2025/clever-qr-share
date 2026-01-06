@@ -377,9 +377,6 @@ serve(async (req) => {
 
     // Update leads_used in subscription if user is authenticated
     if (userId && companiesCount > 0) {
-      // Increment leads_used
-      await supabaseClient.rpc('', {}).then(() => {});
-      
       const { data: currentSub } = await supabaseClient
         .from("subscriptions")
         .select("leads_used")
