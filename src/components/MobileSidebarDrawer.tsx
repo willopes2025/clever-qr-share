@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -17,6 +17,8 @@ import { PermissionKey } from "@/config/permissions";
 import { Sheet, SheetContent, SheetHeader } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useActivitySession } from "@/hooks/useActivitySession";
+import { useAsaas } from "@/hooks/useAsaas";
+import { useSsotica } from "@/hooks/useSsotica";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -90,8 +92,30 @@ export const MobileSidebarDrawer = () => {
   const { isMobileOpen, closeMobile } = useSidebarContext();
   const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
   const { profile } = useProfile();
+  const { hasAsaas } = useAsaas();
+  const { hasSsotica } = useSsotica();
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+
+  // Build dynamic nav groups with Financeiro/ssOtica if connected
+  const dynamicNavGroups = navGroups.map(group => {
+    if (group.label === "Sua Conta") {
+      const dynamicItems: typeof group.items = [];
+      
+      if (hasAsaas) {
+        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
+      }
+      if (hasSsotica) {
+        dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
+      }
+      
+      return {
+        ...group,
+        items: [...dynamicItems, ...group.items],
+      };
+    }
+    return group;
+  });
 
   // Filter nav items based on permissions only (NOT plan-based)
   // Plan-based restrictions should NOT hide menu items - they should be visible but locked
@@ -148,7 +172,7 @@ export const MobileSidebarDrawer = () => {
 
         <ScrollArea className="flex-1 h-[calc(100vh-14rem)]">
           <nav className="py-4 px-3">
-            {navGroups.map((group, groupIndex) => (
+            {dynamicNavGroups.map((group, groupIndex) => (
               <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
                 <span className="px-4 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                   {group.label}

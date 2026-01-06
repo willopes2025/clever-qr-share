@@ -34,7 +34,8 @@ export type IntegrationProvider =
   | 'google_analytics'
   | 'vono_voip'
   | 'meta_whatsapp'
-  | 'asaas';
+  | 'asaas'
+  | 'ssotica';
 
 export const useIntegrations = () => {
   const { user } = useAuth();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ import { PermissionKey } from "@/config/permissions";
 import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
 
 import { useAsaas } from "@/hooks/useAsaas";
+import { useSsotica } from "@/hooks/useSsotica";
 import { useActivitySession } from "@/hooks/useActivitySession";
 
 interface NavItem {
@@ -98,16 +99,23 @@ export const DashboardSidebar = () => {
   const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
   const { profile } = useProfile();
   const { hasAsaas } = useAsaas();
+  const { hasSsotica } = useSsotica();
 
-  // Build dynamic nav groups with Financeiro if Asaas is connected
+  // Build dynamic nav groups with Financeiro/ssOtica if connected
   const dynamicNavGroups = navGroups.map(group => {
-    if (group.label === "Sua Conta" && hasAsaas) {
+    if (group.label === "Sua Conta") {
+      const dynamicItems: NavItem[] = [];
+      
+      if (hasAsaas) {
+        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
+      }
+      if (hasSsotica) {
+        dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
+      }
+      
       return {
         ...group,
-        items: [
-          { icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const },
-          ...group.items,
-        ],
+        items: [...dynamicItems, ...group.items],
       };
     }
     return group;
