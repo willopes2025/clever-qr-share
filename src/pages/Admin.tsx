@@ -21,6 +21,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import OwnerOverview from "@/components/owner/OwnerOverview";
 import OwnerFinanceiro from "@/components/owner/OwnerFinanceiro";
 import OwnerOperacional from "@/components/owner/OwnerOperacional";
+import { useActivitySession } from "@/hooks/useActivitySession";
 
 interface UserWithSubscription {
   id: string;
@@ -130,7 +131,12 @@ const Admin = () => {
     }
   };
 
+  const { endSession } = useActivitySession();
+
   const handleSignOut = async () => {
+    // End activity session before logout
+    await endSession();
+    
     await signOut();
     navigate('/login');
   };
