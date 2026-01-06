@@ -92,34 +92,56 @@ export const useSsotica = () => {
   const { data: dashboardData, isLoading: isLoadingDashboard, refetch: refetchDashboard } = useQuery({
     queryKey: ['ssotica', 'dashboard'],
     queryFn: async () => {
-      // Fetch all data in parallel for dashboard
+      // Fetch all data in parallel using correct actions
       const [osResult, vendasResult, parcelasResult] = await Promise.all([
-        callSsoticaApi('list-os', { lookbackDays: 30 }).catch(() => ({ data: [] })),
-        callSsoticaApi('list-vendas', { lookbackDays: 30 }).catch(() => ({ data: [] })),
-        callSsoticaApi('list-parcelas', { lookbackDays: 365 }).catch(() => ({ data: [] })),
+        callSsoticaApi('listar_os', { lookback_days: 30 }).catch((e) => {
+          console.error('Error fetching OS:', e);
+          return { data: [] };
+        }),
+        callSsoticaApi('listar_vendas', { lookback_days: 30 }).catch((e) => {
+          console.error('Error fetching vendas:', e);
+          return { data: [] };
+        }),
+        callSsoticaApi('listar_parcelas', { lookback_days: 365 }).catch((e) => {
+          console.error('Error fetching parcelas:', e);
+          return { data: [] };
+        }),
       ]);
 
       const ordensServico = osResult.data || [];
       const vendas = vendasResult.data || [];
       const parcelas = parcelasResult.data || [];
 
+      console.log('[useSsotica] Loaded data:', { 
+        os: ordensServico.length, 
+        vendas: vendas.length, 
+        parcelas: parcelas.length 
+      });
+
       // Calculate metrics
-      const osAbertas = ordensServico.filter((os: any) => 
-        os.status?.toLowerCase() !== 'concluido' && 
-        os.status?.toLowerCase() !== 'entregue'
-      ).length;
+      const osAbertas = ordensServico.filter((os: any) => {
+        const status = (os.status || '').toLowerCase();
+        return status !== 'concluido' && 
+               status !== 'concluída' && 
+               status !== 'entregue' &&
+               status !== 'finalizado';
+      }).length;
 
       const vendasMes = vendas.length;
       const valorVendas = vendas.reduce((sum: number, v: any) => sum + (parseFloat(v.valor_total) || 0), 0);
 
-      const parcelasEmAberto = parcelas.filter((p: any) => 
-        p.status === 'em_aberto' || p.status === 'aberto' || !p.data_pagamento
-      );
+      // Parcelas já vêm filtradas como em aberto do backend
+      const parcelasEmAberto = parcelas;
       const valorEmAberto = parcelasEmAberto.reduce((sum: number, p: any) => sum + (parseFloat(p.valor) || 0), 0);
 
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
       const parcelasVencidas = parcelasEmAberto.filter((p: any) => {
+        if (!p.vencimento) return false;
         const vencimento = new Date(p.vencimento);
-        return vencimento < new Date();
+        vencimento.setHours(0, 0, 0, 0);
+        return vencimento < hoje;
       });
       const valorVencido = parcelasVencidas.reduce((sum: number, p: any) => sum + (parseFloat(p.valor) || 0), 0);
 
@@ -162,22 +184,22 @@ export const useSsotica = () => {
 
   // Buscar OS por número
   const searchOS = async (numeroOS: string) => {
-    return callSsoticaApi('get-os', { numero_os: numeroOS });
+    return callSsoticaApi('consultar_os_por_numero', { numero_os: numeroOS });
   };
 
   // Buscar OS por CPF
   const searchOSByCpf = async (cpf: string) => {
-    return callSsoticaApi('list-os', { cpf });
+    return callSsoticaApi('consultar_os_cliente', { cpf });
   };
 
   // Buscar vendas por CPF
   const searchVendasByCpf = async (cpf: string) => {
-    return callSsoticaApi('list-vendas', { cpf });
+    return callSsoticaApi('consultar_vendas_cliente', { cpf });
   };
 
   // Buscar parcelas por CPF
   const searchParcelasByCpf = async (cpf: string) => {
-    return callSsoticaApi('list-parcelas', { cpf });
+    return callSsoticaApi('consultar_parcelas_cliente', { cpf });
   };
 
   return {
