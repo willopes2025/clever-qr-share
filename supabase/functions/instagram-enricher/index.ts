@@ -5,23 +5,48 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ApifyProfileResult {
-  username: string;
-  fullName?: string;
-  biography?: string;
-  externalUrl?: string;
-  followersCount?: number;
-  followsCount?: number;
-  postsCount?: number;
-  isBusinessAccount?: boolean;
-  businessCategoryName?: string;
-  isVerified?: boolean;
-  profilePicUrl?: string;
-  email?: string;
-  phone?: string;
-  contactPhoneNumber?: string;
-  publicEmail?: string;
-  publicPhoneNumber?: string;
+// Extract email from biography text
+function extractEmail(text: string | null): string | null {
+  if (!text) return null;
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+  const match = text.match(emailRegex);
+  return match ? match[0].toLowerCase() : null;
+}
+
+// Extract phone from biography or wa.me URL
+function extractPhone(text: string | null, url: string | null): string | null {
+  // Try wa.me links first (most reliable)
+  if (url) {
+    const waMatch = url.match(/wa\.me\/(\d+)/i);
+    if (waMatch) return waMatch[1];
+    
+    // Also check for api.whatsapp.com format
+    const apiWaMatch = url.match(/api\.whatsapp\.com\/send\?phone=(\d+)/i);
+    if (apiWaMatch) return apiWaMatch[1];
+  }
+  
+  if (!text) return null;
+  
+  // Brazilian phone patterns
+  const phonePatterns = [
+    /\+55\s*\(?\d{2}\)?\s*\d{4,5}[-.\s]?\d{4}/g,  // +55 (XX) XXXXX-XXXX
+    /whatsapp[:\s]*\(?\d{2}\)?\s*9?\d{4}[-.\s]?\d{4}/gi,  // WhatsApp: (XX) 9XXXX-XXXX
+    /\(?\d{2}\)?\s*9\d{4}[-.\s]?\d{4}/g,  // (XX) 9XXXX-XXXX (mobile)
+    /\d{2}\s*9\d{8}/g  // XX9XXXXXXXX
+  ];
+  
+  for (const pattern of phonePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      // Clean and return only digits
+      const digits = match[0].replace(/\D/g, '');
+      // Ensure it's a valid Brazilian phone (10-13 digits)
+      if (digits.length >= 10 && digits.length <= 13) {
+        return digits;
+      }
+    }
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -143,13 +168,25 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Extract email and phone with multiple fallbacks
-      const email = item.publicEmail || item.email || item.businessEmail || item.business_email || null;
-      const phone = item.publicPhoneNumber || item.contactPhoneNumber || item.phone || item.businessPhoneNumber || item.business_phone_number || null;
+      // Get biography and external URL for extraction
+      const biography = item.biography || item.bio || null;
+      const externalUrl = item.externalUrl || item.external_url || item.website || null;
+
+      // Extract email - API data first, then bio extraction
+      const emailFromApi = item.publicEmail || item.email || item.businessEmail || item.business_email || null;
+      const emailFromBio = extractEmail(biography);
+      const email = emailFromApi || emailFromBio;
+
+      // Extract phone - API data first, then bio/URL extraction
+      const phoneFromApi = item.publicPhoneNumber || item.contactPhoneNumber || item.phone || item.businessPhoneNumber || item.business_phone_number || null;
+      const phoneFromBioOrUrl = extractPhone(biography, externalUrl);
+      const phone = phoneFromApi || phoneFromBioOrUrl;
+
+      console.log(`Contact extraction for ${username}: email=${email} (api=${emailFromApi}, bio=${emailFromBio}), phone=${phone} (api=${phoneFromApi}, extracted=${phoneFromBioOrUrl})`);
 
       const updateData = {
         full_name: item.fullName || item.full_name || null,
-        biography: item.biography || item.bio || null,
+        biography: biography,
         profile_pic_url: item.profilePicUrl || item.profilePicUrlHD || item.profile_pic_url || null,
         followers_count: item.followersCount ?? item.followers_count ?? 0,
         following_count: item.followsCount ?? item.followingCount ?? item.following_count ?? 0,
@@ -157,7 +194,7 @@ Deno.serve(async (req) => {
         is_business_account: item.isBusinessAccount ?? item.is_business_account ?? false,
         is_verified: item.isVerified ?? item.verified ?? item.is_verified ?? false,
         business_category: item.businessCategoryName || item.business_category || item.categoryName || null,
-        external_url: item.externalUrl || item.external_url || item.website || null,
+        external_url: externalUrl,
         email: email,
         phone: phone,
         enriched_at: now
