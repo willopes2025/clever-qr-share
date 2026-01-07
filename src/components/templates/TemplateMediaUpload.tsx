@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Image, Video, Mic, X, Loader2, Upload } from 'lucide-react';
+import { Image, Video, Mic, X, Loader2, Sparkles } from 'lucide-react';
+import { GenerateAudioDialog } from './GenerateAudioDialog';
 
 export type MediaType = 'image' | 'video' | 'audio' | null;
 
@@ -12,6 +13,7 @@ interface TemplateMediaUploadProps {
   mediaUrl: string | null;
   mediaFilename: string | null;
   onMediaChange: (type: MediaType, url: string | null, filename: string | null) => void;
+  templateContent?: string;
 }
 
 const ACCEPTED_TYPES: Record<string, string> = {
@@ -30,12 +32,18 @@ export const TemplateMediaUpload = ({
   mediaType,
   mediaUrl,
   mediaFilename,
-  onMediaChange
+  onMediaChange,
+  templateContent = ''
 }: TemplateMediaUploadProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedType, setSelectedType] = useState<'image' | 'video' | 'audio' | null>(null);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+
+  const handleAudioGenerated = (audioUrl: string, fileName: string) => {
+    onMediaChange('audio', audioUrl, fileName);
+  };
 
   const handleUploadClick = (type: 'image' | 'video' | 'audio') => {
     setSelectedType(type);
@@ -177,7 +185,7 @@ export const TemplateMediaUpload = ({
       ) : mediaUrl ? (
         renderPreview()
       ) : (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Button
             type="button"
             variant="outline"
@@ -210,12 +218,31 @@ export const TemplateMediaUpload = ({
             <span className="text-xs">Áudio</span>
             <span className="text-[10px] text-muted-foreground">até 16MB</span>
           </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="flex flex-col items-center gap-1 h-auto py-4 border-primary/50 hover:border-primary"
+            onClick={() => setGenerateDialogOpen(true)}
+            disabled={!templateContent.trim()}
+          >
+            <Sparkles className="h-5 w-5 text-primary" />
+            <span className="text-xs">Gerar IA</span>
+            <span className="text-[10px] text-muted-foreground">ElevenLabs</span>
+          </Button>
         </div>
       )}
 
       <p className="text-xs text-muted-foreground">
         Formatos aceitos: JPG, PNG, GIF, MP4, OGG (áudio WhatsApp), MP3
       </p>
+
+      <GenerateAudioDialog
+        open={generateDialogOpen}
+        onOpenChange={setGenerateDialogOpen}
+        templateContent={templateContent}
+        onAudioGenerated={handleAudioGenerated}
+      />
     </div>
   );
 };
