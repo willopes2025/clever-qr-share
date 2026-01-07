@@ -215,3 +215,6 @@ verify_jwt = false
 
 [functions.sync-funnel-deals]
 verify_jwt = false
+
+[functions.instagram-scraper]
+verify_jwt = false

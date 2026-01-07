@@ -2957,6 +2957,69 @@ export type Database = {
           },
         ]
       }
+      instagram_scrape_results: {
+        Row: {
+          biography: string | null
+          business_category: string | null
+          created_at: string
+          email: string | null
+          external_url: string | null
+          followers_count: number | null
+          following_count: number | null
+          full_name: string | null
+          id: string
+          is_business_account: boolean | null
+          is_verified: boolean | null
+          phone: string | null
+          posts_count: number | null
+          profile_pic_url: string | null
+          raw_data: Json | null
+          scraped_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          biography?: string | null
+          business_category?: string | null
+          created_at?: string
+          email?: string | null
+          external_url?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          full_name?: string | null
+          id?: string
+          is_business_account?: boolean | null
+          is_verified?: boolean | null
+          phone?: string | null
+          posts_count?: number | null
+          profile_pic_url?: string | null
+          raw_data?: Json | null
+          scraped_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          biography?: string | null
+          business_category?: string | null
+          created_at?: string
+          email?: string | null
+          external_url?: string | null
+          followers_count?: number | null
+          following_count?: number | null
+          full_name?: string | null
+          id?: string
+          is_business_account?: boolean | null
+          is_verified?: boolean | null
+          phone?: string | null
+          posts_count?: number | null
+          profile_pic_url?: string | null
+          raw_data?: Json | null
+          scraped_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       integrations: {
         Row: {
           created_at: string | null

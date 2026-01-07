@@ -29,6 +29,7 @@ const Warming = lazy(() => import("./pages/Warming"));
 const Analysis = lazy(() => import("./pages/Analysis"));
 const Funnels = lazy(() => import("./pages/Funnels"));
 const LeadSearch = lazy(() => import("./pages/LeadSearch"));
+const InstagramScraper = lazy(() => import("./pages/InstagramScraper"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Chatbots = lazy(() => import("./pages/Chatbots"));
 const AIAgents = lazy(() => import("./pages/AIAgents"));
@@ -196,6 +197,15 @@ const App = () => (
                       <NotificationProvider>
                         <PermissionGate permission="search_leads">
                           <LeadSearch />
+                        </PermissionGate>
+                      </NotificationProvider>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/instagram-scraper" element={
+                    <ProtectedRoute>
+                      <NotificationProvider>
+                        <PermissionGate permission="search_leads">
+                          <InstagramScraper />
                         </PermissionGate>
                       </NotificationProvider>
                     </ProtectedRoute>
