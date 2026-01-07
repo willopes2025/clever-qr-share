@@ -106,34 +106,43 @@ const InstagramScraper = () => {
       return;
     }
 
-    if (selectedIds.length > 50) {
-      toast.warning('Máximo de 50 perfis por enriquecimento.');
-    }
-
     setIsEnriching(true);
+    const BATCH_SIZE = 50;
+    const totalBatches = Math.ceil(selectedIds.length / BATCH_SIZE);
+    let totalEnriched = 0;
 
     try {
-      const { data, error } = await supabase.functions.invoke('instagram-enricher', {
-        body: { profileIds: selectedIds.slice(0, 50) }
-      });
+      for (let i = 0; i < totalBatches; i++) {
+        const batchIds = selectedIds.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        
+        if (totalBatches > 1) {
+          toast.info(`Enriquecendo lote ${i + 1} de ${totalBatches}...`);
+        }
 
-      if (error) throw error;
+        const { data, error } = await supabase.functions.invoke('instagram-enricher', {
+          body: { profileIds: batchIds }
+        });
 
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao enriquecer perfis');
-      }
+        if (error) throw error;
 
-      // Update the profiles in state with enriched data
-      const enrichedMap = new Map<string, InstagramProfile>(
-        data.data.map((p: InstagramProfile) => [p.id, p])
-      );
-      
-      if (activeTab === 'search') {
-        setProfiles(prev => prev.map(p => enrichedMap.get(p.id) ?? p));
+        if (!data.success) {
+          throw new Error(data.error || 'Erro ao enriquecer perfis');
+        }
+
+        totalEnriched += data.total || 0;
+
+        // Update the profiles in state with enriched data
+        const enrichedMap = new Map<string, InstagramProfile>(
+          data.data.map((p: InstagramProfile) => [p.id, p])
+        );
+        
+        if (activeTab === 'search') {
+          setProfiles(prev => prev.map(p => enrichedMap.get(p.id) ?? p));
+        }
       }
       
       refetchHistory();
-      toast.success(`${data.total} perfis enriquecidos com sucesso!`);
+      toast.success(`${totalEnriched} perfis enriquecidos com sucesso!`);
     } catch (error) {
       console.error('Enrich error:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao enriquecer perfis');
