@@ -8,8 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useSubscription, PLANS, hasFeatureAccess } from "@/hooks/useSubscription";
-import { useConversations } from "@/hooks/useConversations";
+import { useSubscription, PLANS } from "@/hooks/useSubscription";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarContext } from "@/contexts/SidebarContext";
@@ -93,7 +93,7 @@ export const DashboardSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
-  const { conversations } = useConversations();
+  const { data: totalUnread = 0 } = useUnreadCount();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
@@ -120,9 +120,6 @@ export const DashboardSidebar = () => {
     }
     return group;
   });
-  
-  // Calculate total unread messages
-  const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
   // Filter nav items based on permissions only (NOT plan-based)
   // Plan-based restrictions should NOT hide menu items - they should be visible but locked

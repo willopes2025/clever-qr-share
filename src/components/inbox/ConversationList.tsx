@@ -9,7 +9,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { ConversationContextMenu } from "./ConversationContextMenu";
 import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
@@ -290,27 +289,22 @@ export const ConversationList = ({
           </div>
         ) : (
           <div className="p-2">
-            <AnimatePresence mode="sync">
-              {filteredConversations.map((conversation) => (
-                <ConversationContextMenu
-                  key={conversation.id}
-                  conversationId={conversation.id}
-                  isArchived={conversation.status === 'archived'}
-                  isPinned={conversation.is_pinned || false}
+            {filteredConversations.map((conversation) => (
+              <ConversationContextMenu
+                key={conversation.id}
+                conversationId={conversation.id}
+                isArchived={conversation.status === 'archived'}
+                isPinned={conversation.is_pinned || false}
+              >
+                <div
+                  className={cn(
+                    "group w-full flex items-start gap-3 p-3 rounded-xl transition-colors duration-150 text-left mb-1 cursor-pointer",
+                    selectedId === conversation.id
+                      ? "bg-primary/10 border border-primary/20 shadow-sm"
+                      : "hover:bg-muted/50"
+                  )}
+                  onClick={() => onSelect(conversation)}
                 >
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className={cn(
-                      "group w-full flex items-start gap-3 p-3 rounded-xl transition-colors duration-200 text-left mb-1 cursor-pointer",
-                      selectedId === conversation.id
-                        ? "bg-primary/10 border border-primary/20 shadow-sm"
-                        : "hover:bg-muted/50"
-                    )}
-                    onClick={() => onSelect(conversation)}
-                  >
                     {/* Avatar */}
                     <div className="relative">
                       <Avatar className="w-12 h-12 shrink-0">
@@ -463,10 +457,9 @@ export const ConversationList = ({
                         )}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 </ConversationContextMenu>
               ))}
-            </AnimatePresence>
           </div>
         )}
       </ScrollArea>

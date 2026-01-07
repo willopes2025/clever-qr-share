@@ -1,9 +1,10 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications, useUnreadBadge } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import type { Conversation } from "@/hooks/useConversations";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useGlobalRealtime } from "@/hooks/useGlobalRealtime";
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -13,6 +14,12 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { permission, requestPermission, notifyNewMessage } = useNotifications();
+
+  // Use optimized unread count hook instead of fetching all conversations
+  const { data: totalUnread = 0 } = useUnreadCount();
+
+  // Consolidated realtime subscription
+  useGlobalRealtime();
 
   // Fetch notification-only instance IDs to exclude from notifications
   const { data: notificationInstanceIds } = useQuery({
@@ -27,31 +34,9 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       return data?.map(i => i.id) || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000, // 5 minutes - these rarely change
   });
 
-  // Fetch conversations directly here to avoid hook order issues
-  const { data: conversations } = useQuery({
-    queryKey: ['conversations', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          contact:contacts(id, name, phone)
-        `)
-        .order('last_message_at', { ascending: false });
-
-      if (error) throw error;
-      return data as Conversation[];
-    },
-    enabled: !!user,
-  });
-
-  // Calculate total unread count
-  const totalUnread = useMemo(() => {
-    return conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
-  }, [conversations]);
-  
   // Update page title with unread badge
   useUnreadBadge(totalUnread);
 
@@ -65,16 +50,13 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
   }, [permission, requestPermission]);
 
-  // Get contact name from conversation - memoized callback
+  // Get contact name from cached data or fetch
   const getContactName = useCallback(async (conversationId: string): Promise<string> => {
-    // First check cached conversations
-    const cachedConversation = conversations?.find(c => c.id === conversationId);
-    if (cachedConversation?.contact?.name) {
-      return cachedConversation.contact.name;
-    }
-    if (cachedConversation?.contact?.phone) {
-      return cachedConversation.contact.phone;
-    }
+    // Check cached conversations first
+    const cachedConversations = queryClient.getQueryData<any[]>(['conversations', user?.id]);
+    const cachedConv = cachedConversations?.find(c => c.id === conversationId);
+    if (cachedConv?.contact?.name) return cachedConv.contact.name;
+    if (cachedConv?.contact?.phone) return cachedConv.contact.phone;
 
     // Fetch from database if not cached
     try {
@@ -92,14 +74,14 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     }
 
     return 'Contato';
-  }, [conversations]);
+  }, [queryClient, user?.id]);
 
-  // Listen for inbound messages globally
+  // Listen for inbound messages for browser notifications only
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel('global-inbound-messages')
+      .channel('notification-inbound-messages')
       .on(
         'postgres_changes',
         {
@@ -114,33 +96,25 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
             conversation_id: string;
             content: string;
             user_id: string;
-            direction: string;
           };
 
           // Only notify for messages belonging to this user
           if (message.user_id !== user.id) return;
 
-          // Check if this conversation is from a notification-only instance
-          const conversation = conversations?.find(c => c.id === message.conversation_id);
+          // Check if from notification-only instance
+          const cachedConversations = queryClient.getQueryData<any[]>(['conversations', user?.id]);
+          const conversation = cachedConversations?.find(c => c.id === message.conversation_id);
           if (conversation?.instance_id && notificationInstanceIds?.includes(conversation.instance_id)) {
-            console.log('[NotificationProvider] Ignoring notification from notification-only instance');
             return;
           }
 
-          // Get contact name
+          // Get contact name and send notification
           const contactName = await getContactName(message.conversation_id);
-          
-          // Truncate message for preview
           const messagePreview = message.content?.length > 50 
             ? message.content.substring(0, 50) + '...' 
             : message.content || 'Nova mensagem';
           
-          // Send browser notification
           notifyNewMessage(contactName, messagePreview);
-
-          // Invalidate queries to update UI
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['messages', message.conversation_id] });
         }
       )
       .subscribe();
@@ -148,7 +122,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, getContactName, notifyNewMessage, queryClient, conversations, notificationInstanceIds]);
+  }, [user?.id, getContactName, notifyNewMessage, queryClient, notificationInstanceIds]);
 
   return <>{children}</>;
 };
