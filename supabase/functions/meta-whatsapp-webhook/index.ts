@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { createHmac } from "node:crypto";
 
 const corsHeaders = {
@@ -20,7 +19,7 @@ function verifySignature(payload: string, signature: string, appSecret: string):
   return signature === `sha256=${expectedSignature}`;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
