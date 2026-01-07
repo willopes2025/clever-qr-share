@@ -682,7 +682,7 @@ Exemplo de resposta: {"nome": "João", "email": "joao@email.com"}`
   return existingData;
 };
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
