@@ -39,16 +39,25 @@ serve(async (req) => {
 
     console.log(`Deleting instance: ${instanceName} for user: ${user.id}`);
 
-    // Verificar se a instância pertence ao usuário
+    // Buscar a instância (RLS já valida permissão de SELECT)
     const { data: instance, error: instanceError } = await supabase
       .from('whatsapp_instances')
       .select('*')
       .eq('instance_name', instanceName)
-      .eq('user_id', user.id)
       .maybeSingle();
 
     if (instanceError || !instance) {
       throw new Error('Instância não encontrada');
+    }
+
+    // Verificar se o usuário pode deletar (é dono ou admin da org)
+    const { data: canDelete } = await supabase.rpc('is_instance_org_admin', {
+      _user_id: user.id,
+      _instance_user_id: instance.user_id
+    });
+
+    if (instance.user_id !== user.id && !canDelete) {
+      throw new Error('Sem permissão para deletar esta instância');
     }
 
     // Deletar na Evolution API
