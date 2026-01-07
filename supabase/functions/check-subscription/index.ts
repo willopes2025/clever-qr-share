@@ -27,7 +27,7 @@ const PRODUCT_TO_PLAN: Record<string, PlanInfo> = {
   "prod_Tg5qEVTAzaY2d1": { plan: "essencial", maxInstances: 3, maxContacts: 10000, maxMessages: 10000, maxLeads: 1000 },
   "prod_Tg5qspfPups3iN": { plan: "profissional", maxInstances: 10, maxContacts: 50000, maxMessages: null, maxLeads: 5000 },
   "prod_Tg5qcEw3OK7hU3": { plan: "agencia", maxInstances: 30, maxContacts: null, maxMessages: null, maxLeads: 25000 },
-  "prod_Tg5rhArqyzOqTt": { plan: "avancado", maxInstances: 50, maxContacts: null, maxMessages: null, maxLeads: 100000 },
+  "prod_Tg5rhArqyzOqTt": { plan: "avancado", maxInstances: 50, maxContacts: null, maxMessages: null, maxLeads: 2000 },
   // Legacy plans (backward compatibility)
   "prod_Td6oCDIlCW9tXp": { plan: "essencial", maxInstances: 3, maxContacts: 10000, maxMessages: 10000, maxLeads: 1000 },
   "prod_Td6oDKN8AXJsXf": { plan: "profissional", maxInstances: 10, maxContacts: 50000, maxMessages: null, maxLeads: 5000 },
