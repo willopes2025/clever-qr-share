@@ -2969,6 +2969,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_business_account: boolean | null
+          is_private: boolean | null
           is_verified: boolean | null
           phone: string | null
           posts_count: number | null
@@ -2991,6 +2992,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_business_account?: boolean | null
+          is_private?: boolean | null
           is_verified?: boolean | null
           phone?: string | null
           posts_count?: number | null
@@ -3013,6 +3015,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_business_account?: boolean | null
+          is_private?: boolean | null
           is_verified?: boolean | null
           phone?: string | null
           posts_count?: number | null
