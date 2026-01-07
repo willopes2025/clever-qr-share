@@ -29,12 +29,12 @@ Deno.serve(async (req) => {
 
     console.log(`[SYNC] Starting sync for instance ${instanceName} from date ${startDate}`);
 
-    // Get instance from database
+    // Get instance from database - search by instance_name only
+    // (instance may belong to another team member in the same organization)
     const { data: instanceData, error: instanceError } = await supabase
       .from('whatsapp_instances')
       .select('id, user_id, default_funnel_id')
       .eq('instance_name', instanceName)
-      .eq('user_id', userId)
       .single();
 
     if (instanceError || !instanceData) {
@@ -44,6 +44,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Use the instance owner's user_id for creating contacts/conversations
+    const instanceOwnerId = instanceData.user_id;
 
     const instanceId = instanceData.id;
     const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : 0;
@@ -162,7 +165,7 @@ Deno.serve(async (req) => {
         const { data: existingContact } = await supabase
           .from('contacts')
           .select('id')
-          .eq('user_id', userId)
+          .eq('user_id', instanceOwnerId)
           .eq('phone', normalizedPhone)
           .single();
 
@@ -239,7 +242,7 @@ Deno.serve(async (req) => {
           const { data: newContact, error: contactError } = await supabase
             .from('contacts')
             .insert({
-              user_id: userId,
+              user_id: instanceOwnerId,
               phone: normalizedPhone,
               name: contactName,
               status: 'active',
@@ -263,7 +266,7 @@ Deno.serve(async (req) => {
         const { data: existingConversation } = await supabase
           .from('conversations')
           .select('id')
-          .eq('user_id', userId)
+          .eq('user_id', instanceOwnerId)
           .eq('contact_id', contactId)
           .eq('instance_id', instanceId)
           .single();
@@ -274,7 +277,7 @@ Deno.serve(async (req) => {
           const { data: newConversation, error: convError } = await supabase
             .from('conversations')
             .insert({
-              user_id: userId,
+              user_id: instanceOwnerId,
               contact_id: contactId,
               instance_id: instanceId,
               status: 'active',
@@ -351,7 +354,7 @@ Deno.serve(async (req) => {
             .from('inbox_messages')
             .insert({
               conversation_id: conversationId,
-              user_id: userId,
+              user_id: instanceOwnerId,
               direction,
               content,
               message_type: messageType,
