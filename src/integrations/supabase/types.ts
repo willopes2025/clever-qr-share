@@ -2963,6 +2963,7 @@ export type Database = {
           business_category: string | null
           created_at: string
           email: string | null
+          enriched_at: string | null
           external_url: string | null
           followers_count: number | null
           following_count: number | null
@@ -2986,6 +2987,7 @@ export type Database = {
           business_category?: string | null
           created_at?: string
           email?: string | null
+          enriched_at?: string | null
           external_url?: string | null
           followers_count?: number | null
           following_count?: number | null
@@ -3009,6 +3011,7 @@ export type Database = {
           business_category?: string | null
           created_at?: string
           email?: string | null
+          enriched_at?: string | null
           external_url?: string | null
           followers_count?: number | null
           following_count?: number | null
