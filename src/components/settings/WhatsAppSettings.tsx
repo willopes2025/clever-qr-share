@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -308,7 +309,7 @@ export function WhatsAppSettings() {
                 Crie uma instância na página de Instâncias para começar
               </p>
               <Button variant="outline" asChild>
-                <a href="/instances">Ir para Instâncias</a>
+                <Link to="/instances">Ir para Instâncias</Link>
               </Button>
             </div>
           )}
