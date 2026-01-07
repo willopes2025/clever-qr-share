@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,10 +14,12 @@ export const LeadPanelTabs = ({ activeTab, onTabChange }: LeadPanelTabsProps) =>
   const { tabs, isLoading } = useLeadPanelTabs();
   const [manageOpen, setManageOpen] = useState(false);
 
-  // Set default tab on first load
-  if (!isLoading && tabs && tabs.length > 0 && !activeTab) {
-    onTabChange(tabs[0].id);
-  }
+  // Set default tab on first load - using useEffect to avoid state update during render
+  useEffect(() => {
+    if (!isLoading && tabs && tabs.length > 0 && !activeTab) {
+      onTabChange(tabs[0].id);
+    }
+  }, [isLoading, tabs, activeTab, onTabChange]);
 
   if (isLoading) {
     return (
