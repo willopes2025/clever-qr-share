@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Download, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -29,7 +28,6 @@ export function ImportInstagramLeadsDialog({
   onSuccess
 }: ImportInstagramLeadsDialogProps) {
   const [isImporting, setIsImporting] = useState(false);
-  const [includeBio, setIncludeBio] = useState(true);
 
   const handleImport = async () => {
     setIsImporting(true);
@@ -46,8 +44,8 @@ export function ImportInstagramLeadsDialog({
       let skipped = 0;
 
       for (const profile of profiles) {
-        // Use username as phone placeholder if no phone available
-        const phoneIdentifier = profile.phone || `instagram:${profile.username}`;
+        // Use username as phone placeholder
+        const phoneIdentifier = `instagram:${profile.username}`;
         
         // Check if contact already exists
         const { data: existing } = await supabase
@@ -64,15 +62,16 @@ export function ImportInstagramLeadsDialog({
 
         // Build notes from Instagram data
         const notes: string[] = [];
-        if (includeBio && profile.biography) {
-          notes.push(`Bio: ${profile.biography}`);
-        }
         notes.push(`Instagram: @${profile.username}`);
-        if (profile.followers_count) {
-          notes.push(`Seguidores: ${profile.followers_count}`);
+        if (profile.source_username) {
+          const typeLabel = profile.scrape_type === 'followers' ? 'Seguidor de' : 'Seguindo';
+          notes.push(`${typeLabel}: @${profile.source_username}`);
         }
-        if (profile.external_url) {
-          notes.push(`Link: ${profile.external_url}`);
+        if (profile.is_verified) {
+          notes.push('✓ Perfil verificado');
+        }
+        if (profile.is_private) {
+          notes.push('🔒 Perfil privado');
         }
 
         const { error } = await supabase
@@ -81,15 +80,16 @@ export function ImportInstagramLeadsDialog({
             user_id: user.id,
             name: profile.full_name || profile.username,
             phone: phoneIdentifier,
-            email: profile.email || null,
+            email: null,
             avatar_url: profile.profile_pic_url || null,
             notes: notes.join('\n'),
             status: 'lead',
             custom_fields: {
               instagram_username: profile.username,
-              instagram_followers: profile.followers_count,
               instagram_verified: profile.is_verified,
-              instagram_business: profile.is_business_account,
+              instagram_private: profile.is_private,
+              instagram_source: profile.source_username,
+              instagram_scrape_type: profile.scrape_type,
               source: 'instagram_scraper'
             }
           });
@@ -120,7 +120,8 @@ export function ImportInstagramLeadsDialog({
     }
   };
 
-  const profilesWithContact = profiles.filter(p => p.phone || p.email);
+  const publicProfiles = profiles.filter(p => !p.is_private);
+  const privateProfiles = profiles.filter(p => p.is_private);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,22 +142,8 @@ export function ImportInstagramLeadsDialog({
             <div>
               <p className="font-medium">{profiles.length} perfis selecionados</p>
               <p className="text-sm text-muted-foreground">
-                {profilesWithContact.length} com email ou telefone detectado
+                {publicProfiles.length} públicos, {privateProfiles.length} privados
               </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <Label>Opções de importação</Label>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="include-bio"
-                checked={includeBio}
-                onCheckedChange={(checked) => setIncludeBio(checked === true)}
-              />
-              <Label htmlFor="include-bio" className="text-sm font-normal cursor-pointer">
-                Incluir biografia nas notas do contato
-              </Label>
             </div>
           </div>
 
@@ -164,10 +151,10 @@ export function ImportInstagramLeadsDialog({
             <p className="font-medium mb-1">Mapeamento de campos:</p>
             <ul className="space-y-1 text-xs">
               <li>• <strong>Nome:</strong> Nome completo ou username</li>
-              <li>• <strong>Telefone:</strong> Telefone extraído ou "instagram:@username"</li>
-              <li>• <strong>Email:</strong> Email extraído da bio (se disponível)</li>
+              <li>• <strong>Identificador:</strong> instagram:@username</li>
               <li>• <strong>Avatar:</strong> Foto do perfil</li>
-              <li>• <strong>Notas:</strong> Bio, link e stats do perfil</li>
+              <li>• <strong>Notas:</strong> Info do perfil e origem</li>
+              <li>• <strong>Campos personalizados:</strong> Username, verificado, privado, fonte</li>
             </ul>
           </div>
         </div>

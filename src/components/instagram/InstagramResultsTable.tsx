@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Download, Users, ExternalLink, Mail, Phone, BadgeCheck, Briefcase } from "lucide-react";
+import { Download, Users, ExternalLink, BadgeCheck, Lock, User } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -39,6 +39,16 @@ export function InstagramResultsTable({
   const allSelected = profiles.length > 0 && profiles.every(p => selectedProfiles.has(p.id));
   const someSelected = selectedProfiles.size > 0;
 
+  // Group profiles by source username
+  const groupedBySource = profiles.reduce((acc, profile) => {
+    const source = profile.source_username || 'unknown';
+    if (!acc[source]) acc[source] = [];
+    acc[source].push(profile);
+    return acc;
+  }, {} as Record<string, InstagramProfile[]>);
+
+  const sources = Object.keys(groupedBySource);
+
   if (profiles.length === 0 && !isLoading) {
     return (
       <Card>
@@ -56,6 +66,11 @@ export function InstagramResultsTable({
           <CardTitle className="text-lg flex items-center gap-2">
             <Users className="h-5 w-5" />
             Resultados ({profiles.length})
+            {sources.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground">
+                de {sources.length} perfil(is)
+              </span>
+            )}
           </CardTitle>
           {someSelected && (
             <Button onClick={onImport} className="gap-2">
@@ -77,10 +92,9 @@ export function InstagramResultsTable({
                   />
                 </TableHead>
                 <TableHead>Perfil</TableHead>
-                <TableHead>Bio</TableHead>
-                <TableHead className="text-center">Seguidores</TableHead>
-                <TableHead className="text-center">Posts</TableHead>
-                <TableHead>Contato</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead>Fonte</TableHead>
                 <TableHead className="text-right">Data Scrape</TableHead>
               </TableRow>
             </TableHeader>
@@ -98,10 +112,10 @@ export function InstagramResultsTable({
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={profile.profile_pic_url || undefined} />
                         <AvatarFallback>
-                          {profile.username.slice(0, 2).toUpperCase()}
+                          <User className="h-5 w-5" />
                         </AvatarFallback>
                       </Avatar>
-                      <div className="space-y-1">
+                      <div>
                         <div className="flex items-center gap-1">
                           <a
                             href={`https://instagram.com/${profile.username}`}
@@ -116,70 +130,46 @@ export function InstagramResultsTable({
                             <BadgeCheck className="h-4 w-4 text-blue-500" />
                           )}
                         </div>
-                        {profile.full_name && (
-                          <p className="text-sm text-muted-foreground">
-                            {profile.full_name}
-                          </p>
-                        )}
-                        <div className="flex gap-1">
-                          {profile.is_business_account && (
-                            <Badge variant="secondary" className="text-xs gap-1">
-                              <Briefcase className="h-3 w-3" />
-                              Business
-                            </Badge>
-                          )}
-                          {profile.business_category && (
-                            <Badge variant="outline" className="text-xs">
-                              {profile.business_category}
-                            </Badge>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-[200px]">
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {profile.biography || '-'}
-                    </p>
-                    {profile.external_url && (
-                      <a
-                        href={profile.external_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Link
-                      </a>
-                    )}
+                  <TableCell>
+                    <span className="text-muted-foreground">
+                      {profile.full_name || '-'}
+                    </span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="font-medium">{formatNumber(profile.followers_count)}</span>
-                    <p className="text-xs text-muted-foreground">
-                      seguindo {formatNumber(profile.following_count)}
-                    </p>
-                  </TableCell>
-                  <TableCell className="text-center font-medium">
-                    {formatNumber(profile.posts_count)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {profile.email && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span className="truncate max-w-[150px]">{profile.email}</span>
-                        </div>
-                      )}
-                      {profile.phone && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span>{profile.phone}</span>
-                        </div>
-                      )}
-                      {!profile.email && !profile.phone && (
-                        <span className="text-sm text-muted-foreground">-</span>
+                    <div className="flex justify-center gap-1">
+                      {profile.is_private ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <Lock className="h-3 w-3" />
+                          Privado
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1">
+                          <User className="h-3 w-3" />
+                          Público
+                        </Badge>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {profile.source_username && (
+                      <a
+                        href={`https://instagram.com/${profile.source_username}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-muted-foreground hover:underline flex items-center gap-1"
+                      >
+                        @{profile.source_username}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                    {profile.scrape_type && (
+                      <span className="text-xs text-muted-foreground capitalize">
+                        ({profile.scrape_type === 'followers' ? 'seguidor' : 'seguindo'})
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-sm text-muted-foreground">
                     {format(new Date(profile.scraped_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}

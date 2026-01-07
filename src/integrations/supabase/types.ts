@@ -2974,7 +2974,9 @@ export type Database = {
           posts_count: number | null
           profile_pic_url: string | null
           raw_data: Json | null
+          scrape_type: string | null
           scraped_at: string
+          source_username: string | null
           user_id: string
           username: string
         }
@@ -2994,7 +2996,9 @@ export type Database = {
           posts_count?: number | null
           profile_pic_url?: string | null
           raw_data?: Json | null
+          scrape_type?: string | null
           scraped_at?: string
+          source_username?: string | null
           user_id: string
           username: string
         }
@@ -3014,7 +3018,9 @@ export type Database = {
           posts_count?: number | null
           profile_pic_url?: string | null
           raw_data?: Json | null
+          scrape_type?: string | null
           scraped_at?: string
+          source_username?: string | null
           user_id?: string
           username?: string
         }
