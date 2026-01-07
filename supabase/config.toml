@@ -212,3 +212,6 @@ verify_jwt = false
 
 [functions.sync-asaas-contacts]
 verify_jwt = false
+
+[functions.sync-funnel-deals]
+verify_jwt = false
