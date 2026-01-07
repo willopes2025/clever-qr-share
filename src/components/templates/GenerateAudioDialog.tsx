@@ -23,6 +23,7 @@ export const GenerateAudioDialog = ({
   onAudioGenerated
 }: GenerateAudioDialogProps) => {
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const { 
     voices, 
     clonedVoices, 
@@ -54,11 +55,16 @@ export const GenerateAudioDialog = ({
     }
   };
 
-  const handlePlayPreview = () => {
+  const handlePlayPreview = async () => {
     if (playingVoiceId === selectedVoiceId) {
       stopCurrentAudio();
     } else {
-      playPreview(selectedVoiceId, "Olá! Este é um teste de voz para seu template.");
+      setIsGeneratingPreview(true);
+      try {
+        await playPreview(selectedVoiceId, templateContent);
+      } finally {
+        setIsGeneratingPreview(false);
+      }
     }
   };
 
@@ -146,10 +152,15 @@ export const GenerateAudioDialog = ({
               variant="outline"
               size="sm"
               onClick={handlePlayPreview}
-              disabled={isGenerating}
+              disabled={isGenerating || isGeneratingPreview || !templateContent.trim()}
               className="w-full"
             >
-              {playingVoiceId === selectedVoiceId ? (
+              {isGeneratingPreview ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gerando Preview...
+                </>
+              ) : playingVoiceId === selectedVoiceId ? (
                 <>
                   <Square className="h-4 w-4 mr-2" />
                   Parar Preview
@@ -157,7 +168,7 @@ export const GenerateAudioDialog = ({
               ) : (
                 <>
                   <Volume2 className="h-4 w-4 mr-2" />
-                  Ouvir Preview da Voz
+                  Ouvir Preview do Áudio
                 </>
               )}
             </Button>
