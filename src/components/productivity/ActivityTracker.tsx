@@ -51,10 +51,11 @@ export const ActivityTracker = () => {
     }
   }, [user, isInitialized, currentSession, startSession]);
 
-  // Reset the flag when user changes
+  // Reset the flag when user id changes
+  const userId = user?.id;
   useEffect(() => {
     hasAutoStarted.current = false;
-  }, [user?.id]);
+  }, [userId]);
 
   return null; // Invisible component
 };

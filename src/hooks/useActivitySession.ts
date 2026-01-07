@@ -96,7 +96,7 @@ export const useActivitySession = () => {
       setLoading(false);
       setIsInitialized(true);
     }
-  }, [user, updateSession]);
+  }, [user?.id, updateSession]);
 
   // Start a new session
   const startSession = useCallback(async (sessionType: SessionType = 'work') => {
