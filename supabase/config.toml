@@ -218,3 +218,6 @@ verify_jwt = false
 
 [functions.instagram-scraper]
 verify_jwt = false
+
+[functions.instagram-enricher]
+verify_jwt = false

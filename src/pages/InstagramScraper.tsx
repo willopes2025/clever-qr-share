@@ -29,12 +29,14 @@ export interface InstagramProfile {
   source_username?: string | null;
   scrape_type?: string | null;
   is_private?: boolean;
+  enriched_at?: string | null;
 }
 
 const InstagramScraper = () => {
   const [profiles, setProfiles] = useState<InstagramProfile[]>([]);
   const [selectedProfiles, setSelectedProfiles] = useState<Set<string>>(new Set());
   const [isSearching, setIsSearching] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("search");
@@ -94,6 +96,49 @@ const InstagramScraper = () => {
       toast.error(error instanceof Error ? error.message : 'Erro ao buscar perfis');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleEnrich = async () => {
+    const selectedIds = Array.from(selectedProfiles);
+    if (selectedIds.length === 0) {
+      toast.error('Selecione ao menos um perfil para enriquecer');
+      return;
+    }
+
+    if (selectedIds.length > 50) {
+      toast.warning('Máximo de 50 perfis por enriquecimento.');
+    }
+
+    setIsEnriching(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('instagram-enricher', {
+        body: { profileIds: selectedIds.slice(0, 50) }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao enriquecer perfis');
+      }
+
+      // Update the profiles in state with enriched data
+      const enrichedMap = new Map<string, InstagramProfile>(
+        data.data.map((p: InstagramProfile) => [p.id, p])
+      );
+      
+      if (activeTab === 'search') {
+        setProfiles(prev => prev.map(p => enrichedMap.get(p.id) ?? p));
+      }
+      
+      refetchHistory();
+      toast.success(`${data.total} perfis enriquecidos com sucesso!`);
+    } catch (error) {
+      console.error('Enrich error:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao enriquecer perfis');
+    } finally {
+      setIsEnriching(false);
     }
   };
 
@@ -188,6 +233,8 @@ const InstagramScraper = () => {
                 onSelectAll={() => handleSelectAll(profiles)}
                 isLoading={isSearching}
                 onImport={() => setImportDialogOpen(true)}
+                onEnrich={handleEnrich}
+                isEnriching={isEnriching}
               />
             )}
           </TabsContent>
@@ -212,6 +259,8 @@ const InstagramScraper = () => {
               onSelectAll={() => handleSelectAll(historicalProfiles || [])}
               isLoading={false}
               onImport={() => setImportDialogOpen(true)}
+              onEnrich={handleEnrich}
+              isEnriching={isEnriching}
             />
           </TabsContent>
         </Tabs>
