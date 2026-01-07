@@ -98,6 +98,38 @@ export const useMemberInstances = (teamMemberId?: string) => {
     },
   });
 
+  // Assign an instance to multiple members (used when creating a new instance)
+  const assignInstanceToMembers = useMutation({
+    mutationFn: async ({ instanceId, memberIds }: { instanceId: string; memberIds: string[] }) => {
+      // If memberIds is empty, it means all members have access (no restriction)
+      // So we don't need to insert any records
+      if (memberIds.length === 0) {
+        return;
+      }
+
+      // Insert assignments for each selected member
+      const { error: insertError } = await supabase
+        .from('team_member_instances')
+        .insert(
+          memberIds.map(memberId => ({
+            team_member_id: memberId,
+            instance_id: instanceId,
+          }))
+        );
+      
+      if (insertError) throw insertError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['member-instances'] });
+      queryClient.invalidateQueries({ queryKey: ['my-instance-ids'] });
+      queryClient.invalidateQueries({ queryKey: ['has-instance-restriction'] });
+      toast.success('Permissões de acesso configuradas!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao configurar permissões: ${error.message}`);
+    },
+  });
+
   return {
     memberInstances,
     memberInstanceIds,
@@ -105,5 +137,6 @@ export const useMemberInstances = (teamMemberId?: string) => {
     hasInstanceRestriction,
     isLoading,
     updateMemberInstances,
+    assignInstanceToMembers,
   };
 };
