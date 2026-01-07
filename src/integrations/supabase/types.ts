@@ -4787,6 +4787,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_instance_org_admin: {
+        Args: { _instance_user_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
