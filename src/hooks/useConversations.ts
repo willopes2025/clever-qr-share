@@ -150,39 +150,35 @@ export const useConversations = () => {
 
       if (error) throw error;
       
-      // Fetch active deals for all contact_ids to show funnel/stage info
-      const contactIds = data?.map(c => c.contact_id).filter(Boolean) || [];
-      
+      // Fetch ALL active deals (without contact_id filter to avoid URL too long error)
+      // Then match by contact_id on client side
       let dealsMap: Record<string, ConversationDeal> = {};
       
-      if (contactIds.length > 0) {
-        const { data: deals } = await supabase
-          .from('funnel_deals')
-          .select(`
-            id,
-            contact_id,
-            stage_id,
-            funnel_id,
-            funnel:funnels(name),
-            stage:funnel_stages(name, color)
-          `)
-          .in('contact_id', contactIds)
-          .is('closed_at', null);
-        
-        if (deals) {
-          deals.forEach((deal: any) => {
-            if (deal.contact_id) {
-              dealsMap[deal.contact_id] = {
-                id: deal.id,
-                stage_id: deal.stage_id,
-                funnel_id: deal.funnel_id,
-                funnel_name: deal.funnel?.name || null,
-                stage_name: deal.stage?.name || null,
-                stage_color: deal.stage?.color || null,
-              };
-            }
-          });
-        }
+      const { data: deals } = await supabase
+        .from('funnel_deals')
+        .select(`
+          id,
+          contact_id,
+          stage_id,
+          funnel_id,
+          funnel:funnels(name),
+          stage:funnel_stages(name, color)
+        `)
+        .is('closed_at', null);
+      
+      if (deals) {
+        deals.forEach((deal: any) => {
+          if (deal.contact_id) {
+            dealsMap[deal.contact_id] = {
+              id: deal.id,
+              stage_id: deal.stage_id,
+              funnel_id: deal.funnel_id,
+              funnel_name: deal.funnel?.name || null,
+              stage_name: deal.stage?.name || null,
+              stage_color: deal.stage?.color || null,
+            };
+          }
+        });
       }
       
       // Map deals to conversations
