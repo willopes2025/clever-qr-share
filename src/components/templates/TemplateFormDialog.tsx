@@ -135,6 +135,7 @@ export const TemplateFormDialog = ({
             mediaUrl={mediaUrl}
             mediaFilename={mediaFilename}
             onMediaChange={handleMediaChange}
+            templateContent={content}
           />
 
           <div className="space-y-2">
