@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { InstagramSearchForm } from "@/components/instagram/InstagramSearchForm";
+import { InstagramSearchForm, ScrapeType } from "@/components/instagram/InstagramSearchForm";
 import { InstagramResultsTable } from "@/components/instagram/InstagramResultsTable";
 import { ImportInstagramLeadsDialog } from "@/components/instagram/ImportInstagramLeadsDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Instagram, Search, History } from "lucide-react";
+import { Instagram, Search, History, Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -26,6 +26,9 @@ export interface InstagramProfile {
   email: string | null;
   phone: string | null;
   scraped_at: string;
+  source_username?: string | null;
+  scrape_type?: string | null;
+  is_private?: boolean;
 }
 
 const InstagramScraper = () => {
@@ -44,7 +47,7 @@ const InstagramScraper = () => {
         .from('instagram_scrape_results')
         .select('*')
         .order('scraped_at', { ascending: false })
-        .limit(100);
+        .limit(500);
       
       if (error) throw error;
       return data as InstagramProfile[];
@@ -52,10 +55,14 @@ const InstagramScraper = () => {
     enabled: activeTab === 'history'
   });
 
-  const handleSearch = async (usernames: string[]) => {
+  const handleSearch = async (usernames: string[], scrapeType: ScrapeType, limit: number) => {
     if (usernames.length === 0) {
       toast.error('Informe ao menos um username');
       return;
+    }
+
+    if (usernames.length > 5) {
+      toast.warning('Máximo de 5 perfis por busca. Apenas os 5 primeiros serão processados.');
     }
 
     setIsSearching(true);
@@ -63,7 +70,7 @@ const InstagramScraper = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('instagram-scraper', {
-        body: { usernames }
+        body: { usernames, scrapeType, limit }
       });
 
       if (error) throw error;
@@ -76,10 +83,11 @@ const InstagramScraper = () => {
       setHasSearched(true);
 
       if (data.data?.length === 0) {
-        toast.info('Nenhum perfil encontrado');
+        toast.info('Nenhum resultado encontrado. Verifique se os perfis são públicos.');
       } else {
         const cacheMsg = data.fromCache > 0 ? ` (${data.fromCache} do cache)` : '';
-        toast.success(`${data.total} perfis encontrados${cacheMsg}`);
+        const typeLabel = scrapeType === 'Followers' ? 'seguidores' : 'seguidos';
+        toast.success(`${data.total} ${typeLabel} encontrados${cacheMsg}`);
       }
     } catch (error) {
       console.error('Search error:', error);
@@ -125,8 +133,6 @@ const InstagramScraper = () => {
     return allProfiles.filter(p => selectedProfiles.has(p.id));
   };
 
-  const currentProfiles = activeTab === 'history' ? (historicalProfiles || []) : profiles;
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -137,7 +143,7 @@ const InstagramScraper = () => {
             Instagram Scraper
           </h1>
           <p className="text-muted-foreground mt-1">
-            Extraia dados de perfis públicos do Instagram e importe como leads
+            Extraia seguidores ou seguidos de perfis do Instagram e importe como leads
           </p>
         </div>
 
@@ -145,7 +151,7 @@ const InstagramScraper = () => {
           <TabsList>
             <TabsTrigger value="search" className="gap-2">
               <Search className="h-4 w-4" />
-              Pesquisar
+              Extrair
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <History className="h-4 w-4" />
@@ -158,11 +164,11 @@ const InstagramScraper = () => {
             <Card>
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Search className="h-5 w-5" />
-                  Buscar Perfis
+                  <Users className="h-5 w-5" />
+                  Extrair Seguidores / Seguidos
                 </CardTitle>
                 <CardDescription>
-                  Insira os usernames (um por linha ou separados por vírgula)
+                  Insira os perfis de onde deseja extrair a lista de seguidores ou seguidos
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -191,10 +197,10 @@ const InstagramScraper = () => {
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <History className="h-5 w-5" />
-                  Histórico de Scrapes
+                  Histórico de Extrações
                 </CardTitle>
                 <CardDescription>
-                  Perfis extraídos anteriormente (últimos 100)
+                  Resultados extraídos anteriormente (últimos 500)
                 </CardDescription>
               </CardHeader>
             </Card>
