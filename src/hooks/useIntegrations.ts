@@ -41,7 +41,7 @@ export const useIntegrations = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: integrations = [], isLoading, error } = useQuery({
+  const { data: integrations = [], isLoading, error, refetch } = useQuery({
     queryKey: ['integrations', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -56,6 +56,8 @@ export const useIntegrations = () => {
       return data as Integration[];
     },
     enabled: !!user?.id,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   const connectIntegration = useMutation({
@@ -166,6 +168,7 @@ export const useIntegrations = () => {
     integrations,
     isLoading,
     error,
+    refetch,
     connectIntegration,
     updateIntegration,
     disconnectIntegration,
