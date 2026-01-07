@@ -138,6 +138,7 @@ serve(async (req) => {
         status?: string;
         optedOut?: boolean;
         tags?: string[];
+        asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
       } || {};
 
       let query = supabase
@@ -153,6 +154,11 @@ serve(async (req) => {
       // Apply opted_out filter (usually false for active contacts)
       if (typeof filterCriteria.optedOut === 'boolean') {
         query = query.eq('opted_out', filterCriteria.optedOut);
+      }
+
+      // Apply Asaas payment status filter
+      if (filterCriteria.asaasPaymentStatus) {
+        query = query.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
       }
 
       const { data: filteredContacts, error: contactsError } = await query;
