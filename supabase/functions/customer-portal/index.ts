@@ -1,6 +1,5 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +11,22 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CUSTOMER-PORTAL] ${step}${detailsStr}`);
 };
 
-serve(async (req) => {
+// Helper function to get the active subscription ID
+async function getActiveSubscriptionId(stripe: Stripe, customerId: string): Promise<string> {
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'active',
+    limit: 1,
+  });
+  
+  if (subscriptions.data.length === 0) {
+    throw new Error("No active subscription found");
+  }
+  
+  return subscriptions.data[0].id;
+}
+
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -136,18 +150,3 @@ serve(async (req) => {
     });
   }
 });
-
-// Helper function to get the active subscription ID
-async function getActiveSubscriptionId(stripe: Stripe, customerId: string): Promise<string> {
-  const subscriptions = await stripe.subscriptions.list({
-    customer: customerId,
-    status: 'active',
-    limit: 1,
-  });
-  
-  if (subscriptions.data.length === 0) {
-    throw new Error("No active subscription found");
-  }
-  
-  return subscriptions.data[0].id;
-}
