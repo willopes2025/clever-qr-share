@@ -125,7 +125,7 @@ async function checkAndHandleInternalChatReply(
   return true;
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -684,7 +684,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
             console.log(`Uploading to storage: ${filePath}, mimeType: ${mimeType}`);
             
             // Decode base64 to binary
-            const binaryData = base64Decode(base64Data.base64);
+            const binaryData = Uint8Array.from(atob(base64Data.base64), c => c.charCodeAt(0));
             
             // Upload to Supabase Storage
             const { data: uploadData, error: uploadError } = await supabase
