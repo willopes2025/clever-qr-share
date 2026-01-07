@@ -19,6 +19,7 @@ import { SyncHistoryDialog } from "@/components/instances/SyncHistoryDialog";
 import { InstanceFilters, InstanceFiltersState } from "@/components/instances/InstanceFilters";
 import { InstancesListView } from "@/components/instances/InstancesListView";
 import { EditDeviceDialog } from "@/components/instances/EditDeviceDialog";
+import { InstanceMembersDialog } from "@/components/instances/InstanceMembersDialog";
 
 const Instances = () => {
   const {
@@ -52,6 +53,10 @@ const Instances = () => {
   const [syncDialogInstance, setSyncDialogInstance] = useState<WhatsAppInstance | null>(null);
   const [deviceDialogOpen, setDeviceDialogOpen] = useState(false);
   const [deviceDialogInstance, setDeviceDialogInstance] = useState<WhatsAppInstance | null>(null);
+  
+  // Members dialog for new instance
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [newlyCreatedInstance, setNewlyCreatedInstance] = useState<{ id: string; name: string } | null>(null);
   
   // Filters and view mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -130,11 +135,17 @@ const Instances = () => {
     }
 
     try {
-      await createInstance.mutateAsync({ instanceName: nameToUse, forceRecreate });
+      const result = await createInstance.mutateAsync({ instanceName: nameToUse, forceRecreate });
       setNewInstanceName("");
       setPendingInstanceName("");
       setDialogOpen(false);
       setConfirmRecreateDialog(false);
+      
+      // Open members dialog after instance is created
+      if (result?.instance?.id) {
+        setNewlyCreatedInstance({ id: result.instance.id, name: nameToUse });
+        setMembersDialogOpen(true);
+      }
     } catch (error: unknown) {
       const err = error as Error & { code?: string; instanceName?: string };
       if (err.code === 'INSTANCE_EXISTS_IN_EVOLUTION') {
@@ -143,6 +154,12 @@ const Instances = () => {
         setConfirmRecreateDialog(true);
       }
     }
+  };
+
+  const handleMembersSaved = () => {
+    setMembersDialogOpen(false);
+    setNewlyCreatedInstance(null);
+    toast.success("Instância criada com sucesso!");
   };
 
   const handleDeleteInstance = async (instanceName: string) => {
@@ -573,6 +590,22 @@ const Instances = () => {
             });
           }}
           isLoading={updateDeviceLabel.isPending}
+        />
+      )}
+
+      {/* Members Dialog for new instance */}
+      {newlyCreatedInstance && (
+        <InstanceMembersDialog
+          open={membersDialogOpen}
+          onOpenChange={(open) => {
+            setMembersDialogOpen(open);
+            if (!open) {
+              setNewlyCreatedInstance(null);
+            }
+          }}
+          instanceId={newlyCreatedInstance.id}
+          instanceName={newlyCreatedInstance.name}
+          onSaved={handleMembersSaved}
         />
       )}
     </DashboardLayout>

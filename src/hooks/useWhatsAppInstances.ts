@@ -73,7 +73,7 @@ export const useWhatsAppInstances = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
-      toast.success('Instância criada com sucesso!');
+      // Toast moved to Instances.tsx after member selection
     },
     onError: (error: Error & { code?: string }) => {
       // Don't show toast for INSTANCE_EXISTS_IN_EVOLUTION - handled in UI
