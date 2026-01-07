@@ -76,7 +76,23 @@ export const AsaasDashboard = () => {
         </div>
       )}
 
-      {!metrics.isLoading && (
+      {!metrics.isLoading && metrics.totalPaymentsCount === 0 && (
+        <Card className="p-8">
+          <CardContent className="text-center py-8">
+            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Nenhum dado encontrado</h3>
+            <p className="text-muted-foreground mb-4">
+              Não há cobranças registradas no período selecionado ou os dados ainda não foram sincronizados.
+            </p>
+            <Button onClick={handleSync} disabled={isSyncing}>
+              <RefreshCw className={cn('h-4 w-4 mr-2', isSyncing && 'animate-spin')} />
+              Sincronizar Dados
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!metrics.isLoading && metrics.totalPaymentsCount > 0 && (
         <>
           {/* KPI Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

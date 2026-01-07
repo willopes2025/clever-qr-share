@@ -63,14 +63,18 @@ export const SsoticaOSList = ({ dateRange }: SsoticaOSListProps) => {
   }, [ordensServico, dateRange, statusFilter, search]);
 
   const getStatusBadge = (status: string) => {
-    const statusLower = status?.toLowerCase() || '';
-    if (statusLower === 'concluido' || statusLower === 'entregue' || statusLower === 'finalizado') {
+    const normalized = normalizeStatusKey(status);
+    
+    if (normalized === 'concluido') {
       return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">Concluído</Badge>;
     }
-    if (statusLower === 'em_andamento' || statusLower === 'producao' || statusLower === 'em andamento') {
-      return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">Em Andamento</Badge>;
+    if (normalized === 'producao') {
+      return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">Em Produção</Badge>;
     }
-    if (statusLower === 'pendente' || statusLower === 'aguardando') {
+    if (normalized === 'aberto') {
+      return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30">Aberto</Badge>;
+    }
+    if (normalized === 'pendente') {
       return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">Pendente</Badge>;
     }
     return <Badge variant="outline">{status}</Badge>;
@@ -107,11 +111,12 @@ export const SsoticaOSList = ({ dateRange }: SsoticaOSListProps) => {
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filtrar status" />
                 </SelectTrigger>
-                <SelectContent>
+              <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                  <SelectItem value="concluido">Concluído</SelectItem>
+                  <SelectItem value="aberto">Aberto / Ativo</SelectItem>
+                  <SelectItem value="producao">Em Produção</SelectItem>
+                  <SelectItem value="pendente">Pendente / Aguardando</SelectItem>
+                  <SelectItem value="concluido">Concluído / Entregue</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -183,9 +188,27 @@ export const SsoticaOSList = ({ dateRange }: SsoticaOSListProps) => {
 };
 
 function normalizeStatusKey(status: string | undefined): string {
-  const s = (status || '').toLowerCase();
-  if (s === 'concluido' || s === 'concluída' || s === 'entregue' || s === 'finalizado') return 'concluido';
-  if (s === 'em_andamento' || s === 'producao' || s === 'em andamento') return 'em_andamento';
-  if (s === 'pendente' || s === 'aguardando') return 'pendente';
+  const s = (status || '').toLowerCase().trim();
+  
+  // Concluído/Entregue/Finalizado
+  if (s.includes('conclu') || s.includes('entregu') || s.includes('finaliz') || s === 'entregue') {
+    return 'concluido';
+  }
+  
+  // Em Produção/Laboratório
+  if (s.includes('produc') || s.includes('produção') || s.includes('laborat') || s === 'em_producao') {
+    return 'producao';
+  }
+  
+  // Aberto/Ativo/Em Andamento
+  if (s.includes('aberto') || s.includes('aberta') || s.includes('ativ') || s.includes('andamento')) {
+    return 'aberto';
+  }
+  
+  // Pendente/Aguardando
+  if (s.includes('pendent') || s.includes('aguard')) {
+    return 'pendente';
+  }
+  
   return 'outros';
 }
