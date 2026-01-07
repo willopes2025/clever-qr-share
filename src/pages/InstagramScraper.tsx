@@ -182,6 +182,28 @@ const InstagramScraper = () => {
     }
   };
 
+  const handleSelectByFilter = (filter: 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact') => {
+    const currentProfiles = activeTab === 'history' ? (historicalProfiles || []) : profiles;
+    
+    let filtered: InstagramProfile[];
+    switch (filter) {
+      case 'not-enriched':
+        filtered = currentProfiles.filter(p => !p.enriched_at);
+        break;
+      case 'with-email':
+        filtered = currentProfiles.filter(p => p.email);
+        break;
+      case 'with-phone':
+        filtered = currentProfiles.filter(p => p.phone);
+        break;
+      case 'with-contact':
+        filtered = currentProfiles.filter(p => p.email || p.phone);
+        break;
+    }
+    
+    setSelectedProfiles(new Set(filtered.map(p => p.id)));
+  };
+
   const getSelectedProfilesData = (): InstagramProfile[] => {
     const allProfiles = activeTab === 'history' ? (historicalProfiles || []) : profiles;
     return allProfiles.filter(p => selectedProfiles.has(p.id));
@@ -244,6 +266,7 @@ const InstagramScraper = () => {
                 onImport={() => setImportDialogOpen(true)}
                 onEnrich={handleEnrich}
                 isEnriching={isEnriching}
+                onSelectByFilter={handleSelectByFilter}
               />
             )}
           </TabsContent>
@@ -270,6 +293,7 @@ const InstagramScraper = () => {
               onImport={() => setImportDialogOpen(true)}
               onEnrich={handleEnrich}
               isEnriching={isEnriching}
+              onSelectByFilter={handleSelectByFilter}
             />
           </TabsContent>
         </Tabs>

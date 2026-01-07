@@ -10,6 +10,8 @@ import { Download, Users, ExternalLink, BadgeCheck, Lock, User, Sparkles, Mail, 
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+type FilterType = 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact';
+
 interface InstagramResultsTableProps {
   profiles: InstagramProfile[];
   selectedProfiles: Set<string>;
@@ -19,6 +21,7 @@ interface InstagramResultsTableProps {
   onImport: () => void;
   onEnrich: () => void;
   isEnriching: boolean;
+  onSelectByFilter: (filter: FilterType) => void;
 }
 
 function formatNumber(num: number): string {
@@ -39,10 +42,17 @@ export function InstagramResultsTable({
   isLoading,
   onImport,
   onEnrich,
-  isEnriching
+  isEnriching,
+  onSelectByFilter
 }: InstagramResultsTableProps) {
   const allSelected = profiles.length > 0 && profiles.every(p => selectedProfiles.has(p.id));
   const someSelected = selectedProfiles.size > 0;
+
+  // Calculate filter counts
+  const notEnrichedCount = profiles.filter(p => !p.enriched_at).length;
+  const withEmailCount = profiles.filter(p => p.email).length;
+  const withPhoneCount = profiles.filter(p => p.phone).length;
+  const withContactCount = profiles.filter(p => p.email || p.phone).length;
 
   // Group profiles by source username
   const groupedBySource = profiles.reduce((acc, profile) => {
@@ -98,6 +108,51 @@ export function InstagramResultsTable({
               </Button>
             </div>
           )}
+        </div>
+        
+        {/* Quick selection filters */}
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <span className="text-sm text-muted-foreground">Selecionar:</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onSelectByFilter('not-enriched')}
+            disabled={notEnrichedCount === 0}
+            className="gap-1.5"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Não enriquecidos ({notEnrichedCount})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onSelectByFilter('with-email')}
+            disabled={withEmailCount === 0}
+            className="gap-1.5"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Com email ({withEmailCount})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onSelectByFilter('with-phone')}
+            disabled={withPhoneCount === 0}
+            className="gap-1.5"
+          >
+            <Phone className="h-3.5 w-3.5" />
+            Com telefone ({withPhoneCount})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onSelectByFilter('with-contact')}
+            disabled={withContactCount === 0}
+            className="gap-1.5"
+          >
+            <User className="h-3.5 w-3.5" />
+            Com contato ({withContactCount})
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
