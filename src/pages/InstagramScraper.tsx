@@ -47,6 +47,7 @@ const InstagramScraper = () => {
   const [comments, setComments] = useState<InstagramComment[]>([]);
   const [selectedComments, setSelectedComments] = useState<Set<string>>(new Set());
   const [isSearchingComments, setIsSearchingComments] = useState(false);
+  const [isEnrichingComments, setIsEnrichingComments] = useState(false);
   const [hasSearchedComments, setHasSearchedComments] = useState(false);
   const [commentsImportDialogOpen, setCommentsImportDialogOpen] = useState(false);
 
@@ -307,6 +308,80 @@ const InstagramScraper = () => {
     }
   };
 
+  const handleEnrichComments = async () => {
+    const selectedIds = Array.from(selectedComments);
+    if (selectedIds.length === 0) {
+      toast.error('Selecione ao menos um comentário para enriquecer');
+      return;
+    }
+
+    setIsEnrichingComments(true);
+    const BATCH_SIZE = 50;
+    const totalBatches = Math.ceil(selectedIds.length / BATCH_SIZE);
+    let totalEnriched = 0;
+
+    try {
+      for (let i = 0; i < totalBatches; i++) {
+        const batchIds = selectedIds.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        
+        if (totalBatches > 1) {
+          toast.info(`Enriquecendo lote ${i + 1} de ${totalBatches}...`);
+        }
+
+        const { data, error } = await supabase.functions.invoke('instagram-comments-enricher', {
+          body: { commentIds: batchIds }
+        });
+
+        if (error) throw error;
+
+        if (!data.success) {
+          throw new Error(data.error || 'Erro ao enriquecer comentários');
+        }
+
+        totalEnriched += data.total || 0;
+
+        // Update the comments in state with enriched data
+        const enrichedMap = new Map<string, InstagramComment>(
+          data.data.map((c: InstagramComment) => [c.id, c])
+        );
+        
+        if (activeTab === 'comments') {
+          setComments(prev => prev.map(c => enrichedMap.get(c.id) ?? c));
+        }
+      }
+      
+      refetchCommentsHistory();
+      toast.success(`${totalEnriched} comentários enriquecidos!`);
+    } catch (error) {
+      console.error('Enrich comments error:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao enriquecer comentários');
+    } finally {
+      setIsEnrichingComments(false);
+    }
+  };
+
+  const handleSelectCommentsByFilter = (filter: 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact') => {
+    const currentComments = activeTab === 'comments-history' ? (historicalComments || []) : comments;
+    
+    let filtered: InstagramComment[];
+    switch (filter) {
+      case 'not-enriched':
+        filtered = currentComments.filter(c => !c.enriched_at);
+        break;
+      case 'with-email':
+        filtered = currentComments.filter(c => c.commenter_email);
+        break;
+      case 'with-phone':
+        filtered = currentComments.filter(c => c.commenter_phone);
+        break;
+      case 'with-contact':
+        filtered = currentComments.filter(c => c.commenter_email || c.commenter_phone);
+        break;
+    }
+    
+    setSelectedComments(new Set(filtered.map(c => c.id)));
+  };
+
   const getSelectedCommentsData = (): InstagramComment[] => {
     const allComments = activeTab === 'comments-history' ? (historicalComments || []) : comments;
     return allComments.filter(c => selectedComments.has(c.id));
@@ -407,6 +482,9 @@ const InstagramScraper = () => {
                 onSelectAll={() => handleSelectAllComments(comments)}
                 isLoading={isSearchingComments}
                 onImport={() => setCommentsImportDialogOpen(true)}
+                onEnrich={handleEnrichComments}
+                isEnriching={isEnrichingComments}
+                onSelectByFilter={handleSelectCommentsByFilter}
               />
             )}
           </TabsContent>
@@ -450,7 +528,7 @@ const InstagramScraper = () => {
           }}
         />
 
-        {/* Comments Import Dialog - placeholder for now */}
+        {/* Comments Import Dialog */}
         <ImportInstagramLeadsDialog
           open={commentsImportDialogOpen}
           onOpenChange={setCommentsImportDialogOpen}
@@ -458,17 +536,17 @@ const InstagramScraper = () => {
             id: c.id,
             username: c.commenter_username,
             full_name: c.commenter_full_name,
-            biography: null,
+            biography: c.commenter_biography || null,
             profile_pic_url: c.commenter_profile_pic,
-            followers_count: 0,
-            following_count: 0,
-            posts_count: 0,
-            is_business_account: false,
+            followers_count: c.commenter_followers_count || 0,
+            following_count: c.commenter_following_count || 0,
+            posts_count: c.commenter_posts_count || 0,
+            is_business_account: c.commenter_is_business || false,
             is_verified: c.commenter_is_verified,
-            business_category: null,
-            external_url: null,
-            email: null,
-            phone: null,
+            business_category: c.commenter_business_category || null,
+            external_url: c.commenter_external_url || null,
+            email: c.commenter_email || null,
+            phone: c.commenter_phone || null,
             scraped_at: c.scraped_at
           }))}
           onSuccess={() => {

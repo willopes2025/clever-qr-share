@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Download, MessageCircle, ExternalLink, BadgeCheck, User, Heart, Reply, Loader2 } from "lucide-react";
+import { Download, MessageCircle, ExternalLink, BadgeCheck, User, Heart, Reply, Loader2, Sparkles, Mail, Phone, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -24,6 +24,17 @@ export interface InstagramComment {
   is_reply: boolean;
   parent_comment_id: string | null;
   scraped_at: string;
+  // Enrichment fields
+  commenter_biography?: string | null;
+  commenter_email?: string | null;
+  commenter_phone?: string | null;
+  commenter_followers_count?: number;
+  commenter_following_count?: number;
+  commenter_posts_count?: number;
+  commenter_is_business?: boolean;
+  commenter_business_category?: string | null;
+  commenter_external_url?: string | null;
+  enriched_at?: string | null;
 }
 
 interface InstagramCommentsResultsTableProps {
@@ -33,6 +44,9 @@ interface InstagramCommentsResultsTableProps {
   onSelectAll: () => void;
   isLoading: boolean;
   onImport: () => void;
+  onEnrich?: () => void;
+  isEnriching?: boolean;
+  onSelectByFilter?: (filter: 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact') => void;
 }
 
 export function InstagramCommentsResultsTable({
@@ -41,7 +55,10 @@ export function InstagramCommentsResultsTable({
   onSelectComment,
   onSelectAll,
   isLoading,
-  onImport
+  onImport,
+  onEnrich,
+  isEnriching,
+  onSelectByFilter
 }: InstagramCommentsResultsTableProps) {
   const allSelected = comments.length > 0 && comments.every(c => selectedComments.has(c.id));
   const someSelected = selectedComments.size > 0;
@@ -60,6 +77,13 @@ export function InstagramCommentsResultsTable({
 
   // Get unique commenters
   const uniqueCommenters = new Set(comments.map(c => c.commenter_username)).size;
+
+  // Enrichment stats
+  const enrichedCount = comments.filter(c => c.enriched_at).length;
+  const notEnrichedCount = comments.length - enrichedCount;
+  const withEmailCount = comments.filter(c => c.commenter_email).length;
+  const withPhoneCount = comments.filter(c => c.commenter_phone).length;
+  const withContactCount = comments.filter(c => c.commenter_email || c.commenter_phone).length;
 
   if (comments.length === 0 && !isLoading) {
     return (
@@ -89,6 +113,21 @@ export function InstagramCommentsResultsTable({
           </div>
           {someSelected && (
             <div className="flex items-center gap-2">
+              {onEnrich && (
+                <Button 
+                  variant="outline" 
+                  onClick={onEnrich} 
+                  disabled={isEnriching}
+                  className="gap-2"
+                >
+                  {isEnriching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Enriquecer {selectedComments.size}
+                </Button>
+              )}
               <Button onClick={onImport} className="gap-2">
                 <Download className="h-4 w-4" />
                 Importar {selectedComments.size}
@@ -96,6 +135,48 @@ export function InstagramCommentsResultsTable({
             </div>
           )}
         </div>
+
+        {/* Quick filter buttons */}
+        {onSelectByFilter && comments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <span className="text-sm text-muted-foreground self-center">Selecionar:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectByFilter('not-enriched')}
+              className="gap-1"
+            >
+              Não enriquecidos ({notEnrichedCount})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectByFilter('with-email')}
+              className="gap-1"
+            >
+              <Mail className="h-3 w-3" />
+              Com email ({withEmailCount})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectByFilter('with-phone')}
+              className="gap-1"
+            >
+              <Phone className="h-3 w-3" />
+              Com telefone ({withPhoneCount})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectByFilter('with-contact')}
+              className="gap-1"
+            >
+              <CheckCircle className="h-3 w-3" />
+              Com contato ({withContactCount})
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="rounded-md border overflow-x-auto">
@@ -109,10 +190,13 @@ export function InstagramCommentsResultsTable({
                   />
                 </TableHead>
                 <TableHead>Usuário</TableHead>
-                <TableHead className="min-w-[300px]">Comentário</TableHead>
+                <TableHead className="min-w-[250px]">Comentário</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Telefone</TableHead>
+                <TableHead className="text-center">Seguidores</TableHead>
                 <TableHead className="text-center">Curtidas</TableHead>
                 <TableHead className="text-center">Tipo</TableHead>
-                <TableHead>Post</TableHead>
+                <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Data</TableHead>
               </TableRow>
             </TableHeader>
@@ -160,17 +244,50 @@ export function InstagramCommentsResultsTable({
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <p className="text-sm line-clamp-2 max-w-[300px]">
+                          <p className="text-sm line-clamp-2 max-w-[250px]">
                             {comment.comment_text || '-'}
                           </p>
                         </TooltipTrigger>
-                        {comment.comment_text && comment.comment_text.length > 100 && (
+                        {comment.comment_text && comment.comment_text.length > 80 && (
                           <TooltipContent className="max-w-md">
                             <p className="text-xs whitespace-pre-wrap">{comment.comment_text}</p>
                           </TooltipContent>
                         )}
                       </Tooltip>
                     </TooltipProvider>
+                  </TableCell>
+                  <TableCell>
+                    {comment.commenter_email ? (
+                      <a 
+                        href={`mailto:${comment.commenter_email}`}
+                        className="text-sm text-primary hover:underline flex items-center gap-1"
+                      >
+                        <Mail className="h-3 w-3" />
+                        {comment.commenter_email}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {comment.commenter_phone ? (
+                      <a 
+                        href={`https://wa.me/${comment.commenter_phone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline flex items-center gap-1"
+                      >
+                        <Phone className="h-3 w-3" />
+                        {comment.commenter_phone}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className="text-sm">
+                      {comment.commenter_followers_count?.toLocaleString() || '-'}
+                    </span>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1 text-muted-foreground">
@@ -191,16 +308,17 @@ export function InstagramCommentsResultsTable({
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <a
-                      href={comment.post_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:underline flex items-center gap-1 max-w-[150px] truncate"
-                    >
-                      {comment.post_id || 'Ver post'}
-                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                    </a>
+                  <TableCell className="text-center">
+                    {comment.enriched_at ? (
+                      <Badge variant="default" className="gap-1 bg-green-600">
+                        <Sparkles className="h-3 w-3" />
+                        Enriquecido
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Pendente
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
                     {comment.timestamp 
