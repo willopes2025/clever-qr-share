@@ -5,11 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, X } from "lucide-react";
-import { format, parseISO, isValid } from "date-fns";
+import { CalendarIcon, Check, X, Pencil } from "lucide-react";
+import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CustomFieldDefinition, useCustomFields } from "@/hooks/useCustomFields";
+import { toast } from "sonner";
 
 interface CustomFieldsEditorProps {
   contactId: string;
@@ -31,6 +32,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
       contactId,
       customFields: localFields,
     });
+    toast.success("Campo atualizado com sucesso");
     setEditingField(null);
   };
 
@@ -54,23 +56,28 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 <Input
                   value={value || ''}
                   onChange={(e) => handleFieldChange(definition.field_key, e.target.value)}
-                  className="h-8 text-sm flex-1"
+                  className="h-9 text-sm flex-1 border-primary/30 focus:border-primary"
                   autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSave(definition.field_key);
+                    if (e.key === 'Escape') setEditingField(null);
+                  }}
                 />
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSave(definition.field_key)}>
-                  <Check className="h-3 w-3 text-primary" />
+                <Button size="icon" variant="default" className="h-8 w-8" onClick={() => handleSave(definition.field_key)}>
+                  <Check className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingField(null)}>
-                  <X className="h-3 w-3" />
+                <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setEditingField(null)}>
+                  <X className="h-4 w-4" />
                 </Button>
               </>
             ) : (
-              <span 
-                className="text-sm text-foreground cursor-pointer hover:text-primary flex-1"
+              <button 
+                className="text-sm text-foreground cursor-pointer hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group flex-1 min-h-[36px]"
                 onClick={() => setEditingField(definition.field_key)}
               >
-                {value || <span className="text-muted-foreground">Não definido</span>}
-              </span>
+                {value || <span className="text-muted-foreground italic">Clique para editar</span>}
+                <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+              </button>
             )}
           </div>
         );
@@ -84,23 +91,28 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                   type="number"
                   value={value ?? ''}
                   onChange={(e) => handleFieldChange(definition.field_key, e.target.value ? Number(e.target.value) : null)}
-                  className="h-8 text-sm flex-1"
+                  className="h-9 text-sm flex-1 border-primary/30 focus:border-primary"
                   autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSave(definition.field_key);
+                    if (e.key === 'Escape') setEditingField(null);
+                  }}
                 />
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSave(definition.field_key)}>
-                  <Check className="h-3 w-3 text-primary" />
+                <Button size="icon" variant="default" className="h-8 w-8" onClick={() => handleSave(definition.field_key)}>
+                  <Check className="h-4 w-4" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingField(null)}>
-                  <X className="h-3 w-3" />
+                <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setEditingField(null)}>
+                  <X className="h-4 w-4" />
                 </Button>
               </>
             ) : (
-              <span 
-                className="text-sm text-foreground cursor-pointer hover:text-primary flex-1"
+              <button 
+                className="text-sm text-foreground cursor-pointer hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group flex-1 min-h-[36px]"
                 onClick={() => setEditingField(definition.field_key)}
               >
-                {value !== undefined && value !== null ? value : <span className="text-muted-foreground">Não definido</span>}
-              </span>
+                {value !== undefined && value !== null ? value : <span className="text-muted-foreground italic">Clique para editar</span>}
+                <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+              </button>
             )}
           </div>
         );
@@ -115,6 +127,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 contactId,
                 customFields: { ...localFields, [definition.field_key]: checked },
               });
+              toast.success("Campo atualizado com sucesso");
             }}
           />
         );
@@ -128,11 +141,11 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 variant="outline"
                 size="sm"
                 className={cn(
-                  "h-8 justify-start text-left font-normal w-full",
+                  "h-9 justify-start text-left font-normal w-full border-border/50 hover:border-primary/50 hover:bg-primary/5",
                   !dateValue && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="mr-2 h-3 w-3" />
+                <CalendarIcon className="mr-2 h-4 w-4" />
                 {dateValue ? format(dateValue, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
               </Button>
             </PopoverTrigger>
@@ -147,6 +160,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                     contactId,
                     customFields: { ...localFields, [definition.field_key]: isoDate },
                   });
+                  toast.success("Campo atualizado com sucesso");
                 }}
                 locale={ptBR}
               />
@@ -164,9 +178,10 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 contactId,
                 customFields: { ...localFields, [definition.field_key]: val },
               });
+              toast.success("Campo atualizado com sucesso");
             }}
           >
-            <SelectTrigger className="h-8 text-sm">
+            <SelectTrigger className="h-9 text-sm border-border/50 hover:border-primary/50">
               <SelectValue placeholder="Selecionar..." />
             </SelectTrigger>
             <SelectContent>
@@ -186,7 +201,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
 
   if (!fieldDefinitions || fieldDefinitions.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground text-center py-2">
+      <p className="text-sm text-muted-foreground text-center py-4">
         Nenhum campo personalizado configurado
       </p>
     );
@@ -204,17 +219,17 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
 
   if (hideEmptyFields && visibleFields.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground text-center py-2">
+      <p className="text-sm text-muted-foreground text-center py-4">
         Nenhum campo com dados
       </p>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {visibleFields.map((definition) => (
-        <div key={definition.id} className="space-y-1">
-          <label className="text-xs text-muted-foreground flex items-center gap-1">
+        <div key={definition.id} className="space-y-1.5 py-2 px-2 rounded-lg hover:bg-muted/30 transition-colors">
+          <label className="text-xs font-medium text-foreground/70 flex items-center gap-1">
             {definition.field_name}
             {definition.is_required && <span className="text-destructive">*</span>}
           </label>
