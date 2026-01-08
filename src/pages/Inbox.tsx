@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Phone } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -15,8 +15,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { ImperativePanelHandle } from "react-resizable-panels";
 
 const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,9 +25,7 @@ const Inbox = () => {
   const [showSoftphone, setShowSoftphone] = useState(false);
   const isMobile = useIsMobile();
   
-  // Refs for resizable panels
-  const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
-  const rightPanelRef = useRef<ImperativePanelHandle>(null);
+  // State for panel visibility
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
@@ -111,29 +107,17 @@ const Inbox = () => {
   };
 
   const handleOpenRightPanel = () => {
-    if (rightPanelRef.current && isRightPanelCollapsed) {
-      rightPanelRef.current.expand();
+    if (isRightPanelCollapsed) {
+      setIsRightPanelCollapsed(false);
     }
   };
 
   const toggleSidebar = () => {
-    if (sidebarPanelRef.current) {
-      if (isSidebarCollapsed) {
-        sidebarPanelRef.current.expand();
-      } else {
-        sidebarPanelRef.current.collapse();
-      }
-    }
+    setIsSidebarCollapsed(prev => !prev);
   };
 
   const toggleRightPanel = () => {
-    if (rightPanelRef.current) {
-      if (isRightPanelCollapsed) {
-        rightPanelRef.current.expand();
-      } else {
-        rightPanelRef.current.collapse();
-      }
-    }
+    setIsRightPanelCollapsed(prev => !prev);
   };
 
   return (
@@ -245,35 +229,27 @@ const Inbox = () => {
             </div>
           )
         ) : (
-          // Desktop: Show list AND messages side by side with right panel using resizable panels
-          <ResizablePanelGroup 
-            direction="horizontal" 
-            autoSaveId="inbox-panels"
-            className="h-full"
-          >
+          // Desktop: Fixed layout with toggle animations
+          <div className="flex h-full w-full">
             {/* Sidebar - Conversation List */}
-            <ResizablePanel 
-              ref={sidebarPanelRef}
-              defaultSize={22}
-              minSize={15}
-              maxSize={35}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setIsSidebarCollapsed(true)}
-              onExpand={() => setIsSidebarCollapsed(false)}
+            <div 
+              className={cn(
+                "border-r border-border bg-card transition-all duration-300 overflow-hidden shrink-0",
+                isSidebarCollapsed ? "w-0" : "w-80"
+              )}
             >
-              <ConversationList
-                conversations={conversations || []}
-                selectedId={selectedConversation?.id || null}
-                onSelect={handleSelectConversation}
-                isLoading={isLoading}
-              />
-            </ResizablePanel>
-            
-            <ResizableHandle withHandle />
+              <div className="w-80 h-full">
+                <ConversationList
+                  conversations={conversations || []}
+                  selectedId={selectedConversation?.id || null}
+                  onSelect={handleSelectConversation}
+                  isLoading={isLoading}
+                />
+              </div>
+            </div>
             
             {/* Chat Area */}
-            <ResizablePanel defaultSize={selectedConversation ? 48 : 78} minSize={30}>
+            <div className="flex-1 min-w-0">
               {selectedConversation ? (
                 <MessageView 
                   conversation={selectedConversation}
@@ -282,31 +258,26 @@ const Inbox = () => {
               ) : (
                 <EmptyInbox />
               )}
-            </ResizablePanel>
+            </div>
             
-            {/* Right Panel - Funnel + Contact Info */}
+            {/* Right Panel - Lead Info */}
             {selectedConversation && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel 
-                  ref={rightPanelRef}
-                  defaultSize={30}
-                  minSize={20}
-                  maxSize={45}
-                  collapsible
-                  collapsedSize={0}
-                  onCollapse={() => setIsRightPanelCollapsed(true)}
-                  onExpand={() => setIsRightPanelCollapsed(false)}
-                >
+              <div 
+                className={cn(
+                  "border-l border-border bg-card transition-all duration-300 overflow-hidden shrink-0",
+                  isRightPanelCollapsed ? "w-0" : "w-96"
+                )}
+              >
+                <div className="w-96 h-full">
                   <RightSidePanel
                     conversation={selectedConversation}
                     isOpen={true}
-                    onClose={() => rightPanelRef.current?.collapse()}
+                    onClose={toggleRightPanel}
                   />
-                </ResizablePanel>
-              </>
+                </div>
+              </div>
             )}
-          </ResizablePanelGroup>
+          </div>
         )}
       </div>
       
