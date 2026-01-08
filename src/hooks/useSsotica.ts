@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
-import { useIntegrations } from "./useIntegrations";
+import { useIntegrationStatus } from "./useIntegrationStatus";
 import { toast } from "sonner";
 
 export interface SsoticaOS {
@@ -57,9 +57,8 @@ export const useSsotica = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Check if SSOTica integration exists using useIntegrations (filters by user_id)
-  const { isConnected } = useIntegrations();
-  const hasSsotica = isConnected('ssotica');
+  // Check if SSOTica integration exists using the organization-aware hook
+  const { hasSsotica } = useIntegrationStatus();
 
   const callSsoticaApi = async (action: string, params?: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke('ssotica-api', {

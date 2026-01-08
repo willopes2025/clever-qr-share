@@ -221,3 +221,6 @@ verify_jwt = false
 
 [functions.instagram-enricher]
 verify_jwt = false
+
+[functions.integration-status]
+verify_jwt = false

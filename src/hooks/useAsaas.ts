@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useIntegrations } from "./useIntegrations";
+import { useIntegrationStatus } from "./useIntegrationStatus";
 import { toast } from "sonner";
 
 export interface AsaasCustomer {
@@ -153,9 +153,8 @@ export interface AsaasPaymentLink {
 }
 
 export const useAsaas = () => {
-  const { isConnected, getIntegration } = useIntegrations();
+  const { hasAsaas } = useIntegrationStatus();
   const queryClient = useQueryClient();
-  const hasAsaas = isConnected('asaas');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 

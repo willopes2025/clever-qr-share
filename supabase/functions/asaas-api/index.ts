@@ -14,10 +14,17 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // User-level client for authentication
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    );
+
+    // Service role client for reading integrations (bypasses RLS)
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // Get the user
@@ -30,11 +37,61 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get Asaas credentials from integrations table
-    const { data: integration, error: integrationError } = await supabaseClient
+    // Determine integrationOwnerId - who owns the Asaas integration
+    let integrationOwnerId = user.id;
+    let isMember = false;
+    let memberPermissions: Record<string, boolean> | null = null;
+
+    // First try the user's own integration
+    const { data: ownIntegration } = await supabaseAdmin
       .from('integrations')
       .select('credentials')
       .eq('user_id', user.id)
+      .eq('provider', 'asaas')
+      .eq('is_active', true)
+      .single();
+
+    if (!ownIntegration) {
+      // User doesn't have their own Asaas integration, check if they're a team member
+      const { data: teamMember } = await supabaseAdmin
+        .from('team_members')
+        .select('organization_id, permissions')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      if (teamMember?.organization_id) {
+        isMember = true;
+        memberPermissions = teamMember.permissions as Record<string, boolean> | null;
+
+        // Check if member has permission to view finances
+        if (!memberPermissions?.view_finances) {
+          console.error('Member does not have view_finances permission');
+          return new Response(JSON.stringify({ error: 'Permissão negada: acesso ao financeiro não autorizado' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Get the organization owner
+        const { data: org } = await supabaseAdmin
+          .from('organizations')
+          .select('owner_id')
+          .eq('id', teamMember.organization_id)
+          .single();
+
+        if (org?.owner_id) {
+          integrationOwnerId = org.owner_id;
+          console.log('Using org owner integration:', integrationOwnerId);
+        }
+      }
+    }
+
+    // Get Asaas credentials from integrations table using integrationOwnerId
+    const { data: integration, error: integrationError } = await supabaseAdmin
+      .from('integrations')
+      .select('credentials')
+      .eq('user_id', integrationOwnerId)
       .eq('provider', 'asaas')
       .eq('is_active', true)
       .single();
@@ -63,7 +120,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, ...params } = body;
 
-    console.log(`Asaas API action: ${action}`, { userId: user.id });
+    console.log(`Asaas API action: ${action}`, { userId: user.id, integrationOwnerId, isMember });
 
     const asaasRequest = async (method: string, endpoint: string, data?: unknown) => {
       const url = `${baseUrl}${endpoint}`;

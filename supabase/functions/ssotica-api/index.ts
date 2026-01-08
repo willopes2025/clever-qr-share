@@ -517,17 +517,58 @@ Deno.serve(async (req: Request) => {
     
     console.log(`[ssOtica] Action: ${action}, Params:`, params);
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // User-level client for authentication
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: req.headers.get('Authorization') || '' } }
+    });
+
+    // Service role client for bypassing RLS
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check if user is authenticated (skip for agent_config_id calls)
+    if (!agent_config_id) {
+      const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('[ssOtica] Auth error:', userError);
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check if user is a team member and verify permissions
+      const { data: teamMember } = await supabaseAdmin
+        .from('team_members')
+        .select('organization_id, permissions')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      if (teamMember) {
+        const permissions = teamMember.permissions as Record<string, boolean> | null;
+        if (!permissions?.view_ssotica) {
+          console.error('[ssOtica] Member does not have view_ssotica permission');
+          return new Response(JSON.stringify({ error: 'Permissão negada: acesso ao ssOtica não autorizado' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        console.log('[ssOtica] Member permission verified for user:', user.id);
+      }
+    }
+
     // Get token from environment or from agent integration config
     let token = Deno.env.get('SSOTICA_API_TOKEN');
     let cnpj = Deno.env.get('SSOTICA_CNPJ');
 
     // If agent_config_id provided, try to get credentials from integration
     if (agent_config_id) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-
-      const { data: integration } = await supabase
+      const { data: integration } = await supabaseAdmin
         .from('ai_agent_integrations')
         .select('api_credentials')
         .eq('agent_config_id', agent_config_id)
