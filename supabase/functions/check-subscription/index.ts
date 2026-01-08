@@ -207,20 +207,20 @@ Deno.serve(async (req: Request) => {
     }
     logStep("Authorization header found");
 
-    // Validate JWT using getUser() with the Authorization header
+    // Validate JWT using getClaims()
     const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false },
     });
 
-    // Use getUser() without arguments - it uses the Authorization header from the client
-    const { data: userData, error: userError } = await supabaseAuthClient.auth.getUser();
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
 
-    if (userError || !userData?.user) {
-      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token" });
+    if (claimsError || !claimsData?.claims) {
+      logStep("AUTH_ERROR", { message: claimsError?.message || "Invalid token" });
       return new Response(
         JSON.stringify({
-          error: `Authentication error: ${userError?.message || "Invalid token"}`,
+          error: `Authentication error: ${claimsError?.message || "Invalid token"}`,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -229,8 +229,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const userId = userData.user.id;
-    const userEmail = userData.user.email as string;
+    const userId = claimsData.claims.sub as string;
+    const userEmail = claimsData.claims.email as string;
 
     if (!userId || !userEmail) {
       logStep("AUTH_ERROR", { message: "Missing user ID or email in token" });
