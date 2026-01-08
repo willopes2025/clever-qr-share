@@ -99,14 +99,15 @@ export const MobileSidebarDrawer = () => {
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
   // Build dynamic nav groups with Financeiro/ssOtica if connected
+  // For organization members: show these items based on permissions (even if integration isn't connected yet)
   const dynamicNavGroups = navGroups.map(group => {
     if (group.label === "Sua Conta") {
       const dynamicItems: typeof group.items = [];
       
-      if (hasAsaas) {
+      if (organization ? true : hasAsaas) {
         dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
       }
-      if (hasSsotica) {
+      if (organization ? true : hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
       }
       
