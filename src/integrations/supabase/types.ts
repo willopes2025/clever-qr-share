@@ -2957,6 +2957,66 @@ export type Database = {
           },
         ]
       }
+      instagram_comments: {
+        Row: {
+          comment_id: string
+          comment_text: string | null
+          commenter_full_name: string | null
+          commenter_is_verified: boolean | null
+          commenter_profile_pic: string | null
+          commenter_username: string
+          created_at: string
+          id: string
+          is_reply: boolean | null
+          likes_count: number | null
+          parent_comment_id: string | null
+          post_id: string | null
+          post_url: string
+          raw_data: Json | null
+          scraped_at: string
+          timestamp: string | null
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          comment_text?: string | null
+          commenter_full_name?: string | null
+          commenter_is_verified?: boolean | null
+          commenter_profile_pic?: string | null
+          commenter_username: string
+          created_at?: string
+          id?: string
+          is_reply?: boolean | null
+          likes_count?: number | null
+          parent_comment_id?: string | null
+          post_id?: string | null
+          post_url: string
+          raw_data?: Json | null
+          scraped_at?: string
+          timestamp?: string | null
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          comment_text?: string | null
+          commenter_full_name?: string | null
+          commenter_is_verified?: boolean | null
+          commenter_profile_pic?: string | null
+          commenter_username?: string
+          created_at?: string
+          id?: string
+          is_reply?: boolean | null
+          likes_count?: number | null
+          parent_comment_id?: string | null
+          post_id?: string | null
+          post_url?: string
+          raw_data?: Json | null
+          scraped_at?: string
+          timestamp?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       instagram_scrape_results: {
         Row: {
           biography: string | null

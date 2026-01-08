@@ -2,9 +2,11 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { InstagramSearchForm, ScrapeType } from "@/components/instagram/InstagramSearchForm";
 import { InstagramResultsTable } from "@/components/instagram/InstagramResultsTable";
+import { InstagramCommentsSearchForm } from "@/components/instagram/InstagramCommentsSearchForm";
+import { InstagramCommentsResultsTable, InstagramComment } from "@/components/instagram/InstagramCommentsResultsTable";
 import { ImportInstagramLeadsDialog } from "@/components/instagram/ImportInstagramLeadsDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Instagram, Search, History, Users } from "lucide-react";
+import { Instagram, Search, History, Users, MessageCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -41,6 +43,13 @@ const InstagramScraper = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("search");
 
+  // Comments state
+  const [comments, setComments] = useState<InstagramComment[]>([]);
+  const [selectedComments, setSelectedComments] = useState<Set<string>>(new Set());
+  const [isSearchingComments, setIsSearchingComments] = useState(false);
+  const [hasSearchedComments, setHasSearchedComments] = useState(false);
+  const [commentsImportDialogOpen, setCommentsImportDialogOpen] = useState(false);
+
   // Fetch historical scrape results
   const { data: historicalProfiles, refetch: refetchHistory } = useQuery({
     queryKey: ['instagram-history'],
@@ -55,6 +64,22 @@ const InstagramScraper = () => {
       return data as InstagramProfile[];
     },
     enabled: activeTab === 'history'
+  });
+
+  // Fetch historical comments
+  const { data: historicalComments, refetch: refetchCommentsHistory } = useQuery({
+    queryKey: ['instagram-comments-history'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('instagram_comments')
+        .select('*')
+        .order('scraped_at', { ascending: false })
+        .limit(500);
+      
+      if (error) throw error;
+      return data as InstagramComment[];
+    },
+    enabled: activeTab === 'comments-history'
   });
 
   const handleSearch = async (usernames: string[], scrapeType: ScrapeType, limit: number) => {
@@ -209,6 +234,84 @@ const InstagramScraper = () => {
     return allProfiles.filter(p => selectedProfiles.has(p.id));
   };
 
+  // Comments handlers
+  const handleSearchComments = async (postUrls: string[], resultsLimit: number, includeReplies: boolean) => {
+    if (postUrls.length === 0) {
+      toast.error('Informe ao menos uma URL de post');
+      return;
+    }
+
+    if (postUrls.length > 5) {
+      toast.warning('Máximo de 5 URLs por busca. Apenas as 5 primeiras serão processadas.');
+    }
+
+    setIsSearchingComments(true);
+    setSelectedComments(new Set());
+
+    try {
+      const { data, error } = await supabase.functions.invoke('instagram-comments-scraper', {
+        body: { postUrls, resultsLimit, includeReplies }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao buscar comentários');
+      }
+
+      setComments(data.data || []);
+      setHasSearchedComments(true);
+
+      if (data.data?.length === 0) {
+        toast.info('Nenhum comentário encontrado.');
+      } else {
+        const cacheMsg = data.fromCache > 0 ? ` (${data.fromCache} do cache)` : '';
+        toast.success(`${data.total} comentários encontrados${cacheMsg}`);
+      }
+    } catch (error) {
+      console.error('Comments search error:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao buscar comentários');
+    } finally {
+      setIsSearchingComments(false);
+    }
+  };
+
+  const handleSelectComment = (id: string) => {
+    setSelectedComments(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllComments = (commentList: InstagramComment[]) => {
+    const allIds = commentList.map(c => c.id);
+    const allSelected = allIds.every(id => selectedComments.has(id));
+
+    if (allSelected) {
+      setSelectedComments(prev => {
+        const next = new Set(prev);
+        allIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedComments(prev => {
+        const next = new Set(prev);
+        allIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const getSelectedCommentsData = (): InstagramComment[] => {
+    const allComments = activeTab === 'comments-history' ? (historicalComments || []) : comments;
+    return allComments.filter(c => selectedComments.has(c.id));
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -226,8 +329,12 @@ const InstagramScraper = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="search" className="gap-2">
-              <Search className="h-4 w-4" />
-              Extrair
+              <Users className="h-4 w-4" />
+              Seguidores
+            </TabsTrigger>
+            <TabsTrigger value="comments" className="gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Comentários
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <History className="h-4 w-4" />
@@ -271,6 +378,39 @@ const InstagramScraper = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="comments" className="space-y-6">
+            {/* Comments Search Form */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5" />
+                  Extrair Comentários
+                </CardTitle>
+                <CardDescription>
+                  Cole URLs de postagens ou reels para extrair os comentários
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <InstagramCommentsSearchForm
+                  onSearch={handleSearchComments}
+                  isSearching={isSearchingComments}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Comments Results */}
+            {hasSearchedComments && (
+              <InstagramCommentsResultsTable
+                comments={comments}
+                selectedComments={selectedComments}
+                onSelectComment={handleSelectComment}
+                onSelectAll={() => handleSelectAllComments(comments)}
+                isLoading={isSearchingComments}
+                onImport={() => setCommentsImportDialogOpen(true)}
+              />
+            )}
+          </TabsContent>
+
           <TabsContent value="history" className="space-y-6">
             <Card>
               <CardHeader className="pb-4">
@@ -307,6 +447,34 @@ const InstagramScraper = () => {
             setSelectedProfiles(new Set());
             setImportDialogOpen(false);
             refetchHistory();
+          }}
+        />
+
+        {/* Comments Import Dialog - placeholder for now */}
+        <ImportInstagramLeadsDialog
+          open={commentsImportDialogOpen}
+          onOpenChange={setCommentsImportDialogOpen}
+          profiles={getSelectedCommentsData().map(c => ({
+            id: c.id,
+            username: c.commenter_username,
+            full_name: c.commenter_full_name,
+            biography: null,
+            profile_pic_url: c.commenter_profile_pic,
+            followers_count: 0,
+            following_count: 0,
+            posts_count: 0,
+            is_business_account: false,
+            is_verified: c.commenter_is_verified,
+            business_category: null,
+            external_url: null,
+            email: null,
+            phone: null,
+            scraped_at: c.scraped_at
+          }))}
+          onSuccess={() => {
+            setSelectedComments(new Set());
+            setCommentsImportDialogOpen(false);
+            refetchCommentsHistory();
           }}
         />
       </div>
