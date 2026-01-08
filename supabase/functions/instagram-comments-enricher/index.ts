@@ -107,14 +107,16 @@ Deno.serve(async (req) => {
     const uniqueUsernames = [...new Set(commentsData.map(c => c.commenter_username))];
     console.log(`Found ${uniqueUsernames.length} unique usernames to enrich`);
 
-    // Call Apify Instagram Scraper for profile details
+    // Call Apify Instagram Scraper for profile details using directUrls (more reliable)
+    const directUrls = uniqueUsernames.map(u => `https://www.instagram.com/${u}/`);
     const apifyInput = {
-      usernames: uniqueUsernames,
+      directUrls,
       resultsType: "details",
-      resultsLimit: uniqueUsernames.length
+      resultsLimit: uniqueUsernames.length,
+      addParentData: false
     };
 
-    console.log('Calling Apify with input:', JSON.stringify(apifyInput));
+    console.log('Calling Apify with directUrls:', directUrls);
 
     const apifyResponse = await fetch(
       `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
@@ -134,11 +136,20 @@ Deno.serve(async (req) => {
     const apifyData = await apifyResponse.json();
     console.log(`Got ${apifyData.length} profile results from Apify`);
 
+    // Log sample response for debugging
+    if (apifyData.length > 0) {
+      console.log('Sample Apify response keys:', Object.keys(apifyData[0]));
+    }
+
     // Create a map of username -> profile data
     const profileMap = new Map();
     for (const profile of apifyData) {
-      const username = profile.username?.toLowerCase();
-      if (!username) continue;
+      // Handle different username field variations from Apify
+      const username = (profile.username || profile.ownerUsername || '').toLowerCase();
+      if (!username) {
+        console.log('No username found in profile, available keys:', Object.keys(profile));
+        continue;
+      }
 
       const biography = profile.biography || null;
       const externalUrl = profile.externalUrl || profile.website || null;
