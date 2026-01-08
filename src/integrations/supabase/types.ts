@@ -2961,11 +2961,21 @@ export type Database = {
         Row: {
           comment_id: string
           comment_text: string | null
+          commenter_biography: string | null
+          commenter_business_category: string | null
+          commenter_email: string | null
+          commenter_external_url: string | null
+          commenter_followers_count: number | null
+          commenter_following_count: number | null
           commenter_full_name: string | null
+          commenter_is_business: boolean | null
           commenter_is_verified: boolean | null
+          commenter_phone: string | null
+          commenter_posts_count: number | null
           commenter_profile_pic: string | null
           commenter_username: string
           created_at: string
+          enriched_at: string | null
           id: string
           is_reply: boolean | null
           likes_count: number | null
@@ -2980,11 +2990,21 @@ export type Database = {
         Insert: {
           comment_id: string
           comment_text?: string | null
+          commenter_biography?: string | null
+          commenter_business_category?: string | null
+          commenter_email?: string | null
+          commenter_external_url?: string | null
+          commenter_followers_count?: number | null
+          commenter_following_count?: number | null
           commenter_full_name?: string | null
+          commenter_is_business?: boolean | null
           commenter_is_verified?: boolean | null
+          commenter_phone?: string | null
+          commenter_posts_count?: number | null
           commenter_profile_pic?: string | null
           commenter_username: string
           created_at?: string
+          enriched_at?: string | null
           id?: string
           is_reply?: boolean | null
           likes_count?: number | null
@@ -2999,11 +3019,21 @@ export type Database = {
         Update: {
           comment_id?: string
           comment_text?: string | null
+          commenter_biography?: string | null
+          commenter_business_category?: string | null
+          commenter_email?: string | null
+          commenter_external_url?: string | null
+          commenter_followers_count?: number | null
+          commenter_following_count?: number | null
           commenter_full_name?: string | null
+          commenter_is_business?: boolean | null
           commenter_is_verified?: boolean | null
+          commenter_phone?: string | null
+          commenter_posts_count?: number | null
           commenter_profile_pic?: string | null
           commenter_username?: string
           created_at?: string
+          enriched_at?: string | null
           id?: string
           is_reply?: boolean | null
           likes_count?: number | null
