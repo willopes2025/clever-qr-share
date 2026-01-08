@@ -2,6 +2,8 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSsotica } from "@/hooks/useSsotica";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
+import { useOrganization } from "@/hooks/useOrganization";
 import { SsoticaDashboard } from "@/components/ssotica/SsoticaDashboard";
 import { SsoticaOSList } from "@/components/ssotica/SsoticaOSList";
 import { SsoticaVendasList } from "@/components/ssotica/SsoticaVendasList";
@@ -14,7 +16,9 @@ import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const Ssotica = () => {
-  const { hasSsotica, lastSync, isSyncing, syncAll, isLoading } = useSsotica();
+  const { hasSsotica, isLoading: isLoadingStatus } = useIntegrationStatus();
+  const { lastSync, isSyncing, syncAll, isLoading } = useSsotica();
+  const { currentMember } = useOrganization();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dateRange, setDateRange] = useState<SsoticaDateRange>(() => {
     const today = new Date();
@@ -24,6 +28,19 @@ const Ssotica = () => {
     return { from, to: today };
   });
 
+  // Check if user is a member (not owner)
+  const isMember = !!currentMember;
+
+  if (isLoadingStatus) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (!hasSsotica) {
     return (
       <DashboardLayout>
@@ -31,7 +48,9 @@ const Ssotica = () => {
           <Glasses className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">ssOtica não conectado</h2>
           <p className="text-muted-foreground max-w-md">
-            Conecte sua conta do ssOtica em Configurações → Integrações para visualizar seus dados de ótica aqui.
+            {isMember
+              ? "O ssOtica ainda não foi configurado pelo administrador. Solicite a conexão em Configurações → Integrações."
+              : "Conecte sua conta do ssOtica em Configurações → Integrações para visualizar seus dados de ótica aqui."}
           </p>
         </div>
       </DashboardLayout>

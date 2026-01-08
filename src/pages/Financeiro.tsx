@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsaas } from "@/hooks/useAsaas";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { Wallet, Users, Receipt, RefreshCcw, CreditCard, Link2 } from "lucide-react";
 import { AsaasDashboard } from "@/components/financeiro/AsaasDashboard";
 import { AsaasCustomerList } from "@/components/financeiro/AsaasCustomerList";
@@ -13,8 +14,11 @@ import { AsaasPaymentLinkList } from "@/components/financeiro/AsaasPaymentLinkLi
 
 const Financeiro = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const { hasAsaas } = useAsaas();
-  const { checkPermission } = useOrganization();
+  const { hasAsaas, isLoading: isLoadingStatus } = useIntegrationStatus();
+  const { currentMember, checkPermission } = useOrganization();
+
+  // Check if user is a member (not owner)
+  const isMember = !!currentMember;
 
   // Permission checks for each tab
   const canViewDashboard = checkPermission('view_finances');
@@ -35,6 +39,16 @@ const Financeiro = () => {
     return "dashboard";
   };
 
+  if (isLoadingStatus) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center h-full py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (!hasAsaas) {
     return (
       <DashboardLayout>
@@ -42,7 +56,9 @@ const Financeiro = () => {
           <Wallet className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">Financeiro não configurado</h2>
           <p className="text-muted-foreground text-center max-w-md">
-            Para usar o módulo financeiro, conecte sua conta Asaas em Configurações → Integrações.
+            {isMember 
+              ? "O módulo financeiro ainda não foi configurado pelo administrador. Solicite a conexão da conta Asaas em Configurações → Integrações."
+              : "Para usar o módulo financeiro, conecte sua conta Asaas em Configurações → Integrações."}
           </p>
         </div>
       </DashboardLayout>
