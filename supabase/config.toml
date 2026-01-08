@@ -224,3 +224,6 @@ verify_jwt = false
 
 [functions.integration-status]
 verify_jwt = false
+
+[functions.generate-warming-content]
+verify_jwt = true

@@ -346,6 +346,25 @@ export function useWarming() {
     },
   });
 
+  // Delete all user content
+  const deleteAllUserContent = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('warming_content')
+        .delete()
+        .eq('user_id', user!.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warming-contents'] });
+      toast({ title: "Conteúdos removidos", description: "Todos os seus conteúdos foram deletados." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Delete warming schedule
   const deleteSchedule = useMutation({
     mutationFn: async (scheduleId: string) => {
@@ -399,6 +418,7 @@ export function useWarming() {
     deletePair,
     createContent,
     deleteContent,
+    deleteAllUserContent,
     triggerWarming,
     refetch: () => {
       refetchSchedules();

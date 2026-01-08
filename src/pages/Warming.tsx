@@ -20,7 +20,7 @@ export default function Warming() {
   const {
     schedules, contacts, pairs, contents, activities, isLoading,
     createSchedule, updateScheduleStatus, deleteSchedule, createContact, deleteContact,
-    createPair, deletePair, createContent, deleteContent, triggerWarming, refetch
+    createPair, deletePair, createContent, deleteContent, deleteAllUserContent, triggerWarming, refetch
   } = useWarming();
 
   const existingScheduleInstanceIds = schedules?.map(s => s.instance_id) || [];
@@ -138,7 +138,9 @@ export default function Warming() {
               contents={contents || []}
               onAdd={(data) => createContent.mutate(data)}
               onDelete={(id) => deleteContent.mutate(id)}
+              onDeleteAll={() => deleteAllUserContent.mutate()}
               isAdding={createContent.isPending}
+              isDeletingAll={deleteAllUserContent.isPending}
             />
             <WarmingActivitiesLog activities={activities || []} />
           </div>
