@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, X, Database } from "lucide-react";
+import { Check, X, Database, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +24,7 @@ import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
 import { useLeadDistribution } from "@/hooks/useLeadDistribution";
 import { Conversation } from "@/hooks/useConversations";
 import { CustomFieldsManager } from "../CustomFieldsManager";
+import { toast } from "sonner";
 
 interface LeadPanelTabContentProps {
   conversation: Conversation;
@@ -59,6 +60,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
       contactId: conversation.contact_id,
       customFields: updatedFields,
     });
+    toast.success("Campo atualizado com sucesso");
     setEditingField(null);
   };
 
@@ -80,8 +82,8 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         return (
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-sm justify-start font-normal">
-                {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : "Selecionar"}
+              <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
+                {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar data</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
@@ -101,7 +103,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
             value={value || ''} 
             onValueChange={(val) => handleSave(definition.field_key, val)}
           >
-            <SelectTrigger className="h-7 text-sm border-0 bg-transparent shadow-none p-0 w-auto min-w-[100px]">
+            <SelectTrigger className="h-8 text-sm border-border/50 bg-transparent shadow-none min-w-[120px] hover:border-primary/50">
               <SelectValue placeholder="Selecionar" />
             </SelectTrigger>
             <SelectContent>
@@ -115,23 +117,23 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
       case 'number':
         if (isEditing) {
           return (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <Input
                 type="number"
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
-                className="h-7 w-24 text-sm"
+                className="h-8 w-28 text-sm border-primary/30 focus:border-primary"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSave(definition.field_key, localFields[definition.field_key]);
                   if (e.key === 'Escape') setEditingField(null);
                 }}
               />
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
-                <Check className="h-3 w-3 text-primary" />
+              <Button size="icon" variant="default" className="h-7 w-7" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
+                <Check className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingField(null)}>
-                <X className="h-3 w-3" />
+              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setEditingField(null)}>
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           );
@@ -139,31 +141,32 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         return (
           <button 
             onClick={() => setEditingField(definition.field_key)}
-            className="text-sm hover:text-primary transition-colors text-left"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px]"
           >
-            {value || <span className="text-muted-foreground">-</span>}
+            {value || <span className="text-muted-foreground italic">Clique para editar</span>}
+            <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
           </button>
         );
 
       default: // text, url, phone, email
         if (isEditing) {
           return (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <Input
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
-                className="h-7 flex-1 text-sm"
+                className="h-8 flex-1 text-sm border-primary/30 focus:border-primary"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSave(definition.field_key, localFields[definition.field_key]);
                   if (e.key === 'Escape') setEditingField(null);
                 }}
               />
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
-                <Check className="h-3 w-3 text-primary" />
+              <Button size="icon" variant="default" className="h-7 w-7" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
+                <Check className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingField(null)}>
-                <X className="h-3 w-3" />
+              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setEditingField(null)}>
+                <X className="h-3.5 w-3.5" />
               </Button>
             </div>
           );
@@ -171,28 +174,29 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         return (
           <button 
             onClick={() => setEditingField(definition.field_key)}
-            className="text-sm hover:text-primary transition-colors text-left truncate max-w-[150px]"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] max-w-[180px]"
           >
-            {value || <span className="text-muted-foreground">-</span>}
+            <span className="truncate">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
+            <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
           </button>
         );
     }
   };
 
   return (
-    <div className="p-3 space-y-1">
+    <div className="p-4 space-y-2">
       {/* Header with fields manager */}
-      <div className="flex items-center justify-between pb-2 mb-1">
-        <div className="flex items-center gap-1.5">
-          <Database className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Dados do Lead</span>
+      <div className="flex items-center justify-between pb-3 mb-2">
+        <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg">
+          <Database className="h-4 w-4 text-primary" />
+          <span className="text-sm font-semibold text-primary">Dados do Lead</span>
         </div>
         <CustomFieldsManager />
       </div>
 
       {/* Responsável (sempre visível) */}
-      <div className="flex items-center justify-between py-1.5 border-b border-border/20">
-        <span className="text-xs text-muted-foreground">Responsável</span>
+      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
+        <span className="text-xs font-medium text-foreground/70">Responsável</span>
         <div className="flex-1 flex justify-end">
           <AssigneeSelector
             value={conversation.assigned_to || null}
@@ -209,13 +213,13 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
 
       {/* Custom Fields */}
       {fieldsToShow.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
+        <p className="text-sm text-muted-foreground text-center py-6">
           Nenhum campo configurado para esta aba
         </p>
       ) : (
         fieldsToShow.map((field) => (
-          <div key={field.id} className="flex items-center justify-between py-1.5 border-b border-border/20">
-            <span className="text-xs text-muted-foreground truncate max-w-[120px]">{field.field_name}</span>
+          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
+            <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
             <div className="flex-1 flex justify-end items-center">
               {renderFieldValue(field)}
             </div>

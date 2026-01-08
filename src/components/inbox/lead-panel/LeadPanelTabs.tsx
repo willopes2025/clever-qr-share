@@ -31,16 +31,16 @@ export const LeadPanelTabs = ({ activeTab, onTabChange }: LeadPanelTabsProps) =>
 
   return (
     <>
-      <div className="px-3 py-1.5 border-b border-border/30 flex items-center gap-1 overflow-x-auto scrollbar-hide">
+      <div className="px-3 py-2 border-b border-border/40 flex items-center gap-1.5 overflow-x-auto scrollbar-hide bg-muted/20">
         {tabs?.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
+              "px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap",
               activeTab === tab.id
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-foreground/70 hover:text-foreground hover:bg-muted"
             )}
           >
             {tab.name}
@@ -50,10 +50,10 @@ export const LeadPanelTabs = ({ activeTab, onTabChange }: LeadPanelTabsProps) =>
         <Button 
           variant="ghost" 
           size="icon" 
-          className="h-7 w-7 shrink-0 ml-auto"
+          className="h-8 w-8 shrink-0 ml-auto hover:bg-muted"
           onClick={() => setManageOpen(true)}
         >
-          <Settings className="h-3.5 w-3.5" />
+          <Settings className="h-4 w-4" />
         </Button>
       </div>
 
