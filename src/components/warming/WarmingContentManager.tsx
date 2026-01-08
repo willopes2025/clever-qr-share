@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -57,6 +58,10 @@ export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, 
   const [aiCategory, setAiCategory] = useState<'greeting' | 'casual' | 'question' | 'reaction' | 'farewell'>('casual');
   const [aiQuantity, setAiQuantity] = useState(5);
   
+  // Selection state for default contents
+  const [selectedDefaultIds, setSelectedDefaultIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const { generateAndSave, isGenerating } = useGenerateWarmingContent();
 
   const handleSubmit = () => {
@@ -78,6 +83,38 @@ export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, 
   const handleGenerateWithAI = async () => {
     await generateAndSave.mutateAsync({ category: aiCategory, quantity: aiQuantity });
     setAiDialogOpen(false);
+  };
+
+  const toggleSelectDefault = (id: string) => {
+    setSelectedDefaultIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllDefaults = () => {
+    if (selectedDefaultIds.size === defaultContents.length) {
+      setSelectedDefaultIds(new Set());
+    } else {
+      setSelectedDefaultIds(new Set(defaultContents.map(c => c.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    setIsDeleting(true);
+    try {
+      for (const id of selectedDefaultIds) {
+        onDelete(id);
+      }
+      setSelectedDefaultIds(new Set());
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Separate user content from default content
@@ -363,12 +400,70 @@ export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, 
           </TabsContent>
 
           <TabsContent value="default" className="mt-4">
+            {defaultContents.length > 0 && (
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="select-all"
+                    checked={selectedDefaultIds.size === defaultContents.length && defaultContents.length > 0}
+                    onCheckedChange={toggleSelectAllDefaults}
+                  />
+                  <Label htmlFor="select-all" className="text-sm cursor-pointer">
+                    Selecionar todos
+                  </Label>
+                </div>
+                {selectedDefaultIds.size > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir ({selectedDefaultIds.size})
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir mensagens selecionadas?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta ação irá remover {selectedDefaultIds.size} mensagem(ns) do banco de conteúdos padrão.
+                          Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteSelected}
+                          disabled={isDeleting}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Excluindo...
+                            </>
+                          ) : (
+                            'Excluir Selecionados'
+                          )}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            )}
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {defaultContents.map((item) => (
                 <div 
                   key={item.id} 
-                  className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                    selectedDefaultIds.has(item.id) ? 'bg-primary/10 border border-primary/30' : 'bg-muted/50'
+                  }`}
+                  onClick={() => toggleSelectDefault(item.id)}
                 >
+                  <Checkbox
+                    checked={selectedDefaultIds.has(item.id)}
+                    onCheckedChange={() => toggleSelectDefault(item.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
                   {getTypeIcon(item.content_type)}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm truncate">
