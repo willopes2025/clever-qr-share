@@ -7,9 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, FileText, Image, Mic, Video, Smile } from "lucide-react";
+import { Plus, Trash2, FileText, Image, Mic, Video, Smile, Sparkles, Loader2 } from "lucide-react";
 import { WarmingContent } from "@/hooks/useWarming";
+import { useGenerateWarmingContent } from "@/hooks/useGenerateWarmingContent";
 
 interface WarmingContentManagerProps {
   contents: WarmingContent[];
@@ -20,7 +22,9 @@ interface WarmingContentManagerProps {
     category: 'greeting' | 'casual' | 'question' | 'reaction' | 'farewell';
   }) => void;
   onDelete: (contentId: string) => void;
+  onDeleteAll?: () => void;
   isAdding?: boolean;
+  isDeletingAll?: boolean;
 }
 
 const CATEGORIES = [
@@ -39,12 +43,21 @@ const CONTENT_TYPES = [
   { value: 'sticker', label: 'Sticker', icon: Smile },
 ];
 
-export function WarmingContentManager({ contents, onAdd, onDelete, isAdding }: WarmingContentManagerProps) {
+const QUANTITY_OPTIONS = [3, 5, 10, 15, 20];
+
+export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, isAdding, isDeletingAll }: WarmingContentManagerProps) {
   const [open, setOpen] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [contentType, setContentType] = useState<'text' | 'audio' | 'image' | 'video' | 'sticker'>('text');
   const [content, setContent] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [category, setCategory] = useState<'greeting' | 'casual' | 'question' | 'reaction' | 'farewell'>('casual');
+  
+  // AI generation state
+  const [aiCategory, setAiCategory] = useState<'greeting' | 'casual' | 'question' | 'reaction' | 'farewell'>('casual');
+  const [aiQuantity, setAiQuantity] = useState(5);
+  
+  const { generateAndSave, isGenerating } = useGenerateWarmingContent();
 
   const handleSubmit = () => {
     if (contentType === 'text' && !content.trim()) return;
@@ -60,6 +73,11 @@ export function WarmingContentManager({ contents, onAdd, onDelete, isAdding }: W
     setMediaUrl('');
     setCategory('casual');
     setOpen(false);
+  };
+
+  const handleGenerateWithAI = async () => {
+    await generateAndSave.mutateAsync({ category: aiCategory, quantity: aiQuantity });
+    setAiDialogOpen(false);
   };
 
   // Separate user content from default content
@@ -85,105 +103,217 @@ export function WarmingContentManager({ contents, onAdd, onDelete, isAdding }: W
           <FileText className="h-5 w-5" />
           Banco de Conteúdos
         </CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar Conteúdo</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Tipo de Conteúdo</Label>
-                <Select 
-                  value={contentType} 
-                  onValueChange={(v) => setContentType(v as typeof contentType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTENT_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <div className="flex items-center gap-2">
-                          <type.icon className="h-4 w-4" />
-                          {type.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select 
-                  value={category} 
-                  onValueChange={(v) => setCategory(v as typeof category)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.icon} {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {contentType === 'text' ? (
+        <div className="flex items-center gap-2">
+          {/* AI Generate Button */}
+          <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Gerar com IA
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Gerar Mensagens com IA</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Texto da Mensagem</Label>
-                  <Textarea 
-                    placeholder="Digite a mensagem..."
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    rows={3}
-                  />
+                  <Label>Categoria</Label>
+                  <Select 
+                    value={aiCategory} 
+                    onValueChange={(v) => setAiCategory(v as typeof aiCategory)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.icon} {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
+
                 <div className="space-y-2">
-                  <Label>URL da Mídia</Label>
-                  <Input 
-                    placeholder="https://exemplo.com/arquivo.jpg"
-                    value={mediaUrl}
-                    onChange={(e) => setMediaUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL pública para a mídia (imagem, áudio ou vídeo)
-                  </p>
+                  <Label>Quantidade</Label>
+                  <Select 
+                    value={String(aiQuantity)} 
+                    onValueChange={(v) => setAiQuantity(Number(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {QUANTITY_OPTIONS.map((qty) => (
+                        <SelectItem key={qty} value={String(qty)}>
+                          {qty} mensagens
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button 
+                  onClick={handleGenerateWithAI} 
+                  disabled={isGenerating}
+                  className="w-full"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Gerar Mensagens
+                    </>
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Content Button */}
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Adicionar Conteúdo</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Conteúdo</Label>
+                  <Select 
+                    value={contentType} 
+                    onValueChange={(v) => setContentType(v as typeof contentType)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTENT_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          <div className="flex items-center gap-2">
+                            <type.icon className="h-4 w-4" />
+                            {type.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  <Select 
+                    value={category} 
+                    onValueChange={(v) => setCategory(v as typeof category)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.icon} {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {contentType === 'text' ? (
                   <div className="space-y-2">
-                    <Label>Legenda (opcional)</Label>
-                    <Input 
-                      placeholder="Legenda da mídia"
+                    <Label>Texto da Mensagem</Label>
+                    <Textarea 
+                      placeholder="Digite a mensagem..."
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
+                      rows={3}
                     />
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-2">
+                    <Label>URL da Mídia</Label>
+                    <Input 
+                      placeholder="https://exemplo.com/arquivo.jpg"
+                      value={mediaUrl}
+                      onChange={(e) => setMediaUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      URL pública para a mídia (imagem, áudio ou vídeo)
+                    </p>
+                    <div className="space-y-2">
+                      <Label>Legenda (opcional)</Label>
+                      <Input 
+                        placeholder="Legenda da mídia"
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
 
-              <Button 
-                onClick={handleSubmit} 
-                disabled={
-                  (contentType === 'text' && !content.trim()) || 
-                  (contentType !== 'text' && !mediaUrl.trim()) || 
-                  isAdding
-                } 
-                className="w-full"
-              >
-                Adicionar Conteúdo
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={
+                    (contentType === 'text' && !content.trim()) || 
+                    (contentType !== 'text' && !mediaUrl.trim()) || 
+                    isAdding
+                  } 
+                  className="w-full"
+                >
+                  Adicionar Conteúdo
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete All Button */}
+          {userContents.length > 0 && onDeleteAll && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Limpar todos os conteúdos?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação irá remover todos os {userContents.length} conteúdos que você criou. 
+                    Os conteúdos padrão não serão afetados. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={onDeleteAll}
+                    disabled={isDeletingAll}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isDeletingAll ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Removendo...
+                      </>
+                    ) : (
+                      'Limpar Tudo'
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="user">
