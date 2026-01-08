@@ -65,7 +65,7 @@ const navGroups: NavGroup[] = [
     items: [
       { icon: Users, label: "Contatos", path: "/contacts", permission: "view_contacts" },
       { icon: Building2, label: "Pesquisa de Leads", path: "/lead-search", permission: "search_leads" },
-      { icon: Instagram, label: "Instagram Scraper", path: "/instagram-scraper", permission: "search_leads" },
+      { icon: Instagram, label: "Leads Instagram", path: "/instagram-scraper", permission: "search_leads" },
       { icon: List, label: "Listas", path: "/broadcast-lists", permission: "view_lists" },
     ],
   },
