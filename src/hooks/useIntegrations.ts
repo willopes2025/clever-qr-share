@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useOrganization } from "./useOrganization";
 import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -39,23 +40,27 @@ export type IntegrationProvider =
 
 export const useIntegrations = () => {
   const { user } = useAuth();
+  const { organization } = useOrganization();
   const queryClient = useQueryClient();
 
+  // If user is part of an organization, fetch integrations from org owner
+  const targetUserId = organization?.owner_id || user?.id;
+
   const { data: integrations = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['integrations', user?.id],
+    queryKey: ['integrations', targetUserId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!targetUserId) return [];
       
       const { data, error } = await supabase
         .from('integrations')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Integration[];
     },
-    enabled: !!user?.id,
+    enabled: !!targetUserId,
     refetchOnMount: 'always',
     staleTime: 0,
   });

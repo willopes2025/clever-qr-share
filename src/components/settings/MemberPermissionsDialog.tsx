@@ -123,7 +123,8 @@ export function MemberPermissionsDialog({ open, onOpenChange, member }: MemberPe
   const categoryOrder: PermissionCategory[] = [
     'dashboard', 'instances', 'warming', 'inbox', 'funnels', 'calendar',
     'analysis', 'contacts', 'leads', 'lists', 'templates', 
-    'campaigns', 'chatbots', 'ai_agents', 'finances', 'settings', 'team', 'notifications'
+    'campaigns', 'chatbots', 'forms', 'ai_agents', 'finances', 'ssotica',
+    'settings', 'team', 'notifications'
   ];
 
   return (
