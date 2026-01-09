@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { ChevronsUpDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 
 interface Option {
   value: string;
@@ -36,6 +37,25 @@ export function MultiSelect({
   maxDisplay = 3,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  const filteredOptions = React.useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    
+    const normalized = searchTerm
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    
+    return options.filter(option => 
+      option.label
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .includes(normalized) ||
+      option.value.toLowerCase().includes(normalized)
+    );
+  }, [options, searchTerm]);
 
   const handleSelect = (selectedValue: string) => {
     if (value.includes(selectedValue)) {
@@ -60,7 +80,10 @@ export function MultiSelect({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) setSearchTerm("");
+      }}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -104,24 +127,39 @@ export function MultiSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0 z-50 bg-popover border" align="start">
-          <ScrollArea className="h-64">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Pesquisar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-8"
+              autoFocus
+            />
+          </div>
+          <ScrollArea className="h-56">
             <div className="p-2 space-y-1">
-              {options.map((option) => (
-                <div
-                  key={option.value}
-                  className={cn(
-                    "flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-accent",
-                    value.includes(option.value) && "bg-accent"
-                  )}
-                  onClick={() => handleSelect(option.value)}
-                >
-                  <Checkbox
-                    checked={value.includes(option.value)}
-                    className="pointer-events-none"
-                  />
-                  <span className="text-sm truncate">{option.label}</span>
+              {filteredOptions.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma opção encontrada
                 </div>
-              ))}
+              ) : (
+                filteredOptions.map((option) => (
+                  <div
+                    key={option.value}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-accent",
+                      value.includes(option.value) && "bg-accent"
+                    )}
+                    onClick={() => handleSelect(option.value)}
+                  >
+                    <Checkbox
+                      checked={value.includes(option.value)}
+                      className="pointer-events-none"
+                    />
+                    <span className="text-sm truncate">{option.label}</span>
+                  </div>
+                ))
+              )}
             </div>
           </ScrollArea>
         </PopoverContent>
