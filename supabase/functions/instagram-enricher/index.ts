@@ -180,7 +180,18 @@ Deno.serve(async (req) => {
       // Extract phone - API data first, then bio/URL extraction
       const phoneFromApi = item.publicPhoneNumber || item.contactPhoneNumber || item.phone || item.businessPhoneNumber || item.business_phone_number || null;
       const phoneFromBioOrUrl = extractPhone(biography, externalUrl);
-      const phone = phoneFromApi || phoneFromBioOrUrl;
+      let phone = phoneFromApi || phoneFromBioOrUrl;
+
+      // Normalize Brazilian phone - add country code 55 if missing
+      if (phone) {
+        const digits = phone.replace(/\D/g, '');
+        // If 10-11 digits (Brazilian national format without DDI), add 55
+        if (digits.length >= 10 && digits.length <= 11 && !digits.startsWith('55')) {
+          phone = '55' + digits;
+        } else {
+          phone = digits;
+        }
+      }
 
       console.log(`Contact extraction for ${username}: email=${email} (api=${emailFromApi}, bio=${emailFromBio}), phone=${phone} (api=${phoneFromApi}, extracted=${phoneFromBioOrUrl})`);
 
