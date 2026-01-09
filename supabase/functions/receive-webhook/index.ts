@@ -630,8 +630,18 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     if (message?.documentMessage) {
       messageType = 'document';
       mediaUrl = message.documentMessage.url || null;
-      content = message.documentMessage.fileName || 'Documento';
-      console.log('Detected DOCUMENT message, fileName:', content, 'url:', mediaUrl);
+      
+      // Capture filename
+      const fileName = message.documentMessage.fileName || 'Documento';
+      
+      // Check for caption/title (text preview from PDF)
+      const caption = message.documentMessage.caption || 
+                      message.documentMessage.title || '';
+      
+      // If there's a caption, include it with the filename
+      content = caption ? `${fileName}\n\n${caption}` : fileName;
+      
+      console.log('Detected DOCUMENT message, fileName:', fileName, 'caption:', caption, 'url:', mediaUrl);
     }
 
     // Sticker message

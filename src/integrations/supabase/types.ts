@@ -2889,6 +2889,7 @@ export type Database = {
           created_at: string
           delivered_at: string | null
           direction: string
+          extracted_content: string | null
           id: string
           is_ai_generated: boolean | null
           media_url: string | null
@@ -2908,6 +2909,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction: string
+          extracted_content?: string | null
           id?: string
           is_ai_generated?: boolean | null
           media_url?: string | null
@@ -2927,6 +2929,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction?: string
+          extracted_content?: string | null
           id?: string
           is_ai_generated?: boolean | null
           media_url?: string | null
