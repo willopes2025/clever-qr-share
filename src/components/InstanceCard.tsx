@@ -20,6 +20,8 @@ interface InstanceCardProps {
   profilePictureUrl?: string | null;
   isBusiness?: boolean;
   deviceLabel?: string | null;
+  chipDevice?: string | null;
+  whatsappDevice?: string | null;
   connectedAt?: string | null;
   onQRCode: () => void;
   onDelete: () => void;
@@ -40,6 +42,8 @@ export const InstanceCard = ({
   profilePictureUrl,
   isBusiness,
   deviceLabel,
+  chipDevice,
+  whatsappDevice,
   connectedAt,
   onQRCode, 
   onDelete,
@@ -139,12 +143,10 @@ export const InstanceCard = ({
 
         {/* Phone & Device Info */}
         <div className="mb-4 p-3 rounded-xl bg-muted/30 space-y-2">
-          {phoneNumber && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Número:</span>
-              <span className="font-mono">{formatPhone(phoneNumber)}</span>
-            </div>
-          )}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Número:</span>
+            <span className="font-mono">{phoneNumber ? formatPhone(phoneNumber) : '-'}</span>
+          </div>
           {profileName && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Perfil:</span>
@@ -152,9 +154,13 @@ export const InstanceCard = ({
             </div>
           )}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Dispositivo:</span>
+            <span className="text-muted-foreground">Chip:</span>
+            <span>{chipDevice || deviceLabel || '-'}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">App:</span>
             <div className="flex items-center gap-1">
-              <span>{deviceLabel || '-'}</span>
+              <span>{whatsappDevice || '-'}</span>
               {onEditDevice && (
                 <Button
                   variant="ghost"

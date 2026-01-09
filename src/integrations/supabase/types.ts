@@ -4853,6 +4853,7 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          chip_device: string | null
           connected_at: string | null
           created_at: string | null
           default_funnel_id: string | null
@@ -4872,8 +4873,10 @@ export type Database = {
           updated_at: string | null
           user_id: string
           warming_level: number
+          whatsapp_device: string | null
         }
         Insert: {
+          chip_device?: string | null
           connected_at?: string | null
           created_at?: string | null
           default_funnel_id?: string | null
@@ -4893,8 +4896,10 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           warming_level?: number
+          whatsapp_device?: string | null
         }
         Update: {
+          chip_device?: string | null
           connected_at?: string | null
           created_at?: string | null
           default_funnel_id?: string | null
@@ -4914,6 +4919,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           warming_level?: number
+          whatsapp_device?: string | null
         }
         Relationships: [
           {

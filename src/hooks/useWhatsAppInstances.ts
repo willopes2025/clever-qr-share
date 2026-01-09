@@ -15,14 +15,17 @@ export interface WhatsAppInstance {
   warming_level: number;
   default_funnel_id: string | null;
   is_notification_only: boolean | null;
-  // New fields
+  // Profile fields
   connected_at: string | null;
   phone_number: string | null;
   profile_name: string | null;
   profile_picture_url: string | null;
   profile_status: string | null;
   is_business: boolean;
+  // Device fields
   device_label: string | null;
+  chip_device: string | null;
+  whatsapp_device: string | null;
 }
 
 export const WARMING_LEVELS = [
@@ -198,7 +201,7 @@ export const useWhatsAppInstances = () => {
     },
   });
 
-  // Atualizar device label
+  // Atualizar device label (legacy)
   const updateDeviceLabel = useMutation({
     mutationFn: async ({ instanceId, deviceLabel }: { instanceId: string; deviceLabel: string }) => {
       const { error } = await supabase
@@ -216,6 +219,41 @@ export const useWhatsAppInstances = () => {
     },
   });
 
+  // Atualizar detalhes da instância (nome, telefone, dispositivos)
+  const updateInstanceDetails = useMutation({
+    mutationFn: async ({ 
+      instanceId, 
+      instanceName,
+      phoneNumber,
+      chipDevice,
+      whatsappDevice,
+    }: { 
+      instanceId: string; 
+      instanceName: string;
+      phoneNumber?: string | null;
+      chipDevice?: string | null;
+      whatsappDevice?: string | null;
+    }) => {
+      const { error } = await supabase
+        .from('whatsapp_instances')
+        .update({ 
+          instance_name: instanceName,
+          phone_number: phoneNumber,
+          chip_device: chipDevice,
+          whatsapp_device: whatsappDevice,
+        })
+        .eq('id', instanceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+      toast.success('Instância atualizada!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao atualizar instância: ${error.message}`);
+    },
+  });
+
   return {
     instances,
     isLoading,
@@ -228,5 +266,6 @@ export const useWhatsAppInstances = () => {
     configureWebhook,
     updateDefaultFunnel,
     updateDeviceLabel,
+    updateInstanceDetails,
   };
 };

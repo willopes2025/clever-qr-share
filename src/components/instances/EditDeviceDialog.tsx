@@ -8,9 +8,17 @@ import { Loader2 } from "lucide-react";
 interface EditDeviceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  instanceName: string;
-  currentDeviceLabel: string | null;
-  onSave: (deviceLabel: string) => Promise<void>;
+  instanceId: string;
+  currentInstanceName: string;
+  currentPhoneNumber: string | null;
+  currentChipDevice: string | null;
+  currentWhatsappDevice: string | null;
+  onSave: (data: {
+    instanceName: string;
+    phoneNumber: string | null;
+    chipDevice: string | null;
+    whatsappDevice: string | null;
+  }) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -28,21 +36,36 @@ const DEVICE_SUGGESTIONS = [
 export const EditDeviceDialog = ({
   open,
   onOpenChange,
-  instanceName,
-  currentDeviceLabel,
+  currentInstanceName,
+  currentPhoneNumber,
+  currentChipDevice,
+  currentWhatsappDevice,
   onSave,
   isLoading,
 }: EditDeviceDialogProps) => {
-  const [deviceLabel, setDeviceLabel] = useState("");
+  const [instanceName, setInstanceName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [chipDevice, setChipDevice] = useState("");
+  const [whatsappDevice, setWhatsappDevice] = useState("");
 
   useEffect(() => {
     if (open) {
-      setDeviceLabel(currentDeviceLabel || "");
+      setInstanceName(currentInstanceName || "");
+      setPhoneNumber(currentPhoneNumber || "");
+      setChipDevice(currentChipDevice || "");
+      setWhatsappDevice(currentWhatsappDevice || "");
     }
-  }, [open, currentDeviceLabel]);
+  }, [open, currentInstanceName, currentPhoneNumber, currentChipDevice, currentWhatsappDevice]);
 
   const handleSave = async () => {
-    await onSave(deviceLabel);
+    if (!instanceName.trim()) return;
+    
+    await onSave({
+      instanceName: instanceName.trim(),
+      phoneNumber: phoneNumber.trim() || null,
+      chipDevice: chipDevice.trim() || null,
+      whatsappDevice: whatsappDevice.trim() || null,
+    });
     onOpenChange(false);
   };
 
@@ -50,38 +73,87 @@ export const EditDeviceDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Identificar Dispositivo</DialogTitle>
+          <DialogTitle>Editar Instância</DialogTitle>
           <DialogDescription>
-            Informe o modelo do aparelho conectado à instância "{instanceName}"
+            Configure os detalhes da instância "{currentInstanceName}"
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Instance Name - Required */}
           <div className="space-y-2">
-            <Label htmlFor="device">Modelo do Dispositivo</Label>
+            <Label htmlFor="instanceName">
+              Título da Instância <span className="text-destructive">*</span>
+            </Label>
             <Input
-              id="device"
-              placeholder="Ex: iPhone 15 Pro, Samsung S24..."
-              value={deviceLabel}
-              onChange={(e) => setDeviceLabel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSave();
-                }
-              }}
+              id="instanceName"
+              placeholder="Ex: Vendas, Suporte, Marketing..."
+              value={instanceName}
+              onChange={(e) => setInstanceName(e.target.value)}
             />
           </div>
 
+          {/* Phone Number - Optional */}
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Sugestões</Label>
-            <div className="flex flex-wrap gap-2">
-              {DEVICE_SUGGESTIONS.map((suggestion) => (
+            <Label htmlFor="phoneNumber">Número de Telefone</Label>
+            <Input
+              id="phoneNumber"
+              placeholder="Ex: +55 27 99999-9999"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Número completo com DDI e DDD
+            </p>
+          </div>
+
+          {/* Chip Device - Optional */}
+          <div className="space-y-2">
+            <Label htmlFor="chipDevice">Dispositivo do Chip</Label>
+            <Input
+              id="chipDevice"
+              placeholder="Ex: iPhone 15 Pro, Samsung S24..."
+              value={chipDevice}
+              onChange={(e) => setChipDevice(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Aparelho onde o chip SIM está fisicamente
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {DEVICE_SUGGESTIONS.slice(0, 4).map((suggestion) => (
                 <Button
                   key={suggestion}
                   variant="outline"
                   size="sm"
-                  className="text-xs h-7"
-                  onClick={() => setDeviceLabel(suggestion)}
+                  className="text-xs h-6 px-2"
+                  onClick={() => setChipDevice(suggestion)}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* WhatsApp Device - Optional */}
+          <div className="space-y-2">
+            <Label htmlFor="whatsappDevice">Dispositivo do WhatsApp</Label>
+            <Input
+              id="whatsappDevice"
+              placeholder="Ex: iPhone 15 Pro, Samsung S24..."
+              value={whatsappDevice}
+              onChange={(e) => setWhatsappDevice(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Aparelho onde o app do WhatsApp está (pode ser diferente do chip via aparelho vinculado)
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {DEVICE_SUGGESTIONS.slice(0, 4).map((suggestion) => (
+                <Button
+                  key={suggestion}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-6 px-2"
+                  onClick={() => setWhatsappDevice(suggestion)}
                 >
                   {suggestion}
                 </Button>
@@ -101,7 +173,7 @@ export const EditDeviceDialog = ({
           <Button
             onClick={handleSave}
             className="flex-1"
-            disabled={isLoading}
+            disabled={isLoading || !instanceName.trim()}
           >
             {isLoading ? (
               <>
