@@ -33,7 +33,7 @@ const Instances = () => {
     updateWarmingLevel,
     configureWebhook,
     updateDefaultFunnel,
-    updateDeviceLabel,
+    updateInstanceDetails,
   } = useWhatsAppInstances();
   
   const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
@@ -411,6 +411,8 @@ const Instances = () => {
                   profilePictureUrl={instance.profile_picture_url}
                   isBusiness={instance.is_business}
                   deviceLabel={instance.device_label}
+                  chipDevice={instance.chip_device}
+                  whatsappDevice={instance.whatsapp_device}
                   connectedAt={instance.connected_at}
                   onQRCode={() => handleShowQRCode(instance)}
                   onDelete={() => handleDeleteInstance(instance.instance_name)}
@@ -581,15 +583,21 @@ const Instances = () => {
         <EditDeviceDialog
           open={deviceDialogOpen}
           onOpenChange={setDeviceDialogOpen}
-          instanceName={deviceDialogInstance.instance_name}
-          currentDeviceLabel={deviceDialogInstance.device_label}
-          onSave={async (deviceLabel) => {
-            await updateDeviceLabel.mutateAsync({
+          instanceId={deviceDialogInstance.id}
+          currentInstanceName={deviceDialogInstance.instance_name}
+          currentPhoneNumber={deviceDialogInstance.phone_number}
+          currentChipDevice={deviceDialogInstance.chip_device}
+          currentWhatsappDevice={deviceDialogInstance.whatsapp_device}
+          onSave={async (data) => {
+            await updateInstanceDetails.mutateAsync({
               instanceId: deviceDialogInstance.id,
-              deviceLabel,
+              instanceName: data.instanceName,
+              phoneNumber: data.phoneNumber,
+              chipDevice: data.chipDevice,
+              whatsappDevice: data.whatsappDevice,
             });
           }}
-          isLoading={updateDeviceLabel.isPending}
+          isLoading={updateInstanceDetails.isPending}
         />
       )}
 
