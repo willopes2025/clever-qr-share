@@ -544,21 +544,30 @@ Deno.serve(async (req: Request) => {
       // Check if user is a team member and verify permissions
       const { data: teamMember } = await supabaseAdmin
         .from('team_members')
-        .select('organization_id, permissions')
+        .select('organization_id, permissions, role')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .single();
 
       if (teamMember) {
-        const permissions = teamMember.permissions as Record<string, boolean> | null;
-        if (!permissions?.view_ssotica) {
-          console.error('[ssOtica] Member does not have view_ssotica permission');
-          return new Response(JSON.stringify({ error: 'Permissão negada: acesso ao ssOtica não autorizado' }), {
-            status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+        // Admin and owner roles have full access
+        if (teamMember.role === 'admin' || teamMember.role === 'owner') {
+          console.log('[ssOtica] Admin/Owner access granted for user:', user.id);
+        } else {
+          // For regular members, check specific permission
+          const permissions = teamMember.permissions as Record<string, boolean> | null;
+          // Default to true if permission is not explicitly set (for backward compatibility)
+          const hasPermission = permissions?.view_ssotica !== false;
+          
+          if (!hasPermission) {
+            console.error('[ssOtica] Member does not have view_ssotica permission');
+            return new Response(JSON.stringify({ error: 'Permissão negada: acesso ao ssOtica não autorizado' }), {
+              status: 403,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+          console.log('[ssOtica] Member permission verified for user:', user.id);
         }
-        console.log('[ssOtica] Member permission verified for user:', user.id);
       }
     }
 
