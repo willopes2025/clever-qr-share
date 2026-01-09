@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Target, Plus, ChevronRight, DollarSign, FileText, CheckSquare, AlertCircle } from "lucide-react";
+import { Target, Plus, ChevronRight, DollarSign, FileText, CheckSquare, AlertCircle, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,7 @@ import {
 import { useFunnels } from "@/hooks/useFunnels";
 import { useDealTasks } from "@/hooks/useDealTasks";
 import { DealFormDialog } from "@/components/funnels/DealFormDialog";
+import { MoveDealFunnelDialog } from "@/components/funnels/MoveDealFunnelDialog";
 import { DealTasksSection } from "@/components/funnels/DealTasksSection";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
@@ -34,6 +35,7 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
   const { funnels, updateDeal, useContactDeal } = useFunnels();
   const { data: activeDeal, isLoading } = useContactDeal(contactId);
   const [showDealForm, setShowDealForm] = useState(false);
+  const [showMoveFunnel, setShowMoveFunnel] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(true);
   const [editingNotes, setEditingNotes] = useState(false);
@@ -204,6 +206,17 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
           </Select>
         </div>
 
+        {/* Move to Another Funnel */}
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full text-xs gap-1.5"
+          onClick={() => setShowMoveFunnel(true)}
+        >
+          <ArrowRightLeft className="h-3 w-3" />
+          Mover para outro funil
+        </Button>
+
         <Separator />
 
         {/* Notes Section */}
@@ -287,6 +300,14 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
           </CollapsibleContent>
         </Collapsible>
       </div>
+
+      {/* Move to Another Funnel Dialog */}
+      <MoveDealFunnelDialog
+        deal={activeDeal as any}
+        currentFunnelId={activeDeal.funnel_id}
+        open={showMoveFunnel}
+        onOpenChange={setShowMoveFunnel}
+      />
     </div>
   );
 };

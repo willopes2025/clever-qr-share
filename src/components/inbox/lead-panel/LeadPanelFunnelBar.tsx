@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Target, Plus, ChevronRight, Clock } from "lucide-react";
+import { Target, Plus, ChevronRight, Clock, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { useFunnels } from "@/hooks/useFunnels";
 import { DealFormDialog } from "@/components/funnels/DealFormDialog";
+import { MoveDealFunnelDialog } from "@/components/funnels/MoveDealFunnelDialog";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,6 +25,7 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
   const { funnels, updateDeal, useContactDeal } = useFunnels();
   const { data: activeDeal, isLoading } = useContactDeal(contactId);
   const [showDealForm, setShowDealForm] = useState(false);
+  const [showMoveFunnel, setShowMoveFunnel] = useState(false);
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -115,6 +117,16 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
           variant="ghost" 
           size="icon"
           className="h-7 w-7 shrink-0"
+          onClick={() => setShowMoveFunnel(true)}
+          title="Mover para outro funil"
+        >
+          <ArrowRightLeft className="h-3.5 w-3.5" />
+        </Button>
+
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="h-7 w-7 shrink-0"
           onClick={() => navigate('/funnels')}
         >
           <ChevronRight className="h-3.5 w-3.5" />
@@ -128,6 +140,14 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
           <span>Na etapa há {formatDistanceToNow(new Date(activeDeal.entered_stage_at), { locale: ptBR })}</span>
         </div>
       )}
+
+      {/* Move to Another Funnel Dialog */}
+      <MoveDealFunnelDialog
+        deal={activeDeal as any}
+        currentFunnelId={activeDeal.funnel_id}
+        open={showMoveFunnel}
+        onOpenChange={setShowMoveFunnel}
+      />
     </div>
   );
 };
