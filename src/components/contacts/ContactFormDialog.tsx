@@ -22,9 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Plus } from "lucide-react";
 import { Contact } from "@/hooks/useContacts";
-import { useCustomFields } from "@/hooks/useCustomFields";
+import { useCustomFields, FieldType } from "@/hooks/useCustomFields";
 import { DynamicField } from "./DynamicField";
+import { FieldSelector } from "./FieldSelector";
+import { InlineFieldCreator } from "./InlineFieldCreator";
 
 const contactSchema = z.object({
   phone: z
@@ -53,8 +56,10 @@ export const ContactFormDialog = ({
   contact,
   isLoading,
 }: ContactFormDialogProps) => {
-  const { fieldDefinitions, updateField } = useCustomFields();
+  const { fieldDefinitions, updateField, createField } = useCustomFields();
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [addedFieldIds, setAddedFieldIds] = useState<string[]>([]);
+  const [showCreateField, setShowCreateField] = useState(false);
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
@@ -77,15 +82,42 @@ export const ContactFormDialog = ({
     // Load custom field values from contact
     const existingCustomFields = (contact?.custom_fields as Record<string, unknown>) || {};
     setCustomFieldValues(existingCustomFields);
-  }, [contact, form]);
+    
+    // When editing, add fields that have values
+    if (contact && fieldDefinitions) {
+      const fieldsWithValues = fieldDefinitions
+        .filter((def) => existingCustomFields[def.field_key] !== undefined)
+        .map((def) => def.id);
+      setAddedFieldIds(fieldsWithValues);
+    } else {
+      setAddedFieldIds([]);
+    }
+  }, [contact, form, fieldDefinitions]);
+
+  // Reset states when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setShowCreateField(false);
+    }
+  }, [open]);
 
   const handleSubmit = (data: ContactFormValues) => {
+    // Only include values for added fields
+    const filteredCustomFields: Record<string, unknown> = {};
+    addedFieldIds.forEach((fieldId) => {
+      const def = fieldDefinitions?.find((d) => d.id === fieldId);
+      if (def && customFieldValues[def.field_key] !== undefined) {
+        filteredCustomFields[def.field_key] = customFieldValues[def.field_key];
+      }
+    });
+
     onSubmit({
       ...data,
-      custom_fields: customFieldValues,
+      custom_fields: filteredCustomFields,
     });
     form.reset();
     setCustomFieldValues({});
+    setAddedFieldIds([]);
   };
 
   const handleCustomFieldChange = (fieldKey: string, value: unknown) => {
@@ -96,7 +128,7 @@ export const ContactFormDialog = ({
   };
 
   const handleAddOption = async (fieldId: string, option: string) => {
-    const field = fieldDefinitions.find((f) => f.id === fieldId);
+    const field = fieldDefinitions?.find((f) => f.id === fieldId);
     if (field) {
       const currentOptions = (field.options as string[]) || [];
       if (!currentOptions.includes(option)) {
@@ -108,7 +140,43 @@ export const ContactFormDialog = ({
     }
   };
 
-  const hasCustomFields = fieldDefinitions.length > 0;
+  const handleSelectField = (fieldId: string) => {
+    if (!addedFieldIds.includes(fieldId)) {
+      setAddedFieldIds((prev) => [...prev, fieldId]);
+    }
+  };
+
+  const handleRemoveField = (fieldId: string) => {
+    setAddedFieldIds((prev) => prev.filter((id) => id !== fieldId));
+    // Also clear the value
+    const def = fieldDefinitions?.find((d) => d.id === fieldId);
+    if (def) {
+      setCustomFieldValues((prev) => {
+        const newValues = { ...prev };
+        delete newValues[def.field_key];
+        return newValues;
+      });
+    }
+  };
+
+  const handleCreateField = async (field: {
+    field_name: string;
+    field_key: string;
+    field_type: FieldType;
+    is_required: boolean;
+    options: string[];
+    display_order: number;
+  }) => {
+    const result = await createField.mutateAsync(field);
+    if (result?.id) {
+      setAddedFieldIds((prev) => [...prev, result.id]);
+    }
+    setShowCreateField(false);
+  };
+
+  const addedFields = fieldDefinitions?.filter((def) =>
+    addedFieldIds.includes(def.id)
+  ) || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -195,14 +263,15 @@ export const ContactFormDialog = ({
                 )}
               />
 
-              {hasCustomFields && (
+              {/* Added Dynamic Fields */}
+              {addedFields.length > 0 && (
                 <>
                   <Separator className="my-4" />
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium text-muted-foreground">
                       Campos Adicionais
                     </h4>
-                    {fieldDefinitions.map((definition) => (
+                    {addedFields.map((definition) => (
                       <div key={definition.id} className="space-y-2">
                         <label className="text-sm font-medium">
                           {definition.field_name}
@@ -222,11 +291,41 @@ export const ContactFormDialog = ({
                               ? handleAddOption
                               : undefined
                           }
+                          onRemove={() => handleRemoveField(definition.id)}
                         />
                       </div>
                     ))}
                   </div>
                 </>
+              )}
+
+              {/* Inline Field Creator */}
+              {showCreateField && (
+                <InlineFieldCreator
+                  onSave={handleCreateField}
+                  onCancel={() => setShowCreateField(false)}
+                  isLoading={createField.isPending}
+                />
+              )}
+
+              {/* Add Field Button */}
+              {!showCreateField && (
+                <FieldSelector
+                  availableFields={fieldDefinitions || []}
+                  addedFieldIds={addedFieldIds}
+                  onSelectField={handleSelectField}
+                  onCreateNew={() => setShowCreateField(true)}
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar campo
+                  </Button>
+                </FieldSelector>
               )}
 
               <div className="flex justify-end gap-2 pt-4">
