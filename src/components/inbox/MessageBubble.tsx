@@ -128,6 +128,7 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: Me
                 messageType={message.message_type}
                 messageId={message.id}
                 transcription={message.transcription}
+                extractedContent={message.extracted_content}
               />
             </div>
           )}

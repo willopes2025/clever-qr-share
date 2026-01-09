@@ -60,6 +60,7 @@ export interface InboxMessage {
   read_at: string | null;
   created_at: string;
   transcription?: string | null;
+  extracted_content?: string | null;
   sent_by_user_id?: string | null;
   sent_by_user?: {
     full_name: string | null;

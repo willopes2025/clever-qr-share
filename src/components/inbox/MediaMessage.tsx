@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { FileText, Download, Play, Pause, Loader2, FileAudio, ExternalLink, AlertCircle, RotateCcw } from "lucide-react";
+import { FileText, Download, Play, Pause, Loader2, FileAudio, ExternalLink, AlertCircle, RotateCcw, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +14,7 @@ interface MediaMessageProps {
   messageType: string;
   messageId?: string;
   transcription?: string | null;
+  extractedContent?: string | null;
 }
 
 const ERROR_TRANSCRIPTIONS = [
@@ -34,12 +35,17 @@ const getAudioMimeType = (url: string): string => {
   }
 };
 
-export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }: MediaMessageProps) => {
+export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription, extractedContent }: MediaMessageProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [localTranscription, setLocalTranscription] = useState(transcription);
   const [audioError, setAudioError] = useState(false);
+  
+  // PDF extraction states
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [localExtractedContent, setLocalExtractedContent] = useState(extractedContent);
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   const getFileNameFromUrl = (url: string) => {
     try {
@@ -89,6 +95,34 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }
   );
 
   const showTranscribeButton = messageId && (!localTranscription || canRetryTranscription);
+
+  // PDF extraction handler
+  const handleExtractPdf = async () => {
+    if (!messageId) return;
+    
+    setIsExtracting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('extract-pdf-content', {
+        body: { messageId, pdfUrl: mediaUrl },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+
+      setLocalExtractedContent(data.content);
+      setIsContentExpanded(true);
+      toast.success("Conteúdo extraído!");
+    } catch (error) {
+      console.error('PDF extraction error:', error);
+      const message = error instanceof Error ? error.message : 'Erro ao extrair conteúdo';
+      toast.error(message);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const showExtractButton = messageId && !localExtractedContent && 
+    (messageType === 'document' || mediaUrl.match(/\.pdf$/i));
 
   // Image
   if (messageType === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
@@ -217,26 +251,71 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription }
 
   // Document/File
   return (
-    <div className="flex items-center gap-3 p-3 bg-background/50 rounded-lg min-w-[200px]">
-      <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
-        <FileText className="h-5 w-5 text-primary" />
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 p-3 bg-background/50 rounded-lg min-w-[200px]">
+        <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
+          <FileText className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">
+            {getFileNameFromUrl(mediaUrl)}
+          </p>
+          <p className="text-xs text-muted-foreground">Documento</p>
+        </div>
+        
+        {/* Extract PDF content button */}
+        {showExtractButton && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={handleExtractPdf}
+            disabled={isExtracting}
+            title="Extrair conteúdo do PDF"
+          >
+            {isExtracting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <BookOpen className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+        
+        {/* Toggle extracted content button */}
+        {localExtractedContent && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setIsContentExpanded(!isContentExpanded)}
+            title={isContentExpanded ? "Recolher conteúdo" : "Expandir conteúdo"}
+          >
+            {isContentExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          asChild
+        >
+          <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download>
+            <Download className="h-4 w-4" />
+          </a>
+        </Button>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">
-          {getFileNameFromUrl(mediaUrl)}
-        </p>
-        <p className="text-xs text-muted-foreground">Documento</p>
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 shrink-0"
-        asChild
-      >
-        <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download>
-          <Download className="h-4 w-4" />
-        </a>
-      </Button>
+      
+      {/* Extracted content display */}
+      {localExtractedContent && isContentExpanded && (
+        <div className="px-3 py-2 bg-background/30 rounded text-xs whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+          📝 {localExtractedContent}
+        </div>
+      )}
     </div>
   );
 };
