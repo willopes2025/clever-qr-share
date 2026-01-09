@@ -9,10 +9,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Loader2, Download, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { normalizePhoneWithCountryCode } from "@/lib/phone-utils";
 
 interface ImportInstagramLeadsDialogProps {
   open: boolean;
@@ -44,15 +44,23 @@ export function ImportInstagramLeadsDialog({
       let skipped = 0;
 
       for (const profile of profiles) {
-        // Use username as phone placeholder
-        const phoneIdentifier = `instagram:${profile.username}`;
+        // Prioritize enriched phone, fallback to instagram identifier
+        let phoneIdentifier: string;
+        if (profile.phone) {
+          // Normalize phone with country code 55
+          phoneIdentifier = normalizePhoneWithCountryCode(profile.phone, '55');
+        } else {
+          phoneIdentifier = `instagram:${profile.username}`;
+        }
         
-        // Check if contact already exists
+        const instagramIdentifier = `instagram:${profile.username}`;
+        
+        // Check if contact already exists by phone OR instagram identifier
         const { data: existing } = await supabase
           .from('contacts')
           .select('id')
           .eq('user_id', user.id)
-          .eq('phone', phoneIdentifier)
+          .or(`phone.eq.${phoneIdentifier},phone.eq.${instagramIdentifier}`)
           .maybeSingle();
 
         if (existing) {
@@ -80,7 +88,7 @@ export function ImportInstagramLeadsDialog({
             user_id: user.id,
             name: profile.full_name || profile.username,
             phone: phoneIdentifier,
-            email: null,
+            email: profile.email || null,
             avatar_url: profile.profile_pic_url || null,
             notes: notes.join('\n'),
             status: 'lead',
@@ -90,6 +98,8 @@ export function ImportInstagramLeadsDialog({
               instagram_private: profile.is_private,
               instagram_source: profile.source_username,
               instagram_scrape_type: profile.scrape_type,
+              instagram_original_phone: profile.phone || null,
+              instagram_email: profile.email || null,
               source: 'instagram_scraper'
             }
           });
