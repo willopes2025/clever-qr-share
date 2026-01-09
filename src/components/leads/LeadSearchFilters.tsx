@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { SearchFilters } from "@/pages/LeadSearch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, RotateCcw, Building, MapPin, Phone, Calendar, Hash, Ban } from "lucide-react";
+import { Search, RotateCcw, Building, MapPin, Phone, Calendar, Hash, Ban, Loader2 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
@@ -14,7 +14,7 @@ import { ESTADOS } from "@/data/estados";
 import { DDD_LIST, getDddsByUf } from "@/data/ddd";
 import { CNAE_LIST, searchCnae } from "@/data/cnae";
 import { NATUREZA_JURIDICA } from "@/data/natureza-juridica";
-import { searchMunicipios, getMunicipiosByUf } from "@/data/municipios";
+import { useIbgeMunicipios } from "@/hooks/useIbgeMunicipios";
 
 interface LeadSearchFiltersProps {
   filters: SearchFilters;
@@ -49,10 +49,26 @@ export const LeadSearchFilters = ({
 }: LeadSearchFiltersProps) => {
   const [cnaeSearch, setCnaeSearch] = useState("");
   const [municipioSearch, setMunicipioSearch] = useState("");
+  
+  // Use IBGE API for municipalities
+  const { municipios: ibgeMunicipios, isLoading: isLoadingMunicipios } = useIbgeMunicipios(filters.uf);
 
   const updateFilter = <K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
     setFilters({ ...filters, [key]: value });
   };
+  
+  // Clear municipio selection when UF changes
+  useEffect(() => {
+    if (filters.municipio.length > 0) {
+      // Check if selected municipios are still valid for the current UFs
+      const validMunicipios = filters.municipio.filter(m => 
+        ibgeMunicipios.includes(m)
+      );
+      if (validMunicipios.length !== filters.municipio.length) {
+        updateFilter('municipio', validMunicipios);
+      }
+    }
+  }, [ibgeMunicipios]);
 
   // For mutually exclusive filters - updates both in a single state change
   const updateExclusiveFilters = (updates: Partial<SearchFilters>) => {
@@ -90,23 +106,36 @@ export const LeadSearchFilters = ({
     return ddds;
   }, [filters.uf]);
 
-  // Filter municipios based on selected UFs
+  // Filter municipios based on selected UFs and search term
   const municipioOptions = useMemo(() => {
     if (filters.uf.length === 0) {
-      return municipioSearch.length >= 2 
-        ? searchMunicipios(municipioSearch).map(m => ({ value: m, label: m }))
-        : [];
+      return [];
     }
-    const municipios: string[] = [];
-    filters.uf.forEach(uf => {
-      getMunicipiosByUf(uf).forEach(m => {
-        if (!municipioSearch || m.includes(municipioSearch.toUpperCase())) {
-          municipios.push(m);
-        }
-      });
-    });
-    return municipios.slice(0, 50).map(m => ({ value: m, label: m }));
-  }, [filters.uf, municipioSearch]);
+    
+    if (isLoadingMunicipios) {
+      return [];
+    }
+    
+    if (municipioSearch.length < 2) {
+      // Show first 50 if no search
+      return ibgeMunicipios.slice(0, 50).map(m => ({ value: m, label: m }));
+    }
+    
+    // Filter by search term (case insensitive, accent insensitive)
+    const normalizedSearch = municipioSearch
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+    
+    return ibgeMunicipios
+      .filter(m => 
+        m.normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .includes(normalizedSearch)
+      )
+      .slice(0, 50)
+      .map(m => ({ value: m, label: m }));
+  }, [filters.uf, municipioSearch, ibgeMunicipios, isLoadingMunicipios]);
 
   // Filter CNAEs based on search
   const cnaeOptions = useMemo(() => {
@@ -166,14 +195,33 @@ export const LeadSearchFilters = ({
 
             <div>
               <Label className="text-sm font-medium">Municípios</Label>
-              <AutocompleteInput
-                placeholder="Pesquisar município..."
-                options={municipioOptions}
-                value={filters.municipio}
-                onChange={(v) => updateFilter('municipio', v)}
-                onSearch={setMunicipioSearch}
-                emptyMessage={filters.uf.length === 0 ? "Selecione um estado primeiro" : "Nenhum município encontrado"}
-              />
+              {isLoadingMunicipios ? (
+                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando municípios...
+                </div>
+              ) : (
+                <AutocompleteInput
+                  placeholder={filters.uf.length === 0 ? "Selecione um estado primeiro" : "Pesquisar município..."}
+                  options={municipioOptions}
+                  value={filters.municipio}
+                  onChange={(v) => updateFilter('municipio', v)}
+                  onSearch={setMunicipioSearch}
+                  emptyMessage={
+                    filters.uf.length === 0 
+                      ? "Selecione um estado primeiro" 
+                      : municipioSearch.length < 2 
+                        ? "Digite pelo menos 2 letras para filtrar" 
+                        : "Nenhum município encontrado"
+                  }
+                  disabled={filters.uf.length === 0}
+                />
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {filters.uf.length > 0 && !isLoadingMunicipios && (
+                  <>{ibgeMunicipios.length} municípios disponíveis</>
+                )}
+              </p>
             </div>
 
             <div>
