@@ -1,18 +1,35 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Bot, X, Send, Trash2, Loader2, Sparkles } from "lucide-react";
+import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { Bot, X, Send, Trash2, Loader2, Sparkles, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useWilAssistant, WilMessage } from "@/hooks/useWilAssistant";
 
+const STORAGE_KEY = "wil-button-position";
+
 export const WilAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
   const { messages, isLoading, sendMessage, clearHistory } = useWilAssistant();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const constraintsRef = useRef<HTMLDivElement>(null);
+
+  // Load saved position
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        setPosition(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse saved position");
+      }
+    }
+  }, []);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -27,6 +44,13 @@ export const WilAssistant = () => {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen]);
+
+  const handleDragEnd = (_: any, info: PanInfo) => {
+    setIsDragging(false);
+    const newPosition = { x: position.x + info.offset.x, y: position.y + info.offset.y };
+    setPosition(newPosition);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newPosition));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,13 +89,23 @@ export const WilAssistant = () => {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Drag constraints container */}
+      <div ref={constraintsRef} className="fixed inset-4 pointer-events-none z-[59]" />
+
+      {/* Floating Draggable Button */}
       <motion.button
-        onClick={() => setIsOpen(true)}
+        drag
+        dragConstraints={constraintsRef}
+        dragElastic={0.1}
+        dragMomentum={false}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={handleDragEnd}
+        onClick={() => !isDragging && setIsOpen(true)}
+        style={{ x: position.x, y: position.y }}
         className={cn(
-          "fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full",
+          "fixed bottom-20 right-6 z-[60] flex items-center gap-2 rounded-full cursor-grab active:cursor-grabbing",
           "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground",
-          "px-4 py-3 shadow-lg hover:shadow-xl transition-shadow",
+          "pl-2 pr-4 py-3 shadow-lg hover:shadow-xl transition-shadow",
           "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
           isOpen && "hidden"
         )}
@@ -80,6 +114,7 @@ export const WilAssistant = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
+        <GripVertical className="h-4 w-4 opacity-60" />
         <Sparkles className="h-5 w-5" />
         <span className="font-medium">Wil</span>
       </motion.button>
