@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
 
 interface DynamicFieldProps {
@@ -18,6 +18,7 @@ interface DynamicFieldProps {
   value: unknown;
   onChange: (value: unknown) => void;
   onAddOption?: (fieldId: string, option: string) => void;
+  onRemove?: () => void;
 }
 
 export const DynamicField = ({
@@ -25,6 +26,7 @@ export const DynamicField = ({
   value,
   onChange,
   onAddOption,
+  onRemove,
 }: DynamicFieldProps) => {
   const [isAddingOption, setIsAddingOption] = useState(false);
   const [newOption, setNewOption] = useState("");
@@ -40,10 +42,30 @@ export const DynamicField = ({
 
   const options = (definition.options as string[]) || [];
 
+  const renderRemoveButton = () =>
+    onRemove ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+        onClick={onRemove}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    ) : null;
+
+  const wrapWithRemove = (input: React.ReactNode) => (
+    <div className="flex items-center gap-2">
+      <div className="flex-1">{input}</div>
+      {renderRemoveButton()}
+    </div>
+  );
+
   switch (definition.field_type) {
     case "text":
     case "phone":
-      return (
+      return wrapWithRemove(
         <Input
           placeholder={`Digite ${definition.field_name.toLowerCase()}`}
           value={(value as string) || ""}
@@ -52,7 +74,7 @@ export const DynamicField = ({
       );
 
     case "number":
-      return (
+      return wrapWithRemove(
         <Input
           type="number"
           placeholder={`Digite ${definition.field_name.toLowerCase()}`}
@@ -62,7 +84,7 @@ export const DynamicField = ({
       );
 
     case "email":
-      return (
+      return wrapWithRemove(
         <Input
           type="email"
           placeholder="email@exemplo.com"
@@ -72,7 +94,7 @@ export const DynamicField = ({
       );
 
     case "url":
-      return (
+      return wrapWithRemove(
         <Input
           type="url"
           placeholder="https://exemplo.com"
@@ -82,7 +104,7 @@ export const DynamicField = ({
       );
 
     case "date":
-      return (
+      return wrapWithRemove(
         <Input
           type="date"
           value={(value as string) || ""}
@@ -91,7 +113,7 @@ export const DynamicField = ({
       );
 
     case "time":
-      return (
+      return wrapWithRemove(
         <Input
           type="time"
           value={(value as string) || ""}
@@ -100,7 +122,7 @@ export const DynamicField = ({
       );
 
     case "datetime":
-      return (
+      return wrapWithRemove(
         <Input
           type="datetime-local"
           value={(value as string) || ""}
@@ -109,7 +131,7 @@ export const DynamicField = ({
       );
 
     case "boolean":
-      return (
+      return wrapWithRemove(
         <div className="flex items-center gap-2">
           <Checkbox
             checked={(value as boolean) || false}
@@ -120,7 +142,7 @@ export const DynamicField = ({
       );
 
     case "switch":
-      return (
+      return wrapWithRemove(
         <div className="flex items-center gap-2">
           <Switch
             checked={(value as boolean) || false}
@@ -133,8 +155,8 @@ export const DynamicField = ({
       );
 
     case "select":
-      return (
-        <div className="space-y-2">
+      return wrapWithRemove(
+        <div className="flex-1 space-y-2">
           {isAddingOption ? (
             <div className="flex gap-2">
               <Input
@@ -204,8 +226,8 @@ export const DynamicField = ({
 
     case "multi_select":
       const selectedValues = (value as string[]) || [];
-      return (
-        <div className="space-y-2">
+      return wrapWithRemove(
+        <div className="flex-1 space-y-2">
           <div className="flex flex-wrap gap-1 min-h-[32px] p-1 border rounded-md">
             {selectedValues.map((val) => (
               <span
@@ -296,7 +318,7 @@ export const DynamicField = ({
       );
 
     default:
-      return (
+      return wrapWithRemove(
         <Input
           placeholder={`Digite ${definition.field_name.toLowerCase()}`}
           value={(value as string) || ""}
