@@ -5,6 +5,7 @@ import { MobileHeader } from "@/components/MobileHeader";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { MobileSidebarDrawer } from "@/components/MobileSidebarDrawer";
 import { ActivityTracker } from "@/components/productivity/ActivityTracker";
+import { WilAssistant } from "@/components/WilAssistant";
 import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
@@ -44,6 +45,9 @@ const LayoutContent = ({ children, className }: DashboardLayoutProps) => {
       >
         {children}
       </main>
+      
+      {/* Wil AI Assistant */}
+      <WilAssistant />
     </div>
   );
 };
