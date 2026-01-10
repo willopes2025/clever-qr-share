@@ -196,7 +196,7 @@ export const KPISelectionModal = ({
             ))}
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 mt-4 h-[400px] pr-4">
             <TabsContent value="all" className="mt-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filteredWidgets.map(renderWidgetCard)}
