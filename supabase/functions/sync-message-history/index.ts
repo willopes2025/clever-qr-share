@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     // (instance may belong to another team member in the same organization)
     const { data: instanceData, error: instanceError } = await supabase
       .from('whatsapp_instances')
-      .select('id, user_id, default_funnel_id')
+      .select('id, user_id, default_funnel_id, evolution_instance_name')
       .eq('instance_name', instanceName)
       .single();
 
@@ -51,10 +51,14 @@ Deno.serve(async (req) => {
     const instanceId = instanceData.id;
     const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : 0;
 
+    // Use evolution_instance_name for Evolution API calls, fallback to instanceName
+    const evolutionName = instanceData.evolution_instance_name || instanceName;
+    console.log(`[SYNC] Using Evolution API name: ${evolutionName} (display name: ${instanceName})`);
+
     // 1. Fetch all chats from the instance
-    console.log(`[SYNC] Fetching chats for instance ${instanceName}...`);
+    console.log(`[SYNC] Fetching chats for instance ${evolutionName}...`);
     const chatsResponse = await fetch(
-      `${evolutionApiUrl}/chat/findChats/${instanceName}`,
+      `${evolutionApiUrl}/chat/findChats/${evolutionName}`,
       {
         method: 'POST',
         headers: {
@@ -115,7 +119,7 @@ Deno.serve(async (req) => {
       // 3. Fetch messages for this chat
       try {
         const messagesResponse = await fetch(
-          `${evolutionApiUrl}/chat/findMessages/${instanceName}`,
+          `${evolutionApiUrl}/chat/findMessages/${evolutionName}`,
           {
             method: 'POST',
             headers: {
@@ -183,7 +187,7 @@ Deno.serve(async (req) => {
             try {
               console.log(`[SYNC] Fetching profile picture for existing contact ${phone}...`);
               const profileResponse = await fetch(
-                `${evolutionApiUrl}/chat/fetchProfile/${instanceName}`,
+                `${evolutionApiUrl}/chat/fetchProfile/${evolutionName}`,
                 {
                   method: 'POST',
                   headers: {
@@ -217,7 +221,7 @@ Deno.serve(async (req) => {
           try {
             console.log(`[SYNC] Fetching profile picture for new contact ${phone}...`);
             const profileResponse = await fetch(
-              `${evolutionApiUrl}/chat/fetchProfile/${instanceName}`,
+              `${evolutionApiUrl}/chat/fetchProfile/${evolutionName}`,
               {
                 method: 'POST',
                 headers: {
