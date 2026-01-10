@@ -184,7 +184,7 @@ export const KPISelectionModal = ({
         )}
 
         {/* Category Tabs */}
-        <Tabs value={activeCategory} onValueChange={setActiveCategory} className="flex-1 flex flex-col min-h-0">
+        <Tabs value={activeCategory} onValueChange={setActiveCategory} className="flex flex-col min-h-0">
           <TabsList className="w-full justify-start overflow-x-auto flex-nowrap">
             <TabsTrigger value="all" className="shrink-0">
               Todos ({filteredWidgets.length})
@@ -196,21 +196,25 @@ export const KPISelectionModal = ({
             ))}
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4 h-[400px] pr-4">
-            <TabsContent value="all" className="mt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredWidgets.map(renderWidgetCard)}
-              </div>
-            </TabsContent>
+          <div className="mt-4 h-[350px] overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="pr-4">
+                <TabsContent value="all" className="mt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+                    {filteredWidgets.map(renderWidgetCard)}
+                  </div>
+                </TabsContent>
 
-            {categories.map(category => (
-              <TabsContent key={category} value={category} className="mt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {groupedWidgets[category].map(renderWidgetCard)}
-                </div>
-              </TabsContent>
-            ))}
-          </ScrollArea>
+                {categories.map(category => (
+                  <TabsContent key={category} value={category} className="mt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
+                      {groupedWidgets[category].map(renderWidgetCard)}
+                    </div>
+                  </TabsContent>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
         </Tabs>
 
         <DialogFooter className="gap-2 sm:gap-0">
