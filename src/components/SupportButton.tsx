@@ -14,25 +14,25 @@ const supportOptions = [
     icon: BookOpen,
     title: "Documentação",
     description: "Acesse nossa base de conhecimento",
-    action: () => window.open("https://docs.example.com", "_blank"),
+    action: () => window.open("/ajuda", "_self"),
   },
   {
     icon: MessageCircle,
     title: "WhatsApp",
     description: "Fale conosco pelo WhatsApp",
-    action: () => window.open("https://wa.me/5511999999999", "_blank"),
+    action: () => window.open("https://wa.me/5527999400707", "_blank"),
   },
   {
     icon: Mail,
     title: "Email",
-    description: "suporte@exemplo.com",
-    action: () => window.open("mailto:suporte@exemplo.com", "_blank"),
+    description: "contato@wideic.com",
+    action: () => window.open("mailto:contato@wideic.com", "_blank"),
   },
   {
     icon: Phone,
     title: "Telefone",
-    description: "(11) 9999-9999",
-    action: () => window.open("tel:+5511999999999", "_blank"),
+    description: "(27) 99940-0707",
+    action: () => window.open("tel:+5527999400707", "_blank"),
   },
 ];
 

@@ -46,6 +46,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
 const PublicFormPage = lazy(() => import("./pages/PublicFormPage"));
+const Ajuda = lazy(() => import("./pages/Ajuda"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -282,6 +283,7 @@ const App = () => (
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/f/:slug" element={<PublicFormPage />} />
                   <Route path="/form/:slug/*" element={<PublicFormPage />} />
+                  <Route path="/ajuda" element={<Ajuda />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
