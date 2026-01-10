@@ -352,14 +352,12 @@ textarea {
   pointer-events: none !important;
 }
 
-button:not(:disabled),
+button:not(:disabled):not(.fixed):not(.absolute),
 input[type="submit"]:not(:disabled),
 input[type="button"]:not(:disabled),
-[role="button"]:not([aria-disabled="true"]),
+[role="button"]:not([aria-disabled="true"]):not(.fixed):not(.absolute),
 a[role="button"]:not([aria-disabled="true"]) {
   pointer-events: auto !important;
-  position: relative;
-  z-index: 10;
 }
 
 /* WhatsApp Chat Background */
