@@ -665,6 +665,7 @@ export type Database = {
           name: string
           size_options: string[] | null
           widget_key: string
+          widget_type: string | null
         }
         Insert: {
           admin_only?: boolean | null
@@ -680,6 +681,7 @@ export type Database = {
           name: string
           size_options?: string[] | null
           widget_key: string
+          widget_type?: string | null
         }
         Update: {
           admin_only?: boolean | null
@@ -695,6 +697,7 @@ export type Database = {
           name?: string
           size_options?: string[] | null
           widget_key?: string
+          widget_type?: string | null
         }
         Relationships: []
       }

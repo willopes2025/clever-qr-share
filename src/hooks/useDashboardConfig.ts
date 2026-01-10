@@ -23,6 +23,7 @@ export interface AvailableWidget {
   admin_only: boolean;
   member_only: boolean;
   display_order: number;
+  widget_type: 'kpi' | 'bar_chart' | 'pie_chart' | 'area_chart' | 'progress';
 }
 
 export interface DashboardConfig {
@@ -55,7 +56,12 @@ export const useDashboardConfig = () => {
       return;
     }
 
-    setAvailableWidgets(data || []);
+    // Cast widget_type to the expected union type
+    const widgets = (data || []).map(w => ({
+      ...w,
+      widget_type: (w.widget_type || 'kpi') as 'kpi' | 'bar_chart' | 'pie_chart' | 'area_chart' | 'progress'
+    }));
+    setAvailableWidgets(widgets);
   }, []);
 
   const fetchConfig = useCallback(async () => {
