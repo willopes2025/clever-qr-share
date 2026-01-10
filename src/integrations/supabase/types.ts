@@ -650,6 +650,54 @@ export type Database = {
           },
         ]
       }
+      available_widgets: {
+        Row: {
+          admin_only: boolean | null
+          category: string
+          created_at: string
+          default_size: string | null
+          description: string | null
+          display_order: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          member_only: boolean | null
+          name: string
+          size_options: string[] | null
+          widget_key: string
+        }
+        Insert: {
+          admin_only?: boolean | null
+          category: string
+          created_at?: string
+          default_size?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          member_only?: boolean | null
+          name: string
+          size_options?: string[] | null
+          widget_key: string
+        }
+        Update: {
+          admin_only?: boolean | null
+          category?: string
+          created_at?: string
+          default_size?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          member_only?: boolean | null
+          name?: string
+          size_options?: string[] | null
+          widget_key?: string
+        }
+        Relationships: []
+      }
       broadcast_list_contacts: {
         Row: {
           added_at: string
@@ -2009,6 +2057,39 @@ export type Database = {
           is_required?: boolean | null
           options?: Json | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      dashboard_configs: {
+        Row: {
+          config_type: string
+          created_at: string
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string
+          user_id: string
+          widgets: Json | null
+        }
+        Insert: {
+          config_type?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id: string
+          widgets?: Json | null
+        }
+        Update: {
+          config_type?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string
+          widgets?: Json | null
         }
         Relationships: []
       }
