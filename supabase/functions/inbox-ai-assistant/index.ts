@@ -59,7 +59,18 @@ Deno.serve(async (req) => {
 
     // Prepare conversation history for AI
     const contactData = conversation.contact as unknown as { name: string | null; phone: string } | null;
-    const contactName = contactData?.name || contactData?.phone || 'Cliente';
+    
+    // Helper function to validate contact names (avoid LID_, phone numbers, etc.)
+    const isValidContactName = (name: string | undefined | null): boolean => {
+      if (!name || name.trim().length < 2) return false;
+      if (name.startsWith('LID_')) return false;
+      if (/^\d+$/.test(name)) return false; // Only numbers
+      if (/^55\d{10,11}$/.test(name)) return false; // BR phone number
+      return true;
+    };
+    
+    const rawName = contactData?.name;
+    const contactName = isValidContactName(rawName) ? rawName! : 'Cliente';
     
     const conversationHistory = (messages as Message[] || [])
       .reverse()
