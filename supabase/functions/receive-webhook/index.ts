@@ -751,8 +751,19 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     const finalMediaUrl = persistedMediaUrl || mediaUrl;
 
     const isFromMe = key.fromMe === true;
+    
+    // Helper function to validate contact names
+    const isValidContactName = (name: string | undefined | null): boolean => {
+      if (!name || name.trim().length < 2) return false;
+      if (name.startsWith('LID_')) return false;
+      if (/^\d+$/.test(name)) return false; // Only numbers
+      if (/^55\d{10,11}$/.test(name)) return false; // BR phone number
+      return true;
+    };
+    
     // Don't use pushName for outgoing messages (would be "Você" or similar)
-    const contactName = (!isFromMe && pushName) ? pushName : phone;
+    const rawContactName = (!isFromMe && pushName) ? pushName : null;
+    const contactName = isValidContactName(rawContactName) ? rawContactName! : 'Cliente';
     
     console.log(`Processing: phone=${phone}, labelId=${labelId}, useLidAsIdentifier=${useLidAsIdentifier}, fromMe=${isFromMe}, type=${messageType}, hasMedia=${!!mediaUrl}, content=${content.substring(0, 50)}...`);
 

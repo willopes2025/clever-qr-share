@@ -214,7 +214,17 @@ Deno.serve(async (req) => {
             }
           }
         } else {
-          const contactName = chat.name || chat.pushName || normalizedPhone;
+          // Helper function to validate contact names
+          const isValidContactName = (name: string | undefined | null): boolean => {
+            if (!name || name.trim().length < 2) return false;
+            if (name.startsWith('LID_')) return false;
+            if (/^\d+$/.test(name)) return false; // Only numbers
+            if (/^55\d{10,11}$/.test(name)) return false; // BR phone number
+            return true;
+          };
+          
+          const rawName = chat.name || chat.pushName;
+          const contactName = isValidContactName(rawName) ? rawName! : 'Cliente';
           
           // Fetch profile picture for new contact
           let avatarUrl: string | null = null;
