@@ -703,6 +703,7 @@ Deno.serve(async (req: Request) => {
     // For manual trigger, we need to fetch the last inbound message
     let effectiveMessageContent = messageContent;
     let instanceName = providedInstanceName;
+    let evolutionInstanceName = providedInstanceName; // For Evolution API calls
     
     if (!conversationId) {
       throw new Error('conversationId is required');
@@ -713,19 +714,33 @@ Deno.serve(async (req: Request) => {
       console.log('[AI-AGENT] Manual trigger: fetching instance name from database');
       const { data: instanceData } = await supabase
         .from('whatsapp_instances')
-        .select('instance_name')
+        .select('instance_name, evolution_instance_name')
         .eq('id', instanceId)
         .single();
       
       if (instanceData?.instance_name) {
         instanceName = instanceData.instance_name;
-        console.log('[AI-AGENT] Found instance name:', instanceName);
+        // Use evolution_instance_name for Evolution API calls, fallback to instance_name
+        evolutionInstanceName = instanceData.evolution_instance_name || instanceData.instance_name;
+        console.log('[AI-AGENT] Found instance name:', instanceName, '| Evolution API name:', evolutionInstanceName);
       } else {
         console.error('[AI-AGENT] Instance not found for id:', instanceId);
         return new Response(
           JSON.stringify({ success: false, reason: 'Instance not found' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+    } else if (instanceId && instanceName) {
+      // Even if instanceName was provided, fetch evolution_instance_name for API calls
+      const { data: instanceData } = await supabase
+        .from('whatsapp_instances')
+        .select('evolution_instance_name')
+        .eq('id', instanceId)
+        .single();
+      
+      if (instanceData?.evolution_instance_name) {
+        evolutionInstanceName = instanceData.evolution_instance_name;
+        console.log('[AI-AGENT] Using Evolution API name:', evolutionInstanceName);
       }
     }
     
@@ -1049,7 +1064,7 @@ Deno.serve(async (req: Request) => {
         if (!phoneHandoff.startsWith('55')) phoneHandoff = '55' + phoneHandoff;
       }
 
-      await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
+      await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1924,7 +1939,7 @@ ${mapeamento}
     // Send text message if needed
     if (shouldSendText && adaptiveFormat === 'text') {
       console.log('[AI-AGENT] Sending text message...');
-      const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
+      const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1970,7 +1985,7 @@ ${mapeamento}
           
           // Send audio via Evolution API
           console.log('[AI-AGENT] Sending audio message...');
-          const sendAudioResponse = await fetch(`${evolutionApiUrl}/message/sendWhatsAppAudio/${instanceName}`, {
+          const sendAudioResponse = await fetch(`${evolutionApiUrl}/message/sendWhatsAppAudio/${evolutionInstanceName}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -2002,7 +2017,7 @@ ${mapeamento}
     // If config is 'both', also send text message
     if (config.response_mode === 'both' && !textMessageId) {
       console.log('[AI-AGENT] Config is "both", also sending text message...');
-      const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
+      const sendResponse = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
