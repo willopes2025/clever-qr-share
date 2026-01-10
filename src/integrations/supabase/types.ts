@@ -4945,6 +4945,7 @@ export type Database = {
           created_at: string | null
           default_funnel_id: string | null
           device_label: string | null
+          evolution_instance_name: string | null
           id: string
           instance_name: string
           is_business: boolean | null
@@ -4968,6 +4969,7 @@ export type Database = {
           created_at?: string | null
           default_funnel_id?: string | null
           device_label?: string | null
+          evolution_instance_name?: string | null
           id?: string
           instance_name: string
           is_business?: boolean | null
@@ -4991,6 +4993,7 @@ export type Database = {
           created_at?: string | null
           default_funnel_id?: string | null
           device_label?: string | null
+          evolution_instance_name?: string | null
           id?: string
           instance_name?: string
           is_business?: boolean | null

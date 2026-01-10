@@ -168,15 +168,35 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Get instance from database to find user_id, default_funnel_id, and is_notification_only
-    const { data: instanceData, error: instanceError } = await supabase
+    // Get instance from database - try evolution_instance_name first, then fallback to instance_name
+    let instanceData = null;
+    
+    // Try by evolution_instance_name first (matches Evolution API's internal name)
+    const { data: byEvolutionName } = await supabase
       .from('whatsapp_instances')
       .select('id, user_id, default_funnel_id, is_notification_only')
-      .eq('instance_name', instance)
+      .eq('evolution_instance_name', instance)
       .single();
 
-    if (instanceError || !instanceData) {
-      console.error('Instance not found:', instance, instanceError);
+    if (byEvolutionName) {
+      instanceData = byEvolutionName;
+      console.log('Instance found by evolution_instance_name:', instance);
+    } else {
+      // Fallback to instance_name for backwards compatibility
+      const { data: byInstanceName } = await supabase
+        .from('whatsapp_instances')
+        .select('id, user_id, default_funnel_id, is_notification_only')
+        .eq('instance_name', instance)
+        .single();
+      
+      instanceData = byInstanceName;
+      if (instanceData) {
+        console.log('Instance found by instance_name (fallback):', instance);
+      }
+    }
+
+    if (!instanceData) {
+      console.error('Instance not found by evolution_instance_name or instance_name:', instance);
       return new Response(JSON.stringify({ success: false, error: 'Instance not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
