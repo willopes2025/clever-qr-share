@@ -99,6 +99,8 @@ export function useGoogleCalendar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['conversation-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['deal-tasks'] });
       toast.success('Tarefa sincronizada com Google Calendar');
     },
     onError: (error) => {

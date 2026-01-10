@@ -233,3 +233,6 @@ verify_jwt = false
 
 [functions.wil-assistant]
 verify_jwt = false
+
+[functions.google-calendar-integration]
+verify_jwt = false
