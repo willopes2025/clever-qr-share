@@ -39,7 +39,7 @@ export function CreateTaskDialog({ open, onOpenChange, defaultDate }: CreateTask
   const [priority, setPriority] = useState<string>("normal");
   const [taskTypeId, setTaskTypeId] = useState<string | null>(null);
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
-  const [syncWithGoogle, setSyncWithGoogle] = useState(false);
+  const [syncWithGoogle, setSyncWithGoogle] = useState(true);
 
   const resetForm = () => {
     setTitle("");
@@ -49,7 +49,7 @@ export function CreateTaskDialog({ open, onOpenChange, defaultDate }: CreateTask
     setPriority("normal");
     setTaskTypeId(null);
     setAssignedTo(null);
-    setSyncWithGoogle(false);
+    setSyncWithGoogle(true);
   };
 
   const handleCreate = async () => {
