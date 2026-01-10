@@ -1307,7 +1307,17 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     const contacts = conversation.contacts as any;
     const contact = Array.isArray(contacts) ? contacts[0] : contacts;
-    const contactName = contact?.name || 'Cliente';
+    
+    // Helper function to validate contact names
+    const isValidContactName = (name: string | undefined | null): boolean => {
+      if (!name || name.trim().length < 2) return false;
+      if (name.startsWith('LID_')) return false;
+      if (/^\d+$/.test(name)) return false; // Only numbers
+      if (/^55\d{10,11}$/.test(name)) return false; // BR phone number
+      return true;
+    };
+    
+    const contactName = isValidContactName(contact?.name) ? contact.name : 'Cliente';
     
     // Get current date/time info for the AI
     const agora = new Date();
