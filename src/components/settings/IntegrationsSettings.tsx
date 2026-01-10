@@ -45,6 +45,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MetaWhatsAppSettings } from "./MetaWhatsAppSettings";
+import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 
 interface IntegrationConfig {
   id: IntegrationProvider;
@@ -94,15 +95,13 @@ const integrationConfigs: IntegrationConfig[] = [
   {
     id: 'google_calendar',
     name: 'Google Calendar',
-    description: 'Sincronize agendamentos e eventos automaticamente',
+    description: 'Sincronize tarefas automaticamente com sua agenda Google',
     icon: Calendar,
     category: 'productivity',
     minPlan: 'profissional',
-    fields: [
-      { key: 'calendar_id', label: 'ID do Calendário', type: 'text', placeholder: 'primary ou email do calendário' },
-      { key: 'api_key', label: 'Chave da API', type: 'password' },
-    ],
+    fields: [],
     docsUrl: 'https://developers.google.com/calendar/api/quickstart/js',
+    customComponent: true,
   },
   // Payments
   {
@@ -444,6 +443,23 @@ export const IntegrationsSettings = () => {
           Voltar para Integrações
         </Button>
         <MetaWhatsAppSettings />
+      </div>
+    );
+  }
+
+  if (customComponentId === 'google_calendar') {
+    return (
+      <div className="space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setCustomComponentId(null)}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Integrações
+        </Button>
+        <GoogleCalendarSettings />
       </div>
     );
   }
