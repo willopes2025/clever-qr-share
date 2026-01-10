@@ -43,7 +43,7 @@ export const SupportButton = () => {
       {/* Floating Button */}
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 left-6 z-50 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+        className="fixed bottom-24 right-6 z-[70] h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 md:bottom-6"
         size="icon"
       >
         <HelpCircle className="h-6 w-6" />
