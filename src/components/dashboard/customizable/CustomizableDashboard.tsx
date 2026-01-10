@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RotateCcw, Settings } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDashboardConfig } from "@/hooks/useDashboardConfig";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -7,7 +7,10 @@ import { EmptyDashboardState } from "./EmptyDashboardState";
 import { AddKPIButton } from "./AddKPIButton";
 import { KPISelectionModal } from "./KPISelectionModal";
 import { DashboardWidgetGrid } from "./DashboardWidgetGrid";
+import { DashboardDateFilter } from "./DashboardDateFilter";
 import { Skeleton } from "@/components/ui/skeleton";
+import { subDays, startOfDay, endOfDay } from "date-fns";
+import { DateRange } from "@/hooks/useWidgetData";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,8 +33,14 @@ export const CustomizableDashboard = () => {
     updateWidgetSize,
     resetDashboard 
   } = useDashboardConfig();
-  const { isAdmin, role } = useUserRole();
+  const { isAdmin } = useUserRole();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Date range state - default to last 7 days
+  const [dateRange, setDateRange] = useState<DateRange>({
+    start: startOfDay(subDays(new Date(), 6)),
+    end: endOfDay(new Date())
+  });
 
   if (loading) {
     return (
@@ -55,49 +64,57 @@ export const CustomizableDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Dashboard {isAdmin ? 'Administrativo' : 'do Membro'}
-          </h1>
-          <p className="text-muted-foreground">
-            {isAdmin 
-              ? 'Visão completa de performance, vendas e equipe'
-              : 'Sua performance e métricas pessoais'
-            }
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {hasWidgets && (
-            <>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Resetar
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Resetar Dashboard?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Isso irá remover todos os widgets e retornar ao estado inicial. 
-                      Esta ação não pode ser desfeita.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={resetDashboard}>
-                      Confirmar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              
-              <AddKPIButton onClick={() => setIsModalOpen(true)} />
-            </>
-          )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+              Dashboard {isAdmin ? 'Administrativo' : 'do Membro'}
+            </h1>
+            <p className="text-muted-foreground">
+              {isAdmin 
+                ? 'Visão completa de performance, vendas e equipe'
+                : 'Sua performance e métricas pessoais'
+              }
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Date Filter */}
+            <DashboardDateFilter 
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+            />
+
+            {hasWidgets && (
+              <>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Resetar
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Resetar Dashboard?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Isso irá remover todos os widgets e retornar ao estado inicial. 
+                        Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={resetDashboard}>
+                        Confirmar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                
+                <AddKPIButton onClick={() => setIsModalOpen(true)} />
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -106,6 +123,7 @@ export const CustomizableDashboard = () => {
         <DashboardWidgetGrid
           widgets={widgets}
           availableWidgets={availableWidgets}
+          dateRange={dateRange}
           onRemoveWidget={removeWidget}
           onResizeWidget={updateWidgetSize}
         />

@@ -1,10 +1,11 @@
 import { WidgetConfig, AvailableWidget } from "@/hooks/useDashboardConfig";
 import { KPIWidget } from "./widgets/KPIWidget";
-import { useWidgetData } from "@/hooks/useWidgetData";
+import { useWidgetData, DateRange } from "@/hooks/useWidgetData";
 
 interface WidgetRendererProps {
   widgetConfig: WidgetConfig;
   widgetMeta: AvailableWidget | undefined;
+  dateRange: DateRange;
   onRemove: () => void;
   onResize: (size: 'small' | 'medium' | 'large') => void;
 }
@@ -12,10 +13,11 @@ interface WidgetRendererProps {
 export const WidgetRenderer = ({
   widgetConfig,
   widgetMeta,
+  dateRange,
   onRemove,
   onResize
 }: WidgetRendererProps) => {
-  const { data, loading } = useWidgetData(widgetConfig.widget_key);
+  const { data, loading } = useWidgetData(widgetConfig.widget_key, dateRange);
 
   if (!widgetMeta) {
     return null;

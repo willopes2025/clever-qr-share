@@ -1,9 +1,11 @@
 import { WidgetConfig, AvailableWidget } from "@/hooks/useDashboardConfig";
 import { WidgetRenderer } from "./WidgetRenderer";
+import { DateRange } from "@/hooks/useWidgetData";
 
 interface DashboardWidgetGridProps {
   widgets: WidgetConfig[];
   availableWidgets: AvailableWidget[];
+  dateRange: DateRange;
   onRemoveWidget: (widgetId: string) => void;
   onResizeWidget: (widgetId: string, size: 'small' | 'medium' | 'large') => void;
 }
@@ -11,6 +13,7 @@ interface DashboardWidgetGridProps {
 export const DashboardWidgetGrid = ({
   widgets,
   availableWidgets,
+  dateRange,
   onRemoveWidget,
   onResizeWidget
 }: DashboardWidgetGridProps) => {
@@ -28,6 +31,7 @@ export const DashboardWidgetGrid = ({
           key={widgetConfig.id}
           widgetConfig={widgetConfig}
           widgetMeta={getWidgetMeta(widgetConfig.widget_key)}
+          dateRange={dateRange}
           onRemove={() => onRemoveWidget(widgetConfig.id)}
           onResize={(size) => onResizeWidget(widgetConfig.id, size)}
         />
