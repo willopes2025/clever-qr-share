@@ -575,39 +575,247 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
             break;
           }
 
-          // ============ PLACEHOLDERS (Em desenvolvimento) ============
-          case 'taxa_resposta':
+          // ============ ATENDIMENTO - Implementados ============
+          case 'taxa_resposta': {
+            const { data: convs } = await supabase
+              .from('conversations')
+              .select('first_response_at')
+              .eq('user_id', user.id)
+              .gte('created_at', startISO)
+              .lte('created_at', endISO);
+            
+            const total = convs?.length || 0;
+            const responded = convs?.filter(c => c.first_response_at !== null).length || 0;
+            const rate = total > 0 ? (responded / total) * 100 : 0;
+            result = { value: `${rate.toFixed(1)}%`, subValue: `${responded} de ${total} respondidas` };
+            break;
+          }
+
+          case 'fila_atendimento': {
+            const { count } = await supabase
+              .from('conversations')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .in('status', ['pending', 'queued', 'waiting', 'open']);
+            result = { value: count || 0, subValue: 'aguardando atendimento' };
+            break;
+          }
+
+          case 'transferidos_humano': {
+            const { count } = await supabase
+              .from('conversations')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .eq('ai_handoff_requested', true)
+              .gte('updated_at', startISO)
+              .lte('updated_at', endISO);
+            result = { value: count || 0, subValue: 'transferidos para humano' };
+            break;
+          }
+
+          // ============ TAREFAS - Implementados ============
+          case 'proximas_tarefas': {
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const nextWeek = format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+            const { count } = await supabase
+              .from('conversation_tasks')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .is('completed_at', null)
+              .gte('due_date', today)
+              .lte('due_date', nextWeek);
+            result = { value: count || 0, subValue: 'próximos 7 dias' };
+            break;
+          }
+
+          case 'taxa_conclusao': {
+            const { data: tasks } = await supabase
+              .from('conversation_tasks')
+              .select('completed_at')
+              .eq('user_id', user.id)
+              .gte('created_at', startISO)
+              .lte('created_at', endISO);
+            
+            const total = tasks?.length || 0;
+            const completed = tasks?.filter(t => t.completed_at !== null).length || 0;
+            const rate = total > 0 ? (completed / total) * 100 : 0;
+            result = { value: `${rate.toFixed(1)}%`, subValue: `${completed} de ${total}` };
+            break;
+          }
+
+          // ============ PERFORMANCE - Implementados ============
+          case 'meta_horas_diarias': {
+            const todayStartISO = startOfDay(new Date()).toISOString();
+            const todayEndISO = endOfDay(new Date()).toISOString();
+            
+            const { data: sessions } = await supabase
+              .from('user_activity_sessions')
+              .select('duration_seconds')
+              .eq('user_id', user.id)
+              .eq('session_type', 'work')
+              .gte('started_at', todayStartISO)
+              .lte('started_at', todayEndISO);
+            
+            const totalSeconds = sessions?.reduce((acc, s) => acc + (s.duration_seconds || 0), 0) || 0;
+            const totalHours = totalSeconds / 3600;
+            const progress = Math.min((totalHours / 8) * 100, 100);
+            result = { 
+              value: `${progress.toFixed(0)}%`, 
+              subValue: `${totalHours.toFixed(1)}h de 8h` 
+            };
+            break;
+          }
+
+          case 'streak_dias': {
+            // Buscar sessões dos últimos 30 dias
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            const { data: sessions } = await supabase
+              .from('user_activity_sessions')
+              .select('started_at')
+              .eq('user_id', user.id)
+              .eq('session_type', 'work')
+              .gte('started_at', thirtyDaysAgo.toISOString())
+              .order('started_at', { ascending: false });
+            
+            // Agrupar por dia
+            const daysWithActivity = new Set<string>();
+            sessions?.forEach(s => {
+              daysWithActivity.add(format(new Date(s.started_at), 'yyyy-MM-dd'));
+            });
+            
+            // Calcular streak
+            let streak = 0;
+            const today = new Date();
+            for (let i = 0; i < 30; i++) {
+              const checkDate = new Date(today);
+              checkDate.setDate(checkDate.getDate() - i);
+              const dateStr = format(checkDate, 'yyyy-MM-dd');
+              if (daysWithActivity.has(dateStr)) {
+                streak++;
+              } else if (i > 0) {
+                break;
+              }
+            }
+            
+            result = { value: streak, subValue: 'dias consecutivos' };
+            break;
+          }
+
+          // ============ LEADS - Implementados ============
+          case 'leads_por_origem': {
+            const { data: contacts } = await supabase
+              .from('contacts')
+              .select('id')
+              .eq('user_id', user.id)
+              .gte('created_at', startISO)
+              .lte('created_at', endISO);
+            
+            result = { value: contacts?.length || 0, subValue: 'leads no período' };
+            break;
+          }
+
+          case 'taxa_qualificacao': {
+            const { data: allContacts } = await supabase
+              .from('contacts')
+              .select('status')
+              .eq('user_id', user.id)
+              .gte('created_at', startISO)
+              .lte('created_at', endISO);
+            
+            const total = allContacts?.length || 0;
+            const qualified = allContacts?.filter(c => c.status === 'qualified').length || 0;
+            const rate = total > 0 ? (qualified / total) * 100 : 0;
+            result = { value: `${rate.toFixed(1)}%`, subValue: `${qualified} qualificados` };
+            break;
+          }
+
+          // ============ WHATSAPP - Implementados ============
+          case 'status_chips': {
+            const { data: instances } = await supabase
+              .from('whatsapp_instances')
+              .select('status')
+              .eq('user_id', user.id);
+            
+            const connected = instances?.filter(i => i.status === 'connected').length || 0;
+            const total = instances?.length || 0;
+            result = { value: `${connected}/${total}`, subValue: 'conectados' };
+            break;
+          }
+
+          // ============ DEALS - Implementados ============
+          case 'deals_sem_acao': {
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            const { count } = await supabase
+              .from('funnel_deals')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .is('closed_at', null)
+              .lt('updated_at', sevenDaysAgo);
+            result = { value: count || 0, subValue: 'sem ação há 7+ dias' };
+            break;
+          }
+
+          // ============ ALERTAS - Implementados ============
+          case 'alertas_criticos': {
+            // Contar tarefas muito atrasadas (mais de 3 dias)
+            const threeDaysAgo = format(new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+            const { count } = await supabase
+              .from('conversation_tasks')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .is('completed_at', null)
+              .lt('due_date', threeDaysAgo);
+            result = { value: count || 0, subValue: 'tarefas críticas' };
+            break;
+          }
+
+          case 'alertas_aviso': {
+            // Conversas sem resposta há mais de 24h
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { count } = await supabase
+              .from('conversations')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .is('first_response_at', null)
+              .lt('created_at', oneDayAgo);
+            result = { value: count || 0, subValue: 'avisos' };
+            break;
+          }
+
+          // ============ REQUEREM INTEGRAÇÃO/CONFIGURAÇÃO ============
           case 'sla_cumprido':
           case 'sla_quebrado':
-          case 'fila_atendimento':
-          case 'sla_por_membro':
-          case 'funil_visual':
-          case 'ranking_vendedores':
-          case 'deals_sem_acao':
-          case 'leads_por_origem':
-          case 'leads_duplicados':
-          case 'taxa_qualificacao':
-          case 'leads_reativados':
-          case 'status_chips':
-          case 'transferidos_humano':
+          case 'sla_por_membro': {
+            result = { value: '-', subValue: 'Configure SLA' };
+            break;
+          }
+
           case 'saldo_disponivel':
           case 'recebido_periodo':
           case 'a_receber':
           case 'inadimplencia':
           case 'mrr_atual':
-          case 'previsao_30dias':
-          case 'proximas_tarefas':
-          case 'taxa_conclusao':
-          case 'alertas_criticos':
-          case 'alertas_aviso':
-          case 'painel_alertas':
+          case 'previsao_30dias': {
+            result = { value: '-', subValue: 'Requer integração financeira' };
+            break;
+          }
+
           case 'membros_online':
           case 'performance_equipe':
           case 'ranking_membros':
-          case 'carga_trabalho':
-          case 'meta_horas_diarias':
-          case 'streak_dias': {
-            result = { value: '-', subValue: 'Em desenvolvimento' };
+          case 'carga_trabalho': {
+            result = { value: '-', subValue: 'Requer equipe configurada' };
+            break;
+          }
+
+          // ============ GRÁFICOS (handled by ChartWidget) ============
+          case 'funil_visual':
+          case 'ranking_vendedores':
+          case 'painel_alertas':
+          case 'leads_duplicados':
+          case 'leads_reativados': {
+            result = { value: '-', subValue: 'Visualizar gráfico' };
             break;
           }
 
