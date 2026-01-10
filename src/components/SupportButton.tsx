@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { HelpCircle, BookOpen, MessageCircle, Mail, Phone, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { HelpCircle, BookOpen, MessageCircle, Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { motion, useDragControls } from "framer-motion";
 
 const supportOptions = [
   {
@@ -35,19 +36,80 @@ const supportOptions = [
   },
 ];
 
+const STORAGE_KEY = "support-button-position";
+
 export const SupportButton = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const constraintsRef = useRef<HTMLDivElement>(null);
+  const dragControls = useDragControls();
+
+  // Load saved position from localStorage
+  const [position, setPosition] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return { x: 0, y: 0 };
+        }
+      }
+    }
+    return { x: 0, y: 0 };
+  });
+
+  // Save position to localStorage when drag ends
+  const handleDragEnd = (_: any, info: any) => {
+    setIsDragging(false);
+    const newPosition = {
+      x: position.x + info.offset.x,
+      y: position.y + info.offset.y,
+    };
+    setPosition(newPosition);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newPosition));
+  };
+
+  const handleClick = () => {
+    if (!isDragging) {
+      setIsOpen(true);
+    }
+  };
 
   return (
     <>
-      {/* Floating Button */}
-      <Button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-6 z-[70] h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 md:bottom-6"
-        size="icon"
+      {/* Drag Constraints Container */}
+      <div
+        ref={constraintsRef}
+        className="fixed inset-0 pointer-events-none"
+        style={{ zIndex: 79 }}
+      />
+
+      {/* Floating Draggable Button */}
+      <motion.div
+        drag
+        dragControls={dragControls}
+        dragConstraints={constraintsRef}
+        dragElastic={0.1}
+        dragMomentum={false}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={handleDragEnd}
+        initial={position}
+        className="fixed bottom-6 right-6 pointer-events-auto"
+        style={{ 
+          zIndex: 9999,
+          x: position.x,
+          y: position.y,
+        }}
       >
-        <HelpCircle className="h-6 w-6" />
-      </Button>
+        <Button
+          onClick={handleClick}
+          className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-grab active:cursor-grabbing"
+          size="icon"
+        >
+          <HelpCircle className="h-6 w-6" />
+        </Button>
+      </motion.div>
 
       {/* Support Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
