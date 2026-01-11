@@ -5,17 +5,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface AuthResult {
+interface AuthSuccess {
+  success: true;
   userId: string;
   email: string | undefined;
-  error?: never;
 }
 
-interface AuthError {
-  userId?: never;
-  email?: never;
+interface AuthFailure {
+  success: false;
   error: Response;
 }
+
+type AuthResult = AuthSuccess | AuthFailure;
 
 /**
  * Validates the Authorization header and returns the authenticated user.
@@ -24,12 +25,13 @@ interface AuthError {
  * @param req - The incoming request
  * @returns Object with userId and email on success, or error Response on failure
  */
-export async function requireUser(req: Request): Promise<AuthResult | AuthError> {
+export async function requireUser(req: Request): Promise<AuthResult> {
   const authHeader = req.headers.get("Authorization");
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     console.error("[auth] Missing or invalid authorization header");
     return {
+      success: false,
       error: new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -52,6 +54,7 @@ export async function requireUser(req: Request): Promise<AuthResult | AuthError>
   if (userError || !user) {
     console.error("[auth] User validation failed:", userError?.message || "No user");
     return {
+      success: false,
       error: new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -60,6 +63,7 @@ export async function requireUser(req: Request): Promise<AuthResult | AuthError>
   }
 
   return {
+    success: true,
     userId: user.id,
     email: user.email
   };

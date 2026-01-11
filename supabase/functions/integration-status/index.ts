@@ -8,7 +8,7 @@ Deno.serve(async (req): Promise<Response> => {
   try {
     // Validate authentication using shared helper
     const authResult = await requireUser(req);
-    if ('error' in authResult) {
+    if (!authResult.success) {
       return authResult.error;
     }
 
