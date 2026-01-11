@@ -801,11 +801,177 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
             break;
           }
 
-          case 'membros_online':
-          case 'performance_equipe':
-          case 'ranking_membros':
+          case 'membros_online': {
+            // Buscar organização do usuário
+            const { data: memberData } = await supabase
+              .from('team_members')
+              .select('organization_id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+            if (!memberData?.organization_id) {
+              result = { value: '-', subValue: 'Sem equipe' };
+              break;
+            }
+
+            // Contar membros ativos na organização
+            const { count: membersCount } = await supabase
+              .from('team_members')
+              .select('*', { count: 'exact', head: true })
+              .eq('organization_id', memberData.organization_id)
+              .eq('status', 'active');
+              
+            result = { value: membersCount || 0, subValue: 'membros ativos' };
+            break;
+          }
+
+          case 'performance_equipe': {
+            // Buscar organização do usuário
+            const { data: memberDataPerf } = await supabase
+              .from('team_members')
+              .select('organization_id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+            if (!memberDataPerf?.organization_id) {
+              result = { value: '-', subValue: 'Sem equipe' };
+              break;
+            }
+
+            // Buscar user_ids dos membros da organização
+            const { data: orgMembers } = await supabase
+              .from('team_members')
+              .select('user_id')
+              .eq('organization_id', memberDataPerf.organization_id)
+              .eq('status', 'active')
+              .not('user_id', 'is', null);
+
+            const memberUserIds = orgMembers?.map(m => m.user_id).filter(Boolean) as string[] || [];
+
+            if (memberUserIds.length === 0) {
+              result = { value: '-', subValue: 'Sem membros' };
+              break;
+            }
+
+            // Buscar métricas de performance no período
+            const { data: metrics } = await supabase
+              .from('user_performance_metrics')
+              .select('total_work_seconds')
+              .in('user_id', memberUserIds)
+              .gte('metric_date', format(dateRange.start, 'yyyy-MM-dd'))
+              .lte('metric_date', format(dateRange.end, 'yyyy-MM-dd'));
+
+            const totalSeconds = metrics?.reduce((acc, m) => acc + (m.total_work_seconds || 0), 0) || 0;
+            result = { value: formatTime(totalSeconds), subValue: 'horas trabalhadas' };
+            break;
+          }
+
+          case 'ranking_membros': {
+            // Buscar organização do usuário
+            const { data: memberDataRank } = await supabase
+              .from('team_members')
+              .select('organization_id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+            if (!memberDataRank?.organization_id) {
+              result = { value: '-', subValue: 'Sem equipe' };
+              break;
+            }
+
+            // Buscar membros com seus nomes
+            const { data: orgMembersRank } = await supabase
+              .from('team_members')
+              .select('user_id, profiles:user_id(full_name)')
+              .eq('organization_id', memberDataRank.organization_id)
+              .eq('status', 'active')
+              .not('user_id', 'is', null);
+
+            const memberUserIdsRank = orgMembersRank?.map(m => m.user_id).filter(Boolean) as string[] || [];
+
+            if (memberUserIdsRank.length === 0) {
+              result = { value: '-', subValue: 'Sem membros' };
+              break;
+            }
+
+            // Buscar métricas de performance no período
+            const { data: metricsRank } = await supabase
+              .from('user_performance_metrics')
+              .select('user_id, deals_won')
+              .in('user_id', memberUserIdsRank)
+              .gte('metric_date', format(dateRange.start, 'yyyy-MM-dd'))
+              .lte('metric_date', format(dateRange.end, 'yyyy-MM-dd'));
+
+            // Agregar por user_id
+            const userDeals: Record<string, number> = {};
+            metricsRank?.forEach(m => {
+              userDeals[m.user_id] = (userDeals[m.user_id] || 0) + (m.deals_won || 0);
+            });
+
+            // Encontrar o top performer
+            let topUserId = '';
+            let maxDeals = 0;
+            Object.entries(userDeals).forEach(([userId, deals]) => {
+              if (deals > maxDeals) {
+                maxDeals = deals;
+                topUserId = userId;
+              }
+            });
+
+            if (topUserId) {
+              const topMember = orgMembersRank?.find(m => m.user_id === topUserId);
+              const name = (topMember?.profiles as any)?.full_name || 'Membro';
+              result = { value: name, subValue: `${maxDeals} vendas` };
+            } else {
+              result = { value: '-', subValue: 'Sem vendas no período' };
+            }
+            break;
+          }
+
           case 'carga_trabalho': {
-            result = { value: '-', subValue: 'Requer equipe configurada' };
+            // Buscar organização do usuário
+            const { data: memberDataCarga } = await supabase
+              .from('team_members')
+              .select('organization_id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+            if (!memberDataCarga?.organization_id) {
+              result = { value: '-', subValue: 'Sem equipe' };
+              break;
+            }
+
+            // Buscar user_ids dos membros da organização
+            const { data: orgMembersCarga } = await supabase
+              .from('team_members')
+              .select('user_id')
+              .eq('organization_id', memberDataCarga.organization_id)
+              .eq('status', 'active')
+              .not('user_id', 'is', null);
+
+            const memberUserIdsCarga = orgMembersCarga?.map(m => m.user_id).filter(Boolean) as string[] || [];
+
+            if (memberUserIdsCarga.length === 0) {
+              result = { value: '-', subValue: 'Sem membros' };
+              break;
+            }
+
+            // Contar conversas ativas atribuídas aos membros
+            const { count: activeCounts } = await supabase
+              .from('conversations')
+              .select('*', { count: 'exact', head: true })
+              .in('assigned_to', memberUserIdsCarga)
+              .eq('status', 'active');
+
+            const avgLoad = memberUserIdsCarga.length > 0 
+              ? Math.round((activeCounts || 0) / memberUserIdsCarga.length) 
+              : 0;
+            
+            result = { value: avgLoad, subValue: 'conversas/membro' };
             break;
           }
 
