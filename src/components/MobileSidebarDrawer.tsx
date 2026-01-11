@@ -104,10 +104,10 @@ export const MobileSidebarDrawer = () => {
     if (group.label === "Sua Conta") {
       const dynamicItems: typeof group.items = [];
       
-      if (organization ? true : hasAsaas) {
+      if (hasAsaas) {
         dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
       }
-      if (organization ? true : hasSsotica) {
+      if (hasSsotica) {
         dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
       }
       
