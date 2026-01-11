@@ -1,7 +1,6 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
-import { CampaignSettings } from "@/components/settings/CampaignSettings";
 import { ApiSettings } from "@/components/settings/ApiSettings";
 import { DataSettings } from "@/components/settings/DataSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
@@ -9,9 +8,8 @@ import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings
 import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
-import { VoipSettings } from "@/components/settings/VoipSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
-import { User, Megaphone, Server, Database, Users, Plug, Smartphone, Bell, Phone, PhoneCall, Coins, LucideIcon } from "lucide-react";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
@@ -33,9 +31,7 @@ const allTabs: SettingsTab[] = [
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
   { value: "sip-calls", label: "Chamadas IA", icon: Phone, permission: "manage_settings", adminOnly: true, component: ElevenLabsSIPSettings },
-  { value: "voip", label: "VoIP", icon: PhoneCall, permission: "manage_settings", adminOnly: true, component: VoipSettings },
   { value: "integrations", label: "Integrações", icon: Plug, permission: "manage_settings", adminOnly: true, component: IntegrationsSettings },
-  { value: "campaigns", label: "Campanhas", icon: Megaphone, permission: "manage_settings", adminOnly: true, component: CampaignSettings },
   { value: "api", label: "API", icon: Server, permission: "manage_settings", adminOnly: true, component: ApiSettings },
   { value: "data", label: "Dados", icon: Database, permission: "manage_settings", adminOnly: true, component: DataSettings },
 ];
