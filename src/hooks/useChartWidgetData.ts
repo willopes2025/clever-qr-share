@@ -139,8 +139,8 @@ export const useChartWidgetData = (widgetKey: string, dateRange: DateRange): Cha
               
               return {
                 label: format(day, 'dd/MM', { locale: ptBR }),
-                value: dayMessages.filter(m => m.direction === 'out').length,
-                secondaryValue: dayMessages.filter(m => m.direction === 'in').length
+                value: dayMessages.filter(m => m.direction === 'outgoing').length,
+                secondaryValue: dayMessages.filter(m => m.direction === 'incoming').length
               };
             });
             
@@ -150,11 +150,13 @@ export const useChartWidgetData = (widgetKey: string, dateRange: DateRange): Cha
           }
 
           case 'grafico_conversas_status': {
-            // Get conversation status distribution
+            // Get conversation status distribution - filtered by period
             const { data: conversations } = await supabase
               .from('conversations')
               .select('status')
-              .eq('user_id', user.id);
+              .eq('user_id', user.id)
+              .gte('created_at', startDate)
+              .lte('created_at', endDate);
 
             const statusCount: Record<string, number> = {};
             conversations?.forEach(c => {
@@ -164,6 +166,7 @@ export const useChartWidgetData = (widgetKey: string, dateRange: DateRange): Cha
 
             const statusLabels: Record<string, string> = {
               'open': 'Abertas',
+              'active': 'Ativas',
               'closed': 'Fechadas',
               'pending': 'Pendentes',
               'resolved': 'Resolvidas',
@@ -210,11 +213,13 @@ export const useChartWidgetData = (widgetKey: string, dateRange: DateRange): Cha
           }
 
           case 'grafico_tarefas_status': {
-            // Get task status distribution
+            // Get task status distribution - filtered by period
             const { data: tasks } = await supabase
               .from('conversation_tasks')
-              .select('completed_at, due_date')
-              .eq('user_id', user.id);
+              .select('completed_at, due_date, created_at')
+              .eq('user_id', user.id)
+              .gte('created_at', startDate)
+              .lte('created_at', endDate);
 
             const now = new Date();
             const pending = tasks?.filter(t => !t.completed_at && (!t.due_date || new Date(t.due_date) >= now)).length || 0;

@@ -56,7 +56,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .select('*', { count: 'exact', head: true })
               .eq('user_id', user.id)
               .eq('status', 'active');
-            result = { value: count || 0, subValue: 'em atendimento' };
+            result = { value: count || 0, subValue: 'em atendimento (atual)' };
             break;
           }
 
@@ -204,7 +204,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .eq('user_id', user.id)
               .is('closed_at', null);
             const total = deals?.reduce((acc, d) => acc + (d.value || 0), 0) || 0;
-            result = { value: formatCurrency(total), subValue: 'em negociação' };
+            result = { value: formatCurrency(total), subValue: 'em negociação (atual)' };
             break;
           }
 
@@ -318,7 +318,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .select('*', { count: 'exact', head: true })
               .eq('user_id', user.id)
               .eq('status', 'connected');
-            result = { value: count || 0, subValue: 'conectados' };
+            result = { value: count || 0, subValue: 'conectados (atual)' };
             break;
           }
 
@@ -328,7 +328,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .select('*', { count: 'exact', head: true })
               .eq('user_id', user.id)
               .neq('status', 'connected');
-            result = { value: count || 0, subValue: 'desconectados' };
+            result = { value: count || 0, subValue: 'desconectados (atual)' };
             break;
           }
 
@@ -382,7 +382,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .select('*', { count: 'exact', head: true })
               .eq('user_id', user.id)
               .eq('is_active', true);
-            result = { value: count || 0, subValue: 'ativos' };
+            result = { value: count || 0, subValue: 'fluxos ativos (atual)' };
             break;
           }
 
@@ -444,7 +444,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .select('*', { count: 'exact', head: true })
               .eq('user_id', user.id)
               .is('completed_at', null);
-            result = { value: count || 0, subValue: 'pendentes' };
+            result = { value: count || 0, subValue: 'pendentes (total)' };
             break;
           }
 
@@ -468,7 +468,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .eq('user_id', user.id)
               .is('completed_at', null)
               .lt('due_date', todayStr);
-            result = { value: count || 0, subValue: 'atrasadas' };
+            result = { value: count || 0, subValue: 'atrasadas (atual)' };
             break;
           }
 
@@ -503,40 +503,40 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
           }
 
           case 'primeira_atividade': {
-            const todayStart = startOfDay(new Date()).toISOString();
             const { data: sessions } = await supabase
               .from('user_activity_sessions')
               .select('started_at')
               .eq('user_id', user.id)
-              .gte('started_at', todayStart)
+              .gte('started_at', startISO)
+              .lte('started_at', endISO)
               .order('started_at', { ascending: true })
               .limit(1);
             
             if (sessions && sessions.length > 0) {
               const time = new Date(sessions[0].started_at);
-              result = { value: format(time, 'HH:mm'), subValue: 'primeira atividade' };
+              result = { value: format(time, 'HH:mm'), subValue: 'primeira atividade no período' };
             } else {
-              result = { value: '-', subValue: 'sem atividade hoje' };
+              result = { value: '-', subValue: 'sem atividade no período' };
             }
             break;
           }
 
           case 'ultima_atividade': {
-            const todayStart = startOfDay(new Date()).toISOString();
             const { data: sessions } = await supabase
               .from('user_activity_sessions')
               .select('last_activity')
               .eq('user_id', user.id)
-              .gte('started_at', todayStart)
+              .gte('started_at', startISO)
+              .lte('started_at', endISO)
               .not('last_activity', 'is', null)
               .order('last_activity', { ascending: false })
               .limit(1);
             
             if (sessions && sessions.length > 0 && sessions[0].last_activity) {
               const time = new Date(sessions[0].last_activity);
-              result = { value: format(time, 'HH:mm'), subValue: 'última atividade' };
+              result = { value: format(time, 'HH:mm'), subValue: 'última atividade no período' };
             } else {
-              result = { value: '-', subValue: 'sem atividade hoje' };
+              result = { value: '-', subValue: 'sem atividade no período' };
             }
             break;
           }
@@ -597,7 +597,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .select('*', { count: 'exact', head: true })
               .eq('user_id', user.id)
               .in('status', ['pending', 'queued', 'waiting', 'open']);
-            result = { value: count || 0, subValue: 'aguardando atendimento' };
+            result = { value: count || 0, subValue: 'aguardando (atual)' };
             break;
           }
 
@@ -624,7 +624,7 @@ export const useWidgetData = (widgetKey: string, dateRange: DateRange) => {
               .is('completed_at', null)
               .gte('due_date', today)
               .lte('due_date', nextWeek);
-            result = { value: count || 0, subValue: 'próximos 7 dias' };
+            result = { value: count || 0, subValue: 'próximos 7 dias (fixo)' };
             break;
           }
 
