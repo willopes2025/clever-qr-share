@@ -213,7 +213,9 @@ Deno.serve(async (req) => {
                     user_id: userId,
                     contact_id: contact.id,
                     status: 'open',
-                    last_message_at: timestamp
+                    last_message_at: timestamp,
+                    provider: 'meta',
+                    meta_phone_number_id: webhookPhoneNumberId
                   })
                   .select()
                   .single();

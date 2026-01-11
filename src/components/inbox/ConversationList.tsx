@@ -16,6 +16,7 @@ import { ConversationFiltersComponent, ConversationFilters } from "./Conversatio
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { ProviderBadge } from "./ProviderBadge";
 
 interface ConversationWithTags extends Conversation {
   tag_assignments?: { tag_id: string }[];
@@ -25,6 +26,8 @@ interface ConversationWithTags extends Conversation {
   ai_handoff_requested?: boolean | null;
   assigned_to?: string | null;
   first_response_at?: string | null;
+  provider?: 'evolution' | 'meta' | null;
+  meta_phone_number_id?: string | null;
 }
 
 interface ConversationListProps {
@@ -69,6 +72,8 @@ export const ConversationList = ({
     hasDeal: 'all',
     campaignId: null,
     isPinned: false,
+    provider: 'all',
+    metaPhoneNumberId: null,
   });
   
   const { members } = useTeamMembers();
@@ -207,6 +212,17 @@ export const ConversationList = ({
 
     // Apply pinned filter
     if (filters.isPinned && !conv.is_pinned) {
+      return false;
+    }
+
+    // Apply provider filter
+    if (filters.provider !== 'all') {
+      const convProvider = conv.provider || (conv.instance_id ? 'evolution' : 'meta');
+      if (convProvider !== filters.provider) return false;
+    }
+
+    // Apply Meta phone number filter
+    if (filters.metaPhoneNumberId && conv.meta_phone_number_id !== filters.metaPhoneNumberId) {
       return false;
     }
 
@@ -373,8 +389,12 @@ export const ConversationList = ({
                           />
                         </div>
                       </div>
-                      {/* Contact ID + Phone Number */}
+                      {/* Contact ID + Phone Number + Provider Badge */}
                       <div className="flex items-center gap-2 mb-0.5">
+                        <ProviderBadge 
+                          provider={(conversation as any).provider || (conversation.instance_id ? 'evolution' : 'meta')} 
+                          size="sm" 
+                        />
                         {(conversation.contact as any)?.contact_display_id && (
                           <ContactIdBadge displayId={(conversation.contact as any).contact_display_id} size="sm" />
                         )}

@@ -1953,7 +1953,9 @@ export type Database = {
           is_pinned: boolean | null
           last_message_at: string | null
           last_message_preview: string | null
+          meta_phone_number_id: string | null
           preferred_response_format: string | null
+          provider: string | null
           status: string
           unread_count: number
           updated_at: string
@@ -1975,7 +1977,9 @@ export type Database = {
           is_pinned?: boolean | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          meta_phone_number_id?: string | null
           preferred_response_format?: string | null
+          provider?: string | null
           status?: string
           unread_count?: number
           updated_at?: string
@@ -1997,7 +2001,9 @@ export type Database = {
           is_pinned?: boolean | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          meta_phone_number_id?: string | null
           preferred_response_format?: string | null
+          provider?: string | null
           status?: string
           unread_count?: number
           updated_at?: string
@@ -3610,6 +3616,39 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           waba_id?: string | null
+        }
+        Relationships: []
+      }
+      meta_whatsapp_numbers: {
+        Row: {
+          created_at: string | null
+          display_name: string | null
+          id: string
+          is_active: boolean | null
+          phone_number: string | null
+          phone_number_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          phone_number?: string | null
+          phone_number_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          phone_number?: string | null
+          phone_number_id?: string
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
