@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // Get instance info
     const { data: instance, error: instError } = await supabase
       .from('whatsapp_instances')
-      .select('id, instance_name, status')
+      .select('id, instance_name, evolution_instance_name, status')
       .eq('id', instanceId)
       .single();
 
@@ -111,7 +111,9 @@ Deno.serve(async (req) => {
       remoteJid = `${phone}@s.whatsapp.net`;
     }
 
-    console.log(`Sending message to ${remoteJid} via ${instance.instance_name}`);
+    // Use evolution_instance_name if available, fallback to instance_name
+    const evolutionName = instance.evolution_instance_name || instance.instance_name;
+    console.log(`Sending message to ${remoteJid} via ${evolutionName} (display: ${instance.instance_name})`);
 
     // Create message record first with 'sending' status
     const { data: message, error: msgError } = await supabase
@@ -146,7 +148,7 @@ Deno.serve(async (req) => {
     console.log(`[SEND] Using payload:`, JSON.stringify(sendPayload));
     
     const response = await fetch(
-      `${evolutionApiUrl}/message/sendText/${instance.instance_name}`,
+      `${evolutionApiUrl}/message/sendText/${evolutionName}`,
       {
         method: 'POST',
         headers: {
