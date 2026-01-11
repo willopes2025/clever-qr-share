@@ -3619,6 +3619,48 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_webhook_events: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_type: string | null
+          id: string
+          method: string
+          payload: Json | null
+          phone_number_id: string | null
+          received_at: string
+          signature_valid: boolean | null
+          status_code: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          method: string
+          payload?: Json | null
+          phone_number_id?: string | null
+          received_at?: string
+          signature_valid?: boolean | null
+          status_code?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          method?: string
+          payload?: Json | null
+          phone_number_id?: string | null
+          received_at?: string
+          signature_valid?: boolean | null
+          status_code?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       meta_whatsapp_numbers: {
         Row: {
           created_at: string | null
