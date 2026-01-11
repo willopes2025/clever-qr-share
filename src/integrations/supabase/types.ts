@@ -3544,6 +3544,75 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_templates: {
+        Row: {
+          approved_at: string | null
+          body_examples: Json | null
+          body_text: string
+          buttons: Json | null
+          category: string
+          created_at: string | null
+          footer_text: string | null
+          header_content: string | null
+          header_example: string | null
+          header_type: string | null
+          id: string
+          language: string
+          meta_template_id: string | null
+          name: string
+          rejection_reason: string | null
+          status: string | null
+          submitted_at: string | null
+          updated_at: string | null
+          user_id: string
+          waba_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          body_examples?: Json | null
+          body_text: string
+          buttons?: Json | null
+          category: string
+          created_at?: string | null
+          footer_text?: string | null
+          header_content?: string | null
+          header_example?: string | null
+          header_type?: string | null
+          id?: string
+          language?: string
+          meta_template_id?: string | null
+          name: string
+          rejection_reason?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          updated_at?: string | null
+          user_id: string
+          waba_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          body_examples?: Json | null
+          body_text?: string
+          buttons?: Json | null
+          category?: string
+          created_at?: string | null
+          footer_text?: string | null
+          header_content?: string | null
+          header_example?: string | null
+          header_type?: string | null
+          id?: string
+          language?: string
+          meta_template_id?: string | null
+          name?: string
+          rejection_reason?: string | null
+          status?: string | null
+          submitted_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+          waba_id?: string | null
+        }
+        Relationships: []
+      }
       notification_log: {
         Row: {
           created_at: string | null
