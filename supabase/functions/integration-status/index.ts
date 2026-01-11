@@ -1,77 +1,33 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireUser, createServiceClient, corsHeaders } from "../_shared/auth.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-Deno.serve(async (req) => {
+Deno.serve(async (req): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('[integration-status] No authorization header');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    // Validate authentication using shared helper
+    const authResult = await requireUser(req);
+    if ('error' in authResult) {
+      return authResult.error;
     }
 
-    // User-level client for authentication
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { 
-        global: { headers: { Authorization: authHeader } },
-        auth: { persistSession: false }
-      }
-    );
+    const { userId } = authResult;
+    console.log('[integration-status] User:', userId);
 
     // Service role client for reading integrations (bypasses RLS)
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { auth: { persistSession: false } }
-    );
-
-    // Validate JWT using getClaims()
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims) {
-      console.error('[integration-status] Auth error:', claimsError);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    const userId = claimsData.claims.sub as string;
-    if (!userId) {
-      console.error('[integration-status] No user ID in claims');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Create user object for compatibility
-    const user = { id: userId };
-    console.log('[integration-status] User:', user.id);
+    const supabaseAdmin = createServiceClient();
 
     // Determine integrationOwnerId
     // 1. Check if user has their own integrations
     // 2. If not, check if user is a member and use organization owner
-    let integrationOwnerId = user.id;
+    let integrationOwnerId = userId;
 
     // First try the user's own integrations
     const { data: ownIntegration } = await supabaseAdmin
       .from('integrations')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_active', true)
       .in('provider', ['asaas', 'ssotica'])
       .limit(1);
@@ -81,7 +37,7 @@ Deno.serve(async (req) => {
       const { data: teamMember } = await supabaseAdmin
         .from('team_members')
         .select('organization_id, permissions')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .single();
 
@@ -117,7 +73,6 @@ Deno.serve(async (req) => {
     const result = {
       asaas: providers.includes('asaas'),
       ssotica: providers.includes('ssotica'),
-      integrationOwnerId, // For debugging only, can be removed in production
     };
 
     console.log('[integration-status] Result:', result);

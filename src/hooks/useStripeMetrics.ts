@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeAdminFunction } from '@/lib/supabase-functions';
 
 interface StripeSubscription {
   id: string;
@@ -52,17 +52,13 @@ export const useStripeMetrics = () => {
       setLoading(true);
       setError(null);
 
-      const { data, error: fnError } = await supabase.functions.invoke('admin-stripe-metrics');
+      const { data, error: fnError } = await invokeAdminFunction<StripeMetrics>('admin-stripe-metrics');
 
       if (fnError) {
-        throw new Error(fnError.message);
+        throw fnError;
       }
 
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      setMetrics(data as StripeMetrics);
+      setMetrics(data);
     } catch (err) {
       console.error('Error fetching Stripe metrics:', err);
       setError(err instanceof Error ? err.message : 'Erro ao carregar métricas do Stripe');

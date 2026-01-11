@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -12,6 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowRight } from "lucide-react";
+import { invokeAdminFunction } from "@/lib/supabase-functions";
 
 interface HistoryEntry {
   id: string;
@@ -48,15 +48,13 @@ export const SubscriptionHistoryDialog = ({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('admin-update-subscription', {
-        body: { 
-          action: 'get_history',
-          subscriptionId 
-        }
-      });
+      const { data, error } = await invokeAdminFunction<{ history: HistoryEntry[] }>(
+        'admin-update-subscription',
+        { body: { action: 'get_history', subscriptionId } }
+      );
 
       if (error) throw error;
-      setHistory(data.history || []);
+      setHistory(data?.history || []);
     } catch (err) {
       console.error('Error fetching history:', err);
     } finally {

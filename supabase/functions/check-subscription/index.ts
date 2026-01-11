@@ -198,8 +198,8 @@ Deno.serve(async (req: Request) => {
     logStep("Stripe key verified");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      logStep("AUTH_ERROR", { message: "Missing authorization header" });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      logStep("AUTH_ERROR", { message: "Missing or invalid authorization header" });
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 401,
@@ -207,20 +207,20 @@ Deno.serve(async (req: Request) => {
     }
     logStep("Authorization header found");
 
-    // Validate JWT using getClaims()
+    // Create auth client with the token to validate
     const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false },
     });
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
+    // Use getUser() to validate the JWT - this is the correct method for Edge Functions
+    const { data: { user }, error: userError } = await supabaseAuthClient.auth.getUser();
 
-    if (claimsError || !claimsData?.claims) {
-      logStep("AUTH_ERROR", { message: claimsError?.message || "Invalid token" });
+    if (userError || !user) {
+      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token" });
       return new Response(
         JSON.stringify({
-          error: `Authentication error: ${claimsError?.message || "Invalid token"}`,
+          error: `Authentication error: ${userError?.message || "Invalid token"}`,
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -229,13 +229,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const userId = claimsData.claims.sub as string;
-    const userEmail = claimsData.claims.email as string;
+    const userId = user.id;
+    const userEmail = user.email;
 
     if (!userId || !userEmail) {
-      logStep("AUTH_ERROR", { message: "Missing user ID or email in token" });
+      logStep("AUTH_ERROR", { message: "Missing user ID or email" });
       return new Response(
-        JSON.stringify({ error: "Authentication error: Invalid token claims" }),
+        JSON.stringify({ error: "Authentication error: Invalid user data" }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 401,
@@ -243,9 +243,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create a user object for compatibility with rest of code
-    const user = { id: userId, email: userEmail };
-    logStep("User authenticated via getClaims", { userId: user.id, email: user.email });
+    logStep("User authenticated via getUser", { userId, email: userEmail });
 
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
