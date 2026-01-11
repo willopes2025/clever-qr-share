@@ -49,6 +49,124 @@ function extractPhone(text: string | null, url: string | null): string | null {
   return null;
 }
 
+// Extract social media links from biography and external URL
+function extractSocialLinks(text: string | null, url: string | null): Record<string, string> {
+  const links: Record<string, string> = {};
+  const combinedText = [text || '', url || ''].join(' ');
+  
+  // Social media patterns
+  const socialPatterns: Record<string, RegExp[]> = {
+    twitter: [
+      /(?:twitter\.com|x\.com)\/(@?[\w]+)/gi,
+      /@(\w+)(?:\s+(?:twitter|x\b))/gi
+    ],
+    tiktok: [
+      /tiktok\.com\/@?([\w.]+)/gi,
+      /@([\w.]+)(?:\s+tiktok)/gi
+    ],
+    youtube: [
+      /youtube\.com\/(?:channel\/|c\/|@)([\w-]+)/gi,
+      /youtu\.be\/([\w-]+)/gi
+    ],
+    telegram: [
+      /t\.me\/([\w]+)/gi,
+      /telegram\.me\/([\w]+)/gi
+    ],
+    linkedin: [
+      /linkedin\.com\/in\/([\w-]+)/gi,
+      /linkedin\.com\/company\/([\w-]+)/gi
+    ],
+    facebook: [
+      /facebook\.com\/([\w.]+)/gi,
+      /fb\.com\/([\w.]+)/gi
+    ],
+    threads: [
+      /threads\.net\/@?([\w.]+)/gi
+    ]
+  };
+
+  for (const [platform, patterns] of Object.entries(socialPatterns)) {
+    for (const pattern of patterns) {
+      const match = pattern.exec(combinedText);
+      if (match && match[1]) {
+        links[platform] = match[1];
+        break;
+      }
+    }
+  }
+
+  return Object.keys(links).length > 0 ? links : {};
+}
+
+// Calculate engagement score
+function calculateEngagementScore(
+  followersCount: number,
+  postsCount: number,
+  avgLikes?: number,
+  avgComments?: number
+): number | null {
+  if (!followersCount || followersCount === 0) return null;
+  
+  // If we have average likes/comments from posts, use them
+  if (avgLikes !== undefined && avgComments !== undefined) {
+    const engagement = ((avgLikes + avgComments) / followersCount) * 100;
+    return Math.min(Math.round(engagement * 100) / 100, 100); // Cap at 100%
+  }
+  
+  return null;
+}
+
+// Detect suspicious accounts (potential bots/fakes)
+function detectSuspiciousAccount(profile: {
+  followersCount: number;
+  followingCount: number;
+  postsCount: number;
+  isPrivate?: boolean;
+  biography?: string | null;
+  fullName?: string | null;
+  profilePicUrl?: string | null;
+}): { isSuspicious: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  
+  // High following/followers ratio (likely bot)
+  if (profile.followingCount > 0 && profile.followersCount > 0) {
+    const ratio = profile.followingCount / profile.followersCount;
+    if (ratio > 10) {
+      reasons.push('Ratio seguindo/seguidores muito alto (>10x)');
+    }
+  }
+  
+  // Very few posts but many followers (potential fake)
+  if (profile.followersCount > 1000 && profile.postsCount < 5) {
+    reasons.push('Muitos seguidores mas poucos posts');
+  }
+  
+  // No posts at all
+  if (profile.postsCount === 0) {
+    reasons.push('Nenhuma publicação');
+  }
+  
+  // Private account with no bio (potential spam)
+  if (profile.isPrivate && !profile.biography) {
+    reasons.push('Conta privada sem bio');
+  }
+  
+  // Very high follower count but no profile picture (unusual)
+  if (profile.followersCount > 5000 && !profile.profilePicUrl) {
+    reasons.push('Muitos seguidores sem foto de perfil');
+  }
+  
+  // Following nobody but has followers (could be celebrity OR bot)
+  if (profile.followingCount === 0 && profile.followersCount > 100) {
+    reasons.push('Não segue ninguém');
+  }
+  
+  return {
+    isSuspicious: reasons.length >= 2,
+    reasons
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -148,7 +266,7 @@ Deno.serve(async (req) => {
 
     // Debug: log first result structure
     if (apifyData.length > 0) {
-      console.log('Sample Apify response (first item):', JSON.stringify(apifyData[0], null, 2));
+      console.log('Sample Apify response (first item keys):', Object.keys(apifyData[0]));
     }
 
     const enrichedProfiles: any[] = [];
@@ -193,25 +311,82 @@ Deno.serve(async (req) => {
         }
       }
 
-      console.log(`Contact extraction for ${username}: email=${email} (api=${emailFromApi}, bio=${emailFromBio}), phone=${phone} (api=${phoneFromApi}, extracted=${phoneFromBioOrUrl})`);
+      // Extract other social links
+      const otherSocialLinks = extractSocialLinks(biography, externalUrl);
 
-      const updateData = {
+      // Get counts
+      const followersCount = item.followersCount ?? item.followers_count ?? 0;
+      const followingCount = item.followsCount ?? item.followingCount ?? item.following_count ?? 0;
+      const postsCount = item.postsCount ?? item.posts_count ?? 0;
+      const isPrivate = item.isPrivate ?? item.is_private ?? false;
+
+      // Calculate engagement score from latest posts if available
+      let engagementScore: number | null = null;
+      const latestPosts = item.latestPosts || item.posts || null;
+      if (latestPosts && Array.isArray(latestPosts) && latestPosts.length > 0) {
+        const totalLikes = latestPosts.reduce((sum: number, post: any) => sum + (post.likesCount || post.likes || 0), 0);
+        const totalComments = latestPosts.reduce((sum: number, post: any) => sum + (post.commentsCount || post.comments || 0), 0);
+        const avgLikes = totalLikes / latestPosts.length;
+        const avgComments = totalComments / latestPosts.length;
+        engagementScore = calculateEngagementScore(followersCount, postsCount, avgLikes, avgComments);
+      }
+
+      // Detect suspicious accounts
+      const suspiciousCheck = detectSuspiciousAccount({
+        followersCount,
+        followingCount,
+        postsCount,
+        isPrivate,
+        biography,
+        fullName: item.fullName || item.full_name || null,
+        profilePicUrl: item.profilePicUrl || item.profilePicUrlHD || item.profile_pic_url || null
+      });
+
+      console.log(`Contact extraction for ${username}: email=${email}, phone=${phone}, socialLinks=${JSON.stringify(otherSocialLinks)}, engagement=${engagementScore}, suspicious=${suspiciousCheck.isSuspicious}`);
+
+      const updateData: Record<string, any> = {
         full_name: item.fullName || item.full_name || null,
         biography: biography,
         profile_pic_url: item.profilePicUrl || item.profilePicUrlHD || item.profile_pic_url || null,
-        followers_count: item.followersCount ?? item.followers_count ?? 0,
-        following_count: item.followsCount ?? item.followingCount ?? item.following_count ?? 0,
-        posts_count: item.postsCount ?? item.posts_count ?? 0,
+        followers_count: followersCount,
+        following_count: followingCount,
+        posts_count: postsCount,
         is_business_account: item.isBusinessAccount ?? item.is_business_account ?? false,
         is_verified: item.isVerified ?? item.verified ?? item.is_verified ?? false,
         business_category: item.businessCategoryName || item.business_category || item.categoryName || null,
         external_url: externalUrl,
         email: email,
         phone: phone,
-        enriched_at: now
+        enriched_at: now,
+        // New enhanced fields
+        location_name: item.locationName || item.location?.name || null,
+        location_id: item.locationId || item.location?.id || null,
+        highlights_count: item.highlightsCount ?? item.highlights_count ?? null,
+        reels_count: item.reelsCount ?? item.reels_count ?? null,
+        igtv_count: item.igtvCount ?? item.igtv_count ?? null,
+        fbid: item.fbid || item.facebookId || null,
+        linked_facebook_page: item.linkedFacebookPage || item.connectedFbPage || null,
+        other_social_links: Object.keys(otherSocialLinks).length > 0 ? otherSocialLinks : null,
+        engagement_score: engagementScore,
+        is_suspicious: suspiciousCheck.isSuspicious,
+        suspicious_reasons: suspiciousCheck.reasons.length > 0 ? suspiciousCheck.reasons : null
       };
 
-      console.log(`Updating profile ${profileId} with:`, JSON.stringify(updateData));
+      // Only include latest_posts if available (and limit to 5)
+      if (latestPosts && Array.isArray(latestPosts)) {
+        updateData.latest_posts = latestPosts.slice(0, 5).map((post: any) => ({
+          id: post.id || post.shortCode,
+          shortCode: post.shortCode,
+          type: post.type,
+          caption: post.caption?.substring(0, 200),
+          likesCount: post.likesCount || post.likes,
+          commentsCount: post.commentsCount || post.comments,
+          timestamp: post.timestamp,
+          locationName: post.locationName
+        }));
+      }
+
+      console.log(`Updating profile ${profileId} with enhanced data`);
 
       const { data: updated, error: updateError } = await supabase
         .from('instagram_scrape_results')
