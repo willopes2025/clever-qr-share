@@ -20,6 +20,8 @@ import { InstanceFilters, InstanceFiltersState } from "@/components/instances/In
 import { InstancesListView } from "@/components/instances/InstancesListView";
 import { EditDeviceDialog } from "@/components/instances/EditDeviceDialog";
 import { InstanceMembersDialog } from "@/components/instances/InstanceMembersDialog";
+import { MetaWhatsAppSection } from "@/components/instances/MetaWhatsAppSection";
+import { Separator } from "@/components/ui/separator";
 
 const Instances = () => {
   const {
@@ -204,6 +206,13 @@ const Instances = () => {
 
   return (
     <DashboardLayout className="p-8 isolate cyber-grid">
+      <div className="mb-8">
+        <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Instâncias</h1>
+        <p className="text-muted-foreground">
+          Gerencie suas conexões WhatsApp
+        </p>
+      </div>
+
       {/* Subscription limit alert */}
       {!isSubscribed && (
         <Alert className="mb-6 border-yellow-500/50 bg-yellow-500/10">
@@ -234,17 +243,15 @@ const Instances = () => {
         </Alert>
       )}
 
+      {/* Meta WhatsApp API Section */}
+      <MetaWhatsAppSection />
+
+      <Separator className="my-8" />
+
       <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Instâncias</h1>
-          <p className="text-muted-foreground">
-            Gerencie suas conexões WhatsApp 
-            {maxInstances !== null && (
-              <span className="ml-2 text-sm">
-                ({instanceCount}/{maxInstances} usadas)
-              </span>
-            )}
-          </p>
+        <div className="flex items-center gap-2">
+          <Smartphone className="h-5 w-5 text-emerald-500" />
+          <h2 className="text-xl font-semibold">WhatsApp Lite (Evolution)</h2>
         </div>
 
         <div className="flex gap-3">
@@ -322,56 +329,18 @@ const Instances = () => {
               </div>
             </DialogContent>
           </Dialog>
-
-          {/* Confirm Recreate Dialog */}
-          <Dialog open={confirmRecreateDialog} onOpenChange={setConfirmRecreateDialog}>
-            <DialogContent className="glass-card border-orange-500/30">
-              <DialogHeader>
-                <DialogTitle className="text-orange-500 flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" />
-                  Instância já existe
-                </DialogTitle>
-                <DialogDescription>
-                  Já existe uma instância chamada "<strong>{pendingInstanceName}</strong>" na Evolution API.
-                  Deseja excluí-la e criar uma nova?
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <p className="text-sm text-muted-foreground">
-                  ⚠️ Esta ação irá excluir a instância existente na Evolution API e criar uma nova. 
-                  Todas as conexões e configurações anteriores serão perdidas.
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setConfirmRecreateDialog(false);
-                    setPendingInstanceName("");
-                  }} 
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={() => handleCreateInstance(true)} 
-                  className="flex-1 bg-orange-500 hover:bg-orange-600"
-                  disabled={createInstance.isPending}
-                >
-                  {createInstance.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Recriando...
-                    </>
-                  ) : (
-                    'Excluir e Recriar'
-                  )}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
+      
+      <p className="text-muted-foreground mb-4">
+        Instâncias via QR Code 
+        {maxInstances !== null && (
+          <span className="ml-2 text-sm">
+            ({instanceCount}/{maxInstances} usadas)
+          </span>
+        )}
+      </p>
+
 
       {/* Filters */}
       <div className="mb-6">
@@ -547,6 +516,54 @@ const Instances = () => {
             <p className="text-sm text-muted-foreground text-center mt-4">
               Abra o WhatsApp no seu celular → Configurações → Aparelhos conectados → Conectar aparelho
             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Recreate Dialog */}
+      <Dialog open={confirmRecreateDialog} onOpenChange={setConfirmRecreateDialog}>
+        <DialogContent className="glass-card border-orange-500/30">
+          <DialogHeader>
+            <DialogTitle className="text-orange-500 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Instância já existe
+            </DialogTitle>
+            <DialogDescription>
+              Já existe uma instância chamada "<strong>{pendingInstanceName}</strong>" na Evolution API.
+              Deseja excluí-la e criar uma nova?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              ⚠️ Esta ação irá excluir a instância existente na Evolution API e criar uma nova. 
+              Todas as conexões e configurações anteriores serão perdidas.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setConfirmRecreateDialog(false);
+                setPendingInstanceName("");
+              }} 
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => handleCreateInstance(true)} 
+              className="flex-1 bg-orange-500 hover:bg-orange-600"
+              disabled={createInstance.isPending}
+            >
+              {createInstance.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Recriando...
+                </>
+              ) : (
+                'Excluir e Recriar'
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
