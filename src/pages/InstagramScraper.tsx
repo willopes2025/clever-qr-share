@@ -208,7 +208,7 @@ const InstagramScraper = () => {
     }
   };
 
-  const handleSelectByFilter = (filter: 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact') => {
+  const handleSelectByFilter = (filter: 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact' | 'suspicious' | 'high-engagement') => {
     const currentProfiles = activeTab === 'history' ? (historicalProfiles || []) : profiles;
     
     let filtered: InstagramProfile[];
@@ -224,6 +224,12 @@ const InstagramScraper = () => {
         break;
       case 'with-contact':
         filtered = currentProfiles.filter(p => p.email || p.phone);
+        break;
+      case 'suspicious':
+        filtered = currentProfiles.filter(p => (p as any).is_suspicious);
+        break;
+      case 'high-engagement':
+        filtered = currentProfiles.filter(p => (p as any).engagement_score && (p as any).engagement_score > 3);
         break;
     }
     

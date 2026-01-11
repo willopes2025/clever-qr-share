@@ -3140,22 +3140,34 @@ export type Database = {
           business_category: string | null
           created_at: string
           email: string | null
+          engagement_score: number | null
           enriched_at: string | null
           external_url: string | null
+          fbid: string | null
           followers_count: number | null
           following_count: number | null
           full_name: string | null
+          highlights_count: number | null
           id: string
+          igtv_count: number | null
           is_business_account: boolean | null
           is_private: boolean | null
+          is_suspicious: boolean | null
           is_verified: boolean | null
+          latest_posts: Json | null
+          linked_facebook_page: string | null
+          location_id: string | null
+          location_name: string | null
+          other_social_links: Json | null
           phone: string | null
           posts_count: number | null
           profile_pic_url: string | null
           raw_data: Json | null
+          reels_count: number | null
           scrape_type: string | null
           scraped_at: string
           source_username: string | null
+          suspicious_reasons: string[] | null
           user_id: string
           username: string
         }
@@ -3164,22 +3176,34 @@ export type Database = {
           business_category?: string | null
           created_at?: string
           email?: string | null
+          engagement_score?: number | null
           enriched_at?: string | null
           external_url?: string | null
+          fbid?: string | null
           followers_count?: number | null
           following_count?: number | null
           full_name?: string | null
+          highlights_count?: number | null
           id?: string
+          igtv_count?: number | null
           is_business_account?: boolean | null
           is_private?: boolean | null
+          is_suspicious?: boolean | null
           is_verified?: boolean | null
+          latest_posts?: Json | null
+          linked_facebook_page?: string | null
+          location_id?: string | null
+          location_name?: string | null
+          other_social_links?: Json | null
           phone?: string | null
           posts_count?: number | null
           profile_pic_url?: string | null
           raw_data?: Json | null
+          reels_count?: number | null
           scrape_type?: string | null
           scraped_at?: string
           source_username?: string | null
+          suspicious_reasons?: string[] | null
           user_id: string
           username: string
         }
@@ -3188,22 +3212,34 @@ export type Database = {
           business_category?: string | null
           created_at?: string
           email?: string | null
+          engagement_score?: number | null
           enriched_at?: string | null
           external_url?: string | null
+          fbid?: string | null
           followers_count?: number | null
           following_count?: number | null
           full_name?: string | null
+          highlights_count?: number | null
           id?: string
+          igtv_count?: number | null
           is_business_account?: boolean | null
           is_private?: boolean | null
+          is_suspicious?: boolean | null
           is_verified?: boolean | null
+          latest_posts?: Json | null
+          linked_facebook_page?: string | null
+          location_id?: string | null
+          location_name?: string | null
+          other_social_links?: Json | null
           phone?: string | null
           posts_count?: number | null
           profile_pic_url?: string | null
           raw_data?: Json | null
+          reels_count?: number | null
           scrape_type?: string | null
           scraped_at?: string
           source_username?: string | null
+          suspicious_reasons?: string[] | null
           user_id?: string
           username?: string
         }
