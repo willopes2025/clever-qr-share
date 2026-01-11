@@ -27,7 +27,7 @@ type AuthResult = AuthSuccess | AuthFailure;
  */
 export async function requireUser(req: Request, maxRetries = 2): Promise<AuthResult> {
   const authHeader = req.headers.get("Authorization");
-  
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     console.error("[auth] Missing or invalid authorization header");
     return {
@@ -39,36 +39,29 @@ export async function requireUser(req: Request, maxRetries = 2): Promise<AuthRes
     };
   }
 
+  const token = authHeader.replace("Bearer ", "");
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Create new client on each attempt (avoids problematic cache)
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false }
     });
 
-    // getUser() validates the JWT and returns the user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    // IMPORTANT: pass the JWT explicitly to avoid "Auth session missing!"
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
     if (user && !userError) {
-      if (attempt > 1) {
-        console.log(`[auth] Succeeded on attempt ${attempt}`);
-      }
-      return {
-        success: true,
-        userId: user.id,
-        email: user.email
-      };
+      if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
+      return { success: true, userId: user.id, email: user.email };
     }
 
     lastError = userError || new Error("No user returned");
     console.warn(`[auth] Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
 
-    // Small delay before retrying (progressive)
     if (attempt < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 100 * attempt));
     }
