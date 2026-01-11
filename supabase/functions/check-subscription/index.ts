@@ -207,17 +207,39 @@ Deno.serve(async (req: Request) => {
     }
     logStep("Authorization header found");
 
-    // Create auth client with the token to validate
-    const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
+    // Use getUser() with retry logic to handle intermittent auth failures
+    let user = null;
+    let userError = null;
+    const maxRetries = 3;
 
-    // Use getUser() to validate the JWT - this is the correct method for Edge Functions
-    const { data: { user }, error: userError } = await supabaseAuthClient.auth.getUser();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // Create new auth client on each attempt (avoids cache issues)
+      const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      });
+
+      const result = await supabaseAuthClient.auth.getUser();
+      user = result.data?.user;
+      userError = result.error;
+
+      if (user && !userError) {
+        if (attempt > 1) {
+          logStep("Auth succeeded on retry", { attempt });
+        }
+        break;
+      }
+
+      logStep("Auth attempt failed", { attempt, maxRetries, error: userError?.message });
+
+      // Wait before retrying (progressive delay)
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 150 * attempt));
+      }
+    }
 
     if (userError || !user) {
-      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token" });
+      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token", afterRetries: true });
       return new Response(
         JSON.stringify({
           error: `Authentication error: ${userError?.message || "Invalid token"}`,
