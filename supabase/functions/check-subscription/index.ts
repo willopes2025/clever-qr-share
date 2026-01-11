@@ -207,47 +207,36 @@ Deno.serve(async (req: Request) => {
     }
     logStep("Authorization header found");
 
-    // Use getUser() with retry logic to handle intermittent auth failures
-    let user = null;
-    let userError = null;
+    const token = authHeader.replace("Bearer ", "");
+
+    // Validate JWT by passing it explicitly (avoids "Auth session missing!")
+    let user: any = null;
+    let userError: any = null;
     const maxRetries = 3;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      // Create new auth client on each attempt (avoids cache issues)
       const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
-        global: { headers: { Authorization: authHeader } },
         auth: { persistSession: false },
       });
 
-      const result = await supabaseAuthClient.auth.getUser();
+      const result = await supabaseAuthClient.auth.getUser(token);
       user = result.data?.user;
       userError = result.error;
 
       if (user && !userError) {
-        if (attempt > 1) {
-          logStep("Auth succeeded on retry", { attempt });
-        }
+        if (attempt > 1) logStep("Auth succeeded on retry", { attempt });
         break;
       }
 
       logStep("Auth attempt failed", { attempt, maxRetries, error: userError?.message });
-
-      // Wait before retrying (progressive delay)
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 150 * attempt));
-      }
+      if (attempt < maxRetries) await new Promise(resolve => setTimeout(resolve, 150 * attempt));
     }
 
     if (userError || !user) {
-      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token", afterRetries: true });
+      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token" });
       return new Response(
-        JSON.stringify({
-          error: `Authentication error: ${userError?.message || "Invalid token"}`,
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        }
+        JSON.stringify({ error: `Authentication error: ${userError?.message || "Invalid token"}` }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
@@ -256,28 +245,25 @@ Deno.serve(async (req: Request) => {
 
     if (!userId || !userEmail) {
       logStep("AUTH_ERROR", { message: "Missing user ID or email" });
-      return new Response(
-        JSON.stringify({ error: "Authentication error: Invalid user data" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        }
-      );
+      return new Response(JSON.stringify({ error: "Authentication error: Invalid user data" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
     }
 
-    logStep("User authenticated via getUser", { userId, email: userEmail });
+    logStep("User authenticated via getUser(token)", { userId, email: userEmail });
 
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
     // Check and reset leads if needed
-    await checkAndResetLeads(supabaseClient, user.id);
+    await checkAndResetLeads(supabaseClient, userId);
 
     // NOVA LÓGICA: Verificar se o usuário é membro de uma organização
     const { data: member } = await supabaseClient
       .from("team_members")
       .select("organization_id, role, permissions")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("status", "active")
       .single();
 
@@ -291,7 +277,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", member.organization_id)
         .single();
 
-      if (org && org.owner_id !== user.id) {
+      if (org && org.owner_id !== userId) {
         logStep("Getting subscription from organization owner", { ownerId: org.owner_id });
         
         // Buscar email do owner
@@ -307,7 +293,7 @@ Deno.serve(async (req: Request) => {
           );
           
           logStep("Returning owner subscription for member", { 
-            memberId: user.id, 
+            memberId: userId,
             ownerId: org.owner_id,
             plan: ownerSubscription.plan 
           });
@@ -331,7 +317,7 @@ Deno.serve(async (req: Request) => {
     const { data: existingSub } = await supabaseClient
       .from("subscriptions")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     // Se existe assinatura manual ativa, usar ela e NÃO sobrescrever com Stripe
@@ -368,12 +354,12 @@ Deno.serve(async (req: Request) => {
         await supabaseClient
           .from("subscriptions")
           .update({ manual_override: false, status: 'expired' })
-          .eq("user_id", user.id);
+          .eq("user_id", userId);
       }
     }
 
     // Continuar com verificação do Stripe
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    const customers = await stripe.customers.list({ email: userEmail, limit: 1 });
 
     if (customers.data.length === 0) {
       logStep("No customer found, returning free plan");
@@ -382,7 +368,7 @@ Deno.serve(async (req: Request) => {
       await supabaseClient
         .from("subscriptions")
         .upsert({
-          user_id: user.id,
+          user_id: userId,
           status: "active",
           plan: FREE_PLAN.plan,
           max_instances: FREE_PLAN.maxInstances,
@@ -447,7 +433,7 @@ Deno.serve(async (req: Request) => {
     await supabaseClient
       .from("subscriptions")
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         stripe_customer_id: customerId,
         stripe_subscription_id: stripeSubscriptionId,
         stripe_price_id: stripePriceId,

@@ -13,11 +13,8 @@ Deno.serve(async (req): Promise<Response> => {
   try {
     logStep("Function started");
 
-    // Validate authentication using shared helper
     const authResult = await requireUser(req);
-    if (!authResult.success) {
-      return authResult.error;
-    }
+    if (!authResult.success) return authResult.error;
 
     const authenticatedUserId = authResult.userId;
     logStep("User authenticated", { userId: authenticatedUserId });
