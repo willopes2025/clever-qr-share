@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { FeatureGate } from "@/components/FeatureGate";
@@ -44,12 +44,14 @@ const Funnels = () => {
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
 
-  // Auto-select first funnel
+  // Auto-select first funnel (in useEffect to avoid re-render loop)
+  useEffect(() => {
+    if (funnels?.length && !selectedFunnelId) {
+      setSelectedFunnelId(funnels[0].id);
+    }
+  }, [funnels, selectedFunnelId]);
+
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId) || funnels?.[0];
-  
-  if (currentFunnel && !selectedFunnelId) {
-    setSelectedFunnelId(currentFunnel.id);
-  }
 
   const handleDeleteFunnel = async () => {
     if (!funnelToDelete) return;
