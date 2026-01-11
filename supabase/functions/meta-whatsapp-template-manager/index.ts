@@ -52,37 +52,44 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { action, templateId, templateData } = await req.json();
     console.log(`[meta-template-manager] Action: ${action}, User: ${user.id}`);
 
-    // Get user's Meta integration config
-    const { data: integration, error: integrationError } = await supabaseClient
+    // Get user's Meta integration config - try integrations table first, then env secrets
+    const { data: integration } = await supabaseClient
       .from("integrations")
-      .select("config")
+      .select("credentials")
       .eq("user_id", user.id)
-      .eq("type", "meta_whatsapp")
+      .eq("provider", "meta_whatsapp")
       .eq("is_active", true)
       .single();
 
-    if (integrationError || !integration) {
+    let accessToken: string | undefined;
+    let wabaId: string | undefined;
+
+    if (integration?.credentials) {
+      const creds = integration.credentials as {
+        access_token?: string;
+        phone_number_id?: string;
+        waba_id?: string;
+        business_account_id?: string;
+      };
+      accessToken = creds.access_token;
+      wabaId = creds.waba_id || creds.business_account_id;
+    }
+    
+    // Fallback to environment secrets if not in database
+    if (!accessToken) {
+      accessToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN");
+    }
+    if (!wabaId) {
+      wabaId = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID");
+    }
+
+    if (!accessToken || !wabaId) {
       return new Response(
-        JSON.stringify({ error: "Meta WhatsApp integration not configured" }),
+        JSON.stringify({ error: "Meta WhatsApp integration not configured. Configure via integrations or add META_WHATSAPP_ACCESS_TOKEN and META_WHATSAPP_BUSINESS_ACCOUNT_ID secrets." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const config = integration.config as {
-      access_token?: string;
-      phone_number_id?: string;
-      waba_id?: string;
-    };
-
-    if (!config.access_token || !config.waba_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing Meta API credentials (access_token or waba_id)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const accessToken = config.access_token;
-    const wabaId = config.waba_id;
 
     switch (action) {
       case "create": {
