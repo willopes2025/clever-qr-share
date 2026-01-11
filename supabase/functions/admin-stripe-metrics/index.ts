@@ -18,7 +18,7 @@ interface StripeSubscription {
   product_name: string;
   price: number;
   status: string;
-  current_period_end: string;
+  current_period_end: string | null;
   created: string;
 }
 
@@ -150,6 +150,10 @@ Deno.serve(async (req: Request) => {
         mrr += monthlyAmount;
       }
 
+      // Safely handle dates that might be null or invalid
+      const periodEndDate = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+      const createdDate = sub.created ? new Date(sub.created * 1000) : null;
+
       subscriptionDetails.push({
         id: sub.id,
         customer_email: customer?.email || "N/A",
@@ -157,8 +161,8 @@ Deno.serve(async (req: Request) => {
         product_name: product?.name || "Unknown",
         price: monthlyAmount,
         status: sub.status,
-        current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-        created: new Date(sub.created * 1000).toISOString(),
+        current_period_end: periodEndDate && !isNaN(periodEndDate.getTime()) ? periodEndDate.toISOString() : null,
+        created: createdDate && !isNaN(createdDate.getTime()) ? createdDate.toISOString() : new Date().toISOString(),
       });
     }
 
@@ -217,9 +221,11 @@ Deno.serve(async (req: Request) => {
         available: availableBalance,
         pending: pendingBalance,
       },
-      subscriptions: subscriptionDetails.sort((a, b) => 
-        new Date(b.created).getTime() - new Date(a.created).getTime()
-      ),
+      subscriptions: subscriptionDetails.sort((a, b) => {
+        const dateA = a.created ? new Date(a.created).getTime() : 0;
+        const dateB = b.created ? new Date(b.created).getTime() : 0;
+        return dateB - dateA;
+      }),
       invoices: invoiceDetails,
       mrrHistory,
     };
