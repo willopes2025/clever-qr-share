@@ -37,6 +37,8 @@ export interface ConversationFilters {
   hasDeal: 'all' | 'with_deal' | 'without_deal';
   campaignId: string | null;
   isPinned: boolean;
+  provider: 'all' | 'evolution' | 'meta';
+  metaPhoneNumberId: string | null;
 }
 
 interface ConversationFiltersProps {
@@ -74,6 +76,12 @@ const hasDealOptions = [
   { value: 'without_deal', label: 'Sem deal' },
 ];
 
+const providerOptions = [
+  { value: 'all', label: 'Todos os canais' },
+  { value: 'evolution', label: 'WhatsApp Lite' },
+  { value: 'meta', label: 'WhatsApp API' },
+];
+
 export const ConversationFiltersComponent = ({ filters, onFiltersChange }: ConversationFiltersProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const { instances } = useWhatsAppInstances();
@@ -94,6 +102,8 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
     filters.hasDeal !== 'all' ? filters.hasDeal : null,
     filters.campaignId,
     filters.isPinned ? true : null,
+    filters.provider !== 'all' ? filters.provider : null,
+    filters.metaPhoneNumberId,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
@@ -109,6 +119,8 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
       hasDeal: 'all',
       campaignId: null,
       isPinned: false,
+      provider: 'all',
+      metaPhoneNumberId: null,
     });
   };
 
@@ -190,11 +202,42 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                 )}
               </div>
 
-              {/* Instance Filter */}
+              {/* Provider Filter - NEW */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                   <Phone className="h-3 w-3" />
-                  Telefone conectado
+                  Canal WhatsApp
+                </label>
+                <Select
+                  value={filters.provider}
+                  onValueChange={(value) =>
+                    onFiltersChange({
+                      ...filters,
+                      provider: value as ConversationFilters['provider'],
+                      // Clear instance filter when changing to meta
+                      instanceId: value === 'meta' ? null : filters.instanceId,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providerOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Instance Filter - Only show when provider is evolution or all */}
+              {filters.provider !== 'meta' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Phone className="h-3 w-3" />
+                  Telefone conectado (Lite)
                 </label>
                 <Select
                   value={filters.instanceId || "all"}
@@ -218,6 +261,7 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                   </SelectContent>
                 </Select>
               </div>
+              )}
 
               {/* Tag Filter */}
               <div className="space-y-1.5">

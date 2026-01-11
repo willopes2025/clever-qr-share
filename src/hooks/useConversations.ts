@@ -34,6 +34,9 @@ export interface Conversation {
   // FASE 1: Lead distribution + SLA
   assigned_to?: string | null;
   first_response_at?: string | null;
+  // Provider fields (WhatsApp Lite vs API)
+  provider?: 'evolution' | 'meta' | null;
+  meta_phone_number_id?: string | null;
   contact?: {
     id: string;
     name: string | null;
@@ -143,8 +146,12 @@ export const useConversations = () => {
       }
 
       // Exclude conversations from notification-only instances
+      // But always include meta conversations (instance_id = null)
       if (notificationInstanceIds && notificationInstanceIds.length > 0) {
-        query = query.not('instance_id', 'in', `(${notificationInstanceIds.join(',')})`);
+        // We need to keep conversations where:
+        // 1. instance_id is null (meta conversations)
+        // 2. instance_id is NOT in notificationInstanceIds
+        query = query.or(`instance_id.is.null,instance_id.not.in.(${notificationInstanceIds.join(',')})`);
       }
 
       const { data, error } = await query;
