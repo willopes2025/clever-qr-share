@@ -230,6 +230,21 @@ Deno.serve(async (req) => {
       // Message failed - check for specific error types
       let errorMessage = result.message || result.error || 'Unknown error';
       
+      // Check if instance doesn't exist in Evolution API
+      if (response.status === 404 && result.response?.message) {
+        const msgDetails = result.response.message;
+        if (Array.isArray(msgDetails) && msgDetails.some((m: string) => m.includes('does not exist'))) {
+          // Update instance status in database
+          await supabase
+            .from('whatsapp_instances')
+            .update({ status: 'disconnected' })
+            .eq('id', instanceId);
+          
+          errorMessage = `A instância WhatsApp "${instance.instance_name}" foi desconectada. Por favor, reconecte-a nas configurações.`;
+          console.error(`Instance ${instance.instance_name} not found in Evolution API - marked as disconnected`);
+        }
+      }
+      
       // Check if number doesn't exist on WhatsApp
       if (result.response?.message) {
         const msgDetails = result.response.message;
