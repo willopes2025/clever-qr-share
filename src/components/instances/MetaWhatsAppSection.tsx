@@ -2,10 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
+import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2 } from "lucide-react";
 import { useMetaWhatsAppNumbers, MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaWebhookConfigDialog } from "./MetaWebhookConfigDialog";
 import { AddMetaNumberDialog } from "./AddMetaNumberDialog";
+import { MetaWebhookEventsPanel } from "./MetaWebhookEventsPanel";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +31,45 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [numberToDelete, setNumberToDelete] = useState<MetaWhatsAppNumber | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const navigate = useNavigate();
+
+  const handleTestInbox = async () => {
+    try {
+      setIsTesting(true);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Você precisa estar logado para testar");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('meta-whatsapp-test-event', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Test error:', error);
+        toast.error("Erro ao criar mensagem de teste: " + error.message);
+        return;
+      }
+
+      toast.success("Mensagem de teste criada! Abrindo Inbox...");
+      
+      // Navigate to inbox
+      setTimeout(() => {
+        navigate('/inbox');
+      }, 1000);
+
+    } catch (err) {
+      console.error('Test error:', err);
+      toast.error("Erro ao criar mensagem de teste");
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const handleDeleteClick = (number: MetaWhatsAppNumber) => {
     setNumberToDelete(number);
@@ -174,6 +217,45 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
           </CardContent>
         </Card>
       )}
+
+      {/* Webhook Events Panel and Test Button */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <MetaWebhookEventsPanel />
+        
+        <Card className="glass-card border-muted">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TestTube className="h-4 w-4" />
+              Testar Integração
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Crie uma mensagem de teste simulada para verificar se o Inbox está exibindo conversas Meta corretamente.
+            </p>
+            <Button
+              onClick={handleTestInbox}
+              disabled={isTesting}
+              className="w-full gap-2"
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Criando teste...
+                </>
+              ) : (
+                <>
+                  <TestTube className="h-4 w-4" />
+                  Gerar Mensagem de Teste
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Este teste <strong>não depende</strong> do webhook do Meta. Serve para confirmar que o sistema exibe conversas Meta corretamente.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       <MetaWebhookConfigDialog
         open={webhookDialogOpen}

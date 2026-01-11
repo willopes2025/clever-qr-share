@@ -19,6 +19,37 @@ function verifySignature(payload: string, signature: string, appSecret: string):
   return signature === `sha256=${expectedSignature}`;
 }
 
+// Helper to log webhook events
+async function logWebhookEvent(
+  supabase: any,
+  userId: string | null,
+  method: string,
+  statusCode: number | null,
+  phoneNumberId: string | null,
+  eventType: string | null,
+  payload: any,
+  error: string | null,
+  signatureValid: boolean | null
+) {
+  try {
+    // Use a default user_id if none found (for debugging unmatched webhooks)
+    const logUserId = userId || '00000000-0000-0000-0000-000000000000';
+    
+    await supabase.from('meta_webhook_events').insert({
+      user_id: logUserId,
+      method,
+      status_code: statusCode,
+      phone_number_id: phoneNumberId,
+      event_type: eventType,
+      payload,
+      error,
+      signature_valid: signatureValid,
+    });
+  } catch (logError) {
+    console.error('[META-WEBHOOK] Failed to log event:', logError);
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -60,6 +91,20 @@ Deno.serve(async (req) => {
 
       if (matchingIntegration) {
         console.log('[META-WEBHOOK] Verification successful for integration:', matchingIntegration.id);
+        
+        // Log successful verification
+        await logWebhookEvent(
+          supabase,
+          matchingIntegration.user_id,
+          'GET',
+          200,
+          matchingIntegration.credentials?.phone_number_id || null,
+          'verification',
+          { mode, challenge: challenge?.substring(0, 20) },
+          null,
+          null
+        );
+        
         return new Response(challenge, { 
           status: 200,
           headers: { 'Content-Type': 'text/plain' }
@@ -68,24 +113,39 @@ Deno.serve(async (req) => {
     }
 
     console.log('[META-WEBHOOK] Verification failed - no matching verify_token found');
+    
+    // Log failed verification
+    await logWebhookEvent(supabase, null, 'GET', 403, null, 'verification', { mode, token }, 'No matching verify_token found', null);
+    
     return new Response('Forbidden', { status: 403 });
   }
 
   // Handle incoming webhooks (POST request)
   if (req.method === 'POST') {
+    let rawBody = '';
+    let body: any = null;
+    let webhookPhoneNumberId: string | null = null;
+    let userId: string | null = null;
+    let eventType = 'unknown';
+    
     try {
-      const rawBody = await req.text();
-      const signature = req.headers.get('x-hub-signature-256') || '';
-      const body = JSON.parse(rawBody);
+      rawBody = await req.text();
+      body = JSON.parse(rawBody);
       
       console.log('[META-WEBHOOK] Received webhook:', JSON.stringify(body, null, 2));
 
       // Get phone_number_id from webhook payload to find the correct integration
-      let webhookPhoneNumberId: string | null = null;
       for (const entry of body.entry || []) {
         for (const change of entry.changes || []) {
           if (change.field === 'messages' && change.value?.metadata?.phone_number_id) {
             webhookPhoneNumberId = change.value.metadata.phone_number_id;
+            
+            // Determine event type
+            if (change.value.messages?.length > 0) {
+              eventType = 'message';
+            } else if (change.value.statuses?.length > 0) {
+              eventType = 'status';
+            }
             break;
           }
         }
@@ -124,6 +184,10 @@ Deno.serve(async (req) => {
 
       if (!integration) {
         console.log('[META-WEBHOOK] No active Meta WhatsApp integration found');
+        
+        // Log event even without integration (for debugging)
+        await logWebhookEvent(supabase, null, 'POST', 200, webhookPhoneNumberId, eventType, body, 'No integration found', null);
+        
         return new Response(JSON.stringify({ success: true, message: 'No integration found' }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -131,20 +195,27 @@ Deno.serve(async (req) => {
       }
 
       console.log('[META-WEBHOOK] Using integration:', integration.id, 'for user:', integration.user_id);
+      userId = integration.user_id;
 
       // Verify signature using app_secret from integration credentials
       const appSecret = integration.credentials?.app_secret;
+      const signature = req.headers.get('x-hub-signature-256') || '';
+      let signatureValid: boolean | null = null;
+      
       if (appSecret) {
-        if (!verifySignature(rawBody, signature, appSecret)) {
+        signatureValid = verifySignature(rawBody, signature, appSecret);
+        if (!signatureValid) {
           console.error('[META-WEBHOOK] Invalid signature');
+          
+          // Log failed signature
+          await logWebhookEvent(supabase, userId, 'POST', 401, webhookPhoneNumberId, eventType, body, 'Invalid signature', false);
+          
           return new Response('Invalid signature', { status: 401 });
         }
         console.log('[META-WEBHOOK] Signature verified successfully');
       } else {
         console.warn('[META-WEBHOOK] No app_secret configured, skipping signature verification');
       }
-
-      const userId = integration.user_id;
 
       // Process each entry
       for (const entry of body.entry || []) {
@@ -402,6 +473,9 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Log successful processing
+      await logWebhookEvent(supabase, userId, 'POST', 200, webhookPhoneNumberId, eventType, body, null, true);
+
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -410,6 +484,10 @@ Deno.serve(async (req) => {
     } catch (error: unknown) {
       console.error('[META-WEBHOOK] Error processing webhook:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Log error
+      await logWebhookEvent(supabase, userId, 'POST', 500, webhookPhoneNumberId, eventType, body, errorMessage, null);
+      
       return new Response(JSON.stringify({ error: errorMessage }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
