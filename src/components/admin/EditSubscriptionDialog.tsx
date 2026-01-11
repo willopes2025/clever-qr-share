@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { PLANS } from "@/hooks/useSubscription";
 import { Loader2 } from "lucide-react";
+import { invokeAdminFunction } from "@/lib/supabase-functions";
 
 interface UserWithSubscription {
   id: string;
@@ -121,9 +121,7 @@ export const EditSubscriptionDialog = ({
         body.userId = user.id;
       }
 
-      const { data, error } = await supabase.functions.invoke('admin-update-subscription', {
-        body
-      });
+      const { error } = await invokeAdminFunction('admin-update-subscription', { body });
 
       if (error) throw error;
 

@@ -1,10 +1,5 @@
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
-import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { requireUser, createServiceClient, isAdmin, corsHeaders } from "../_shared/auth.ts";
 
 const logStep = (step: string, details?: Record<string, unknown>) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -36,7 +31,7 @@ interface MRRHistoryItem {
   value: number;
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -48,50 +43,25 @@ Deno.serve(async (req: Request) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
 
-    // Initialize Supabase client with service role for admin operations
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
-
-    // Verify authentication using getClaims
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
-
-    const supabaseAuthClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { 
-        global: { headers: { Authorization: authHeader } },
-        auth: { persistSession: false } 
-      }
-    );
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims) {
-      throw new Error(`Authentication error: ${claimsError?.message || "Invalid token"}`);
+    // Validate authentication using shared helper
+    const authResult = await requireUser(req);
+    if ('error' in authResult) {
+      return authResult.error;
     }
-    
-    const userId = claimsData.claims.sub as string;
-    if (!userId) throw new Error("User not authenticated");
+
+    const { userId } = authResult;
     logStep("User authenticated", { userId });
 
     // Check if user is admin
-    const { data: roleData, error: roleError } = await supabaseClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .single();
-
-    logStep("Role check result", { roleData, roleError: roleError?.message });
-
-    if (!roleData || !["admin", "owner"].includes(roleData.role)) {
-      throw new Error("Unauthorized: Admin access required");
+    const userIsAdmin = await isAdmin(userId);
+    if (!userIsAdmin) {
+      logStep("User is not admin", { userId });
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
-    logStep("Admin access verified", { role: roleData.role });
+    logStep("Admin access verified");
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 

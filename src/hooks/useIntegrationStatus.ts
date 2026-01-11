@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { invokeFunctionWithAuth } from "@/lib/supabase-functions";
 
 interface IntegrationStatus {
   asaas: boolean;
@@ -13,7 +13,7 @@ export const useIntegrationStatus = () => {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['integration-status', user?.id],
     queryFn: async (): Promise<IntegrationStatus> => {
-      const { data, error } = await supabase.functions.invoke('integration-status');
+      const { data, error } = await invokeFunctionWithAuth<IntegrationStatus>('integration-status');
       
       if (error) {
         console.error('[useIntegrationStatus] Error:', error);

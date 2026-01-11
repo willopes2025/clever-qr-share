@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Shield, Users, RefreshCw, Coins, LogOut, LayoutDashboard, DollarSign, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +21,7 @@ import OwnerOverview from "@/components/owner/OwnerOverview";
 import OwnerFinanceiro from "@/components/owner/OwnerFinanceiro";
 import OwnerOperacional from "@/components/owner/OwnerOperacional";
 import { useActivitySession } from "@/hooks/useActivitySession";
+import { invokeAdminFunction } from "@/lib/supabase-functions";
 
 interface UserWithSubscription {
   id: string;
@@ -60,12 +60,13 @@ const Admin = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('admin-update-subscription', {
-        body: { action: 'list_users' }
-      });
+      const { data, error } = await invokeAdminFunction<{ users: UserWithSubscription[] }>(
+        'admin-update-subscription',
+        { body: { action: 'list_users' } }
+      );
 
       if (error) throw error;
-      setUsers(data.users || []);
+      setUsers(data?.users || []);
     } catch (err) {
       console.error('Error fetching users:', err);
       toast.error('Erro ao carregar usuários');
@@ -115,9 +116,10 @@ const Admin = () => {
   const handleDeleteUser = async (userId: string) => {
     setDeletingUserId(userId);
     try {
-      const { data, error } = await supabase.functions.invoke('admin-update-subscription', {
-        body: { action: 'delete_user', userId }
-      });
+      const { error } = await invokeAdminFunction(
+        'admin-update-subscription',
+        { body: { action: 'delete_user', userId } }
+      );
 
       if (error) throw error;
       

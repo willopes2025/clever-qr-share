@@ -1,16 +1,11 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { requireUser, createServiceClient, isAdmin, corsHeaders } from "../_shared/auth.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[ADMIN-UPDATE-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-Deno.serve(async (req) => {
+Deno.serve(async (req): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -18,50 +13,28 @@ Deno.serve(async (req) => {
   try {
     logStep("Function started");
 
-    // Initialize Supabase client with service role for admin operations
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
-
-    // Verify authentication using getClaims
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      throw new Error("No authorization header provided");
+    // Validate authentication using shared helper
+    const authResult = await requireUser(req);
+    if ('error' in authResult) {
+      return authResult.error;
     }
 
-    const supabaseAuthClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { 
-        global: { headers: { Authorization: authHeader } },
-        auth: { persistSession: false } 
-      }
-    );
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims) {
-      throw new Error("User not authenticated");
-    }
-    
-    const authenticatedUserId = claimsData.claims.sub as string;
-    if (!authenticatedUserId) throw new Error("User not authenticated");
+    const authenticatedUserId = authResult.userId;
     logStep("User authenticated", { userId: authenticatedUserId });
 
-    // Verify if user is admin using has_role function
-    const { data: isAdminData, error: adminError } = await supabaseClient.rpc('has_role', {
-      _user_id: authenticatedUserId,
-      _role: 'admin'
-    });
-
-    if (adminError || !isAdminData) {
-      logStep("Admin check failed", { error: adminError?.message, isAdmin: isAdminData });
-      throw new Error("Unauthorized: Admin access required");
+    // Check if user is admin
+    const userIsAdmin = await isAdmin(authenticatedUserId);
+    if (!userIsAdmin) {
+      logStep("User is not admin", { userId: authenticatedUserId });
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
     logStep("Admin verified");
+
+    // Initialize Supabase client with service role for admin operations
+    const supabaseClient = createServiceClient();
 
     // Parse request body
     const { action, subscriptionId, userId, updates, notes } = await req.json();
