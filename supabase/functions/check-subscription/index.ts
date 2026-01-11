@@ -1,5 +1,6 @@
 import Stripe from "https://esm.sh/stripe@18.5.0?target=deno";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,61 +198,24 @@ Deno.serve(async (req: Request) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      logStep("AUTH_ERROR", { message: "Missing or invalid authorization header" });
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
-      });
-    }
-    logStep("Authorization header found");
-
-    const token = authHeader.replace("Bearer ", "");
-
-    // Validate JWT by passing it explicitly (avoids "Auth session missing!")
-    let user: any = null;
-    let userError: any = null;
-    const maxRetries = 3;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const supabaseAuthClient = createClient(supabaseUrl, anonKey, {
-        auth: { persistSession: false },
-      });
-
-      const result = await supabaseAuthClient.auth.getUser(token);
-      user = result.data?.user;
-      userError = result.error;
-
-      if (user && !userError) {
-        if (attempt > 1) logStep("Auth succeeded on retry", { attempt });
-        break;
-      }
-
-      logStep("Auth attempt failed", { attempt, maxRetries, error: userError?.message });
-      if (attempt < maxRetries) await new Promise(resolve => setTimeout(resolve, 150 * attempt));
+    const authResult = await requireUser(req, 3);
+    if (!authResult.success) {
+      logStep("AUTH_ERROR", { message: "Unauthorized" });
+      return authResult.error;
     }
 
-    if (userError || !user) {
-      logStep("AUTH_ERROR", { message: userError?.message || "Invalid token" });
-      return new Response(
-        JSON.stringify({ error: `Authentication error: ${userError?.message || "Invalid token"}` }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
-      );
-    }
+    const userId = authResult.userId;
+    const userEmail = authResult.email;
 
-    const userId = user.id;
-    const userEmail = user.email;
-
-    if (!userId || !userEmail) {
-      logStep("AUTH_ERROR", { message: "Missing user ID or email" });
-      return new Response(JSON.stringify({ error: "Authentication error: Invalid user data" }), {
+    if (!userEmail) {
+      logStep("AUTH_ERROR", { message: "Authenticated user email not available" });
+      return new Response(JSON.stringify({ error: "Authentication error: Email not available" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 401,
       });
     }
 
-    logStep("User authenticated via getUser(token)", { userId, email: userEmail });
+    logStep("User authenticated", { userId, email: userEmail });
 
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
