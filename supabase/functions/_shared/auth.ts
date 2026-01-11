@@ -20,8 +20,8 @@ type AuthResult = AuthSuccess | AuthFailure;
 
 /**
  * Validates the Authorization header and returns the authenticated user.
- * Uses getUser() which properly validates the JWT with Supabase Auth.
- * 
+ * Uses getClaims() to validate the JWT with signing keys (recommended for Edge Functions).
+ *
  * @param req - The incoming request
  * @returns Object with userId and email on success, or error Response on failure
  */
@@ -47,23 +47,44 @@ export async function requireUser(req: Request, maxRetries = 2): Promise<AuthRes
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: false }
-    });
+    try {
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      });
 
-    // IMPORTANT: pass the JWT explicitly to avoid "Auth session missing!"
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+      const { data, error } = await supabaseClient.auth.getClaims(token);
 
-    if (user && !userError) {
-      if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
-      return { success: true, userId: user.id, email: user.email };
+      if (!error && data?.claims?.sub) {
+        const userId = data.claims.sub;
+        const email = (data.claims as Record<string, unknown>)?.email as string | undefined;
+
+        if (email !== undefined) {
+          if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
+          return { success: true, userId, email };
+        }
+
+        // Fallback: email may not be present in some identities' JWT claims.
+        const serviceClient = createServiceClient();
+        const { data: userData, error: adminError } = await serviceClient.auth.admin.getUserById(userId);
+
+        if (!adminError) {
+          if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
+          return { success: true, userId, email: userData.user?.email };
+        }
+
+        lastError = adminError;
+      } else {
+        lastError = error ?? new Error("No claims returned");
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
     }
 
-    lastError = userError || new Error("No user returned");
     console.warn(`[auth] Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
 
     if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+      await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
     }
   }
 
