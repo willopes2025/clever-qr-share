@@ -25,7 +25,7 @@ type AuthResult = AuthSuccess | AuthFailure;
  * @param req - The incoming request
  * @returns Object with userId and email on success, or error Response on failure
  */
-export async function requireUser(req: Request): Promise<AuthResult> {
+export async function requireUser(req: Request, maxRetries = 2): Promise<AuthResult> {
   const authHeader = req.headers.get("Authorization");
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -42,30 +42,45 @@ export async function requireUser(req: Request): Promise<AuthResult> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-  // Create client with the auth header - this allows getUser() to validate the token
-  const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
-    auth: { persistSession: false }
-  });
+  let lastError: Error | null = null;
 
-  // getUser() validates the JWT and returns the user
-  const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Create new client on each attempt (avoids problematic cache)
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false }
+    });
 
-  if (userError || !user) {
-    console.error("[auth] User validation failed:", userError?.message || "No user");
-    return {
-      success: false,
-      error: new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    };
+    // getUser() validates the JWT and returns the user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+    if (user && !userError) {
+      if (attempt > 1) {
+        console.log(`[auth] Succeeded on attempt ${attempt}`);
+      }
+      return {
+        success: true,
+        userId: user.id,
+        email: user.email
+      };
+    }
+
+    lastError = userError || new Error("No user returned");
+    console.warn(`[auth] Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
+
+    // Small delay before retrying (progressive)
+    if (attempt < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+    }
   }
 
+  console.error("[auth] All attempts failed:", lastError?.message);
   return {
-    success: true,
-    userId: user.id,
-    email: user.email
+    success: false,
+    error: new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    )
   };
 }
 
