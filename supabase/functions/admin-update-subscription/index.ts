@@ -18,28 +18,42 @@ Deno.serve(async (req) => {
   try {
     logStep("Function started");
 
+    // Initialize Supabase client with service role for admin operations
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } }
     );
 
-    // Verificar autenticação
+    // Verify authentication using getClaims
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("No authorization header provided");
     }
 
+    const supabaseAuthClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { 
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false } 
+      }
+    );
+
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError || !userData.user) {
+    const { data: claimsData, error: claimsError } = await supabaseAuthClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
       throw new Error("User not authenticated");
     }
-    logStep("User authenticated", { userId: userData.user.id });
+    
+    const authenticatedUserId = claimsData.claims.sub as string;
+    if (!authenticatedUserId) throw new Error("User not authenticated");
+    logStep("User authenticated", { userId: authenticatedUserId });
 
-    // Verificar se é admin usando a função has_role
+    // Verify if user is admin using has_role function
     const { data: isAdminData, error: adminError } = await supabaseClient.rpc('has_role', {
-      _user_id: userData.user.id,
+      _user_id: authenticatedUserId,
       _role: 'admin'
     });
 
@@ -147,7 +161,7 @@ Deno.serve(async (req) => {
         .insert({
           subscription_id: subscriptionId,
           user_id: currentSub.user_id,
-          changed_by: userData.user.id,
+          changed_by: authenticatedUserId,
           old_values: currentSub,
           new_values: updatedSub,
           action: 'update',
@@ -210,7 +224,7 @@ Deno.serve(async (req) => {
         .insert({
           subscription_id: createdSub.id,
           user_id: userId,
-          changed_by: userData.user.id,
+          changed_by: authenticatedUserId,
           old_values: null,
           new_values: createdSub,
           action: 'create',
