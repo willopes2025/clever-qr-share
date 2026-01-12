@@ -77,17 +77,17 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [authLoading]);
 
-  // Check subscription when user changes
+  // Check subscription when user and session are ready
   useEffect(() => {
     if (authLoading) return;
 
-    if (user) {
+    if (user && session?.access_token) {
       checkSubscription();
-    } else {
+    } else if (!user) {
       setSubscription(null);
       setLoading(false);
     }
-  }, [user, authLoading, checkSubscription]);
+  }, [user, session?.access_token, authLoading, checkSubscription]);
 
   // Single interval for the entire app - refresh every 5 minutes
   useEffect(() => {
