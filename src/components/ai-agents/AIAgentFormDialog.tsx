@@ -65,6 +65,8 @@ export const AIAgentFormDialog = ({
   const [isActive, setIsActive] = useState(false);
   const [templateType, setTemplateType] = useState<string | null>(null);
   const [elevenlabsAgentId, setElevenlabsAgentId] = useState("");
+  const [pauseEmoji, setPauseEmoji] = useState("🛑");
+  const [resumeEmoji, setResumeEmoji] = useState("✅");
 
   // Load company context when dialog opens
   useEffect(() => {
@@ -240,6 +242,8 @@ export const AIAgentFormDialog = ({
     setAgentId(null);
     setActiveTab("personality");
     setElevenlabsAgentId("");
+    setPauseEmoji("🛑");
+    setResumeEmoji("✅");
   };
 
   const loadAgentData = async (id: string) => {
@@ -271,6 +275,8 @@ export const AIAgentFormDialog = ({
       setIsActive(data.is_active ?? false);
       setTemplateType(data.template_type);
       setElevenlabsAgentId(data.elevenlabs_agent_id || "");
+      setPauseEmoji(data.pause_emoji || "🛑");
+      setResumeEmoji(data.resume_emoji || "✅");
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
@@ -306,6 +312,8 @@ export const AIAgentFormDialog = ({
         is_active: isActive,
         template_type: templateType,
         elevenlabs_agent_id: elevenlabsAgentId.trim() || null,
+        pause_emoji: pauseEmoji.trim() || "🛑",
+        resume_emoji: resumeEmoji.trim() || "✅",
       };
 
       if (agentId) {
@@ -660,6 +668,49 @@ export const AIAgentFormDialog = ({
                       step={1}
                       className="mt-2"
                     />
+                  </div>
+
+                  {/* Emoji Control Section */}
+                  <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Bot className="h-4 w-4 text-primary" />
+                      <Label className="font-medium">Controle por Emoji</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Configure emojis para controlar o agente durante o atendimento. Quando você enviar uma mensagem contendo o emoji, o agente será pausado ou retomado.
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="pauseEmoji">Emoji para Pausar IA</Label>
+                        <Input
+                          id="pauseEmoji"
+                          value={pauseEmoji}
+                          onChange={(e) => setPauseEmoji(e.target.value)}
+                          placeholder="🛑"
+                          className="text-2xl text-center mt-1"
+                          maxLength={4}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Quando enviado, o agente para de responder
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="resumeEmoji">Emoji para Retomar IA</Label>
+                        <Input
+                          id="resumeEmoji"
+                          value={resumeEmoji}
+                          onChange={(e) => setResumeEmoji(e.target.value)}
+                          placeholder="✅"
+                          className="text-2xl text-center mt-1"
+                          maxLength={4}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Quando enviado, o agente volta a responder
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
 

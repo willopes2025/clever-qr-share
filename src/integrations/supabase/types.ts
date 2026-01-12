@@ -31,10 +31,12 @@ export type Database = {
           id: string
           is_active: boolean | null
           max_interactions: number | null
+          pause_emoji: string | null
           personality_prompt: string | null
           response_delay_max: number | null
           response_delay_min: number | null
           response_mode: string | null
+          resume_emoji: string | null
           template_type: string | null
           updated_at: string | null
           user_id: string
@@ -56,10 +58,12 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           max_interactions?: number | null
+          pause_emoji?: string | null
           personality_prompt?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
           response_mode?: string | null
+          resume_emoji?: string | null
           template_type?: string | null
           updated_at?: string | null
           user_id: string
@@ -81,10 +85,12 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           max_interactions?: number | null
+          pause_emoji?: string | null
           personality_prompt?: string | null
           response_delay_max?: number | null
           response_delay_min?: number | null
           response_mode?: string | null
+          resume_emoji?: string | null
           template_type?: string | null
           updated_at?: string | null
           user_id?: string

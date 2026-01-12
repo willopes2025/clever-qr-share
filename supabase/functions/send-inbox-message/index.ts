@@ -184,13 +184,60 @@ Deno.serve(async (req) => {
 
       // Handle AI handoff logic when human agent sends message
       if (senderUserId) {
-        const okPatterns = ['👍', '✅', '🤖'];
-        const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
-        
-        const shouldResumeAI = okPatterns.some(emoji => content.includes(emoji)) ||
-                               textPatterns.some(pattern => pattern.test(content));
+        // Fetch agent config to get custom emoji settings
+        let pauseEmoji = '🛑'; // default
+        let resumeEmoji = '✅'; // default
 
-        if (shouldResumeAI) {
+        // Get instance's default funnel to find the agent config
+        const { data: instanceData } = await supabase
+          .from('whatsapp_instances')
+          .select('default_funnel_id')
+          .eq('id', instanceId)
+          .single();
+
+        if (instanceData?.default_funnel_id) {
+          const { data: agentConfig } = await supabase
+            .from('ai_agent_configs')
+            .select('pause_emoji, resume_emoji')
+            .eq('funnel_id', instanceData.default_funnel_id)
+            .eq('is_active', true)
+            .single();
+          
+          if (agentConfig) {
+            pauseEmoji = agentConfig.pause_emoji || pauseEmoji;
+            resumeEmoji = agentConfig.resume_emoji || resumeEmoji;
+            console.log(`[HANDOFF] Using custom emojis - pause: ${pauseEmoji}, resume: ${resumeEmoji}`);
+          }
+        }
+
+        // Also check for agent by campaign_id or instance owner
+        if (pauseEmoji === '🛑' && resumeEmoji === '✅') {
+          // Try to find agent by user_id (instance owner)
+          const { data: ownerAgent } = await supabase
+            .from('ai_agent_configs')
+            .select('pause_emoji, resume_emoji')
+            .eq('user_id', conversation.user_id)
+            .eq('is_active', true)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (ownerAgent) {
+            pauseEmoji = ownerAgent.pause_emoji || pauseEmoji;
+            resumeEmoji = ownerAgent.resume_emoji || resumeEmoji;
+            console.log(`[HANDOFF] Using owner agent emojis - pause: ${pauseEmoji}, resume: ${resumeEmoji}`);
+          }
+        }
+
+        // Check if message contains pause or resume emoji
+        const shouldPauseAI = pauseEmoji && content.includes(pauseEmoji);
+        const shouldResumeAI = resumeEmoji && content.includes(resumeEmoji);
+
+        // Also keep fallback text patterns for resume
+        const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
+        const hasResumeTextPattern = textPatterns.some(pattern => pattern.test(content));
+
+        if (shouldResumeAI || hasResumeTextPattern) {
           // Resume AI - human is signaling AI should take over
           await supabase
             .from('conversations')
@@ -201,9 +248,21 @@ Deno.serve(async (req) => {
             })
             .eq('id', conversationId);
           
-          console.log(`[HANDOFF] AI resumed for conversation ${conversationId} by user ${senderUserId}`);
+          console.log(`[HANDOFF] AI resumed for conversation ${conversationId} by user ${senderUserId} (emoji: ${resumeEmoji})`);
+        } else if (shouldPauseAI) {
+          // Explicitly pause AI with custom emoji
+          await supabase
+            .from('conversations')
+            .update({
+              ai_paused: true,
+              ai_handoff_requested: true,
+              ai_handoff_reason: `Pausado via emoji ${pauseEmoji} pelo atendente`,
+            })
+            .eq('id', conversationId);
+          
+          console.log(`[HANDOFF] AI explicitly paused for conversation ${conversationId} via emoji ${pauseEmoji}`);
         } else {
-          // Pause AI - human is taking over the conversation
+          // Any other message from human pauses AI
           await supabase
             .from('conversations')
             .update({
