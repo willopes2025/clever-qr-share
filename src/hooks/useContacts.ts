@@ -196,11 +196,29 @@ export const useContacts = () => {
       deduplication?: { enabled: boolean; field: string; action: 'skip' | 'update' };
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
     }) => {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("Usuário não autenticado");
+      const BATCH_SIZE = 20;
+      
+      // Helper function to ensure session is valid
+      const ensureSession = async () => {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session) {
+          // Try to refresh the session
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !refreshData.session) {
+            throw new Error("Sessão expirada. Por favor, faça login novamente.");
+          }
+          return refreshData.session.user;
+        }
+        return sessionData.session.user;
+      };
+
+      // Get initial user
+      const user = await ensureSession();
+      if (!user) throw new Error("Usuário não autenticado");
 
       // First, create any new custom fields
       if (newFields.length > 0) {
+        await ensureSession();
         const fieldsToInsert = newFields.map((field, index) => ({
           field_name: field.field_name,
           field_key: field.field_key,
@@ -208,7 +226,7 @@ export const useContacts = () => {
           options: field.options || [],
           is_required: field.is_required || false,
           display_order: index,
-          user_id: userData.user!.id,
+          user_id: user.id,
         }));
 
         const { error: fieldsError } = await supabase
@@ -238,7 +256,7 @@ export const useContacts = () => {
           notes: c.notes || null,
           contact_display_id: c.contact_display_id || null,
           custom_fields: (c.custom_fields || {}) as Json,
-          user_id: userData.user!.id,
+          user_id: user.id,
         };
       });
 
@@ -256,11 +274,14 @@ export const useContacts = () => {
 
       // If deduplication is enabled, check for existing contacts
       if (deduplication?.enabled) {
+        // Renew session before fetching existing contacts
+        await ensureSession();
+        
         // Fetch all existing contacts for this user
         const { data: existingContacts, error: fetchError } = await supabase
           .from("contacts")
           .select("id, phone, email, contact_display_id, custom_fields")
-          .eq("user_id", userData.user.id);
+          .eq("user_id", user.id);
 
         if (fetchError) {
           console.error("Error fetching existing contacts:", fetchError);
@@ -362,36 +383,58 @@ export const useContacts = () => {
       let insertedData: { id: string }[] = [];
       let updatedData: { id: string }[] = [];
 
-      // Insert new contacts
+      // Insert new contacts in batches
       if (contactsToInsert.length > 0) {
-        const { data, error } = await supabase
-          .from("contacts")
-          .upsert(contactsToInsert, {
-            onConflict: "user_id,phone",
-            ignoreDuplicates: false,
-          })
-          .select("id");
+        const batches: typeof contactsToInsert[] = [];
+        for (let i = 0; i < contactsToInsert.length; i += BATCH_SIZE) {
+          batches.push(contactsToInsert.slice(i, i + BATCH_SIZE));
+        }
 
-        if (error) throw error;
-        insertedData = data || [];
-      }
-
-      // Update existing contacts
-      if (contactsToUpdate.length > 0) {
-        for (const contact of contactsToUpdate) {
-          const { id, ...updateData } = contact as typeof contact & { id: string };
+        for (const batch of batches) {
+          // Renew session before each batch
+          await ensureSession();
+          
           const { data, error } = await supabase
             .from("contacts")
-            .update(updateData)
-            .eq("id", id)
+            .upsert(batch, {
+              onConflict: "user_id,phone",
+              ignoreDuplicates: false,
+            })
             .select("id");
 
-          if (error) {
-            console.error("Error updating contact:", error);
-            continue;
-          }
+          if (error) throw error;
           if (data) {
-            updatedData.push(...data);
+            insertedData.push(...data);
+          }
+        }
+      }
+
+      // Update existing contacts in batches
+      if (contactsToUpdate.length > 0) {
+        const updateBatches: typeof contactsToUpdate[] = [];
+        for (let i = 0; i < contactsToUpdate.length; i += BATCH_SIZE) {
+          updateBatches.push(contactsToUpdate.slice(i, i + BATCH_SIZE));
+        }
+
+        for (const batch of updateBatches) {
+          // Renew session before each batch
+          await ensureSession();
+          
+          for (const contact of batch) {
+            const { id, ...updateData } = contact as typeof contact & { id: string };
+            const { data, error } = await supabase
+              .from("contacts")
+              .update(updateData)
+              .eq("id", id)
+              .select("id");
+
+            if (error) {
+              console.error("Error updating contact:", error);
+              continue;
+            }
+            if (data) {
+              updatedData.push(...data);
+            }
           }
         }
       }
@@ -400,13 +443,25 @@ export const useContacts = () => {
 
       // Apply tags to imported/updated contacts if any were selected
       if (tagIds.length > 0 && allContactIds.length > 0) {
+        // Renew session before applying tags
+        await ensureSession();
+        
         const tagInserts = allContactIds.flatMap((contactId) =>
           tagIds.map((tagId) => ({ contact_id: contactId, tag_id: tagId }))
         );
 
-        await supabase
-          .from("contact_tags")
-          .upsert(tagInserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+        // Insert tags in batches too
+        const tagBatches: typeof tagInserts[] = [];
+        for (let i = 0; i < tagInserts.length; i += BATCH_SIZE * 2) {
+          tagBatches.push(tagInserts.slice(i, i + BATCH_SIZE * 2));
+        }
+
+        for (const tagBatch of tagBatches) {
+          await ensureSession();
+          await supabase
+            .from("contact_tags")
+            .upsert(tagBatch, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+        }
       }
 
       return {
@@ -428,8 +483,14 @@ export const useContacts = () => {
       toast.success(`Importação concluída: ${messages.join(', ')}`);
     },
     onError: (error: Error) => {
-      toast.error("Erro ao importar contatos", {
-        description: error.message,
+      const isAuthError = error.message.includes("Sessão expirada") || 
+                          error.message.includes("Refresh Token") ||
+                          error.message.includes("Invalid Refresh Token");
+      
+      toast.error(isAuthError ? "Sessão expirada" : "Erro ao importar contatos", {
+        description: isAuthError 
+          ? "Por favor, faça login novamente e tente importar novamente."
+          : error.message,
       });
     },
   });
