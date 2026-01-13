@@ -1,5 +1,4 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { LayoutDashboard, MessageSquare, Users, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks/useConversations";
@@ -10,7 +9,7 @@ import { PermissionKey } from "@/config/permissions";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
-  labelKey: string;
+  label: string;
   path: string;
   permission?: PermissionKey;
   showBadge?: boolean;
@@ -18,14 +17,13 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/dashboard", permission: "view_dashboard" },
-  { icon: MessageSquare, labelKey: "navigation.chat", path: "/inbox", permission: "view_inbox", showBadge: true },
-  { icon: Users, labelKey: "navigation.contacts", path: "/contacts", permission: "view_contacts" },
-  { icon: MoreHorizontal, labelKey: "navigation.more", path: "more", isMenu: true },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permission: "view_dashboard" },
+  { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+  { icon: Users, label: "Contatos", path: "/contacts", permission: "view_contacts" },
+  { icon: MoreHorizontal, label: "Mais", path: "more", isMenu: true },
 ];
 
 export const MobileBottomNav = () => {
-  const { t } = useTranslation();
   const location = useLocation();
   const { conversations } = useConversations();
   const { openMobile } = useSidebarContext();
@@ -45,17 +43,15 @@ export const MobileBottomNav = () => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-sidebar border-t border-sidebar-border/30 flex items-center justify-around px-2 z-50 md:hidden safe-area-bottom">
       {filteredItems.map((item) => {
-        const label = t(item.labelKey);
-        
         if (item.isMenu) {
           return (
             <button
-              key={item.labelKey}
+              key={item.label}
               onClick={openMobile}
               className="flex flex-col items-center justify-center gap-0.5 py-2 px-3 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
             >
               <item.icon className="h-5 w-5" />
-              <span className="text-[10px] font-medium">{label}</span>
+              <span className="text-[10px] font-medium">{item.label}</span>
             </button>
           );
         }
@@ -84,7 +80,7 @@ export const MobileBottomNav = () => {
                 </Badge>
               )}
             </div>
-            <span className="text-[10px] font-medium">{label}</span>
+            <span className="text-[10px] font-medium">{item.label}</span>
             {isActive && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-sidebar-primary rounded-full" />
             )}

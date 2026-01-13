@@ -10,7 +10,6 @@ import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Globe, Save, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { LanguageSettings } from "./LanguageSettings";
 
 const TIMEZONES = [
   { value: 'America/Sao_Paulo', label: 'São Paulo (GMT-3)' },
@@ -238,9 +237,6 @@ export const ProfileSettings = () => {
           </Button>
         </CardContent>
       </Card>
-
-      {/* Language Settings */}
-      <LanguageSettings />
 
       <Card>
         <CardHeader>
