@@ -13,6 +13,7 @@ import {
   X,
   Edit,
   ChevronDown,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   Table,
@@ -46,6 +47,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Funnel, FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { DealFormDialog } from "./DealFormDialog";
 import { CloseDealDialog } from "./CloseDealDialog";
 import { ColumnsConfigDialog, ColumnDefinition } from "./ColumnsConfigDialog";
@@ -65,8 +67,9 @@ type DealWithStage = FunnelDeal & {
 };
 
 export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
-  const { deleteDeal, updateDeal } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons } = useFunnels();
   const { fieldDefinitions } = useCustomFields();
+  const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
 
@@ -236,7 +239,21 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     setColumnFilters({});
   };
 
-  // Export handler
+  // Helper to get responsible name
+  const getResponsibleName = (responsibleId: string | null) => {
+    if (!responsibleId) return "";
+    const member = members?.find((m) => m.user_id === responsibleId);
+    return member?.profile?.full_name || member?.email || "";
+  };
+
+  // Helper to get close reason name
+  const getCloseReasonName = (closeReasonId: string | null) => {
+    if (!closeReasonId) return "";
+    const reason = closeReasons?.find((r) => r.id === closeReasonId);
+    return reason?.name || "";
+  };
+
+  // Export handler - exports ALL available data
   const handleExport = () => {
     const dataToExport =
       selectedIds.length > 0
@@ -244,21 +261,73 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         : filteredDeals;
 
     if (dataToExport.length === 0) {
+      toast.error("Nenhum dado para exportar");
       return;
     }
 
-    // Build headers from visible columns
-    const headers = columnOrder
-      .filter((id) => visibleColumns.includes(id))
-      .map((id) => allColumns.find((c) => c.id === id)?.label || id);
+    // Collect all unique custom field keys from deals
+    const dealCustomFieldKeys = new Set<string>();
+
+    dataToExport.forEach((deal) => {
+      if (deal.custom_fields) {
+        Object.keys(deal.custom_fields).forEach((key) => dealCustomFieldKeys.add(key));
+      }
+    });
+
+    // Build complete headers
+    const headers = [
+      "Nome",
+      "Telefone",
+      "Email",
+      "ID do Contato",
+      "Etapa",
+      "Valor",
+      "Moeda",
+      "Origem",
+      "Notas do Deal",
+      "Responsável",
+      "Próxima Ação Necessária",
+      "Data Previsão Fechamento",
+      "Tempo na Etapa",
+      "Data Entrada na Etapa",
+      "Data Criação do Deal",
+      "Data Fechamento",
+      "Motivo do Fechamento",
+      ...Array.from(dealCustomFieldKeys).map((key) => {
+        // Try to get a friendly label from field definitions
+        const fieldDef = fieldDefinitions?.find(f => f.field_key === key);
+        return fieldDef?.field_name || key;
+      }),
+    ];
 
     const rows = dataToExport.map((deal) => {
-      return columnOrder
-        .filter((id) => visibleColumns.includes(id))
-        .map((colId) => {
-          const value = getCellValue(deal, colId);
-          return typeof value === "string" ? value.replace(/;/g, ",") : String(value);
-        });
+      return [
+        deal.title || deal.contact?.name || "",
+        deal.contact?.phone || "",
+        deal.contact?.email || "",
+        deal.contact?.id || "",
+        deal.stageName,
+        deal.value?.toString() || "0",
+        deal.currency || "BRL",
+        deal.source || "",
+        deal.notes || "",
+        getResponsibleName(deal.responsible_id),
+        deal.next_action_required ? "Sim" : "Não",
+        deal.expected_close_date
+          ? format(new Date(deal.expected_close_date), "dd/MM/yyyy")
+          : "",
+        getTimeInStage(deal.entered_stage_at),
+        format(new Date(deal.entered_stage_at), "dd/MM/yyyy HH:mm"),
+        format(new Date(deal.created_at), "dd/MM/yyyy HH:mm"),
+        deal.closed_at ? format(new Date(deal.closed_at), "dd/MM/yyyy HH:mm") : "",
+        getCloseReasonName(deal.close_reason_id),
+        ...Array.from(dealCustomFieldKeys).map((key) => {
+          const val = deal.custom_fields?.[key];
+          if (val === undefined || val === null) return "";
+          if (typeof val === "boolean") return val ? "Sim" : "Não";
+          return String(val).replace(/;/g, ",");
+        }),
+      ].map((v) => (typeof v === "string" ? v.replace(/;/g, ",") : String(v)));
     });
 
     const csv = [headers.join(";"), ...rows.map((row) => row.join(";"))].join("\n");
@@ -267,9 +336,11 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `funil_${funnel.name.replace(/\s+/g, "_")}_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `funil_${funnel.name.replace(/\s+/g, "_")}_completo_${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    
+    toast.success(`${dataToExport.length} registro(s) exportado(s) com sucesso!`);
   };
 
   // Get cell value for a deal and column
@@ -558,8 +629,8 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
             onClick={handleExport}
             disabled={filteredDeals.length === 0}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Exportar Todos os Dados
           </Button>
         </div>
       </div>
