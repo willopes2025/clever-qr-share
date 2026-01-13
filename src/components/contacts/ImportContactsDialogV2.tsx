@@ -96,6 +96,22 @@ const STANDARD_FIELDS = [
   { value: "contact_display_id", label: "ID Externo", icon: "🔗" },
 ];
 
+// Field type labels for display
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: "Texto",
+  number: "Número",
+  date: "Data",
+  time: "Hora",
+  datetime: "Data e Hora",
+  boolean: "Caixa de Seleção",
+  switch: "Interruptor",
+  select: "Seleção Única",
+  multiselect: "Seleção Múltipla",
+  url: "Link/URL",
+  phone: "Telefone",
+  email: "E-mail",
+};
+
 export const ImportContactsDialogV2 = ({
   open,
   onOpenChange,
@@ -468,12 +484,30 @@ export const ImportContactsDialogV2 = ({
 
       {/* Column mappings */}
       <div className="space-y-2">
-        <Label className="flex items-center gap-2">
-          <Columns className="h-4 w-4" />
-          Mapeamento de Colunas
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label className="flex items-center gap-2">
+            <Columns className="h-4 w-4" />
+            Mapeamento de Colunas
+          </Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setCreatingForColumn("");
+              setShowCreateField(true);
+            }}
+            className="text-primary border-primary/50 hover:bg-primary/10"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Novo campo
+          </Button>
+        </div>
         
-        <ScrollArea className="h-[300px] pr-4">
+        <p className="text-xs text-muted-foreground">
+          Associe cada coluna do CSV a um campo do sistema. Você pode criar campos personalizados com tipos específicos (texto, número, data, seleção, etc.)
+        </p>
+        
+        <ScrollArea className="h-[280px] pr-4">
           <div className="space-y-3">
             {csvHeaders.map((header) => {
               const mapping = columnMappings[header];
@@ -497,6 +531,14 @@ export const ImportContactsDialogV2 = ({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* Create new field option - at the top for visibility */}
+                        <SelectItem value="create_new" className="text-primary font-medium bg-primary/5 border-b mb-1">
+                          <span className="mr-2">
+                            <Plus className="h-4 w-4 inline" />
+                          </span>
+                          Criar novo campo personalizado...
+                        </SelectItem>
+                        
                         {STANDARD_FIELDS.map((field) => (
                           <SelectItem key={field.value} value={field.value}>
                             <span className="mr-2">{field.icon}</span>
@@ -507,12 +549,15 @@ export const ImportContactsDialogV2 = ({
                         {existingFields.length > 0 && (
                           <>
                             <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-2">
-                              Campos Personalizados
+                              Campos Personalizados Existentes
                             </div>
                             {existingFields.map((field) => (
                               <SelectItem key={field.id} value={`custom:${field.field_key}`}>
                                 <span className="mr-2">📋</span>
                                 {field.field_name}
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ({FIELD_TYPE_LABELS[field.field_type] || field.field_type})
+                                </span>
                               </SelectItem>
                             ))}
                           </>
@@ -527,26 +572,20 @@ export const ImportContactsDialogV2 = ({
                               <SelectItem key={`new:${idx}`} value={`new:${idx}`}>
                                 <span className="mr-2">✨</span>
                                 {field.field_name}
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ({FIELD_TYPE_LABELS[field.field_type] || field.field_type})
+                                </span>
                               </SelectItem>
                             ))}
                           </>
                         )}
-                        
-                        <div className="border-t mt-1 pt-1">
-                          <SelectItem value="create_new">
-                            <span className="mr-2 text-primary">
-                              <Plus className="h-4 w-4 inline" />
-                            </span>
-                            <span className="text-primary font-medium">Criar novo campo...</span>
-                          </SelectItem>
-                        </div>
                       </SelectContent>
                     </Select>
                   </div>
                   
                   {mapping?.isNewField && mapping.newFieldConfig && (
                     <Badge variant="secondary" className="mt-2 text-xs">
-                      ✨ Novo campo: {mapping.newFieldConfig.field_type}
+                      ✨ Novo: {FIELD_TYPE_LABELS[mapping.newFieldConfig.field_type] || mapping.newFieldConfig.field_type}
                     </Badge>
                   )}
                 </div>
