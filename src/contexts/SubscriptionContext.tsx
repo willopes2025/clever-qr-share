@@ -36,15 +36,20 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
 
     try {
-      // Use existing session - don't refresh manually (autoRefreshToken handles this)
-      const { data: sessionData } = await supabase.auth.getSession();
-      const currentSession = sessionData?.session;
+      // Get current session
+      let { data: sessionData } = await supabase.auth.getSession();
+      let currentSession = sessionData?.session;
 
+      // If no session or token looks expired, try to refresh
       if (!currentSession?.access_token) {
-        setSubscription(null);
-        setLoading(false);
-        checkInFlightRef.current = false;
-        return;
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData?.session) {
+          setSubscription(null);
+          setLoading(false);
+          checkInFlightRef.current = false;
+          return;
+        }
+        currentSession = refreshData.session;
       }
 
       const { data, error } = await supabase.functions.invoke('check-subscription', {
@@ -55,22 +60,34 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         const message = (error as any)?.message ?? '';
-        const isAuthError = /auth|session|jwt|unauthorized|401/i.test(message);
+        const status = (error as any)?.status ?? (error as any)?.context?.status;
+        const isAuthError = status === 401 || /auth|session|jwt|unauthorized|401/i.test(message);
 
         if (isAuthError) {
-          // Don't auto-signOut - just log and set null subscription
-          console.warn('Subscription check auth error, will retry on next interval');
+          // Try refreshing the session once
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData?.session) {
+            // Retry with refreshed token
+            const { data: retryData, error: retryError } = await supabase.functions.invoke('check-subscription', {
+              headers: {
+                Authorization: `Bearer ${refreshData.session.access_token}`,
+              },
+            });
+            if (!retryError) {
+              setSubscription(retryData);
+              return;
+            }
+          }
+          console.warn('Subscription check auth error after refresh attempt');
           setSubscription(null);
         } else {
           console.error('Error checking subscription:', error);
-          // Keep existing subscription on non-auth errors
         }
       } else {
         setSubscription(data);
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
-      // Keep existing subscription on error
     } finally {
       setLoading(false);
       checkInFlightRef.current = false;
