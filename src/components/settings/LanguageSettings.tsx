@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 export const LanguageSettings = () => {
   const { t, i18n } = useTranslation();
 
+  // Usar resolvedLanguage que é normalizado, com fallback para language
+  const currentLangCode = (i18n.resolvedLanguage || i18n.language || 'pt') as LanguageCode;
+
   const handleLanguageChange = (language: LanguageCode) => {
     i18n.changeLanguage(language);
     const selectedLang = SUPPORTED_LANGUAGES.find(l => l.code === language);
@@ -18,7 +21,7 @@ export const LanguageSettings = () => {
     );
   };
 
-  const currentLanguage = SUPPORTED_LANGUAGES.find(l => l.code === i18n.language) || SUPPORTED_LANGUAGES[0];
+  const currentLanguage = SUPPORTED_LANGUAGES.find(l => l.code === currentLangCode) || SUPPORTED_LANGUAGES[0];
 
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -34,7 +37,7 @@ export const LanguageSettings = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Select value={i18n.language} onValueChange={handleLanguageChange}>
+        <Select value={currentLangCode} onValueChange={handleLanguageChange}>
           <SelectTrigger className="w-full md:w-[320px]">
             <SelectValue>
               <span className="flex items-center gap-2">
@@ -49,7 +52,7 @@ export const LanguageSettings = () => {
                 <span className="flex items-center gap-3 w-full">
                   <span className="text-xl">{lang.flag}</span>
                   <span className="flex-1">{lang.label}</span>
-                  {i18n.language === lang.code && (
+                  {currentLangCode === lang.code && (
                     <Check className="h-4 w-4 text-primary" />
                   )}
                 </span>

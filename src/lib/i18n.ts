@@ -29,7 +29,7 @@ if (!i18n.isInitialized) {
     .init({
       resources,
       fallbackLng: 'pt',
-      lng: localStorage.getItem('i18nextLng') || 'pt',
+      supportedLngs: ['pt', 'en', 'es'],
       interpolation: {
         escapeValue: false,
       },
