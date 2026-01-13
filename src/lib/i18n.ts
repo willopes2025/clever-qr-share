@@ -20,20 +20,28 @@ const resources = {
   es: { translation: esTranslation },
 };
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources,
-    fallbackLng: 'pt',
-    interpolation: {
-      escapeValue: false,
-    },
-    detection: {
-      order: ['localStorage', 'navigator'],
-      caches: ['localStorage'],
-      lookupLocalStorage: 'i18nextLng',
-    },
-  });
+// Initialize i18n synchronously without React integration first
+// React integration will be added when the component tree mounts
+if (!i18n.isInitialized) {
+  i18n
+    .use(LanguageDetector)
+    .use(initReactI18next)
+    .init({
+      resources,
+      fallbackLng: 'pt',
+      lng: localStorage.getItem('i18nextLng') || 'pt',
+      interpolation: {
+        escapeValue: false,
+      },
+      detection: {
+        order: ['localStorage', 'navigator'],
+        caches: ['localStorage'],
+        lookupLocalStorage: 'i18nextLng',
+      },
+      react: {
+        useSuspense: false,
+      },
+    });
+}
 
 export default i18n;
