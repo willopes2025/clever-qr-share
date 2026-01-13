@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import { useMetaWhatsAppNumbers, MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaWebhookConfigDialog } from "./MetaWebhookConfigDialog";
 import { AddMetaNumberDialog } from "./AddMetaNumberDialog";
@@ -21,6 +22,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface WebhookStatus {
+  success: boolean;
+  webhookStatus: 'active' | 'not_configured' | 'partial' | 'error';
+  details: {
+    callbackUrl?: string;
+    fields?: string[];
+    lastVerified: string;
+    appInfo?: {
+      id: string;
+      name: string;
+    };
+  };
+  missingFields: string[];
+  message: string;
+}
+
 interface MetaWhatsAppSectionProps {
   webhookConfigured?: boolean;
 }
@@ -32,7 +49,52 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [numberToDelete, setNumberToDelete] = useState<MetaWhatsAppNumber | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [webhookVerificationStatus, setWebhookVerificationStatus] = useState<WebhookStatus | null>(null);
   const navigate = useNavigate();
+
+  const handleVerifyWebhook = async () => {
+    try {
+      setIsVerifying(true);
+      setWebhookVerificationStatus(null);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Você precisa estar logado para verificar");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('verify-meta-webhook', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Verify webhook error:', error);
+        toast.error("Erro ao verificar webhook: " + error.message);
+        return;
+      }
+
+      setWebhookVerificationStatus(data as WebhookStatus);
+
+      if (data.webhookStatus === 'active') {
+        toast.success("Webhook configurado corretamente!");
+      } else if (data.webhookStatus === 'partial') {
+        toast.warning("Webhook parcialmente configurado");
+      } else if (data.webhookStatus === 'error') {
+        toast.error(data.message || "Erro ao verificar webhook");
+      } else {
+        toast.error("Webhook não configurado");
+      }
+
+    } catch (err) {
+      console.error('Verify webhook error:', err);
+      toast.error("Erro ao verificar webhook");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleTestInbox = async () => {
     try {
@@ -111,6 +173,20 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
           <Button
             variant="outline"
             size="sm"
+            onClick={handleVerifyWebhook}
+            disabled={isVerifying}
+            className="gap-1.5"
+          >
+            {isVerifying ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+            Verificar Webhook
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setWebhookDialogOpen(true)}
             className="gap-1.5"
           >
@@ -127,6 +203,62 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
           </Button>
         </div>
       </div>
+
+      {/* Webhook Verification Status */}
+      {webhookVerificationStatus && (
+        <Alert className={
+          webhookVerificationStatus.webhookStatus === 'active' 
+            ? 'bg-green-500/10 border-green-500/30'
+            : webhookVerificationStatus.webhookStatus === 'partial'
+            ? 'bg-yellow-500/10 border-yellow-500/30'
+            : 'bg-red-500/10 border-red-500/30'
+        }>
+          <div className="flex items-start gap-3">
+            {webhookVerificationStatus.webhookStatus === 'active' ? (
+              <ShieldCheck className="h-5 w-5 text-green-500 mt-0.5" />
+            ) : webhookVerificationStatus.webhookStatus === 'partial' ? (
+              <ShieldAlert className="h-5 w-5 text-yellow-500 mt-0.5" />
+            ) : (
+              <ShieldX className="h-5 w-5 text-red-500 mt-0.5" />
+            )}
+            <AlertDescription className="text-sm flex-1">
+              <p className="font-medium mb-1">
+                {webhookVerificationStatus.webhookStatus === 'active' && 'Webhook Ativo'}
+                {webhookVerificationStatus.webhookStatus === 'partial' && 'Webhook Parcialmente Configurado'}
+                {webhookVerificationStatus.webhookStatus === 'not_configured' && 'Webhook Não Configurado'}
+                {webhookVerificationStatus.webhookStatus === 'error' && 'Erro na Verificação'}
+              </p>
+              <p className="text-muted-foreground">{webhookVerificationStatus.message}</p>
+              
+              {webhookVerificationStatus.details.fields && webhookVerificationStatus.details.fields.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-xs text-muted-foreground">Campos ativos: </span>
+                  <span className="text-xs font-mono">{webhookVerificationStatus.details.fields.join(', ')}</span>
+                </div>
+              )}
+              
+              {webhookVerificationStatus.missingFields.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-xs text-red-500">Campos faltando: </span>
+                  <span className="text-xs font-mono text-red-500">{webhookVerificationStatus.missingFields.join(', ')}</span>
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground mt-2">
+                Verificado em: {new Date(webhookVerificationStatus.details.lastVerified).toLocaleString('pt-BR')}
+              </p>
+            </AlertDescription>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setWebhookVerificationStatus(null)}
+              className="h-6 w-6 p-0"
+            >
+              ×
+            </Button>
+          </div>
+        </Alert>
+      )}
 
       {isLoading ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
