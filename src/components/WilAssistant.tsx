@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
-import { Bot, X, Send, Trash2, Loader2, Sparkles, GripVertical } from "lucide-react";
+import { Bot, X, Send, Trash2, Loader2, Sparkles, GripVertical, BookOpen, MessageCircle, Mail, Phone, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,11 +9,39 @@ import { useWilAssistant, WilMessage } from "@/hooks/useWilAssistant";
 
 const STORAGE_KEY = "wil-button-position";
 
+const supportOptions = [
+  {
+    icon: BookOpen,
+    title: "Documentação",
+    description: "Acesse nossa base de conhecimento",
+    action: () => window.open("/ajuda", "_self"),
+  },
+  {
+    icon: MessageCircle,
+    title: "WhatsApp",
+    description: "Fale conosco pelo WhatsApp",
+    action: () => window.open("https://wa.me/5527999400707", "_blank"),
+  },
+  {
+    icon: Mail,
+    title: "Email",
+    description: "contato@wideic.com",
+    action: () => window.open("mailto:contato@wideic.com", "_blank"),
+  },
+  {
+    icon: Phone,
+    title: "Telefone",
+    description: "(27) 99940-0707",
+    action: () => window.open("tel:+5527999400707", "_blank"),
+  },
+];
+
 export const WilAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chat" | "support">("chat");
   const { messages, isLoading, sendMessage, clearHistory } = useWilAssistant();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,12 +66,12 @@ export const WilAssistant = () => {
     }
   }, [messages]);
 
-  // Focus input when opening
+  // Focus input when opening chat tab
   useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (isOpen && activeTab === "chat" && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, activeTab]);
 
   const handleDragEnd = (_: any, info: PanInfo) => {
     setIsDragging(false);
@@ -146,15 +174,17 @@ export const WilAssistant = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={clearHistory}
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  title="Limpar histórico"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {activeTab === "chat" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={clearHistory}
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    title="Limpar histórico"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -166,75 +196,132 @@ export const WilAssistant = () => {
               </div>
             </div>
 
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-              {messages.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-4">
-                    <Sparkles className="h-8 w-8 text-primary" />
-                  </div>
-                  <h4 className="font-medium text-foreground mb-2">Olá! 👋</h4>
-                  <p className="text-sm text-muted-foreground max-w-[280px] mx-auto">
-                    Eu sou o Wil, seu assistente pessoal. Posso te ajudar a usar o sistema, responder dúvidas e mostrar suas métricas.
-                  </p>
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs text-muted-foreground">Experimente perguntar:</p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {["Como criar uma campanha?", "Quantos contatos tenho?", "O que é warming?"].map((q) => (
-                        <button
-                          key={q}
-                          onClick={() => {
-                            setInput(q);
-                            inputRef.current?.focus();
-                          }}
-                          className="text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
-                        >
-                          {q}
-                        </button>
-                      ))}
+            {/* Tabs */}
+            <div className="flex border-b bg-muted/30">
+              <button
+                onClick={() => setActiveTab("chat")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
+                  activeTab === "chat"
+                    ? "text-primary border-b-2 border-primary bg-background"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <MessageCircle className="h-4 w-4" />
+                Chat
+              </button>
+              <button
+                onClick={() => setActiveTab("support")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
+                  activeTab === "support"
+                    ? "text-primary border-b-2 border-primary bg-background"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <HelpCircle className="h-4 w-4" />
+                Suporte
+              </button>
+            </div>
+
+            {/* Content */}
+            {activeTab === "chat" ? (
+              <>
+                {/* Messages */}
+                <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+                  {messages.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-4">
+                        <Sparkles className="h-8 w-8 text-primary" />
+                      </div>
+                      <h4 className="font-medium text-foreground mb-2">Olá! 👋</h4>
+                      <p className="text-sm text-muted-foreground max-w-[280px] mx-auto">
+                        Eu sou o Wil, seu assistente pessoal. Posso te ajudar a usar o sistema, responder dúvidas e mostrar suas métricas.
+                      </p>
+                      <div className="mt-4 space-y-2">
+                        <p className="text-xs text-muted-foreground">Experimente perguntar:</p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {["Como criar uma campanha?", "Quantos contatos tenho?", "O que é warming?"].map((q) => (
+                            <button
+                              key={q}
+                              onClick={() => {
+                                setInput(q);
+                                inputRef.current?.focus();
+                              }}
+                              className="text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground transition-colors"
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((message, index) => (
-                    <MessageBubble key={index} message={message} formatMessage={formatMessage} />
-                  ))}
-                  {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-                    <div className="flex items-start gap-2">
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0">
-                        <Bot className="h-4 w-4 text-primary-foreground" />
-                      </div>
-                      <div className="bg-muted rounded-lg rounded-tl-none px-3 py-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {messages.map((message, index) => (
+                        <MessageBubble key={index} message={message} formatMessage={formatMessage} />
+                      ))}
+                      {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+                        <div className="flex items-start gap-2">
+                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center flex-shrink-0">
+                            <Bot className="h-4 w-4 text-primary-foreground" />
+                          </div>
+                          <div className="bg-muted rounded-lg rounded-tl-none px-3 py-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
-            </ScrollArea>
+                </ScrollArea>
 
-            {/* Input */}
-            <form onSubmit={handleSubmit} className="p-4 border-t bg-background">
-              <div className="flex gap-2">
-                <Input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Digite sua mensagem..."
-                  disabled={isLoading}
-                  className="flex-1"
-                />
-                <Button 
-                  type="submit" 
-                  size="icon" 
-                  disabled={isLoading || !input.trim()}
-                  className="flex-shrink-0"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                {/* Input */}
+                <form onSubmit={handleSubmit} className="p-4 border-t bg-background">
+                  <div className="flex gap-2">
+                    <Input
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Digite sua mensagem..."
+                      disabled={isLoading}
+                      className="flex-1"
+                    />
+                    <Button 
+                      type="submit" 
+                      size="icon" 
+                      disabled={isLoading || !input.trim()}
+                      className="flex-shrink-0"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              /* Support Options */
+              <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Como podemos ajudar?
+                </p>
+                {supportOptions.map((option) => (
+                  <button
+                    key={option.title}
+                    onClick={option.action}
+                    className="w-full flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-accent hover:border-primary/20 transition-colors text-left"
+                  >
+                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <option.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground">{option.title}</p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {option.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
               </div>
-            </form>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
