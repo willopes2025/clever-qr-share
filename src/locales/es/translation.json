@@ -30,6 +30,7 @@
   },
   "navigation": {
     "dashboard": "Panel",
+    "chat": "Chat",
     "conversations": "Conversaciones",
     "contacts": "Contactos",
     "crm": "CRM",

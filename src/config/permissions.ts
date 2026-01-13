@@ -129,7 +129,7 @@ export const PERMISSION_CATEGORIES: Record<PermissionCategory, string> = {
   dashboard: 'Dashboard',
   instances: 'Instâncias',
   warming: 'Aquecimento',
-  inbox: 'Inbox',
+  inbox: 'Chat',
   funnels: 'Funis',
   calendar: 'Calendário',
   analysis: 'Análise',
@@ -165,9 +165,9 @@ export const PERMISSIONS: Permission[] = [
   { key: 'manage_warming_contacts', label: 'Gerenciar Contatos', description: 'Gerenciar contatos de aquecimento', defaultForAdmin: true, defaultForMember: false, category: 'warming' },
   
   // Inbox
-  { key: 'view_inbox', label: 'Ver Inbox', description: 'Visualizar conversas', defaultForAdmin: true, defaultForMember: true, category: 'inbox' },
+  { key: 'view_inbox', label: 'Ver Chat', description: 'Visualizar conversas', defaultForAdmin: true, defaultForMember: true, category: 'inbox' },
   { key: 'send_messages', label: 'Enviar Mensagens', description: 'Enviar mensagens nas conversas', defaultForAdmin: true, defaultForMember: true, category: 'inbox' },
-  { key: 'use_ai_assistant', label: 'Usar IA', description: 'Usar assistente de IA no inbox', defaultForAdmin: true, defaultForMember: false, category: 'inbox' },
+  { key: 'use_ai_assistant', label: 'Usar IA', description: 'Usar assistente de IA no chat', defaultForAdmin: true, defaultForMember: false, category: 'inbox' },
   { key: 'close_conversations', label: 'Fechar Conversas', description: 'Fechar/arquivar conversas', defaultForAdmin: true, defaultForMember: true, category: 'inbox' },
   
   // Funnels

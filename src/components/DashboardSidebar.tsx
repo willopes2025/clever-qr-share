@@ -54,7 +54,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Atendimento e Vendas",
     items: [
-      { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+      { icon: MessageSquare, label: "Chat", path: "/inbox", permission: "view_inbox", showBadge: true },
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
