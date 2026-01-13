@@ -18,7 +18,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permission: "view_dashboard" },
-  { icon: MessageSquare, label: "Inbox", path: "/inbox", permission: "view_inbox", showBadge: true },
+  { icon: MessageSquare, label: "Chat", path: "/inbox", permission: "view_inbox", showBadge: true },
   { icon: Users, label: "Contatos", path: "/contacts", permission: "view_contacts" },
   { icon: MoreHorizontal, label: "Mais", path: "more", isMenu: true },
 ];

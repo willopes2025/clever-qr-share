@@ -30,6 +30,7 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
+    "chat": "Chat",
     "conversations": "Conversas",
     "contacts": "Contatos",
     "crm": "CRM",
