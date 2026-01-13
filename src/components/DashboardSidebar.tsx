@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,7 +26,7 @@ import { useActivitySession } from "@/hooks/useActivitySession";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
-  label: string;
+  labelKey: string;
   path: string;
   permission?: PermissionKey;
   showBadge?: boolean;
@@ -33,62 +34,63 @@ interface NavItem {
 }
 
 interface NavGroup {
-  label: string;
+  labelKey: string;
   items: NavItem[];
 }
 
 const navGroups: NavGroup[] = [
   {
-    label: "Visão Geral",
+    labelKey: "navigation.groups.overview",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permission: "view_dashboard" },
+      { icon: LayoutDashboard, labelKey: "navigation.dashboard", path: "/dashboard", permission: "view_dashboard" },
     ],
   },
   {
-    label: "Potencialize seu WhatsApp",
+    labelKey: "navigation.groups.whatsapp",
     items: [
-      { icon: QrCode, label: "Instâncias", path: "/instances", permission: "view_instances" },
-      { icon: Flame, label: "Aquecimento", path: "/warming", permission: "view_warming" },
+      { icon: QrCode, labelKey: "navigation.instances", path: "/instances", permission: "view_instances" },
+      { icon: Flame, labelKey: "navigation.warming", path: "/warming", permission: "view_warming" },
     ],
   },
   {
-    label: "Atendimento e Vendas",
+    labelKey: "navigation.groups.sales",
     items: [
-      { icon: MessageSquare, label: "Chat", path: "/inbox", permission: "view_inbox", showBadge: true },
-      { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
-      { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
-      { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
+      { icon: MessageSquare, labelKey: "navigation.chat", path: "/inbox", permission: "view_inbox", showBadge: true },
+      { icon: Target, labelKey: "navigation.funnels", path: "/funnels", permission: "view_funnels" },
+      { icon: CalendarDays, labelKey: "navigation.calendar", path: "/calendar", permission: "view_calendar" },
+      { icon: BarChart3, labelKey: "navigation.analysis", path: "/analysis", permission: "view_analysis", premiumOnly: true },
     ],
   },
   {
-    label: "Organize seus Clientes",
+    labelKey: "navigation.groups.clients",
     items: [
-      { icon: Users, label: "Contatos", path: "/contacts", permission: "view_contacts" },
-      { icon: Building2, label: "Pesquisa de Leads", path: "/lead-search", permission: "search_leads" },
-      { icon: Instagram, label: "Leads Instagram", path: "/instagram-scraper", permission: "search_leads" },
-      { icon: List, label: "Listas", path: "/broadcast-lists", permission: "view_lists" },
+      { icon: Users, labelKey: "navigation.contacts", path: "/contacts", permission: "view_contacts" },
+      { icon: Building2, labelKey: "navigation.leadSearch", path: "/lead-search", permission: "search_leads" },
+      { icon: Instagram, labelKey: "navigation.instagramLeads", path: "/instagram-scraper", permission: "search_leads" },
+      { icon: List, labelKey: "navigation.lists", path: "/broadcast-lists", permission: "view_lists" },
     ],
   },
   {
-    label: "Campanhas e Disparos",
+    labelKey: "navigation.groups.campaigns",
     items: [
-      { icon: FileText, label: "Templates", path: "/templates", permission: "view_templates" },
-      { icon: Send, label: "Disparos", path: "/campaigns", permission: "view_campaigns" },
-      { icon: FileEdit, label: "Formulários", path: "/forms", permission: "view_forms" },
-      { icon: Bot, label: "Chatbots", path: "/chatbots", permission: "view_chatbots" },
-      { icon: Sparkles, label: "Agentes IA", path: "/ai-agents", permission: "view_ai_agents" },
+      { icon: FileText, labelKey: "navigation.templates", path: "/templates", permission: "view_templates" },
+      { icon: Send, labelKey: "navigation.campaignsSend", path: "/campaigns", permission: "view_campaigns" },
+      { icon: FileEdit, labelKey: "navigation.forms", path: "/forms", permission: "view_forms" },
+      { icon: Bot, labelKey: "navigation.chatbots", path: "/chatbots", permission: "view_chatbots" },
+      { icon: Sparkles, labelKey: "navigation.aiAgents", path: "/ai-agents", permission: "view_ai_agents" },
     ],
   },
   {
-    label: "Sua Conta",
+    labelKey: "navigation.groups.account",
     items: [
-      { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
-      { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
+      { icon: CreditCard, labelKey: "navigation.subscription", path: "/subscription", permission: "manage_subscription" },
+      { icon: Settings, labelKey: "navigation.settings", path: "/settings", permission: "manage_settings" },
     ],
   },
 ];
 
 export const DashboardSidebar = () => {
+  const { t } = useTranslation();
   const { signOut, user } = useAuth();
   const { isAdmin: isSystemAdmin } = useAdmin();
   const navigate = useNavigate();
@@ -105,14 +107,14 @@ export const DashboardSidebar = () => {
   // Build dynamic nav groups with Financeiro/ssOtica if connected
   // For organization members: show these items based on permissions (even if integration isn't connected yet)
   const dynamicNavGroups = navGroups.map(group => {
-    if (group.label === "Sua Conta") {
+    if (group.labelKey === "navigation.groups.account") {
       const dynamicItems: NavItem[] = [];
       
       if (hasAsaas) {
-        dynamicItems.push({ icon: Wallet, label: "Financeiro", path: "/financeiro", permission: "view_finances" as const });
+        dynamicItems.push({ icon: Wallet, labelKey: "navigation.financeiro", path: "/financeiro", permission: "view_finances" as const });
       }
       if (hasSsotica) {
-        dynamicItems.push({ icon: Glasses, label: "ssOtica", path: "/ssotica", permission: "view_ssotica" as const });
+        dynamicItems.push({ icon: Glasses, labelKey: "navigation.ssotica", path: "/ssotica", permission: "view_ssotica" as const });
       }
       
       return {
@@ -146,7 +148,7 @@ export const DashboardSidebar = () => {
 
   // Check if group should be expanded (hovered or active route)
   const isGroupExpanded = (group: NavGroup) => {
-    return hoveredGroup === group.label || isGroupActive(group);
+    return hoveredGroup === group.labelKey || isGroupActive(group);
   };
 
   const { endSession } = useActivitySession();
@@ -159,12 +161,13 @@ export const DashboardSidebar = () => {
     if (error) {
       toast.error("Erro ao sair: " + error.message);
     } else {
-      toast.success("Logout realizado com sucesso");
+      toast.success(t('auth.logoutSuccess'));
       navigate("/login");
     }
   };
 
-  const renderNavItem = (item: typeof navGroups[0]['items'][0]) => {
+  const renderNavItem = (item: NavItem) => {
+    const label = t(item.labelKey);
     const linkContent = (
       <NavLink
         key={item.path}
@@ -182,7 +185,7 @@ export const DashboardSidebar = () => {
         <item.icon className="h-5 w-5 shrink-0" />
         {!isCollapsed && (
           <>
-            <span className="flex-1">{item.label}</span>
+            <span className="flex-1">{label}</span>
             {item.showBadge && totalUnread > 0 && (
               <Badge 
                 variant="destructive" 
@@ -208,7 +211,7 @@ export const DashboardSidebar = () => {
             {linkContent}
           </TooltipTrigger>
           <TooltipContent side="right" className="flex items-center gap-2">
-            {item.label}
+            {label}
             {item.showBadge && totalUnread > 0 && (
               <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
                 {totalUnread > 99 ? '99+' : totalUnread}
@@ -262,9 +265,9 @@ export const DashboardSidebar = () => {
         )}>
           {dynamicNavGroups.map((group, groupIndex) => (
             <div 
-              key={group.label} 
+              key={group.labelKey} 
               className={cn(groupIndex > 0 && "mt-2")}
-              onMouseEnter={() => !isCollapsed && setHoveredGroup(group.label)}
+              onMouseEnter={() => !isCollapsed && setHoveredGroup(group.labelKey)}
               onMouseLeave={() => !isCollapsed && setHoveredGroup(null)}
             >
               {/* Group Label - hidden when collapsed */}
@@ -283,7 +286,7 @@ export const DashboardSidebar = () => {
                       ? "text-sidebar-primary" 
                       : "text-sidebar-foreground/50"
                   )}>
-                    {group.label}
+                    {t(group.labelKey)}
                   </span>
                   <motion.div
                     animate={{ rotate: isGroupExpanded(group) ? 90 : 0 }}
@@ -348,7 +351,7 @@ export const DashboardSidebar = () => {
                     <Shield className="h-5 w-5" />
                   </NavLink>
                 </TooltipTrigger>
-                <TooltipContent side="right">Admin</TooltipContent>
+                <TooltipContent side="right">{t('navigation.admin')}</TooltipContent>
               </Tooltip>
             ) : (
               <NavLink
@@ -363,7 +366,7 @@ export const DashboardSidebar = () => {
                 }
               >
                 <Shield className="h-5 w-5" />
-                Admin
+                {t('navigation.admin')}
               </NavLink>
             )
           )}
@@ -403,7 +406,7 @@ export const DashboardSidebar = () => {
                   </NavLink>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p className="text-xs text-muted-foreground">Plano Ativo</p>
+                  <p className="text-xs text-muted-foreground">{t('navigation.subscription')}</p>
                   <p className="text-sm font-semibold">
                     {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
                   </p>
@@ -421,7 +424,7 @@ export const DashboardSidebar = () => {
                     <LogOut className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">Sair do Sistema</TooltipContent>
+                <TooltipContent side="right">{t('navigation.logout')}</TooltipContent>
               </Tooltip>
             </>
           ) : (
@@ -444,22 +447,29 @@ export const DashboardSidebar = () => {
                 </div>
               </div>
 
+              {/* Plan Card */}
               <NavLink to="/subscription" className="block">
-                <div className="bg-sidebar-accent/50 rounded-xl p-4 hover:bg-sidebar-accent transition-colors cursor-pointer">
-                  <p className="text-xs text-sidebar-foreground/60 mb-1">Plano Ativo</p>
-                  <p className="text-sm font-semibold text-sidebar-primary">
-                    {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
-                  </p>
+                <div className="bg-sidebar-accent/50 rounded-xl p-3 hover:bg-sidebar-accent transition-colors cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-sidebar-primary" />
+                      <span className="text-xs text-sidebar-foreground/70">{t('navigation.subscription')}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-sidebar-primary">
+                      {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
+                    </span>
+                  </div>
                 </div>
               </NavLink>
 
+              {/* Logout Button */}
               <Button 
                 variant="ghost" 
                 onClick={handleLogout}
                 className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10 rounded-xl"
               >
-                <LogOut className="h-5 w-5" />
-                Sair do Sistema
+                <LogOut className="h-4 w-4" />
+                {t('navigation.logout')}
               </Button>
             </>
           )}
