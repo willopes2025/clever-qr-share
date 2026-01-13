@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
+  const { profile } = useProfile();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
@@ -96,6 +98,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const [slashCommandOpen, setSlashCommandOpen] = useState(false);
   const [slashSearchTerm, setSlashSearchTerm] = useState("");
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const [showSenderName, setShowSenderName] = useState(() => {
+    return localStorage.getItem('inbox-show-sender-name') === 'true';
+  });
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
@@ -130,6 +135,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       setSelectedInstanceId(connectedInstances[0].id);
     }
   }, [conversation.instance_id, connectedInstances, selectedInstanceId]);
+
+  // Persist sender name preference
+  useEffect(() => {
+    localStorage.setItem('inbox-show-sender-name', showSenderName.toString());
+  }, [showSenderName]);
 
   // Clear optimistic messages when real messages arrive
   useEffect(() => {
@@ -239,6 +249,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       } finally {
         setIsAutoCorrect(false);
       }
+    }
+    
+    // Adicionar nome do remetente se opção ativada
+    if (showSenderName && profile?.full_name) {
+      messageContent = `${profile.full_name} diz:\n${messageContent}`;
     }
     
     // Add optimistic message
@@ -1005,6 +1020,34 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
               currentMessage={newMessage}
             />
           )}
+
+          {/* Sender name toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={showSenderName ? "secondary" : "ghost"}
+                size="icon"
+                className={cn(
+                  "shrink-0 h-8 w-8 md:h-10 md:w-10",
+                  showSenderName && "bg-primary/20 text-primary hover:bg-primary/30"
+                )}
+                onClick={() => setShowSenderName(!showSenderName)}
+                disabled={!profile?.full_name}
+              >
+                <UserCheck className="h-4 w-4 md:h-5 md:w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                {!profile?.full_name 
+                  ? "Configure seu nome no perfil" 
+                  : showSenderName 
+                    ? `Assinatura ativada: "${profile.full_name} diz:"` 
+                    : "Ativar assinatura nas mensagens"
+                }
+              </p>
+            </TooltipContent>
+          </Tooltip>
 
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
