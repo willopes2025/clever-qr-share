@@ -39,7 +39,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
       {/* Header with contact name */}
       <LeadPanelHeader 
         conversation={conversation} 
-        onClose={isMobile ? onClose : undefined}
+        onClose={onClose}
         isMobile={isMobile}
       />
 
@@ -107,12 +107,6 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
   // Desktop: Simple panel
   return (
     <div className="h-full w-full border-l border-border/50 bg-card overflow-hidden">
-      {/* Desktop close button */}
-      <div className="absolute top-2 right-2 z-10">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
       {panelContent}
     </div>
   );
