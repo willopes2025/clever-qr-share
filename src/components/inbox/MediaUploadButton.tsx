@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Paperclip, Image, FileText, X, Loader2 } from "lucide-react";
+import { Paperclip, Image, FileText, X, Loader2, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -9,48 +9,53 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+type MediaType = 'image' | 'document' | 'video';
+
 interface MediaUploadButtonProps {
-  onUpload: (url: string, type: 'image' | 'document') => void;
+  onUpload: (url: string, type: MediaType) => void;
   disabled?: boolean;
 }
 
 export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps) => {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState<{ url: string; type: string; name: string } | null>(null);
+  const [preview, setPreview] = useState<{ url: string; type: string; name: string; mediaType: MediaType } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'document') => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: MediaType) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Arquivo muito grande. Máximo 10MB.");
+    // Validate file size (video: 16MB, others: 10MB)
+    const maxSize = type === 'video' ? 16 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '16MB' : '10MB'}.`);
       return;
     }
 
-    // Show preview for images
-    if (type === 'image') {
+    // Show preview for images and videos
+    if (type === 'image' || type === 'video') {
       const reader = new FileReader();
       reader.onload = () => {
         setPreview({ 
           url: reader.result as string, 
           type: file.type, 
-          name: file.name 
+          name: file.name,
+          mediaType: type
         });
       };
       reader.readAsDataURL(file);
     } else {
-      setPreview({ url: '', type: file.type, name: file.name });
+      setPreview({ url: '', type: file.type, name: file.name, mediaType: type });
     }
 
     // Upload file
     await uploadFile(file, type);
   };
 
-  const uploadFile = async (file: File, type: 'image' | 'document') => {
+  const uploadFile = async (file: File, type: MediaType) => {
     setUploading(true);
     
     try {
@@ -86,6 +91,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
     setPreview(null);
     if (imageInputRef.current) imageInputRef.current.value = '';
     if (documentInputRef.current) documentInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
   };
 
   return (
@@ -109,12 +115,28 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
           </div>
         ) : preview ? (
           <div className="space-y-3">
-            {preview.type.startsWith('image/') ? (
+            {preview.mediaType === 'image' ? (
               <div className="relative">
                 <img 
                   src={preview.url} 
                   alt="Preview" 
                   className="w-full h-32 object-cover rounded-md"
+                />
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="absolute top-1 right-1 h-6 w-6"
+                  onClick={clearPreview}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : preview.mediaType === 'video' ? (
+              <div className="relative">
+                <video 
+                  src={preview.url} 
+                  className="w-full h-32 object-cover rounded-md"
+                  controls={false}
                 />
                 <Button
                   size="icon"
@@ -160,6 +182,19 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
             </button>
 
             <button
+              onClick={() => videoInputRef.current?.click()}
+              className="w-full flex items-center gap-3 p-3 hover:bg-accent rounded-md transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Video className="h-5 w-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium">Vídeo</p>
+                <p className="text-xs text-muted-foreground">MP4, WEBM, MOV</p>
+              </div>
+            </button>
+
+            <button
               onClick={() => documentInputRef.current?.click()}
               className="w-full flex items-center gap-3 p-3 hover:bg-accent rounded-md transition-colors"
             >
@@ -178,6 +213,13 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
               accept="image/*"
               className="hidden"
               onChange={(e) => handleFileSelect(e, 'image')}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+              className="hidden"
+              onChange={(e) => handleFileSelect(e, 'video')}
             />
             <input
               ref={documentInputRef}

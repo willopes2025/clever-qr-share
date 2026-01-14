@@ -1,10 +1,23 @@
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Zap, FileText } from "lucide-react";
+import { Zap, FileText, Image, Video, Music } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageTemplate, CATEGORY_LABELS, CATEGORY_COLORS } from "@/hooks/useMessageTemplates";
 import { motion, AnimatePresence } from "framer-motion";
+
+const getMediaBadge = (mediaType: string | null) => {
+  if (!mediaType) return null;
+  
+  const config: Record<string, { icon: React.ElementType; label: string; className: string }> = {
+    image: { icon: Image, label: "imagem", className: "bg-blue-500/10 text-blue-600 border-blue-200" },
+    video: { icon: Video, label: "vídeo", className: "bg-purple-500/10 text-purple-600 border-purple-200" },
+    audio: { icon: Music, label: "áudio", className: "bg-green-500/10 text-green-600 border-green-200" },
+    document: { icon: FileText, label: "documento", className: "bg-orange-500/10 text-orange-600 border-orange-200" },
+  };
+  
+  return config[mediaType] || null;
+};
 
 interface SlashCommandPopupProps {
   isOpen: boolean;
@@ -126,11 +139,17 @@ export const SlashCommandPopup = ({
                         >
                           {CATEGORY_LABELS[template.category]}
                         </Badge>
-                        {template.media_url && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            + mídia
-                          </Badge>
-                        )}
+                        {template.media_url && template.media_type && (() => {
+                          const mediaBadge = getMediaBadge(template.media_type);
+                          if (!mediaBadge) return null;
+                          const IconComponent = mediaBadge.icon;
+                          return (
+                            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 gap-1", mediaBadge.className)}>
+                              <IconComponent className="h-2.5 w-2.5" />
+                              + {mediaBadge.label}
+                            </Badge>
+                          );
+                        })()}
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2">
                         {previewContent(template.content)}
