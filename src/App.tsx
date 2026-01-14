@@ -47,7 +47,6 @@ const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
 const PublicFormPage = lazy(() => import("./pages/PublicFormPage"));
 const Ajuda = lazy(() => import("./pages/Ajuda"));
-const MessageModels = lazy(() => import("./pages/MessageModels"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -132,15 +131,6 @@ const App = () => (
                       <NotificationProvider>
                         <PermissionGate permission="view_templates">
                           <Templates />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/message-models" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_templates">
-                          <MessageModels />
                         </PermissionGate>
                       </NotificationProvider>
                     </ProtectedRoute>

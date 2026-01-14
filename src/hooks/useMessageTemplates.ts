@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
 export type TemplateCategory = 'promotional' | 'transactional' | 'notification' | 'welcome' | 'reminder' | 'other';
-export type MediaType = 'image' | 'video' | 'audio' | 'document' | null;
+export type MediaType = 'image' | 'video' | 'audio' | null;
 
 export interface MessageTemplate {
   id: string;
