@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       // User doesn't have their own Asaas integration, check if they're a team member
       const { data: teamMember } = await supabaseAdmin
         .from('team_members')
-        .select('organization_id, permissions')
+        .select('organization_id, permissions, role')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .single();
@@ -63,15 +63,19 @@ Deno.serve(async (req) => {
       if (teamMember?.organization_id) {
         isMember = true;
         memberPermissions = teamMember.permissions as Record<string, boolean> | null;
+        const memberRole = teamMember.role as string | null;
+        const isAdmin = memberRole === 'admin';
 
-        // Check if member has permission to view finances
-        if (!memberPermissions?.view_finances) {
+        // Check if member has permission to view finances (admins have all permissions)
+        if (!isAdmin && !memberPermissions?.view_finances) {
           console.error('Member does not have view_finances permission');
           return new Response(JSON.stringify({ error: 'Permissão negada: acesso ao financeiro não autorizado' }), {
             status: 403,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
+
+        console.log(`User ${user.id} access granted: isAdmin=${isAdmin}, hasViewFinances=${memberPermissions?.view_finances}`);
 
         // Get the organization owner
         const { data: org } = await supabaseAdmin
