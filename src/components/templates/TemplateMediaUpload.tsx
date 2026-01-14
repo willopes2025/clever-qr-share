@@ -3,10 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Image, Video, Mic, X, Loader2, Sparkles } from 'lucide-react';
+import { Image, Video, Mic, X, Loader2, Sparkles, FileText } from 'lucide-react';
 import { GenerateAudioDialog } from './GenerateAudioDialog';
 
-export type MediaType = 'image' | 'video' | 'audio' | null;
+export type MediaType = 'image' | 'video' | 'audio' | 'document' | null;
 
 interface TemplateMediaUploadProps {
   mediaType: MediaType;
@@ -19,13 +19,15 @@ interface TemplateMediaUploadProps {
 const ACCEPTED_TYPES: Record<string, string> = {
   image: 'image/jpeg,image/png,image/gif,image/webp',
   video: 'video/mp4,video/quicktime,video/webm',
-  audio: 'audio/ogg,audio/mpeg,audio/mp3,audio/m4a,audio/wav'
+  audio: 'audio/ogg,audio/mpeg,audio/mp3,audio/m4a,audio/wav',
+  document: 'application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv'
 };
 
 const MAX_SIZE_MB: Record<string, number> = {
   image: 5,
   video: 16,
-  audio: 16
+  audio: 16,
+  document: 16
 };
 
 export const TemplateMediaUpload = ({
@@ -38,14 +40,14 @@ export const TemplateMediaUpload = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedType, setSelectedType] = useState<'image' | 'video' | 'audio' | null>(null);
+  const [selectedType, setSelectedType] = useState<'image' | 'video' | 'audio' | 'document' | null>(null);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
 
   const handleAudioGenerated = (audioUrl: string, fileName: string) => {
     onMediaChange('audio', audioUrl, fileName);
   };
 
-  const handleUploadClick = (type: 'image' | 'video' | 'audio') => {
+  const handleUploadClick = (type: 'image' | 'video' | 'audio' | 'document') => {
     setSelectedType(type);
     if (fileInputRef.current) {
       fileInputRef.current.accept = ACCEPTED_TYPES[type];
@@ -162,6 +164,18 @@ export const TemplateMediaUpload = ({
             <audio src={mediaUrl} controls className="w-full h-8" />
           </div>
         )}
+
+        {mediaType === 'document' && (
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded bg-orange-500/20 flex items-center justify-center">
+              <FileText className="h-6 w-6 text-orange-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{mediaFilename}</p>
+              <p className="text-xs text-muted-foreground">Documento</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -185,7 +199,7 @@ export const TemplateMediaUpload = ({
       ) : mediaUrl ? (
         renderPreview()
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <Button
             type="button"
             variant="outline"
@@ -222,6 +236,17 @@ export const TemplateMediaUpload = ({
           <Button
             type="button"
             variant="outline"
+            className="flex flex-col items-center gap-1 h-auto py-4"
+            onClick={() => handleUploadClick('document')}
+          >
+            <FileText className="h-5 w-5 text-orange-400" />
+            <span className="text-xs">Documento</span>
+            <span className="text-[10px] text-muted-foreground">até 16MB</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
             className="flex flex-col items-center gap-1 h-auto py-4 border-primary/50 hover:border-primary"
             onClick={() => setGenerateDialogOpen(true)}
             disabled={!templateContent.trim()}
@@ -234,7 +259,7 @@ export const TemplateMediaUpload = ({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Formatos aceitos: JPG, PNG, GIF, MP4, OGG (áudio WhatsApp), MP3
+        Formatos aceitos: JPG, PNG, GIF, MP4, OGG, MP3, PDF, DOC, DOCX, XLS, XLSX
       </p>
 
       <GenerateAudioDialog
