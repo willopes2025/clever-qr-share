@@ -34,6 +34,26 @@ export interface ContactWithTags extends Contact {
   contact_tags: { tag_id: string; tags: Tag }[];
 }
 
+export interface DealWithRelations {
+  id: string;
+  funnel_id: string;
+  stage_id: string;
+  value: number;
+  expected_close_date: string | null;
+  entered_stage_at: string | null;
+  custom_fields: Record<string, any> | null;
+  closed_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+  funnels: { name: string } | null;
+  funnel_stages: { name: string; color: string } | null;
+}
+
+export interface ContactWithDeals extends ContactWithTags {
+  funnel_deals: DealWithRelations[];
+  contact_number?: number;
+}
+
 export const useContacts = () => {
   const queryClient = useQueryClient();
 
@@ -47,12 +67,26 @@ export const useContacts = () => {
           contact_tags (
             tag_id,
             tags (*)
+          ),
+          funnel_deals (
+            id,
+            funnel_id,
+            stage_id,
+            value,
+            expected_close_date,
+            entered_stage_at,
+            custom_fields,
+            closed_at,
+            created_at,
+            updated_at,
+            funnels (name),
+            funnel_stages (name, color)
           )
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as ContactWithTags[];
+      return data as ContactWithDeals[];
     },
   });
 
