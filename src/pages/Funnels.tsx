@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import { CloseReasonsManager } from "@/components/funnels/CloseReasonsManager";
 import { AutomationsDialog } from "@/components/funnels/AutomationsDialog";
 import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
 import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAutomationsView";
+import { ImportContactsToFunnelDialog } from "@/components/funnels/ImportContactsToFunnelDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
@@ -42,6 +43,7 @@ const Funnels = () => {
   const [showCloseReasons, setShowCloseReasons] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
+  const [showImportContacts, setShowImportContacts] = useState(false);
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Auto-select first funnel (in useEffect to avoid re-render loop)
@@ -95,6 +97,12 @@ const Funnels = () => {
               <Button variant="outline" size="sm" onClick={() => setShowAIDialog(true)}>
                 <Bot className="h-4 w-4 mr-2" />
                 Agente IA
+              </Button>
+            )}
+            {currentFunnel && (
+              <Button variant="outline" size="sm" onClick={() => setShowImportContacts(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Importar Contatos
               </Button>
             )}
             <Button onClick={() => setShowFunnelForm(true)}>
@@ -233,6 +241,14 @@ const Funnels = () => {
           onOpenChange={setShowAIDialog}
           funnelId={currentFunnel.id}
           funnelName={currentFunnel.name}
+        />
+      )}
+
+      {currentFunnel && (
+        <ImportContactsToFunnelDialog
+          open={showImportContacts}
+          onOpenChange={setShowImportContacts}
+          funnel={currentFunnel}
         />
       )}
 
