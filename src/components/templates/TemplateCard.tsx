@@ -100,7 +100,10 @@ export const TemplateCard = ({
               {template.media_type === 'image' && <Image className="h-3 w-3 mr-1" />}
               {template.media_type === 'video' && <Video className="h-3 w-3 mr-1" />}
               {template.media_type === 'audio' && <Mic className="h-3 w-3 mr-1" />}
-              {template.media_type === 'image' ? 'Imagem' : template.media_type === 'video' ? 'Vídeo' : 'Áudio'}
+              {template.media_type === 'document' && <FileText className="h-3 w-3 mr-1" />}
+              {template.media_type === 'image' ? 'Imagem' : 
+               template.media_type === 'video' ? 'Vídeo' : 
+               template.media_type === 'audio' ? 'Áudio' : 'Documento'}
             </Badge>
           )}
         </div>

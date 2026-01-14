@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Zap, FileText } from "lucide-react";
+import { Zap, FileText, Image, Video, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageTemplate, CATEGORY_LABELS, CATEGORY_COLORS } from "@/hooks/useMessageTemplates";
 import { motion, AnimatePresence } from "framer-motion";
@@ -60,6 +60,26 @@ export const SlashCommandPopup = ({
       preview = preview.substring(0, 80) + "...";
     }
     return preview;
+  };
+  // Get media icon based on type
+  const getMediaIcon = (type: string | undefined) => {
+    switch (type) {
+      case 'image': return <Image className="h-3 w-3" />;
+      case 'video': return <Video className="h-3 w-3" />;
+      case 'audio': return <Mic className="h-3 w-3" />;
+      case 'document': return <FileText className="h-3 w-3" />;
+      default: return null;
+    }
+  };
+
+  const getMediaLabel = (type: string | undefined) => {
+    switch (type) {
+      case 'image': return '📷';
+      case 'video': return '📹';
+      case 'audio': return '🎵';
+      case 'document': return '📄';
+      default: return null;
+    }
   };
 
   if (!isOpen) return null;
@@ -126,9 +146,12 @@ export const SlashCommandPopup = ({
                         >
                           {CATEGORY_LABELS[template.category]}
                         </Badge>
-                        {template.media_url && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            + mídia
+                        {template.media_url && template.media_type && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-1">
+                            {getMediaLabel(template.media_type)}
+                            {template.media_type === 'image' ? 'img' : 
+                             template.media_type === 'video' ? 'vid' : 
+                             template.media_type === 'audio' ? 'áudio' : 'doc'}
                           </Badge>
                         )}
                       </div>
