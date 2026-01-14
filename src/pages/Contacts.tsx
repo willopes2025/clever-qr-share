@@ -51,6 +51,7 @@ import { ContactsColumnsConfig } from "@/components/contacts/ContactsColumnsConf
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const Contacts = () => {
   const {
@@ -73,6 +74,7 @@ const Contacts = () => {
   } = useContacts();
 
   const { fieldDefinitions } = useCustomFields();
+  const { subscription } = useSubscription();
 
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
@@ -506,6 +508,8 @@ const Contacts = () => {
         isLoading={importContacts.isPending}
         tags={tags}
         existingFields={fieldDefinitions}
+        currentContactCount={contacts.length}
+        maxContacts={subscription?.max_contacts ?? null}
       />
 
       <TagManager

@@ -76,6 +76,8 @@ interface ImportContactsDialogV2Props {
   isLoading?: boolean;
   tags?: TagOption[];
   existingFields?: CustomFieldDefinition[];
+  currentContactCount?: number;
+  maxContacts?: number | null;
 }
 
 interface ColumnMapping {
@@ -119,6 +121,8 @@ export const ImportContactsDialogV2 = ({
   isLoading,
   tags = [],
   existingFields = [],
+  currentContactCount = 0,
+  maxContacts = null,
 }: ImportContactsDialogV2Props) => {
   const [step, setStep] = useState<ImportStep>("upload");
   const [fileName, setFileName] = useState("");
@@ -353,6 +357,18 @@ export const ImportContactsDialogV2 = ({
     return fields;
   }, [columnMappings, existingFields, newFields]);
 
+  // Calculate available slots based on plan limit
+  const availableSlots = useMemo(() => {
+    if (maxContacts === null) return Infinity;
+    return Math.max(0, maxContacts - currentContactCount);
+  }, [maxContacts, currentContactCount]);
+
+  // Contacts that will actually be imported (limited by plan)
+  const contactsToImport = useMemo(() => {
+    if (availableSlots === Infinity) return validContacts;
+    return validContacts.slice(0, availableSlots);
+  }, [validContacts, availableSlots]);
+
   const handleImport = async () => {
     const phoneColumn = Object.entries(columnMappings).find(
       ([, m]) => m.targetField === "phone"
@@ -363,7 +379,14 @@ export const ImportContactsDialogV2 = ({
       return;
     }
 
-    const contacts = validContacts.map((row) => {
+    if (contactsToImport.length === 0) {
+      toast.error("Limite de contatos atingido", {
+        description: `Seu plano permite ${maxContacts?.toLocaleString('pt-BR')} contatos. Você já tem ${currentContactCount.toLocaleString('pt-BR')} contatos cadastrados.`
+      });
+      return;
+    }
+
+    const contacts = contactsToImport.map((row) => {
       const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown> } = {
         phone: "",
         custom_fields: {},
@@ -946,8 +969,8 @@ export const ImportContactsDialogV2 = ({
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
-        <Button onClick={handleImport} disabled={isLoading || validContacts.length === 0}>
-          {isLoading ? "Importando..." : `Importar ${validContacts.length} contatos`}
+        <Button onClick={handleImport} disabled={isLoading || contactsToImport.length === 0}>
+          {isLoading ? "Importando..." : `Importar ${contactsToImport.length.toLocaleString('pt-BR')} contatos`}
         </Button>
       </div>
     </div>
@@ -982,14 +1005,14 @@ export const ImportContactsDialogV2 = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>{getStepTitle()}</DialogTitle>
             <DialogDescription>{getStepDescription()}</DialogDescription>
           </DialogHeader>
 
           {/* Progress indicator */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-4 flex-shrink-0">
             {(["upload", "mapping", "deduplication", "tags"] as ImportStep[]).map((s, idx) => {
               const steps: ImportStep[] = ["upload", "mapping", "deduplication", "tags"];
               const currentIdx = steps.indexOf(step);
@@ -1018,10 +1041,30 @@ export const ImportContactsDialogV2 = ({
             })}
           </div>
 
-          {step === "upload" && renderUploadStep()}
-          {step === "mapping" && renderMappingStep()}
-          {step === "deduplication" && renderDeduplicationStep()}
-          {step === "tags" && renderTagsStep()}
+          {/* Plan limit warning */}
+          {maxContacts !== null && step !== "upload" && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex-shrink-0 mb-4">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                ⚠️ Limite do plano: {maxContacts.toLocaleString('pt-BR')} contatos
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Atual: {currentContactCount.toLocaleString('pt-BR')} | Disponível: {availableSlots === Infinity ? 'Ilimitado' : availableSlots.toLocaleString('pt-BR')}
+              </p>
+              {validContacts.length > availableSlots && availableSlots !== Infinity && (
+                <p className="text-xs text-destructive mt-1 font-medium">
+                  ⚠️ Apenas {availableSlots.toLocaleString('pt-BR')} de {validContacts.length.toLocaleString('pt-BR')} contatos serão importados
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Scrollable content */}
+          <ScrollArea className="flex-1 min-h-0 pr-2">
+            {step === "upload" && renderUploadStep()}
+            {step === "mapping" && renderMappingStep()}
+            {step === "deduplication" && renderDeduplicationStep()}
+            {step === "tags" && renderTagsStep()}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
