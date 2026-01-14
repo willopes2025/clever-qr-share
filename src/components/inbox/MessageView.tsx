@@ -300,17 +300,24 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     });
   };
 
-  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio') => {
+  const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
       return;
     }
 
+    const contentLabels: Record<string, string> = {
+      image: '[Imagem]',
+      audio: '[Áudio]',
+      video: '[Vídeo]',
+      document: '[Documento]',
+    };
+
     // Add optimistic message
     const optimisticMessage: OptimisticMessage = {
       id: `optimistic-${Date.now()}`,
       conversation_id: conversation.id,
-      content: mediaType === 'image' ? '[Imagem]' : mediaType === 'audio' ? '[Áudio]' : '[Documento]',
+      content: contentLabels[mediaType] || '[Mídia]',
       direction: 'outbound',
       status: 'sending',
       message_type: mediaType,
@@ -403,7 +410,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
   };
 
-  const handleSlashSelect = (template: MessageTemplate) => {
+  const handleSlashSelect = async (template: MessageTemplate) => {
     const cursorPos = textareaRef.current?.selectionStart || newMessage.length;
     const textBeforeCursor = newMessage.substring(0, cursorPos);
     const textAfterCursor = newMessage.substring(cursorPos);
@@ -429,6 +436,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     setNewMessage(newText);
     setSlashCommandOpen(false);
     setSlashSearchTerm("");
+    
+    // If template has media, send it automatically
+    if (template.media_url && template.media_type) {
+      const mediaType = template.media_type as 'image' | 'document' | 'audio' | 'video';
+      await handleSendMedia(template.media_url, mediaType);
+    }
     
     // Focus and resize
     textareaRef.current?.focus();
