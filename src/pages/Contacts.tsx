@@ -37,15 +37,17 @@ import {
   UserX,
   TagsIcon,
   CalendarIcon,
+  Settings2,
 } from "lucide-react";
 import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { useContacts, ContactWithTags } from "@/hooks/useContacts";
+import { useContacts, ContactWithDeals } from "@/hooks/useContacts";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import { ImportContactsDialogV2 } from "@/components/contacts/ImportContactsDialogV2";
 import { TagManager } from "@/components/contacts/TagManager";
-import { ContactsTable } from "@/components/contacts/ContactsTable";
+import { ContactsTableConfigurable } from "@/components/contacts/ContactsTableConfigurable";
+import { ContactsColumnsConfig } from "@/components/contacts/ContactsColumnsConfig";
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
 import { useCustomFields } from "@/hooks/useCustomFields";
@@ -79,9 +81,15 @@ const Contacts = () => {
   const [showBulkTagDialog, setShowBulkTagDialog] = useState(false);
   const [showBulkRemoveTagDialog, setShowBulkRemoveTagDialog] = useState(false);
   const [showBulkOptOutConfirm, setShowBulkOptOutConfirm] = useState(false);
-  const [editingContact, setEditingContact] = useState<ContactWithTags | null>(null);
+  const [showColumnsConfig, setShowColumnsConfig] = useState(false);
+  const [editingContact, setEditingContact] = useState<ContactWithDeals | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+
+  // Columns configuration state
+  const DEFAULT_VISIBLE_COLUMNS = ['contact_display_id', 'phone', 'name', 'tags', 'status', 'created_at'];
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -250,6 +258,10 @@ const Contacts = () => {
         </div>
 
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowColumnsConfig(true)} className="neon-border">
+            <Settings2 className="h-4 w-4 mr-2" />
+            Colunas
+          </Button>
           <Button variant="outline" onClick={() => setShowTagManager(true)} className="neon-border">
             <TagIcon className="h-4 w-4 mr-2" />
             Tags
@@ -436,10 +448,12 @@ const Contacts = () => {
           </div>
         </div>
       ) : (
-        <ContactsTable
+        <ContactsTableConfigurable
           contacts={filteredContacts}
           tags={tags}
           selectedIds={selectedIds}
+          visibleColumns={visibleColumns}
+          columnOrder={columnOrder}
           onSelectAll={handleSelectAll}
           onSelectOne={handleSelectOne}
           onEdit={(contact) => {
@@ -456,6 +470,19 @@ const Contacts = () => {
           }
         />
       )}
+
+      {/* Columns config dialog */}
+      <ContactsColumnsConfig
+        open={showColumnsConfig}
+        onOpenChange={setShowColumnsConfig}
+        visibleColumns={visibleColumns}
+        columnOrder={columnOrder}
+        fieldDefinitions={fieldDefinitions || []}
+        onSave={(visible, order) => {
+          setVisibleColumns(visible);
+          setColumnOrder(order);
+        }}
+      />
 
       {/* Dialogs */}
       <ContactFormDialog
