@@ -1112,6 +1112,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           onSelect={handleSlashSelect}
           onClose={() => setSlashCommandOpen(false)}
           contactName={conversation.contact?.name || undefined}
+          anchorRef={textareaRef}
         />
       </div>
         </TabsContent>

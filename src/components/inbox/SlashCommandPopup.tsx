@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Zap, FileText, Image, Video, Music } from "lucide-react";
@@ -27,6 +28,7 @@ interface SlashCommandPopupProps {
   onSelect: (template: MessageTemplate) => void;
   onClose: () => void;
   contactName?: string;
+  anchorRef?: React.RefObject<HTMLTextAreaElement>;
 }
 
 export const SlashCommandPopup = ({
@@ -37,9 +39,11 @@ export const SlashCommandPopup = ({
   onSelect,
   onClose,
   contactName,
+  anchorRef,
 }: SlashCommandPopupProps) => {
   const listRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // Filter templates based on search term
   const filteredTemplates = templates.filter(template => {
@@ -51,6 +55,18 @@ export const SlashCommandPopup = ({
       CATEGORY_LABELS[template.category].toLowerCase().includes(search)
     );
   }).slice(0, 8); // Limit to 8 results
+
+  // Update position when anchor changes
+  useEffect(() => {
+    if (isOpen && anchorRef?.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.top - 8,
+        left: rect.left,
+        width: Math.min(rect.width, 400),
+      });
+    }
+  }, [isOpen, anchorRef, searchTerm]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -75,9 +91,9 @@ export const SlashCommandPopup = ({
     return preview;
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !anchorRef?.current) return null;
 
-  return (
+  const popupContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -85,7 +101,13 @@ export const SlashCommandPopup = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 10, scale: 0.95 }}
           transition={{ duration: 0.15 }}
-          className="absolute bottom-full left-0 right-0 mb-2 mx-2 md:mx-4 z-50"
+          style={{
+            position: 'fixed',
+            bottom: window.innerHeight - position.top,
+            left: position.left,
+            width: position.width,
+            zIndex: 9999,
+          }}
         >
           <div className="bg-card border border-border rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
             {/* Header */}
@@ -173,4 +195,6 @@ export const SlashCommandPopup = ({
       )}
     </AnimatePresence>
   );
+
+  return createPortal(popupContent, document.body);
 };
