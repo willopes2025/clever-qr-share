@@ -42,9 +42,18 @@ export const useWhatsAppInstances = () => {
 
   const requireAuthHeaders = async () => {
     // Get fresh session to ensure token is valid
-    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('Error getting session:', error);
+      throw new Error('Sessão expirada. Por favor, faça login novamente.');
+    }
+    
     const token = currentSession?.access_token;
-    if (!token) throw new Error('Você precisa estar logado');
+    if (!token) {
+      throw new Error('Sessão expirada. Por favor, faça login novamente.');
+    }
+    
     return { Authorization: `Bearer ${token}` };
   };
   const { data: instances, isLoading, refetch } = useQuery({
