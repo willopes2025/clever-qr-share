@@ -9,6 +9,7 @@ import { WarmingContactsManager } from "@/components/warming/WarmingContactsMana
 import { WarmingPairsManager } from "@/components/warming/WarmingPairsManager";
 import { WarmingContentManager } from "@/components/warming/WarmingContentManager";
 import { WarmingActivitiesLog } from "@/components/warming/WarmingActivitiesLog";
+import { WarmingPoolManager } from "@/components/warming/WarmingPoolManager";
 import { StartWarmingDialog } from "@/components/warming/StartWarmingDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,9 +19,10 @@ export default function Warming() {
   const navigate = useNavigate();
   const { instances } = useWhatsAppInstances();
   const {
-    schedules, contacts, pairs, contents, activities, isLoading,
+    schedules, contacts, pairs, contents, activities, poolEntries, poolStats, isLoading,
     createSchedule, updateScheduleStatus, deleteSchedule, createContact, deleteContact,
-    createPair, deletePair, createContent, updateContent, deleteContent, deleteAllUserContent, triggerWarming, refetch
+    createPair, deletePair, createContent, updateContent, deleteContent, deleteAllUserContent, 
+    triggerWarming, joinPool, leavePool, refetch
   } = useWarming();
 
   const existingScheduleInstanceIds = schedules?.map(s => s.instance_id) || [];
@@ -116,8 +118,17 @@ export default function Warming() {
             </div>
           )}
 
-          {/* Configuration */}
+          {/* Pool Comunitário e Pareamento Manual */}
           <div className="grid gap-6 md:grid-cols-2">
+            <WarmingPoolManager
+              instances={instances || []}
+              poolEntries={poolEntries || []}
+              poolStats={poolStats}
+              onJoinPool={(instanceId, phone) => joinPool.mutate({ instanceId, phoneNumber: phone })}
+              onLeavePool={(entryId) => leavePool.mutate(entryId)}
+              isJoining={joinPool.isPending}
+              isLeaving={leavePool.isPending}
+            />
             <WarmingPairsManager
               pairs={pairs || []}
               instances={instances || []}
@@ -125,15 +136,16 @@ export default function Warming() {
               onDelete={(id) => deletePair.mutate(id)}
               isAdding={createPair.isPending}
             />
+          </div>
+
+          {/* Configuration */}
+          <div className="grid gap-6 md:grid-cols-2">
             <WarmingContactsManager
               contacts={contacts || []}
               onAdd={(data) => createContact.mutate(data)}
               onDelete={(id) => deleteContact.mutate(id)}
               isAdding={createContact.isPending}
             />
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
             <WarmingContentManager
               contents={contents || []}
               onAdd={(data) => createContent.mutate(data)}
@@ -144,8 +156,9 @@ export default function Warming() {
               isUpdating={updateContent.isPending}
               isDeletingAll={deleteAllUserContent.isPending}
             />
-            <WarmingActivitiesLog activities={activities || []} />
           </div>
+
+          <WarmingActivitiesLog activities={activities || []} />
         </>
       )}
       </FeatureGate>

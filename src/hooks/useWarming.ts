@@ -71,6 +71,28 @@ export interface WarmingActivity {
   created_at: string;
 }
 
+export interface WarmingPoolEntry {
+  id: string;
+  user_id: string;
+  instance_id: string;
+  phone_number: string;
+  is_active: boolean;
+  joined_at: string;
+  last_paired_at: string | null;
+  total_pairs_made: number;
+  created_at: string;
+  updated_at: string;
+  instance?: {
+    id: string;
+    instance_name: string;
+    status: string;
+  };
+}
+
+export interface PoolStats {
+  totalActive: number;
+}
+
 export function useWarming() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -155,6 +177,40 @@ export function useWarming() {
       
       if (error) throw error;
       return data as WarmingActivity[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch user's pool entries
+  const { data: poolEntries, isLoading: poolLoading, refetch: refetchPool } = useQuery({
+    queryKey: ['warming-pool'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('warming_pool')
+        .select(`
+          *,
+          instance:whatsapp_instances(id, instance_name, status)
+        `)
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as WarmingPoolEntry[];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch pool statistics
+  const { data: poolStats, refetch: refetchPoolStats } = useQuery({
+    queryKey: ['warming-pool-stats'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('warming_pool')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+      
+      if (error) throw error;
+      return { totalActive: count || 0 } as PoolStats;
     },
     enabled: !!user,
   });
@@ -442,13 +498,65 @@ export function useWarming() {
     },
   });
 
+  // Join community warming pool
+  const joinPool = useMutation({
+    mutationFn: async ({ instanceId, phoneNumber }: { instanceId: string; phoneNumber: string }) => {
+      const { data, error } = await supabase
+        .from('warming_pool')
+        .insert({
+          user_id: user!.id,
+          instance_id: instanceId,
+          phone_number: phoneNumber,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warming-pool'] });
+      queryClient.invalidateQueries({ queryKey: ['warming-pool-stats'] });
+      toast({ 
+        title: "Você entrou no pool!", 
+        description: "Sua instância será pareada automaticamente com outras da plataforma." 
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao entrar no pool", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Leave community warming pool
+  const leavePool = useMutation({
+    mutationFn: async (entryId: string) => {
+      const { error } = await supabase
+        .from('warming_pool')
+        .delete()
+        .eq('id', entryId)
+        .eq('user_id', user!.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warming-pool'] });
+      queryClient.invalidateQueries({ queryKey: ['warming-pool-stats'] });
+      toast({ title: "Você saiu do pool", description: "Sua instância foi removida do pool comunitário." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao sair do pool", description: error.message, variant: "destructive" });
+    },
+  });
+
   return {
     schedules,
     contacts,
     pairs,
     contents,
     activities,
-    isLoading: schedulesLoading || contactsLoading || pairsLoading || contentsLoading || activitiesLoading,
+    poolEntries,
+    poolStats: poolStats || { totalActive: 0 },
+    isLoading: schedulesLoading || contactsLoading || pairsLoading || contentsLoading || activitiesLoading || poolLoading,
     createSchedule,
     updateScheduleStatus,
     deleteSchedule,
@@ -461,12 +569,16 @@ export function useWarming() {
     deleteContent,
     deleteAllUserContent,
     triggerWarming,
+    joinPool,
+    leavePool,
     refetch: () => {
       refetchSchedules();
       refetchContacts();
       refetchPairs();
       refetchContents();
       refetchActivities();
+      refetchPool();
+      refetchPoolStats();
     },
   };
 }
