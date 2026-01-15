@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
           .eq('is_active', true);
 
         // Build list of targets
-        const targets: { phone: string; name: string; type: 'pair' | 'contact' }[] = [];
+        const targets: { phone: string; name: string; type: 'pair' | 'contact' | 'pool' }[] = [];
 
         // Add paired instances as targets
         if (pairs) {
@@ -183,7 +183,42 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        console.log(`[WARMING] Found ${targets.length} targets for schedule ${schedule.id}: ${targets.map(t => t.phone).join(', ')}`);
+        // Check if this instance is in the community warming pool
+        const { data: poolEntry } = await supabase
+          .from('warming_pool')
+          .select('id, phone_number')
+          .eq('instance_id', schedule.instance_id)
+          .eq('is_active', true)
+          .single();
+
+        if (poolEntry) {
+          // Get community pool pairs for this entry
+          const { data: poolPairs } = await supabase
+            .from('warming_pool_pairs')
+            .select(`
+              *,
+              entry_a:warming_pool!warming_pool_pairs_pool_entry_a_id_fkey(id, phone_number, instance:whatsapp_instances(id, status)),
+              entry_b:warming_pool!warming_pool_pairs_pool_entry_b_id_fkey(id, phone_number, instance:whatsapp_instances(id, status))
+            `)
+            .eq('is_active', true)
+            .or(`pool_entry_a_id.eq.${poolEntry.id},pool_entry_b_id.eq.${poolEntry.id}`);
+
+          if (poolPairs) {
+            for (const poolPair of poolPairs) {
+              const otherEntry = poolPair.pool_entry_a_id === poolEntry.id ? poolPair.entry_b : poolPair.entry_a;
+              if (otherEntry?.instance?.status === 'connected' && otherEntry?.phone_number) {
+                targets.push({
+                  phone: otherEntry.phone_number,
+                  name: 'Pool Comunitário',
+                  type: 'pool'
+                });
+              }
+            }
+          }
+          console.log(`[WARMING] Added ${poolPairs?.length || 0} pool targets for schedule ${schedule.id}`);
+        }
+
+        console.log(`[WARMING] Found ${targets.length} targets for schedule ${schedule.id}: ${targets.map(t => `${t.phone} (${t.type})`).join(', ')}`);
 
         if (targets.length === 0) {
           console.log(`[WARMING] No targets available for schedule ${schedule.id}`);

@@ -5068,6 +5068,98 @@ export type Database = {
           },
         ]
       }
+      warming_pool: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_id: string
+          is_active: boolean | null
+          joined_at: string | null
+          last_paired_at: string | null
+          phone_number: string
+          total_pairs_made: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_id: string
+          is_active?: boolean | null
+          joined_at?: string | null
+          last_paired_at?: string | null
+          phone_number: string
+          total_pairs_made?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string
+          is_active?: boolean | null
+          joined_at?: string | null
+          last_paired_at?: string | null
+          phone_number?: string
+          total_pairs_made?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warming_pool_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warming_pool_pairs: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          messages_exchanged: number | null
+          pool_entry_a_id: string
+          pool_entry_b_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          messages_exchanged?: number | null
+          pool_entry_a_id: string
+          pool_entry_b_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          messages_exchanged?: number | null
+          pool_entry_a_id?: string
+          pool_entry_b_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warming_pool_pairs_pool_entry_a_id_fkey"
+            columns: ["pool_entry_a_id"]
+            isOneToOne: false
+            referencedRelation: "warming_pool"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warming_pool_pairs_pool_entry_b_id_fkey"
+            columns: ["pool_entry_b_id"]
+            isOneToOne: false
+            referencedRelation: "warming_pool"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warming_schedules: {
         Row: {
           created_at: string
