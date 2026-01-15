@@ -44,7 +44,12 @@ export function WhatsAppSettings() {
   };
 
   const handleCheckStatus = async (instanceName: string) => {
-    await checkStatus.mutateAsync(instanceName);
+    try {
+      await checkStatus.mutateAsync(instanceName);
+    } catch (error: any) {
+      console.error('Error checking status:', error);
+      toast.error(error?.message ? `Erro ao verificar status: ${error.message}` : 'Erro ao verificar status');
+    }
   };
 
   const closeQrDialog = () => {
