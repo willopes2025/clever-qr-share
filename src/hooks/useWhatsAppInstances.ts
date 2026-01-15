@@ -40,8 +40,10 @@ export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
   const { session } = useAuth();
 
-  const requireAuthHeaders = () => {
-    const token = session?.access_token;
+  const requireAuthHeaders = async () => {
+    // Get fresh session to ensure token is valid
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    const token = currentSession?.access_token;
     if (!token) throw new Error('Você precisa estar logado');
     return { Authorization: `Bearer ${token}` };
   };
@@ -63,7 +65,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async ({ instanceName, forceRecreate = false, isNotificationOnly = false }: { instanceName: string; forceRecreate?: boolean; isNotificationOnly?: boolean }) => {
       const { data, error } = await supabase.functions.invoke('create-instance', {
         body: { instanceName, forceRecreate, isNotificationOnly },
-        headers: requireAuthHeaders(),
+        headers: await requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) {
@@ -91,7 +93,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('connect-instance', {
         body: { instanceName },
-        headers: requireAuthHeaders(),
+        headers: await requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -110,7 +112,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('check-connection-status', {
         body: { instanceName },
-        headers: requireAuthHeaders(),
+        headers: await requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -126,7 +128,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (instanceName: string) => {
       const { data, error } = await supabase.functions.invoke('delete-instance', {
         body: { instanceName },
-        headers: requireAuthHeaders(),
+        headers: await requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
@@ -164,7 +166,7 @@ export const useWhatsAppInstances = () => {
     mutationFn: async (params: { instanceName?: string; configureAll?: boolean }) => {
       const { data, error } = await supabase.functions.invoke('configure-instance-webhook', {
         body: params,
-        headers: requireAuthHeaders(),
+        headers: await requireAuthHeaders(),
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);

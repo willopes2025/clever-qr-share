@@ -17,19 +17,29 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Não autorizado');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      console.error('Auth error:', authError);
-      throw new Error('Não autenticado');
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error('Auth error:', claimsError);
+      return new Response(JSON.stringify({ error: 'Não autenticado' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    const userId = claimsData.claims.sub;
 
     const { instanceName } = await req.json();
     if (!instanceName) {
@@ -41,9 +51,9 @@ Deno.serve(async (req: Request) => {
     // Verificar se a instância pertence ao usuário ou à sua organização
     // Primeiro, buscar IDs de membros da organização do usuário
     const { data: memberIds } = await supabase
-      .rpc('get_organization_member_ids', { _user_id: user.id });
+      .rpc('get_organization_member_ids', { _user_id: userId });
     
-    const userIds = memberIds && memberIds.length > 0 ? memberIds : [user.id];
+    const userIds = memberIds && memberIds.length > 0 ? memberIds : [userId];
     
     const { data: instance, error: instanceError } = await supabase
       .from('whatsapp_instances')
