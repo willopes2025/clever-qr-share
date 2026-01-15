@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, FileText, Image, Mic, Video, Smile, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Trash2, FileText, Image, Mic, Video, Smile, Sparkles, Loader2, Pencil } from "lucide-react";
 import { WarmingContent } from "@/hooks/useWarming";
 import { useGenerateWarmingContent } from "@/hooks/useGenerateWarmingContent";
 
@@ -22,9 +22,17 @@ interface WarmingContentManagerProps {
     mediaUrl?: string;
     category: 'greeting' | 'casual' | 'question' | 'reaction' | 'farewell';
   }) => void;
+  onUpdate: (data: {
+    contentId: string;
+    contentType: 'text' | 'audio' | 'image' | 'video' | 'sticker';
+    content?: string;
+    mediaUrl?: string;
+    category: 'greeting' | 'casual' | 'question' | 'reaction' | 'farewell';
+  }) => void;
   onDelete: (contentId: string) => void;
   onDeleteAll?: () => void;
   isAdding?: boolean;
+  isUpdating?: boolean;
   isDeletingAll?: boolean;
 }
 
@@ -46,7 +54,7 @@ const CONTENT_TYPES = [
 
 const QUANTITY_OPTIONS = [3, 5, 10, 15, 20];
 
-export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, isAdding, isDeletingAll }: WarmingContentManagerProps) {
+export function WarmingContentManager({ contents, onAdd, onUpdate, onDelete, onDeleteAll, isAdding, isUpdating, isDeletingAll }: WarmingContentManagerProps) {
   const [open, setOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [contentType, setContentType] = useState<'text' | 'audio' | 'image' | 'video' | 'sticker'>('text');
@@ -62,7 +70,41 @@ export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, 
   const [selectedDefaultIds, setSelectedDefaultIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingContent, setEditingContent] = useState<WarmingContent | null>(null);
+  const [editContentType, setEditContentType] = useState<'text' | 'audio' | 'image' | 'video' | 'sticker'>('text');
+  const [editContent, setEditContent] = useState('');
+  const [editMediaUrl, setEditMediaUrl] = useState('');
+  const [editCategory, setEditCategory] = useState<'greeting' | 'casual' | 'question' | 'reaction' | 'farewell'>('casual');
+  
   const { generateAndSave, isGenerating } = useGenerateWarmingContent();
+
+  const handleOpenEdit = (item: WarmingContent) => {
+    setEditingContent(item);
+    setEditContentType(item.content_type);
+    setEditContent(item.content || '');
+    setEditMediaUrl(item.media_url || '');
+    setEditCategory(item.category);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingContent) return;
+    if (editContentType === 'text' && !editContent.trim()) return;
+    if (editContentType !== 'text' && !editMediaUrl.trim()) return;
+    
+    onUpdate({
+      contentId: editingContent.id,
+      contentType: editContentType,
+      content: editContent.trim() || undefined,
+      mediaUrl: editMediaUrl.trim() || undefined,
+      category: editCategory,
+    });
+    
+    setEditDialogOpen(false);
+    setEditingContent(null);
+  };
 
   const handleSubmit = () => {
     if (contentType === 'text' && !content.trim()) return;
@@ -386,13 +428,22 @@ export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, 
                         </Badge>
                       </div>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => onDelete(item.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleOpenEdit(item)}
+                      >
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => onDelete(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -478,6 +529,105 @@ export function WarmingContentManager({ contents, onAdd, onDelete, onDeleteAll, 
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Conteúdo</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Tipo de Conteúdo</Label>
+                <Select 
+                  value={editContentType} 
+                  onValueChange={(v) => setEditContentType(v as typeof editContentType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CONTENT_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        <div className="flex items-center gap-2">
+                          <type.icon className="h-4 w-4" />
+                          {type.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select 
+                  value={editCategory} 
+                  onValueChange={(v) => setEditCategory(v as typeof editCategory)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.icon} {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editContentType === 'text' ? (
+                <div className="space-y-2">
+                  <Label>Texto da Mensagem</Label>
+                  <Textarea 
+                    placeholder="Digite a mensagem..."
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>URL da Mídia</Label>
+                  <Input 
+                    placeholder="https://exemplo.com/arquivo.jpg"
+                    value={editMediaUrl}
+                    onChange={(e) => setEditMediaUrl(e.target.value)}
+                  />
+                  <div className="space-y-2">
+                    <Label>Legenda (opcional)</Label>
+                    <Input 
+                      placeholder="Legenda da mídia"
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Button 
+                onClick={handleSaveEdit} 
+                disabled={
+                  (editContentType === 'text' && !editContent.trim()) || 
+                  (editContentType !== 'text' && !editMediaUrl.trim()) || 
+                  isUpdating
+                } 
+                className="w-full"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Alterações'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

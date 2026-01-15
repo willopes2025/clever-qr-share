@@ -327,6 +327,46 @@ export function useWarming() {
     },
   });
 
+  // Update warming content
+  const updateContent = useMutation({
+    mutationFn: async ({ 
+      contentId, 
+      contentType, 
+      content, 
+      mediaUrl, 
+      category 
+    }: { 
+      contentId: string;
+      contentType: 'text' | 'audio' | 'image' | 'video' | 'sticker';
+      content?: string;
+      mediaUrl?: string;
+      category: 'greeting' | 'casual' | 'question' | 'reaction' | 'farewell';
+    }) => {
+      const { data, error } = await supabase
+        .from('warming_content')
+        .update({
+          content_type: contentType,
+          content,
+          media_url: mediaUrl,
+          category,
+        })
+        .eq('id', contentId)
+        .eq('user_id', user!.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warming-contents'] });
+      toast({ title: "Conteúdo atualizado" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Delete warming content
   const deleteContent = useMutation({
     mutationFn: async (contentId: string) => {
@@ -417,6 +457,7 @@ export function useWarming() {
     createPair,
     deletePair,
     createContent,
+    updateContent,
     deleteContent,
     deleteAllUserContent,
     triggerWarming,
