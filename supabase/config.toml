@@ -236,3 +236,9 @@ verify_jwt = false
 
 [functions.google-calendar-integration]
 verify_jwt = false
+
+[functions.auto-pair-warming-pool]
+verify_jwt = false
+
+[functions.generate-daily-warming-news]
+verify_jwt = false
