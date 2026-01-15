@@ -68,6 +68,50 @@ function calculateWarmingLevel(currentDay: number, totalSent: number, totalRecei
   return 1;
 }
 
+// Check if a phone number exists on WhatsApp using Evolution API
+async function checkWhatsAppNumber(
+  evolutionApiUrl: string,
+  evolutionApiKey: string,
+  instanceName: string,
+  phone: string
+): Promise<{ exists: boolean; jid?: string }> {
+  try {
+    console.log(`[WARMING] Checking if ${phone} exists on WhatsApp via ${instanceName}`);
+    
+    const response = await fetch(
+      `${evolutionApiUrl}/chat/whatsappNumbers/${instanceName}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': evolutionApiKey,
+        },
+        body: JSON.stringify({ numbers: [phone] }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log(`[WARMING] WhatsApp check failed for ${phone}: ${response.status} - ${errorText}`);
+      return { exists: false };
+    }
+
+    const result = await response.json();
+    console.log(`[WARMING] WhatsApp check result for ${phone}:`, JSON.stringify(result));
+    
+    // Evolution API returns array: [{ exists: true, jid: "...", number: "..." }]
+    const numberCheck = Array.isArray(result) ? result[0] : result;
+    
+    return {
+      exists: numberCheck?.exists === true,
+      jid: numberCheck?.jid
+    };
+  } catch (error) {
+    console.error(`[WARMING] Error checking WhatsApp number ${phone}:`, error);
+    return { exists: false };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -149,7 +193,7 @@ Deno.serve(async (req: Request) => {
           .eq('is_active', true);
 
         // Build list of targets
-        const targets: { phone: string; name: string; type: 'pair' | 'contact' | 'pool' }[] = [];
+        const targets: { phone: string; name: string; type: 'pair' | 'contact' | 'pool'; sourceId?: string }[] = [];
 
         // Add paired instances as targets
         if (pairs) {
@@ -165,7 +209,8 @@ Deno.serve(async (req: Request) => {
                 targets.push({
                   phone: connectionStatus.instance.owner.replace('@s.whatsapp.net', ''),
                   name: otherInstance.instance_name,
-                  type: 'pair'
+                  type: 'pair',
+                  sourceId: pair.id
                 });
               }
             }
@@ -178,7 +223,8 @@ Deno.serve(async (req: Request) => {
             targets.push({
               phone: contact.phone,
               name: contact.name || contact.phone,
-              type: 'contact'
+              type: 'contact',
+              sourceId: contact.id
             });
           }
         }
@@ -210,7 +256,8 @@ Deno.serve(async (req: Request) => {
                 targets.push({
                   phone: otherEntry.phone_number,
                   name: 'Pool Comunitário',
-                  type: 'pool'
+                  type: 'pool',
+                  sourceId: poolPair.id
                 });
               }
             }
@@ -261,6 +308,60 @@ Deno.serve(async (req: Request) => {
         const content = getRandomItem(contents);
         const target = getRandomItem(targets);
 
+        // ===== VERIFY IF NUMBER EXISTS ON WHATSAPP BEFORE SENDING =====
+        const numberCheck = await checkWhatsAppNumber(
+          evolutionApiUrl,
+          evolutionApiKey,
+          schedule.instance?.instance_name,
+          target.phone
+        );
+
+        if (!numberCheck.exists) {
+          console.log(`[WARMING] Number ${target.phone} does not exist on WhatsApp, deactivating and skipping`);
+          
+          // Deactivate the invalid contact/pair to avoid retrying
+          if (target.type === 'contact' && target.sourceId) {
+            await supabase
+              .from('warming_contacts')
+              .update({ 
+                is_active: false, 
+                notes: 'Número não existe no WhatsApp (verificado automaticamente)' 
+              })
+              .eq('id', target.sourceId);
+            console.log(`[WARMING] Deactivated contact ${target.sourceId}`);
+          } else if (target.type === 'pool' && target.sourceId) {
+            await supabase
+              .from('warming_pool_pairs')
+              .update({ is_active: false })
+              .eq('id', target.sourceId);
+            console.log(`[WARMING] Deactivated pool pair ${target.sourceId}`);
+          }
+
+          // Log the failed activity
+          await supabase.from('warming_activities').insert({
+            schedule_id: schedule.id,
+            instance_id: schedule.instance_id,
+            activity_type: 'number_invalid',
+            contact_phone: target.phone,
+            content_preview: 'Número não existe no WhatsApp',
+            success: false,
+            error_message: 'Número não registrado no WhatsApp',
+          });
+
+          results.push({
+            scheduleId: schedule.id,
+            instanceName: schedule.instance?.instance_name,
+            sent: false,
+            target: target.phone,
+            error: 'Número não existe no WhatsApp',
+            deactivated: true
+          });
+
+          continue;
+        }
+
+        console.log(`[WARMING] Number ${target.phone} verified on WhatsApp, proceeding to send`);
+
         // Send message via Evolution API
         console.log(`[WARMING] Sending ${contentType} to ${target.phone} from instance ${schedule.instance?.instance_name}`);
 
@@ -290,17 +391,28 @@ Deno.serve(async (req: Request) => {
           } else if (content.media_url) {
             // For media types (image, audio, video)
             const mediaEndpoint = contentType === 'audio' ? 'sendWhatsAppAudio' : 'sendMedia';
+            
+            // Build the request body with mediatype for images/videos
+            const mediaBody: Record<string, string> = {
+              number: target.phone,
+              media: content.media_url,
+            };
+            
+            // Add mediatype for non-audio media (required by Evolution API)
+            if (contentType !== 'audio') {
+              mediaBody.mediatype = contentType; // 'image' or 'video'
+              if (content.content) {
+                mediaBody.caption = content.content;
+              }
+            }
+            
             const response = await fetch(`${evolutionApiUrl}/message/${mediaEndpoint}/${schedule.instance?.instance_name}`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'apikey': evolutionApiKey,
               },
-              body: JSON.stringify({
-                number: target.phone,
-                media: content.media_url,
-                caption: content.content || '',
-              }),
+              body: JSON.stringify(mediaBody),
             });
 
             if (response.ok) {
@@ -351,6 +463,25 @@ Deno.serve(async (req: Request) => {
           .update({ warming_level: newWarmingLevel })
           .eq('id', schedule.instance_id);
 
+        // Update pool pair message count if applicable
+        if (target.type === 'pool' && target.sourceId && sendSuccess) {
+          try {
+            // Increment messages_exchanged counter for the pool pair
+            const { data: currentPair } = await supabase
+              .from('warming_pool_pairs')
+              .select('messages_exchanged')
+              .eq('id', target.sourceId)
+              .single();
+            
+            await supabase
+              .from('warming_pool_pairs')
+              .update({ messages_exchanged: (currentPair?.messages_exchanged || 0) + 1 })
+              .eq('id', target.sourceId);
+          } catch (e) {
+            console.log(`[WARMING] Failed to update pool pair message count: ${e}`);
+          }
+        }
+
         results.push({
           scheduleId: schedule.id,
           instanceName: schedule.instance?.instance_name,
@@ -358,6 +489,7 @@ Deno.serve(async (req: Request) => {
           target: target.phone,
           contentType,
           error: errorMessage || null,
+          whatsappVerified: true
         });
 
       } catch (scheduleError: unknown) {
