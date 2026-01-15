@@ -176,7 +176,7 @@ export function WarmingContentManager({ contents, onAdd, onUpdate, onDelete, onD
   };
 
   return (
-    <Card className="h-[400px] flex flex-col">
+    <Card className="h-[550px] flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg flex items-center gap-2">
           <FileText className="h-5 w-5" />
@@ -411,7 +411,7 @@ export function WarmingContentManager({ contents, onAdd, onUpdate, onDelete, onD
                 Você ainda não adicionou conteúdos personalizados.
               </p>
             ) : (
-              <div className="space-y-2 flex-1 overflow-y-auto">
+              <div className="space-y-2 flex-1 overflow-y-auto max-h-[420px]">
                 {userContents.map((item) => (
                   <div 
                     key={item.id} 
@@ -501,7 +501,7 @@ export function WarmingContentManager({ contents, onAdd, onUpdate, onDelete, onD
                 )}
               </div>
             )}
-            <div className="space-y-2 flex-1 overflow-y-auto">
+            <div className="space-y-2 flex-1 overflow-y-auto max-h-[420px]">
               {defaultContents.map((item) => (
                 <div 
                   key={item.id} 
