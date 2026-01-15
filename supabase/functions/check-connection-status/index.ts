@@ -1,9 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders, requireUser } from "../_shared/auth.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -16,30 +12,16 @@ Deno.serve(async (req: Request) => {
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const auth = await requireUser(req);
+    if (!auth.success) return auth.error;
 
+    const userId = auth.userId;
+
+    const authHeader = req.headers.get('Authorization')!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
     });
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims?.sub) {
-      console.error('Auth error:', claimsError);
-      return new Response(JSON.stringify({ error: 'Não autenticado' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const userId = claimsData.claims.sub;
 
     const { instanceName } = await req.json();
     if (!instanceName) {
