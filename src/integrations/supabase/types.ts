@@ -4999,6 +4999,7 @@ export type Database = {
           content: string | null
           content_type: string
           created_at: string
+          created_by_ai: boolean | null
           id: string
           is_active: boolean
           media_url: string | null
@@ -5009,6 +5010,7 @@ export type Database = {
           content?: string | null
           content_type?: string
           created_at?: string
+          created_by_ai?: boolean | null
           id?: string
           is_active?: boolean
           media_url?: string | null
@@ -5019,6 +5021,7 @@ export type Database = {
           content?: string | null
           content_type?: string
           created_at?: string
+          created_by_ai?: boolean | null
           id?: string
           is_active?: boolean
           media_url?: string | null

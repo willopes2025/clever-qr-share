@@ -225,14 +225,31 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Get random content
+        // Get random content - prioritize AI-generated news content
         const contentType = getRandomItem(progression.types);
-        const { data: contents } = await supabase
+        
+        // First try to get AI-generated content (news, curiosities, etc)
+        let { data: contents } = await supabase
           .from('warming_content')
           .select('*')
           .eq('content_type', contentType)
           .eq('is_active', true)
-          .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`);
+          .eq('created_by_ai', true)
+          .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        // If no AI content, fall back to regular content
+        if (!contents || contents.length === 0) {
+          const { data: regularContents } = await supabase
+            .from('warming_content')
+            .select('*')
+            .eq('content_type', contentType)
+            .eq('is_active', true)
+            .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`);
+          
+          contents = regularContents;
+        }
 
         console.log(`[WARMING] Found ${contents?.length || 0} contents of type ${contentType}`);
 
