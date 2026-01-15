@@ -26,16 +26,16 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 export interface ConversationFilters {
-  instanceId: string | null;
-  tagId: string | null;
+  instanceIds: string[];
+  tagIds: string[];
   dateFilter: 'all' | 'today' | '7days' | '30days';
-  funnelId: string | null;
+  funnelIds: string[];
   stageIds: string[];
   responseStatus: 'all' | 'no_response' | '15min' | '1h' | '4h' | '24h';
-  assignedTo: string | null;
+  assignedToIds: string[];
   aiStatus: 'all' | 'no_ai' | 'ai_active' | 'ai_paused' | 'handoff';
   hasDeal: 'all' | 'with_deal' | 'without_deal';
-  campaignId: string | null;
+  campaignIds: string[];
   isPinned: boolean;
   provider: 'all' | 'evolution' | 'meta';
   metaPhoneNumberId: string | null;
@@ -91,74 +91,134 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
   const { data: campaigns } = useCampaigns();
 
   const activeFiltersCount = [
-    filters.instanceId,
-    filters.tagId,
-    filters.dateFilter !== 'all' ? filters.dateFilter : null,
-    filters.funnelId,
-    filters.stageIds.length > 0 ? true : null,
-    filters.responseStatus !== 'all' ? filters.responseStatus : null,
-    filters.assignedTo,
-    filters.aiStatus !== 'all' ? filters.aiStatus : null,
-    filters.hasDeal !== 'all' ? filters.hasDeal : null,
-    filters.campaignId,
-    filters.isPinned ? true : null,
-    filters.provider !== 'all' ? filters.provider : null,
+    filters.instanceIds.length > 0,
+    filters.tagIds.length > 0,
+    filters.dateFilter !== 'all',
+    filters.funnelIds.length > 0,
+    filters.stageIds.length > 0,
+    filters.responseStatus !== 'all',
+    filters.assignedToIds.length > 0,
+    filters.aiStatus !== 'all',
+    filters.hasDeal !== 'all',
+    filters.campaignIds.length > 0,
+    filters.isPinned,
+    filters.provider !== 'all',
     filters.metaPhoneNumberId,
   ].filter(Boolean).length;
 
   const clearFilters = () => {
     onFiltersChange({
-      instanceId: null,
-      tagId: null,
+      instanceIds: [],
+      tagIds: [],
       dateFilter: 'all',
-      funnelId: null,
+      funnelIds: [],
       stageIds: [],
       responseStatus: 'all',
-      assignedTo: null,
+      assignedToIds: [],
       aiStatus: 'all',
       hasDeal: 'all',
-      campaignId: null,
+      campaignIds: [],
       isPinned: false,
       provider: 'all',
       metaPhoneNumberId: null,
     });
   };
 
-  const selectedInstance = instances?.find(i => i.id === filters.instanceId);
-  const selectedTag = tags?.find(t => t.id === filters.tagId);
+  // Prepare options for MultiSelect components
+  const instanceOptions = useMemo(() => 
+    instances?.map(i => ({ value: i.id, label: i.instance_name })) || [], 
+    [instances]
+  );
+  
+  const tagOptions = useMemo(() => 
+    tags?.map(t => ({ value: t.id, label: t.name })) || [], 
+    [tags]
+  );
+  
+  const funnelOptions = useMemo(() => 
+    funnels?.map(f => ({ value: f.id, label: f.name })) || [], 
+    [funnels]
+  );
+  
+  const memberOptions = useMemo(() => [
+    { value: 'unassigned', label: 'Sem responsável' },
+    ...(members?.map(m => ({ 
+      value: m.user_id || '', 
+      label: m.profile?.full_name || m.email || 'Membro' 
+    })) || [])
+  ], [members]);
+  
+  const campaignOptions = useMemo(() => 
+    campaigns?.map(c => ({ value: c.id, label: c.name })) || [], 
+    [campaigns]
+  );
+
   const selectedDateFilter = dateFilterOptions.find(d => d.value === filters.dateFilter);
-  const selectedFunnel = funnels?.find(f => f.id === filters.funnelId);
   const selectedResponseStatus = responseStatusOptions.find(r => r.value === filters.responseStatus);
-  const selectedMember = members?.find(m => m.user_id === filters.assignedTo);
   const selectedAiStatus = aiStatusOptions.find(a => a.value === filters.aiStatus);
   const selectedHasDeal = hasDealOptions.find(h => h.value === filters.hasDeal);
-  const selectedCampaign = campaigns?.find(c => c.id === filters.campaignId);
 
-  // Get stages for the selected funnel
+  // Get stages for the selected funnels
   const stageOptions = useMemo(() => {
-    if (!selectedFunnel?.stages) return [];
-    return selectedFunnel.stages.map(stage => ({
-      value: stage.id,
-      label: stage.name,
-      color: stage.color,
-    }));
-  }, [selectedFunnel]);
+    if (filters.funnelIds.length === 0) return [];
+    const stages: { value: string; label: string }[] = [];
+    filters.funnelIds.forEach(funnelId => {
+      const funnel = funnels?.find(f => f.id === funnelId);
+      if (funnel?.stages) {
+        funnel.stages.forEach(stage => {
+          stages.push({ value: stage.id, label: `${funnel.name} - ${stage.name}` });
+        });
+      }
+    });
+    return stages;
+  }, [funnels, filters.funnelIds]);
 
   // Get selected stage names for display
   const selectedStageNames = useMemo(() => {
-    if (!selectedFunnel?.stages || filters.stageIds.length === 0) return [];
-    return filters.stageIds
-      .map(id => selectedFunnel.stages.find(s => s.id === id)?.name)
-      .filter(Boolean) as string[];
-  }, [selectedFunnel, filters.stageIds]);
-
-  const handleFunnelChange = (value: string) => {
-    onFiltersChange({
-      ...filters,
-      funnelId: value === "all" ? null : value,
-      stageIds: [], // Clear stages when funnel changes
+    if (filters.stageIds.length === 0) return [];
+    const names: string[] = [];
+    filters.funnelIds.forEach(funnelId => {
+      const funnel = funnels?.find(f => f.id === funnelId);
+      if (funnel?.stages) {
+        funnel.stages.forEach(stage => {
+          if (filters.stageIds.includes(stage.id)) {
+            names.push(stage.name);
+          }
+        });
+      }
     });
-  };
+    return names;
+  }, [funnels, filters.funnelIds, filters.stageIds]);
+
+  // Get display names for selected filters
+  const selectedInstanceNames = useMemo(() => 
+    filters.instanceIds.map(id => instances?.find(i => i.id === id)?.instance_name).filter(Boolean) as string[],
+    [filters.instanceIds, instances]
+  );
+  
+  const selectedTagNames = useMemo(() => 
+    filters.tagIds.map(id => tags?.find(t => t.id === id)?.name).filter(Boolean) as string[],
+    [filters.tagIds, tags]
+  );
+  
+  const selectedFunnelNames = useMemo(() => 
+    filters.funnelIds.map(id => funnels?.find(f => f.id === id)?.name).filter(Boolean) as string[],
+    [filters.funnelIds, funnels]
+  );
+  
+  const selectedMemberNames = useMemo(() => 
+    filters.assignedToIds.map(id => {
+      if (id === 'unassigned') return 'Sem responsável';
+      const member = members?.find(m => m.user_id === id);
+      return member?.profile?.full_name || member?.email || null;
+    }).filter(Boolean) as string[],
+    [filters.assignedToIds, members]
+  );
+  
+  const selectedCampaignNames = useMemo(() => 
+    filters.campaignIds.map(id => campaigns?.find(c => c.id === id)?.name).filter(Boolean) as string[],
+    [filters.campaignIds, campaigns]
+  );
 
   return (
     <div className="space-y-2">
@@ -215,7 +275,7 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                       ...filters,
                       provider: value as ConversationFilters['provider'],
                       // Clear instance filter when changing to meta
-                      instanceId: value === 'meta' ? null : filters.instanceId,
+                      instanceIds: value === 'meta' ? [] : filters.instanceIds,
                     })
                   }
                 >
@@ -239,27 +299,13 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                   <Phone className="h-3 w-3" />
                   Telefone conectado (Lite)
                 </label>
-                <Select
-                  value={filters.instanceId || "all"}
-                  onValueChange={(value) =>
-                    onFiltersChange({
-                      ...filters,
-                      instanceId: value === "all" ? null : value,
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Todos os telefones" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os telefones</SelectItem>
-                    {instances?.map((instance) => (
-                      <SelectItem key={instance.id} value={instance.id}>
-                        {instance.instance_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={instanceOptions}
+                  value={filters.instanceIds}
+                  onChange={(instanceIds) => onFiltersChange({ ...filters, instanceIds })}
+                  placeholder="Todos os telefones"
+                  maxDisplay={2}
+                />
               </div>
               )}
 
@@ -267,35 +313,15 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                   <Tag className="h-3 w-3" />
-                  Tag
+                  Tags
                 </label>
-                <Select
-                  value={filters.tagId || "all"}
-                  onValueChange={(value) =>
-                    onFiltersChange({
-                      ...filters,
-                      tagId: value === "all" ? null : value,
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Todas as tags" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as tags</SelectItem>
-                    {tags?.map((tag) => (
-                      <SelectItem key={tag.id} value={tag.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full"
-                            style={{ backgroundColor: tag.color }}
-                          />
-                          {tag.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={tagOptions}
+                  value={filters.tagIds}
+                  onChange={(tagIds) => onFiltersChange({ ...filters, tagIds })}
+                  placeholder="Todas as tags"
+                  maxDisplay={2}
+                />
               </div>
 
               {/* Date Filter */}
@@ -368,28 +394,13 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                     <User className="h-3 w-3" />
                     Responsável
                   </label>
-                  <Select
-                    value={filters.assignedTo || "all"}
-                    onValueChange={(value) =>
-                      onFiltersChange({
-                        ...filters,
-                        assignedTo: value === "all" ? null : value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="unassigned">Sem responsável</SelectItem>
-                      {members?.map((member) => (
-                        <SelectItem key={member.user_id} value={member.user_id || ''}>
-                          {member.profile?.full_name || member.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelect
+                    options={memberOptions}
+                    value={filters.assignedToIds}
+                    onChange={(assignedToIds) => onFiltersChange({ ...filters, assignedToIds })}
+                    placeholder="Todos"
+                    maxDisplay={2}
+                  />
                 </div>
 
                 {/* AI Status Filter */}
@@ -435,32 +446,17 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                     <Target className="h-3 w-3" />
                     Funil
                   </label>
-                  <Select
-                    value={filters.funnelId || "all"}
-                    onValueChange={handleFunnelChange}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todos os funis" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os funis</SelectItem>
-                      {funnels?.map((funnel) => (
-                        <SelectItem key={funnel.id} value={funnel.id}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-2.5 h-2.5 rounded-full"
-                              style={{ backgroundColor: funnel.color }}
-                            />
-                            {funnel.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelect
+                    options={funnelOptions}
+                    value={filters.funnelIds}
+                    onChange={(funnelIds) => onFiltersChange({ ...filters, funnelIds, stageIds: [] })}
+                    placeholder="Todos os funis"
+                    maxDisplay={2}
+                  />
                 </div>
 
                 {/* Stage Filter - Only show when a funnel is selected */}
-                {filters.funnelId && stageOptions.length > 0 && (
+                {filters.funnelIds.length > 0 && stageOptions.length > 0 && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       Etapas
@@ -508,27 +504,13 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                     <Megaphone className="h-3 w-3" />
                     Campanha
                   </label>
-                  <Select
-                    value={filters.campaignId || "all"}
-                    onValueChange={(value) =>
-                      onFiltersChange({
-                        ...filters,
-                        campaignId: value === "all" ? null : value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todas as campanhas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as campanhas</SelectItem>
-                      {campaigns?.map((campaign) => (
-                        <SelectItem key={campaign.id} value={campaign.id}>
-                          {campaign.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelect
+                    options={campaignOptions}
+                    value={filters.campaignIds}
+                    onChange={(campaignIds) => onFiltersChange({ ...filters, campaignIds })}
+                    placeholder="Todas as campanhas"
+                    maxDisplay={2}
+                  />
                 </div>
               </div>
 
@@ -563,33 +545,36 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
         </Popover>
 
         {/* Active Filter Chips */}
-        {filters.instanceId && selectedInstance && (
+        {filters.instanceIds.length > 0 && (
           <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
             <Phone className="h-3 w-3" />
-            {selectedInstance.instance_name}
+            {selectedInstanceNames.length === 1 
+              ? selectedInstanceNames[0] 
+              : `${selectedInstanceNames.length} telefones`
+            }
             <Button
               variant="ghost"
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
-              onClick={() => onFiltersChange({ ...filters, instanceId: null })}
+              onClick={() => onFiltersChange({ ...filters, instanceIds: [] })}
             >
               <X className="h-3 w-3" />
             </Button>
           </Badge>
         )}
 
-        {filters.tagId && selectedTag && (
+        {filters.tagIds.length > 0 && (
           <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
-            <div
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: selectedTag.color }}
-            />
-            {selectedTag.name}
+            <Tag className="h-3 w-3" />
+            {selectedTagNames.length === 1 
+              ? selectedTagNames[0] 
+              : `${selectedTagNames.length} tags`
+            }
             <Button
               variant="ghost"
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
-              onClick={() => onFiltersChange({ ...filters, tagId: null })}
+              onClick={() => onFiltersChange({ ...filters, tagIds: [] })}
             >
               <X className="h-3 w-3" />
             </Button>
@@ -626,18 +611,18 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
           </Badge>
         )}
 
-        {filters.assignedTo && (
+        {filters.assignedToIds.length > 0 && (
           <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
             <User className="h-3 w-3" />
-            {filters.assignedTo === 'unassigned' 
-              ? 'Sem responsável' 
-              : selectedMember?.profile?.full_name || selectedMember?.email || 'Responsável'
+            {selectedMemberNames.length === 1 
+              ? selectedMemberNames[0] 
+              : `${selectedMemberNames.length} responsáveis`
             }
             <Button
               variant="ghost"
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
-              onClick={() => onFiltersChange({ ...filters, assignedTo: null })}
+              onClick={() => onFiltersChange({ ...filters, assignedToIds: [] })}
             >
               <X className="h-3 w-3" />
             </Button>
@@ -659,15 +644,18 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
           </Badge>
         )}
 
-        {filters.funnelId && selectedFunnel && (
+        {filters.funnelIds.length > 0 && (
           <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
             <Target className="h-3 w-3" />
-            {selectedFunnel.name}
+            {selectedFunnelNames.length === 1 
+              ? selectedFunnelNames[0] 
+              : `${selectedFunnelNames.length} funis`
+            }
             <Button
               variant="ghost"
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
-              onClick={() => onFiltersChange({ ...filters, funnelId: null, stageIds: [] })}
+              onClick={() => onFiltersChange({ ...filters, funnelIds: [], stageIds: [] })}
             >
               <X className="h-3 w-3" />
             </Button>
@@ -705,15 +693,18 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
           </Badge>
         )}
 
-        {filters.campaignId && selectedCampaign && (
+        {filters.campaignIds.length > 0 && (
           <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
             <Megaphone className="h-3 w-3" />
-            {selectedCampaign.name}
+            {selectedCampaignNames.length === 1 
+              ? selectedCampaignNames[0] 
+              : `${selectedCampaignNames.length} campanhas`
+            }
             <Button
               variant="ghost"
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
-              onClick={() => onFiltersChange({ ...filters, campaignId: null })}
+              onClick={() => onFiltersChange({ ...filters, campaignIds: [] })}
             >
               <X className="h-3 w-3" />
             </Button>

@@ -61,16 +61,16 @@ export const ConversationList = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [filters, setFilters] = useState<ConversationFilters>({
-    instanceId: null,
-    tagId: null,
+    instanceIds: [],
+    tagIds: [],
     dateFilter: 'all',
-    funnelId: null,
+    funnelIds: [],
     stageIds: [],
     responseStatus: 'all',
-    assignedTo: null,
+    assignedToIds: [],
     aiStatus: 'all',
     hasDeal: 'all',
-    campaignId: null,
+    campaignIds: [],
     isPinned: false,
     provider: 'all',
     metaPhoneNumberId: null,
@@ -127,15 +127,16 @@ export const ConversationList = ({
       if (conv.status === "archived") return false;
     }
 
-    // Apply instance filter
-    if (filters.instanceId && conv.instance_id !== filters.instanceId) {
-      return false;
+    // Apply instance filter - multi-select with strict matching
+    if (filters.instanceIds.length > 0) {
+      if (!conv.instance_id) return false;
+      if (!filters.instanceIds.includes(conv.instance_id)) return false;
     }
 
-    // Apply tag filter
-    if (filters.tagId) {
-      const hasTag = conv.tag_assignments?.some(ta => ta.tag_id === filters.tagId);
-      if (!hasTag) return false;
+    // Apply tag filter - multi-select (OR logic: conversation has at least one selected tag)
+    if (filters.tagIds.length > 0) {
+      const hasAnyTag = conv.tag_assignments?.some(ta => filters.tagIds.includes(ta.tag_id));
+      if (!hasAnyTag) return false;
     }
 
     // Apply date filter
@@ -152,9 +153,9 @@ export const ConversationList = ({
       }
     }
 
-    // Apply funnel filter
-    if (filters.funnelId) {
-      if (!conv.deal || conv.deal.funnel_id !== filters.funnelId) return false;
+    // Apply funnel filter - multi-select
+    if (filters.funnelIds.length > 0) {
+      if (!conv.deal || !filters.funnelIds.includes(conv.deal.funnel_id)) return false;
     }
 
     // Apply stage filter (multi-select)
@@ -182,13 +183,16 @@ export const ConversationList = ({
       }
     }
 
-    // Apply assigned to filter
-    if (filters.assignedTo) {
-      if (filters.assignedTo === 'unassigned') {
-        if (conv.assigned_to) return false;
-      } else {
-        if (conv.assigned_to !== filters.assignedTo) return false;
-      }
+    // Apply assigned to filter - multi-select with special handling for 'unassigned'
+    if (filters.assignedToIds.length > 0) {
+      const hasUnassigned = filters.assignedToIds.includes('unassigned');
+      const specificAssignees = filters.assignedToIds.filter(id => id !== 'unassigned');
+      
+      // Check if conversation matches any of the selected criteria
+      const matchesUnassigned = hasUnassigned && !conv.assigned_to;
+      const matchesSpecific = specificAssignees.length > 0 && conv.assigned_to && specificAssignees.includes(conv.assigned_to);
+      
+      if (!matchesUnassigned && !matchesSpecific) return false;
     }
 
     // Apply AI status filter
@@ -205,9 +209,9 @@ export const ConversationList = ({
       if (filters.hasDeal === 'without_deal' && conv.deal) return false;
     }
 
-    // Apply campaign filter
-    if (filters.campaignId && conv.campaign_id !== filters.campaignId) {
-      return false;
+    // Apply campaign filter - multi-select
+    if (filters.campaignIds.length > 0) {
+      if (!conv.campaign_id || !filters.campaignIds.includes(conv.campaign_id)) return false;
     }
 
     // Apply pinned filter
