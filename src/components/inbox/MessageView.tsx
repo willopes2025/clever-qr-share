@@ -698,8 +698,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                 }}
               >
                 <SelectTrigger className="w-[140px] h-9">
-                  <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Número" />
+                  <div className="flex items-center min-w-0 flex-1">
+                    <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
+                    <span className="truncate">
+                      <SelectValue placeholder="Número" />
+                    </span>
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
                   {connectedInstances.length === 0 ? (
