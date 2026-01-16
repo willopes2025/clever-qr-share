@@ -5,14 +5,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Plus, Link2, Unlink, Check, Loader2 } from 'lucide-react';
+import { Bot, Link2, Unlink, Check, Loader2, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface AgentSelectorProps {
   funnelId: string;
   currentAgentId: string | null;
   onSelectAgent: (agentId: string) => void;
-  onCreateNew: () => void;
   onUnlink: () => void;
 }
 
@@ -29,10 +29,10 @@ export const AgentSelector = ({
   funnelId,
   currentAgentId,
   onSelectAgent,
-  onCreateNew,
   onUnlink,
 }: AgentSelectorProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(currentAgentId);
 
   // Fetch all agents (available and current)
@@ -53,14 +53,14 @@ export const AgentSelector = ({
     enabled: !!user,
   });
 
-  // Filter: show agents that are not linked to any funnel, or are linked to current funnel
+  // Filter: show agents that are not linked to any funnel/campaign, or are linked to current funnel
   const availableAgents = agents.filter(
-    (agent) => !agent.funnel_id || agent.funnel_id === funnelId
+    (agent) => (!agent.funnel_id && !agent.campaign_id) || agent.funnel_id === funnelId
   );
 
-  // Agents linked to other funnels (show as unavailable)
-  const linkedToOtherFunnels = agents.filter(
-    (agent) => agent.funnel_id && agent.funnel_id !== funnelId
+  // Agents linked to other funnels or campaigns (show as unavailable)
+  const linkedElsewhere = agents.filter(
+    (agent) => (agent.funnel_id && agent.funnel_id !== funnelId) || agent.campaign_id
   );
 
   const handleSelect = (agentId: string) => {
@@ -91,25 +91,6 @@ export const AgentSelector = ({
       </div>
 
       <div className="grid gap-2">
-        {/* Create new agent option */}
-        <Card
-          className={cn(
-            'p-3 cursor-pointer transition-all border-dashed hover:border-primary hover:bg-primary/5',
-            'flex items-center gap-3'
-          )}
-          onClick={onCreateNew}
-        >
-          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <Plus className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <p className="font-medium">Criar novo agente</p>
-            <p className="text-xs text-muted-foreground">
-              Crie um agente exclusivo para este funil
-            </p>
-          </div>
-        </Card>
-
         {/* Available agents */}
         {availableAgents.map((agent) => {
           const isSelected = selectedId === agent.id;
@@ -169,13 +150,13 @@ export const AgentSelector = ({
           );
         })}
 
-        {/* Agents linked to other funnels */}
-        {linkedToOtherFunnels.length > 0 && (
+        {/* Agents linked elsewhere */}
+        {linkedElsewhere.length > 0 && (
           <>
             <div className="text-xs text-muted-foreground mt-2">
-              Em uso por outros funis:
+              Em uso por outros funis/campanhas:
             </div>
-            {linkedToOtherFunnels.map((agent) => (
+            {linkedElsewhere.map((agent) => (
               <Card
                 key={agent.id}
                 className="p-3 flex items-center gap-3 opacity-50 cursor-not-allowed"
@@ -186,7 +167,7 @@ export const AgentSelector = ({
                 <div className="flex-1">
                   <p className="font-medium">{agent.agent_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Vinculado a outro funil
+                    {agent.funnel_id ? 'Vinculado a outro funil' : 'Vinculado a uma campanha'}
                   </p>
                 </div>
               </Card>
@@ -194,10 +175,43 @@ export const AgentSelector = ({
           </>
         )}
 
-        {availableAgents.length === 0 && linkedToOtherFunnels.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Nenhum agente encontrado. Crie um novo agente acima.
-          </p>
+        {/* Empty state with link to create agents */}
+        {availableAgents.length === 0 && linkedElsewhere.length === 0 && (
+          <div className="text-center py-6 space-y-3">
+            <Bot className="h-12 w-12 mx-auto text-muted-foreground/50" />
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Nenhum agente disponível
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Crie um agente na seção Agentes de IA
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/ai-agents')}
+              className="gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Ir para Agentes de IA
+            </Button>
+          </div>
+        )}
+
+        {/* Link to manage agents */}
+        {(availableAgents.length > 0 || linkedElsewhere.length > 0) && (
+          <div className="pt-2 mt-2 border-t">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/ai-agents')}
+              className="w-full gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Gerenciar agentes
+            </Button>
+          </div>
         )}
       </div>
     </div>

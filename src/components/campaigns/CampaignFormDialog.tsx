@@ -9,14 +9,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { Campaign } from '@/hooks/useCampaigns';
-import { useAgentConfig, useKnowledgeItems, useAgentVariables, useAgentConfigMutations, useVariableMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, Smile, BookOpen, Variable, CalendarDays, UserX } from 'lucide-react';
+import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AgentPersonalityTab } from './agent/AgentPersonalityTab';
-import { AgentKnowledgeTab } from './agent/AgentKnowledgeTab';
-import { AgentVariablesTab } from './agent/AgentVariablesTab';
-import { AgentCalendarTab } from './agent/AgentCalendarTab';
+import { AgentPicker } from '@/components/shared/AgentPicker';
+import { useNavigate } from 'react-router-dom';
 
 interface CampaignFormDialogProps {
   open: boolean;
@@ -46,7 +43,7 @@ interface CampaignFormDialogProps {
     ai_handoff_keywords: string[];
     ai_active_hours_start: number;
     ai_active_hours_end: number;
-  }) => Promise<{ id: string } | void>;  // Modified to return campaign
+  }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
 
@@ -69,6 +66,7 @@ export const CampaignFormDialog = ({
   onSubmit,
   isLoading,
 }: CampaignFormDialogProps) => {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState<string>('');
   const [listId, setListId] = useState<string>('');
@@ -90,40 +88,16 @@ export const CampaignFormDialog = ({
   const [skipMode, setSkipMode] = useState<'same_campaign' | 'same_template' | 'same_list' | 'any_campaign'>('same_template');
   const [skipDaysPeriod, setSkipDaysPeriod] = useState(30);
 
-  // AI Agent settings
+  // AI Agent settings - now just selecting an existing agent
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [agentName, setAgentName] = useState('Assistente IA');
-  const [personalityPrompt, setPersonalityPrompt] = useState('');
-  const [behaviorRules, setBehaviorRules] = useState('');
-  const [greetingMessage, setGreetingMessage] = useState('');
-  const [fallbackMessage, setFallbackMessage] = useState('Desculpe, não entendi. Pode reformular?');
-  const [goodbyeMessage, setGoodbyeMessage] = useState('');
-  const [aiMaxInteractions, setAiMaxInteractions] = useState(10);
-  const [aiResponseDelayMin, setAiResponseDelayMin] = useState(3);
-  const [aiResponseDelayMax, setAiResponseDelayMax] = useState(8);
-  const [aiHandoffKeywords, setAiHandoffKeywords] = useState<string[]>(DEFAULT_HANDOFF_KEYWORDS);
-  const [aiActiveHoursStart, setAiActiveHoursStart] = useState(8);
-  const [aiActiveHoursEnd, setAiActiveHoursEnd] = useState(20);
-  const [responseMode, setResponseMode] = useState<'text' | 'audio' | 'both' | 'adaptive'>('adaptive');
-  const [voiceId, setVoiceId] = useState('EXAVITQu4vr4xnSDxMaL');
-  
-  // Temporary agent config ID for new campaigns
-  const [tempAgentConfigId, setTempAgentConfigId] = useState<string | null>(null);
-  const [isCreatingTempConfig, setIsCreatingTempConfig] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   const { templates } = useMessageTemplates();
   const { lists } = useBroadcastLists();
   
-  // Agent config hooks
+  // Agent config hooks - for existing campaigns
   const { data: agentConfig } = useAgentConfig(campaign?.id || null);
-  
-  // Use tempAgentConfigId for new campaigns, or agentConfig.id for existing ones
-  const effectiveAgentConfigId = tempAgentConfigId || agentConfig?.id || null;
-  
-  const { data: knowledgeItems = [], isLoading: knowledgeLoading } = useKnowledgeItems(effectiveAgentConfigId);
-  const { data: variables = [], isLoading: variablesLoading } = useAgentVariables(effectiveAgentConfigId);
-  const { upsertConfig, createTempConfig, linkConfigToCampaign, updateConfig } = useAgentConfigMutations();
-  const { initSystemVariables } = useVariableMutations();
+  const { linkConfigToCampaign } = useAgentConfigMutations();
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
 
@@ -152,7 +126,6 @@ export const CampaignFormDialog = ({
       setSkipMode(campaign.skip_mode ?? 'same_template');
       setSkipDaysPeriod(campaign.skip_days_period ?? 30);
       setAiEnabled(campaign.ai_enabled ?? false);
-      setTempAgentConfigId(null); // Reset temp config for existing campaigns
     } else {
       setName('');
       setTemplateId('');
@@ -170,67 +143,16 @@ export const CampaignFormDialog = ({
       setSkipMode('same_template');
       setSkipDaysPeriod(30);
       setAiEnabled(false);
-      setTempAgentConfigId(null); // Reset temp config for new campaigns
+      setSelectedAgentId(null);
     }
   }, [campaign, open]);
 
-  // Load agent config when available
+  // Load existing agent config for campaign
   useEffect(() => {
     if (agentConfig) {
-      setAgentName(agentConfig.agent_name);
-      setPersonalityPrompt(agentConfig.personality_prompt || '');
-      setBehaviorRules(agentConfig.behavior_rules || '');
-      setGreetingMessage(agentConfig.greeting_message || '');
-      setFallbackMessage(agentConfig.fallback_message || 'Desculpe, não entendi. Pode reformular?');
-      setGoodbyeMessage(agentConfig.goodbye_message || '');
-      setAiMaxInteractions(agentConfig.max_interactions);
-      setAiResponseDelayMin(agentConfig.response_delay_min);
-      setAiResponseDelayMax(agentConfig.response_delay_max);
-      setAiHandoffKeywords(agentConfig.handoff_keywords);
-      setAiActiveHoursStart(agentConfig.active_hours_start);
-      setAiActiveHoursEnd(agentConfig.active_hours_end);
+      setSelectedAgentId(agentConfig.id);
     }
   }, [agentConfig]);
-
-  // Create temporary agent config when AI is enabled for a new campaign
-  useEffect(() => {
-    const createTempAgentConfig = async () => {
-      // Only create temp config if:
-      // 1. AI is enabled
-      // 2. This is a new campaign (no campaign.id)
-      // 3. We don't already have a temp config
-      // 4. We're not already creating one
-      if (aiEnabled && !campaign?.id && !tempAgentConfigId && !isCreatingTempConfig) {
-        setIsCreatingTempConfig(true);
-        try {
-          const result = await createTempConfig.mutateAsync({
-            agent_name: agentName,
-            personality_prompt: personalityPrompt,
-            behavior_rules: behaviorRules,
-            greeting_message: greetingMessage,
-            fallback_message: fallbackMessage,
-            goodbye_message: goodbyeMessage,
-            max_interactions: aiMaxInteractions,
-            response_delay_min: aiResponseDelayMin,
-            response_delay_max: aiResponseDelayMax,
-            active_hours_start: aiActiveHoursStart,
-            active_hours_end: aiActiveHoursEnd,
-            handoff_keywords: aiHandoffKeywords,
-            is_active: true,
-          });
-          setTempAgentConfigId(result.id);
-          // Initialize system variables for the new config
-          initSystemVariables.mutate(result.id);
-        } catch (error) {
-          console.error('Failed to create temp agent config:', error);
-        } finally {
-          setIsCreatingTempConfig(false);
-        }
-      }
-    };
-    
-    createTempAgentConfig();
-  }, [aiEnabled, campaign?.id, tempAgentConfigId, isCreatingTempConfig]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,12 +160,6 @@ export const CampaignFormDialog = ({
     let scheduledAt: string | null = null;
     if (isScheduled && scheduledDate && scheduledTime) {
       scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
-    }
-
-    // Build prompt from personality settings
-    let fullPrompt = personalityPrompt;
-    if (behaviorRules) {
-      fullPrompt += `\n\nRegras:\n${behaviorRules}`;
     }
 
     const result = await onSubmit({
@@ -261,69 +177,27 @@ export const CampaignFormDialog = ({
       skip_already_sent: skipAlreadySent,
       skip_mode: skipMode,
       skip_days_period: skipDaysPeriod,
-      ai_enabled: aiEnabled,
-      ai_prompt: fullPrompt,
-      ai_knowledge_base: '', // Knowledge is now stored separately
-      ai_max_interactions: aiMaxInteractions,
-      ai_response_delay_min: aiResponseDelayMin,
-      ai_response_delay_max: aiResponseDelayMax,
-      ai_handoff_keywords: aiHandoffKeywords,
-      ai_active_hours_start: aiActiveHoursStart,
-      ai_active_hours_end: aiActiveHoursEnd,
+      ai_enabled: aiEnabled && !!selectedAgentId,
+      ai_prompt: '',
+      ai_knowledge_base: '',
+      ai_max_interactions: 10,
+      ai_response_delay_min: 3,
+      ai_response_delay_max: 8,
+      ai_handoff_keywords: DEFAULT_HANDOFF_KEYWORDS,
+      ai_active_hours_start: 8,
+      ai_active_hours_end: 20,
     });
 
-    // For new campaigns with AI enabled: link temp config to the new campaign
+    // For new campaigns with AI enabled: link selected agent to the new campaign
     const newCampaignId = result && 'id' in result ? result.id : null;
-    if (!campaign?.id && aiEnabled && tempAgentConfigId && newCampaignId) {
+    if (!campaign?.id && aiEnabled && selectedAgentId && newCampaignId) {
       try {
         await linkConfigToCampaign.mutateAsync({
-          configId: tempAgentConfigId,
+          configId: selectedAgentId,
           campaignId: newCampaignId,
-        });
-        // Update the agent config with latest settings
-        await updateConfig.mutateAsync({
-          id: tempAgentConfigId,
-          agent_name: agentName,
-          personality_prompt: personalityPrompt,
-          behavior_rules: behaviorRules,
-          greeting_message: greetingMessage,
-          fallback_message: fallbackMessage,
-          goodbye_message: goodbyeMessage,
-          max_interactions: aiMaxInteractions,
-          response_delay_min: aiResponseDelayMin,
-          response_delay_max: aiResponseDelayMax,
-          active_hours_start: aiActiveHoursStart,
-          active_hours_end: aiActiveHoursEnd,
-          handoff_keywords: aiHandoffKeywords,
-          is_active: true,
         });
       } catch (error) {
         console.error('Failed to link agent config:', error);
-      }
-    }
-
-    // Save agent config for existing campaigns
-    if (campaign?.id && aiEnabled) {
-      const configResult = await upsertConfig.mutateAsync({
-        campaign_id: campaign.id,
-        agent_name: agentName,
-        personality_prompt: personalityPrompt,
-        behavior_rules: behaviorRules,
-        greeting_message: greetingMessage,
-        fallback_message: fallbackMessage,
-        goodbye_message: goodbyeMessage,
-        max_interactions: aiMaxInteractions,
-        response_delay_min: aiResponseDelayMin,
-        response_delay_max: aiResponseDelayMax,
-        active_hours_start: aiActiveHoursStart,
-        active_hours_end: aiActiveHoursEnd,
-        handoff_keywords: aiHandoffKeywords,
-        is_active: true,
-      });
-      
-      // Initialize system variables if new config
-      if (configResult && !agentConfig) {
-        initSystemVariables.mutate(configResult.id);
       }
     }
   };
@@ -566,14 +440,14 @@ export const CampaignFormDialog = ({
             </CollapsibleContent>
           </Collapsible>
 
-          {/* AI Agent Settings */}
+          {/* AI Agent Settings - Now just selection */}
           <Collapsible>
             <CollapsibleTrigger asChild>
               <Button type="button" variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <Bot className="h-4 w-4" />
                   Agente de IA
-                  {aiEnabled && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
+                  {aiEnabled && selectedAgentId && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
                 </span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
@@ -588,79 +462,44 @@ export const CampaignFormDialog = ({
               </div>
 
               {aiEnabled && (
-                <Tabs defaultValue="personality" className="w-full">
-                  <TabsList className="w-full grid grid-cols-4">
-                    <TabsTrigger value="personality" className="gap-1.5">
-                      <Smile className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Personalidade</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="knowledge" className="gap-1.5">
-                      <BookOpen className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Conhecimento</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="variables" className="gap-1.5">
-                      <Variable className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Variáveis</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="calendar" className="gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Calendário</span>
-                    </TabsTrigger>
-                  </TabsList>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Selecione um Agente</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Escolha um agente já configurado na seção Agentes de IA
+                    </p>
+                  </div>
+                  
+                  <AgentPicker
+                    selectedAgentId={selectedAgentId}
+                    onSelectAgent={setSelectedAgentId}
+                    disabled={!!campaign?.id && !!agentConfig}
+                  />
 
-                  <TabsContent value="personality" className="mt-4">
-                    <AgentPersonalityTab
-                      agentName={agentName}
-                      setAgentName={setAgentName}
-                      personalityPrompt={personalityPrompt}
-                      setPersonalityPrompt={setPersonalityPrompt}
-                      behaviorRules={behaviorRules}
-                      setBehaviorRules={setBehaviorRules}
-                      greetingMessage={greetingMessage}
-                      setGreetingMessage={setGreetingMessage}
-                      fallbackMessage={fallbackMessage}
-                      setFallbackMessage={setFallbackMessage}
-                      goodbyeMessage={goodbyeMessage}
-                      setGoodbyeMessage={setGoodbyeMessage}
-                      maxInteractions={aiMaxInteractions}
-                      setMaxInteractions={setAiMaxInteractions}
-                      responseDelayMin={aiResponseDelayMin}
-                      setResponseDelayMin={setAiResponseDelayMin}
-                      responseDelayMax={aiResponseDelayMax}
-                      setResponseDelayMax={setAiResponseDelayMax}
-                      activeHoursStart={aiActiveHoursStart}
-                      setActiveHoursStart={setAiActiveHoursStart}
-                      activeHoursEnd={aiActiveHoursEnd}
-                      setActiveHoursEnd={setAiActiveHoursEnd}
-                      handoffKeywords={aiHandoffKeywords}
-                      setHandoffKeywords={setAiHandoffKeywords}
-                      responseMode={responseMode}
-                      setResponseMode={setResponseMode}
-                      voiceId={voiceId}
-                      setVoiceId={setVoiceId}
-                    />
-                  </TabsContent>
+                  {!selectedAgentId && (
+                    <div className="p-4 border border-dashed rounded-lg text-center space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum agente selecionado
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate('/ai-agents')}
+                        className="gap-2"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Criar novo agente
+                      </Button>
+                    </div>
+                  )}
 
-                  <TabsContent value="knowledge" className="mt-4">
-                    <AgentKnowledgeTab
-                      agentConfigId={effectiveAgentConfigId}
-                      knowledgeItems={knowledgeItems}
-                      isLoading={knowledgeLoading || isCreatingTempConfig}
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="variables" className="mt-4">
-                    <AgentVariablesTab
-                      agentConfigId={effectiveAgentConfigId}
-                      variables={variables}
-                      isLoading={variablesLoading || isCreatingTempConfig}
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="calendar" className="mt-4">
-                    <AgentCalendarTab agentConfigId={effectiveAgentConfigId} />
-                  </TabsContent>
-                </Tabs>
+                  {campaign?.id && agentConfig && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Para alterar o agente desta campanha, desvincule-o primeiro na seção Agentes de IA.
+                    </p>
+                  )}
+                </div>
               )}
             </CollapsibleContent>
           </Collapsible>
