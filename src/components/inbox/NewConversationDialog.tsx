@@ -142,10 +142,14 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
             <Label className="text-sm font-medium">Enviar via</Label>
             <Select value={selectedInstanceId} onValueChange={setSelectedInstanceId}>
               <SelectTrigger className="w-full">
-                <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Selecionar número" />
+                <div className="flex items-center min-w-0 flex-1">
+                  <Smartphone className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+                  <span className="truncate">
+                    <SelectValue placeholder="Selecionar número" />
+                  </span>
+                </div>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
                 {connectedInstances.length === 0 ? (
                   <div className="p-2 text-sm text-muted-foreground text-center">
                     Nenhuma instância conectada
@@ -153,7 +157,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
                 ) : (
                   connectedInstances.map((instance) => (
                     <SelectItem key={instance.id} value={instance.id}>
-                      {instance.instance_name}
+                      <span className="truncate block">{instance.instance_name}</span>
                     </SelectItem>
                   ))
                 )}
