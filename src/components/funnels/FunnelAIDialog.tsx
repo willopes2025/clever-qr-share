@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Bot, Brain, Variable, Workflow, Calendar, Loader2, ArrowLeft, Sparkles } from 'lucide-react';
 import { AgentPersonalityTab } from '@/components/campaigns/agent/AgentPersonalityTab';
 import { AgentKnowledgeTab } from '@/components/campaigns/agent/AgentKnowledgeTab';
@@ -30,7 +29,7 @@ interface FunnelAIDialogProps {
   funnelName: string;
 }
 
-type ViewMode = 'select' | 'create' | 'edit';
+type ViewMode = 'select' | 'edit';
 
 export const FunnelAIDialog = ({
   open,
@@ -39,12 +38,10 @@ export const FunnelAIDialog = ({
   funnelName,
 }: FunnelAIDialogProps) => {
   const { data: agentConfig, isLoading, refetch } = useFunnelAgentConfig(funnelId);
-  const { upsertConfig, linkAgentToFunnel, unlinkAgentFromFunnel, createAgentForFunnel } = useFunnelAgentConfigMutations();
+  const { upsertConfig, linkAgentToFunnel, unlinkAgentFromFunnel } = useFunnelAgentConfigMutations();
   
   const [viewMode, setViewMode] = useState<ViewMode>('select');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [newAgentName, setNewAgentName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
 
   // Fetch selected agent config when editing
   const { data: selectedAgentConfig, isLoading: isLoadingSelected } = useAgentConfigById(
@@ -122,33 +119,6 @@ export const FunnelAIDialog = ({
     }
   };
 
-  const handleCreateNew = () => {
-    setNewAgentName('');
-    setViewMode('create');
-  };
-
-  const handleConfirmCreate = async () => {
-    if (!newAgentName.trim()) {
-      toast.error('Digite um nome para o agente');
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const result = await createAgentForFunnel.mutateAsync({
-        funnelId,
-        agentName: newAgentName.trim(),
-      });
-      setSelectedAgentId(result.id);
-      setViewMode('edit');
-      refetch();
-    } catch (error) {
-      // Error handled by mutation
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   const handleUnlink = async () => {
     try {
       await unlinkAgentFromFunnel.mutateAsync(funnelId);
@@ -204,8 +174,7 @@ export const FunnelAIDialog = ({
             Agente de IA - {funnelName}
           </DialogTitle>
           <DialogDescription>
-            {viewMode === 'select' && 'Selecione ou crie um agente de IA para este funil.'}
-            {viewMode === 'create' && 'Crie um novo agente de IA para este funil.'}
+            {viewMode === 'select' && 'Selecione um agente de IA para este funil.'}
             {viewMode === 'edit' && 'Configure o agente de IA para responder automaticamente aos leads deste funil.'}
           </DialogDescription>
         </DialogHeader>
@@ -220,38 +189,8 @@ export const FunnelAIDialog = ({
               funnelId={funnelId}
               currentAgentId={agentConfig?.id || null}
               onSelectAgent={handleSelectAgent}
-              onCreateNew={handleCreateNew}
               onUnlink={handleUnlink}
             />
-          </div>
-        ) : viewMode === 'create' ? (
-          <div className="flex-1 py-4 space-y-4">
-            <Button variant="ghost" size="sm" onClick={handleBack} className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Voltar
-            </Button>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-agent-name">Nome do Agente</Label>
-                <Input
-                  id="new-agent-name"
-                  placeholder="Ex: SDR Vendas, Suporte Técnico..."
-                  value={newAgentName}
-                  onChange={(e) => setNewAgentName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              
-              <Button 
-                onClick={handleConfirmCreate} 
-                disabled={isCreating || !newAgentName.trim()}
-                className="w-full"
-              >
-                {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Criar Agente
-              </Button>
-            </div>
           </div>
         ) : (
           <>
