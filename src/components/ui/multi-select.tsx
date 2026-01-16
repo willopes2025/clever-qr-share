@@ -80,10 +80,14 @@ export function MultiSelect({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <Popover open={open} onOpenChange={(isOpen) => {
-        setOpen(isOpen);
-        if (!isOpen) setSearchTerm("");
-      }}>
+      <Popover 
+        modal={false}
+        open={open} 
+        onOpenChange={(isOpen) => {
+          setOpen(isOpen);
+          if (!isOpen) setSearchTerm("");
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -126,7 +130,7 @@ export function MultiSelect({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0 z-50 bg-popover border" align="start">
+        <PopoverContent className="w-full p-0 z-[70] bg-popover border" align="start">
           <div className="p-2 border-b">
             <Input
               placeholder="Pesquisar..."
