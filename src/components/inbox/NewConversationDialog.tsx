@@ -136,7 +136,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           <DialogTitle>Iniciar Nova Conversa</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-hidden w-full">
           {/* Instance Selector */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Enviar via</Label>
@@ -168,12 +168,12 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           {/* Create New Contact */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Novo contato</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full min-w-0">
               <Input
                 placeholder="(11) 99999-9999"
                 value={newPhone}
                 onChange={(e) => setNewPhone(formatPhoneNumber(e.target.value))}
-                className="flex-1"
+                className="flex-1 min-w-0"
                 maxLength={15}
               />
               <Button 
@@ -188,13 +188,13 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full min-w-0">
             <Separator className="flex-1" />
             <span className="text-xs text-muted-foreground">ou selecione um contato</span>
             <Separator className="flex-1" />
           </div>
 
-          <div className="relative">
+          <div className="relative w-full overflow-hidden">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar contato..."
