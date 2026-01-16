@@ -647,93 +647,45 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         </div>
         
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
-          {/* AI Status Badge - Desktop only */}
+          {/* AI Status Badge - Desktop only (compact) */}
           {!isMobile && conversation.ai_handled && (
-            <div className="flex items-center gap-2">
-              {conversation.ai_handoff_requested ? (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 gap-1">
-                  <User className="h-3 w-3" />
-                  Aguardando Atendente
-                </Badge>
-              ) : conversation.ai_paused ? (
-                <Badge variant="outline" className="bg-muted text-muted-foreground gap-1">
-                  <Pause className="h-3 w-3" />
-                  IA Pausada
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 gap-1">
-                  <Bot className="h-3 w-3" />
-                  IA Ativa
-                </Badge>
-              )}
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {conversation.ai_handoff_requested ? (
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 gap-1 h-8 px-2 cursor-default">
+                    <User className="h-3 w-3" />
+                    <span className="hidden xl:inline">Aguardando</span>
+                  </Badge>
+                ) : conversation.ai_paused ? (
+                  <Badge variant="outline" className="bg-muted text-muted-foreground gap-1 h-8 px-2 cursor-default">
+                    <Pause className="h-3 w-3" />
+                    <span className="hidden xl:inline">Pausada</span>
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 gap-1 h-8 px-2 cursor-default">
+                    <Bot className="h-3 w-3" />
+                    <span className="hidden xl:inline">IA Ativa</span>
+                  </Badge>
+                )}
+              </TooltipTrigger>
+              <TooltipContent>
+                {conversation.ai_handoff_requested 
+                  ? "Aguardando Atendente Humano" 
+                  : conversation.ai_paused 
+                    ? "IA Pausada" 
+                    : "IA Ativa"}
+              </TooltipContent>
+            </Tooltip>
           )}
 
           {/* Desktop: Full buttons */}
           {!isMobile ? (
             <>
-              {/* Phone Call Button */}
-              {conversation.contact?.phone && (
-                <PhoneCallButton
-                  contactPhone={conversation.contact.phone}
-                  contactId={conversation.contact_id}
-                  conversationId={conversation.id}
-                  contactName={conversation.contact.name || undefined}
-                />
-              )}
-
-              {/* Invoke AI Button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={handleInvokeAI}
-                    disabled={isInvokingAI || !selectedInstanceId}
-                  >
-                    {isInvokingAI ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Acionar IA
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  A IA vai ler a conversa e continuar
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Toggle AI Button */}
-              {conversation.ai_handled && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={handleToggleAIPaused}
-                    >
-                      {conversation.ai_paused ? (
-                        <Play className="h-4 w-4 text-emerald-500" />
-                      ) : (
-                        <Pause className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {conversation.ai_paused ? "Retomar IA" : "Pausar IA"}
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              
-              {/* Instance Selector */}
+              {/* Instance Selector - Primary */}
               <Select 
                 value={selectedInstanceId} 
                 onValueChange={async (value) => {
                   setSelectedInstanceId(value);
-                  // Persist instance change to database
                   try {
                     await supabase
                       .from('conversations')
@@ -745,9 +697,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                   }
                 }}
               >
-                <SelectTrigger className="w-[200px] h-9">
-                  <Smartphone className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Selecionar número" />
+                <SelectTrigger className="w-[140px] h-9">
+                  <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Número" />
                 </SelectTrigger>
                 <SelectContent>
                   {connectedInstances.length === 0 ? (
@@ -770,13 +722,61 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                   )}
                 </SelectContent>
               </Select>
-              
-              {/* Show selected instance phone number */}
-              {connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number && (
-                <Badge variant="outline" className="text-xs text-muted-foreground gap-1 h-9 px-2">
-                  <Smartphone className="h-3 w-3" />
-                  {connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
-                </Badge>
+
+              {/* Invoke AI Button - Primary */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-9"
+                    onClick={handleInvokeAI}
+                    disabled={isInvokingAI || !selectedInstanceId}
+                  >
+                    {isInvokingAI ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    <span className="hidden lg:inline">Acionar IA</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  A IA vai ler a conversa e continuar
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Toggle AI Button */}
+              {conversation.ai_handled && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={handleToggleAIPaused}
+                    >
+                      {conversation.ai_paused ? (
+                        <Play className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <Pause className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {conversation.ai_paused ? "Retomar IA" : "Pausar IA"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Phone Call Button */}
+              {conversation.contact?.phone && (
+                <PhoneCallButton
+                  contactPhone={conversation.contact.phone}
+                  contactId={conversation.contact_id}
+                  conversationId={conversation.id}
+                  contactName={conversation.contact.name || undefined}
+                />
               )}
               
               {/* Transfer Button */}
@@ -798,14 +798,21 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
               
               {/* Contact Info Button */}
               {onOpenRightPanel && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={onOpenRightPanel}
-                >
-                  <User className="h-4 w-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={onOpenRightPanel}
+                    >
+                      <User className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Info do contato
+                  </TooltipContent>
+                </Tooltip>
               )}
             </>
           ) : (
