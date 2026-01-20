@@ -50,8 +50,11 @@ Deno.serve(async (req) => {
       .single();
 
     const phoneNumberId = metaNumber?.phone_number_id || 'test_phone_number_id';
-    const testPhone = '5500999999999'; // Simulated test phone
-    const testName = 'Teste Meta WhatsApp';
+    // Use the actual phone number from the meta config, or a realistic test number
+    const testPhone = metaNumber?.phone_number 
+      ? metaNumber.phone_number.replace(/\D/g, '') // Clean to digits only
+      : '5527999999999'; // Fallback test number
+    const testName = metaNumber?.display_name || 'Teste Meta WhatsApp';
     const timestamp = new Date().toISOString();
 
     // Find or create contact
