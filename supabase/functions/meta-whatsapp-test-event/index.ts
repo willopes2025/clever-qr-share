@@ -40,6 +40,9 @@ Deno.serve(async (req) => {
     const userId = user.id;
     console.log('[META-TEST] Creating test event for user:', userId);
 
+    // Get test phone number from request body
+    const { testPhoneNumber } = await req.json().catch(() => ({}));
+
     // Get the first active meta_whatsapp_number for this user
     const { data: metaNumber } = await supabase
       .from('meta_whatsapp_numbers')
@@ -50,12 +53,14 @@ Deno.serve(async (req) => {
       .single();
 
     const phoneNumberId = metaNumber?.phone_number_id || 'test_phone_number_id';
-    // Use the actual phone number from the meta config, or a realistic test number
-    const testPhone = metaNumber?.phone_number 
-      ? metaNumber.phone_number.replace(/\D/g, '') // Clean to digits only
-      : '5527999999999'; // Fallback test number
+    // Use the provided phone number, or fallback to meta config, or default test number
+    const testPhone = testPhoneNumber 
+      || (metaNumber?.phone_number ? metaNumber.phone_number.replace(/\D/g, '') : null)
+      || '5527999999999';
     const testName = metaNumber?.display_name || 'Teste Meta WhatsApp';
     const timestamp = new Date().toISOString();
+    
+    console.log('[META-TEST] Using test phone:', testPhone);
 
     // Find or create contact
     let { data: contact } = await supabase
