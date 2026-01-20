@@ -92,16 +92,31 @@ Deno.serve(async (req) => {
       contact = newContact;
     }
 
-    // Find or create conversation with provider='meta'
+    // Find existing conversation for this contact (any provider) or create new one
     let { data: conversation } = await supabase
       .from('conversations')
       .select('*')
       .eq('user_id', userId)
       .eq('contact_id', contact.id)
-      .eq('provider', 'meta')
-      .single();
+      .maybeSingle();
 
-    if (!conversation) {
+    if (conversation) {
+      // Update existing conversation to be a meta conversation
+      const { error: updateError } = await supabase
+        .from('conversations')
+        .update({
+          provider: 'meta',
+          meta_phone_number_id: phoneNumberId,
+          status: 'open',
+          last_message_at: timestamp,
+          updated_at: timestamp
+        })
+        .eq('id', conversation.id);
+      
+      if (updateError) {
+        console.error('[META-TEST] Error updating conversation:', updateError);
+      }
+    } else {
       const { data: newConversation, error: convError } = await supabase
         .from('conversations')
         .insert({
