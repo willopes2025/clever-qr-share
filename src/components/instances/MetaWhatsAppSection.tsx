@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import { useMetaWhatsAppNumbers, MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaWebhookConfigDialog } from "./MetaWebhookConfigDialog";
@@ -51,6 +53,7 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
   const [isTesting, setIsTesting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [webhookVerificationStatus, setWebhookVerificationStatus] = useState<WebhookStatus | null>(null);
+  const [testPhoneNumber, setTestPhoneNumber] = useState('');
   const navigate = useNavigate();
 
   const handleVerifyWebhook = async () => {
@@ -110,6 +113,9 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: {
+          testPhoneNumber: testPhoneNumber.replace(/\D/g, '')
+        }
       });
 
       if (error) {
@@ -365,9 +371,23 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
             <p className="text-sm text-muted-foreground">
               Crie uma mensagem de teste simulada para verificar se o Inbox está exibindo conversas Meta corretamente.
             </p>
+            
+            <div className="space-y-2">
+              <Label htmlFor="test-phone">Número de Teste</Label>
+              <Input
+                id="test-phone"
+                placeholder="Ex: 5527999999999"
+                value={testPhoneNumber}
+                onChange={(e) => setTestPhoneNumber(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Digite o número cadastrado no teste da API Meta (com código do país)
+              </p>
+            </div>
+            
             <Button
               onClick={handleTestInbox}
-              disabled={isTesting}
+              disabled={isTesting || !testPhoneNumber.trim()}
               className="w-full gap-2"
             >
               {isTesting ? (
