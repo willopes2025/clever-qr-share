@@ -56,9 +56,9 @@ Deno.serve(async (req) => {
     // Fetch Meta integration config
     const { data: integration, error: integrationError } = await supabaseClient
       .from('integrations')
-      .select('config')
+      .select('credentials, settings, is_active')
       .eq('user_id', user.id)
-      .eq('name', 'meta_whatsapp')
+      .eq('provider', 'meta_whatsapp')
       .maybeSingle();
 
     if (integrationError) {
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!integration || !integration.config) {
+    if (!integration || !integration.credentials) {
       console.log('[verify-meta-webhook] No Meta integration found');
       return new Response(
         JSON.stringify({ 
@@ -89,9 +89,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const config = integration.config as Record<string, string>;
-    const accessToken = config.access_token;
-    const businessAccountId = config.business_account_id;
+    const credentials = integration.credentials as Record<string, string>;
+    const accessToken = credentials.access_token;
+    const businessAccountId = credentials.business_account_id;
 
     if (!accessToken) {
       return new Response(
