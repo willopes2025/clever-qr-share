@@ -160,7 +160,7 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
           type: 'template',
           template: {
             name: selectedTemplate,
-            language: { code: 'pt_BR' }
+            language: { code: 'en_US' }
           }
         }
       });
