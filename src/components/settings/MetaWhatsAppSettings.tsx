@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MessageSquare,
   Check,
@@ -19,9 +20,11 @@ import {
   Eye,
   EyeOff,
   Send,
+  FileText,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { useMetaTemplates } from "@/hooks/useMetaTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -30,6 +33,7 @@ const WEBHOOK_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/met
 
 export const MetaWhatsAppSettings = () => {
   const { integrations, connectIntegration, disconnectIntegration, updateIntegration, getIntegration } = useIntegrations();
+  const { templates, syncTemplates, isSyncing } = useMetaTemplates();
   const [isConnected, setIsConnected] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -45,6 +49,11 @@ export const MetaWhatsAppSettings = () => {
   const [testMessage, setTestMessage] = useState('Teste WhatsApp Cloud API funcionando 🚀');
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+
+  // Filter only approved templates
+  const approvedTemplates = templates?.filter(t => t.status === 'approved') || [];
 
   const integration = getIntegration('meta_whatsapp');
 
@@ -103,8 +112,18 @@ export const MetaWhatsAppSettings = () => {
   };
 
   const handleSendTestMessage = async () => {
-    if (!testPhone || !testMessage) {
-      toast.error("Número e mensagem são obrigatórios");
+    if (!testPhone) {
+      toast.error("Número de destino é obrigatório");
+      return;
+    }
+
+    if (useTemplate && !selectedTemplate) {
+      toast.error("Selecione um template para enviar");
+      return;
+    }
+
+    if (!useTemplate && !testMessage) {
+      toast.error("Mensagem é obrigatória");
       return;
     }
 
@@ -112,13 +131,26 @@ export const MetaWhatsAppSettings = () => {
     setTestResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', {
-        body: {
-          to: testPhone,
-          type: 'text',
-          text: { body: testMessage }
-        }
-      });
+      // Build request body based on message type
+      const templateData = approvedTemplates.find(t => t.name === selectedTemplate);
+      const languageCode = templateData?.language || 'pt_BR';
+
+      const body = useTemplate
+        ? {
+            to: testPhone.replace(/\D/g, ''),
+            type: 'template',
+            template: {
+              name: selectedTemplate,
+              language: { code: languageCode }
+            }
+          }
+        : {
+            to: testPhone.replace(/\D/g, ''),
+            type: 'text',
+            text: { body: testMessage }
+          };
+
+      const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', { body });
 
       console.log('[TEST-SEND] Response:', data, error);
 
@@ -384,6 +416,20 @@ export const MetaWhatsAppSettings = () => {
               </AlertDescription>
             </Alert>
 
+            {/* Toggle: Text vs Template */}
+            <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium text-sm">Usar Template Aprovado</p>
+                  <p className="text-xs text-muted-foreground">
+                    Templates são obrigatórios para iniciar conversas fora da janela de 24h
+                  </p>
+                </div>
+              </div>
+              <Switch checked={useTemplate} onCheckedChange={setUseTemplate} />
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="test_phone">Número de Destino</Label>
@@ -398,16 +444,66 @@ export const MetaWhatsAppSettings = () => {
                 </p>
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="test_message">Mensagem de Teste</Label>
-                <Textarea
-                  id="test_message"
-                  value={testMessage}
-                  onChange={(e) => setTestMessage(e.target.value)}
-                  placeholder="Digite sua mensagem de teste..."
-                  rows={3}
-                />
-              </div>
+              {useTemplate ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Template de Mensagem</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => syncTemplates()}
+                      disabled={isSyncing}
+                      className="h-7 text-xs"
+                    >
+                      {isSyncing ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                      )}
+                      Sincronizar
+                    </Button>
+                  </div>
+                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um template aprovado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {approvedTemplates.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          Nenhum template aprovado encontrado.<br />
+                          Clique em "Sincronizar" para buscar.
+                        </div>
+                      ) : (
+                        approvedTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.name}>
+                            {template.name} ({template.language})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Clique em "Sincronizar" para buscar templates aprovados da sua conta Meta
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 md:col-span-1">
+                  {/* Empty for grid alignment */}
+                </div>
+              )}
+
+              {!useTemplate && (
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="test_message">Mensagem de Teste</Label>
+                  <Textarea
+                    id="test_message"
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    placeholder="Digite sua mensagem de teste..."
+                    rows={3}
+                  />
+                </div>
+              )}
             </div>
 
             <Button
@@ -420,7 +516,7 @@ export const MetaWhatsAppSettings = () => {
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}
-              Enviar Mensagem de Teste
+              {useTemplate ? "Enviar Template de Teste" : "Enviar Mensagem de Teste"}
             </Button>
 
             {testResult && (
