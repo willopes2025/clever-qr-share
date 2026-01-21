@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2, ShieldCheck, ShieldAlert, ShieldX, Send, MessageSquare } from "lucide-react";
 import { useMetaWhatsAppNumbers, MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
 import { MetaWebhookConfigDialog } from "./MetaWebhookConfigDialog";
 import { AddMetaNumberDialog } from "./AddMetaNumberDialog";
@@ -51,9 +52,11 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [numberToDelete, setNumberToDelete] = useState<MetaWhatsAppNumber | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [isSendingReal, setIsSendingReal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [webhookVerificationStatus, setWebhookVerificationStatus] = useState<WebhookStatus | null>(null);
   const [testPhoneNumber, setTestPhoneNumber] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('hello_world');
   const navigate = useNavigate();
 
   const handleVerifyWebhook = async () => {
@@ -99,7 +102,7 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
     }
   };
 
-  const handleTestInbox = async () => {
+  const handleSimulatedTest = async () => {
     try {
       setIsTesting(true);
       
@@ -124,9 +127,8 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
         return;
       }
 
-      toast.success("Mensagem de teste criada! Abrindo Inbox...");
+      toast.success("Mensagem simulada criada! Abrindo Inbox...");
       
-      // Navigate to inbox
       setTimeout(() => {
         navigate('/inbox');
       }, 1000);
@@ -136,6 +138,51 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
       toast.error("Erro ao criar mensagem de teste");
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleSendRealMessage = async () => {
+    try {
+      setIsSendingReal(true);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Você precisa estar logado para enviar");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: {
+          to: testPhoneNumber.replace(/\D/g, ''),
+          type: 'template',
+          template: {
+            name: selectedTemplate,
+            language: { code: 'pt_BR' }
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Send error:', error);
+        toast.error("Erro ao enviar mensagem: " + error.message);
+        return;
+      }
+
+      if (!data?.success) {
+        toast.error(data?.error || "Erro ao enviar mensagem");
+        return;
+      }
+
+      toast.success("Mensagem enviada com sucesso!");
+
+    } catch (err) {
+      console.error('Send error:', err);
+      toast.error("Erro ao enviar mensagem");
+    } finally {
+      setIsSendingReal(false);
     }
   };
 
@@ -367,13 +414,9 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
               Testar Integração
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Crie uma mensagem de teste simulada para verificar se o Inbox está exibindo conversas Meta corretamente.
-            </p>
-            
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="test-phone">Número de Teste</Label>
+              <Label htmlFor="test-phone">Número de Destino</Label>
               <Input
                 id="test-phone"
                 placeholder="Ex: 5527999999999"
@@ -381,30 +424,58 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
                 onChange={(e) => setTestPhoneNumber(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Digite o número cadastrado no teste da API Meta (com código do país)
+                Número com código do país (ex: 55 para Brasil)
               </p>
             </div>
-            
-            <Button
-              onClick={handleTestInbox}
-              disabled={isTesting || !testPhoneNumber.trim()}
-              className="w-full gap-2"
-            >
-              {isTesting ? (
-                <>
+
+            <div className="space-y-2">
+              <Label>Template de Mensagem</Label>
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hello_world">hello_world (padrão)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Templates devem estar aprovados no Meta Business Manager
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                onClick={handleSimulatedTest}
+                disabled={isTesting || !testPhoneNumber.trim()}
+                className="gap-2"
+              >
+                {isTesting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Criando teste...
-                </>
-              ) : (
-                <>
-                  <TestTube className="h-4 w-4" />
-                  Gerar Mensagem de Teste
-                </>
-              )}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Este teste <strong>não depende</strong> do webhook do Meta. Serve para confirmar que o sistema exibe conversas Meta corretamente.
-            </p>
+                ) : (
+                  <MessageSquare className="h-4 w-4" />
+                )}
+                Simular Recebimento
+              </Button>
+              
+              <Button
+                onClick={handleSendRealMessage}
+                disabled={isSendingReal || !testPhoneNumber.trim()}
+                className="gap-2 bg-green-600 hover:bg-green-700"
+              >
+                {isSendingReal ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Enviar Real
+              </Button>
+            </div>
+
+            <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
+              <p><strong>Simular:</strong> Cria mensagem fake no Inbox (não envia nada)</p>
+              <p><strong>Enviar Real:</strong> Envia mensagem via API Meta usando o template selecionado</p>
+            </div>
           </CardContent>
         </Card>
       </div>
