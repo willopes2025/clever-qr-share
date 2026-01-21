@@ -3577,6 +3577,7 @@ export type Database = {
           submitted_at: string | null
           updated_at: string | null
           user_id: string
+          variable_mappings: Json | null
           waba_id: string | null
         }
         Insert: {
@@ -3599,6 +3600,7 @@ export type Database = {
           submitted_at?: string | null
           updated_at?: string | null
           user_id: string
+          variable_mappings?: Json | null
           waba_id?: string | null
         }
         Update: {
@@ -3621,6 +3623,7 @@ export type Database = {
           submitted_at?: string | null
           updated_at?: string | null
           user_id?: string
+          variable_mappings?: Json | null
           waba_id?: string | null
         }
         Relationships: []
