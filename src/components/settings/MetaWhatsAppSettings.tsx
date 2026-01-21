@@ -135,20 +135,43 @@ export const MetaWhatsAppSettings = () => {
       const templateData = approvedTemplates.find(t => t.name === selectedTemplate);
       const languageCode = templateData?.language || 'pt_BR';
 
-      const body = useTemplate
-        ? {
-            to: testPhone.replace(/\D/g, ''),
-            type: 'template',
-            template: {
-              name: selectedTemplate,
-              language: { code: languageCode }
-            }
-          }
-        : {
-            to: testPhone.replace(/\D/g, ''),
+      let body;
+      
+      if (useTemplate) {
+        // Check if template has variables by looking at body_text
+        const bodyText = templateData?.body_text || '';
+        const variableMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+        
+        // Build components array with example/test values for each variable
+        const components: any[] = [];
+        if (variableMatches.length > 0) {
+          const parameters = variableMatches.map((_, idx) => ({
             type: 'text',
-            text: { body: testMessage }
-          };
+            text: `Teste${idx + 1}` // Example values for testing
+          }));
+          
+          components.push({
+            type: 'body',
+            parameters
+          });
+        }
+
+        body = {
+          to: testPhone.replace(/\D/g, ''),
+          type: 'template',
+          template: {
+            name: selectedTemplate,
+            language: { code: languageCode },
+            ...(components.length > 0 ? { components } : {})
+          }
+        };
+      } else {
+        body = {
+          to: testPhone.replace(/\D/g, ''),
+          type: 'text',
+          text: { body: testMessage }
+        };
+      }
 
       const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', { body });
 
