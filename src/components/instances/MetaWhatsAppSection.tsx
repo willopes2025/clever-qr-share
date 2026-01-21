@@ -6,8 +6,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2, ShieldCheck, ShieldAlert, ShieldX, Send, MessageSquare } from "lucide-react";
+import { Cloud, Plus, Settings, Trash2, AlertCircle, CheckCircle, ExternalLink, TestTube, Loader2, ShieldCheck, ShieldAlert, ShieldX, Send, MessageSquare, RefreshCw } from "lucide-react";
 import { useMetaWhatsAppNumbers, MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
+import { useMetaTemplates } from "@/hooks/useMetaTemplates";
 import { MetaWebhookConfigDialog } from "./MetaWebhookConfigDialog";
 import { AddMetaNumberDialog } from "./AddMetaNumberDialog";
 import { MetaWebhookEventsPanel } from "./MetaWebhookEventsPanel";
@@ -47,6 +48,7 @@ interface MetaWhatsAppSectionProps {
 
 export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppSectionProps) => {
   const { metaNumbers, isLoading, deleteNumber } = useMetaWhatsAppNumbers();
+  const { templates, isLoading: isLoadingTemplates, syncTemplates, isSyncing } = useMetaTemplates();
   const [webhookDialogOpen, setWebhookDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -56,8 +58,11 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
   const [isVerifying, setIsVerifying] = useState(false);
   const [webhookVerificationStatus, setWebhookVerificationStatus] = useState<WebhookStatus | null>(null);
   const [testPhoneNumber, setTestPhoneNumber] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('hello_world');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
   const navigate = useNavigate();
+
+  // Filter approved templates only
+  const approvedTemplates = templates.filter(t => t.status === 'approved');
 
   const handleVerifyWebhook = async () => {
     try {
@@ -151,6 +156,10 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
         return;
       }
 
+      // Find the selected template to get its language
+      const templateData = approvedTemplates.find(t => t.name === selectedTemplate);
+      const languageCode = templateData?.language || 'pt_BR';
+
       const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -160,7 +169,7 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
           type: 'template',
           template: {
             name: selectedTemplate,
-            language: { code: 'en_US' }
+            language: { code: languageCode }
           }
         }
       });
@@ -429,17 +438,43 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
             </div>
 
             <div className="space-y-2">
-              <Label>Template de Mensagem</Label>
+              <div className="flex items-center justify-between">
+                <Label>Template de Mensagem</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => syncTemplates()}
+                  disabled={isSyncing}
+                  className="h-6 px-2 text-xs"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  Sincronizar
+                </Button>
+              </div>
               <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um template" />
+                  <SelectValue placeholder={isLoadingTemplates ? "Carregando..." : "Selecione um template aprovado"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hello_world">hello_world (padrão)</SelectItem>
+                  {approvedTemplates.length === 0 ? (
+                    <SelectItem value="_empty" disabled>
+                      Nenhum template aprovado
+                    </SelectItem>
+                  ) : (
+                    approvedTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.name}>
+                        {template.name} ({template.language})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Templates devem estar aprovados no Meta Business Manager
+                Apenas templates aprovados pelo Meta podem ser usados
               </p>
             </div>
 
@@ -460,7 +495,7 @@ export const MetaWhatsAppSection = ({ webhookConfigured = false }: MetaWhatsAppS
               
               <Button
                 onClick={handleSendRealMessage}
-                disabled={isSendingReal || !testPhoneNumber.trim()}
+                disabled={isSendingReal || !testPhoneNumber.trim() || !selectedTemplate}
                 className="gap-2 bg-green-600 hover:bg-green-700"
               >
                 {isSendingReal ? (
