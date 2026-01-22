@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sparkles, Trash2, Edit2, Check, X, Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Sparkles, Trash2, Edit2, Check, X, Loader2, Image, Video, Mic } from 'lucide-react';
 import { useTemplateVariations, TemplateVariation } from '@/hooks/useTemplateVariations';
 import { MessageTemplate } from '@/hooks/useMessageTemplates';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +25,9 @@ export const TemplateVariationsDialog = ({
   const [variationCount, setVariationCount] = useState('5');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [includeMedia, setIncludeMedia] = useState(true);
+  
+  const hasMedia = template?.media_url && template?.media_type;
 
   const { 
     variations, 
@@ -41,7 +46,11 @@ export const TemplateVariationsDialog = ({
     generateVariations({
       templateId: template.id,
       content: template.content,
-      variationCount: parseInt(variationCount)
+      variationCount: parseInt(variationCount),
+      includeMedia: includeMedia && !!hasMedia,
+      mediaType: template.media_type,
+      mediaUrl: template.media_url,
+      mediaFilename: template.media_filename
     });
   };
 
@@ -81,53 +90,76 @@ export const TemplateVariationsDialog = ({
           {/* Original message */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Mensagem Original</label>
-            <div className="p-3 bg-muted/50 rounded-lg text-sm border border-border">
-              {template.content}
+            <div className="p-3 bg-muted/50 rounded-lg text-sm border border-border space-y-2">
+              {hasMedia && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground pb-2 border-b border-border">
+                  {template.media_type === 'image' && <Image className="h-3.5 w-3.5 text-blue-400" />}
+                  {template.media_type === 'video' && <Video className="h-3.5 w-3.5 text-purple-400" />}
+                  {template.media_type === 'audio' && <Mic className="h-3.5 w-3.5 text-green-400" />}
+                  <span>Mídia: {template.media_filename}</span>
+                </div>
+              )}
+              <div>{template.content}</div>
             </div>
           </div>
 
           {/* Generate controls */}
-          <div className="flex items-center gap-3">
-            <Select value={variationCount} onValueChange={setVariationCount}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">3 variações</SelectItem>
-                <SelectItem value="5">5 variações</SelectItem>
-                <SelectItem value="8">8 variações</SelectItem>
-                <SelectItem value="10">10 variações</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Button 
-              onClick={handleGenerate} 
-              disabled={isGenerating}
-              className="flex-1"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Gerando...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {variations.length > 0 ? 'Regenerar Variações' : 'Gerar Variações'}
-                </>
-              )}
-            </Button>
-
-            {variations.length > 0 && (
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => template && deleteAllVariations(template.id)}
-                disabled={isDeleting}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+          <div className="space-y-3">
+            {hasMedia && (
+              <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">
+                <Switch
+                  id="include-media"
+                  checked={includeMedia}
+                  onCheckedChange={setIncludeMedia}
+                />
+                <Label htmlFor="include-media" className="text-sm cursor-pointer">
+                  Incluir mídia original nas variações
+                </Label>
+              </div>
             )}
+            
+            <div className="flex items-center gap-3">
+              <Select value={variationCount} onValueChange={setVariationCount}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 variações</SelectItem>
+                  <SelectItem value="5">5 variações</SelectItem>
+                  <SelectItem value="8">8 variações</SelectItem>
+                  <SelectItem value="10">10 variações</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button 
+                onClick={handleGenerate} 
+                disabled={isGenerating}
+                className="flex-1"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {variations.length > 0 ? 'Regenerar Variações' : 'Gerar Variações'}
+                  </>
+                )}
+              </Button>
+
+              {variations.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => template && deleteAllVariations(template.id)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Variations list */}
@@ -214,9 +246,19 @@ export const TemplateVariationsDialog = ({
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-foreground whitespace-pre-wrap">
-                          {variation.content}
-                        </p>
+                        <div className="space-y-2">
+                          {variation.media_url && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {variation.media_type === 'image' && <Image className="h-3 w-3 text-blue-400" />}
+                              {variation.media_type === 'video' && <Video className="h-3 w-3 text-purple-400" />}
+                              {variation.media_type === 'audio' && <Mic className="h-3 w-3 text-green-400" />}
+                              <span>Mídia: {variation.media_filename}</span>
+                            </div>
+                          )}
+                          <p className="text-sm text-foreground whitespace-pre-wrap">
+                            {variation.content}
+                          </p>
+                        </div>
                       )}
                     </div>
                   ))}

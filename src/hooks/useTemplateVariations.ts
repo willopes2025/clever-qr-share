@@ -8,6 +8,9 @@ export interface TemplateVariation {
   content: string;
   variation_index: number;
   created_at: string;
+  media_type: string | null;
+  media_url: string | null;
+  media_filename: string | null;
 }
 
 export const useTemplateVariations = (templateId?: string) => {
@@ -31,13 +34,17 @@ export const useTemplateVariations = (templateId?: string) => {
   });
 
   const generateMutation = useMutation({
-    mutationFn: async ({ templateId, content, variationCount }: { 
+    mutationFn: async ({ templateId, content, variationCount, includeMedia, mediaType, mediaUrl, mediaFilename }: { 
       templateId: string; 
       content: string;
       variationCount: number;
+      includeMedia?: boolean;
+      mediaType?: string | null;
+      mediaUrl?: string | null;
+      mediaFilename?: string | null;
     }) => {
       const { data, error } = await supabase.functions.invoke('generate-template-variations', {
-        body: { templateId, content, variationCount }
+        body: { templateId, content, variationCount, includeMedia, mediaType, mediaUrl, mediaFilename }
       });
 
       if (error) throw error;

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { Image, Video, Mic, X, Loader2, Sparkles } from 'lucide-react';
 import { GenerateAudioDialog } from './GenerateAudioDialog';
@@ -35,6 +36,7 @@ export const TemplateMediaUpload = ({
   onMediaChange,
   templateContent = ''
 }: TemplateMediaUploadProps) => {
+  const { user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,10 +70,10 @@ export const TemplateMediaUpload = ({
     setUploadProgress(0);
 
     try {
-      // Generate unique filename
+      // Generate unique filename with user_id prefix for RLS
       const ext = file.name.split('.').pop();
       const filename = `template-${Date.now()}.${ext}`;
-      const path = `templates/${filename}`;
+      const path = `${user?.id}/templates/${filename}`;
 
       // Upload to Supabase Storage
       const { data, error } = await supabase.storage
