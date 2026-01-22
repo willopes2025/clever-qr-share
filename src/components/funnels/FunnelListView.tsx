@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Funnel, FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
@@ -664,8 +665,10 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       </div>
 
       {/* Table with horizontal scroll */}
-      <div className="rounded-xl border bg-card overflow-x-auto">
-        <Table className="min-w-max">
+        <div className="rounded-xl border bg-card">
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="min-w-max">
+              <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-12 sticky left-0 bg-card z-10">
@@ -739,9 +742,12 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
                 </TableRow>
               ))
             )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableBody>
+          </Table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
 
       {editingDeal && (
         <DealFormDialog
