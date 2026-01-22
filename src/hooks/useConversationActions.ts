@@ -29,7 +29,7 @@ export const useConversationActions = () => {
     mutationFn: async (conversationId: string) => {
       const { error } = await supabase
         .from('conversations')
-        .update({ status: 'open' })
+        .update({ status: 'active' })
         .eq('id', conversationId);
 
       if (error) throw error;
