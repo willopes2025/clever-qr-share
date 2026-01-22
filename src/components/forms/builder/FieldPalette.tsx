@@ -85,6 +85,15 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
       ? [{ value: 'option1', label: 'Opção 1' }, { value: 'option2', label: 'Opção 2' }]
       : null;
 
+    // Auto-mapear campos especiais para campos nativos do contato
+    let autoMappingType: string | null = null;
+    let autoMappingTarget: string | null = null;
+
+    if (['name', 'phone', 'email'].includes(fieldType.type)) {
+      autoMappingType = 'contact_field';
+      autoMappingTarget = fieldType.type;
+    }
+
     createField.mutate(
       {
         form_id: formId,
@@ -95,8 +104,8 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
         required: false,
         options: defaultOptions,
         validation: null,
-        mapping_type: null,
-        mapping_target: null,
+        mapping_type: autoMappingType,
+        mapping_target: autoMappingTarget,
         create_custom_field_on_submit: false,
         conditional_logic: null,
         position: fieldsCount,
