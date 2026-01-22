@@ -240,5 +240,8 @@ verify_jwt = false
 [functions.auto-pair-warming-pool]
 verify_jwt = false
 
+[functions.sync-single-contact]
+verify_jwt = false
+
 [functions.generate-daily-warming-news]
 verify_jwt = false
