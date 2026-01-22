@@ -19,7 +19,7 @@ import { useIbgeMunicipios } from "@/hooks/useIbgeMunicipios";
 interface LeadSearchFiltersProps {
   filters: SearchFilters;
   setFilters: (filters: SearchFilters) => void;
-  onSearch: () => void;
+  onSearch: (overrideFilters?: SearchFilters) => void;
   isSearching: boolean;
   onReset: () => void;
 }
@@ -49,6 +49,8 @@ export const LeadSearchFilters = ({
 }: LeadSearchFiltersProps) => {
   const [cnaeSearch, setCnaeSearch] = useState("");
   const [municipioSearch, setMunicipioSearch] = useState("");
+  const [bairroDraft, setBairroDraft] = useState("");
+  const [cepDraft, setCepDraft] = useState("");
   
   // Use IBGE API for municipalities
   const { municipios: ibgeMunicipios, isLoading: isLoadingMunicipios } = useIbgeMunicipios(filters.uf);
@@ -94,6 +96,52 @@ export const LeadSearchFilters = ({
   const handleRemoveTag = (key: keyof SearchFilters, value: string) => {
     const current = filters[key] as string[];
     updateFilter(key, current.filter(v => v !== value) as any);
+  };
+
+  const normalizeBairroValue = (raw: string) => raw.trim().replace(/\s+/g, ' ').toUpperCase();
+  const normalizeCepValue = (raw: string) => raw.replace(/\D/g, '').slice(0, 8);
+
+  const commitBairroDraft = () => {
+    const bairro = normalizeBairroValue(bairroDraft);
+    if (!bairro) return;
+    if (!filters.bairro.includes(bairro)) {
+      setFilters({ ...filters, bairro: [...filters.bairro, bairro] });
+    }
+    setBairroDraft("");
+  };
+
+  const commitCepDraft = () => {
+    const cep = normalizeCepValue(cepDraft);
+    if (!cep) return;
+    if (!filters.cep.includes(cep)) {
+      setFilters({ ...filters, cep: [...filters.cep, cep] });
+    }
+    setCepDraft("");
+  };
+
+  const handleSearchClick = () => {
+    // Importante: se usuário digitou bairro/CEP e não apertou Enter,
+    // precisamos incorporar isso na busca (e não depender do setState assíncrono).
+    let next: SearchFilters = filters;
+
+    const bairro = normalizeBairroValue(bairroDraft);
+    if (bairro && !next.bairro.includes(bairro)) {
+      next = { ...next, bairro: [...next.bairro, bairro] };
+    }
+
+    const cep = normalizeCepValue(cepDraft);
+    if (cep && !next.cep.includes(cep)) {
+      next = { ...next, cep: [...next.cep, cep] };
+    }
+
+    if (next !== filters) {
+      setFilters(next);
+    }
+
+    setBairroDraft("");
+    setCepDraft("");
+
+    onSearch(next);
   };
 
   // Filter DDDs based on selected UFs
@@ -238,13 +286,16 @@ export const LeadSearchFilters = ({
               <div>
                 <Label className="text-sm font-medium">Bairro</Label>
                 <Input
-                  placeholder="Digite e pressione Enter"
+                  placeholder="Digite e pressione Enter (ou clique em Pesquisar)"
+                  value={bairroDraft}
+                  onChange={(e) => setBairroDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      handleAddTag('bairro', e.currentTarget.value.toUpperCase());
-                      e.currentTarget.value = '';
+                      e.preventDefault();
+                      commitBairroDraft();
                     }
                   }}
+                  onBlur={commitBairroDraft}
                   className="mt-1"
                 />
                 {filters.bairro.length > 0 && (
@@ -261,13 +312,16 @@ export const LeadSearchFilters = ({
               <div>
                 <Label className="text-sm font-medium">CEP</Label>
                 <Input
-                  placeholder="Digite e pressione Enter"
+                  placeholder="Digite e pressione Enter (ou clique em Pesquisar)"
+                  value={cepDraft}
+                  onChange={(e) => setCepDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      handleAddTag('cep', e.currentTarget.value.replace(/\D/g, ''));
-                      e.currentTarget.value = '';
+                      e.preventDefault();
+                      commitCepDraft();
                     }
                   }}
+                  onBlur={commitCepDraft}
                   className="mt-1"
                 />
                 {filters.cep.length > 0 && (
@@ -509,7 +563,7 @@ export const LeadSearchFilters = ({
 
       {/* Actions */}
       <div className="flex items-center gap-3 pt-4 border-t">
-        <Button onClick={onSearch} disabled={isSearching} className="flex-1 md:flex-none">
+        <Button onClick={handleSearchClick} disabled={isSearching} className="flex-1 md:flex-none">
           <Search className="h-4 w-4 mr-2" />
           {isSearching ? "Pesquisando..." : "Pesquisar Empresas"}
         </Button>
