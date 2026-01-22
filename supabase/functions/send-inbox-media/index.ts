@@ -115,9 +115,12 @@ Deno.serve(async (req) => {
     let endpoint: string;
     let body: Record<string, unknown>;
 
+    // Encode instance name for URL (handles spaces and special characters)
+    const encodedInstanceName = encodeURIComponent(instance.instance_name);
+
     switch (mediaType) {
       case 'image':
-        endpoint = `${evolutionApiUrl}/message/sendMedia/${instance.instance_name}`;
+        endpoint = `${evolutionApiUrl}/message/sendMedia/${encodedInstanceName}`;
         body = {
           number: phone,
           mediatype: 'image',
@@ -128,7 +131,7 @@ Deno.serve(async (req) => {
 
       case 'audio':
       case 'voice':
-        endpoint = `${evolutionApiUrl}/message/sendWhatsAppAudio/${instance.instance_name}`;
+        endpoint = `${evolutionApiUrl}/message/sendWhatsAppAudio/${encodedInstanceName}`;
         body = {
           number: phone,
           audio: mediaUrl,
@@ -136,7 +139,7 @@ Deno.serve(async (req) => {
         break;
 
       case 'video':
-        endpoint = `${evolutionApiUrl}/message/sendMedia/${instance.instance_name}`;
+        endpoint = `${evolutionApiUrl}/message/sendMedia/${encodedInstanceName}`;
         body = {
           number: phone,
           mediatype: 'video',
@@ -147,7 +150,7 @@ Deno.serve(async (req) => {
 
       case 'document':
       default:
-        endpoint = `${evolutionApiUrl}/message/sendMedia/${instance.instance_name}`;
+        endpoint = `${evolutionApiUrl}/message/sendMedia/${encodedInstanceName}`;
         body = {
           number: phone,
           mediatype: 'document',
