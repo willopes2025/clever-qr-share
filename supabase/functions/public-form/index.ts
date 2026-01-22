@@ -68,7 +68,10 @@ Deno.serve(async (req) => {
 </html>`;
       return new Response(html, { 
         status: 404, 
-        headers: { ...corsHeaders, 'Content-Type': 'text/html' } 
+        headers: { 
+          'Content-Type': 'text/html; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        } 
       });
     }
 
@@ -89,7 +92,10 @@ Deno.serve(async (req) => {
     const html = generateFormHTML(form, formFields, staticParams);
 
     return new Response(html, {
-      headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+      headers: { 
+        'Content-Type': 'text/html; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
 
   } catch (error) {
