@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // Get instance info
     const { data: instance, error: instError } = await supabase
       .from('whatsapp_instances')
-      .select('id, instance_name, status')
+      .select('id, instance_name, evolution_instance_name, status')
       .eq('id', instanceId)
       .single();
 
@@ -115,8 +115,11 @@ Deno.serve(async (req) => {
     let endpoint: string;
     let body: Record<string, unknown>;
 
+    // Prefer the Evolution instance name when available (UI name can differ)
+    const instanceNameForApi = (instance.evolution_instance_name || instance.instance_name).trim();
+
     // Encode instance name for URL (handles spaces and special characters)
-    const encodedInstanceName = encodeURIComponent(instance.instance_name);
+    const encodedInstanceName = encodeURIComponent(instanceNameForApi);
 
     switch (mediaType) {
       case 'image':
@@ -161,6 +164,7 @@ Deno.serve(async (req) => {
         break;
     }
 
+    console.log(`Using instance name for Evolution API: ${instanceNameForApi}`);
     console.log(`Calling Evolution API: ${endpoint}`);
     console.log('Body:', JSON.stringify(body));
 
