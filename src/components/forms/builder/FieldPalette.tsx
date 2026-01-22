@@ -86,7 +86,7 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
       : null;
 
     // Auto-mapear campos especiais para campos nativos do contato
-    let autoMappingType: string | null = null;
+    let autoMappingType: 'contact_field' | 'custom_field' | 'new_custom_field' | null = null;
     let autoMappingTarget: string | null = null;
 
     if (['name', 'phone', 'email'].includes(fieldType.type)) {
