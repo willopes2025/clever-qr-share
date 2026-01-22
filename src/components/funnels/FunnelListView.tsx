@@ -7,6 +7,7 @@ import {
   Calendar,
   DollarSign,
   Clock,
+  Trash2,
   Download,
   Settings2,
   Filter,
@@ -53,6 +54,16 @@ import { CloseDealDialog } from "./CloseDealDialog";
 import { ColumnsConfigDialog, ColumnDefinition } from "./ColumnsConfigDialog";
 import { BulkEditFieldDialog } from "./BulkEditFieldDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface FunnelListViewProps {
@@ -67,7 +78,7 @@ type DealWithStage = FunnelDeal & {
 };
 
 export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
-  const { deleteDeal, updateDeal, closeReasons } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals } = useFunnels();
   const { fieldDefinitions } = useCustomFields();
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
@@ -87,6 +98,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
 
   // Bulk edit
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
 
   // Define all available columns
@@ -579,6 +591,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     }
   };
 
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    await deleteMultipleDeals.mutateAsync(selectedIds);
+    setSelectedIds([]);
+    setBulkDeleteConfirm(false);
+  };
+
   // Handle columns config save
   const handleColumnsConfigSave = (newVisible: string[], newOrder: string[]) => {
     setVisibleColumns(newVisible);
@@ -620,6 +640,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Editar Campo
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
               </Button>
             </>
           )}
@@ -751,6 +779,27 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}
       />
+
+      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir leads selecionados?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a excluir {selectedIds.length} lead(s) permanentemente.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir todos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

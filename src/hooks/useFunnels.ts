@@ -525,6 +525,27 @@ export const useFunnels = () => {
     onError: () => toast.error("Erro ao excluir deal")
   });
 
+  // Delete multiple deals (batch)
+  const deleteMultipleDeals = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batch = ids.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase
+          .from('funnel_deals')
+          .delete()
+          .in('id', batch);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['funnels'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+      toast.success("Leads excluídos com sucesso");
+    },
+    onError: () => toast.error("Erro ao excluir leads")
+  });
+
   // Close reasons mutations
   const createCloseReason = useMutation({
     mutationFn: async (data: { type: 'won' | 'lost'; name: string }) => {
@@ -643,6 +664,7 @@ export const useFunnels = () => {
     createDeal,
     updateDeal,
     deleteDeal,
+    deleteMultipleDeals,
     createCloseReason,
     deleteCloseReason,
     createAutomation,
