@@ -165,9 +165,9 @@ Deno.serve(async (req: Request) => {
       searchBody.municipio = filters.municipio.map((m: string) => m.toLowerCase());
     }
 
-    // Bairro filter
+    // Bairro filter - normalizar para lowercase conforme API exige
     if (filters.bairro && filters.bairro.length > 0) {
-      searchBody.bairro = filters.bairro;
+      searchBody.bairro = filters.bairro.map((b: string) => b.toLowerCase());
     }
 
     // CEP filter
@@ -471,6 +471,14 @@ Deno.serve(async (req: Request) => {
       const email = extractEmail(company);
       const endereco = company.endereco || {};
       
+      // Mapear quadro societário (sócios)
+      const socios = (company.quadro_societario || []).map((socio: any) => ({
+        nome: socio.nome || socio.nome_socio,
+        qualificacao_socio: socio.qualificacao_socio || socio.qualificacao,
+        documento: socio.documento || socio.cpf_cnpj,
+        data_entrada: socio.data_entrada_sociedade || socio.data_entrada,
+      }));
+      
       return {
         cnpj: company.cnpj,
         razao_social: company.razao_social,
@@ -486,6 +494,7 @@ Deno.serve(async (req: Request) => {
         telefone: phone,
         telefone2: phone2,
         email: email,
+        socios: socios.length > 0 ? socios : null,
         endereco: {
           logradouro: endereco.logradouro || company.logradouro,
           numero: endereco.numero || company.numero,

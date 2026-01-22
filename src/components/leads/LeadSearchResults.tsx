@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Building2, Phone, Mail, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Building2, Phone, Mail, MapPin, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface LeadSearchResultsProps {
   companies: Company[];
@@ -123,6 +124,7 @@ export const LeadSearchResults = ({
                     </TableHead>
                     <TableHead>Empresa</TableHead>
                     <TableHead>Contato</TableHead>
+                    <TableHead>Sócio(s)</TableHead>
                     <TableHead>Localização</TableHead>
                     <TableHead>Capital</TableHead>
                     <TableHead>Status</TableHead>
@@ -173,6 +175,44 @@ export const LeadSearchResults = ({
                             <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {company.socios && company.socios.length > 0 ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1 text-sm cursor-help">
+                                  <Users className="h-3 w-3 text-muted-foreground" />
+                                  <span className="truncate max-w-[120px]">
+                                    {company.socios[0].nome}
+                                  </span>
+                                  {company.socios.length > 1 && (
+                                    <Badge variant="outline" className="text-xs px-1 py-0">
+                                      +{company.socios.length - 1}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-medium text-xs">Quadro Societário:</p>
+                                  {company.socios.map((socio, idx) => (
+                                    <div key={idx} className="text-xs">
+                                      <span className="font-medium">{socio.nome}</span>
+                                      {socio.qualificacao_socio && (
+                                        <span className="text-muted-foreground ml-1">
+                                          ({socio.qualificacao_socio})
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
