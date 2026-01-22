@@ -167,12 +167,16 @@ Deno.serve(async (req: Request) => {
 
     // Bairro filter - normalizar para lowercase conforme API exige
     if (filters.bairro && filters.bairro.length > 0) {
-      searchBody.bairro = filters.bairro.map((b: string) => b.toLowerCase());
+      searchBody.bairro = filters.bairro
+        .map((b: string) => (b ?? '').toString().trim().toLowerCase())
+        .filter((b: string) => b.length > 0);
     }
 
-    // CEP filter
+    // CEP filter (somente números)
     if (filters.cep && filters.cep.length > 0) {
-      searchBody.cep = filters.cep;
+      searchBody.cep = filters.cep
+        .map((c: string) => (c ?? '').toString().replace(/\D/g, ''))
+        .filter((c: string) => c.length > 0);
     }
 
     // DDD filter

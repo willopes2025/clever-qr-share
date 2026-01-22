@@ -146,7 +146,7 @@ const LeadSearch = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-  const handleSearch = async (page = 1, isNewSearch = false) => {
+  const handleSearch = async (page = 1, isNewSearch = false, overrideFilters?: SearchFilters) => {
     setIsSearching(true);
     setCurrentPage(page);
     
@@ -157,7 +157,7 @@ const LeadSearch = () => {
     
     try {
       const { data, error } = await supabase.functions.invoke('search-companies', {
-        body: { filters, page, limit: 20 }
+        body: { filters: overrideFilters ?? filters, page, limit: 20 }
       });
 
       if (error) throw error;
@@ -255,7 +255,7 @@ const LeadSearch = () => {
             <LeadSearchFilters
               filters={filters}
               setFilters={setFilters}
-              onSearch={() => handleSearch(1, true)}
+              onSearch={(nextFilters) => handleSearch(1, true, nextFilters)}
               isSearching={isSearching}
               onReset={() => setFilters(initialFilters)}
             />
