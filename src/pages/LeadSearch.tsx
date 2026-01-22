@@ -8,6 +8,13 @@ import { Building2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export interface Socio {
+  nome: string;
+  qualificacao_socio?: string;
+  documento?: string;
+  data_entrada?: string;
+}
+
 export interface Company {
   cnpj: string;
   razao_social: string;
@@ -21,6 +28,7 @@ export interface Company {
   telefone: string | null;
   telefone2: string | null;
   email: string | null;
+  socios?: Socio[] | null;
   endereco: {
     logradouro: string | null;
     numero: string | null;
