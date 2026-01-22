@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Edit, Trash2, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Edit, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Users } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,14 +28,16 @@ interface StageContextMenuProps {
 }
 
 export const StageContextMenu = ({ stage, stages, funnelId }: StageContextMenuProps) => {
-  const { updateStage, deleteStage } = useFunnels();
+  const { updateStage, deleteStage, deleteMultipleDeals } = useFunnels();
   const [showEdit, setShowEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteDealsConfirm, setShowDeleteDealsConfirm] = useState(false);
 
   const currentIndex = stages.findIndex(s => s.id === stage.id);
   const canMoveLeft = currentIndex > 0;
   const canMoveRight = currentIndex < stages.length - 1;
   const hasDeals = (stage.deals?.length || 0) > 0;
+  const dealCount = stage.deals?.length || 0;
 
   const handleMoveLeft = async () => {
     if (!canMoveLeft) return;
@@ -58,6 +60,14 @@ export const StageContextMenu = ({ stage, stages, funnelId }: StageContextMenuPr
   const handleDelete = async () => {
     await deleteStage.mutateAsync(stage.id);
     setShowDeleteConfirm(false);
+  };
+
+  const handleDeleteAllDeals = async () => {
+    const dealIds = stage.deals?.map(d => d.id) || [];
+    if (dealIds.length > 0) {
+      await deleteMultipleDeals.mutateAsync(dealIds);
+    }
+    setShowDeleteDealsConfirm(false);
   };
 
   return (
@@ -90,6 +100,15 @@ export const StageContextMenu = ({ stage, stages, funnelId }: StageContextMenuPr
           
           <DropdownMenuItem 
             className="text-destructive"
+            onClick={() => setShowDeleteDealsConfirm(true)}
+            disabled={!hasDeals}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Excluir todos os leads ({dealCount})
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem 
+            className="text-destructive"
             onClick={() => setShowDeleteConfirm(true)}
             disabled={hasDeals}
           >
@@ -119,6 +138,27 @@ export const StageContextMenu = ({ stage, stages, funnelId }: StageContextMenuPr
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDealsConfirm} onOpenChange={setShowDeleteDealsConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir todos os leads desta etapa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a excluir {dealCount} lead(s) da etapa "{stage.name}" permanentemente.
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteAllDeals} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir todos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -227,25 +227,56 @@ const Contacts = () => {
   };
 
   const handleExport = () => {
-    const exportData = filteredContacts.map((c) => ({
-      telefone: c.phone,
-      nome: c.name || "",
-      email: c.email || "",
-      status: c.opted_out ? "bloqueado" : "ativo",
-      tags: c.contact_tags?.map((ct) => ct.tags.name).join(", ") || "",
-    }));
+    const exportData = filteredContacts.map((c) => {
+      // Get the most recent open deal, or the most recent closed deal
+      const activeDeal = c.funnel_deals?.find((d) => !d.closed_at) || c.funnel_deals?.[0];
 
+      return {
+        telefone: c.phone,
+        nome: c.name || "",
+        email: c.email || "",
+        status: c.opted_out ? "bloqueado" : "ativo",
+        tags: c.contact_tags?.map((ct) => ct.tags.name).join(", ") || "",
+        // Funnel data
+        funil: activeDeal?.funnels?.name || "",
+        etapa: activeDeal?.funnel_stages?.name || "",
+        valor_deal: activeDeal?.value?.toString() || "",
+        data_entrada_etapa: activeDeal?.entered_stage_at
+          ? format(new Date(activeDeal.entered_stage_at), "dd/MM/yyyy HH:mm")
+          : "",
+        previsao_fechamento: activeDeal?.expected_close_date
+          ? format(new Date(activeDeal.expected_close_date), "dd/MM/yyyy")
+          : "",
+        deal_fechado_em: activeDeal?.closed_at
+          ? format(new Date(activeDeal.closed_at), "dd/MM/yyyy HH:mm")
+          : "",
+      };
+    });
+
+    const headers = Object.keys(exportData[0] || {});
     const csv = [
-      Object.keys(exportData[0] || {}).join(","),
-      ...exportData.map((row) => Object.values(row).join(",")),
+      headers.join(";"),
+      ...exportData.map((row) =>
+        headers
+          .map((h) => {
+            const val = row[h as keyof typeof row];
+            // Escape semicolons and quotes
+            if (typeof val === "string" && (val.includes(";") || val.includes('"'))) {
+              return `"${val.replace(/"/g, '""')}"`;
+            }
+            return val;
+          })
+          .join(";")
+      ),
     ].join("\n");
 
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `contatos_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
