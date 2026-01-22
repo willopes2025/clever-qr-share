@@ -103,6 +103,8 @@ const Contacts = () => {
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [customFieldKey, setCustomFieldKey] = useState<string>("");
+  const [customFieldValue, setCustomFieldValue] = useState<string>("");
 
   // Filtered contacts
   const filteredContacts = useMemo(() => {
@@ -160,9 +162,17 @@ const Contacts = () => {
         }
       })();
 
-      return matchesSearch && matchesStatus && matchesTag && matchesDate;
+      // Custom field filter
+      const matchesCustomField = (() => {
+        if (!customFieldKey || !customFieldValue) return true;
+        const fieldVal = contact.custom_fields?.[customFieldKey];
+        if (fieldVal === undefined || fieldVal === null) return false;
+        return String(fieldVal).toLowerCase().includes(customFieldValue.toLowerCase());
+      })();
+
+      return matchesSearch && matchesStatus && matchesTag && matchesDate && matchesCustomField;
     });
-  }, [contacts, searchQuery, statusFilter, tagFilter, dateFilter, customDateFrom, customDateTo]);
+  }, [contacts, searchQuery, statusFilter, tagFilter, dateFilter, customDateFrom, customDateTo, customFieldKey, customFieldValue]);
 
   // Handlers
   const handleSelectAll = (checked: boolean) => {
@@ -227,9 +237,30 @@ const Contacts = () => {
   };
 
   const handleExport = () => {
+    // Collect all unique custom field keys used across contacts
+    const allCustomFieldKeys = new Set<string>();
+    filteredContacts.forEach((c) => {
+      if (c.custom_fields) {
+        Object.keys(c.custom_fields).forEach((key) => {
+          if (c.custom_fields![key] !== null && c.custom_fields![key] !== '') {
+            allCustomFieldKeys.add(key);
+          }
+        });
+      }
+    });
+
     const exportData = filteredContacts.map((c) => {
       // Get the most recent open deal, or the most recent closed deal
       const activeDeal = c.funnel_deals?.find((d) => !d.closed_at) || c.funnel_deals?.[0];
+
+      // Build custom fields data
+      const customFieldData: Record<string, string> = {};
+      allCustomFieldKeys.forEach((key) => {
+        const fieldDef = fieldDefinitions?.find((f) => f.field_key === key);
+        const label = fieldDef?.field_name || key;
+        const val = c.custom_fields?.[key];
+        customFieldData[label] = val !== null && val !== undefined ? String(val) : "";
+      });
 
       return {
         telefone: c.phone,
@@ -250,6 +281,8 @@ const Contacts = () => {
         deal_fechado_em: activeDeal?.closed_at
           ? format(new Date(activeDeal.closed_at), "dd/MM/yyyy HH:mm")
           : "",
+        // Custom fields
+        ...customFieldData,
       };
     });
 
@@ -264,7 +297,7 @@ const Contacts = () => {
             if (typeof val === "string" && (val.includes(";") || val.includes('"'))) {
               return `"${val.replace(/"/g, '""')}"`;
             }
-            return val;
+            return val ?? "";
           })
           .join(";")
       ),
@@ -375,6 +408,33 @@ const Contacts = () => {
             <SelectItem value="custom">Período customizado</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Custom field filter */}
+        <Select value={customFieldKey} onValueChange={(v) => {
+          setCustomFieldKey(v);
+          if (!v) setCustomFieldValue("");
+        }}>
+          <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
+            <SelectValue placeholder="Campo personalizado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Nenhum</SelectItem>
+            {fieldDefinitions?.map((field) => (
+              <SelectItem key={field.id} value={field.field_key}>
+                {field.field_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {customFieldKey && (
+          <Input
+            placeholder="Valor do campo..."
+            value={customFieldValue}
+            onChange={(e) => setCustomFieldValue(e.target.value)}
+            className="w-[150px] bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
+          />
+        )}
 
         {dateFilter === "custom" && (
           <div className="flex gap-2">
