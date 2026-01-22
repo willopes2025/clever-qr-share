@@ -639,17 +639,6 @@ export const ImportContactsDialogV2 = ({
         )}
       </div>
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-2">
-        <Button variant="outline" onClick={() => setStep("upload")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar
-        </Button>
-        <Button onClick={() => setStep("deduplication")} disabled={validContacts.length === 0}>
-          Próximo
-          <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
     </div>
   );
 
@@ -884,17 +873,6 @@ export const ImportContactsDialogV2 = ({
         )}
       </div>
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-2">
-        <Button variant="outline" onClick={() => setStep("mapping")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar
-        </Button>
-        <Button onClick={() => setStep("tags")}>
-          Próximo
-          <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
     </div>
   );
 
@@ -963,16 +941,6 @@ export const ImportContactsDialogV2 = ({
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={() => setStep("deduplication")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar
-        </Button>
-        <Button onClick={handleImport} disabled={isLoading || contactsToImport.length === 0}>
-          {isLoading ? "Importando..." : `Importar ${contactsToImport.length.toLocaleString('pt-BR')} contatos`}
-        </Button>
-      </div>
     </div>
   );
 
@@ -1065,6 +1033,43 @@ export const ImportContactsDialogV2 = ({
             {step === "deduplication" && renderDeduplicationStep()}
             {step === "tags" && renderTagsStep()}
           </ScrollArea>
+
+          {/* Fixed navigation footer */}
+          {step !== "upload" && (
+            <div className="flex justify-between pt-4 border-t mt-4 flex-shrink-0">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  if (step === "mapping") setStep("upload");
+                  else if (step === "deduplication") setStep("mapping");
+                  else if (step === "tags") setStep("deduplication");
+                }}
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
+              
+              {step === "mapping" && (
+                <Button onClick={() => setStep("deduplication")} disabled={validContacts.length === 0}>
+                  Próximo
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
+              
+              {step === "deduplication" && (
+                <Button onClick={() => setStep("tags")}>
+                  Próximo
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
+              
+              {step === "tags" && (
+                <Button onClick={handleImport} disabled={isLoading || contactsToImport.length === 0}>
+                  {isLoading ? "Importando..." : `Importar ${contactsToImport.length.toLocaleString('pt-BR')} contatos`}
+                </Button>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
