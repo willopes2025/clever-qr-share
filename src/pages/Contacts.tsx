@@ -410,15 +410,16 @@ const Contacts = () => {
         </Select>
 
         {/* Custom field filter */}
-        <Select value={customFieldKey} onValueChange={(v) => {
-          setCustomFieldKey(v);
-          if (!v) setCustomFieldValue("");
+        <Select value={customFieldKey || "none"} onValueChange={(v) => {
+          const newKey = v === "none" ? "" : v;
+          setCustomFieldKey(newKey);
+          if (!newKey) setCustomFieldValue("");
         }}>
           <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
             <SelectValue placeholder="Campo personalizado" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Nenhum</SelectItem>
+            <SelectItem value="none">Nenhum</SelectItem>
             {fieldDefinitions?.map((field) => (
               <SelectItem key={field.id} value={field.field_key}>
                 {field.field_name}
