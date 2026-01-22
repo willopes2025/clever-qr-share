@@ -5,6 +5,68 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const COUNTRY_CODES = [
+  { code: "55", name: "Brasil", flag: "🇧🇷" },
+  { code: "1", name: "Estados Unidos", flag: "🇺🇸" },
+  { code: "54", name: "Argentina", flag: "🇦🇷" },
+  { code: "56", name: "Chile", flag: "🇨🇱" },
+  { code: "57", name: "Colômbia", flag: "🇨🇴" },
+  { code: "51", name: "Peru", flag: "🇵🇪" },
+  { code: "598", name: "Uruguai", flag: "🇺🇾" },
+  { code: "595", name: "Paraguai", flag: "🇵🇾" },
+  { code: "591", name: "Bolívia", flag: "🇧🇴" },
+  { code: "58", name: "Venezuela", flag: "🇻🇪" },
+  { code: "593", name: "Equador", flag: "🇪🇨" },
+  { code: "34", name: "Espanha", flag: "🇪🇸" },
+  { code: "351", name: "Portugal", flag: "🇵🇹" },
+  { code: "39", name: "Itália", flag: "🇮🇹" },
+  { code: "33", name: "França", flag: "🇫🇷" },
+  { code: "49", name: "Alemanha", flag: "🇩🇪" },
+  { code: "44", name: "Reino Unido", flag: "🇬🇧" },
+  { code: "81", name: "Japão", flag: "🇯🇵" },
+  { code: "86", name: "China", flag: "🇨🇳" },
+  { code: "91", name: "Índia", flag: "🇮🇳" },
+  { code: "82", name: "Coreia do Sul", flag: "🇰🇷" },
+  { code: "52", name: "México", flag: "🇲🇽" },
+  { code: "61", name: "Austrália", flag: "🇦🇺" },
+  { code: "27", name: "África do Sul", flag: "🇿🇦" },
+  { code: "971", name: "Emirados Árabes", flag: "🇦🇪" },
+  { code: "966", name: "Arábia Saudita", flag: "🇸🇦" },
+  { code: "7", name: "Rússia", flag: "🇷🇺" },
+  { code: "380", name: "Ucrânia", flag: "🇺🇦" },
+  { code: "48", name: "Polônia", flag: "🇵🇱" },
+  { code: "31", name: "Holanda", flag: "🇳🇱" },
+  { code: "32", name: "Bélgica", flag: "🇧🇪" },
+  { code: "41", name: "Suíça", flag: "🇨🇭" },
+  { code: "43", name: "Áustria", flag: "🇦🇹" },
+  { code: "46", name: "Suécia", flag: "🇸🇪" },
+  { code: "47", name: "Noruega", flag: "🇳🇴" },
+  { code: "45", name: "Dinamarca", flag: "🇩🇰" },
+  { code: "358", name: "Finlândia", flag: "🇫🇮" },
+  { code: "353", name: "Irlanda", flag: "🇮🇪" },
+  { code: "30", name: "Grécia", flag: "🇬🇷" },
+  { code: "90", name: "Turquia", flag: "🇹🇷" },
+  { code: "972", name: "Israel", flag: "🇮🇱" },
+  { code: "20", name: "Egito", flag: "🇪🇬" },
+  { code: "234", name: "Nigéria", flag: "🇳🇬" },
+  { code: "254", name: "Quênia", flag: "🇰🇪" },
+  { code: "60", name: "Malásia", flag: "🇲🇾" },
+  { code: "65", name: "Singapura", flag: "🇸🇬" },
+  { code: "66", name: "Tailândia", flag: "🇹🇭" },
+  { code: "84", name: "Vietnã", flag: "🇻🇳" },
+  { code: "63", name: "Filipinas", flag: "🇵🇭" },
+  { code: "62", name: "Indonésia", flag: "🇮🇩" },
+  { code: "64", name: "Nova Zelândia", flag: "🇳🇿" },
+];
+
+function generateCountryOptionsHTML(): string {
+  return COUNTRY_CODES.map(country => 
+    `<option value="${country.code}" ${country.code === '55' ? 'selected' : ''}>
+      ${country.flag} +${country.code}
+    </option>`
+  ).join('');
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -216,6 +278,14 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     .rating button { background: none; border: none; cursor: pointer; font-size: 1.5rem; color: #d1d5db; transition: color 0.2s; }
     .rating button.active, .rating button:hover { color: #f59e0b; }
     .error-text { color: #ef4444; font-size: 0.8rem; margin-top: 0.25rem; }
+    .phone-input-group { display: flex; gap: 0.5rem; }
+    .country-code-select { 
+      width: 110px; 
+      flex-shrink: 0;
+      padding: 0.75rem 0.5rem;
+      font-size: 0.95rem;
+    }
+    .phone-input { flex: 1; }
   </style>
 </head>
 <body>
@@ -301,6 +371,51 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         });
       });
     });
+
+    // Phone formatting functionality
+    function formatBrazilianPhone(value) {
+      const digits = value.replace(/\\D/g, '').slice(0, 11);
+      if (digits.length <= 2) return digits.length ? '(' + digits : '';
+      if (digits.length <= 6) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2);
+      if (digits.length <= 10) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 6) + '-' + digits.slice(6);
+      return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 7) + '-' + digits.slice(7);
+    }
+
+    function formatGenericPhone(value) {
+      const digits = value.replace(/\\D/g, '').slice(0, 15);
+      // Format in groups of 4
+      let formatted = '';
+      for (let i = 0; i < digits.length; i += 4) {
+        if (i > 0) formatted += ' ';
+        formatted += digits.slice(i, i + 4);
+      }
+      return formatted;
+    }
+
+    document.querySelectorAll('.phone-input').forEach(input => {
+      const fieldId = input.dataset.fieldId;
+      const countrySelect = document.querySelector('[name="' + fieldId + '_country_code"]');
+      
+      input.addEventListener('input', (e) => {
+        const countryCode = countrySelect ? countrySelect.value : '55';
+        if (countryCode === '55') {
+          e.target.value = formatBrazilianPhone(e.target.value);
+        } else {
+          e.target.value = formatGenericPhone(e.target.value);
+        }
+      });
+
+      if (countrySelect) {
+        countrySelect.addEventListener('change', () => {
+          input.value = '';
+          if (countrySelect.value === '55') {
+            input.placeholder = '(XX) XXXXX-XXXX';
+          } else {
+            input.placeholder = 'Digite o número';
+          }
+        });
+      }
+    });
   </script>
 </body>
 </html>`;
@@ -336,7 +451,12 @@ function generateFieldHTML(field: any): string {
     case 'phone':
       return `<div class="field">
         <label>${escapeHtml(field.label)}${requiredStar}</label>
-        <input type="tel" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
+        <div class="phone-input-group">
+          <select name="${field.id}_country_code" class="country-code-select">
+            ${generateCountryOptionsHTML()}
+          </select>
+          <input type="tel" name="${field.id}" class="phone-input" placeholder="${escapeHtml(field.placeholder || '(XX) XXXXX-XXXX')}" ${required} data-field-id="${field.id}">
+        </div>
         ${helpText}
       </div>`;
 

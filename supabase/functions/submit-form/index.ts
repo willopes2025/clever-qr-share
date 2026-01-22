@@ -96,7 +96,11 @@ Deno.serve(async (req: Request) => {
         } else if (field.mapping_target === 'email') {
           contactData.email = String(fieldValue);
         } else if (field.mapping_target === 'phone') {
-          contactData.phone = String(fieldValue).replace(/\D/g, '');
+          // Get phone number and country code
+          const phoneDigits = String(fieldValue).replace(/\D/g, '');
+          const countryCode = submissionData[`${field.id}_country_code`] || '55';
+          // Combine country code with phone number
+          contactData.phone = `${countryCode}${phoneDigits}`;
         }
       } else if (field.mapping_type === 'custom_field' && field.mapping_target) {
         contactData.custom_fields![field.mapping_target] = fieldValue;
