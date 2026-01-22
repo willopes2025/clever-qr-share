@@ -11,7 +11,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { templateId, content, variationCount = 5 } = await req.json();
+    const { templateId, content, variationCount = 5, includeMedia = false, mediaType = null, mediaUrl = null, mediaFilename = null } = await req.json();
 
     if (!templateId || !content) {
       return new Response(
@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log(`Generating ${variationCount} variations for template ${templateId}`);
+    console.log(`Generating ${variationCount} variations for template ${templateId}, includeMedia: ${includeMedia}`);
 
     // Call Lovable AI to generate variations
     const prompt = `Você é um especialista em copywriting para WhatsApp e marketing digital.
@@ -235,6 +235,10 @@ Sem explicações, sem markdown, apenas o JSON.`;
       template_id: templateId,
       content: variationContent.trim().replace(/\\n/g, '\n'),
       variation_index: index + 1,
+      // Include media only if requested
+      media_type: includeMedia ? mediaType : null,
+      media_url: includeMedia ? mediaUrl : null,
+      media_filename: includeMedia ? mediaFilename : null,
     }));
 
     const { data: insertedVariations, error: insertError } = await supabase

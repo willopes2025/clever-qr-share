@@ -4333,6 +4333,9 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          media_filename: string | null
+          media_type: string | null
+          media_url: string | null
           template_id: string
           variation_index: number
         }
@@ -4340,6 +4343,9 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           template_id: string
           variation_index: number
         }
@@ -4347,6 +4353,9 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          media_filename?: string | null
+          media_type?: string | null
+          media_url?: string | null
           template_id?: string
           variation_index?: number
         }
