@@ -396,10 +396,10 @@ export const ImportLeadsDialog = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-hidden">
+          <ScrollArea className="flex-1 min-h-0 pr-2">
             {/* Step 1: Summary */}
             {step === "summary" && (
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 pr-2">
                 <div className="bg-muted rounded-lg p-4 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
@@ -456,81 +456,79 @@ export const ImportLeadsDialog = ({
 
             {/* Step 2: Mapping */}
             {step === "mapping" && (
-              <ScrollArea className="h-[400px] pr-4">
-                <div className="space-y-3 py-4">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Para cada campo, escolha como deseja importar os dados: ignorar, adicionar às notas, usar campo existente ou criar novo campo.
-                  </p>
+              <div className="space-y-3 py-4 pr-2">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Para cada campo, escolha como deseja importar os dados: ignorar, adicionar às notas, usar campo existente ou criar novo campo.
+                </p>
+                
+                {SOURCE_FIELDS.map(field => {
+                  const hasData = fieldDataCounts[field.key] > 0;
                   
-                  {SOURCE_FIELDS.map(field => {
-                    const hasData = fieldDataCounts[field.key] > 0;
-                    
-                    return (
-                      <div 
-                        key={field.key} 
-                        className={`flex items-center gap-3 p-3 rounded-lg border ${hasData ? 'bg-background' : 'bg-muted/30 opacity-60'}`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span>{field.icon}</span>
-                            <span className="font-medium">{field.label}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {fieldDataCounts[field.key]} registros
-                            </Badge>
-                          </div>
-                          {companies.length > 0 && (
-                            <p className="text-xs text-muted-foreground mt-1 truncate max-w-[300px]">
-                              Ex: {String(field.getValue(companies[0]) || '-')}
-                            </p>
-                          )}
+                  return (
+                    <div 
+                      key={field.key} 
+                      className={`flex items-center gap-3 p-3 rounded-lg border ${hasData ? 'bg-background' : 'bg-muted/30 opacity-60'}`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span>{field.icon}</span>
+                          <span className="font-medium">{field.label}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {fieldDataCounts[field.key]} registros
+                          </Badge>
                         </div>
-                        
-                        <Select
-                          value={getMappingDisplayValue(field.key)}
-                          onValueChange={(v) => handleMappingChange(field.key, v)}
-                          disabled={!hasData}
-                        >
-                          <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STANDARD_FIELDS.map(sf => (
-                              <SelectItem key={sf.value} value={sf.value}>
-                                {sf.label}
-                              </SelectItem>
-                            ))}
-                            
-                            <SelectItem value="create_new" className="text-primary">
-                              <span className="flex items-center gap-2">
-                                <Plus className="h-3 w-3" />
-                                Criar novo campo...
-                              </span>
-                            </SelectItem>
-                            
-                            {fieldDefinitions && fieldDefinitions.length > 0 && (
-                              <>
-                                <SelectItem value="---" disabled>
-                                  ── Campos existentes ──
-                                </SelectItem>
-                                {fieldDefinitions.map(fd => (
-                                  <SelectItem key={fd.field_key} value={fd.field_key}>
-                                    📋 {fd.field_name}
-                                  </SelectItem>
-                                ))}
-                              </>
-                            )}
-                          </SelectContent>
-                        </Select>
+                        {companies.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate max-w-[300px]">
+                            Ex: {String(field.getValue(companies[0]) || '-')}
+                          </p>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
+                      
+                      <Select
+                        value={getMappingDisplayValue(field.key)}
+                        onValueChange={(v) => handleMappingChange(field.key, v)}
+                        disabled={!hasData}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STANDARD_FIELDS.map(sf => (
+                            <SelectItem key={sf.value} value={sf.value}>
+                              {sf.label}
+                            </SelectItem>
+                          ))}
+                          
+                          <SelectItem value="create_new" className="text-primary">
+                            <span className="flex items-center gap-2">
+                              <Plus className="h-3 w-3" />
+                              Criar novo campo...
+                            </span>
+                          </SelectItem>
+                          
+                          {fieldDefinitions && fieldDefinitions.length > 0 && (
+                            <>
+                              <SelectItem value="---" disabled>
+                                ── Campos existentes ──
+                              </SelectItem>
+                              {fieldDefinitions.map(fd => (
+                                <SelectItem key={fd.field_key} value={fd.field_key}>
+                                  📋 {fd.field_name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {/* Step 3: Tags */}
             {step === "tags" && (
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 pr-2">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Tag className="h-4 w-4" />
@@ -583,9 +581,9 @@ export const ImportLeadsDialog = ({
                 </div>
               </div>
             )}
-          </div>
+          </ScrollArea>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 flex-shrink-0 border-t pt-4 mt-2">
             {step !== "summary" && (
               <Button variant="outline" onClick={handleBack}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
