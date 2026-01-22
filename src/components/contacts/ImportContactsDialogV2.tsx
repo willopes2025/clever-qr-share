@@ -973,7 +973,7 @@ export const ImportContactsDialogV2 = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col gap-0">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] min-h-0 flex flex-col gap-0">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>{getStepTitle()}</DialogTitle>
             <DialogDescription>{getStepDescription()}</DialogDescription>
@@ -1027,7 +1027,7 @@ export const ImportContactsDialogV2 = ({
           )}
 
           {/* Scrollable content */}
-          <ScrollArea className="flex-1 h-0 pr-2">
+          <ScrollArea className="flex-1 min-h-0 pr-2">
             {step === "upload" && renderUploadStep()}
             {step === "mapping" && renderMappingStep()}
             {step === "deduplication" && renderDeduplicationStep()}
