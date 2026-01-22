@@ -530,9 +530,8 @@ export const ImportContactsDialogV2 = ({
           Associe cada coluna do CSV a um campo do sistema. Você pode criar campos personalizados com tipos específicos (texto, número, data, seleção, etc.)
         </p>
         
-        <ScrollArea className="h-[280px] pr-4">
-          <div className="space-y-3">
-            {csvHeaders.map((header) => {
+        <div className="space-y-3">
+          {csvHeaders.map((header) => {
               const mapping = columnMappings[header];
               const preview = csvPreview[0]?.[csvHeaders.indexOf(header)] || "";
               
@@ -614,8 +613,7 @@ export const ImportContactsDialogV2 = ({
                 </div>
               );
             })}
-          </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Validation */}
@@ -973,14 +971,14 @@ export const ImportContactsDialogV2 = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] min-h-0 flex flex-col gap-0">
-          <DialogHeader className="flex-shrink-0">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] grid grid-rows-[auto_auto_auto_1fr_auto] gap-0 p-6">
+          <DialogHeader>
             <DialogTitle>{getStepTitle()}</DialogTitle>
             <DialogDescription>{getStepDescription()}</DialogDescription>
           </DialogHeader>
 
           {/* Progress indicator */}
-          <div className="flex items-center gap-2 my-4 flex-shrink-0">
+          <div className="flex items-center gap-2 my-4">
             {(["upload", "mapping", "deduplication", "tags"] as ImportStep[]).map((s, idx) => {
               const steps: ImportStep[] = ["upload", "mapping", "deduplication", "tags"];
               const currentIdx = steps.indexOf(step);
@@ -1026,17 +1024,17 @@ export const ImportContactsDialogV2 = ({
             </div>
           )}
 
-          {/* Scrollable content */}
-          <ScrollArea className="flex-1 min-h-0 pr-2">
+          {/* Scrollable content - native scroll */}
+          <div className="min-h-0 overflow-y-auto pr-2 touch-pan-y overscroll-contain pb-2">
             {step === "upload" && renderUploadStep()}
             {step === "mapping" && renderMappingStep()}
             {step === "deduplication" && renderDeduplicationStep()}
             {step === "tags" && renderTagsStep()}
-          </ScrollArea>
+          </div>
 
           {/* Fixed navigation footer */}
           {step !== "upload" && (
-            <div className="flex justify-between pt-4 border-t flex-shrink-0">
+            <div className="flex justify-between pt-4 border-t">
               <Button 
                 variant="outline" 
                 onClick={() => {
