@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Upload, FileText, AlertCircle, CheckCircle2, Download, Tag } from "lucide-react";
 import { toast } from "sonner";
 
@@ -195,165 +196,167 @@ export const ImportContactsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Importar Contatos</DialogTitle>
           <DialogDescription>
             Envie um arquivo CSV com os contatos. O arquivo deve conter pelo menos uma coluna de telefone.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Download template button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadTemplate}
-            className="w-full"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Baixar Modelo de Planilha
-          </Button>
+        <ScrollArea className="flex-1 min-h-0 pr-2">
+          <div className="space-y-4 pr-2">
+            {/* Download template button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadTemplate}
+              className="w-full"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Baixar Modelo de Planilha
+            </Button>
 
-          {/* Upload area */}
-          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-border">
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-              <p className="mb-1 text-sm text-muted-foreground">
-                <span className="font-semibold">Clique para enviar</span> ou arraste
-              </p>
-              <p className="text-xs text-muted-foreground">CSV ou TXT</p>
-            </div>
-            <input
-              type="file"
-              className="hidden"
-              accept=".csv,.txt"
-              onChange={handleFileChange}
-            />
-          </label>
-
-          {/* File info */}
-          {fileName && (
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-              <FileText className="w-5 h-5 text-primary" />
-              <span className="text-sm font-medium">{fileName}</span>
-            </div>
-          )}
-
-          {/* Preview */}
-          {parsedContacts.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1 text-green-600">
-                  <CheckCircle2 className="w-4 h-4" />
-                  {validCount} válidos
-                </div>
-                {invalidCount > 0 && (
-                  <div className="flex items-center gap-1 text-destructive">
-                    <AlertCircle className="w-4 h-4" />
-                    {invalidCount} inválidos
-                  </div>
-                )}
+            {/* Upload area */}
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-border">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                <p className="mb-1 text-sm text-muted-foreground">
+                  <span className="font-semibold">Clique para enviar</span> ou arraste
+                </p>
+                <p className="text-xs text-muted-foreground">CSV ou TXT</p>
               </div>
+              <input
+                type="file"
+                className="hidden"
+                accept=".csv,.txt"
+                onChange={handleFileChange}
+              />
+            </label>
 
-              <div className="max-h-48 overflow-y-auto border rounded-lg">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted sticky top-0">
-                    <tr>
-                      <th className="text-left p-2">Telefone</th>
-                      <th className="text-left p-2">Nome</th>
-                      <th className="text-left p-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedContacts.slice(0, 10).map((contact, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="p-2 font-mono text-xs">{contact.phone}</td>
-                        <td className="p-2">{contact.name || "-"}</td>
-                        <td className="p-2">
-                          {contact.isValid ? (
-                            <span className="text-green-600 text-xs">Válido</span>
-                          ) : (
-                            <span className="text-destructive text-xs">
-                              {contact.error}
-                            </span>
-                          )}
-                        </td>
+            {/* File info */}
+            {fileName && (
+              <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                <FileText className="w-5 h-5 text-primary" />
+                <span className="text-sm font-medium">{fileName}</span>
+              </div>
+            )}
+
+            {/* Preview */}
+            {parsedContacts.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1 text-green-600">
+                    <CheckCircle2 className="w-4 h-4" />
+                    {validCount} válidos
+                  </div>
+                  {invalidCount > 0 && (
+                    <div className="flex items-center gap-1 text-destructive">
+                      <AlertCircle className="w-4 h-4" />
+                      {invalidCount} inválidos
+                    </div>
+                  )}
+                </div>
+
+                <div className="max-h-48 overflow-y-auto border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted sticky top-0">
+                      <tr>
+                        <th className="text-left p-2">Telefone</th>
+                        <th className="text-left p-2">Nome</th>
+                        <th className="text-left p-2">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {parsedContacts.length > 10 && (
-                  <p className="p-2 text-center text-xs text-muted-foreground border-t">
-                    ... e mais {parsedContacts.length - 10} contatos
+                    </thead>
+                    <tbody>
+                      {parsedContacts.slice(0, 10).map((contact, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-2 font-mono text-xs">{contact.phone}</td>
+                          <td className="p-2">{contact.name || "-"}</td>
+                          <td className="p-2">
+                            {contact.isValid ? (
+                              <span className="text-green-600 text-xs">Válido</span>
+                            ) : (
+                              <span className="text-destructive text-xs">
+                                {contact.error}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {parsedContacts.length > 10 && (
+                    <p className="p-2 text-center text-xs text-muted-foreground border-t">
+                      ... e mais {parsedContacts.length - 10} contatos
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tag selection */}
+            {parsedContacts.length > 0 && tags.length > 0 && (
+              <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Aplicar tags aos contatos importados (opcional)
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Badge
+                      key={tag.id}
+                      variant={selectedTagIds.includes(tag.id) ? "default" : "outline"}
+                      onClick={() => toggleTag(tag.id)}
+                      className="cursor-pointer transition-all hover:scale-105"
+                      style={{
+                        backgroundColor: selectedTagIds.includes(tag.id) ? tag.color : "transparent",
+                        borderColor: tag.color,
+                        color: selectedTagIds.includes(tag.id) ? "#fff" : undefined,
+                      }}
+                    >
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
+                {selectedTagIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedTagIds.length} tag(s) serão aplicadas aos contatos importados
                   </p>
                 )}
               </div>
+            )}
+
+            {/* Format help */}
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p className="font-medium">Formato esperado:</p>
+              <code className="block p-2 bg-muted rounded text-xs">
+                telefone,nome,email<br />
+                5511999999999,João Silva,joao@email.com
+              </code>
             </div>
-          )}
-
-          {/* Tag selection */}
-          {parsedContacts.length > 0 && tags.length > 0 && (
-            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                Aplicar tags aos contatos importados (opcional)
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    variant={selectedTagIds.includes(tag.id) ? "default" : "outline"}
-                    onClick={() => toggleTag(tag.id)}
-                    className="cursor-pointer transition-all hover:scale-105"
-                    style={{
-                      backgroundColor: selectedTagIds.includes(tag.id) ? tag.color : "transparent",
-                      borderColor: tag.color,
-                      color: selectedTagIds.includes(tag.id) ? "#fff" : undefined,
-                    }}
-                  >
-                    {tag.name}
-                  </Badge>
-                ))}
-              </div>
-              {selectedTagIds.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedTagIds.length} tag(s) serão aplicadas aos contatos importados
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Format help */}
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p className="font-medium">Formato esperado:</p>
-            <code className="block p-2 bg-muted rounded text-xs">
-              telefone,nome,email<br />
-              5511999999999,João Silva,joao@email.com
-            </code>
           </div>
+        </ScrollArea>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                onOpenChange(false);
-                setParsedContacts([]);
-                setFileName("");
-                setSelectedTagIds([]);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleImport}
-              disabled={validCount === 0 || isLoading}
-            >
-              {isLoading
-                ? "Importando..."
-                : `Importar ${validCount} contatos`}
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2 pt-2 flex-shrink-0 border-t mt-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              setParsedContacts([]);
+              setFileName("");
+              setSelectedTagIds([]);
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={validCount === 0 || isLoading}
+          >
+            {isLoading
+              ? "Importando..."
+              : `Importar ${validCount} contatos`}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
