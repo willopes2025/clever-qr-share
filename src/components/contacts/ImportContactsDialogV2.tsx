@@ -973,14 +973,14 @@ export const ImportContactsDialogV2 = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col gap-0">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>{getStepTitle()}</DialogTitle>
             <DialogDescription>{getStepDescription()}</DialogDescription>
           </DialogHeader>
 
           {/* Progress indicator */}
-          <div className="flex items-center gap-2 mb-4 flex-shrink-0">
+          <div className="flex items-center gap-2 my-4 flex-shrink-0">
             {(["upload", "mapping", "deduplication", "tags"] as ImportStep[]).map((s, idx) => {
               const steps: ImportStep[] = ["upload", "mapping", "deduplication", "tags"];
               const currentIdx = steps.indexOf(step);
@@ -1027,7 +1027,7 @@ export const ImportContactsDialogV2 = ({
           )}
 
           {/* Scrollable content */}
-          <ScrollArea className="flex-1 min-h-0 pr-2">
+          <ScrollArea className="flex-1 h-0 pr-2">
             {step === "upload" && renderUploadStep()}
             {step === "mapping" && renderMappingStep()}
             {step === "deduplication" && renderDeduplicationStep()}
@@ -1036,7 +1036,7 @@ export const ImportContactsDialogV2 = ({
 
           {/* Fixed navigation footer */}
           {step !== "upload" && (
-            <div className="flex justify-between pt-4 border-t mt-4 flex-shrink-0">
+            <div className="flex justify-between pt-4 border-t flex-shrink-0">
               <Button 
                 variant="outline" 
                 onClick={() => {
