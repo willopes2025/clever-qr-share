@@ -869,26 +869,44 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.error('[PROFILE-PIC] Error fetching profile:', profileError);
       }
 
-      // Create new contact with label_id if available
+      // Create new contact with label_id if available - using UPSERT to handle race conditions
       const { data: newContact, error: contactError } = await supabase
         .from('contacts')
-        .insert({
+        .upsert({
           user_id: userId,
           phone: phone,
           name: contactName,
           status: 'active',
           label_id: labelId,
           avatar_url: avatarUrl,
+        }, { 
+          onConflict: 'user_id,phone',
+          ignoreDuplicates: false 
         })
-        .select('id')
+        .select('id, phone, label_id, name')
         .single();
 
       if (contactError) {
-        console.error('Error creating contact:', contactError);
-        continue;
+        // May have been created by parallel request - try to fetch existing
+        console.log('Upsert conflict, trying to fetch existing contact:', contactError.message);
+        const { data: existingContact } = await supabase
+          .from('contacts')
+          .select('id, phone, label_id, name')
+          .eq('user_id', userId)
+          .eq('phone', phone)
+          .single();
+          
+        if (existingContact) {
+          contact = existingContact;
+          console.log('Contact found after upsert conflict:', contact.id);
+        } else {
+          console.error('Error creating contact and could not find existing:', contactError);
+          continue;
+        }
+      } else {
+        contact = newContact;
+        console.log('Created/updated contact:', contact?.id, 'with label_id:', labelId, 'avatar_url:', avatarUrl ? 'yes' : 'no');
       }
-      contact = newContact;
-      console.log('Created new contact:', contact?.id, 'with label_id:', labelId, 'avatar_url:', avatarUrl ? 'yes' : 'no');
     } else if (labelId && !contact.label_id) {
       // Update existing contact to add label_id for future matching
       console.log(`Updating contact ${contact.id} with label_id: ${labelId}`);
@@ -978,10 +996,10 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.log('[LEAD-DISTRIBUTION] No distribution settings or not enabled:', distError);
       }
       
-      // Create new conversation
+      // Create new conversation - using UPSERT to handle race conditions
       const { data: newConversation, error: convError } = await supabase
         .from('conversations')
-        .insert({
+        .upsert({
           user_id: userId,
           contact_id: contact.id,
           instance_id: instanceId,
@@ -990,16 +1008,33 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           last_message_at: new Date().toISOString(),
           last_message_preview: preview,
           assigned_to: assignedTo,
+        }, { 
+          onConflict: 'user_id,contact_id' 
         })
-        .select('id')
+        .select('id, unread_count, first_response_at, created_at, assigned_to, instance_id')
         .single();
 
       if (convError) {
-        console.error('Error creating conversation:', convError);
-        continue;
+        // May have been created by parallel request - try to fetch existing
+        console.log('Conversation upsert conflict, trying to fetch existing:', convError.message);
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id, unread_count, first_response_at, created_at, assigned_to, instance_id')
+          .eq('user_id', userId)
+          .eq('contact_id', contact.id)
+          .single();
+          
+        if (existingConv) {
+          conversation = existingConv;
+          console.log('Conversation found after upsert conflict:', conversation.id);
+        } else {
+          console.error('Error creating conversation and could not find existing:', convError);
+          continue;
+        }
+      } else {
+        conversation = newConversation;
+        console.log('Created/updated conversation:', conversation?.id, 'assigned_to:', assignedTo);
       }
-      conversation = newConversation;
-      console.log('Created new conversation:', conversation?.id, 'assigned_to:', assignedTo);
       
       // Auto-create deal if instance has default funnel and is incoming message
       if (defaultFunnelId && !isFromMe && conversation) {
