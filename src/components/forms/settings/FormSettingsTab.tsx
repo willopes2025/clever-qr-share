@@ -178,14 +178,14 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
           <div className="space-y-2">
             <Label>Funil de Destino</Label>
             <Select 
-              value={settings.target_funnel_id} 
-              onValueChange={handleFunnelChange}
+              value={settings.target_funnel_id || 'none'} 
+              onValueChange={(v) => handleFunnelChange(v === 'none' ? '' : v)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Nenhum (não criar deal)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhum</SelectItem>
+                <SelectItem value="none">Nenhum (não criar deal)</SelectItem>
                 {funnels?.map(funnel => (
                   <SelectItem key={funnel.id} value={funnel.id}>
                     {funnel.name}
@@ -202,14 +202,14 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
             <div className="space-y-2">
               <Label>Estágio Inicial</Label>
               <Select 
-                value={settings.target_stage_id} 
-                onValueChange={(v) => setSettings({...settings, target_stage_id: v})}
+                value={settings.target_stage_id || 'default'} 
+                onValueChange={(v) => setSettings({...settings, target_stage_id: v === 'default' ? '' : v})}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Primeiro estágio (padrão)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Primeiro estágio (padrão)</SelectItem>
+                  <SelectItem value="default">Primeiro estágio (padrão)</SelectItem>
                   {selectedFunnel.stages?.map(stage => (
                     <SelectItem key={stage.id} value={stage.id}>
                       {stage.name}
