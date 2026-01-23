@@ -72,20 +72,39 @@ Deno.serve(async (req) => {
       throw new Error(`Campaign is already ${campaign.status}`);
     }
 
-    // Get organization member IDs to support team instances
-    const { data: orgMemberIds } = await supabase
-      .rpc('get_organization_member_ids', { _user_id: user.id });
-    
-    const allowedUserIds = orgMemberIds && orgMemberIds.length > 0 
-      ? orgMemberIds 
-      : [user.id];
+    // Check if user is a system admin (has 'admin' role in user_roles)
+    const { data: isAdmin } = await supabase
+      .rpc('has_role', { _user_id: user.id, _role: 'admin' });
 
-    // Verify all instances exist and are connected (including team members' instances)
-    const { data: instances, error: instancesError } = await supabase
-      .from('whatsapp_instances')
-      .select('id, instance_name, status, warming_level')
-      .in('id', instanceIds)
-      .in('user_id', allowedUserIds);
+    let instances;
+    let instancesError;
+
+    if (isAdmin) {
+      // System admins have access to ALL instances
+      console.log('User is system admin - accessing all instances');
+      const result = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, status, warming_level')
+        .in('id', instanceIds);
+      instances = result.data;
+      instancesError = result.error;
+    } else {
+      // Regular users: check organization member IDs
+      const { data: orgMemberIds } = await supabase
+        .rpc('get_organization_member_ids', { _user_id: user.id });
+      
+      const allowedUserIds = orgMemberIds && orgMemberIds.length > 0 
+        ? orgMemberIds 
+        : [user.id];
+
+      const result = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, status, warming_level')
+        .in('id', instanceIds)
+        .in('user_id', allowedUserIds);
+      instances = result.data;
+      instancesError = result.error;
+    }
 
     if (instancesError) {
       console.error('Instances fetch error:', instancesError);
@@ -93,6 +112,7 @@ Deno.serve(async (req) => {
     }
 
     if (!instances || instances.length !== instanceIds.length) {
+      console.error(`Expected ${instanceIds.length} instances, found ${instances?.length || 0}`);
       throw new Error('One or more WhatsApp instances not found');
     }
 
