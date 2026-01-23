@@ -199,14 +199,15 @@ const scheduleNextMessage = async (
           sendingMode,
           messageIndex,
           remainingDelay: delaySeconds,
-          chunkCount: 0
+          chunkCount: 0,
+          isIntervalDelay: true  // Flag to indicate this is an interval delay between messages
         })
       });
       
       if (!response.ok) {
         console.error(`Failed to schedule chunked delay: ${response.status}`);
       } else {
-        console.log(`Scheduled chunked delay for campaign ${campaignId}`);
+        console.log(`Scheduled chunked delay for campaign ${campaignId} (interval delay)`);
       }
     } catch (error) {
       console.error('Error scheduling chunked delay:', error);
@@ -299,99 +300,170 @@ Deno.serve(async (req: Request) => {
         );
       }
       
-      // IMPORTANT: Re-validate if we're now within allowed time before continuing chunking
-      // This prevents unnecessary chunking when the allowed time window has opened
-      if (body.campaignId) {
-        const { data: campaignCheck } = await supabase
-          .from('campaigns')
-          .select('allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
-          .eq('id', body.campaignId)
-          .single();
+      // Check if this is an interval delay between messages (should NEVER be skipped)
+      const isIntervalDelay = body.isIntervalDelay === true;
+      
+      if (isIntervalDelay) {
+        // INTERVAL DELAY: This is the configured delay between messages (e.g., 100-300s)
+        // This delay MUST be respected fully - never skip it based on allowed time
+        console.log(`Processing INTERVAL delay: ${remainingDelay}s remaining (chunk ${chunkCount}/${MAX_CHUNK_COUNT})`);
         
-        if (campaignCheck) {
-          // Check if campaign was cancelled
-          if (campaignCheck.status !== 'sending') {
-            console.log(`Campaign ${body.campaignId} is no longer sending (status: ${campaignCheck.status}). Stopping chunk.`);
+        // Check if campaign was cancelled
+        if (body.campaignId) {
+          const { data: campaignCheck } = await supabase
+            .from('campaigns')
+            .select('status')
+            .eq('id', body.campaignId)
+            .single();
+          
+          if (campaignCheck && campaignCheck.status !== 'sending') {
+            console.log(`Campaign ${body.campaignId} is no longer sending (status: ${campaignCheck.status}). Stopping interval delay.`);
             return new Response(
               JSON.stringify({ success: true, message: 'Campaign stopped', stopped: true }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
+        }
+        
+        // Execute the safe portion of the delay
+        const safeDelay = Math.min(remainingDelay, MAX_SAFE_DELAY_SECONDS);
+        console.log(`Interval delay chunk: waiting ${safeDelay}s of remaining ${remainingDelay}s...`);
+        
+        await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
+        
+        if (remainingDelay > MAX_SAFE_DELAY_SECONDS) {
+          const newRemainingDelay = remainingDelay - MAX_SAFE_DELAY_SECONDS;
           
-          const timeCheck = isWithinAllowedTime(
-            campaignCheck.allowed_start_hour ?? DEFAULT_START_HOUR,
-            campaignCheck.allowed_end_hour ?? DEFAULT_END_HOUR,
-            campaignCheck.allowed_days ?? DEFAULT_ALLOWED_DAYS,
-            campaignCheck.timezone ?? DEFAULT_TIMEZONE
+          // Schedule another chunk with isIntervalDelay preserved
+          const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+          
+          EdgeRuntime.waitUntil(
+            fetch(sendUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`
+              },
+              body: JSON.stringify({
+                ...body,
+                remainingDelay: newRemainingDelay,
+                chunkCount,
+                isIntervalDelay: true  // Preserve the flag
+              })
+            }).then(r => console.log(`Scheduled next interval delay chunk: ${r.status}`))
+              .catch(e => console.error('Error scheduling interval delay chunk:', e))
           );
           
-          if (timeCheck.allowed) {
-            console.log(`Now within allowed time! Skipping remaining ${remainingDelay}s delay and proceeding to send...`);
-            // Clear retry_at since we're proceeding
-            await supabase
-              .from('campaigns')
-              .update({ retry_at: null })
-              .eq('id', body.campaignId);
-            // Continue to normal execution below (don't return)
-          } else {
-            // Still outside allowed time - continue chunking or use persistent
-            const safeDelay = Math.min(remainingDelay, MAX_SAFE_DELAY_SECONDS);
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              message: `Interval delay chunk ${chunkCount} complete, ${newRemainingDelay}s remaining`,
+              delayChunk: true,
+              chunkCount,
+              isIntervalDelay: true
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Interval delay complete, continue to normal execution
+        console.log('Interval delay complete, proceeding to send next message...');
+        
+      } else {
+        // SCHEDULE DELAY: This is waiting for allowed hours - can be skipped if now within allowed time
+        if (body.campaignId) {
+          const { data: campaignCheck } = await supabase
+            .from('campaigns')
+            .select('allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
+            .eq('id', body.campaignId)
+            .single();
+          
+          if (campaignCheck) {
+            // Check if campaign was cancelled
+            if (campaignCheck.status !== 'sending') {
+              console.log(`Campaign ${body.campaignId} is no longer sending (status: ${campaignCheck.status}). Stopping chunk.`);
+              return new Response(
+                JSON.stringify({ success: true, message: 'Campaign stopped', stopped: true }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
             
-            console.log(`Chunked delay (chunk ${chunkCount}/${MAX_CHUNK_COUNT}): waiting ${safeDelay}s of remaining ${remainingDelay}s...`);
+            const timeCheck = isWithinAllowedTime(
+              campaignCheck.allowed_start_hour ?? DEFAULT_START_HOUR,
+              campaignCheck.allowed_end_hour ?? DEFAULT_END_HOUR,
+              campaignCheck.allowed_days ?? DEFAULT_ALLOWED_DAYS,
+              campaignCheck.timezone ?? DEFAULT_TIMEZONE
+            );
             
-            // Wait for the safe portion of the delay
-            await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
-            
-            if (remainingDelay > MAX_SAFE_DELAY_SECONDS) {
-              const newRemainingDelay = remainingDelay - MAX_SAFE_DELAY_SECONDS;
+            if (timeCheck.allowed) {
+              console.log(`Now within allowed time! Skipping remaining ${remainingDelay}s schedule delay and proceeding to send...`);
+              // Clear retry_at since we're proceeding
+              await supabase
+                .from('campaigns')
+                .update({ retry_at: null })
+                .eq('id', body.campaignId);
+              // Continue to normal execution below (don't return)
+            } else {
+              // Still outside allowed time - continue chunking or use persistent
+              const safeDelay = Math.min(remainingDelay, MAX_SAFE_DELAY_SECONDS);
               
-              // If still a lot of delay remaining and we've done some chunks, switch to persistent
-              if (newRemainingDelay > MAX_CHUNK_DELAY_SECONDS) {
-                const retryAt = new Date(Date.now() + newRemainingDelay * 1000);
-                await usePersistentScheduling(supabase, body.campaignId, retryAt, 'Long delay remaining after chunks');
+              console.log(`Schedule delay (chunk ${chunkCount}/${MAX_CHUNK_COUNT}): waiting ${safeDelay}s of remaining ${remainingDelay}s...`);
+              
+              // Wait for the safe portion of the delay
+              await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
+              
+              if (remainingDelay > MAX_SAFE_DELAY_SECONDS) {
+                const newRemainingDelay = remainingDelay - MAX_SAFE_DELAY_SECONDS;
+                
+                // If still a lot of delay remaining and we've done some chunks, switch to persistent
+                if (newRemainingDelay > MAX_CHUNK_DELAY_SECONDS) {
+                  const retryAt = new Date(Date.now() + newRemainingDelay * 1000);
+                  await usePersistentScheduling(supabase, body.campaignId, retryAt, 'Long delay remaining after chunks');
+                  
+                  return new Response(
+                    JSON.stringify({ 
+                      success: true, 
+                      message: `Switching to persistent scheduling. Retry at ${retryAt.toISOString()}`,
+                      persistentScheduling: true
+                    }),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                  );
+                }
+                
+                // Schedule another chunk (schedule delay, not interval)
+                const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+                
+                EdgeRuntime.waitUntil(
+                  fetch(sendUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseServiceKey}`
+                    },
+                    body: JSON.stringify({
+                      ...body,
+                      remainingDelay: newRemainingDelay,
+                      chunkCount,
+                      isIntervalDelay: false  // Keep as schedule delay
+                    })
+                  }).then(r => console.log(`Scheduled next delay chunk: ${r.status}`))
+                    .catch(e => console.error('Error scheduling delay chunk:', e))
+                );
                 
                 return new Response(
                   JSON.stringify({ 
                     success: true, 
-                    message: `Switching to persistent scheduling. Retry at ${retryAt.toISOString()}`,
-                    persistentScheduling: true
+                    message: `Delay chunk ${chunkCount} complete, ${newRemainingDelay}s remaining`,
+                    delayChunk: true,
+                    chunkCount
                   }),
                   { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 );
               }
               
-              // Schedule another chunk
-              const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
-              
-              EdgeRuntime.waitUntil(
-                fetch(sendUrl, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseServiceKey}`
-                  },
-                  body: JSON.stringify({
-                    ...body,
-                    remainingDelay: newRemainingDelay,
-                    chunkCount
-                  })
-                }).then(r => console.log(`Scheduled next delay chunk: ${r.status}`))
-                  .catch(e => console.error('Error scheduling delay chunk:', e))
-              );
-              
-              return new Response(
-                JSON.stringify({ 
-                  success: true, 
-                  message: `Delay chunk ${chunkCount} complete, ${newRemainingDelay}s remaining`,
-                  delayChunk: true,
-                  chunkCount
-                }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
+              // Delay complete, continue to normal execution
+              console.log('Schedule delay complete, proceeding to send message...');
             }
-            
-            // Delay complete, continue to normal execution
-            console.log('Chunked delay complete, proceeding to send message...');
           }
         }
       }
