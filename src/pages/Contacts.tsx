@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import {
   Plus,
   Upload,
   Search,
@@ -38,6 +47,7 @@ import {
   TagsIcon,
   CalendarIcon,
   Settings2,
+  CheckSquare,
 } from "lucide-react";
 import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -105,6 +115,10 @@ const Contacts = () => {
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [customFieldKey, setCustomFieldKey] = useState<string>("");
   const [customFieldValue, setCustomFieldValue] = useState<string>("");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(50);
 
   // Filtered contacts
   const filteredContacts = useMemo(() => {
@@ -174,13 +188,28 @@ const Contacts = () => {
     });
   }, [contacts, searchQuery, statusFilter, tagFilter, dateFilter, customDateFrom, customDateTo, customFieldKey, customFieldValue]);
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredContacts.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedContacts = filteredContacts.slice(startIndex, startIndex + pageSize);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, tagFilter, dateFilter, customDateFrom, customDateTo, customFieldKey, customFieldValue, pageSize]);
+
   // Handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(filteredContacts.map((c) => c.id));
+      // Select only contacts on current page
+      setSelectedIds(paginatedContacts.map((c) => c.id));
     } else {
       setSelectedIds([]);
     }
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedIds(filteredContacts.map((c) => c.id));
   };
 
   const handleSelectOne = (id: string, checked: boolean) => {
@@ -484,11 +513,27 @@ const Contacts = () => {
           </div>
         )}
 
+        {/* Bulk select all filtered option */}
+        {filteredContacts.length > 0 && selectedIds.length < filteredContacts.length && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleSelectAllFiltered}
+            className="neon-border"
+          >
+            <CheckSquare className="h-4 w-4 mr-1" />
+            Selecionar todos ({filteredContacts.length})
+          </Button>
+        )}
+
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-sm text-muted-foreground">
               {selectedIds.length} selecionado(s)
             </span>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
+              Limpar
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowBulkTagDialog(true)} className="neon-border">
               <TagIcon className="h-4 w-4 mr-1" />
               Taguear
@@ -542,27 +587,116 @@ const Contacts = () => {
           </div>
         </div>
       ) : (
-        <ContactsTableConfigurable
-          contacts={filteredContacts}
-          tags={tags}
-          selectedIds={selectedIds}
-          visibleColumns={visibleColumns}
-          columnOrder={columnOrder}
-          onSelectAll={handleSelectAll}
-          onSelectOne={handleSelectOne}
-          onEdit={(contact) => {
-            setEditingContact(contact);
-            setShowContactForm(true);
-          }}
-          onDelete={(id) => setDeleteConfirm(id)}
-          onToggleOptOut={(id, opted_out) => toggleOptOut.mutate({ id, opted_out })}
-          onAddTag={(contactId, tagId) =>
-            addTagToContact.mutate({ contactId, tagId })
-          }
-          onRemoveTag={(contactId, tagId) =>
-            removeTagFromContact.mutate({ contactId, tagId })
-          }
-        />
+        <div className="space-y-4">
+          <ContactsTableConfigurable
+            contacts={paginatedContacts}
+            tags={tags}
+            selectedIds={selectedIds}
+            visibleColumns={visibleColumns}
+            columnOrder={columnOrder}
+            onSelectAll={handleSelectAll}
+            onSelectOne={handleSelectOne}
+            onEdit={(contact) => {
+              setEditingContact(contact);
+              setShowContactForm(true);
+            }}
+            onDelete={(id) => setDeleteConfirm(id)}
+            onToggleOptOut={(id, opted_out) => toggleOptOut.mutate({ id, opted_out })}
+            onAddTag={(contactId, tagId) =>
+              addTagToContact.mutate({ contactId, tagId })
+            }
+            onRemoveTag={(contactId, tagId) =>
+              removeTagFromContact.mutate({ contactId, tagId })
+            }
+          />
+
+          {/* Pagination controls */}
+          <div className="flex items-center justify-between px-2 py-4 border-t border-border/50">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Itens por página:</span>
+                <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="w-[80px] bg-dark-800/50 border-neon-cyan/30">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="200">200</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-sm text-muted-foreground">
+                Mostrando {startIndex + 1}-{Math.min(startIndex + pageSize, filteredContacts.length)} de {filteredContacts.length} contatos
+                {filteredContacts.length !== contacts.length && (
+                  <span className="ml-1">({contacts.length} total)</span>
+                )}
+              </span>
+            </div>
+
+            {totalPages > 1 && (
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={cn(currentPage === 1 && "pointer-events-none opacity-50")}
+                    />
+                  </PaginationItem>
+
+                  {/* First page */}
+                  {currentPage > 2 && (
+                    <PaginationItem>
+                      <PaginationLink onClick={() => setCurrentPage(1)}>1</PaginationLink>
+                    </PaginationItem>
+                  )}
+
+                  {currentPage > 3 && (
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  )}
+
+                  {/* Current page neighborhood */}
+                  {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
+                    const page = Math.max(1, Math.min(currentPage - 1, totalPages - 2)) + i;
+                    if (page < 1 || page > totalPages) return null;
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink 
+                          onClick={() => setCurrentPage(page)}
+                          isActive={page === currentPage}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+
+                  {currentPage < totalPages - 2 && (
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  )}
+
+                  {/* Last page */}
+                  {currentPage < totalPages - 1 && totalPages > 3 && (
+                    <PaginationItem>
+                      <PaginationLink onClick={() => setCurrentPage(totalPages)}>{totalPages}</PaginationLink>
+                    </PaginationItem>
+                  )}
+
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={cn(currentPage === totalPages && "pointer-events-none opacity-50")}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Columns config dialog */}

@@ -57,9 +57,17 @@ export interface ContactWithDeals extends ContactWithTags {
 export const useContacts = () => {
   const queryClient = useQueryClient();
 
-  const { data: contacts = [], isLoading, refetch } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: async () => {
+  // Function to fetch all contacts in batches (bypasses 1000 limit)
+  const fetchAllContacts = async (): Promise<ContactWithDeals[]> => {
+    const PAGE_SIZE = 1000;
+    let allContacts: ContactWithDeals[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
       const { data, error } = await supabase
         .from("contacts")
         .select(`
@@ -83,11 +91,26 @@ export const useContacts = () => {
             funnel_stages (name, color)
           )
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-      return data as ContactWithDeals[];
-    },
+
+      if (data && data.length > 0) {
+        allContacts = [...allContacts, ...data as ContactWithDeals[]];
+        hasMore = data.length === PAGE_SIZE;
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allContacts;
+  };
+
+  const { data: contacts = [], isLoading, refetch } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: fetchAllContacts,
   });
 
   const { data: tags = [], isLoading: tagsLoading } = useQuery({
