@@ -29,6 +29,8 @@ export interface Form {
   og_image_url: string | null;
   settings: Record<string, any>;
   url_static_params?: StaticUrlParam[] | any;
+  target_funnel_id: string | null;
+  target_stage_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -2499,6 +2499,8 @@ export type Database = {
           subheader_text: string | null
           submit_button_text: string | null
           success_message: string | null
+          target_funnel_id: string | null
+          target_stage_id: string | null
           updated_at: string | null
           url_static_params: Json | null
           user_id: string
@@ -2523,6 +2525,8 @@ export type Database = {
           subheader_text?: string | null
           submit_button_text?: string | null
           success_message?: string | null
+          target_funnel_id?: string | null
+          target_stage_id?: string | null
           updated_at?: string | null
           url_static_params?: Json | null
           user_id: string
@@ -2547,11 +2551,28 @@ export type Database = {
           subheader_text?: string | null
           submit_button_text?: string | null
           success_message?: string | null
+          target_funnel_id?: string | null
+          target_stage_id?: string | null
           updated_at?: string | null
           url_static_params?: Json | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "forms_target_funnel_id_fkey"
+            columns: ["target_funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forms_target_stage_id_fkey"
+            columns: ["target_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       funnel_automations: {
         Row: {

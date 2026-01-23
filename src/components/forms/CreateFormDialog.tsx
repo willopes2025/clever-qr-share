@@ -73,6 +73,8 @@ export const CreateFormDialog = ({ open, onOpenChange }: CreateFormDialogProps) 
         meta_description: description || null,
         og_image_url: null,
         settings: {},
+        target_funnel_id: null,
+        target_stage_id: null,
       },
       {
         onSuccess: (data) => {
