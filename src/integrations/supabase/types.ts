@@ -1110,6 +1110,7 @@ export type Database = {
           message_interval_max: number | null
           message_interval_min: number | null
           name: string
+          retry_at: string | null
           scheduled_at: string | null
           sending_mode: string | null
           sent: number
@@ -1149,6 +1150,7 @@ export type Database = {
           message_interval_max?: number | null
           message_interval_min?: number | null
           name: string
+          retry_at?: string | null
           scheduled_at?: string | null
           sending_mode?: string | null
           sent?: number
@@ -1188,6 +1190,7 @@ export type Database = {
           message_interval_max?: number | null
           message_interval_min?: number | null
           name?: string
+          retry_at?: string | null
           scheduled_at?: string | null
           sending_mode?: string | null
           sent?: number
