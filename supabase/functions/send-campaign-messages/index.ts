@@ -19,6 +19,15 @@ const DEFAULT_END_HOUR = 20;
 const DEFAULT_ALLOWED_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri'];
 const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 
+// Maximum safe delay to avoid edge function timeout (50 seconds to have margin)
+const MAX_SAFE_DELAY_SECONDS = 50;
+
+// Maximum delay for chunking (5 minutes) - delays longer than this use persistent scheduling
+const MAX_CHUNK_DELAY_SECONDS = 300;
+
+// Maximum number of chunks to prevent infinite loops
+const MAX_CHUNK_COUNT = 10;
+
 // Generate a random delay between min and max (inclusive) in seconds
 const getRandomDelay = (minS: number, maxS: number): number => {
   return Math.floor(Math.random() * (maxS - minS + 1)) + minS;
@@ -144,10 +153,7 @@ interface CampaignSettings {
 
 type SendingMode = 'sequential' | 'random' | 'warming';
 
-// Maximum safe delay to avoid edge function timeout (50 seconds to have margin)
-const MAX_SAFE_DELAY_SECONDS = 50;
-
-// Function to schedule the next message execution with chunked delays
+// Function to schedule the next message execution with short delays only
 const scheduleNextMessage = async (
   supabaseUrl: string,
   supabaseServiceKey: string,
@@ -155,16 +161,31 @@ const scheduleNextMessage = async (
   instances: Instance[],
   sendingMode: SendingMode,
   messageIndex: number,
-  delaySeconds: number,
-  remainingDelay: number = 0
+  delaySeconds: number
 ) => {
   const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
   
-  // If delay is larger than safe limit, use chunked approach
-  if (delaySeconds > MAX_SAFE_DELAY_SECONDS) {
-    console.log(`Delay ${delaySeconds}s exceeds safe limit. Using chunked approach...`);
+  // For delays larger than max chunk delay, use persistent scheduling instead
+  if (delaySeconds > MAX_CHUNK_DELAY_SECONDS) {
+    console.log(`Delay ${delaySeconds}s exceeds max chunk limit (${MAX_CHUNK_DELAY_SECONDS}s). Using persistent scheduling...`);
     
-    // Invoke immediately with remainingDelay to continue waiting
+    // Update campaign with retry_at timestamp - the cron job will handle it
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const retryAt = new Date(Date.now() + delaySeconds * 1000);
+    
+    await supabase
+      .from('campaigns')
+      .update({ retry_at: retryAt.toISOString() })
+      .eq('id', campaignId);
+    
+    console.log(`Campaign ${campaignId} scheduled for retry at ${retryAt.toISOString()}`);
+    return;
+  }
+  
+  // If delay is larger than safe limit but within chunk limit, use chunked approach
+  if (delaySeconds > MAX_SAFE_DELAY_SECONDS) {
+    console.log(`Delay ${delaySeconds}s exceeds safe limit but within chunk limit. Using chunked approach...`);
+    
     try {
       const response = await fetch(sendUrl, {
         method: 'POST',
@@ -177,7 +198,8 @@ const scheduleNextMessage = async (
           instances,
           sendingMode,
           messageIndex,
-          remainingDelay: delaySeconds // Pass full delay as remaining
+          remainingDelay: delaySeconds,
+          chunkCount: 0
         })
       });
       
@@ -223,6 +245,23 @@ const scheduleNextMessage = async (
   }
 };
 
+// Function to use persistent scheduling for long delays
+const usePersistentScheduling = async (
+  supabase: any,
+  campaignId: string,
+  retryAt: Date,
+  reason: string
+) => {
+  console.log(`Using persistent scheduling: ${reason}. Retry at ${retryAt.toISOString()}`);
+  
+  await supabase
+    .from('campaigns')
+    .update({ retry_at: retryAt.toISOString() })
+    .eq('id', campaignId);
+  
+  console.log(`Campaign ${campaignId} scheduled for persistent retry at ${retryAt.toISOString()}`);
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -241,44 +280,121 @@ Deno.serve(async (req: Request) => {
     // Handle chunked delay - if we're waiting for remaining delay
     if (body.remainingDelay && body.remainingDelay > 0) {
       const remainingDelay = body.remainingDelay;
-      const safeDelay = Math.min(remainingDelay, MAX_SAFE_DELAY_SECONDS);
+      const chunkCount = (body.chunkCount || 0) + 1;
       
-      console.log(`Chunked delay: waiting ${safeDelay}s of remaining ${remainingDelay}s...`);
-      
-      // Wait for the safe portion of the delay
-      await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
-      
-      if (remainingDelay > MAX_SAFE_DELAY_SECONDS) {
-        // Still more delay needed - schedule another chunk
-        const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+      // Check chunk limit to prevent infinite loops
+      if (chunkCount > MAX_CHUNK_COUNT) {
+        console.log(`Chunk limit (${MAX_CHUNK_COUNT}) exceeded for campaign ${body.campaignId}. Using persistent scheduling...`);
         
-        EdgeRuntime.waitUntil(
-          fetch(sendUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`
-            },
-            body: JSON.stringify({
-              ...body,
-              remainingDelay: remainingDelay - MAX_SAFE_DELAY_SECONDS
-            })
-          }).then(r => console.log(`Scheduled next delay chunk: ${r.status}`))
-            .catch(e => console.error('Error scheduling delay chunk:', e))
-        );
+        const retryAt = new Date(Date.now() + remainingDelay * 1000);
+        await usePersistentScheduling(supabase, body.campaignId, retryAt, 'Chunk limit exceeded');
         
         return new Response(
           JSON.stringify({ 
             success: true, 
-            message: `Delay chunk complete, ${remainingDelay - MAX_SAFE_DELAY_SECONDS}s remaining`,
-            delayChunk: true
+            message: `Chunk limit exceeded. Scheduled for persistent retry at ${retryAt.toISOString()}`,
+            persistentScheduling: true
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      // Delay complete, continue to normal execution
-      console.log('Chunked delay complete, proceeding to send message...');
+      // IMPORTANT: Re-validate if we're now within allowed time before continuing chunking
+      // This prevents unnecessary chunking when the allowed time window has opened
+      if (body.campaignId) {
+        const { data: campaignCheck } = await supabase
+          .from('campaigns')
+          .select('allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
+          .eq('id', body.campaignId)
+          .single();
+        
+        if (campaignCheck) {
+          // Check if campaign was cancelled
+          if (campaignCheck.status !== 'sending') {
+            console.log(`Campaign ${body.campaignId} is no longer sending (status: ${campaignCheck.status}). Stopping chunk.`);
+            return new Response(
+              JSON.stringify({ success: true, message: 'Campaign stopped', stopped: true }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          const timeCheck = isWithinAllowedTime(
+            campaignCheck.allowed_start_hour ?? DEFAULT_START_HOUR,
+            campaignCheck.allowed_end_hour ?? DEFAULT_END_HOUR,
+            campaignCheck.allowed_days ?? DEFAULT_ALLOWED_DAYS,
+            campaignCheck.timezone ?? DEFAULT_TIMEZONE
+          );
+          
+          if (timeCheck.allowed) {
+            console.log(`Now within allowed time! Skipping remaining ${remainingDelay}s delay and proceeding to send...`);
+            // Clear retry_at since we're proceeding
+            await supabase
+              .from('campaigns')
+              .update({ retry_at: null })
+              .eq('id', body.campaignId);
+            // Continue to normal execution below (don't return)
+          } else {
+            // Still outside allowed time - continue chunking or use persistent
+            const safeDelay = Math.min(remainingDelay, MAX_SAFE_DELAY_SECONDS);
+            
+            console.log(`Chunked delay (chunk ${chunkCount}/${MAX_CHUNK_COUNT}): waiting ${safeDelay}s of remaining ${remainingDelay}s...`);
+            
+            // Wait for the safe portion of the delay
+            await new Promise(resolve => setTimeout(resolve, safeDelay * 1000));
+            
+            if (remainingDelay > MAX_SAFE_DELAY_SECONDS) {
+              const newRemainingDelay = remainingDelay - MAX_SAFE_DELAY_SECONDS;
+              
+              // If still a lot of delay remaining and we've done some chunks, switch to persistent
+              if (newRemainingDelay > MAX_CHUNK_DELAY_SECONDS) {
+                const retryAt = new Date(Date.now() + newRemainingDelay * 1000);
+                await usePersistentScheduling(supabase, body.campaignId, retryAt, 'Long delay remaining after chunks');
+                
+                return new Response(
+                  JSON.stringify({ 
+                    success: true, 
+                    message: `Switching to persistent scheduling. Retry at ${retryAt.toISOString()}`,
+                    persistentScheduling: true
+                  }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+              
+              // Schedule another chunk
+              const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+              
+              EdgeRuntime.waitUntil(
+                fetch(sendUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`
+                  },
+                  body: JSON.stringify({
+                    ...body,
+                    remainingDelay: newRemainingDelay,
+                    chunkCount
+                  })
+                }).then(r => console.log(`Scheduled next delay chunk: ${r.status}`))
+                  .catch(e => console.error('Error scheduling delay chunk:', e))
+              );
+              
+              return new Response(
+                JSON.stringify({ 
+                  success: true, 
+                  message: `Delay chunk ${chunkCount} complete, ${newRemainingDelay}s remaining`,
+                  delayChunk: true,
+                  chunkCount
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+            
+            // Delay complete, continue to normal execution
+            console.log('Chunked delay complete, proceeding to send message...');
+          }
+        }
+      }
     }
     
     // Support both old format (single instanceName) and new format (instances array)
@@ -316,7 +432,7 @@ Deno.serve(async (req: Request) => {
       .select(`
         user_id, status, sent, delivered, failed, total_contacts,
         message_interval_min, message_interval_max, daily_limit,
-        allowed_start_hour, allowed_end_hour, allowed_days, timezone
+        allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at
       `)
       .eq('id', campaignId)
       .single();
@@ -337,6 +453,14 @@ Deno.serve(async (req: Request) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Clear retry_at since we're now processing
+    if (campaign.retry_at) {
+      await supabase
+        .from('campaigns')
+        .update({ retry_at: null })
+        .eq('id', campaignId);
     }
 
     // Get campaign-specific settings (with defaults)
@@ -361,13 +485,33 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!timeCheck.allowed && timeCheck.nextAllowedTime) {
-      // Use the pre-calculated delay from isWithinAllowedTime (already in minutes)
-      // Convert to seconds and ensure it's always positive (minimum 60 seconds)
+      // Calculate delay in seconds
       const delaySeconds = Math.max(timeCheck.delayMinutes * 60, 60);
       
-      console.log(`Outside allowed sending time. Scheduling next attempt at ${timeCheck.nextAllowedTime.toISOString()} (${delaySeconds} seconds / ${timeCheck.delayMinutes} minutes from now)`);
+      console.log(`Outside allowed sending time. Next allowed: ${timeCheck.nextAllowedTime.toISOString()} (${delaySeconds} seconds / ${timeCheck.delayMinutes} minutes from now)`);
       
-      // Schedule for next allowed time
+      // For long delays (> 5 minutes), use persistent scheduling
+      if (delaySeconds > MAX_CHUNK_DELAY_SECONDS) {
+        await usePersistentScheduling(
+          supabase, 
+          campaignId, 
+          timeCheck.nextAllowedTime, 
+          'Outside allowed hours - long delay'
+        );
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: `Outside allowed sending time. Scheduled for persistent retry at ${timeCheck.nextAllowedTime.toISOString()}`,
+            scheduledFor: timeCheck.nextAllowedTime.toISOString(),
+            delayMinutes: timeCheck.delayMinutes,
+            persistentScheduling: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // For shorter delays, use chunked approach
       EdgeRuntime.waitUntil(
         scheduleNextMessage(
           supabaseUrl,
@@ -410,33 +554,22 @@ Deno.serve(async (req: Request) => {
     const sentTodayCount = sentToday || 0;
     
     if (sentTodayCount >= settings.daily_limit) {
-      // Daily limit reached - schedule for tomorrow
+      // Daily limit reached - schedule for tomorrow using persistent scheduling
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(settings.allowed_start_hour, 0, 0, 0);
       
-      const delaySeconds = Math.ceil((tomorrow.getTime() - Date.now()) / 1000);
-      
       console.log(`Daily limit of ${settings.daily_limit} reached (sent: ${sentTodayCount}). Scheduling for tomorrow at ${tomorrow.toISOString()}`);
       
-      EdgeRuntime.waitUntil(
-        scheduleNextMessage(
-          supabaseUrl,
-          supabaseServiceKey,
-          campaignId,
-          instances,
-          sendingMode,
-          messageIndex,
-          delaySeconds
-        )
-      );
+      await usePersistentScheduling(supabase, campaignId, tomorrow, 'Daily limit reached');
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: `Daily limit reached. Scheduled for ${tomorrow.toISOString()}`,
           scheduledFor: tomorrow.toISOString(),
-          dailyLimitReached: true
+          dailyLimitReached: true,
+          persistentScheduling: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -467,7 +600,8 @@ Deno.serve(async (req: Request) => {
         .from('campaigns')
         .update({
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          retry_at: null
         })
         .eq('id', campaignId);
 
@@ -500,209 +634,97 @@ Deno.serve(async (req: Request) => {
       
       for (const instance of instances) {
         cumulative += instance.warming_level;
-        if (random < cumulative) {
+        if (random <= cumulative) {
           return instance;
         }
       }
-      return instances[instances.length - 1];
-    };
-
-    // Function to get instance for a message based on sending mode
-    const getInstanceForMessage = (msgIndex: number): Instance => {
-      if (instances.length === 1) {
-        return instances[0];
-      }
-
-      switch (sendingMode) {
-        case 'warming':
-          return getInstanceByWarming();
-        case 'sequential':
-          return instances[msgIndex % instances.length];
-        case 'random':
-        default:
-          const randomIndex = Math.floor(Math.random() * instances.length);
-          return instances[randomIndex];
-      }
-    };
-
-    const instance = getInstanceForMessage(messageIndex);
-    let sentCount = campaign.sent;
-    let deliveredCount = campaign.delivered;
-    let failedCount = campaign.failed;
-
-    try {
-      // Update status to 'sending'
-      await supabase
-        .from('campaign_messages')
-        .update({ status: 'sending' })
-        .eq('id', message.id);
-
-      // Format phone number (remove non-digits and ensure country code)
-      let phone = message.phone.replace(/\D/g, '');
-      if (!phone.startsWith('55')) {
-        phone = '55' + phone;
-      }
-
-      console.log(`Sending message ${messageIndex + 1} to ${phone} via ${instance.instance_name}...`);
-
-      // Send via Evolution API
-      const response = await fetch(
-        `${evolutionApiUrl}/message/sendText/${instance.instance_name}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': evolutionApiKey
-          },
-          body: JSON.stringify({
-            number: phone,
-            text: message.message_content
-          })
-        }
-      );
-
-      const result = await response.json();
-      console.log(`Evolution API response for message ${messageIndex + 1}:`, JSON.stringify(result));
-
-      if (response.ok && result.key) {
-        // Message sent successfully
-        const sentAt = new Date().toISOString();
-        
-        await supabase
-          .from('campaign_messages')
-          .update({ 
-            status: 'sent',
-            sent_at: sentAt
-          })
-          .eq('id', message.id);
-
-        sentCount++;
-        deliveredCount++; // Assume delivered for now
-
-        console.log(`Message ${messageIndex + 1} sent successfully via ${instance.instance_name}`);
-
-        // Link conversation to campaign for AI agent and insert into inbox_messages
-        try {
-          // Find or create conversation for this contact
-          const { data: existingConversation } = await supabase
-            .from('conversations')
-            .select('id')
-            .eq('contact_id', message.contact_id)
-            .eq('user_id', campaign.user_id)
-            .single();
-
-          let conversationId: string | null = null;
-
-          if (existingConversation) {
-            conversationId = existingConversation.id;
-            
-            // Update existing conversation with campaign_id and AI settings
-            await supabase
-              .from('conversations')
-              .update({
-                campaign_id: campaignId,
-                ai_handled: true,
-                ai_paused: false,
-                ai_interactions_count: 0,
-                instance_id: instance.id === 'legacy' ? null : instance.id,
-                last_message_at: sentAt,
-                last_message_preview: message.message_content.substring(0, 100)
-              })
-              .eq('id', existingConversation.id);
-            
-            console.log(`Linked existing conversation ${existingConversation.id} to campaign ${campaignId}`);
-          } else {
-            // Create new conversation linked to campaign
-            const { data: newConv, error: convError } = await supabase
-              .from('conversations')
-              .insert({
-                user_id: campaign.user_id,
-                contact_id: message.contact_id,
-                campaign_id: campaignId,
-                instance_id: instance.id === 'legacy' ? null : instance.id,
-                ai_handled: true,
-                ai_paused: false,
-                ai_interactions_count: 0,
-                last_message_at: sentAt,
-                last_message_preview: message.message_content.substring(0, 100)
-              })
-              .select('id')
-              .single();
-            
-            if (!convError && newConv) {
-              conversationId = newConv.id;
-              console.log(`Created new conversation ${newConv.id} linked to campaign ${campaignId}`);
-            }
-          }
-
-          // Insert message into inbox_messages so it appears in the chat
-          if (conversationId) {
-            const { error: inboxError } = await supabase
-              .from('inbox_messages')
-              .insert({
-                conversation_id: conversationId,
-                user_id: campaign.user_id,
-                direction: 'outbound',
-                content: message.message_content,
-                message_type: 'text',
-                status: 'sent',
-                sent_at: sentAt,
-                whatsapp_message_id: result.key.id || null
-                // sent_by_user_id is null to indicate it was sent by the system/campaign
-              });
-
-            if (inboxError) {
-              console.error('Error inserting message into inbox_messages:', inboxError);
-            } else {
-              console.log(`Inserted campaign message into inbox_messages for conversation ${conversationId}`);
-            }
-          }
-        } catch (convLinkError) {
-          console.error('Error linking conversation to campaign:', convLinkError);
-          // Don't fail the message send if conversation linking fails
-        }
-      } else {
-        // Message failed
-        const errorMessage = result.message || result.error || 'Unknown error';
-        await supabase
-          .from('campaign_messages')
-          .update({ 
-            status: 'failed',
-            error_message: errorMessage
-          })
-          .eq('id', message.id);
-
-        failedCount++;
-        console.log(`Message ${messageIndex + 1} failed via ${instance.instance_name}: ${errorMessage}`);
-      }
-
-    } catch (sendError) {
-      console.error(`Error sending message ${message.id}:`, sendError);
       
-      const errorMessage = sendError instanceof Error ? sendError.message : 'Network error';
+      return instances[0];
+    };
+
+    // Select instance based on sending mode
+    let selectedInstance: Instance;
+    
+    switch (sendingMode) {
+      case 'warming':
+        selectedInstance = getInstanceByWarming();
+        break;
+      case 'random':
+        selectedInstance = instances[Math.floor(Math.random() * instances.length)];
+        break;
+      case 'sequential':
+      default:
+        selectedInstance = instances[messageIndex % instances.length];
+        break;
+    }
+
+    console.log(`Selected instance: ${selectedInstance.instance_name} (warming level: ${selectedInstance.warming_level})`);
+
+    // Update message status to 'sending'
+    await supabase
+      .from('campaign_messages')
+      .update({ status: 'sending' })
+      .eq('id', message.id);
+
+    // Format phone number (ensure it has country code)
+    let formattedPhone = message.phone.replace(/\D/g, '');
+    if (!formattedPhone.startsWith('55')) {
+      formattedPhone = '55' + formattedPhone;
+    }
+
+    // Send message via Evolution API
+    const evolutionResponse = await fetch(`${evolutionApiUrl}/message/sendText/${selectedInstance.instance_name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': evolutionApiKey
+      },
+      body: JSON.stringify({
+        number: formattedPhone,
+        text: message.message_content
+      })
+    });
+
+    const evolutionResult = await evolutionResponse.json();
+
+    if (evolutionResponse.ok && evolutionResult.key) {
+      console.log(`Message sent successfully to ${formattedPhone}`);
+      
+      // Update message as sent
       await supabase
         .from('campaign_messages')
-        .update({ 
-          status: 'failed',
-          error_message: errorMessage
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString()
         })
         .eq('id', message.id);
 
-      failedCount++;
-    }
+      // Increment campaign sent counter
+      await supabase
+        .from('campaigns')
+        .update({ 
+          sent: (campaign.sent || 0) + 1,
+          delivered: (campaign.delivered || 0) + 1
+        })
+        .eq('id', campaignId);
 
-    // Update campaign counters
-    const { error: updateError } = await supabase
-      .from('campaigns')
-      .update({
-        sent: sentCount,
-        delivered: deliveredCount,
-        failed: failedCount
-      })
-      .eq('id', campaignId);
+    } else {
+      console.error(`Failed to send message to ${formattedPhone}:`, evolutionResult);
+      
+      // Update message as failed
+      await supabase
+        .from('campaign_messages')
+        .update({
+          status: 'failed',
+          error_message: evolutionResult.message || 'Unknown error'
+        })
+        .eq('id', message.id);
 
-    if (updateError) {
-      console.error('Campaign counter update error:', updateError);
+      // Increment campaign failed counter
+      await supabase
+        .from('campaigns')
+        .update({ failed: (campaign.failed || 0) + 1 })
+        .eq('id', campaignId);
     }
 
     // Check if there are more messages to send
@@ -713,18 +735,18 @@ Deno.serve(async (req: Request) => {
       .eq('status', 'queued');
 
     if (countError) {
-      console.error('Count error:', countError);
+      console.error('Error counting remaining messages:', countError);
     }
 
-    const hasMoreMessages = (remainingCount || 0) > 0;
+    const remaining = remainingCount || 0;
 
-    if (hasMoreMessages) {
-      // Calculate random delay for next message using campaign settings
+    if (remaining > 0) {
+      // Calculate random delay for next message
       const delaySeconds = getRandomDelay(settings.message_interval_min, settings.message_interval_max);
       
-      console.log(`${remainingCount} messages remaining. Scheduling next in ${delaySeconds}s...`);
-      
-      // Use EdgeRuntime.waitUntil to schedule next message in background
+      console.log(`${remaining} messages remaining. Scheduling next message in ${delaySeconds} seconds...`);
+
+      // Schedule next message
       EdgeRuntime.waitUntil(
         scheduleNextMessage(
           supabaseUrl,
@@ -738,64 +760,33 @@ Deno.serve(async (req: Request) => {
       );
     } else {
       // No more messages - mark campaign as completed
-      console.log(`All messages processed for campaign ${campaignId}. Marking as completed.`);
-      
-      // Get campaign name for notification
-      const { data: campaignData } = await supabase
-        .from('campaigns')
-        .select('name, user_id')
-        .eq('id', campaignId)
-        .single();
+      console.log(`All messages sent for campaign ${campaignId}. Marking as completed.`);
       
       await supabase
         .from('campaigns')
         .update({
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          retry_at: null
         })
         .eq('id', campaignId);
-
-      // Send campaign_complete notification
-      if (campaignData) {
-        try {
-          await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              type: 'campaign_complete',
-              data: { campaignId, campaignName: campaignData.name },
-              recipientUserId: campaignData.user_id,
-            }),
-          });
-          console.log(`Sent campaign_complete notification for campaign ${campaignId}`);
-        } catch (e) {
-          console.error('Failed to send campaign_complete notification:', e);
-        }
-      }
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        messageIndex,
-        sent: sentCount,
-        delivered: deliveredCount,
-        failed: failedCount,
-        hasMoreMessages,
-        instanceUsed: instance.instance_name
+        message: `Message sent to ${formattedPhone}`,
+        remaining,
+        sent: (campaign.sent || 0) + 1
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Send campaign messages error:', error);
+    console.error('Error in send-campaign-messages:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

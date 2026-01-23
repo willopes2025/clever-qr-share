@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,23 +16,24 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Checking for scheduled campaigns...');
+    console.log('Checking for scheduled and retry campaigns...');
 
-    // Find campaigns that are scheduled and due to start
     const now = new Date().toISOString();
     
+    // Find campaigns that are scheduled and due to start
     const { data: scheduledCampaigns, error: fetchError } = await supabase
       .from('campaigns')
       .select(`
         id,
         name,
         instance_id,
+        instance_ids,
         scheduled_at,
-        user_id
+        user_id,
+        sending_mode
       `)
       .eq('status', 'scheduled')
       .not('scheduled_at', 'is', null)
-      .not('instance_id', 'is', null)
       .lte('scheduled_at', now);
 
     if (fetchError) {
@@ -40,32 +41,52 @@ Deno.serve(async (req) => {
       throw fetchError;
     }
 
-    console.log(`Found ${scheduledCampaigns?.length || 0} campaigns to process`);
+    // Find campaigns that are in 'sending' status but waiting for retry (retry_at)
+    const { data: retryCampaigns, error: retryError } = await supabase
+      .from('campaigns')
+      .select(`
+        id,
+        name,
+        instance_id,
+        instance_ids,
+        retry_at,
+        user_id,
+        sending_mode
+      `)
+      .eq('status', 'sending')
+      .not('retry_at', 'is', null)
+      .lte('retry_at', now);
 
-    if (!scheduledCampaigns || scheduledCampaigns.length === 0) {
+    if (retryError) {
+      console.error('Error fetching retry campaigns:', retryError);
+      throw retryError;
+    }
+
+    const totalScheduled = scheduledCampaigns?.length || 0;
+    const totalRetry = retryCampaigns?.length || 0;
+    
+    console.log(`Found ${totalScheduled} scheduled campaigns and ${totalRetry} retry campaigns to process`);
+
+    if (totalScheduled === 0 && totalRetry === 0) {
       return new Response(
-        JSON.stringify({ message: 'No scheduled campaigns to process', processed: 0 }),
+        JSON.stringify({ message: 'No campaigns to process', processed: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const results = [];
 
-    for (const campaign of scheduledCampaigns) {
+    // Process scheduled campaigns (new campaigns)
+    for (const campaign of (scheduledCampaigns || [])) {
       console.log(`Starting scheduled campaign: ${campaign.name} (${campaign.id})`);
 
       try {
-        // Get the instance name
-        const { data: instance, error: instanceError } = await supabase
-          .from('whatsapp_instances')
-          .select('instance_name, status')
-          .eq('id', campaign.instance_id)
-          .single();
-
-        if (instanceError || !instance) {
-          console.error(`Instance not found for campaign ${campaign.id}`);
+        // Get instance(s) - support both single and multiple instances
+        const instanceIds = campaign.instance_ids || (campaign.instance_id ? [campaign.instance_id] : []);
+        
+        if (instanceIds.length === 0) {
+          console.error(`No instances configured for campaign ${campaign.id}`);
           
-          // Mark campaign as failed
           await supabase
             .from('campaigns')
             .update({ 
@@ -74,14 +95,19 @@ Deno.serve(async (req) => {
             })
             .eq('id', campaign.id);
           
-          results.push({ campaignId: campaign.id, status: 'failed', reason: 'Instance not found' });
+          results.push({ campaignId: campaign.id, status: 'failed', reason: 'No instances configured' });
           continue;
         }
 
-        if (instance.status !== 'connected') {
-          console.error(`Instance ${instance.instance_name} not connected for campaign ${campaign.id}`);
+        // Fetch all instances
+        const { data: instances, error: instancesError } = await supabase
+          .from('whatsapp_instances')
+          .select('id, instance_name, status, warming_level')
+          .in('id', instanceIds);
+
+        if (instancesError || !instances || instances.length === 0) {
+          console.error(`Instances not found for campaign ${campaign.id}`);
           
-          // Mark campaign as failed
           await supabase
             .from('campaigns')
             .update({ 
@@ -90,7 +116,25 @@ Deno.serve(async (req) => {
             })
             .eq('id', campaign.id);
           
-          results.push({ campaignId: campaign.id, status: 'failed', reason: 'Instance not connected' });
+          results.push({ campaignId: campaign.id, status: 'failed', reason: 'Instances not found' });
+          continue;
+        }
+
+        // Check if at least one instance is connected
+        const connectedInstances = instances.filter(i => i.status === 'connected');
+        
+        if (connectedInstances.length === 0) {
+          console.error(`No connected instances for campaign ${campaign.id}`);
+          
+          await supabase
+            .from('campaigns')
+            .update({ 
+              status: 'failed',
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', campaign.id);
+          
+          results.push({ campaignId: campaign.id, status: 'failed', reason: 'No connected instances' });
           continue;
         }
 
@@ -114,25 +158,133 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             campaignId: campaign.id,
-            instanceName: instance.instance_name,
+            instances: connectedInstances.map(i => ({
+              id: i.id,
+              instance_name: i.instance_name,
+              warming_level: i.warming_level || 1
+            })),
+            sendingMode: campaign.sending_mode || 'warming'
           }),
         }).catch(err => {
           console.error(`Error triggering send for campaign ${campaign.id}:`, err);
         });
 
         console.log(`Campaign ${campaign.id} started successfully`);
-        results.push({ campaignId: campaign.id, status: 'started' });
+        results.push({ campaignId: campaign.id, status: 'started', type: 'scheduled' });
 
       } catch (campaignError) {
-        console.error(`Error processing campaign ${campaign.id}:`, campaignError);
+        console.error(`Error processing scheduled campaign ${campaign.id}:`, campaignError);
         results.push({ campaignId: campaign.id, status: 'error', reason: String(campaignError) });
+      }
+    }
+
+    // Process retry campaigns (campaigns waiting for allowed time window)
+    for (const campaign of (retryCampaigns || [])) {
+      console.log(`Resuming retry campaign: ${campaign.name} (${campaign.id})`);
+
+      try {
+        // Get instance(s)
+        const instanceIds = campaign.instance_ids || (campaign.instance_id ? [campaign.instance_id] : []);
+        
+        if (instanceIds.length === 0) {
+          console.error(`No instances configured for retry campaign ${campaign.id}`);
+          
+          await supabase
+            .from('campaigns')
+            .update({ 
+              status: 'failed',
+              completed_at: new Date().toISOString(),
+              retry_at: null
+            })
+            .eq('id', campaign.id);
+          
+          results.push({ campaignId: campaign.id, status: 'failed', reason: 'No instances configured', type: 'retry' });
+          continue;
+        }
+
+        // Fetch all instances
+        const { data: instances, error: instancesError } = await supabase
+          .from('whatsapp_instances')
+          .select('id, instance_name, status, warming_level')
+          .in('id', instanceIds);
+
+        if (instancesError || !instances || instances.length === 0) {
+          console.error(`Instances not found for retry campaign ${campaign.id}`);
+          
+          await supabase
+            .from('campaigns')
+            .update({ 
+              status: 'failed',
+              completed_at: new Date().toISOString(),
+              retry_at: null
+            })
+            .eq('id', campaign.id);
+          
+          results.push({ campaignId: campaign.id, status: 'failed', reason: 'Instances not found', type: 'retry' });
+          continue;
+        }
+
+        // Check if at least one instance is connected
+        const connectedInstances = instances.filter(i => i.status === 'connected');
+        
+        if (connectedInstances.length === 0) {
+          console.error(`No connected instances for retry campaign ${campaign.id}`);
+          
+          await supabase
+            .from('campaigns')
+            .update({ 
+              status: 'failed',
+              completed_at: new Date().toISOString(),
+              retry_at: null
+            })
+            .eq('id', campaign.id);
+          
+          results.push({ campaignId: campaign.id, status: 'failed', reason: 'No connected instances', type: 'retry' });
+          continue;
+        }
+
+        // Clear retry_at before resuming
+        await supabase
+          .from('campaigns')
+          .update({ retry_at: null })
+          .eq('id', campaign.id);
+
+        // Call send-campaign-messages to resume
+        const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+        
+        fetch(sendUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            campaignId: campaign.id,
+            instances: connectedInstances.map(i => ({
+              id: i.id,
+              instance_name: i.instance_name,
+              warming_level: i.warming_level || 1
+            })),
+            sendingMode: campaign.sending_mode || 'warming'
+          }),
+        }).catch(err => {
+          console.error(`Error resuming retry campaign ${campaign.id}:`, err);
+        });
+
+        console.log(`Retry campaign ${campaign.id} resumed successfully`);
+        results.push({ campaignId: campaign.id, status: 'resumed', type: 'retry' });
+
+      } catch (campaignError) {
+        console.error(`Error processing retry campaign ${campaign.id}:`, campaignError);
+        results.push({ campaignId: campaign.id, status: 'error', reason: String(campaignError), type: 'retry' });
       }
     }
 
     return new Response(
       JSON.stringify({ 
-        message: 'Scheduled campaigns processed',
-        processed: results.length,
+        message: 'Campaigns processed',
+        processedScheduled: totalScheduled,
+        processedRetry: totalRetry,
         results 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
