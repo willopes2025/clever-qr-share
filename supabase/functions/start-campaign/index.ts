@@ -72,12 +72,20 @@ Deno.serve(async (req) => {
       throw new Error(`Campaign is already ${campaign.status}`);
     }
 
-    // Verify all instances exist and are connected
+    // Get organization member IDs to support team instances
+    const { data: orgMemberIds } = await supabase
+      .rpc('get_organization_member_ids', { _user_id: user.id });
+    
+    const allowedUserIds = orgMemberIds && orgMemberIds.length > 0 
+      ? orgMemberIds 
+      : [user.id];
+
+    // Verify all instances exist and are connected (including team members' instances)
     const { data: instances, error: instancesError } = await supabase
       .from('whatsapp_instances')
       .select('id, instance_name, status, warming_level')
       .in('id', instanceIds)
-      .eq('user_id', user.id);
+      .in('user_id', allowedUserIds);
 
     if (instancesError) {
       console.error('Instances fetch error:', instancesError);
