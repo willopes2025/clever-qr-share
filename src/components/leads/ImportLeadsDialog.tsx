@@ -456,7 +456,7 @@ export const ImportLeadsDialog = ({
 
             {/* Step 2: Mapping */}
             {step === "mapping" && (
-              <div className="space-y-3 py-4 pr-2">
+              <div className="space-y-3 py-4 pr-2 max-h-[50vh] overflow-y-auto">
                 <p className="text-sm text-muted-foreground mb-4">
                   Para cada campo, escolha como deseja importar os dados: ignorar, adicionar às notas, usar campo existente ou criar novo campo.
                 </p>
