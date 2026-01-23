@@ -1,11 +1,13 @@
 import { Form, useForms } from "@/hooks/useForms";
+import { useFunnels } from "@/hooks/useFunnels";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState, useEffect } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Target } from "lucide-react";
 
 interface FormSettingsTabProps {
   form: Form;
@@ -13,6 +15,8 @@ interface FormSettingsTabProps {
 
 export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
   const { updateForm } = useForms();
+  const { funnels } = useFunnels();
+  
   const [settings, setSettings] = useState({
     name: form.name,
     description: form.description || '',
@@ -20,7 +24,14 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
     success_message: form.success_message,
     redirect_url: form.redirect_url || '',
     submit_button_text: form.submit_button_text,
+    target_funnel_id: form.target_funnel_id || '',
+    target_stage_id: form.target_stage_id || '',
   });
+
+  // Get stages for selected funnel
+  const selectedFunnel = useMemo(() => {
+    return funnels?.find(f => f.id === settings.target_funnel_id);
+  }, [funnels, settings.target_funnel_id]);
 
   useEffect(() => {
     setSettings({
@@ -30,8 +41,18 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
       success_message: form.success_message,
       redirect_url: form.redirect_url || '',
       submit_button_text: form.submit_button_text,
+      target_funnel_id: form.target_funnel_id || '',
+      target_stage_id: form.target_stage_id || '',
     });
   }, [form]);
+
+  const handleFunnelChange = (funnelId: string) => {
+    setSettings({
+      ...settings,
+      target_funnel_id: funnelId,
+      target_stage_id: '', // Reset stage when funnel changes
+    });
+  };
 
   const handleSave = () => {
     updateForm.mutate({
@@ -42,6 +63,8 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
       success_message: settings.success_message,
       redirect_url: settings.redirect_url || null,
       submit_button_text: settings.submit_button_text,
+      target_funnel_id: settings.target_funnel_id || null,
+      target_stage_id: settings.target_stage_id || null,
     });
   };
 
@@ -51,7 +74,9 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
     settings.slug !== form.slug ||
     settings.success_message !== form.success_message ||
     settings.redirect_url !== (form.redirect_url || '') ||
-    settings.submit_button_text !== form.submit_button_text;
+    settings.submit_button_text !== form.submit_button_text ||
+    settings.target_funnel_id !== (form.target_funnel_id || '') ||
+    settings.target_stage_id !== (form.target_stage_id || '');
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -136,6 +161,67 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
               onChange={(e) => setSettings({ ...settings, submit_button_text: e.target.value })}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Destino do Lead
+          </CardTitle>
+          <CardDescription>
+            Configure para qual funil os leads cadastrados serão enviados automaticamente
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Funil de Destino</Label>
+            <Select 
+              value={settings.target_funnel_id} 
+              onValueChange={handleFunnelChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum (não criar deal)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Nenhum</SelectItem>
+                {funnels?.map(funnel => (
+                  <SelectItem key={funnel.id} value={funnel.id}>
+                    {funnel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Ao selecionar um funil, um deal será criado automaticamente para cada novo lead
+            </p>
+          </div>
+          
+          {settings.target_funnel_id && selectedFunnel && (
+            <div className="space-y-2">
+              <Label>Estágio Inicial</Label>
+              <Select 
+                value={settings.target_stage_id} 
+                onValueChange={(v) => setSettings({...settings, target_stage_id: v})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Primeiro estágio (padrão)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Primeiro estágio (padrão)</SelectItem>
+                  {selectedFunnel.stages?.map(stage => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Define em qual estágio o deal será criado
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -80,57 +80,67 @@ Deno.serve(async (req: Request) => {
       custom_fields: {}
     };
 
-    for (const field of formFields) {
-      const fieldValue = submissionData[field.id];
-      
-      if (!fieldValue) continue;
+  for (const field of formFields) {
+    const fieldValue = submissionData[field.id];
+    
+    // Check for composite field parts (name has _first/_last, phone has _country_code)
+    const hasNameParts = submissionData[`${field.id}_first`] !== undefined;
+    const hasPhoneParts = submissionData[`${field.id}_country_code`] !== undefined;
+    
+    // Skip only if no direct value AND no composite parts
+    if (!fieldValue && !hasNameParts && !hasPhoneParts) continue;
 
-      if (field.mapping_type === 'contact_field') {
-        if (field.mapping_target === 'name') {
-          // Handle name field (first + last)
-          if (submissionData[`${field.id}_first`]) {
-            contactData.name = `${submissionData[`${field.id}_first`]} ${submissionData[`${field.id}_last`] || ''}`.trim();
-          } else {
-            contactData.name = String(fieldValue);
-          }
-        } else if (field.mapping_target === 'email') {
+    if (field.mapping_type === 'contact_field') {
+      if (field.mapping_target === 'name') {
+        // Handle name field (first + last) - check composite fields first
+        if (submissionData[`${field.id}_first`]) {
+          contactData.name = `${submissionData[`${field.id}_first`]} ${submissionData[`${field.id}_last`] || ''}`.trim();
+        } else if (fieldValue) {
+          contactData.name = String(fieldValue);
+        }
+      } else if (field.mapping_target === 'email') {
+        if (fieldValue) {
           contactData.email = String(fieldValue);
-        } else if (field.mapping_target === 'phone') {
-          // Get phone number and country code
-          const phoneDigits = String(fieldValue).replace(/\D/g, '');
-          const countryCode = submissionData[`${field.id}_country_code`] || '55';
-          // Combine country code with phone number
+        }
+      } else if (field.mapping_target === 'phone') {
+        // Get phone number and country code
+        const phoneValue = fieldValue || '';
+        const phoneDigits = String(phoneValue).replace(/\D/g, '');
+        const countryCode = submissionData[`${field.id}_country_code`] || '55';
+        // Combine country code with phone number
+        if (phoneDigits) {
           contactData.phone = `${countryCode}${phoneDigits}`;
         }
-      } else if (field.mapping_type === 'custom_field' && field.mapping_target) {
-        contactData.custom_fields![field.mapping_target] = fieldValue;
-      } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit) {
-        // Create new custom field definition if it doesn't exist
-        const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-        
-        const { data: existingField } = await supabase
-          .from('custom_field_definitions')
-          .select('id')
-          .eq('user_id', form.user_id)
-          .eq('field_key', fieldKey)
-          .single();
-
-        if (!existingField) {
-          await supabase
-            .from('custom_field_definitions')
-            .insert({
-              user_id: form.user_id,
-              field_name: field.mapping_target,
-              field_key: fieldKey,
-              field_type: 'text',
-              is_required: false,
-              display_order: 999,
-            });
-        }
-
-        contactData.custom_fields![fieldKey] = fieldValue;
       }
+    } else if (field.mapping_type === 'custom_field' && field.mapping_target && fieldValue) {
+      contactData.custom_fields![field.mapping_target] = fieldValue;
+    } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
+      // Create new custom field definition if it doesn't exist
+      const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      
+      const { data: existingField } = await supabase
+        .from('custom_field_definitions')
+        .select('id')
+        .eq('user_id', form.user_id)
+        .eq('field_key', fieldKey)
+        .single();
+
+      if (!existingField) {
+        await supabase
+          .from('custom_field_definitions')
+          .insert({
+            user_id: form.user_id,
+            field_name: field.mapping_target,
+            field_key: fieldKey,
+            field_type: 'text',
+            is_required: false,
+            display_order: 999,
+          });
+      }
+
+      contactData.custom_fields![fieldKey] = fieldValue;
     }
+  }
 
     let contactId: string | null = null;
 
@@ -292,11 +302,68 @@ Deno.serve(async (req: Request) => {
           }
         }
       } catch (automationError) {
-        console.error('Error processing form automations:', automationError);
-      }
+      console.error('Error processing form automations:', automationError);
     }
+  }
 
-    console.log(`Form submission saved: ${submission.id} for form ${formId}`);
+  // Create deal in funnel if target_funnel_id is configured
+  if (contactId && form.target_funnel_id) {
+    try {
+      let stageId = form.target_stage_id;
+      
+      // If no stage defined, get first stage of funnel
+      if (!stageId) {
+        const { data: firstStage } = await supabase
+          .from('funnel_stages')
+          .select('id')
+          .eq('funnel_id', form.target_funnel_id)
+          .order('display_order')
+          .limit(1)
+          .maybeSingle();
+        
+        stageId = firstStage?.id;
+      }
+      
+      if (stageId) {
+        // Check if there's already an open deal for this contact in this funnel
+        const { data: existingDeal } = await supabase
+          .from('funnel_deals')
+          .select('id')
+          .eq('contact_id', contactId)
+          .eq('funnel_id', form.target_funnel_id)
+          .is('closed_at', null)
+          .maybeSingle();
+        
+        if (!existingDeal) {
+          // Create new deal
+          const { data: newDeal, error: dealError } = await supabase
+            .from('funnel_deals')
+            .insert({
+              funnel_id: form.target_funnel_id,
+              stage_id: stageId,
+              contact_id: contactId,
+              user_id: form.user_id,
+              title: contactData.name || 'Lead do Formulário',
+              source: `Formulário: ${form.name}`,
+            })
+            .select('id')
+            .single();
+          
+          if (dealError) {
+            console.error('Error creating deal:', dealError);
+          } else {
+            console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
+          }
+        } else {
+          console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
+        }
+      }
+    } catch (dealError) {
+      console.error('Error processing funnel deal creation:', dealError);
+    }
+  }
+
+  console.log(`Form submission saved: ${submission.id} for form ${formId}`);
 
     return new Response(
       JSON.stringify({ 
