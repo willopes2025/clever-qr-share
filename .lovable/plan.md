@@ -1,244 +1,83 @@
 
-# Plano: Escolha de Tipo de Entidade no Mapeamento de Importacao
+# Plano: Corrigir Dropdown de Etapas no Dialog de Importacao de Contatos
 
-## Visao Geral
+## Problema Identificado
 
-Ao importar uma planilha de contatos, o usuario podera escolher se cada campo mapeado e um campo de **Contato** ou de **Lead/Deal**. Os campos serao pareados com os campos personalizados ja existentes no banco de dados, separados por tipo de entidade.
+Ao tentar importar contatos existentes (filtrados por tag) para um funil, o dropdown de selecao de etapas nao aparece ou fica invisivel. Isso impede o usuario de escolher em qual etapa os contatos serao adicionados.
 
-## Arquitetura Atual vs. Proposta
+## Causa Raiz
 
-```text
-ATUAL:
-+---------------------------+
-|  Coluna CSV: "Empresa"    |
-|  Mapear para: [dropdown]  |
-|    - Ignorar              |
-|    - Nome                 |
-|    - Telefone             |
-|    - Campos Personalizados|  <- Todos misturados
-|    - Criar novo campo     |
-+---------------------------+
+O problema esta relacionado ao uso de componentes Radix UI em camadas sobrepostas:
 
-PROPOSTO:
-+---------------------------+
-|  Coluna CSV: "Empresa"    |
-|  Mapear para: [dropdown]  |
-|    - Ignorar              |
-|    - Nome (Contato)       |
-|    - Telefone (Contato)   |
-|  ─── Campos do Contato ───|
-|    - CNPJ                 |
-|    - CPF                  |
-|  ─── Campos do Lead ──────|
-|    - Origem               |
-|    - Atendente            |
-|  ─── Criar Novo Campo ────|
-|    + Novo campo...        |  <- Abre dialog com seletor de entidade
-+---------------------------+
-```
+1. O `Dialog` (modal) usa um Portal com `z-50`
+2. O `Select` dentro do Dialog tambem usa um Portal separado com `z-[60]`
+3. Embora o z-index do Select seja maior, ha conflitos de stacking context entre Portals do Radix
+4. O dropdown pode estar sendo renderizado fora da area visivel ou com transparencia incorreta
 
-## Alteracoes Necessarias
+## Solucao
 
-### 1. Atualizar Interface `NewFieldConfig`
+Corrigir o z-index e garantir que o `SelectContent` apareca corretamente sobre o Dialog.
 
-**Arquivo:** `src/components/contacts/CreateFieldInlineDialog.tsx`
+### Alteracao 1: Aumentar z-index do SelectContent
 
-Adicionar `entity_type` a interface:
+**Arquivo:** `src/components/ui/select.tsx`
+
+Aumentar o z-index de `z-[60]` para `z-[100]` para garantir que o dropdown sempre apareca sobre modais:
 
 ```typescript
-export interface NewFieldConfig {
-  field_name: string;
-  field_key: string;
-  field_type: FieldType;
-  options?: string[];
-  is_required?: boolean;
-  entity_type?: 'contact' | 'lead';  // NOVO
-}
+// Linha 68-69
+className={cn(
+  "relative z-[100] max-h-[var(--radix-select-content-available-height)] min-w-[8rem] ...",
 ```
 
-### 2. Atualizar `CreateFieldInlineDialog`
+### Alteracao 2: Adicionar background explicito no SelectContent
 
-**Arquivo:** `src/components/contacts/CreateFieldInlineDialog.tsx`
-
-Adicionar seletor de tipo de entidade no formulario de criacao:
-
-```text
-+---------------------------+
-| Nome do Campo             |
-| [Empresa               ]  |
-+---------------------------+
-| Tipo de Entidade          |  <- NOVO
-| (•) Contato  ( ) Lead     |
-+---------------------------+
-| Tipo do Campo             |
-| [Texto                  ] |
-+---------------------------+
-```
-
-Alteracoes:
-- Adicionar estado `entityType` com valor padrao 'contact'
-- Adicionar `RadioGroup` ou `ToggleGroup` para selecionar 'contact' ou 'lead'
-- Incluir `entity_type` no objeto retornado por `handleSubmit`
-- Adicionar prop opcional `defaultEntityType` para pre-selecionar
-
-### 3. Atualizar Mapeamento no `ImportContactsDialogV2`
-
-**Arquivo:** `src/components/contacts/ImportContactsDialogV2.tsx`
-
-Modificar o dropdown de mapeamento para separar campos por entidade:
-
-**Estrutura do SelectContent:**
-```text
-- Ignorar coluna
-- Campos Padrao (Nome, Telefone, Email, Notas, ID Externo)
-─── Campos do Contato ───────────────────
-  - CNPJ (texto)
-  - CPF (texto)
-  - Empresa (texto)
-─── Campos do Lead ─────────────────────
-  - Origem (selecao)
-  - Atendente (texto)
-  - Status IA (texto)
-─── Criar Novo Campo ───────────────────
-  + Criar campo personalizado...
-```
-
-Alteracoes:
-- Filtrar `existingFields` por `entity_type === 'contact'` e `entity_type === 'lead'`
-- Adicionar separadores visuais para cada grupo
-- Mostrar badge indicando tipo de entidade em campos novos
-
-### 4. Atualizar Interface `ColumnMapping`
-
-**Arquivo:** `src/components/contacts/ImportContactsDialogV2.tsx`
-
-Adicionar tracking de entity_type no mapeamento:
+Garantir que o dropdown tenha background solido mesmo em diferentes contextos:
 
 ```typescript
-interface ColumnMapping {
-  csvColumn: string;
-  targetField: string;
-  isNewField?: boolean;
-  newFieldConfig?: NewFieldConfig;
-  entityType?: 'contact' | 'lead';  // NOVO - para campos existentes
-}
+// Adicionar bg-popover explicitamente se necessario
+"bg-popover border shadow-md"
 ```
 
-### 5. Atualizar `handleImport` para Separar Dados
+### Alteracao 3: Verificar o componente ImportContactsToFunnelDialog
 
-**Arquivo:** `src/components/contacts/ImportContactsDialogV2.tsx`
+**Arquivo:** `src/components/funnels/ImportContactsToFunnelDialog.tsx`
 
-Modificar a logica de construcao dos contatos para separar custom_fields:
+O componente ja esta correto na linha 317-329, mas vamos garantir que:
+
+1. O `SelectContent` tenha z-index suficiente
+2. Adicionar uma verificacao para mostrar mensagem se nao houver etapas disponiveis:
 
 ```typescript
-const contacts = contactsToImport.map((row) => {
-  const contact = {
-    phone: "",
-    custom_fields: {},      // Campos do CONTATO
-    lead_custom_fields: {}, // Campos do LEAD (NOVO)
-  };
-
-  Object.entries(columnMappings).forEach(([column, mapping]) => {
-    // ... logica existente para campos padrao ...
-    
-    if (mapping.targetField.startsWith("custom:")) {
-      const fieldKey = mapping.targetField.replace("custom:", "");
-      const field = existingFields.find(f => f.field_key === fieldKey);
-      
-      if (field?.entity_type === 'lead') {
-        contact.lead_custom_fields[fieldKey] = value;
-      } else {
-        contact.custom_fields[fieldKey] = value;
-      }
-    }
-  });
-
-  return contact;
-});
+{funnel.stages?.filter(s => !s.is_final).length === 0 ? (
+  <SelectItem value="" disabled>
+    Nenhuma etapa disponivel
+  </SelectItem>
+) : (
+  funnel.stages?.filter(s => !s.is_final).map(stage => (
+    // ... renderizar etapas
+  ))
+)}
 ```
-
-### 6. Atualizar `useContacts.importContacts`
-
-**Arquivo:** `src/hooks/useContacts.ts`
-
-Modificar para:
-- Aceitar `entity_type` nos novos campos
-- Salvar campos de lead no deal quando existir
-- Criar deal automaticamente se houver campos de lead
-
-```typescript
-// Na interface de contacts
-contacts: {
-  phone: string;
-  name?: string;
-  email?: string;
-  custom_fields?: Record<string, unknown>;
-  lead_custom_fields?: Record<string, unknown>;  // NOVO
-}[];
-
-// Ao criar novos campos
-const fieldsToInsert = newFields.map((field, index) => ({
-  field_name: field.field_name,
-  field_key: field.field_key,
-  field_type: field.field_type,
-  options: field.options || [],
-  is_required: field.is_required || false,
-  display_order: index,
-  user_id: user.id,
-  entity_type: field.entity_type || 'contact',  // NOVO
-}));
-
-// Ao inserir contatos
-// Se tiver lead_custom_fields, criar/atualizar deal
-```
-
-### 7. Atualizar Props do Componente
-
-**Arquivo:** `src/pages/Contacts.tsx`
-
-Passar campos separados por tipo para o dialog:
-
-```typescript
-<ImportContactsDialogV2
-  existingFields={fieldDefinitions}  // Ja inclui entity_type de cada campo
-  // ...
-/>
-```
-
-## Fluxo do Usuario
-
-1. Usuario carrega planilha CSV
-2. Sistema detecta colunas e tenta auto-mapear
-3. Para cada coluna, usuario ve:
-   - Campos padrao (Nome, Telefone, Email, etc.)
-   - **Campos do Contato** (separados)
-   - **Campos do Lead** (separados)
-   - Opcao de criar novo campo
-4. Ao criar novo campo, usuario escolhe:
-   - Nome do campo
-   - **Tipo de entidade (Contato ou Lead)**
-   - Tipo de variavel (texto, numero, data, etc.)
-5. Ao importar:
-   - Campos de contato salvos em `contacts.custom_fields`
-   - Campos de lead salvos em `funnel_deals.custom_fields`
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/contacts/CreateFieldInlineDialog.tsx` | Adicionar seletor entity_type |
-| `src/components/contacts/ImportContactsDialogV2.tsx` | Separar campos por entidade no dropdown, rastrear entity_type no mapeamento |
-| `src/hooks/useContacts.ts` | Aceitar entity_type nos newFields, separar custom_fields por entidade |
-| `src/components/leads/ImportLeadsDialog.tsx` | Aplicar mesma logica de separacao |
+| `src/components/ui/select.tsx` | Aumentar z-index para `z-[100]` |
+| `src/components/funnels/ImportContactsToFunnelDialog.tsx` | Adicionar fallback quando nao houver etapas |
 
-## Consideracoes Tecnicas
+## Teste Esperado
 
-1. **Compatibilidade retroativa**: Campos existentes sem entity_type sao tratados como 'contact'
-2. **Criacao de deal**: Se houver campos de lead na importacao, sera necessario definir em qual funil/etapa criar o deal (ou usar um padrao)
-3. **Validacao**: Garantir que campos obrigatorios de cada entidade sejam preenchidos
+1. Acessar a pagina de Funis
+2. Clicar em "Importar Contatos"
+3. O dropdown de "Etapa inicial" deve aparecer com todas as etapas nao-finais do funil
+4. Selecionar a tag desejada (ex: "coronel cel..")
+5. Selecionar a etapa destino
+6. Clicar em Importar
 
-## Impacto
+## Consideracoes Adicionais
 
-- Usuarios poderao organizar melhor os dados importados
-- Campos de lead ficarao vinculados ao deal, nao ao contato
-- Maior flexibilidade na importacao de dados de diferentes origens
+- A correcao do z-index beneficiara todos os Selects usados dentro de Dialogs no sistema
+- Nao afeta o comportamento de Selects fora de modais
+- Compativel com a estrutura existente do Radix UI
