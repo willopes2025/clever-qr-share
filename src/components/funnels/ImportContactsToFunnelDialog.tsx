@@ -314,18 +314,24 @@ export const ImportContactsToFunnelDialog = ({
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a etapa" />
               </SelectTrigger>
-              <SelectContent>
-                {funnel.stages?.filter(s => !s.is_final).map(stage => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="h-3 w-3 rounded-full" 
-                        style={{ backgroundColor: stage.color }}
-                      />
-                      {stage.name}
-                    </div>
+              <SelectContent className="z-[100]">
+                {funnel.stages?.filter(s => !s.is_final).length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    Nenhuma etapa disponível
                   </SelectItem>
-                ))}
+                ) : (
+                  funnel.stages?.filter(s => !s.is_final).map(stage => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="h-3 w-3 rounded-full" 
+                          style={{ backgroundColor: stage.color }}
+                        />
+                        {stage.name}
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
