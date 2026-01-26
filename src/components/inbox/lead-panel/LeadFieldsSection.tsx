@@ -20,25 +20,55 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { CustomFieldsManager } from "../CustomFieldsManager";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface LeadFieldsSectionProps {
   deal: {
     id: string;
+    title?: string;
     custom_fields?: Record<string, any> | null;
   } | null;
 }
 
 export const LeadFieldsSection = ({ deal }: LeadFieldsSectionProps) => {
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
+  const queryClient = useQueryClient();
   
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
+  
+  // Estado para edição do título do lead
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [localTitle, setLocalTitle] = useState(deal?.title || '');
 
   useEffect(() => {
     setLocalFields(customFields);
   }, [JSON.stringify(customFields)]);
+
+  useEffect(() => {
+    setLocalTitle(deal?.title || '');
+  }, [deal?.title]);
+
+  const handleSaveTitle = async () => {
+    if (!deal) return;
+    
+    const { error } = await supabase
+      .from('funnel_deals')
+      .update({ title: localTitle })
+      .eq('id', deal.id);
+    
+    if (error) {
+      toast.error("Erro ao atualizar título");
+      return;
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+    toast.success("Título atualizado");
+    setIsEditingTitle(false);
+  };
 
   const handleSave = async (fieldKey: string, value: any) => {
     if (!deal) return;
@@ -185,6 +215,45 @@ export const LeadFieldsSection = ({ deal }: LeadFieldsSectionProps) => {
           <span className="text-sm font-semibold text-primary">Dados do Lead</span>
         </div>
         <CustomFieldsManager />
+      </div>
+
+      {/* Título do Lead - Campo Editável */}
+      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
+        <span className="text-xs font-medium text-foreground/70">Título do Lead</span>
+        {isEditingTitle ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              className="h-8 w-40 text-sm border-primary/30 focus:border-primary"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle();
+                if (e.key === 'Escape') {
+                  setLocalTitle(deal?.title || '');
+                  setIsEditingTitle(false);
+                }
+              }}
+            />
+            <Button size="icon" variant="default" className="h-7 w-7" onClick={handleSaveTitle}>
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => {
+              setLocalTitle(deal?.title || '');
+              setIsEditingTitle(false);
+            }}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setIsEditingTitle(true)}
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] max-w-[180px]"
+          >
+            <span className="truncate">{deal?.title || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
+            <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+          </button>
+        )}
       </div>
 
       {/* Lead Fields */}
