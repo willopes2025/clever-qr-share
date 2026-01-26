@@ -34,9 +34,11 @@ interface InlineFieldCreatorProps {
     is_required: boolean;
     options: string[];
     display_order: number;
+    entity_type: 'contact' | 'lead';
   }) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  defaultEntityType?: 'contact' | 'lead';
 }
 
 const generateFieldKey = (name: string): string => {
@@ -52,6 +54,7 @@ export const InlineFieldCreator = ({
   onSave,
   onCancel,
   isLoading,
+  defaultEntityType = 'contact',
 }: InlineFieldCreatorProps) => {
   const [fieldName, setFieldName] = useState("");
   const [fieldType, setFieldType] = useState<FieldType>("text");
@@ -66,6 +69,7 @@ export const InlineFieldCreator = ({
       is_required: false,
       options: [],
       display_order: 0,
+      entity_type: defaultEntityType,
     });
   };
 

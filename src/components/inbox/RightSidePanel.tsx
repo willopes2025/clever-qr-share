@@ -6,16 +6,20 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Conversation } from "@/hooks/useConversations";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useFunnels } from "@/hooks/useFunnels";
 
 // New lead panel components
 import { LeadPanelHeader } from "./lead-panel/LeadPanelHeader";
 import { LeadPanelTagsSection } from "./lead-panel/LeadPanelTagsSection";
 import { LeadPanelFunnelBar } from "./lead-panel/LeadPanelFunnelBar";
 import { LeadPanelTabs } from "./lead-panel/LeadPanelTabs";
-import { LeadPanelTabContent } from "./lead-panel/LeadPanelTabContent";
-import { LeadPanelContactInfo } from "./lead-panel/LeadPanelContactInfo";
 import { LeadPanelNotes } from "./lead-panel/LeadPanelNotes";
 import { ActivityTimeline } from "./ActivityTimeline";
+
+// New separated sections
+import { LeadFieldsSection } from "./lead-panel/LeadFieldsSection";
+import { ContactFieldsSection } from "./lead-panel/ContactFieldsSection";
+import { ContactSeparator } from "./lead-panel/ContactSeparator";
 
 interface RightSidePanelProps {
   conversation: Conversation;
@@ -27,6 +31,10 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  
+  // Get the active deal for this contact
+  const { useContactDeal } = useFunnels();
+  const { data: activeDeal } = useContactDeal(conversation.contact_id);
 
   // Reset tab when conversation changes
   useEffect(() => {
@@ -59,14 +67,29 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
           onTabChange={setActiveTab}
         />
 
-        {/* Tab Content (Custom Fields) */}
-        <LeadPanelTabContent 
-          conversation={conversation}
-          activeTabId={activeTab}
+        {/* Lead Fields Section (above separator) */}
+        <LeadFieldsSection 
+          deal={activeDeal ? {
+            id: activeDeal.id,
+            custom_fields: activeDeal.custom_fields as Record<string, any> | null,
+          } : null}
         />
 
-        {/* Contact Info */}
-        <LeadPanelContactInfo conversation={conversation} />
+        {/* Separator with Contact Name */}
+        <ContactSeparator contactName={conversation.contact?.name} />
+
+        {/* Contact Fields Section (below separator) */}
+        {conversation.contact && (
+          <ContactFieldsSection 
+            contact={{
+              id: conversation.contact_id,
+              name: conversation.contact.name,
+              phone: conversation.contact.phone,
+              email: (conversation.contact as any).email || null,
+              custom_fields: conversation.contact.custom_fields as Record<string, any> | null,
+            }}
+          />
+        )}
 
         {/* Notes */}
         <LeadPanelNotes conversation={conversation} />

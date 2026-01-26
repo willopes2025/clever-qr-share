@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, GripVertical, Settings } from "lucide-react";
+import { Plus, Trash2, GripVertical, Settings, User, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CustomFieldDefinition, useCustomFields } from "@/hooks/useCustomFields";
 
 const FIELD_TYPE_LABELS: Record<string, string> = {
@@ -26,6 +27,7 @@ export const CustomFieldsManager = () => {
     field_name: "",
     field_key: "",
     field_type: "text" as CustomFieldDefinition['field_type'],
+    entity_type: "contact" as "contact" | "lead",
     options: [] as string[],
     is_required: false,
     display_order: 0,
@@ -44,6 +46,7 @@ export const CustomFieldsManager = () => {
       field_name: "",
       field_key: "",
       field_type: "text",
+      entity_type: "contact",
       options: [],
       is_required: false,
       display_order: 0,
@@ -103,13 +106,23 @@ export const CustomFieldsManager = () => {
                 >
                   <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{field.field_name}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {FIELD_TYPE_LABELS[field.field_type]}
+                      <Badge 
+                        variant={field.entity_type === 'lead' ? 'default' : 'secondary'} 
+                        className="text-xs"
+                      >
+                        {field.entity_type === 'lead' ? (
+                          <><Target className="h-3 w-3 mr-1" />Lead</>
+                        ) : (
+                          <><User className="h-3 w-3 mr-1" />Contato</>
+                        )}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {FIELD_TYPE_LABELS[field.field_type] || field.field_type}
                       </Badge>
                       {field.is_required && (
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="destructive" className="text-xs">
                           Obrigatório
                         </Badge>
                       )}
@@ -138,6 +151,36 @@ export const CustomFieldsManager = () => {
           {/* Add new field form */}
           {isAddingField ? (
             <div className="space-y-4 p-3 rounded-lg border border-border bg-muted/20">
+              {/* Entity Type Selector */}
+              <div className="space-y-2">
+                <Label>Este campo pertence a</Label>
+                <RadioGroup
+                  value={newField.entity_type}
+                  onValueChange={(val) => setNewField(prev => ({ ...prev, entity_type: val as 'contact' | 'lead' }))}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="contact" id="entity-contact" />
+                    <Label htmlFor="entity-contact" className="flex items-center gap-1.5 cursor-pointer">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span>Contato</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="lead" id="entity-lead" />
+                    <Label htmlFor="entity-lead" className="flex items-center gap-1.5 cursor-pointer">
+                      <Target className="h-4 w-4 text-primary" />
+                      <span>Lead/Deal</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {newField.entity_type === 'lead' 
+                    ? 'Campos de Lead são específicos de cada negócio no funil.' 
+                    : 'Campos de Contato são compartilhados entre todos os negócios.'}
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="field_name">Nome do Campo</Label>
                 <Input
