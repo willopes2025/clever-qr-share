@@ -8,13 +8,16 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
+import { useContacts } from '@/hooks/useContacts';
 import { Campaign } from '@/hooks/useCampaigns';
 import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { useNavigate } from 'react-router-dom';
-
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
 interface CampaignFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +37,7 @@ interface CampaignFormDialogProps {
     skip_already_sent: boolean;
     skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
     skip_days_period: number;
+    tag_on_delivery_id: string | null;
     ai_enabled: boolean;
     ai_prompt: string;
     ai_knowledge_base: string;
@@ -92,8 +96,27 @@ export const CampaignFormDialog = ({
   const [aiEnabled, setAiEnabled] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
+  // Tag on delivery settings
+  const [enableTagOnDelivery, setEnableTagOnDelivery] = useState(false);
+  const [tagOnDeliveryId, setTagOnDeliveryId] = useState<string | null>(null);
+  const [showCreateTag, setShowCreateTag] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#3B82F6');
+
   const { templates } = useMessageTemplates();
   const { lists } = useBroadcastLists();
+  const { user } = useAuth();
+  const { createTag } = useContacts();
+  
+  // Fetch tags for selection
+  const { data: tags } = useQuery({
+    queryKey: ['tags', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('tags').select('*').order('name');
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
   
   // Agent config hooks - for existing campaigns
   const { data: agentConfig } = useAgentConfig(campaign?.id || null);
@@ -126,6 +149,8 @@ export const CampaignFormDialog = ({
       setSkipMode(campaign.skip_mode ?? 'same_template');
       setSkipDaysPeriod(campaign.skip_days_period ?? 30);
       setAiEnabled(campaign.ai_enabled ?? false);
+      setEnableTagOnDelivery(!!campaign.tag_on_delivery_id);
+      setTagOnDeliveryId(campaign.tag_on_delivery_id || null);
     } else {
       setName('');
       setTemplateId('');
@@ -144,6 +169,11 @@ export const CampaignFormDialog = ({
       setSkipDaysPeriod(30);
       setAiEnabled(false);
       setSelectedAgentId(null);
+      setEnableTagOnDelivery(false);
+      setTagOnDeliveryId(null);
+      setShowCreateTag(false);
+      setNewTagName('');
+      setNewTagColor('#3B82F6');
     }
   }, [campaign, open]);
 
@@ -153,6 +183,23 @@ export const CampaignFormDialog = ({
       setSelectedAgentId(agentConfig.id);
     }
   }, [agentConfig]);
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    
+    try {
+      const newTag = await createTag.mutateAsync({
+        name: newTagName.trim(),
+        color: newTagColor,
+      });
+      setTagOnDeliveryId(newTag.id);
+      setShowCreateTag(false);
+      setNewTagName('');
+      setNewTagColor('#3B82F6');
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +224,7 @@ export const CampaignFormDialog = ({
       skip_already_sent: skipAlreadySent,
       skip_mode: skipMode,
       skip_days_period: skipDaysPeriod,
+      tag_on_delivery_id: enableTagOnDelivery ? tagOnDeliveryId : null,
       ai_enabled: aiEnabled && !!selectedAgentId,
       ai_prompt: '',
       ai_knowledge_base: '',
@@ -437,6 +485,123 @@ export const CampaignFormDialog = ({
                   </div>
                 )}
               </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Tag on Delivery Settings */}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="outline" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Tag de Entrega
+                  {enableTagOnDelivery && tagOnDeliveryId && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-4">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div className="space-y-0.5">
+                  <Label className="font-medium">Aplicar Tag ao Entregar</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Adiciona uma tag aos contatos que receberam a mensagem com sucesso
+                  </p>
+                </div>
+                <Switch checked={enableTagOnDelivery} onCheckedChange={setEnableTagOnDelivery} />
+              </div>
+
+              {enableTagOnDelivery && (
+                <div className="space-y-4 pl-4 border-l-2 border-muted">
+                  <div className="space-y-2">
+                    <Label>Selecione a Tag</Label>
+                    <Select 
+                      value={tagOnDeliveryId || 'none'} 
+                      onValueChange={(v) => setTagOnDeliveryId(v === 'none' ? null : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma tag" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100]">
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {tags?.map((tag) => (
+                          <SelectItem key={tag.id} value={tag.id}>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: tag.color }}
+                              />
+                              {tag.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {!showCreateTag ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCreateTag(true)}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Criar nova tag
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                      <div className="space-y-2">
+                        <Label>Nome da Tag</Label>
+                        <Input
+                          value={newTagName}
+                          onChange={(e) => setNewTagName(e.target.value)}
+                          placeholder="Ex: Black Friday 2024"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Cor</Label>
+                        <div className="flex gap-2">
+                          {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'].map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => setNewTagColor(color)}
+                              className={`w-8 h-8 rounded-full border-2 transition-all ${
+                                newTagColor === color ? 'border-foreground scale-110' : 'border-transparent'
+                              }`}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleCreateTag}
+                          disabled={!newTagName.trim() || createTag.isPending}
+                        >
+                          Criar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowCreateTag(false);
+                            setNewTagName('');
+                            setNewTagColor('#3B82F6');
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CollapsibleContent>
           </Collapsible>
 
