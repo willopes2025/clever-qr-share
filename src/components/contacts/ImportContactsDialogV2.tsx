@@ -35,7 +35,7 @@ import {
   Phone,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CreateFieldInlineDialog, NewFieldConfig, FieldType } from "./CreateFieldInlineDialog";
+import { CreateFieldInlineDialog, NewFieldConfig, FieldType, EntityType } from "./CreateFieldInlineDialog";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
 
@@ -85,6 +85,7 @@ interface ColumnMapping {
   targetField: string; // 'ignore' | 'name' | 'phone' | 'email' | 'notes' | 'contact_display_id' | `custom:${field_key}` | `new:${index}`
   isNewField?: boolean;
   newFieldConfig?: NewFieldConfig;
+  entityType?: EntityType; // Track entity type for existing and new fields
 }
 
 type ImportStep = "upload" | "mapping" | "deduplication" | "tags";
@@ -275,9 +276,17 @@ export const ImportContactsDialogV2 = ({
       return;
     }
 
+    // Determine entity type for the mapping
+    let entityType: EntityType | undefined;
+    if (value.startsWith("custom:")) {
+      const fieldKey = value.replace("custom:", "");
+      const field = existingFields.find(f => f.field_key === fieldKey);
+      entityType = (field?.entity_type as EntityType) || 'contact';
+    }
+
     setColumnMappings((prev) => ({
       ...prev,
-      [column]: { csvColumn: column, targetField: value },
+      [column]: { csvColumn: column, targetField: value, entityType },
     }));
   };
 
@@ -292,12 +301,24 @@ export const ImportContactsDialogV2 = ({
         targetField: `new:${newFieldIndex}`,
         isNewField: true,
         newFieldConfig: config,
+        entityType: config.entity_type || 'contact',
       },
     }));
     
     setShowCreateField(false);
     setCreatingForColumn("");
   };
+
+  // Helper to separate existing fields by entity type
+  const contactFields = useMemo(() => 
+    existingFields.filter(f => f.entity_type === 'contact' || !f.entity_type),
+    [existingFields]
+  );
+
+  const leadFields = useMemo(() => 
+    existingFields.filter(f => f.entity_type === 'lead'),
+    [existingFields]
+  );
 
   const validContacts = useMemo(() => {
     const phoneColumn = Object.entries(columnMappings).find(
@@ -568,12 +589,29 @@ export const ImportContactsDialogV2 = ({
                           </SelectItem>
                         ))}
                         
-                        {existingFields.length > 0 && (
+                        {contactFields.length > 0 && (
                           <>
-                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-2">
-                              Campos Personalizados Existentes
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-2 flex items-center gap-1">
+                              <span>👤</span> Campos do Contato
                             </div>
-                            {existingFields.map((field) => (
+                            {contactFields.map((field) => (
+                              <SelectItem key={field.id} value={`custom:${field.field_key}`}>
+                                <span className="mr-2">📋</span>
+                                {field.field_name}
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ({FIELD_TYPE_LABELS[field.field_type] || field.field_type})
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+
+                        {leadFields.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-2 flex items-center gap-1">
+                              <span>🎯</span> Campos do Lead
+                            </div>
+                            {leadFields.map((field) => (
                               <SelectItem key={field.id} value={`custom:${field.field_key}`}>
                                 <span className="mr-2">📋</span>
                                 {field.field_name}
@@ -592,7 +630,7 @@ export const ImportContactsDialogV2 = ({
                             </div>
                             {newFields.map((field, idx) => (
                               <SelectItem key={`new:${idx}`} value={`new:${idx}`}>
-                                <span className="mr-2">✨</span>
+                                <span className="mr-2">{field.entity_type === 'lead' ? '🎯' : '👤'}</span>
                                 {field.field_name}
                                 <span className="ml-1 text-xs text-muted-foreground">
                                   ({FIELD_TYPE_LABELS[field.field_type] || field.field_type})
@@ -607,7 +645,7 @@ export const ImportContactsDialogV2 = ({
                   
                   {mapping?.isNewField && mapping.newFieldConfig && (
                     <Badge variant="secondary" className="mt-2 text-xs">
-                      ✨ Novo: {FIELD_TYPE_LABELS[mapping.newFieldConfig.field_type] || mapping.newFieldConfig.field_type}
+                      {mapping.newFieldConfig.entity_type === 'lead' ? '🎯 Lead' : '👤 Contato'} • {FIELD_TYPE_LABELS[mapping.newFieldConfig.field_type] || mapping.newFieldConfig.field_type}
                     </Badge>
                   )}
                 </div>

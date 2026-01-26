@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus } from "lucide-react";
+import { X, Plus, User, Target } from "lucide-react";
 
 export type FieldType =
   | "text"
@@ -34,12 +35,15 @@ export type FieldType =
   | "phone"
   | "email";
 
+export type EntityType = 'contact' | 'lead';
+
 export interface NewFieldConfig {
   field_name: string;
   field_key: string;
   field_type: FieldType;
   options?: string[];
   is_required?: boolean;
+  entity_type?: EntityType;
 }
 
 interface CreateFieldInlineDialogProps {
@@ -47,6 +51,8 @@ interface CreateFieldInlineDialogProps {
   onOpenChange: (open: boolean) => void;
   onCreateField: (config: NewFieldConfig) => void;
   suggestedName?: string;
+  defaultEntityType?: EntityType;
+  showEntityTypeSelector?: boolean;
 }
 
 const FIELD_TYPES: { value: FieldType; label: string; description: string }[] = [
@@ -69,12 +75,20 @@ export const CreateFieldInlineDialog = ({
   onOpenChange,
   onCreateField,
   suggestedName = "",
+  defaultEntityType = "contact",
+  showEntityTypeSelector = true,
 }: CreateFieldInlineDialogProps) => {
   const [fieldName, setFieldName] = useState(suggestedName);
   const [fieldType, setFieldType] = useState<FieldType>("text");
+  const [entityType, setEntityType] = useState<EntityType>(defaultEntityType);
   const [isRequired, setIsRequired] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
+
+  // Reset entityType when defaultEntityType changes
+  useEffect(() => {
+    setEntityType(defaultEntityType);
+  }, [defaultEntityType]);
 
   const needsOptions = fieldType === "select" || fieldType === "multi_select";
 
@@ -106,6 +120,7 @@ export const CreateFieldInlineDialog = ({
       field_key: generateFieldKey(fieldName),
       field_type: fieldType,
       is_required: isRequired,
+      entity_type: entityType,
     };
 
     if (needsOptions && options.length > 0) {
@@ -117,6 +132,7 @@ export const CreateFieldInlineDialog = ({
     // Reset form
     setFieldName("");
     setFieldType("text");
+    setEntityType(defaultEntityType);
     setIsRequired(false);
     setOptions([]);
     setNewOption("");
@@ -149,6 +165,57 @@ export const CreateFieldInlineDialog = ({
               </p>
             )}
           </div>
+
+          {/* Entity Type Selector */}
+          {showEntityTypeSelector && (
+            <div className="space-y-3">
+              <Label>Tipo de Entidade</Label>
+              <RadioGroup 
+                value={entityType} 
+                onValueChange={(v) => setEntityType(v as EntityType)}
+                className="grid grid-cols-2 gap-3"
+              >
+                <div 
+                  className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    entityType === 'contact' 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border hover:bg-muted/50'
+                  }`}
+                  onClick={() => setEntityType('contact')}
+                >
+                  <RadioGroupItem value="contact" id="entity_contact" />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="entity_contact" className="font-medium cursor-pointer flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Contato
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Dados do cliente
+                    </p>
+                  </div>
+                </div>
+                <div 
+                  className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    entityType === 'lead' 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border hover:bg-muted/50'
+                  }`}
+                  onClick={() => setEntityType('lead')}
+                >
+                  <RadioGroupItem value="lead" id="entity_lead" />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="entity_lead" className="font-medium cursor-pointer flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Lead
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Dados do negócio
+                    </p>
+                  </div>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
 
           {/* Field Type */}
           <div className="space-y-2">
