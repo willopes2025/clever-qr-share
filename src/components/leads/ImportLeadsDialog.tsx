@@ -238,6 +238,7 @@ export const ImportLeadsDialog = ({
             options: field.options || [],
             is_required: field.is_required || false,
             display_order: (fieldDefinitions?.length || 0) + 1,
+            entity_type: 'contact',
           });
         }
       }

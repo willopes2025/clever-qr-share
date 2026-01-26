@@ -2046,6 +2046,7 @@ export type Database = {
         Row: {
           created_at: string
           display_order: number | null
+          entity_type: string
           field_key: string
           field_name: string
           field_type: string
@@ -2057,6 +2058,7 @@ export type Database = {
         Insert: {
           created_at?: string
           display_order?: number | null
+          entity_type?: string
           field_key: string
           field_name: string
           field_type: string
@@ -2068,6 +2070,7 @@ export type Database = {
         Update: {
           created_at?: string
           display_order?: number | null
+          entity_type?: string
           field_key?: string
           field_name?: string
           field_type?: string

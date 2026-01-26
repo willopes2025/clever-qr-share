@@ -166,8 +166,12 @@ export const ContactFormDialog = ({
     is_required: boolean;
     options: string[];
     display_order: number;
+    entity_type?: 'contact' | 'lead';
   }) => {
-    const result = await createField.mutateAsync(field);
+    const result = await createField.mutateAsync({
+      ...field,
+      entity_type: field.entity_type || 'contact',
+    });
     if (result?.id) {
       setAddedFieldIds((prev) => [...prev, result.id]);
     }

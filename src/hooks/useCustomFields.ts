@@ -17,6 +17,8 @@ export type FieldType =
   | "phone"
   | "email";
 
+export type EntityType = "contact" | "lead";
+
 export interface CustomFieldDefinition {
   id: string;
   user_id: string;
@@ -26,6 +28,7 @@ export interface CustomFieldDefinition {
   options: string[];
   is_required: boolean;
   display_order: number;
+  entity_type: EntityType;
   created_at: string;
 }
 
@@ -46,6 +49,10 @@ export const useCustomFields = () => {
     },
     enabled: !!user,
   });
+
+  // Filter helpers for contact vs lead fields
+  const contactFieldDefinitions = fieldDefinitions?.filter(f => f.entity_type === 'contact') || [];
+  const leadFieldDefinitions = fieldDefinitions?.filter(f => f.entity_type === 'lead') || [];
 
   const createField = useMutation({
     mutationFn: async (field: Omit<CustomFieldDefinition, 'id' | 'user_id' | 'created_at'>) => {
@@ -127,12 +134,34 @@ export const useCustomFields = () => {
     },
   });
 
+  // New mutation for updating deal custom fields
+  const updateDealCustomFields = useMutation({
+    mutationFn: async ({ dealId, customFields }: { dealId: string; customFields: Record<string, any> }) => {
+      const { error } = await supabase
+        .from('funnel_deals')
+        .update({ custom_fields: customFields })
+        .eq('id', dealId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+      queryClient.invalidateQueries({ queryKey: ['funnels'] });
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao atualizar campos do lead: " + error.message);
+    },
+  });
+
   return {
     fieldDefinitions,
+    contactFieldDefinitions,
+    leadFieldDefinitions,
     isLoading,
     createField,
     updateField,
     deleteField,
     updateContactCustomFields,
+    updateDealCustomFields,
   };
 };

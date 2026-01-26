@@ -17,21 +17,21 @@ interface DealCustomFieldsEditorProps {
 }
 
 export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEditorProps) => {
-  const { fieldDefinitions } = useCustomFields();
+  const { leadFieldDefinitions } = useCustomFields();
 
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...values, [key]: value });
   };
 
-  if (!fieldDefinitions || fieldDefinitions.length === 0) {
+  if (!leadFieldDefinitions || leadFieldDefinitions.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-4 border-t pt-4">
-      <Label className="text-sm font-medium text-muted-foreground">Campos Personalizados</Label>
+      <Label className="text-sm font-medium text-muted-foreground">Campos do Lead</Label>
       
-      {fieldDefinitions.map((field) => (
+      {leadFieldDefinitions.map((field) => (
         <div key={field.id} className="space-y-2">
           <Label htmlFor={field.field_key} className="text-sm">
             {field.field_name}
