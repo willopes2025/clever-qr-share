@@ -1119,6 +1119,7 @@ export type Database = {
           skip_mode: string | null
           started_at: string | null
           status: string
+          tag_on_delivery_id: string | null
           template_id: string | null
           timezone: string | null
           total_contacts: number
@@ -1159,6 +1160,7 @@ export type Database = {
           skip_mode?: string | null
           started_at?: string | null
           status?: string
+          tag_on_delivery_id?: string | null
           template_id?: string | null
           timezone?: string | null
           total_contacts?: number
@@ -1199,6 +1201,7 @@ export type Database = {
           skip_mode?: string | null
           started_at?: string | null
           status?: string
+          tag_on_delivery_id?: string | null
           template_id?: string | null
           timezone?: string | null
           total_contacts?: number
@@ -1218,6 +1221,13 @@ export type Database = {
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "broadcast_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_tag_on_delivery_id_fkey"
+            columns: ["tag_on_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
           {

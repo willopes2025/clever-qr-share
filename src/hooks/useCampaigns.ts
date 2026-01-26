@@ -37,6 +37,8 @@ export interface Campaign {
   skip_already_sent: boolean | null;
   skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | null;
   skip_days_period: number | null;
+  // Tag on delivery
+  tag_on_delivery_id: string | null;
   // AI Agent settings
   ai_enabled: boolean | null;
   ai_prompt: string | null;
@@ -189,6 +191,8 @@ export const useCampaignMutations = () => {
       skip_already_sent?: boolean;
       skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
       skip_days_period?: number;
+      // Tag on delivery
+      tag_on_delivery_id?: string | null;
       // AI settings
       ai_enabled?: boolean;
       ai_prompt?: string;
@@ -232,6 +236,7 @@ export const useCampaignMutations = () => {
           skip_already_sent: data.skip_already_sent,
           skip_mode: data.skip_mode,
           skip_days_period: data.skip_days_period,
+          tag_on_delivery_id: data.tag_on_delivery_id,
           ai_enabled: data.ai_enabled,
           ai_prompt: data.ai_prompt,
           ai_knowledge_base: data.ai_knowledge_base,
@@ -275,6 +280,7 @@ export const useCampaignMutations = () => {
       skip_already_sent?: boolean;
       skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
       skip_days_period?: number;
+      tag_on_delivery_id?: string | null;
       ai_enabled?: boolean;
       ai_prompt?: string;
       ai_knowledge_base?: string;

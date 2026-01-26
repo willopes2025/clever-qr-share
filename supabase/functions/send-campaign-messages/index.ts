@@ -504,7 +504,8 @@ Deno.serve(async (req: Request) => {
       .select(`
         user_id, status, sent, delivered, failed, total_contacts,
         message_interval_min, message_interval_max, daily_limit,
-        allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at
+        allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at,
+        tag_on_delivery_id
       `)
       .eq('id', campaignId)
       .single();
@@ -779,6 +780,25 @@ Deno.serve(async (req: Request) => {
           delivered: (campaign.delivered || 0) + 1
         })
         .eq('id', campaignId);
+
+      // Apply tag on delivery if configured
+      if (campaign.tag_on_delivery_id && message.contact_id) {
+        try {
+          await supabase
+            .from('contact_tags')
+            .upsert(
+              { 
+                contact_id: message.contact_id, 
+                tag_id: campaign.tag_on_delivery_id 
+              },
+              { onConflict: 'contact_id,tag_id', ignoreDuplicates: true }
+            );
+          console.log(`Tag ${campaign.tag_on_delivery_id} applied to contact ${message.contact_id}`);
+        } catch (tagError) {
+          console.error(`Failed to apply tag to contact ${message.contact_id}:`, tagError);
+          // Don't fail the whole operation, just log the error
+        }
+      }
 
     } else {
       console.error(`Failed to send message to ${formattedPhone}:`, evolutionResult);
