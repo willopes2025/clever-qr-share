@@ -66,7 +66,16 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         if (isAuthError) {
           // Try refreshing the session once
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-          if (!refreshError && refreshData?.session) {
+          
+          if (refreshError) {
+            // Refresh failed - session is completely invalid, force logout
+            console.warn('Session refresh failed, forcing logout:', refreshError.message);
+            await supabase.auth.signOut();
+            setSubscription(null);
+            return;
+          }
+          
+          if (refreshData?.session) {
             // Retry with refreshed token
             const { data: retryData, error: retryError } = await supabase.functions.invoke('check-subscription', {
               headers: {
@@ -78,7 +87,10 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
               return;
             }
           }
-          console.warn('Subscription check auth error after refresh attempt');
+          
+          // If we get here, both attempts failed - force logout
+          console.warn('Subscription check auth error after refresh attempt, forcing logout');
+          await supabase.auth.signOut();
           setSubscription(null);
         } else {
           console.error('Error checking subscription:', error);
