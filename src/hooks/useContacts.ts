@@ -249,7 +249,7 @@ export const useContacts = () => {
     }: {
       contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[];
       tagIds?: string[];
-      newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean }[];
+      newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean; entity_type?: 'contact' | 'lead' }[];
       deduplication?: { enabled: boolean; field: string; action: 'skip' | 'update' };
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
     }) => {
@@ -284,6 +284,7 @@ export const useContacts = () => {
           is_required: field.is_required || false,
           display_order: index,
           user_id: user.id,
+          entity_type: field.entity_type || 'contact',
         }));
 
         const { error: fieldsError } = await supabase
