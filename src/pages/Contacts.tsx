@@ -261,12 +261,55 @@ const Contacts = () => {
     name?: string;
     email?: string;
     notes?: string;
+    custom_fields?: Record<string, unknown>;
+    funnel_id?: string;
+    stage_id?: string;
   }) => {
     if (!editingContact) return;
+    
+    const { funnel_id, stage_id, custom_fields, ...contactData } = data;
+    
+    // Convert custom_fields to expected type
+    const typedCustomFields = custom_fields 
+      ? Object.fromEntries(
+          Object.entries(custom_fields).map(([k, v]) => [k, String(v ?? '')])
+        )
+      : undefined;
+    
     updateContact.mutate(
-      { id: editingContact.id, ...data },
+      { id: editingContact.id, ...contactData, custom_fields: typedCustomFields },
       {
         onSuccess: () => {
+          // Handle funnel/deal updates
+          if (funnel_id && stage_id) {
+            const existingDeal = editingContact.funnel_deals?.find(d => !d.closed_at);
+            
+            if (existingDeal) {
+              // If deal exists and stage/funnel changed, update it
+              if (existingDeal.funnel_id !== funnel_id || existingDeal.stage_id !== stage_id) {
+                // Note: changing funnel requires creating a new deal
+                if (existingDeal.funnel_id !== funnel_id) {
+                  // Create new deal in new funnel
+                  createDeal.mutate({
+                    funnel_id,
+                    stage_id,
+                    contact_id: editingContact.id,
+                    title: data.name || editingContact.name || 'Novo Lead',
+                  });
+                }
+                // If only stage changed within same funnel, we can update the deal (handled by updateDeal if available)
+              }
+            } else {
+              // No existing open deal, create one
+              createDeal.mutate({
+                funnel_id,
+                stage_id,
+                contact_id: editingContact.id,
+                title: data.name || editingContact.name || 'Novo Lead',
+              });
+            }
+          }
+          
           setEditingContact(null);
           setShowContactForm(false);
         },
@@ -747,6 +790,10 @@ const Contacts = () => {
         onSubmit={editingContact ? handleUpdateContact : handleCreateContact}
         contact={editingContact}
         isLoading={createContact.isPending || updateContact.isPending}
+        currentDeal={editingContact?.funnel_deals?.find(d => !d.closed_at) ? {
+          funnel_id: editingContact.funnel_deals.find(d => !d.closed_at)!.funnel_id,
+          stage_id: editingContact.funnel_deals.find(d => !d.closed_at)!.stage_id,
+        } : null}
       />
 
       <ImportContactsDialogV2
