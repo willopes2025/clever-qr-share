@@ -331,8 +331,17 @@ export const useFunnels = () => {
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
       toast.success("Deal criado");
       
-      // Send new_deal notification
       if (createdDeal) {
+        // Trigger on_funnel_enter automations
+        supabase.functions.invoke('process-funnel-automations', {
+          body: { 
+            dealId: createdDeal.id, 
+            toStageId: createdDeal.stage_id,
+            isNewDeal: true 
+          }
+        }).catch(e => console.error('Error triggering funnel enter automations:', e));
+
+        // Send new_deal notification
         supabase.functions.invoke('send-whatsapp-notification', {
           body: {
             type: 'new_deal',
