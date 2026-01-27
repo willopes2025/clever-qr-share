@@ -200,53 +200,80 @@ Deno.serve(async (req: Request) => {
           }
 
           case 'add_tag': {
+            const tagId = actionConfig.tag_id as string;
             const tagToAdd = actionConfig.tag_name as string;
-            if (tagToAdd && deal.contact_id) {
-              // Find or create tag
-              let { data: tag } = await supabase
-                .from('tags')
-                .select('id')
-                .eq('user_id', deal.user_id)
-                .eq('name', tagToAdd)
-                .single();
-
-              if (!tag) {
-                const { data: newTag } = await supabase
+            
+            if (deal.contact_id && (tagId || tagToAdd)) {
+              let finalTagId = tagId;
+              
+              // If we have tag_id, use it directly; otherwise find/create by name
+              if (!finalTagId && tagToAdd) {
+                const { data: existingTag } = await supabase
                   .from('tags')
-                  .insert({ user_id: deal.user_id, name: tagToAdd })
                   .select('id')
-                  .single();
-                tag = newTag;
+                  .eq('user_id', deal.user_id)
+                  .eq('name', tagToAdd)
+                  .maybeSingle();
+
+                if (existingTag) {
+                  finalTagId = existingTag.id;
+                } else {
+                  const { data: newTag } = await supabase
+                    .from('tags')
+                    .insert({ user_id: deal.user_id, name: tagToAdd, color: '#3B82F6' })
+                    .select('id')
+                    .single();
+                  finalTagId = newTag?.id;
+                }
               }
 
-              if (tag) {
-                await supabase
+              if (finalTagId) {
+                const { error: upsertError } = await supabase
                   .from('contact_tags')
-                  .upsert({ contact_id: deal.contact_id, tag_id: tag.id }, { onConflict: 'contact_id,tag_id' });
-                console.log(`[FUNNEL-AUTOMATIONS] Added tag: ${tagToAdd}`);
+                  .upsert({ contact_id: deal.contact_id, tag_id: finalTagId }, { onConflict: 'contact_id,tag_id' });
+                
+                if (upsertError) {
+                  console.error(`[FUNNEL-AUTOMATIONS] Error adding tag:`, upsertError);
+                  results.push({ automationId: automation.id, success: false, error: upsertError.message });
+                } else {
+                  console.log(`[FUNNEL-AUTOMATIONS] Added tag: ${tagToAdd || tagId}`);
+                  results.push({ automationId: automation.id, success: true });
+                }
+              } else {
+                console.error(`[FUNNEL-AUTOMATIONS] Could not find or create tag`);
+                results.push({ automationId: automation.id, success: false, error: 'Tag not found' });
               }
+            } else {
+              results.push({ automationId: automation.id, success: true });
             }
-            results.push({ automationId: automation.id, success: true });
             break;
           }
 
           case 'remove_tag': {
+            const removeTagId = actionConfig.tag_id as string;
             const removeTagName = actionConfig.tag_name as string;
-            if (removeTagName && deal.contact_id) {
-              const { data: tagToRemove } = await supabase
-                .from('tags')
-                .select('id')
-                .eq('user_id', deal.user_id)
-                .eq('name', removeTagName)
-                .single();
+            
+            if (deal.contact_id && (removeTagId || removeTagName)) {
+              let finalTagId = removeTagId;
+              
+              if (!finalTagId && removeTagName) {
+                const { data: tagToRemove } = await supabase
+                  .from('tags')
+                  .select('id')
+                  .eq('user_id', deal.user_id)
+                  .eq('name', removeTagName)
+                  .maybeSingle();
+                
+                finalTagId = tagToRemove?.id;
+              }
 
-              if (tagToRemove) {
+              if (finalTagId) {
                 await supabase
                   .from('contact_tags')
                   .delete()
                   .eq('contact_id', deal.contact_id)
-                  .eq('tag_id', tagToRemove.id);
-                console.log(`[FUNNEL-AUTOMATIONS] Removed tag: ${removeTagName}`);
+                  .eq('tag_id', finalTagId);
+                console.log(`[FUNNEL-AUTOMATIONS] Removed tag: ${removeTagName || removeTagId}`);
               }
             }
             results.push({ automationId: automation.id, success: true });
