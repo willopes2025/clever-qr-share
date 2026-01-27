@@ -59,6 +59,10 @@ interface ContactFormDialogProps {
   }) => void;
   contact?: Contact | null;
   isLoading?: boolean;
+  currentDeal?: {
+    funnel_id: string;
+    stage_id: string;
+  } | null;
 }
 
 export const ContactFormDialog = ({
@@ -67,6 +71,7 @@ export const ContactFormDialog = ({
   onSubmit,
   contact,
   isLoading,
+  currentDeal,
 }: ContactFormDialogProps) => {
   const { fieldDefinitions, updateField, createField } = useCustomFields();
   const { funnels } = useFunnels();
@@ -109,14 +114,18 @@ export const ContactFormDialog = ({
     }
   }, [contact, form, fieldDefinitions]);
 
-  // Reset states when dialog closes
+  // Reset states when dialog closes or load current deal when editing
   useEffect(() => {
     if (!open) {
       setShowCreateField(false);
       setSelectedFunnelId("");
       setSelectedStageId("");
+    } else if (contact && currentDeal) {
+      // Pre-fill funnel and stage when editing a contact with existing deal
+      setSelectedFunnelId(currentDeal.funnel_id);
+      setSelectedStageId(currentDeal.stage_id);
     }
-  }, [open]);
+  }, [open, contact, currentDeal]);
 
   const handleSubmit = (data: ContactFormValues) => {
     // Only include values for added fields
@@ -288,8 +297,8 @@ export const ContactFormDialog = ({
                 )}
               />
 
-              {/* Funnel Selection - Only show when creating new contact */}
-              {!contact && funnels && funnels.length > 0 && (
+              {/* Funnel Selection - Show for both create and edit */}
+              {funnels && funnels.length > 0 && (
                 <>
                   <Separator className="my-4" />
                   <div className="space-y-4">
