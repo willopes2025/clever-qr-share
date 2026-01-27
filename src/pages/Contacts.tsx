@@ -53,6 +53,7 @@ import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfD
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useContacts, ContactWithDeals } from "@/hooks/useContacts";
+import { useFunnels } from "@/hooks/useFunnels";
 import { ContactFormDialog } from "@/components/contacts/ContactFormDialog";
 import { ImportContactsDialogV2 } from "@/components/contacts/ImportContactsDialogV2";
 import { TagManager } from "@/components/contacts/TagManager";
@@ -85,6 +86,7 @@ const Contacts = () => {
 
   const { fieldDefinitions } = useCustomFields();
   const { subscription } = useSubscription();
+  const { createDeal } = useFunnels();
 
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
@@ -225,9 +227,32 @@ const Contacts = () => {
     name?: string;
     email?: string;
     notes?: string;
+    custom_fields?: Record<string, unknown>;
+    funnel_id?: string;
+    stage_id?: string;
   }) => {
-    createContact.mutate(data, {
-      onSuccess: () => setShowContactForm(false),
+    const { funnel_id, stage_id, custom_fields, ...contactData } = data;
+    
+    // Convert custom_fields to expected type
+    const typedCustomFields = custom_fields 
+      ? Object.fromEntries(
+          Object.entries(custom_fields).map(([k, v]) => [k, String(v ?? '')])
+        )
+      : undefined;
+    
+    createContact.mutate({ ...contactData, custom_fields: typedCustomFields }, {
+      onSuccess: (createdContact) => {
+        // If funnel and stage were selected, create the deal
+        if (funnel_id && stage_id && createdContact?.id) {
+          createDeal.mutate({
+            funnel_id,
+            stage_id,
+            contact_id: createdContact.id,
+            title: data.name || 'Novo Lead',
+          });
+        }
+        setShowContactForm(false);
+      },
     });
   };
 

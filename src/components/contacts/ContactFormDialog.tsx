@@ -17,14 +17,22 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Plus } from "lucide-react";
+import { Plus, GitBranch } from "lucide-react";
 import { Contact } from "@/hooks/useContacts";
 import { useCustomFields, FieldType } from "@/hooks/useCustomFields";
+import { useFunnels } from "@/hooks/useFunnels";
 import { DynamicField } from "./DynamicField";
 import { FieldSelector } from "./FieldSelector";
 import { InlineFieldCreator } from "./InlineFieldCreator";
@@ -44,7 +52,11 @@ type ContactFormValues = z.infer<typeof contactSchema>;
 interface ContactFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: ContactFormValues & { custom_fields?: Record<string, unknown> }) => void;
+  onSubmit: (data: ContactFormValues & { 
+    custom_fields?: Record<string, unknown>;
+    funnel_id?: string;
+    stage_id?: string;
+  }) => void;
   contact?: Contact | null;
   isLoading?: boolean;
 }
@@ -57,9 +69,12 @@ export const ContactFormDialog = ({
   isLoading,
 }: ContactFormDialogProps) => {
   const { fieldDefinitions, updateField, createField } = useCustomFields();
+  const { funnels } = useFunnels();
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [addedFieldIds, setAddedFieldIds] = useState<string[]>([]);
   const [showCreateField, setShowCreateField] = useState(false);
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
+  const [selectedStageId, setSelectedStageId] = useState<string>("");
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
@@ -98,6 +113,8 @@ export const ContactFormDialog = ({
   useEffect(() => {
     if (!open) {
       setShowCreateField(false);
+      setSelectedFunnelId("");
+      setSelectedStageId("");
     }
   }, [open]);
 
@@ -114,10 +131,14 @@ export const ContactFormDialog = ({
     onSubmit({
       ...data,
       custom_fields: filteredCustomFields,
+      funnel_id: selectedFunnelId || undefined,
+      stage_id: selectedStageId || undefined,
     });
     form.reset();
     setCustomFieldValues({});
     setAddedFieldIds([]);
+    setSelectedFunnelId("");
+    setSelectedStageId("");
   };
 
   const handleCustomFieldChange = (fieldKey: string, value: unknown) => {
@@ -266,6 +287,74 @@ export const ContactFormDialog = ({
                   </FormItem>
                 )}
               />
+
+              {/* Funnel Selection - Only show when creating new contact */}
+              {!contact && funnels && funnels.length > 0 && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
+                      <h4 className="text-sm font-medium text-muted-foreground">
+                        Adicionar ao Funil (Opcional)
+                      </h4>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Funil</label>
+                        <Select
+                          value={selectedFunnelId}
+                          onValueChange={(value) => {
+                            setSelectedFunnelId(value);
+                            setSelectedStageId("");
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um funil" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {funnels.map((funnel) => (
+                              <SelectItem key={funnel.id} value={funnel.id}>
+                                {funnel.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Etapa</label>
+                        <Select
+                          value={selectedStageId}
+                          onValueChange={setSelectedStageId}
+                          disabled={!selectedFunnelId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedFunnelId ? "Selecione a etapa" : "Selecione o funil primeiro"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {funnels
+                              .find(f => f.id === selectedFunnelId)
+                              ?.stages?.filter(s => !s.is_final)
+                              .map((stage) => (
+                                <SelectItem key={stage.id} value={stage.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className="w-2 h-2 rounded-full" 
+                                      style={{ backgroundColor: stage.color }}
+                                    />
+                                    {stage.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Added Dynamic Fields */}
               {addedFields.length > 0 && (
