@@ -259,10 +259,22 @@ export function ContactsTableConfigurable({
         </TableHeader>
         <TableBody>
           {contacts.map((contact) => (
-            <TableRow
-              key={contact.id}
-              className="border-neon-cyan/10 hover:bg-dark-700/30 transition-colors"
-            >
+          <TableRow
+            key={contact.id}
+            className="border-neon-cyan/10 hover:bg-dark-700/30 transition-colors cursor-pointer"
+            onClick={(e) => {
+              const target = e.target as HTMLElement;
+              if (
+                target.closest('button') ||
+                target.closest('[role="checkbox"]') ||
+                target.closest('[role="menuitem"]') ||
+                target.closest('[data-radix-collection-item]')
+              ) {
+                return;
+              }
+              onEdit(contact);
+            }}
+          >
               <TableCell>
                 <Checkbox
                   checked={selectedIds.includes(contact.id)}
