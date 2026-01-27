@@ -20,6 +20,8 @@ interface AutomationsDialogProps {
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
+  on_funnel_enter: 'Entrar no funil',
+  on_existing_deals: 'Todos do funil (existentes)',
   on_stage_enter: 'Entrar na etapa',
   on_stage_exit: 'Sair da etapa',
   on_deal_won: 'Deal ganho',

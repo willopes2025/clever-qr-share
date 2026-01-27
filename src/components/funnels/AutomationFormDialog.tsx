@@ -39,6 +39,7 @@ interface AutomationFormDialogProps {
 
 type TriggerType = 
   | 'on_funnel_enter'
+  | 'on_existing_deals'
   | 'on_stage_enter' 
   | 'on_stage_exit' 
   | 'on_deal_won' 
@@ -316,6 +317,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="on_funnel_enter">🚀 Quando entrar no funil (qualquer etapa)</SelectItem>
+                <SelectItem value="on_existing_deals">📋 Todos que já fazem parte do funil</SelectItem>
                 <SelectItem value="on_stage_enter">Quando entrar na etapa</SelectItem>
                 <SelectItem value="on_stage_exit">Quando sair da etapa</SelectItem>
                 <SelectItem value="on_deal_won">Quando deal for ganho</SelectItem>

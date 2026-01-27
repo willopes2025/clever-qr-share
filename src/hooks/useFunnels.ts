@@ -584,7 +584,7 @@ export const useFunnels = () => {
   // Automation mutations
   const createAutomation = useMutation({
     mutationFn: async (data: { funnel_id: string; stage_id?: string | null; name: string; trigger_type: string; trigger_config?: Record<string, unknown>; action_type: string; action_config?: Record<string, unknown>; is_active?: boolean }) => {
-      const { error } = await supabase.from('funnel_automations').insert([{
+      const { data: newAutomation, error } = await supabase.from('funnel_automations').insert([{
         user_id: user!.id,
         funnel_id: data.funnel_id,
         stage_id: data.stage_id || null,
@@ -594,11 +594,27 @@ export const useFunnels = () => {
         action_type: data.action_type as 'send_message' | 'send_template' | 'add_tag' | 'remove_tag' | 'notify_user' | 'move_stage',
         action_config: (data.action_config || {}) as Record<string, never>,
         is_active: data.is_active ?? true
-      }]);
+      }]).select().single();
       if (error) throw error;
+      
+      // If this is an "on_existing_deals" automation, process existing deals immediately
+      if (data.trigger_type === 'on_existing_deals' && newAutomation) {
+        const { data: result, error: processError } = await supabase.functions.invoke('process-existing-deals-automation', {
+          body: { automationId: newAutomation.id }
+        });
+        
+        if (processError) {
+          console.error('Error processing existing deals:', processError);
+        } else if (result?.processed > 0) {
+          toast.success(`Ação aplicada a ${result.processed} contatos existentes`);
+        }
+      }
+      
+      return newAutomation;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funnel-automations'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
       toast.success("Automação criada");
     }
   });

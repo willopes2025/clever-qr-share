@@ -5463,6 +5463,7 @@ export type Database = {
         | "on_webhook"
         | "on_form_submission"
         | "on_funnel_enter"
+        | "on_existing_deals"
       template_category:
         | "promotional"
         | "transactional"
@@ -5634,6 +5635,7 @@ export const Constants = {
         "on_webhook",
         "on_form_submission",
         "on_funnel_enter",
+        "on_existing_deals",
       ],
       template_category: [
         "promotional",
