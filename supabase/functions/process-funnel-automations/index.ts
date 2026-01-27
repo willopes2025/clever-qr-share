@@ -16,6 +16,7 @@ interface AutomationPayload {
   customFieldValue?: string;
   oldValue?: number;
   newValue?: number;
+  isNewDeal?: boolean; // Flag to indicate if this is a newly created deal
 }
 
 Deno.serve(async (req: Request) => {
@@ -29,7 +30,7 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const payload: AutomationPayload = await req.json();
-    const { dealId, fromStageId, toStageId, triggerType, messageContent, tagName, customFieldKey, customFieldValue } = payload;
+    const { dealId, fromStageId, toStageId, triggerType, messageContent, tagName, customFieldKey, customFieldValue, isNewDeal } = payload;
 
     console.log("[FUNNEL-AUTOMATIONS] Processing automation", payload);
 
@@ -55,6 +56,11 @@ Deno.serve(async (req: Request) => {
 
     // Determine trigger types to check
     const triggersToCheck: string[] = [];
+
+    // Check for funnel enter trigger (when deal is newly created)
+    if (isNewDeal) {
+      triggersToCheck.push('on_funnel_enter');
+    }
 
     if (toStageId) {
       triggersToCheck.push('on_stage_enter');
@@ -118,11 +124,13 @@ Deno.serve(async (req: Request) => {
     for (const automation of automations || []) {
       try {
         // Check if automation applies to this stage
-        // For message-based triggers (on_message_received, on_keyword_received), compare against deal's current stage
-        // For stage-based triggers, compare against toStageId/fromStageId
+        // on_funnel_enter: applies to any stage when deal is first created
+        // message-based triggers: compare against deal's current stage
+        // stage-based triggers: compare against toStageId/fromStageId
         const isMessageTrigger = automation.trigger_type === 'on_message_received' || automation.trigger_type === 'on_keyword_received';
+        const isFunnelEnterTrigger = automation.trigger_type === 'on_funnel_enter';
         
-        if (automation.stage_id) {
+        if (automation.stage_id && !isFunnelEnterTrigger) {
           if (isMessageTrigger) {
             // For message triggers, check if deal is currently in the specified stage
             if (automation.stage_id !== deal.stage_id) {
