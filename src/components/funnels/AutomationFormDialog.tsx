@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Copy, Check, Link, Sparkles, Loader2 } from "lucide-react";
+import { Copy, Check, Link, Sparkles, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -26,6 +26,7 @@ import { useCustomFields } from "@/hooks/useCustomFields";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
 import { useForms } from "@/hooks/useForms";
+import { useContacts } from "@/hooks/useContacts";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AutomationFormDialogProps {
@@ -159,6 +160,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const { members } = useTeamMembers();
   const { data: agentConfigs } = useAllAgentConfigs();
   const { forms } = useForms();
+  const { tags, createTag } = useContacts();
   
   const [name, setName] = useState('');
   const [selectedFunnelId, setSelectedFunnelId] = useState(funnelId || '');
@@ -169,6 +171,9 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const [actionConfig, setActionConfig] = useState<Record<string, unknown>>({});
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [isGeneratingIntents, setIsGeneratingIntents] = useState(false);
+  const [showNewTagInput, setShowNewTagInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
   const selectedFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = selectedFunnel?.stages || [];
@@ -541,13 +546,123 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
           )}
 
           {(actionType === 'add_tag' || actionType === 'remove_tag') && (
-            <div className="space-y-2">
-              <Label>Nome da Tag</Label>
-              <Input
-                value={actionConfig.tag_name as string || ''}
-                onChange={(e) => setActionConfig({ ...actionConfig, tag_name: e.target.value })}
-                placeholder="Nome da tag"
-              />
+            <div className="space-y-3">
+              <Label>Tag</Label>
+              {!showNewTagInput ? (
+                <div className="space-y-2">
+                  <Select 
+                    value={actionConfig.tag_id as string || 'none'} 
+                    onValueChange={(v) => {
+                      if (v === 'create_new') {
+                        setShowNewTagInput(true);
+                      } else if (v === 'none') {
+                        setActionConfig({ ...actionConfig, tag_id: undefined, tag_name: undefined });
+                      } else {
+                        const selectedTag = tags.find(t => t.id === v);
+                        setActionConfig({ 
+                          ...actionConfig, 
+                          tag_id: v, 
+                          tag_name: selectedTag?.name || '' 
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar tag" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Selecionar tag...</SelectItem>
+                      {tags.map((tag) => (
+                        <SelectItem key={tag.id} value={tag.id}>
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: tag.color }} 
+                            />
+                            {tag.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                      {actionType === 'add_tag' && (
+                        <SelectItem value="create_new">
+                          <div className="flex items-center gap-2 text-primary">
+                            <Plus className="h-3 w-3" />
+                            Criar nova tag
+                          </div>
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {!tags.length && actionType === 'remove_tag' && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma tag disponível
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Criar Nova Tag</Label>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setShowNewTagInput(false);
+                        setNewTagName('');
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      placeholder="Nome da tag"
+                      className="flex-1"
+                    />
+                    <input
+                      type="color"
+                      value={newTagColor}
+                      onChange={(e) => setNewTagColor(e.target.value)}
+                      className="w-10 h-10 rounded border cursor-pointer"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full"
+                    disabled={!newTagName.trim() || createTag.isPending}
+                    onClick={async () => {
+                      if (!newTagName.trim()) return;
+                      createTag.mutate(
+                        { name: newTagName.trim(), color: newTagColor },
+                        {
+                          onSuccess: (createdTag) => {
+                            if (createdTag) {
+                              setActionConfig({ 
+                                ...actionConfig, 
+                                tag_id: createdTag.id, 
+                                tag_name: createdTag.name 
+                              });
+                            }
+                            setShowNewTagInput(false);
+                            setNewTagName('');
+                            toast.success('Tag criada!');
+                          }
+                        }
+                      );
+                    }}
+                  >
+                    {createTag.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Criar Tag'
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
