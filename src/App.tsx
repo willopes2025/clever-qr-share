@@ -42,6 +42,7 @@ const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const DataDeletion = lazy(() => import("./pages/DataDeletion"));
 const DataDeletionCallback = lazy(() => import("./pages/DataDeletionCallback"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const MetaAuthCallback = lazy(() => import("./pages/MetaAuthCallback"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
@@ -281,6 +282,7 @@ const App = () => (
                   <Route path="/data-deletion" element={<DataDeletion />} />
                   <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
                   <Route path="/f/:slug" element={<PublicFormPage />} />
                   <Route path="/form/:slug/*" element={<PublicFormPage />} />
                   <Route path="/ajuda" element={<Ajuda />} />
