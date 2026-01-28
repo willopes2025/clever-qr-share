@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Funnel, FunnelStage, useFunnels } from "@/hooks/useFunnels";
+import { useStageDealCounts, useLoadMoreDeals, DEALS_PER_PAGE } from "@/hooks/useFunnelDeals";
 import { FunnelDealCard } from "./FunnelDealCard";
 import { DealFormDialog } from "./DealFormDialog";
 import { StageFormDialog } from "./StageFormDialog";
@@ -16,13 +17,38 @@ interface FunnelKanbanViewProps {
 
 export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const { updateDeal } = useFunnels();
+  const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
+  const loadMoreDeals = useLoadMoreDeals();
+  
   const [showDealForm, setShowDealForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
+  const [loadingStageId, setLoadingStageId] = useState<string | null>(null);
 
   const stages = funnel.stages || [];
+
+  // Track how many deals are loaded per stage
+  const getLoadedDealsCount = (stage: FunnelStage) => (stage.deals || []).length;
+  const getTotalDealsCount = (stage: FunnelStage) => stageCounts[stage.id] || getLoadedDealsCount(stage);
+  const hasMoreDeals = (stage: FunnelStage) => getLoadedDealsCount(stage) < getTotalDealsCount(stage);
+
+  const handleLoadMore = async (stageId: string) => {
+    const stage = stages.find(s => s.id === stageId);
+    if (!stage) return;
+    
+    setLoadingStageId(stageId);
+    try {
+      await loadMoreDeals.mutateAsync({
+        stageId,
+        funnelId: funnel.id,
+        offset: getLoadedDealsCount(stage)
+      });
+    } finally {
+      setLoadingStageId(null);
+    }
+  };
 
   const handleDragStart = useCallback((e: React.DragEvent, dealId: string) => {
     setDraggedDealId(dealId);
@@ -93,7 +119,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
                     />
                     <span className="font-medium text-sm truncate">{stage.name}</span>
                     <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
-                      {stage.deals?.length || 0}
+                      {getTotalDealsCount(stage)}
                     </span>
                   </div>
                   <StageContextMenu stage={stage} stages={stages} funnelId={funnel.id} />
@@ -132,6 +158,29 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
                   ))}
                 </AnimatePresence>
                 
+                {/* Load More Button */}
+                {hasMoreDeals(stage) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    onClick={() => handleLoadMore(stage.id)}
+                    disabled={loadingStageId === stage.id}
+                  >
+                    {loadingStageId === stage.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        Carregando...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Carregar mais ({getTotalDealsCount(stage) - getLoadedDealsCount(stage)})
+                      </>
+                    )}
+                  </Button>
+                )}
+
                 {!stage.is_final && (
                   <Button
                     variant="ghost"

@@ -88,39 +88,58 @@ export const useFunnels = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch all funnels with stages and deals
+  // Fetch all funnels with stages and LIMITED deals (50 per stage to prevent crashes)
   const { data: funnels, isLoading, refetch } = useQuery({
     queryKey: ['funnels', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First, get funnels with stages (no deals yet)
+      const { data: funnelsData, error: funnelsError } = await supabase
         .from('funnels')
         .select(`
           *,
-          stages:funnel_stages(
-            *,
-            deals:funnel_deals(
-              *,
-              contact:contacts(id, name, phone, email),
-              close_reason:funnel_close_reasons(*)
-            )
-          )
+          stages:funnel_stages(*)
         `)
         .order('display_order', { ascending: true });
 
-      if (error) throw error;
-      
-      // Sort stages and deals
-      return (data || []).map((funnel) => ({
-        ...funnel,
-        stages: (funnel.stages || [])
-          .sort((a: { display_order: number }, b: { display_order: number }) => a.display_order - b.display_order)
-          .map((stage: { deals?: { updated_at: string }[] }) => ({
-            ...stage,
-            deals: (stage.deals || []).sort((a: { updated_at: string }, b: { updated_at: string }) => 
-              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-            )
-          }))
-      })) as Funnel[];
+      if (funnelsError) throw funnelsError;
+
+      // Then, for each funnel, load limited deals per stage
+      const funnelsWithDeals = await Promise.all(
+        (funnelsData || []).map(async (funnel) => {
+          const sortedStages = (funnel.stages || []).sort(
+            (a: { display_order: number }, b: { display_order: number }) => 
+              a.display_order - b.display_order
+          );
+
+          // Get deals for all stages of this funnel (limited to 50 per stage)
+          const stagesWithDeals = await Promise.all(
+            sortedStages.map(async (stage: { id: string }) => {
+              const { data: deals } = await supabase
+                .from('funnel_deals')
+                .select(`
+                  *,
+                  contact:contacts(id, name, phone, email),
+                  close_reason:funnel_close_reasons(*)
+                `)
+                .eq('stage_id', stage.id)
+                .order('updated_at', { ascending: false })
+                .limit(50);
+
+              return {
+                ...stage,
+                deals: deals || []
+              };
+            })
+          );
+
+          return {
+            ...funnel,
+            stages: stagesWithDeals
+          };
+        })
+      );
+
+      return funnelsWithDeals as Funnel[];
     },
     enabled: !!user?.id
   });
