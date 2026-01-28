@@ -1,64 +1,125 @@
 
-# Plano: Tornar Linhas da Tabela de Contatos Clicáveis
 
-## Problema Identificado
-As linhas da tabela de contatos no componente `ContactsTableConfigurable` não possuem um handler de clique implementado. Quando você clica em qualquer lugar da linha (exceto nos botões e checkboxes), nada acontece.
+# Plano: Criar Rota de Callback para Meta OAuth
 
-## Solução
+## Objetivo
+Criar uma nova rota `/auth/meta/callback` para processar o retorno da autenticação OAuth do Facebook/Meta após o login do usuário.
 
-Modificar o componente `ContactsTableConfigurable.tsx` para:
+## Por que isso é necessário?
+O Facebook Developer requer uma URL de callback válida para redirecionar os usuários após a autorização OAuth. Esta página irá:
+1. Capturar o código de autorização da URL
+2. Trocar o código pelo token de acesso (via Edge Function)
+3. Mostrar feedback visual ao usuário
+4. Redirecionar para a página de configurações
 
-1. **Adicionar `onClick` na `TableRow`** que chama o `onEdit(contact)` ao clicar na linha
-2. **Adicionar `cursor-pointer`** para indicar visualmente que a linha é clicável
-3. **Ignorar cliques em elementos interativos** (checkbox, botões, dropdowns) usando `event.stopPropagation()` ou verificando o target do evento
+---
 
-## Arquivos a Modificar
+## Arquitetura da Solução
 
-### `src/components/contacts/ContactsTableConfigurable.tsx`
-
-**Alteração na `TableRow` (linha 262-264)**:
-```tsx
-// De:
-<TableRow
-  key={contact.id}
-  className="border-neon-cyan/10 hover:bg-dark-700/30 transition-colors"
->
-
-// Para:
-<TableRow
-  key={contact.id}
-  className="border-neon-cyan/10 hover:bg-dark-700/30 transition-colors cursor-pointer"
-  onClick={(e) => {
-    // Ignorar cliques em elementos interativos
-    const target = e.target as HTMLElement;
-    if (
-      target.closest('button') ||
-      target.closest('[role="checkbox"]') ||
-      target.closest('[role="menuitem"]') ||
-      target.closest('[data-radix-collection-item]')
-    ) {
-      return;
-    }
-    onEdit(contact);
-  }}
->
+```text
++---------------------+     +----------------------+     +-------------------------+
+|  Facebook OAuth     | --> | /auth/meta/callback  | --> | meta-exchange-token     |
+|  (redirect com code)|     | (página React)       |     | (Edge Function)         |
++---------------------+     +----------------------+     +-------------------------+
+                                     |                              |
+                                     v                              v
+                            Mostra feedback          Salva credenciais no DB
+                            e redireciona
 ```
 
-## Comportamento Esperado Após a Mudança
+---
 
-- Clicar em qualquer célula da linha (telefone, nome, status, data, etc.) abrirá o formulário de edição do contato
-- Clicar no checkbox continuará apenas selecionando/desselecionando o contato
-- Clicar no botão de tag continuará abrindo o seletor de tags
-- Clicar no menu de ações (⋮) continuará abrindo o menu normalmente
-- O cursor mudará para "pointer" ao passar sobre as linhas, indicando que são clicáveis
+## Etapas de Implementação
+
+### 1. Criar a página de callback
+**Arquivo:** `src/pages/MetaAuthCallback.tsx`
+
+A página irá:
+- Capturar os parâmetros `code` e `state` da URL usando `useSearchParams`
+- Mostrar um loading spinner durante o processamento
+- Chamar a Edge Function `meta-exchange-token` para trocar o código pelo token
+- Exibir mensagem de sucesso ou erro
+- Redirecionar automaticamente para `/settings` após sucesso
+
+### 2. Registrar a rota no App.tsx
+**Arquivo:** `src/App.tsx`
+
+Adicionar a nova rota como página pública (sem ProtectedRoute), pois o usuário pode não estar autenticado no momento do redirect:
+
+```typescript
+// Lazy load
+const MetaAuthCallback = lazy(() => import("./pages/MetaAuthCallback"));
+
+// Na seção de rotas públicas
+<Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
+```
+
+### 3. Atualizar hook useFacebookLogin (opcional)
+**Arquivo:** `src/hooks/useFacebookLogin.ts`
+
+Adicionar suporte para fluxo de redirect além do popup, caso necessário.
+
+---
 
 ## Detalhes Técnicos
 
-A verificação `target.closest()` garante que cliques em elementos filhos interativos (como botões dentro de dropdowns) não acionem a edição:
+### Parâmetros esperados na URL
+```
+https://zap.wideic.com/auth/meta/callback?code=AUTHORIZATION_CODE&state=STATE_PARAM
+```
 
-- `button` - Qualquer botão (menu de ações, botão de tag)
-- `[role="checkbox"]` - Checkboxes de seleção
-- `[role="menuitem"]` - Itens de menu dropdown
-- `[data-radix-collection-item]` - Elementos de coleção do Radix UI (dropdowns)
+### Fluxo da página MetaAuthCallback
 
-Esta é uma alteração simples e pontual que resolve o problema sem afetar outras funcionalidades.
+```typescript
+// 1. Captura o código da URL
+const [searchParams] = useSearchParams();
+const code = searchParams.get('code');
+const errorParam = searchParams.get('error');
+
+// 2. Se houver código, troca pelo token
+useEffect(() => {
+  if (code) {
+    exchangeCodeForToken(code);
+  }
+}, [code]);
+
+// 3. Chama a Edge Function existente
+const exchangeCodeForToken = async (code: string) => {
+  const { data, error } = await supabase.functions.invoke('meta-exchange-token', {
+    body: { code }
+  });
+  // Processa resultado...
+};
+
+// 4. Redireciona após sucesso
+navigate('/settings');
+```
+
+### Tratamento de erros
+- Se `error` estiver presente na URL: exibir mensagem de erro do Facebook
+- Se a troca de token falhar: exibir erro e botão para tentar novamente
+- Timeout de 30 segundos para evitar loops infinitos
+
+---
+
+## Arquivos a serem criados/modificados
+
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/MetaAuthCallback.tsx` | **Criar** - Nova página de callback |
+| `src/App.tsx` | **Modificar** - Adicionar nova rota |
+
+---
+
+## Configuração no Facebook Developer
+
+Após criar a rota, adicione esta URL no campo **Valid OAuth Redirect URIs**:
+```
+https://zap.wideic.com/auth/meta/callback
+```
+
+E também a versão de preview se necessário:
+```
+https://clever-qr-share.lovable.app/auth/meta/callback
+```
+
