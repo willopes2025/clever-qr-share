@@ -1,109 +1,189 @@
 
 
-# Correção: Loop/Reinício (F5) na Página de Funis
+# Plano: Implementar Envio Real de Mensagens nas Automações de Funil
 
 ## Problema Identificado
 
-A página de Funis está entrando em loop e reiniciando porque existem funis com **mais de 1000 deals por etapa**, ultrapassando o limite padrão de registros do banco de dados.
+A automação "Boas Vindas" do cliente **merceariasaudavel.contato@gmail.com** está configurada corretamente, porém a ação `send_message` no código da Edge Function `process-funnel-automations` **não foi implementada** - ela apenas loga a mensagem mas não envia de fato.
 
-### Dados do Problema
-
-| Funil | Etapa | Quantidade de Deals |
-|-------|-------|---------------------|
-| Dr. Victor Linhalis | Abaixo - Assinado Causa Animal | **1.070 deals** |
-| Dr. Victor Linhalis | Contato Gabinete | **604 deals** |
-| Centro de Saúde Visual | (total) | **565 deals** |
-
-### Causa Raiz
-
-A query no arquivo `src/hooks/useFunnels.ts` (linhas 91-124) busca **TODOS** os deals de uma vez só usando uma consulta aninhada:
-
+O código atual:
 ```typescript
-const { data, error } = await supabase
-  .from('funnels')
-  .select(`
-    *,
-    stages:funnel_stages(
-      *,
-      deals:funnel_deals(   // ← SEM LIMITE! Tenta carregar TODOS
-        *,
-        contact:contacts(id, name, phone, email),
-        close_reason:funnel_close_reasons(*)
-      )
-    )
-  `)
+case 'send_message': {
+  console.log(`[FUNNEL-AUTOMATIONS] Would send message: ${message}...`);
+  // TODO: Integrate with send message function when instance is available
+  results.push({ automationId: automation.id, success: true }); // Falso positivo!
+}
 ```
-
-Isso causa dois problemas:
-1. **Limite de 1000 registros**: O banco retorna apenas os primeiros 1000 deals por estágio
-2. **Sobrecarga de memória**: Carregar 1000+ deals de uma vez trava o navegador
 
 ---
 
 ## Solução Proposta
 
-Implementar **paginação virtual** nos deals do Kanban/Lista, carregando deals por demanda ao invés de tudo de uma vez.
+Implementar a integração real com o envio de mensagens utilizando a mesma lógica da função `send-inbox-message` que já funciona para envios manuais.
 
-### Arquivos a Modificar
-
-1. **`src/hooks/useFunnels.ts`**
-2. **`src/components/funnels/FunnelKanbanView.tsx`** 
-3. **`src/components/funnels/FunnelListView.tsx`**
+### Arquivo a Modificar
+`supabase/functions/process-funnel-automations/index.ts`
 
 ---
 
 ## Implementação
 
-### 1. Modificar a Query Principal (useFunnels.ts)
+### 1. Buscar Conversa e Instância do Deal
 
-Limitar a quantidade de deals carregados inicialmente por estágio (exemplo: 50 deals por etapa).
-
-**Mudança na query:**
-```typescript
-deals:funnel_deals(
-  *,
-  contact:contacts(id, name, phone, email),
-  close_reason:funnel_close_reasons(*)
-).limit(50)  // ← ADICIONAR LIMITE
-```
-
-### 2. Adicionar Contagem de Deals por Etapa
-
-Criar uma query separada para buscar a **contagem total** de deals por etapa (não os dados completos), permitindo exibir badges como "1.070 deals" sem carregar todos.
+Expandir a query inicial para incluir a conversa e instância:
 
 ```typescript
-// Nova query para contagens
-const { data: stageCounts } = await supabase
+const { data: deal, error: dealError } = await supabase
   .from('funnel_deals')
-  .select('stage_id')
-  .eq('funnel_id', funnelId);
-
-// Agrupar contagens por etapa
-const countByStage = stageCounts?.reduce((acc, deal) => {
-  acc[deal.stage_id] = (acc[deal.stage_id] || 0) + 1;
-  return acc;
-}, {});
+  .select(`
+    *,
+    contact:contacts(id, name, phone, email, label_id),
+    stage:funnel_stages(id, name, is_final, final_type),
+    funnel:funnels(id, name),
+    conversation:conversations(id, instance_id)
+  `)
+  .eq('id', dealId)
+  .single();
 ```
 
-### 3. Implementar "Carregar Mais" no Kanban
+### 2. Implementar Envio Real na Ação `send_message`
 
-Adicionar um botão "Carregar mais deals" no final de cada etapa quando houver mais deals disponíveis.
+Substituir o TODO por código funcional:
 
-```tsx
-// No FunnelKanbanView.tsx
-{hasMoreDeals && (
-  <Button 
-    variant="ghost" 
-    onClick={() => loadMoreDeals(stageId)}
-  >
-    Carregar mais ({remainingCount})
-  </Button>
-)}
+```typescript
+case 'send_message': {
+  let message = replaceVariables((actionConfig.message as string) || '');
+  
+  // Verificar se temos conversa e contato
+  if (!deal.contact?.phone) {
+    console.log(`[FUNNEL-AUTOMATIONS] Cannot send message - no contact phone`);
+    results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
+    break;
+  }
+
+  // Tentar encontrar a conversa e instância
+  let conversationId = deal.conversation_id || deal.conversation?.id;
+  let instanceId = deal.conversation?.instance_id;
+  
+  // Se não tem conversa no deal, buscar pela mais recente do contato
+  if (!conversationId || !instanceId) {
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('id, instance_id')
+      .eq('contact_id', deal.contact_id)
+      .eq('user_id', deal.user_id)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (conv) {
+      conversationId = conv.id;
+      instanceId = conv.instance_id;
+    }
+  }
+  
+  // Se ainda não tem instância, usar a instância padrão do usuário
+  if (!instanceId) {
+    const { data: defaultInstance } = await supabase
+      .from('whatsapp_instances')
+      .select('id')
+      .eq('user_id', deal.user_id)
+      .eq('status', 'connected')
+      .limit(1)
+      .maybeSingle();
+    
+    instanceId = defaultInstance?.id;
+  }
+  
+  if (!instanceId) {
+    console.log(`[FUNNEL-AUTOMATIONS] Cannot send message - no connected WhatsApp instance`);
+    results.push({ automationId: automation.id, success: false, error: 'No connected WhatsApp instance' });
+    break;
+  }
+
+  // Buscar dados da instância
+  const { data: instance } = await supabase
+    .from('whatsapp_instances')
+    .select('instance_name, evolution_instance_name, status')
+    .eq('id', instanceId)
+    .single();
+  
+  if (!instance || instance.status !== 'connected') {
+    console.log(`[FUNNEL-AUTOMATIONS] Instance not connected`);
+    results.push({ automationId: automation.id, success: false, error: 'Instance not connected' });
+    break;
+  }
+
+  // Formatar telefone
+  let phone = deal.contact.phone.replace(/\D/g, '');
+  const isLabelIdContact = deal.contact.phone.startsWith('LID_') || deal.contact.label_id;
+  
+  let remoteJid: string;
+  if (isLabelIdContact) {
+    remoteJid = `${deal.contact.label_id || phone}@lid`;
+  } else {
+    if (!phone.startsWith('55')) phone = '55' + phone;
+    remoteJid = `${phone}@s.whatsapp.net`;
+  }
+
+  // Enviar via Evolution API
+  const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
+  const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+  const evolutionName = instance.evolution_instance_name || instance.instance_name;
+  
+  const sendPayload = remoteJid.endsWith('@lid')
+    ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: message }
+    : { number: phone, text: message };
+  
+  console.log(`[FUNNEL-AUTOMATIONS] Sending message to ${phone} via ${evolutionName}`);
+  
+  const response = await fetch(
+    `${evolutionApiUrl}/message/sendText/${evolutionName}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': evolutionApiKey
+      },
+      body: JSON.stringify(sendPayload)
+    }
+  );
+
+  const result = await response.json();
+  
+  if (response.ok && result.key) {
+    // Criar registro da mensagem se tiver conversa
+    if (conversationId) {
+      await supabase.from('inbox_messages').insert({
+        conversation_id: conversationId,
+        user_id: deal.user_id,
+        direction: 'outbound',
+        content: message,
+        message_type: 'text',
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        whatsapp_message_id: result.key.id
+      });
+      
+      await supabase.from('conversations').update({
+        last_message_at: new Date().toISOString(),
+        last_message_preview: message.substring(0, 100)
+      }).eq('id', conversationId);
+    }
+    
+    console.log(`[FUNNEL-AUTOMATIONS] Message sent successfully: ${result.key.id}`);
+    results.push({ automationId: automation.id, success: true });
+  } else {
+    console.error(`[FUNNEL-AUTOMATIONS] Failed to send message:`, result);
+    results.push({ automationId: automation.id, success: false, error: result.message || 'Send failed' });
+  }
+  break;
+}
 ```
 
-### 4. Implementar Scroll Infinito na Lista
+### 3. Implementar Também `send_template` (Similar)
 
-Na view de Lista, usar paginação com scroll infinito para carregar deals conforme o usuário rola a página.
+Aplicar a mesma lógica para a ação `send_template` usando a API de templates da Evolution.
 
 ---
 
@@ -111,19 +191,23 @@ Na view de Lista, usar paginação com scroll infinito para carregar deals confo
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useFunnels.ts` | Adicionar `.limit(50)` na query de deals + criar função de paginação |
-| `src/hooks/useFunnels.ts` | Adicionar query para contagem total por etapa |
-| `src/components/funnels/FunnelKanbanView.tsx` | Exibir contagem real + botão "carregar mais" |
-| `src/components/funnels/FunnelListView.tsx` | Implementar paginação com scroll infinito |
+| `supabase/functions/process-funnel-automations/index.ts` | Expandir query para incluir conversation + Implementar envio real via Evolution API |
 
 ---
 
 ## Resultado Esperado
 
 Após a correção:
-- Página de Funis carregará instantaneamente (apenas 50 deals por etapa inicialmente)
-- Contagem real de deals será exibida no header de cada etapa
-- Usuário poderá carregar mais deals quando necessário
-- Não haverá mais travamentos ou reloads automáticos
-- Suporte a funis com milhares de deals
+- Automações com ação `send_message` enviarão mensagens reais pelo WhatsApp
+- Mensagens serão registradas no histórico de conversas
+- Logs mostrarão "Message sent successfully" em vez de "Would send message"
+- A automação "Boas Vindas" do cliente Mercearia Saudável funcionará corretamente
+
+---
+
+## Considerações Técnicas
+
+1. **Fallback de Instância**: Se o deal não tiver conversa associada, usamos a instância padrão conectada do usuário
+2. **Label ID (LID)**: Suporte a contatos de Click-to-WhatsApp Ads que usam identificadores especiais
+3. **Registro de Mensagem**: A mensagem enviada é salva no histórico da conversa para manter rastreabilidade
 
