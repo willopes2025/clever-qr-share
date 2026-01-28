@@ -29,10 +29,11 @@
       window.fbAsyncInit = function() {
         FB.init({
           appId: '25248752291487782',
-          autoLogAppEvents: true,
+          cookie: true,
           xfbml: true,
           version: 'v24.0'
         });
+        FB.AppEvents.logPageView();
       };
     </script>
     <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
