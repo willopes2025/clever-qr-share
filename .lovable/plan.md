@@ -1,125 +1,108 @@
 
+# Correção: Limite de 1000 Contatos na Importação
 
-# Plano: Criar Rota de Callback para Meta OAuth
+## Problema Identificado
 
-## Objetivo
-Criar uma nova rota `/auth/meta/callback` para processar o retorno da autenticação OAuth do Facebook/Meta após o login do usuário.
+O cliente **Matheus Suave** (`matheussuave002@gmail.com`) possui:
+- **Plano:** Agência (contatos ilimitados - `max_contacts = null`)
+- **Contatos atuais:** 1.741
 
-## Por que isso é necessário?
-O Facebook Developer requer uma URL de callback válida para redirecionar os usuários após a autorização OAuth. Esta página irá:
-1. Capturar o código de autorização da URL
-2. Trocar o código pelo token de acesso (via Edge Function)
-3. Mostrar feedback visual ao usuário
-4. Redirecionar para a página de configurações
-
----
-
-## Arquitetura da Solução
-
-```text
-+---------------------+     +----------------------+     +-------------------------+
-|  Facebook OAuth     | --> | /auth/meta/callback  | --> | meta-exchange-token     |
-|  (redirect com code)|     | (página React)       |     | (Edge Function)         |
-+---------------------+     +----------------------+     +-------------------------+
-                                     |                              |
-                                     v                              v
-                            Mostra feedback          Salva credenciais no DB
-                            e redireciona
-```
-
----
-
-## Etapas de Implementação
-
-### 1. Criar a página de callback
-**Arquivo:** `src/pages/MetaAuthCallback.tsx`
-
-A página irá:
-- Capturar os parâmetros `code` e `state` da URL usando `useSearchParams`
-- Mostrar um loading spinner durante o processamento
-- Chamar a Edge Function `meta-exchange-token` para trocar o código pelo token
-- Exibir mensagem de sucesso ou erro
-- Redirecionar automaticamente para `/settings` após sucesso
-
-### 2. Registrar a rota no App.tsx
-**Arquivo:** `src/App.tsx`
-
-Adicionar a nova rota como página pública (sem ProtectedRoute), pois o usuário pode não estar autenticado no momento do redirect:
+O problema está na função de deduplicação dentro do `importContacts` no arquivo `src/hooks/useContacts.ts`. A query que busca contatos existentes **não possui paginação**:
 
 ```typescript
-// Lazy load
-const MetaAuthCallback = lazy(() => import("./pages/MetaAuthCallback"));
-
-// Na seção de rotas públicas
-<Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
+// Linha 339-342 - PROBLEMÁTICO
+const { data: existingContacts, error: fetchError } = await supabase
+  .from("contacts")
+  .select("id, phone, email, contact_display_id, custom_fields")
+  .eq("user_id", user.id);  // SEM paginação!
 ```
 
-### 3. Atualizar hook useFacebookLogin (opcional)
-**Arquivo:** `src/hooks/useFacebookLogin.ts`
-
-Adicionar suporte para fluxo de redirect além do popup, caso necessário.
+O Supabase tem um **limite padrão de 1000 registros por query**. Consequências:
+1. Se o cliente tem mais de 1000 contatos, apenas os primeiros 1000 são verificados na deduplicação
+2. Pode causar duplicações indesejadas ou contatos não sendo reconhecidos como existentes
+3. Comportamento inconsistente na importação
 
 ---
 
-## Detalhes Técnicos
+## Solução Proposta
 
-### Parâmetros esperados na URL
-```
-https://zap.wideic.com/auth/meta/callback?code=AUTHORIZATION_CODE&state=STATE_PARAM
-```
+Implementar paginação na busca de contatos existentes durante a deduplicação, similar ao que já é feito no `fetchAllContacts` (linhas 60-109).
 
-### Fluxo da página MetaAuthCallback
+### Arquivo a modificar
+`src/hooks/useContacts.ts`
 
-```typescript
-// 1. Captura o código da URL
-const [searchParams] = useSearchParams();
-const code = searchParams.get('code');
-const errorParam = searchParams.get('error');
+### Mudanças
 
-// 2. Se houver código, troca pelo token
-useEffect(() => {
-  if (code) {
-    exchangeCodeForToken(code);
-  }
-}, [code]);
+1. **Criar função auxiliar para buscar todos os contatos com paginação**
+   
+   Adicionar função similar ao `fetchAllContacts` mas otimizada para deduplicação (buscando apenas campos necessários):
 
-// 3. Chama a Edge Function existente
-const exchangeCodeForToken = async (code: string) => {
-  const { data, error } = await supabase.functions.invoke('meta-exchange-token', {
-    body: { code }
-  });
-  // Processa resultado...
-};
+   ```typescript
+   const fetchAllContactsForDedup = async (userId: string) => {
+     const PAGE_SIZE = 1000;
+     let allContacts: Array<{
+       id: string;
+       phone: string;
+       email: string | null;
+       contact_display_id: string | null;
+       custom_fields: Record<string, unknown> | null;
+     }> = [];
+     let page = 0;
+     let hasMore = true;
 
-// 4. Redireciona após sucesso
-navigate('/settings');
-```
+     while (hasMore) {
+       const from = page * PAGE_SIZE;
+       const to = from + PAGE_SIZE - 1;
 
-### Tratamento de erros
-- Se `error` estiver presente na URL: exibir mensagem de erro do Facebook
-- Se a troca de token falhar: exibir erro e botão para tentar novamente
-- Timeout de 30 segundos para evitar loops infinitos
+       const { data, error } = await supabase
+         .from("contacts")
+         .select("id, phone, email, contact_display_id, custom_fields")
+         .eq("user_id", userId)
+         .range(from, to);
+
+       if (error) throw error;
+
+       if (data && data.length > 0) {
+         allContacts = [...allContacts, ...data];
+         hasMore = data.length === PAGE_SIZE;
+         page++;
+       } else {
+         hasMore = false;
+       }
+     }
+
+     return allContacts;
+   };
+   ```
+
+2. **Substituir a query atual pela função paginada**
+
+   Alterar a linha 339-347 de:
+   ```typescript
+   const { data: existingContacts, error: fetchError } = await supabase
+     .from("contacts")
+     .select("id, phone, email, contact_display_id, custom_fields")
+     .eq("user_id", user.id);
+   ```
+   
+   Para:
+   ```typescript
+   const existingContacts = await fetchAllContactsForDedup(user.id);
+   ```
 
 ---
 
-## Arquivos a serem criados/modificados
+## Resumo das Alterações
 
-| Arquivo | Ação |
-|---------|------|
-| `src/pages/MetaAuthCallback.tsx` | **Criar** - Nova página de callback |
-| `src/App.tsx` | **Modificar** - Adicionar nova rota |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useContacts.ts` | Adicionar função de paginação e atualizar query de deduplicação |
 
 ---
 
-## Configuração no Facebook Developer
+## Resultado Esperado
 
-Após criar a rota, adicione esta URL no campo **Valid OAuth Redirect URIs**:
-```
-https://zap.wideic.com/auth/meta/callback
-```
-
-E também a versão de preview se necessário:
-```
-https://clever-qr-share.lovable.app/auth/meta/callback
-```
-
+Após a correção:
+- Importação funcionará corretamente para usuários com mais de 1000 contatos
+- A deduplicação verificará **todos** os contatos existentes
+- Não haverá mais limite implícito de 1000 contatos na importação
