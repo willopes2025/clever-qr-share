@@ -8,13 +8,13 @@ import {
   DollarSign,
   Clock,
   Trash2,
-  Download,
   Settings2,
   Filter,
   X,
   Edit,
   ChevronDown,
   FileSpreadsheet,
+  Loader2,
 } from "lucide-react";
 import {
   Table,
@@ -48,6 +48,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Funnel, FunnelDeal, useFunnels } from "@/hooks/useFunnels";
+import { useStageDealCounts, useLoadMoreDeals } from "@/hooks/useFunnelDeals";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { DealFormDialog } from "./DealFormDialog";
@@ -80,10 +81,13 @@ type DealWithStage = FunnelDeal & {
 
 export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals } = useFunnels();
+  const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
+  const loadMoreDeals = useLoadMoreDeals();
   const { fieldDefinitions } = useCustomFields();
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -101,6 +105,41 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
+
+  // Calculate total deals vs loaded deals
+  const totalDealsCount = useMemo(() => {
+    return Object.values(stageCounts).reduce((sum, count) => sum + count, 0);
+  }, [stageCounts]);
+
+  const loadedDealsCount = useMemo(() => {
+    return (funnel.stages || []).reduce((sum, stage) => sum + (stage.deals?.length || 0), 0);
+  }, [funnel.stages]);
+
+  const hasMoreDeals = totalDealsCount > loadedDealsCount;
+
+  // Load more deals for all stages
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    try {
+      // Load more for each stage that has more deals
+      const loadPromises = (funnel.stages || []).map(async (stage) => {
+        const loadedCount = stage.deals?.length || 0;
+        const totalCount = stageCounts[stage.id] || 0;
+        
+        if (loadedCount < totalCount) {
+          await loadMoreDeals.mutateAsync({
+            stageId: stage.id,
+            funnelId: funnel.id,
+            offset: loadedCount
+          });
+        }
+      });
+      
+      await Promise.all(loadPromises);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Define all available columns
   const allColumns: ColumnDefinition[] = useMemo(() => {
@@ -748,6 +787,28 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </div>
+
+      {/* Load More Button */}
+      {hasMoreDeals && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Carregando...
+              </>
+            ) : (
+              <>
+                Carregar mais ({totalDealsCount - loadedDealsCount} restantes)
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {editingDeal && (
         <DealFormDialog
