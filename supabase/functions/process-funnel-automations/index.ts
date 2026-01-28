@@ -34,12 +34,12 @@ Deno.serve(async (req: Request) => {
 
     console.log("[FUNNEL-AUTOMATIONS] Processing automation", payload);
 
-    // Fetch deal with funnel and stage info
+    // Fetch deal with funnel, stage and contact info (including label_id for LID contacts)
     const { data: deal, error: dealError } = await supabase
       .from('funnel_deals')
       .select(`
         *,
-        contact:contacts(id, name, phone, email),
+        contact:contacts(id, name, phone, email, label_id),
         stage:funnel_stages(id, name, is_final, final_type),
         funnel:funnels(id, name)
       `)
@@ -184,10 +184,152 @@ Deno.serve(async (req: Request) => {
 
         switch (automation.action_type) {
           case 'send_message': {
-            let message = replaceVariables((actionConfig.message as string) || '');
-            console.log(`[FUNNEL-AUTOMATIONS] Would send message: ${message.substring(0, 50)}...`);
-            // TODO: Integrate with send message function when instance is available
-            results.push({ automationId: automation.id, success: true });
+            const message = replaceVariables((actionConfig.message as string) || '');
+            
+            // Verificar se temos contato com telefone
+            if (!deal.contact?.phone) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send message - no contact phone`);
+              results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
+              break;
+            }
+
+            // Tentar encontrar a conversa e instância
+            let conversationId = deal.conversation_id;
+            let instanceId: string | null = null;
+            
+            // Buscar conversa mais recente do contato
+            if (!conversationId) {
+              const { data: conv } = await supabase
+                .from('conversations')
+                .select('id, instance_id')
+                .eq('contact_id', deal.contact_id)
+                .eq('user_id', deal.user_id)
+                .order('last_message_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              if (conv) {
+                conversationId = conv.id;
+                instanceId = conv.instance_id;
+              }
+            } else {
+              // Buscar instance_id da conversa existente
+              const { data: existingConv } = await supabase
+                .from('conversations')
+                .select('instance_id')
+                .eq('id', conversationId)
+                .single();
+              
+              instanceId = existingConv?.instance_id || null;
+            }
+            
+            // Se ainda não tem instância, usar a instância padrão conectada do usuário
+            if (!instanceId) {
+              const { data: defaultInstance } = await supabase
+                .from('whatsapp_instances')
+                .select('id')
+                .eq('user_id', deal.user_id)
+                .eq('status', 'connected')
+                .limit(1)
+                .maybeSingle();
+              
+              instanceId = defaultInstance?.id || null;
+            }
+            
+            if (!instanceId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send message - no connected WhatsApp instance`);
+              results.push({ automationId: automation.id, success: false, error: 'No connected WhatsApp instance' });
+              break;
+            }
+
+            // Buscar dados da instância
+            const { data: instance, error: instanceError } = await supabase
+              .from('whatsapp_instances')
+              .select('instance_name, evolution_instance_name, status')
+              .eq('id', instanceId)
+              .single();
+            
+            if (instanceError || !instance || instance.status !== 'connected') {
+              console.log(`[FUNNEL-AUTOMATIONS] Instance not connected or not found`);
+              results.push({ automationId: automation.id, success: false, error: 'Instance not connected' });
+              break;
+            }
+
+            // Formatar telefone
+            let phone = deal.contact.phone.replace(/\D/g, '');
+            const isLabelIdContact = deal.contact.phone.startsWith('LID_') || deal.contact.label_id;
+            
+            let remoteJid: string;
+            if (isLabelIdContact) {
+              remoteJid = `${deal.contact.label_id || phone}@lid`;
+            } else {
+              if (!phone.startsWith('55')) phone = '55' + phone;
+              remoteJid = `${phone}@s.whatsapp.net`;
+            }
+
+            // Enviar via Evolution API
+            const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+            const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+            
+            if (!evolutionApiUrl || !evolutionApiKey) {
+              console.error(`[FUNNEL-AUTOMATIONS] Evolution API not configured`);
+              results.push({ automationId: automation.id, success: false, error: 'Evolution API not configured' });
+              break;
+            }
+            
+            const evolutionName = instance.evolution_instance_name || instance.instance_name;
+            
+            const sendPayload = remoteJid.endsWith('@lid')
+              ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: message }
+              : { number: phone, text: message };
+            
+            console.log(`[FUNNEL-AUTOMATIONS] Sending message to ${phone} via ${evolutionName}`);
+            
+            try {
+              const response = await fetch(
+                `${evolutionApiUrl}/message/sendText/${encodeURIComponent(evolutionName)}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': evolutionApiKey
+                  },
+                  body: JSON.stringify(sendPayload)
+                }
+              );
+
+              const result = await response.json();
+              
+              if (response.ok && result.key) {
+                // Criar registro da mensagem se tiver conversa
+                if (conversationId) {
+                  await supabase.from('inbox_messages').insert({
+                    conversation_id: conversationId,
+                    user_id: deal.user_id,
+                    direction: 'outbound',
+                    content: message,
+                    message_type: 'text',
+                    status: 'sent',
+                    sent_at: new Date().toISOString(),
+                    whatsapp_message_id: result.key.id
+                  });
+                  
+                  await supabase.from('conversations').update({
+                    last_message_at: new Date().toISOString(),
+                    last_message_preview: message.substring(0, 100)
+                  }).eq('id', conversationId);
+                }
+                
+                console.log(`[FUNNEL-AUTOMATIONS] Message sent successfully: ${result.key.id}`);
+                results.push({ automationId: automation.id, success: true });
+              } else {
+                console.error(`[FUNNEL-AUTOMATIONS] Failed to send message:`, result);
+                results.push({ automationId: automation.id, success: false, error: result.message || 'Send failed' });
+              }
+            } catch (sendError) {
+              console.error(`[FUNNEL-AUTOMATIONS] Error sending message:`, sendError);
+              results.push({ automationId: automation.id, success: false, error: sendError instanceof Error ? sendError.message : 'Send error' });
+            }
             break;
           }
 
