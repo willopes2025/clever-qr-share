@@ -1,94 +1,109 @@
 
-# Correção: Limite de 1000 Contatos na Importação
+
+# Correção: Loop/Reinício (F5) na Página de Funis
 
 ## Problema Identificado
 
-O cliente **Matheus Suave** (`matheussuave002@gmail.com`) possui:
-- **Plano:** Agência (contatos ilimitados - `max_contacts = null`)
-- **Contatos atuais:** 1.741
+A página de Funis está entrando em loop e reiniciando porque existem funis com **mais de 1000 deals por etapa**, ultrapassando o limite padrão de registros do banco de dados.
 
-O problema está na função de deduplicação dentro do `importContacts` no arquivo `src/hooks/useContacts.ts`. A query que busca contatos existentes **não possui paginação**:
+### Dados do Problema
+
+| Funil | Etapa | Quantidade de Deals |
+|-------|-------|---------------------|
+| Dr. Victor Linhalis | Abaixo - Assinado Causa Animal | **1.070 deals** |
+| Dr. Victor Linhalis | Contato Gabinete | **604 deals** |
+| Centro de Saúde Visual | (total) | **565 deals** |
+
+### Causa Raiz
+
+A query no arquivo `src/hooks/useFunnels.ts` (linhas 91-124) busca **TODOS** os deals de uma vez só usando uma consulta aninhada:
 
 ```typescript
-// Linha 339-342 - PROBLEMÁTICO
-const { data: existingContacts, error: fetchError } = await supabase
-  .from("contacts")
-  .select("id, phone, email, contact_display_id, custom_fields")
-  .eq("user_id", user.id);  // SEM paginação!
+const { data, error } = await supabase
+  .from('funnels')
+  .select(`
+    *,
+    stages:funnel_stages(
+      *,
+      deals:funnel_deals(   // ← SEM LIMITE! Tenta carregar TODOS
+        *,
+        contact:contacts(id, name, phone, email),
+        close_reason:funnel_close_reasons(*)
+      )
+    )
+  `)
 ```
 
-O Supabase tem um **limite padrão de 1000 registros por query**. Consequências:
-1. Se o cliente tem mais de 1000 contatos, apenas os primeiros 1000 são verificados na deduplicação
-2. Pode causar duplicações indesejadas ou contatos não sendo reconhecidos como existentes
-3. Comportamento inconsistente na importação
+Isso causa dois problemas:
+1. **Limite de 1000 registros**: O banco retorna apenas os primeiros 1000 deals por estágio
+2. **Sobrecarga de memória**: Carregar 1000+ deals de uma vez trava o navegador
 
 ---
 
 ## Solução Proposta
 
-Implementar paginação na busca de contatos existentes durante a deduplicação, similar ao que já é feito no `fetchAllContacts` (linhas 60-109).
+Implementar **paginação virtual** nos deals do Kanban/Lista, carregando deals por demanda ao invés de tudo de uma vez.
 
-### Arquivo a modificar
-`src/hooks/useContacts.ts`
+### Arquivos a Modificar
 
-### Mudanças
+1. **`src/hooks/useFunnels.ts`**
+2. **`src/components/funnels/FunnelKanbanView.tsx`** 
+3. **`src/components/funnels/FunnelListView.tsx`**
 
-1. **Criar função auxiliar para buscar todos os contatos com paginação**
-   
-   Adicionar função similar ao `fetchAllContacts` mas otimizada para deduplicação (buscando apenas campos necessários):
+---
 
-   ```typescript
-   const fetchAllContactsForDedup = async (userId: string) => {
-     const PAGE_SIZE = 1000;
-     let allContacts: Array<{
-       id: string;
-       phone: string;
-       email: string | null;
-       contact_display_id: string | null;
-       custom_fields: Record<string, unknown> | null;
-     }> = [];
-     let page = 0;
-     let hasMore = true;
+## Implementação
 
-     while (hasMore) {
-       const from = page * PAGE_SIZE;
-       const to = from + PAGE_SIZE - 1;
+### 1. Modificar a Query Principal (useFunnels.ts)
 
-       const { data, error } = await supabase
-         .from("contacts")
-         .select("id, phone, email, contact_display_id, custom_fields")
-         .eq("user_id", userId)
-         .range(from, to);
+Limitar a quantidade de deals carregados inicialmente por estágio (exemplo: 50 deals por etapa).
 
-       if (error) throw error;
+**Mudança na query:**
+```typescript
+deals:funnel_deals(
+  *,
+  contact:contacts(id, name, phone, email),
+  close_reason:funnel_close_reasons(*)
+).limit(50)  // ← ADICIONAR LIMITE
+```
 
-       if (data && data.length > 0) {
-         allContacts = [...allContacts, ...data];
-         hasMore = data.length === PAGE_SIZE;
-         page++;
-       } else {
-         hasMore = false;
-       }
-     }
+### 2. Adicionar Contagem de Deals por Etapa
 
-     return allContacts;
-   };
-   ```
+Criar uma query separada para buscar a **contagem total** de deals por etapa (não os dados completos), permitindo exibir badges como "1.070 deals" sem carregar todos.
 
-2. **Substituir a query atual pela função paginada**
+```typescript
+// Nova query para contagens
+const { data: stageCounts } = await supabase
+  .from('funnel_deals')
+  .select('stage_id')
+  .eq('funnel_id', funnelId);
 
-   Alterar a linha 339-347 de:
-   ```typescript
-   const { data: existingContacts, error: fetchError } = await supabase
-     .from("contacts")
-     .select("id, phone, email, contact_display_id, custom_fields")
-     .eq("user_id", user.id);
-   ```
-   
-   Para:
-   ```typescript
-   const existingContacts = await fetchAllContactsForDedup(user.id);
-   ```
+// Agrupar contagens por etapa
+const countByStage = stageCounts?.reduce((acc, deal) => {
+  acc[deal.stage_id] = (acc[deal.stage_id] || 0) + 1;
+  return acc;
+}, {});
+```
+
+### 3. Implementar "Carregar Mais" no Kanban
+
+Adicionar um botão "Carregar mais deals" no final de cada etapa quando houver mais deals disponíveis.
+
+```tsx
+// No FunnelKanbanView.tsx
+{hasMoreDeals && (
+  <Button 
+    variant="ghost" 
+    onClick={() => loadMoreDeals(stageId)}
+  >
+    Carregar mais ({remainingCount})
+  </Button>
+)}
+```
+
+### 4. Implementar Scroll Infinito na Lista
+
+Na view de Lista, usar paginação com scroll infinito para carregar deals conforme o usuário rola a página.
 
 ---
 
@@ -96,13 +111,19 @@ Implementar paginação na busca de contatos existentes durante a deduplicação
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useContacts.ts` | Adicionar função de paginação e atualizar query de deduplicação |
+| `src/hooks/useFunnels.ts` | Adicionar `.limit(50)` na query de deals + criar função de paginação |
+| `src/hooks/useFunnels.ts` | Adicionar query para contagem total por etapa |
+| `src/components/funnels/FunnelKanbanView.tsx` | Exibir contagem real + botão "carregar mais" |
+| `src/components/funnels/FunnelListView.tsx` | Implementar paginação com scroll infinito |
 
 ---
 
 ## Resultado Esperado
 
 Após a correção:
-- Importação funcionará corretamente para usuários com mais de 1000 contatos
-- A deduplicação verificará **todos** os contatos existentes
-- Não haverá mais limite implícito de 1000 contatos na importação
+- Página de Funis carregará instantaneamente (apenas 50 deals por etapa inicialmente)
+- Contagem real de deals será exibida no header de cada etapa
+- Usuário poderá carregar mais deals quando necessário
+- Não haverá mais travamentos ou reloads automáticos
+- Suporte a funis com milhares de deals
+
