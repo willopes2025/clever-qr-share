@@ -335,13 +335,54 @@ export const useContacts = () => {
         // Renew session before fetching existing contacts
         await ensureSession();
         
-        // Fetch all existing contacts for this user
-        const { data: existingContacts, error: fetchError } = await supabase
-          .from("contacts")
-          .select("id, phone, email, contact_display_id, custom_fields")
-          .eq("user_id", user.id);
+        // Fetch ALL existing contacts for this user using pagination (bypasses 1000 limit)
+        const fetchAllContactsForDedup = async (userId: string) => {
+          const PAGE_SIZE = 1000;
+          let allContacts: Array<{
+            id: string;
+            phone: string;
+            email: string | null;
+            contact_display_id: string | null;
+            custom_fields: Json | null;
+          }> = [];
+          let page = 0;
+          let hasMore = true;
 
-        if (fetchError) {
+          while (hasMore) {
+            const from = page * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+
+            const { data, error } = await supabase
+              .from("contacts")
+              .select("id, phone, email, contact_display_id, custom_fields")
+              .eq("user_id", userId)
+              .range(from, to);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+              allContacts = [...allContacts, ...data];
+              hasMore = data.length === PAGE_SIZE;
+              page++;
+            } else {
+              hasMore = false;
+            }
+          }
+
+          return allContacts;
+        };
+
+        let existingContacts: Array<{
+          id: string;
+          phone: string;
+          email: string | null;
+          contact_display_id: string | null;
+          custom_fields: Json | null;
+        }>;
+
+        try {
+          existingContacts = await fetchAllContactsForDedup(user.id);
+        } catch (fetchError) {
           console.error("Error fetching existing contacts:", fetchError);
           throw fetchError;
         }
