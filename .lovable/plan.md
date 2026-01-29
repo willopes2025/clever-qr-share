@@ -1,149 +1,55 @@
 
-# Adicionar Filtros Avançados na Criação de Listas de Transmissão
+Objetivo
+- Fazer o “card/dialog” de criação de lista (“Nova Lista de Transmissão”) exibir rolagem vertical de forma confiável quando o conteúdo (especialmente “Critérios de Filtro”) ultrapassar a altura disponível, e deixar a barra visível/óbvia.
 
-## Objetivo
+O que está acontecendo hoje (com base no código e no seu print)
+- O conteúdo “Critérios de Filtro” está sendo cortado dentro do diálogo, sem uma barra de rolagem visível para acessar o restante.
+- O layout atual tenta usar um ScrollArea no meio do diálogo, mas a rolagem/barra não está aparecendo como esperado.
 
-Expandir o formulário de criação/edição de listas de transmissão dinâmicas para incluir novos filtros:
-- **Fonte de dados**: Contatos ou Funil (deals)
-- **Funil específico**: Qual funil filtrar
-- **Etapa do funil**: Filtrar por estágio específico
-- **Tags**: Já existente, manter
-- **Campos dinâmicos**: Filtrar por valores de custom_fields
+Causas mais prováveis (técnico)
+1) O DialogContent base (shadcn/radix) já vem como `grid`. No nosso componente, estamos tentando transformá-lo em `flex flex-col`. Dependendo da ordem/precedência do CSS do Tailwind, pode ficar “grid” mesmo, o que faz `flex-1` não funcionar e a área “scrollável” não ganhar altura. Resultado: o conteúdo extrapola e é cortado.
+2) O ScrollArea do Radix, por padrão, pode esconder a scrollbar e só exibir no hover (comportamento “hover”), o que faz parecer “sem barra”, principalmente em touch/mobile.
 
-## Arquivos a Modificar
+Abordagem de correção (robusta e alinhada com padrões do projeto)
+- Trocar o layout do diálogo para um grid com linhas fixas para cabeçalho/rodapé e uma linha central “1fr” scrollável, igual ao padrão já usado em `ImportContactsDialogV2`.
+- Configurar a área do meio para ter `min-h-0` (essencial para permitir que a área encolha e possa rolar).
+- Forçar a scrollbar do Radix ScrollArea a ficar visível (não só no hover), usando `type="always"` e `scrollHideDelay={0}`.
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/hooks/useBroadcastLists.ts` | Expandir `FilterCriteria` com novos campos |
-| `src/components/broadcasts/BroadcastListFormDialog.tsx` | Adicionar novos campos de filtro na UI |
-| `src/pages/BroadcastLists.tsx` | Passar funis e campos dinâmicos para o dialog |
+Mudanças propostas (passo a passo)
+1) Ajustar layout do diálogo para grid com linha scrollável
+   - Arquivo: `src/components/broadcasts/BroadcastListFormDialog.tsx`
+   - Alterar o `DialogContent` para:
+     - Remover dependência de `flex flex-col`.
+     - Usar: `grid grid-rows-[auto_1fr_auto]` + `max-h-[85vh]` + `overflow-hidden`.
+     - Manter o `DialogHeader` na primeira linha e o `DialogFooter` na última.
 
----
+2) Garantir que a área central realmente possa rolar
+   - No componente central (onde está o `<ScrollArea>`):
+     - Remover `flex-1` (não será mais necessário).
+     - Manter/adicionar `min-h-0` (crítico em grid).
+     - Manter o form dentro da área rolável.
 
-## Detalhes Técnicos
+3) Tornar a barra visível (não depender de hover)
+   - Ainda em `BroadcastListFormDialog.tsx`, ajustar o `<ScrollArea>`:
+     - Passar props para o Radix Root (já suportado pelo wrapper): `type="always"` e `scrollHideDelay={0}`.
+     - Opcional: adicionar `className="touch-pan-y overscroll-contain"` para melhorar scroll em touch.
 
-### 1. Expandir Interface FilterCriteria
+4) (Opcional, se a barra ainda estiver “muito discreta”) Melhorar contraste da scrollbar
+   - Arquivo: `src/components/ui/scroll-area.tsx`
+   - Ajustar estilos do `ScrollAreaThumb` (ex.: `bg-muted-foreground/40 hover:bg-muted-foreground/60`) e/ou adicionar um fundo leve no trilho.
+   - Observação: isso impacta todas as ScrollAreas do app. Só faremos se você quiser uma barra mais evidente em toda a aplicação.
 
-```typescript
-// src/hooks/useBroadcastLists.ts
-export interface FilterCriteria {
-  // Campos existentes
-  tags?: string[];
-  status?: string;
-  optedOut?: boolean;
-  asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
-  
-  // Novos campos
-  source?: 'contacts' | 'funnel'; // Fonte de dados
-  funnelId?: string;              // Funil selecionado
-  stageId?: string;               // Etapa específica (ou "all" para todas)
-  customFields?: Record<string, {
-    operator: 'equals' | 'contains' | 'not_empty' | 'empty';
-    value?: string;
-  }>;
-}
-```
+Como vou validar (checklist)
+- Abrir /broadcast-lists → “Nova Lista de Transmissão”.
+- Selecionar “Dinâmica”.
+- Confirmar que:
+  - A área do meio rola com mouse wheel/trackpad/toque.
+  - A barra vertical aparece visivelmente (sem precisar hover).
+  - O rodapé com “Cancelar / Criar Lista” permanece fixo e acessível.
+- Testar em viewport menor (modo mobile) para garantir que o scroll funciona quando “Critérios de Filtro” fica grande.
 
-### 2. Atualizar Lógica de Contagem e Busca
-
-No hook `useBroadcastLists`, atualizar as queries para:
-- Se `source === 'funnel'`: buscar contatos via `funnel_deals` com join
-- Se `source === 'contacts'` (padrão): manter lógica atual
-- Aplicar filtros de `funnelId` e `stageId` quando selecionados
-- Filtrar por `custom_fields` usando operadores JSONB
-
-### 3. Atualizar UI do Formulário
-
-Adicionar no `BroadcastListFormDialog.tsx`:
-
-```text
-+------------------------------------------+
-| Critérios de Filtro                      |
-+------------------------------------------+
-| Fonte de Dados:                          |
-|   [O] Contatos (todos os contatos)       |
-|   [O] Funil (contatos em deals)          |
-+------------------------------------------+
-| Se Funil selecionado:                    |
-|   Funil: [Select: Lista de funis]        |
-|   Etapa: [Select: Todas / Etapa X / Y]   |
-+------------------------------------------+
-| Tags: [Badges clicáveis]                 |
-+------------------------------------------+
-| Campos Personalizados:                   |
-|   + Adicionar filtro de campo            |
-|   [Campo: X] [Operador: =] [Valor: Y]    |
-+------------------------------------------+
-```
-
-### 4. Lógica de Query no Backend
-
-Para buscar contatos do funil:
-
-```typescript
-// Quando source === 'funnel'
-let query = supabase
-  .from('funnel_deals')
-  .select('contact_id, contacts!inner(*)')
-  .eq('funnel_id', criteria.funnelId);
-
-if (criteria.stageId && criteria.stageId !== 'all') {
-  query = query.eq('stage_id', criteria.stageId);
-}
-
-// Depois aplicar filtros de tags e custom_fields nos contatos
-```
-
-Para filtrar por campos dinâmicos (JSONB):
-
-```typescript
-// Exemplo para campo com operador 'equals'
-if (criteria.customFields) {
-  Object.entries(criteria.customFields).forEach(([fieldKey, filter]) => {
-    if (filter.operator === 'equals' && filter.value) {
-      query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-    } else if (filter.operator === 'not_empty') {
-      query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-    }
-  });
-}
-```
-
----
-
-## Componentes Novos
-
-### CustomFieldFilterRow
-
-Componente para adicionar/remover filtros de campos dinâmicos:
-
-```text
-[Select: Campo] [Select: Operador] [Input: Valor] [X Remover]
-
-Operadores disponíveis:
-- Igual a
-- Contém
-- Não está vazio
-- Está vazio
-```
-
----
-
-## Fluxo de Uso
-
-1. Usuário clica "Nova Lista" e seleciona "Dinâmica"
-2. Escolhe a fonte: "Contatos" ou "Funil"
-3. Se funil: seleciona qual funil e opcionalmente uma etapa
-4. Adiciona tags (opcional)
-5. Adiciona filtros de campos dinâmicos (opcional)
-6. O sistema calcula automaticamente quantos contatos serão incluídos
-7. Ao salvar, os critérios são armazenados em `filter_criteria`
-
----
-
-## Resultado Esperado
-
-- Listas dinâmicas podem ser criadas baseadas em posição no funil
-- Usuários podem segmentar por etapa específica (ex: "Proposta Enviada")
-- Campos dinâmicos permitem filtros granulares (ex: "Cidade = São Paulo")
-- A contagem de contatos é exibida em tempo real conforme os filtros mudam
+Arquivos que serão modificados
+- Obrigatório:
+  - `src/components/broadcasts/BroadcastListFormDialog.tsx`
+- Opcional (se precisar reforçar a visibilidade global da barra):
+  - `src/components/ui/scroll-area.tsx`
