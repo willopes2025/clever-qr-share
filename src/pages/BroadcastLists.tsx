@@ -8,6 +8,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Search, List, Loader2 } from "lucide-react";
 import { useBroadcastLists, BroadcastListWithContacts } from "@/hooks/useBroadcastLists";
 import { useContacts } from "@/hooks/useContacts";
+import { useFunnels } from "@/hooks/useFunnels";
+import { useCustomFields } from "@/hooks/useCustomFields";
 import { BroadcastListFormDialog } from "@/components/broadcasts/BroadcastListFormDialog";
 import { BroadcastListCard } from "@/components/broadcasts/BroadcastListCard";
 import { ListContactsDialog } from "@/components/broadcasts/ListContactsDialog";
@@ -29,6 +31,8 @@ const BroadcastLists = () => {
   } = useBroadcastLists();
   
   const { contacts, tags } = useContacts();
+  const { funnels } = useFunnels();
+  const { fieldDefinitions } = useCustomFields();
 
   // UI State
   const [search, setSearch] = useState("");
@@ -180,6 +184,8 @@ const BroadcastLists = () => {
         }}
         list={editingList}
         tags={tags}
+        funnels={funnels}
+        customFieldDefinitions={fieldDefinitions}
         onSubmit={editingList ? handleUpdateList : handleCreateList}
       />
 
