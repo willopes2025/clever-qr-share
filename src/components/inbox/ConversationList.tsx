@@ -1,6 +1,6 @@
 import { format, isToday, isYesterday, subDays, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, Clock } from "lucide-react";
+import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, Clock, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useConversationSearch } from "@/hooks/useConversationSearch";
 import { ConversationContextMenu } from "./ConversationContextMenu";
 import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
