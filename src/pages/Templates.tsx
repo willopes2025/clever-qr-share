@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { 
   useMessageTemplates, 
   MessageTemplate, 
@@ -16,8 +17,9 @@ import { TemplateFormDialog } from '@/components/templates/TemplateFormDialog';
 import { TemplatePreviewDialog } from '@/components/templates/TemplatePreviewDialog';
 import { TemplateVariationsDialog } from '@/components/templates/TemplateVariationsDialog';
 import { TemplateCard } from '@/components/templates/TemplateCard';
+import { TemplateListItem } from '@/components/templates/TemplateListItem';
 import { MetaTemplatesList } from '@/components/settings/meta-templates/MetaTemplatesList';
-import { Plus, Search, FileText, Filter, MessageSquare } from 'lucide-react';
+import { Plus, Search, FileText, Filter, MessageSquare, LayoutGrid, List } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +55,7 @@ const Templates = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<TemplateCategory | 'all'>('all');
   const [activeTab, setActiveTab] = useState<'internal' | 'meta'>('internal');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const handleEdit = (template: MessageTemplate) => {
     setSelectedTemplate(template);
@@ -126,36 +129,56 @@ const Templates = () => {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar templates..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
-              />
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-4 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar templates..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-dark-800/50 border-neon-cyan/30 focus:border-neon-cyan"
+                />
+              </div>
+
+              <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as TemplateCategory | 'all')}>
+                <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as categorias</SelectItem>
+                  {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as TemplateCategory | 'all')}>
-              <SelectTrigger className="w-[180px] bg-dark-800/50 border-neon-cyan/30">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as categorias</SelectItem>
-                {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* View Toggle */}
+            <ToggleGroup 
+              type="single" 
+              value={viewMode} 
+              onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')}
+              className="bg-dark-800/50 border border-neon-cyan/30 rounded-md"
+            >
+              <ToggleGroupItem value="grid" aria-label="Visualização em grade" className="px-3">
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="list" aria-label="Visualização em lista" className="px-3">
+                <List className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
 
-          {/* Templates Grid */}
+          {/* Templates Grid/List */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={viewMode === 'grid' 
+              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" 
+              : "flex flex-col gap-3"
+            }>
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-64 bg-dark-800/50 border border-neon-cyan/20 rounded-lg animate-pulse" />
+                <div key={i} className={`bg-dark-800/50 border border-neon-cyan/20 rounded-lg animate-pulse ${viewMode === 'grid' ? 'h-64' : 'h-20'}`} />
               ))}
             </div>
           ) : filteredTemplates.length === 0 ? (
@@ -178,10 +201,25 @@ const Templates = () => {
                 </Button>
               )}
             </div>
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTemplates.map((template) => (
                 <TemplateCard
+                  key={template.id}
+                  template={template}
+                  variationsCount={variationsCounts?.[template.id] || 0}
+                  onEdit={handleEdit}
+                  onDelete={setDeleteId}
+                  onPreview={handlePreview}
+                  onToggleActive={(id, is_active) => toggleActive({ id, is_active })}
+                  onManageVariations={handleManageVariations}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {filteredTemplates.map((template) => (
+                <TemplateListItem
                   key={template.id}
                   template={template}
                   variationsCount={variationsCounts?.[template.id] || 0}
