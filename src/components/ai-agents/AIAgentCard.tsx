@@ -20,10 +20,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Bot, MoreVertical, Pencil, Copy, Trash2, Target, Send, Workflow } from "lucide-react";
+import { Bot, MoreVertical, Pencil, Copy, Trash2, Target, Send, Workflow, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AI_AGENT_TEMPLATES } from "@/data/ai-agent-templates";
+import { AIAgentExportDialog } from "./AIAgentExportDialog";
 
 interface AIAgentCardProps {
   agent: {
@@ -42,6 +43,7 @@ interface AIAgentCardProps {
 export const AIAgentCard = ({ agent, onEdit, onRefresh }: AIAgentCardProps) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [isTogglingActive, setIsTogglingActive] = useState(false);
 
   const template = agent.template_type 
@@ -161,6 +163,10 @@ export const AIAgentCard = ({ agent, onEdit, onRefresh }: AIAgentCardProps) => {
                     <Copy className="h-4 w-4 mr-2" />
                     Duplicar
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowExportDialog(true)}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setShowDeleteDialog(true)}
@@ -232,6 +238,12 @@ export const AIAgentCard = ({ agent, onEdit, onRefresh }: AIAgentCardProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AIAgentExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        agent={agent}
+      />
     </>
   );
 };
