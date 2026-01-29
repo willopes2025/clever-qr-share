@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
 
 interface DynamicFieldProps {
@@ -19,6 +19,7 @@ interface DynamicFieldProps {
   onChange: (value: unknown) => void;
   onAddOption?: (fieldId: string, option: string) => void;
   onRemove?: () => void;
+  onDeleteDefinition?: () => void;
 }
 
 export const DynamicField = ({
@@ -27,6 +28,7 @@ export const DynamicField = ({
   onChange,
   onAddOption,
   onRemove,
+  onDeleteDefinition,
 }: DynamicFieldProps) => {
   const [isAddingOption, setIsAddingOption] = useState(false);
   const [newOption, setNewOption] = useState("");
@@ -42,23 +44,43 @@ export const DynamicField = ({
 
   const options = (definition.options as string[]) || [];
 
-  const renderRemoveButton = () =>
-    onRemove ? (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-        onClick={onRemove}
-      >
-        <X className="h-4 w-4" />
-      </Button>
-    ) : null;
+  const renderActionButtons = () => {
+    if (!onRemove && !onDeleteDefinition) return null;
+
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        {onDeleteDefinition && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={onDeleteDefinition}
+            title="Excluir campo (global)"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+        {onRemove && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+            title="Remover do contato"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+    );
+  };
 
   const wrapWithRemove = (input: React.ReactNode) => (
     <div className="flex items-center gap-2">
       <div className="flex-1">{input}</div>
-      {renderRemoveButton()}
+      {renderActionButtons()}
     </div>
   );
 
