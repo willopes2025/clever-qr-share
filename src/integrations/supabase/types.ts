@@ -5394,6 +5394,18 @@ export type Database = {
     }
     Functions: {
       close_abandoned_sessions: { Args: never; Returns: number }
+      get_funnel_metrics: {
+        Args: { p_funnel_id: string }
+        Returns: {
+          avg_days_to_close: number
+          lost_deals_count: number
+          lost_deals_value: number
+          open_deals_count: number
+          open_deals_value: number
+          won_deals_count: number
+          won_deals_value: number
+        }[]
+      }
       get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
       get_organization_member_ids: {
         Args: { _user_id: string }

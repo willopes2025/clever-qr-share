@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { DollarSign, TrendingUp, Target, Clock, BarChart3, Users, CheckCircle, XCircle } from "lucide-react";
+import { DollarSign, TrendingUp, Target, Clock, BarChart3, Users, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Funnel, FunnelDeal } from "@/hooks/useFunnels";
+import { useFunnelMetrics } from "@/hooks/useFunnelDeals";
 import {
   BarChart,
   Bar,
@@ -24,49 +25,22 @@ interface FunnelDashboardProps {
 
 export const FunnelDashboard = ({ funnel }: FunnelDashboardProps) => {
   const stages = funnel.stages || [];
+  const { data: metrics, isLoading: metricsLoading } = useFunnelMetrics(funnel.id);
   
-  const metrics = useMemo(() => {
-    const allDeals = stages.flatMap(s => s.deals || []);
-    const openDeals = allDeals.filter(d => !d.closed_at);
-    const wonStages = stages.filter(s => s.final_type === 'won');
-    const lostStages = stages.filter(s => s.final_type === 'lost');
-    const wonDeals = wonStages.flatMap(s => s.deals || []);
-    const lostDeals = lostStages.flatMap(s => s.deals || []);
-    
-    const totalValue = openDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    const wonValue = wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    const lostValue = lostDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    
-    const closedCount = wonDeals.length + lostDeals.length;
-    const conversionRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : 0;
-    
-    // Average time to close (for won deals)
-    const avgDaysToClose = wonDeals.length > 0
-      ? Math.round(wonDeals.reduce((sum, d) => {
-          const days = d.closed_at 
-            ? (new Date(d.closed_at).getTime() - new Date(d.created_at).getTime()) / (1000 * 60 * 60 * 24)
-            : 0;
-          return sum + days;
-        }, 0) / wonDeals.length)
-      : 0;
+  const closedCount = (metrics?.wonDealsCount || 0) + (metrics?.lostDealsCount || 0);
+  const conversionRate = closedCount > 0 
+    ? Math.round((metrics?.wonDealsCount || 0) / closedCount * 100) 
+    : 0;
 
-    return {
-      openDeals: openDeals.length,
-      wonDeals: wonDeals.length,
-      lostDeals: lostDeals.length,
-      totalValue,
-      wonValue,
-      lostValue,
-      conversionRate,
-      avgDaysToClose,
-      allDeals
-    };
+  // Total deals from all stages (for charts that use local data)
+  const allLocalDeals = useMemo(() => {
+    return stages.flatMap(s => s.deals || []);
   }, [stages]);
 
-  // Conversion funnel data
+  // Conversion funnel data - uses local deals for visualization
   const conversionData = useMemo(() => {
     const nonFinalStages = stages.filter(s => !s.is_final);
-    const totalLeads = metrics.allDeals.length;
+    const totalLeads = allLocalDeals.length;
     
     return nonFinalStages.map((stage, index) => {
       const dealsInStage = stage.deals?.length || 0;
@@ -82,7 +56,7 @@ export const FunnelDashboard = ({ funnel }: FunnelDashboardProps) => {
         color: stage.color
       };
     });
-  }, [stages, metrics.allDeals.length]);
+  }, [stages, allLocalDeals.length]);
 
   // Time in stage data
   const timeInStageData = useMemo(() => {
@@ -108,16 +82,17 @@ export const FunnelDashboard = ({ funnel }: FunnelDashboardProps) => {
     });
   }, [stages]);
 
-  // Win/Loss distribution
+  // Win/Loss distribution - use RPC metrics
   const winLossData = useMemo(() => {
+    if (!metrics) return [];
     return [
-      { name: 'Ganhos', value: metrics.wonDeals, color: '#22C55E' },
-      { name: 'Perdidos', value: metrics.lostDeals, color: '#EF4444' },
-      { name: 'Em Aberto', value: metrics.openDeals, color: '#3B82F6' }
+      { name: 'Ganhos', value: metrics.wonDealsCount, color: '#22C55E' },
+      { name: 'Perdidos', value: metrics.lostDealsCount, color: '#EF4444' },
+      { name: 'Em Aberto', value: metrics.openDealsCount, color: '#3B82F6' }
     ].filter(d => d.value > 0);
   }, [metrics]);
 
-  // Value by stage
+  // Value by stage - still uses local data for chart visualization
   const valueByStageData = useMemo(() => {
     return stages.filter(s => !s.is_final).map(stage => ({
       name: stage.name.length > 10 ? stage.name.substring(0, 10) + '...' : stage.name,
@@ -130,39 +105,39 @@ export const FunnelDashboard = ({ funnel }: FunnelDashboardProps) => {
   const summaryCards = [
     {
       label: "Deals em Aberto",
-      value: metrics.openDeals,
+      value: metrics?.openDealsCount ?? '-',
       icon: Target,
       color: "bg-blue-500/10 text-blue-500"
     },
     {
       label: "Pipeline Total",
-      value: `R$ ${metrics.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`,
+      value: metrics ? `R$ ${metrics.openDealsValue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` : '-',
       icon: DollarSign,
       color: "bg-green-500/10 text-green-500"
     },
     {
       label: "Taxa de Conversão",
-      value: `${metrics.conversionRate}%`,
+      value: `${conversionRate}%`,
       icon: TrendingUp,
       color: "bg-purple-500/10 text-purple-500"
     },
     {
       label: "Tempo Médio p/ Fechar",
-      value: metrics.avgDaysToClose > 0 ? `${metrics.avgDaysToClose} dias` : '-',
+      value: metrics && metrics.avgDaysToClose > 0 ? `${metrics.avgDaysToClose} dias` : '-',
       icon: Clock,
       color: "bg-orange-500/10 text-orange-500"
     },
     {
       label: "Deals Ganhos",
-      value: metrics.wonDeals,
-      subValue: `R$ ${metrics.wonValue.toLocaleString('pt-BR')}`,
+      value: metrics?.wonDealsCount ?? '-',
+      subValue: metrics ? `R$ ${metrics.wonDealsValue.toLocaleString('pt-BR')}` : undefined,
       icon: CheckCircle,
       color: "bg-emerald-500/10 text-emerald-500"
     },
     {
       label: "Deals Perdidos",
-      value: metrics.lostDeals,
-      subValue: `R$ ${metrics.lostValue.toLocaleString('pt-BR')}`,
+      value: metrics?.lostDealsCount ?? '-',
+      subValue: metrics ? `R$ ${metrics.lostDealsValue.toLocaleString('pt-BR')}` : undefined,
       icon: XCircle,
       color: "bg-red-500/10 text-red-500"
     }

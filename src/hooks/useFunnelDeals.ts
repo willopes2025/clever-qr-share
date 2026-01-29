@@ -13,6 +13,47 @@ export interface StageLoadedCounts {
   [stageId: string]: number;
 }
 
+export interface FunnelMetrics {
+  openDealsCount: number;
+  wonDealsCount: number;
+  lostDealsCount: number;
+  openDealsValue: number;
+  wonDealsValue: number;
+  lostDealsValue: number;
+  avgDaysToClose: number;
+}
+
+// Hook to fetch aggregated funnel metrics (uses RPC for accurate counts)
+export const useFunnelMetrics = (funnelId: string | undefined) => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['funnel-metrics', funnelId],
+    queryFn: async (): Promise<FunnelMetrics | null> => {
+      if (!funnelId) return null;
+      
+      const { data, error } = await supabase
+        .rpc('get_funnel_metrics', { p_funnel_id: funnelId });
+
+      if (error) throw error;
+
+      const row = data?.[0];
+      if (!row) return null;
+
+      return {
+        openDealsCount: Number(row.open_deals_count) || 0,
+        wonDealsCount: Number(row.won_deals_count) || 0,
+        lostDealsCount: Number(row.lost_deals_count) || 0,
+        openDealsValue: Number(row.open_deals_value) || 0,
+        wonDealsValue: Number(row.won_deals_value) || 0,
+        lostDealsValue: Number(row.lost_deals_value) || 0,
+        avgDaysToClose: Math.round(Number(row.avg_days_to_close) || 0),
+      };
+    },
+    enabled: !!user?.id && !!funnelId
+  });
+};
+
 // Hook to fetch deal counts per stage (uses RPC for accurate counts beyond 1000 limit)
 export const useStageDealCounts = (funnelId: string | undefined) => {
   const { user } = useAuth();
