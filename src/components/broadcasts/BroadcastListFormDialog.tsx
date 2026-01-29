@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,7 @@ export const BroadcastListFormDialog = ({
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [selectedStageId, setSelectedStageId] = useState<string>("all");
   const [customFieldFilters, setCustomFieldFilters] = useState<CustomFieldFilterState[]>([]);
-  const [isLoadingFromList, setIsLoadingFromList] = useState(false);
+  const isLoadingFromListRef = useRef(false);
 
   // Obtém os estágios do funil selecionado
   const selectedFunnel = useMemo(() => {
@@ -81,7 +81,7 @@ export const BroadcastListFormDialog = ({
 
   useEffect(() => {
     if (list) {
-      setIsLoadingFromList(true); // Flag para bloquear reset do estágio
+      isLoadingFromListRef.current = true; // Flag para bloquear reset do estágio
       setName(list.name);
       setDescription(list.description || "");
       setType(list.type);
@@ -104,7 +104,7 @@ export const BroadcastListFormDialog = ({
       setCustomFieldFilters(filtersArray);
       
       // Liberar flag após o ciclo de render
-      setTimeout(() => setIsLoadingFromList(false), 0);
+      setTimeout(() => { isLoadingFromListRef.current = false; }, 0);
     } else {
       setName("");
       setDescription("");
@@ -122,10 +122,10 @@ export const BroadcastListFormDialog = ({
 
   // Reset estágio quando o funil muda (apenas para seleção manual, não durante carregamento)
   useEffect(() => {
-    if (!isLoadingFromList) {
+    if (!isLoadingFromListRef.current) {
       setSelectedStageId("all");
     }
-  }, [selectedFunnelId, isLoadingFromList]);
+  }, [selectedFunnelId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
