@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, X, Pencil, User, Plus } from "lucide-react";
+import { Check, X, Pencil, User, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -35,7 +35,7 @@ interface ContactFieldsSectionProps {
 }
 
 export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => {
-  const { contactFieldDefinitions, updateContactCustomFields, createField } = useCustomFields();
+  const { contactFieldDefinitions, updateContactCustomFields, createField, deleteField } = useCustomFields();
   const queryClient = useQueryClient();
   
   const customFields = (contact.custom_fields || {}) as Record<string, any>;
@@ -264,10 +264,17 @@ export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => 
 
       {/* Custom Contact Fields */}
       {contactFieldDefinitions.map((field) => (
-        <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
+        <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field">
           <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
-          <div className="flex-1 flex justify-end items-center">
+          <div className="flex-1 flex justify-end items-center gap-1">
             {renderFieldValue(field)}
+            <button
+              onClick={() => deleteField.mutate(field.id)}
+              className="opacity-0 group-hover/field:opacity-100 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+              title="Excluir campo"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       ))}
