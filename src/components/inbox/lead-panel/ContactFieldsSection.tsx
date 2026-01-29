@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, X, Pencil, User } from "lucide-react";
+import { Check, X, Pencil, User, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +22,7 @@ import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields"
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { InlineFieldCreator } from "@/components/contacts/InlineFieldCreator";
 
 interface ContactFieldsSectionProps {
   contact: {
@@ -34,12 +35,13 @@ interface ContactFieldsSectionProps {
 }
 
 export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => {
-  const { contactFieldDefinitions, updateContactCustomFields } = useCustomFields();
+  const { contactFieldDefinitions, updateContactCustomFields, createField } = useCustomFields();
   const queryClient = useQueryClient();
   
   const customFields = (contact.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [showFieldCreator, setShowFieldCreator] = useState(false);
   
   // Estado para edição do nome do contato
   const [isEditingName, setIsEditingName] = useState(false);
@@ -269,6 +271,34 @@ export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => 
           </div>
         </div>
       ))}
+
+      {/* Add Field Button / Creator */}
+      {showFieldCreator ? (
+        <div className="mt-3">
+          <InlineFieldCreator
+            onSave={(fieldData) => {
+              createField.mutate(fieldData, {
+                onSuccess: () => {
+                  setShowFieldCreator(false);
+                }
+              });
+            }}
+            onCancel={() => setShowFieldCreator(false)}
+            isLoading={createField.isPending}
+            defaultEntityType="contact"
+          />
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowFieldCreator(true)}
+          className="w-full mt-3 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-dashed border-border/50 hover:border-primary/50"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Adicionar Campo
+        </Button>
+      )}
     </div>
   );
 };
