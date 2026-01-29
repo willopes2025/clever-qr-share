@@ -60,6 +60,7 @@ export const ConversationList = ({
   isLoading 
 }: ConversationListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [filters, setFilters] = useState<ConversationFilters>({
     instanceIds: [],
@@ -76,6 +77,17 @@ export const ConversationList = ({
     provider: 'all',
     metaPhoneNumberId: null,
   });
+  
+  // Debounce de 500ms para busca por conteúdo
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
+  // Hook para busca por conteúdo de mensagens
+  const { data: matchingConversationIds = [], isLoading: isSearching } = useConversationSearch(debouncedSearch);
   
   const { members } = useTeamMembers();
   
@@ -115,7 +127,19 @@ export const ConversationList = ({
     const phone = conv.contact?.phone || "";
     const displayId = (conv.contact as any)?.contact_display_id || "";
     const search = searchTerm.toLowerCase();
-    const matchesSearch = name.toLowerCase().includes(search) || phone.includes(search) || displayId.includes(search);
+    
+    // Busca por nome, telefone ou ID (local)
+    const matchesContactSearch = name.toLowerCase().includes(search) || 
+                                 phone.includes(search) || 
+                                 displayId.includes(search);
+    
+    // Busca por conteúdo de mensagens (quando há resultado da query com 3+ chars)
+    const matchesMessageContent = debouncedSearch.length >= 3 && 
+                                  matchingConversationIds.includes(conv.id);
+    
+    // Combina: se não digitou nada, mostra todas; senão, combina OR
+    const matchesSearch = !searchTerm ? true : 
+                          (matchesContactSearch || matchesMessageContent);
     
     // Apply tab filter
     if (activeTab === "unread") {
@@ -244,7 +268,11 @@ export const ConversationList = ({
         
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          {isSearching ? (
+            <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+          ) : (
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          )}
           <Input
             placeholder="Buscar conversa..."
             value={searchTerm}

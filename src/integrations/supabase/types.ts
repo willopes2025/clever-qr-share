@@ -5440,6 +5440,8 @@ export type Database = {
         Returns: boolean
       }
       reset_leads_monthly: { Args: never; Returns: undefined }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       user_belongs_to_org: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
