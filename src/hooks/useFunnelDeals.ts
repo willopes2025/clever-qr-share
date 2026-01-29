@@ -13,7 +13,7 @@ export interface StageLoadedCounts {
   [stageId: string]: number;
 }
 
-// Hook to fetch deal counts per stage (lightweight query)
+// Hook to fetch deal counts per stage (uses RPC for accurate counts beyond 1000 limit)
 export const useStageDealCounts = (funnelId: string | undefined) => {
   const { user } = useAuth();
 
@@ -22,17 +22,16 @@ export const useStageDealCounts = (funnelId: string | undefined) => {
     queryFn: async (): Promise<StageDealCounts> => {
       if (!funnelId) return {};
       
+      // Use RPC for aggregated count (bypasses 1000 record limit)
       const { data, error } = await supabase
-        .from('funnel_deals')
-        .select('stage_id')
-        .eq('funnel_id', funnelId);
+        .rpc('get_stage_deal_counts', { p_funnel_id: funnelId });
 
       if (error) throw error;
 
-      // Count deals per stage
+      // Convert array to object
       const counts: StageDealCounts = {};
-      (data || []).forEach((deal) => {
-        counts[deal.stage_id] = (counts[deal.stage_id] || 0) + 1;
+      (data || []).forEach((row: { stage_id: string; deal_count: number }) => {
+        counts[row.stage_id] = row.deal_count;
       });
 
       return counts;
