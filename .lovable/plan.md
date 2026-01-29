@@ -1,215 +1,151 @@
 
-# Plano: Botão de Exportação do Agente de IA
+# Correção: Contador de Cards do Funil Incorreto
 
-## Objetivo
+## Problema Identificado
 
-Adicionar um botão de exportação no card do agente de IA que permite baixar todas as informações do agente nos formatos:
-- **TXT (JSON)**: Formato estruturado para backup/importação
-- **PDF**: Documento formatado para visualização/impressão
-- **Word (DOCX)**: Documento editável para documentação
+O contador de deals por etapa do funil está mostrando valores incorretos porque a query atual em `useStageDealCounts` busca **todos os `stage_id`** para contar no JavaScript, mas o Supabase tem um **limite padrão de 1000 registros por query**.
 
----
+### Dados Reais vs Contagem Atual
 
-## Dados a Exportar
+| Etapa | Total Real | Limite Query |
+|-------|------------|--------------|
+| Abaixo - Assinado Causa Animal | **1.070** | Max 1000 retornados |
+| Contato Gabinete | **622** | Parcialmente contado |
+| **Total do Funil** | **1.716** | Apenas 1000 processados |
 
-| Categoria | Campos |
-|-----------|--------|
-| **Identificação** | Nome do agente, template, status (ativo/inativo) |
-| **Personalidade** | Prompt de personalidade, regras de comportamento |
-| **Mensagens** | Saudação, despedida, fallback, keywords de handoff |
-| **Configurações** | Delay min/max, horário ativo, máx interações, modo de resposta |
-| **Emojis** | Emoji de pausa, emoji de retomada |
-| **Base de Conhecimento** | Lista de itens (texto, PDFs, URLs) com conteúdo |
-| **Variáveis** | Chave, valor e descrição de cada variável |
-| **Etapas (Stages)** | Nome da etapa, prompt, condições |
-| **Integrações** | Webhooks e APIs configuradas |
-
----
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Ação |
-|---------|------|
-| `src/lib/ai-agent-export.ts` | **CRIAR** - Funções de exportação (JSON, PDF, DOCX) |
-| `src/components/ai-agents/AIAgentCard.tsx` | **MODIFICAR** - Adicionar opção de exportação no dropdown |
-| `src/components/ai-agents/AIAgentExportDialog.tsx` | **CRIAR** - Dialog para escolher formato de exportação |
-
----
-
-## Implementação
-
-### 1. Criar Utilitário de Exportação (`src/lib/ai-agent-export.ts`)
+### Código Atual (Problemático)
 
 ```typescript
-// Estrutura do arquivo
-export interface AgentExportData {
-  agent: AIAgentConfig;
-  knowledgeItems: KnowledgeItem[];
-  variables: AgentVariable[];
-  stages: AgentStage[];
-  integrations: AgentIntegration[];
-}
+// src/hooks/useFunnelDeals.ts - linha 25
+const { data, error } = await supabase
+  .from('funnel_deals')
+  .select('stage_id')  // <-- Busca TODOS os stage_ids
+  .eq('funnel_id', funnelId);
+  // SEM LIMITE EXPLICITO = limite padrão 1000
 
-// Exportar JSON (TXT)
-export function exportAgentAsJSON(data: AgentExportData): void {
-  // Criar objeto JSON formatado
-  // Gerar blob e download como .txt
-}
-
-// Exportar PDF
-export function exportAgentAsPDF(data: AgentExportData): void {
-  // Usar jsPDF (já instalado)
-  // Header com nome do agente
-  // Seções para cada categoria de dados
-  // Footer com data de exportação
-}
-
-// Exportar Word (DOCX)
-export function exportAgentAsWord(data: AgentExportData): void {
-  // Gerar documento com formatting HTML
-  // Converter para blob DOCX usando docx library ou HTML
-  // Download
-}
-```
-
-### 2. Criar Dialog de Exportação (`src/components/ai-agents/AIAgentExportDialog.tsx`)
-
-O dialog terá:
-- Título: "Exportar Agente"
-- Descrição do agente selecionado
-- 3 botões de formato (JSON, PDF, Word) com ícones
-- Loading state durante busca dos dados relacionados
-- Mensagem de sucesso após exportação
-
-### 3. Modificar AIAgentCard.tsx
-
-Adicionar nova opção no DropdownMenu:
-```tsx
-<DropdownMenuItem onClick={() => setShowExportDialog(true)}>
-  <Download className="h-4 w-4 mr-2" />
-  Exportar
-</DropdownMenuItem>
+// Depois conta no JavaScript...
+(data || []).forEach((deal) => {
+  counts[deal.stage_id] = (counts[deal.stage_id] || 0) + 1;
+});
 ```
 
 ---
 
-## Formato do JSON Exportado
+## Solução
 
-```json
-{
-  "exportVersion": "1.0",
-  "exportedAt": "2026-01-29T10:00:00Z",
-  "agent": {
-    "name": "SDR Virtual",
-    "templateType": "sdr",
-    "isActive": true,
-    "personalityPrompt": "...",
-    "behaviorRules": "...",
-    "greetingMessage": "...",
-    "goodbyeMessage": "...",
-    "fallbackMessage": "...",
-    "handoffKeywords": ["humano", "atendente"],
-    "responseMode": "text",
-    "responseDelayMin": 3,
-    "responseDelayMax": 8,
-    "activeHoursStart": 8,
-    "activeHoursEnd": 20,
-    "maxInteractions": 15,
-    "pauseEmoji": "🛑",
-    "resumeEmoji": "✅"
-  },
-  "knowledgeBase": [
-    {
-      "title": "FAQ da Empresa",
-      "sourceType": "text",
-      "content": "..."
-    }
-  ],
-  "variables": [
-    {
-      "key": "empresa_nome",
-      "value": "TechSolutions",
-      "description": "Nome da empresa"
-    }
-  ],
-  "stages": [...],
-  "integrations": [...]
+Usar uma **RPC (stored procedure)** ou uma query com agregação direta no banco de dados para obter as contagens corretas, evitando o limite de 1000 registros.
+
+### Arquivo a Modificar
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/hooks/useFunnelDeals.ts` | Modificar query para usar COUNT agregado via RPC |
+
+### Opcao 1: Criar RPC no Banco (Recomendado)
+
+Criar uma function no banco que retorna as contagens agregadas:
+
+```sql
+CREATE OR REPLACE FUNCTION get_stage_deal_counts(p_funnel_id UUID)
+RETURNS TABLE(stage_id UUID, count BIGINT)
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT stage_id, COUNT(*)::BIGINT as count
+  FROM funnel_deals
+  WHERE funnel_id = p_funnel_id
+  GROUP BY stage_id;
+$$;
+```
+
+### Opcao 2: Query Paginada (Workaround)
+
+Se nao puder criar RPC, paginar a query para buscar todos os registros:
+
+```typescript
+// Buscar em chunks de 1000 ate nao ter mais registros
+let allData: { stage_id: string }[] = [];
+let offset = 0;
+const pageSize = 1000;
+let hasMore = true;
+
+while (hasMore) {
+  const { data } = await supabase
+    .from('funnel_deals')
+    .select('stage_id')
+    .eq('funnel_id', funnelId)
+    .range(offset, offset + pageSize - 1);
+  
+  if (data && data.length > 0) {
+    allData = [...allData, ...data];
+    offset += pageSize;
+    hasMore = data.length === pageSize;
+  } else {
+    hasMore = false;
+  }
 }
 ```
 
 ---
 
-## Formato do PDF
+## Implementacao Recomendada
 
-```text
-┌────────────────────────────────────────────────┐
-│  RELATÓRIO DO AGENTE DE IA                     │
-│  Nome: SDR Virtual                             │
-│  Exportado em: 29/01/2026 10:00                │
-├────────────────────────────────────────────────┤
-│  CONFIGURAÇÕES GERAIS                          │
-│  Status: ✓ Ativo                               │
-│  Template: SDR                                 │
-│  Modo de resposta: Texto                       │
-│  Horário: 08:00 - 20:00                        │
-├────────────────────────────────────────────────┤
-│  PERSONALIDADE                                 │
-│  [texto do prompt]                             │
-├────────────────────────────────────────────────┤
-│  MENSAGENS                                     │
-│  • Saudação: "Olá! Como posso ajudar?"         │
-│  • Despedida: "Até mais!"                      │
-│  • Fallback: "Não entendi..."                  │
-├────────────────────────────────────────────────┤
-│  BASE DE CONHECIMENTO (3 itens)                │
-│  1. FAQ da Empresa (texto)                     │
-│  2. Manual do Produto (PDF)                    │
-├────────────────────────────────────────────────┤
-│  VARIÁVEIS (2 itens)                           │
-│  • {{empresa_nome}}: TechSolutions             │
-├────────────────────────────────────────────────┤
-│  Página 1 de 1                                 │
-└────────────────────────────────────────────────┘
+Usaremos a **Opcao 1 (RPC)** por ser mais eficiente - a contagem acontece diretamente no banco sem transferir milhares de registros.
+
+### Passo 1: Criar Migration
+
+```sql
+-- Criar funcao para contagem agregada
+CREATE OR REPLACE FUNCTION get_stage_deal_counts(p_funnel_id UUID)
+RETURNS TABLE(stage_id UUID, deal_count BIGINT)
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT fd.stage_id, COUNT(*)::BIGINT as deal_count
+  FROM funnel_deals fd
+  WHERE fd.funnel_id = p_funnel_id
+  GROUP BY fd.stage_id;
+$$;
 ```
 
----
+### Passo 2: Atualizar Hook
 
-## Formato Word (DOCX)
+```typescript
+// src/hooks/useFunnelDeals.ts
+export const useStageDealCounts = (funnelId: string | undefined) => {
+  const { user } = useAuth();
 
-O documento Word seguirá estrutura similar ao PDF, mas com:
-- Cabeçalho estilizado
-- Tabelas para dados estruturados
-- Formatação editável
-- Seções com títulos destacados
+  return useQuery({
+    queryKey: ['stage-deal-counts', funnelId],
+    queryFn: async (): Promise<StageDealCounts> => {
+      if (!funnelId) return {};
+      
+      // Usar RPC para contagem agregada (evita limite de 1000)
+      const { data, error } = await supabase
+        .rpc('get_stage_deal_counts', { p_funnel_id: funnelId });
 
----
+      if (error) throw error;
 
-## Dependências
+      // Converter array para objeto
+      const counts: StageDealCounts = {};
+      (data || []).forEach((row: { stage_id: string; deal_count: number }) => {
+        counts[row.stage_id] = row.deal_count;
+      });
 
-O projeto já possui:
-- ✅ `jspdf` - Para geração de PDFs
-- ✅ `date-fns` - Para formatação de datas
-
-Para Word, utilizaremos HTML Blob convertido para download (não requer biblioteca adicional).
-
----
-
-## Fluxo do Usuário
-
-1. Usuário clica no menu (⋮) do card do agente
-2. Seleciona "Exportar"
-3. Dialog abre mostrando nome do agente
-4. Usuário escolhe formato: JSON, PDF ou Word
-5. Sistema busca dados completos (knowledge, variables, stages, integrations)
-6. Arquivo é gerado e download inicia
-7. Toast de sucesso é exibido
+      return counts;
+    },
+    enabled: !!user?.id && !!funnelId
+  });
+};
+```
 
 ---
 
 ## Resultado Esperado
 
-- Botão de exportação visível no dropdown de cada agente
-- 3 formatos de exportação funcionando
-- Todos os dados do agente incluídos
-- Arquivos bem formatados e legíveis
-- Suporte a backup e documentação dos agentes
+Apos a correcao:
+- Contador exibira **1.070** para "Abaixo - Assinado Causa Animal" (valor real)
+- Contador exibira **622** para "Contato Gabinete" (valor real)
+- Botao "Carregar mais" mostrara a quantidade correta de deals restantes
+- Funciona para funis com qualquer quantidade de deals (sem limite)
