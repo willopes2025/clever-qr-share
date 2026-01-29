@@ -5399,6 +5399,13 @@ export type Database = {
         Args: { _user_id: string }
         Returns: string[]
       }
+      get_stage_deal_counts: {
+        Args: { p_funnel_id: string }
+        Returns: {
+          deal_count: number
+          stage_id: string
+        }[]
+      }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       get_user_team_role: { Args: { _user_id: string }; Returns: string }
       has_role: {
