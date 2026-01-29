@@ -1,55 +1,109 @@
 
-Objetivo
-- Fazer o “card/dialog” de criação de lista (“Nova Lista de Transmissão”) exibir rolagem vertical de forma confiável quando o conteúdo (especialmente “Critérios de Filtro”) ultrapassar a altura disponível, e deixar a barra visível/óbvia.
+# Plano: Correção do Bug de Persistência do Campo "Etapa" nas Listas de Transmissão
 
-O que está acontecendo hoje (com base no código e no seu print)
-- O conteúdo “Critérios de Filtro” está sendo cortado dentro do diálogo, sem uma barra de rolagem visível para acessar o restante.
-- O layout atual tenta usar um ScrollArea no meio do diálogo, mas a rolagem/barra não está aparecendo como esperado.
+## Resumo do Problema
 
-Causas mais prováveis (técnico)
-1) O DialogContent base (shadcn/radix) já vem como `grid`. No nosso componente, estamos tentando transformá-lo em `flex flex-col`. Dependendo da ordem/precedência do CSS do Tailwind, pode ficar “grid” mesmo, o que faz `flex-1` não funcionar e a área “scrollável” não ganhar altura. Resultado: o conteúdo extrapola e é cortado.
-2) O ScrollArea do Radix, por padrão, pode esconder a scrollbar e só exibir no hover (comportamento “hover”), o que faz parecer “sem barra”, principalmente em touch/mobile.
+O usuário relatou que ao criar/editar uma lista de transmissão dinâmica:
+1. Selecionou o funil "Seven BH" com uma etapa específica
+2. Salvou a lista
+3. Ao reabrir para editar, a etapa voltou para "Todas as etapas"
+4. O disparo foi realizado para leads do funil errado
 
-Abordagem de correção (robusta e alinhada com padrões do projeto)
-- Trocar o layout do diálogo para um grid com linhas fixas para cabeçalho/rodapé e uma linha central “1fr” scrollável, igual ao padrão já usado em `ImportContactsDialogV2`.
-- Configurar a área do meio para ter `min-h-0` (essencial para permitir que a área encolha e possa rolar).
-- Forçar a scrollbar do Radix ScrollArea a ficar visível (não só no hover), usando `type="always"` e `scrollHideDelay={0}`.
+## Causa-Raiz Identificada
 
-Mudanças propostas (passo a passo)
-1) Ajustar layout do diálogo para grid com linha scrollável
-   - Arquivo: `src/components/broadcasts/BroadcastListFormDialog.tsx`
-   - Alterar o `DialogContent` para:
-     - Remover dependência de `flex flex-col`.
-     - Usar: `grid grid-rows-[auto_1fr_auto]` + `max-h-[85vh]` + `overflow-hidden`.
-     - Manter o `DialogHeader` na primeira linha e o `DialogFooter` na última.
+**Condição de corrida entre dois `useEffect` no componente `BroadcastListFormDialog.tsx`:**
 
-2) Garantir que a área central realmente possa rolar
-   - No componente central (onde está o `<ScrollArea>`):
-     - Remover `flex-1` (não será mais necessário).
-     - Manter/adicionar `min-h-0` (crítico em grid).
-     - Manter o form dentro da área rolável.
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ useEffect #1 (linha 81-116)                                     │
+│ - Dispara quando: list ou open mudam                            │
+│ - Ação: Carrega dados da lista, incluindo:                      │
+│   • setSelectedFunnelId(list.filter_criteria?.funnelId)         │
+│   • setSelectedStageId(list.filter_criteria?.stageId)           │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ useEffect #2 (linha 118-121) - O PROBLEMA                       │
+│ - Dispara quando: selectedFunnelId muda                         │
+│ - Ação: setSelectedStageId("all") ← SOBRESCREVE O VALOR!        │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-3) Tornar a barra visível (não depender de hover)
-   - Ainda em `BroadcastListFormDialog.tsx`, ajustar o `<ScrollArea>`:
-     - Passar props para o Radix Root (já suportado pelo wrapper): `type="always"` e `scrollHideDelay={0}`.
-     - Opcional: adicionar `className="touch-pan-y overscroll-contain"` para melhorar scroll em touch.
+**Sequência do bug:**
+1. Usuário abre formulário para editar lista existente
+2. `useEffect #1` carrega `funnelId` e `stageId` corretamente
+3. Como `selectedFunnelId` mudou (de `""` para o ID do funil), `useEffect #2` é disparado
+4. `useEffect #2` reseta `selectedStageId` para `"all"`, apagando o valor que acabou de ser carregado
+5. Usuário salva (sem perceber que o stageId foi perdido)
+6. O disparo ocorre para todas as etapas do funil
 
-4) (Opcional, se a barra ainda estiver “muito discreta”) Melhorar contraste da scrollbar
-   - Arquivo: `src/components/ui/scroll-area.tsx`
-   - Ajustar estilos do `ScrollAreaThumb` (ex.: `bg-muted-foreground/40 hover:bg-muted-foreground/60`) e/ou adicionar um fundo leve no trilho.
-   - Observação: isso impacta todas as ScrollAreas do app. Só faremos se você quiser uma barra mais evidente em toda a aplicação.
+## Solução
 
-Como vou validar (checklist)
-- Abrir /broadcast-lists → “Nova Lista de Transmissão”.
-- Selecionar “Dinâmica”.
-- Confirmar que:
-  - A área do meio rola com mouse wheel/trackpad/toque.
-  - A barra vertical aparece visivelmente (sem precisar hover).
-  - O rodapé com “Cancelar / Criar Lista” permanece fixo e acessível.
-- Testar em viewport menor (modo mobile) para garantir que o scroll funciona quando “Critérios de Filtro” fica grande.
+Adicionar uma flag de controle (`isLoadingFromList`) para evitar que o reset do estágio ocorra durante o carregamento inicial da lista.
 
-Arquivos que serão modificados
-- Obrigatório:
-  - `src/components/broadcasts/BroadcastListFormDialog.tsx`
-- Opcional (se precisar reforçar a visibilidade global da barra):
-  - `src/components/ui/scroll-area.tsx`
+## Alterações Técnicas
+
+### Arquivo: `src/components/broadcasts/BroadcastListFormDialog.tsx`
+
+**1. Adicionar novo estado de controle (após linha 62):**
+```typescript
+const [isLoadingFromList, setIsLoadingFromList] = useState(false);
+```
+
+**2. Modificar o useEffect de carregamento (linhas 81-116):**
+```typescript
+useEffect(() => {
+  if (list) {
+    setIsLoadingFromList(true); // ← Flag para bloquear reset
+    setName(list.name);
+    setDescription(list.description || "");
+    setType(list.type);
+    setSelectedTags(list.filter_criteria?.tags || []);
+    setStatus(list.filter_criteria?.status || "all");
+    setExcludeOptedOut(list.filter_criteria?.optedOut === false);
+    setAsaasPaymentStatus(list.filter_criteria?.asaasPaymentStatus || "all");
+    setSource(list.filter_criteria?.source || 'contacts');
+    setSelectedFunnelId(list.filter_criteria?.funnelId || "");
+    setSelectedStageId(list.filter_criteria?.stageId || "all");
+    
+    // Restaurar filtros de campos dinâmicos
+    const existingFilters = list.filter_criteria?.customFields || {};
+    const filtersArray = Object.entries(existingFilters).map(([fieldKey, filter]) => ({
+      id: crypto.randomUUID(),
+      fieldKey,
+      operator: filter.operator,
+      value: filter.value,
+    }));
+    setCustomFieldFilters(filtersArray);
+    
+    // Liberar flag após o ciclo de render
+    setTimeout(() => setIsLoadingFromList(false), 0);
+  } else {
+    // ... reset values para nova lista (mantido igual)
+  }
+}, [list, open]);
+```
+
+**3. Modificar o useEffect de reset do estágio (linhas 118-121):**
+```typescript
+// Reset estágio quando o funil muda (apenas para seleção manual)
+useEffect(() => {
+  if (!isLoadingFromList) {
+    setSelectedStageId("all");
+  }
+}, [selectedFunnelId, isLoadingFromList]);
+```
+
+## Resultado Esperado
+
+- **Editar lista existente:** O estágio salvo será exibido corretamente
+- **Criar nova lista:** O reset funcionará normalmente ao trocar de funil
+- **Trocar funil manualmente:** O reset para "Todas as etapas" funcionará corretamente
+
+## Teste Recomendado
+
+Após a correção, validar os seguintes cenários:
+1. Criar nova lista dinâmica com funil + etapa específica → Salvar → Reabrir → Verificar que etapa está correta
+2. Editar lista existente → Trocar o funil → Verificar que etapa resetou para "Todas"
+3. Realizar disparo usando a lista corrigida → Verificar que os leads corretos foram selecionados
