@@ -1,151 +1,187 @@
 
-# Correção: Contador de Cards do Funil Incorreto
+
+# Correção: Card de Total de Deals Abertos Incorreto
 
 ## Problema Identificado
 
-O contador de deals por etapa do funil está mostrando valores incorretos porque a query atual em `useStageDealCounts` busca **todos os `stage_id`** para contar no JavaScript, mas o Supabase tem um **limite padrão de 1000 registros por query**.
+O card "Deals Abertos" e outras métricas no `FunnelMetricsCard` e `FunnelDashboard` estão mostrando valores incorretos porque:
 
-### Dados Reais vs Contagem Atual
+1. A query principal em `useFunnels.ts` carrega apenas **50 deals por estágio** (linha 126: `.limit(50)`) para performance
+2. Os componentes de métricas calculam as contagens fazendo `stages.flatMap(s => s.deals || [])` - ou seja, contam apenas os deals carregados (máximo 50 x N estágios)
+3. A função RPC `get_stage_deal_counts` que criamos é usada apenas no Kanban/ListView para os contadores por estágio, mas **não é usada** nos cards de métricas
 
-| Etapa | Total Real | Limite Query |
-|-------|------------|--------------|
-| Abaixo - Assinado Causa Animal | **1.070** | Max 1000 retornados |
-| Contato Gabinete | **622** | Parcialmente contado |
-| **Total do Funil** | **1.716** | Apenas 1000 processados |
+### Dados do Cliente Matheus Suave
 
-### Código Atual (Problemático)
-
-```typescript
-// src/hooks/useFunnelDeals.ts - linha 25
-const { data, error } = await supabase
-  .from('funnel_deals')
-  .select('stage_id')  // <-- Busca TODOS os stage_ids
-  .eq('funnel_id', funnelId);
-  // SEM LIMITE EXPLICITO = limite padrão 1000
-
-// Depois conta no JavaScript...
-(data || []).forEach((deal) => {
-  counts[deal.stage_id] = (counts[deal.stage_id] || 0) + 1;
-});
-```
+| Métrica | Valor Mostrado (max) | Valor Real |
+|---------|---------------------|------------|
+| Deals Abertos | ~100 (50x2 estágios) | 1.692+ |
+| Pipeline Total | Sub-calculado | Valor real maior |
+| Outros indicadores | Incorretos | - |
 
 ---
 
 ## Solução
 
-Usar uma **RPC (stored procedure)** ou uma query com agregação direta no banco de dados para obter as contagens corretas, evitando o limite de 1000 registros.
+Criar uma nova RPC que retorna métricas agregadas do funil diretamente do banco de dados, e atualizar os componentes para usá-la.
 
-### Arquivo a Modificar
+### Arquivos a Modificar
 
-| Arquivo | Alteracao |
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useFunnelDeals.ts` | Modificar query para usar COUNT agregado via RPC |
-
-### Opcao 1: Criar RPC no Banco (Recomendado)
-
-Criar uma function no banco que retorna as contagens agregadas:
-
-```sql
-CREATE OR REPLACE FUNCTION get_stage_deal_counts(p_funnel_id UUID)
-RETURNS TABLE(stage_id UUID, count BIGINT)
-LANGUAGE SQL
-STABLE
-AS $$
-  SELECT stage_id, COUNT(*)::BIGINT as count
-  FROM funnel_deals
-  WHERE funnel_id = p_funnel_id
-  GROUP BY stage_id;
-$$;
-```
-
-### Opcao 2: Query Paginada (Workaround)
-
-Se nao puder criar RPC, paginar a query para buscar todos os registros:
-
-```typescript
-// Buscar em chunks de 1000 ate nao ter mais registros
-let allData: { stage_id: string }[] = [];
-let offset = 0;
-const pageSize = 1000;
-let hasMore = true;
-
-while (hasMore) {
-  const { data } = await supabase
-    .from('funnel_deals')
-    .select('stage_id')
-    .eq('funnel_id', funnelId)
-    .range(offset, offset + pageSize - 1);
-  
-  if (data && data.length > 0) {
-    allData = [...allData, ...data];
-    offset += pageSize;
-    hasMore = data.length === pageSize;
-  } else {
-    hasMore = false;
-  }
-}
-```
+| `supabase/migrations/...` | Criar RPC `get_funnel_metrics` |
+| `src/hooks/useFunnelDeals.ts` | Adicionar hook `useFunnelMetrics` |
+| `src/components/funnels/FunnelMetricsCard.tsx` | Usar o novo hook |
+| `src/components/funnels/FunnelDashboard.tsx` | Usar o novo hook para contagens precisas |
 
 ---
 
-## Implementacao Recomendada
+## Implementação
 
-Usaremos a **Opcao 1 (RPC)** por ser mais eficiente - a contagem acontece diretamente no banco sem transferir milhares de registros.
-
-### Passo 1: Criar Migration
+### Passo 1: Criar Migration com RPC
 
 ```sql
--- Criar funcao para contagem agregada
-CREATE OR REPLACE FUNCTION get_stage_deal_counts(p_funnel_id UUID)
-RETURNS TABLE(stage_id UUID, deal_count BIGINT)
+-- Função para calcular métricas agregadas do funil
+CREATE OR REPLACE FUNCTION get_funnel_metrics(p_funnel_id UUID)
+RETURNS TABLE(
+  open_deals_count BIGINT,
+  won_deals_count BIGINT,
+  lost_deals_count BIGINT,
+  open_deals_value NUMERIC,
+  won_deals_value NUMERIC,
+  lost_deals_value NUMERIC,
+  avg_days_to_close NUMERIC
+)
 LANGUAGE SQL
 STABLE
 SECURITY DEFINER
+SET search_path = public
 AS $$
-  SELECT fd.stage_id, COUNT(*)::BIGINT as deal_count
-  FROM funnel_deals fd
-  WHERE fd.funnel_id = p_funnel_id
-  GROUP BY fd.stage_id;
+  WITH stage_types AS (
+    SELECT id, final_type FROM funnel_stages WHERE funnel_id = p_funnel_id
+  ),
+  deals_with_type AS (
+    SELECT 
+      fd.*,
+      st.final_type
+    FROM funnel_deals fd
+    JOIN stage_types st ON fd.stage_id = st.id
+    WHERE fd.funnel_id = p_funnel_id
+  ),
+  open_metrics AS (
+    SELECT 
+      COUNT(*)::BIGINT as count,
+      COALESCE(SUM(value), 0)::NUMERIC as total_value
+    FROM deals_with_type
+    WHERE final_type IS NULL OR final_type NOT IN ('won', 'lost')
+  ),
+  won_metrics AS (
+    SELECT 
+      COUNT(*)::BIGINT as count,
+      COALESCE(SUM(value), 0)::NUMERIC as total_value,
+      COALESCE(AVG(
+        EXTRACT(EPOCH FROM (closed_at - created_at)) / 86400
+      ), 0)::NUMERIC as avg_days
+    FROM deals_with_type
+    WHERE final_type = 'won'
+  ),
+  lost_metrics AS (
+    SELECT 
+      COUNT(*)::BIGINT as count,
+      COALESCE(SUM(value), 0)::NUMERIC as total_value
+    FROM deals_with_type
+    WHERE final_type = 'lost'
+  )
+  SELECT 
+    o.count as open_deals_count,
+    w.count as won_deals_count,
+    l.count as lost_deals_count,
+    o.total_value as open_deals_value,
+    w.total_value as won_deals_value,
+    l.total_value as lost_deals_value,
+    w.avg_days as avg_days_to_close
+  FROM open_metrics o, won_metrics w, lost_metrics l;
 $$;
 ```
 
-### Passo 2: Atualizar Hook
+### Passo 2: Criar Hook `useFunnelMetrics`
 
 ```typescript
-// src/hooks/useFunnelDeals.ts
-export const useStageDealCounts = (funnelId: string | undefined) => {
+// Em src/hooks/useFunnelDeals.ts
+export interface FunnelMetrics {
+  openDealsCount: number;
+  wonDealsCount: number;
+  lostDealsCount: number;
+  openDealsValue: number;
+  wonDealsValue: number;
+  lostDealsValue: number;
+  avgDaysToClose: number;
+}
+
+export const useFunnelMetrics = (funnelId: string | undefined) => {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['stage-deal-counts', funnelId],
-    queryFn: async (): Promise<StageDealCounts> => {
-      if (!funnelId) return {};
+    queryKey: ['funnel-metrics', funnelId],
+    queryFn: async (): Promise<FunnelMetrics | null> => {
+      if (!funnelId) return null;
       
-      // Usar RPC para contagem agregada (evita limite de 1000)
       const { data, error } = await supabase
-        .rpc('get_stage_deal_counts', { p_funnel_id: funnelId });
+        .rpc('get_funnel_metrics', { p_funnel_id: funnelId });
 
       if (error) throw error;
 
-      // Converter array para objeto
-      const counts: StageDealCounts = {};
-      (data || []).forEach((row: { stage_id: string; deal_count: number }) => {
-        counts[row.stage_id] = row.deal_count;
-      });
+      const row = data?.[0];
+      if (!row) return null;
 
-      return counts;
+      return {
+        openDealsCount: Number(row.open_deals_count) || 0,
+        wonDealsCount: Number(row.won_deals_count) || 0,
+        lostDealsCount: Number(row.lost_deals_count) || 0,
+        openDealsValue: Number(row.open_deals_value) || 0,
+        wonDealsValue: Number(row.won_deals_value) || 0,
+        lostDealsValue: Number(row.lost_deals_value) || 0,
+        avgDaysToClose: Number(row.avg_days_to_close) || 0,
+      };
     },
     enabled: !!user?.id && !!funnelId
   });
 };
 ```
 
+### Passo 3: Atualizar FunnelMetricsCard
+
+```typescript
+import { useFunnelMetrics } from "@/hooks/useFunnelDeals";
+
+export const FunnelMetricsCard = ({ funnel }: FunnelMetricsCardProps) => {
+  const { data: metrics, isLoading } = useFunnelMetrics(funnel.id);
+  
+  // Usar metrics?.openDealsCount em vez de calcular localmente
+  // ...
+};
+```
+
+### Passo 4: Atualizar FunnelDashboard
+
+Similarmente, usar o hook `useFunnelMetrics` para os cards de resumo no dashboard.
+
 ---
 
 ## Resultado Esperado
 
-Apos a correcao:
-- Contador exibira **1.070** para "Abaixo - Assinado Causa Animal" (valor real)
-- Contador exibira **622** para "Contato Gabinete" (valor real)
-- Botao "Carregar mais" mostrara a quantidade correta de deals restantes
-- Funciona para funis com qualquer quantidade de deals (sem limite)
+Após a correção:
+- Card "Deals Abertos" mostrará o valor real (1.692+ para o cliente Matheus Suave)
+- "Pipeline Total" calculará o valor correto de todos os deals
+- "Deals Ganhos" e "Deals Perdidos" mostrarão contagens precisas
+- "Taxa de Conversão" será calculada corretamente
+- "Tempo Médio para Fechar" usará todos os deals ganhos
+
+---
+
+## Vantagens da Solução
+
+1. **Performance**: Agregação no banco é muito mais rápida que transferir milhares de registros
+2. **Precisão**: Sem limite de registros, contagens sempre corretas
+3. **Consistência**: Mesma abordagem usada para contagem por estágio (RPC)
+4. **Escalabilidade**: Funciona para funis com qualquer quantidade de deals
+
