@@ -1,213 +1,215 @@
 
+# Plano: Botão de Exportação do Agente de IA
 
-# Plano: Implementar Envio Real de Mensagens nas Automações de Funil
+## Objetivo
 
-## Problema Identificado
-
-A automação "Boas Vindas" do cliente **merceariasaudavel.contato@gmail.com** está configurada corretamente, porém a ação `send_message` no código da Edge Function `process-funnel-automations` **não foi implementada** - ela apenas loga a mensagem mas não envia de fato.
-
-O código atual:
-```typescript
-case 'send_message': {
-  console.log(`[FUNNEL-AUTOMATIONS] Would send message: ${message}...`);
-  // TODO: Integrate with send message function when instance is available
-  results.push({ automationId: automation.id, success: true }); // Falso positivo!
-}
-```
+Adicionar um botão de exportação no card do agente de IA que permite baixar todas as informações do agente nos formatos:
+- **TXT (JSON)**: Formato estruturado para backup/importação
+- **PDF**: Documento formatado para visualização/impressão
+- **Word (DOCX)**: Documento editável para documentação
 
 ---
 
-## Solução Proposta
+## Dados a Exportar
 
-Implementar a integração real com o envio de mensagens utilizando a mesma lógica da função `send-inbox-message` que já funciona para envios manuais.
+| Categoria | Campos |
+|-----------|--------|
+| **Identificação** | Nome do agente, template, status (ativo/inativo) |
+| **Personalidade** | Prompt de personalidade, regras de comportamento |
+| **Mensagens** | Saudação, despedida, fallback, keywords de handoff |
+| **Configurações** | Delay min/max, horário ativo, máx interações, modo de resposta |
+| **Emojis** | Emoji de pausa, emoji de retomada |
+| **Base de Conhecimento** | Lista de itens (texto, PDFs, URLs) com conteúdo |
+| **Variáveis** | Chave, valor e descrição de cada variável |
+| **Etapas (Stages)** | Nome da etapa, prompt, condições |
+| **Integrações** | Webhooks e APIs configuradas |
 
-### Arquivo a Modificar
-`supabase/functions/process-funnel-automations/index.ts`
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `src/lib/ai-agent-export.ts` | **CRIAR** - Funções de exportação (JSON, PDF, DOCX) |
+| `src/components/ai-agents/AIAgentCard.tsx` | **MODIFICAR** - Adicionar opção de exportação no dropdown |
+| `src/components/ai-agents/AIAgentExportDialog.tsx` | **CRIAR** - Dialog para escolher formato de exportação |
 
 ---
 
 ## Implementação
 
-### 1. Buscar Conversa e Instância do Deal
-
-Expandir a query inicial para incluir a conversa e instância:
+### 1. Criar Utilitário de Exportação (`src/lib/ai-agent-export.ts`)
 
 ```typescript
-const { data: deal, error: dealError } = await supabase
-  .from('funnel_deals')
-  .select(`
-    *,
-    contact:contacts(id, name, phone, email, label_id),
-    stage:funnel_stages(id, name, is_final, final_type),
-    funnel:funnels(id, name),
-    conversation:conversations(id, instance_id)
-  `)
-  .eq('id', dealId)
-  .single();
-```
+// Estrutura do arquivo
+export interface AgentExportData {
+  agent: AIAgentConfig;
+  knowledgeItems: KnowledgeItem[];
+  variables: AgentVariable[];
+  stages: AgentStage[];
+  integrations: AgentIntegration[];
+}
 
-### 2. Implementar Envio Real na Ação `send_message`
+// Exportar JSON (TXT)
+export function exportAgentAsJSON(data: AgentExportData): void {
+  // Criar objeto JSON formatado
+  // Gerar blob e download como .txt
+}
 
-Substituir o TODO por código funcional:
+// Exportar PDF
+export function exportAgentAsPDF(data: AgentExportData): void {
+  // Usar jsPDF (já instalado)
+  // Header com nome do agente
+  // Seções para cada categoria de dados
+  // Footer com data de exportação
+}
 
-```typescript
-case 'send_message': {
-  let message = replaceVariables((actionConfig.message as string) || '');
-  
-  // Verificar se temos conversa e contato
-  if (!deal.contact?.phone) {
-    console.log(`[FUNNEL-AUTOMATIONS] Cannot send message - no contact phone`);
-    results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
-    break;
-  }
-
-  // Tentar encontrar a conversa e instância
-  let conversationId = deal.conversation_id || deal.conversation?.id;
-  let instanceId = deal.conversation?.instance_id;
-  
-  // Se não tem conversa no deal, buscar pela mais recente do contato
-  if (!conversationId || !instanceId) {
-    const { data: conv } = await supabase
-      .from('conversations')
-      .select('id, instance_id')
-      .eq('contact_id', deal.contact_id)
-      .eq('user_id', deal.user_id)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    
-    if (conv) {
-      conversationId = conv.id;
-      instanceId = conv.instance_id;
-    }
-  }
-  
-  // Se ainda não tem instância, usar a instância padrão do usuário
-  if (!instanceId) {
-    const { data: defaultInstance } = await supabase
-      .from('whatsapp_instances')
-      .select('id')
-      .eq('user_id', deal.user_id)
-      .eq('status', 'connected')
-      .limit(1)
-      .maybeSingle();
-    
-    instanceId = defaultInstance?.id;
-  }
-  
-  if (!instanceId) {
-    console.log(`[FUNNEL-AUTOMATIONS] Cannot send message - no connected WhatsApp instance`);
-    results.push({ automationId: automation.id, success: false, error: 'No connected WhatsApp instance' });
-    break;
-  }
-
-  // Buscar dados da instância
-  const { data: instance } = await supabase
-    .from('whatsapp_instances')
-    .select('instance_name, evolution_instance_name, status')
-    .eq('id', instanceId)
-    .single();
-  
-  if (!instance || instance.status !== 'connected') {
-    console.log(`[FUNNEL-AUTOMATIONS] Instance not connected`);
-    results.push({ automationId: automation.id, success: false, error: 'Instance not connected' });
-    break;
-  }
-
-  // Formatar telefone
-  let phone = deal.contact.phone.replace(/\D/g, '');
-  const isLabelIdContact = deal.contact.phone.startsWith('LID_') || deal.contact.label_id;
-  
-  let remoteJid: string;
-  if (isLabelIdContact) {
-    remoteJid = `${deal.contact.label_id || phone}@lid`;
-  } else {
-    if (!phone.startsWith('55')) phone = '55' + phone;
-    remoteJid = `${phone}@s.whatsapp.net`;
-  }
-
-  // Enviar via Evolution API
-  const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
-  const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
-  const evolutionName = instance.evolution_instance_name || instance.instance_name;
-  
-  const sendPayload = remoteJid.endsWith('@lid')
-    ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: message }
-    : { number: phone, text: message };
-  
-  console.log(`[FUNNEL-AUTOMATIONS] Sending message to ${phone} via ${evolutionName}`);
-  
-  const response = await fetch(
-    `${evolutionApiUrl}/message/sendText/${evolutionName}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionApiKey
-      },
-      body: JSON.stringify(sendPayload)
-    }
-  );
-
-  const result = await response.json();
-  
-  if (response.ok && result.key) {
-    // Criar registro da mensagem se tiver conversa
-    if (conversationId) {
-      await supabase.from('inbox_messages').insert({
-        conversation_id: conversationId,
-        user_id: deal.user_id,
-        direction: 'outbound',
-        content: message,
-        message_type: 'text',
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-        whatsapp_message_id: result.key.id
-      });
-      
-      await supabase.from('conversations').update({
-        last_message_at: new Date().toISOString(),
-        last_message_preview: message.substring(0, 100)
-      }).eq('id', conversationId);
-    }
-    
-    console.log(`[FUNNEL-AUTOMATIONS] Message sent successfully: ${result.key.id}`);
-    results.push({ automationId: automation.id, success: true });
-  } else {
-    console.error(`[FUNNEL-AUTOMATIONS] Failed to send message:`, result);
-    results.push({ automationId: automation.id, success: false, error: result.message || 'Send failed' });
-  }
-  break;
+// Exportar Word (DOCX)
+export function exportAgentAsWord(data: AgentExportData): void {
+  // Gerar documento com formatting HTML
+  // Converter para blob DOCX usando docx library ou HTML
+  // Download
 }
 ```
 
-### 3. Implementar Também `send_template` (Similar)
+### 2. Criar Dialog de Exportação (`src/components/ai-agents/AIAgentExportDialog.tsx`)
 
-Aplicar a mesma lógica para a ação `send_template` usando a API de templates da Evolution.
+O dialog terá:
+- Título: "Exportar Agente"
+- Descrição do agente selecionado
+- 3 botões de formato (JSON, PDF, Word) com ícones
+- Loading state durante busca dos dados relacionados
+- Mensagem de sucesso após exportação
+
+### 3. Modificar AIAgentCard.tsx
+
+Adicionar nova opção no DropdownMenu:
+```tsx
+<DropdownMenuItem onClick={() => setShowExportDialog(true)}>
+  <Download className="h-4 w-4 mr-2" />
+  Exportar
+</DropdownMenuItem>
+```
 
 ---
 
-## Resumo das Alterações
+## Formato do JSON Exportado
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/process-funnel-automations/index.ts` | Expandir query para incluir conversation + Implementar envio real via Evolution API |
+```json
+{
+  "exportVersion": "1.0",
+  "exportedAt": "2026-01-29T10:00:00Z",
+  "agent": {
+    "name": "SDR Virtual",
+    "templateType": "sdr",
+    "isActive": true,
+    "personalityPrompt": "...",
+    "behaviorRules": "...",
+    "greetingMessage": "...",
+    "goodbyeMessage": "...",
+    "fallbackMessage": "...",
+    "handoffKeywords": ["humano", "atendente"],
+    "responseMode": "text",
+    "responseDelayMin": 3,
+    "responseDelayMax": 8,
+    "activeHoursStart": 8,
+    "activeHoursEnd": 20,
+    "maxInteractions": 15,
+    "pauseEmoji": "🛑",
+    "resumeEmoji": "✅"
+  },
+  "knowledgeBase": [
+    {
+      "title": "FAQ da Empresa",
+      "sourceType": "text",
+      "content": "..."
+    }
+  ],
+  "variables": [
+    {
+      "key": "empresa_nome",
+      "value": "TechSolutions",
+      "description": "Nome da empresa"
+    }
+  ],
+  "stages": [...],
+  "integrations": [...]
+}
+```
+
+---
+
+## Formato do PDF
+
+```text
+┌────────────────────────────────────────────────┐
+│  RELATÓRIO DO AGENTE DE IA                     │
+│  Nome: SDR Virtual                             │
+│  Exportado em: 29/01/2026 10:00                │
+├────────────────────────────────────────────────┤
+│  CONFIGURAÇÕES GERAIS                          │
+│  Status: ✓ Ativo                               │
+│  Template: SDR                                 │
+│  Modo de resposta: Texto                       │
+│  Horário: 08:00 - 20:00                        │
+├────────────────────────────────────────────────┤
+│  PERSONALIDADE                                 │
+│  [texto do prompt]                             │
+├────────────────────────────────────────────────┤
+│  MENSAGENS                                     │
+│  • Saudação: "Olá! Como posso ajudar?"         │
+│  • Despedida: "Até mais!"                      │
+│  • Fallback: "Não entendi..."                  │
+├────────────────────────────────────────────────┤
+│  BASE DE CONHECIMENTO (3 itens)                │
+│  1. FAQ da Empresa (texto)                     │
+│  2. Manual do Produto (PDF)                    │
+├────────────────────────────────────────────────┤
+│  VARIÁVEIS (2 itens)                           │
+│  • {{empresa_nome}}: TechSolutions             │
+├────────────────────────────────────────────────┤
+│  Página 1 de 1                                 │
+└────────────────────────────────────────────────┘
+```
+
+---
+
+## Formato Word (DOCX)
+
+O documento Word seguirá estrutura similar ao PDF, mas com:
+- Cabeçalho estilizado
+- Tabelas para dados estruturados
+- Formatação editável
+- Seções com títulos destacados
+
+---
+
+## Dependências
+
+O projeto já possui:
+- ✅ `jspdf` - Para geração de PDFs
+- ✅ `date-fns` - Para formatação de datas
+
+Para Word, utilizaremos HTML Blob convertido para download (não requer biblioteca adicional).
+
+---
+
+## Fluxo do Usuário
+
+1. Usuário clica no menu (⋮) do card do agente
+2. Seleciona "Exportar"
+3. Dialog abre mostrando nome do agente
+4. Usuário escolhe formato: JSON, PDF ou Word
+5. Sistema busca dados completos (knowledge, variables, stages, integrations)
+6. Arquivo é gerado e download inicia
+7. Toast de sucesso é exibido
 
 ---
 
 ## Resultado Esperado
 
-Após a correção:
-- Automações com ação `send_message` enviarão mensagens reais pelo WhatsApp
-- Mensagens serão registradas no histórico de conversas
-- Logs mostrarão "Message sent successfully" em vez de "Would send message"
-- A automação "Boas Vindas" do cliente Mercearia Saudável funcionará corretamente
-
----
-
-## Considerações Técnicas
-
-1. **Fallback de Instância**: Se o deal não tiver conversa associada, usamos a instância padrão conectada do usuário
-2. **Label ID (LID)**: Suporte a contatos de Click-to-WhatsApp Ads que usam identificadores especiais
-3. **Registro de Mensagem**: A mensagem enviada é salva no histórico da conversa para manter rastreabilidade
-
+- Botão de exportação visível no dropdown de cada agente
+- 3 formatos de exportação funcionando
+- Todos os dados do agente incluídos
+- Arquivos bem formatados e legíveis
+- Suporte a backup e documentação dos agentes
