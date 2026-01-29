@@ -108,7 +108,13 @@ export const useCustomFields = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['custom-field-definitions'] });
+      // Invalidate with refetchType 'all' to ensure immediate refetch in all components
+      queryClient.invalidateQueries({ 
+        queryKey: ['custom-field-definitions'],
+        refetchType: 'all'
+      });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success("Campo removido");
     },
     onError: (error: Error) => {
