@@ -182,7 +182,9 @@ export const useContacts = () => {
       return data;
     },
     onSuccess: () => {
+      // Keep Contacts and Inbox (which relies on conversations cache) in sync
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
       toast.success("Contato atualizado!");
     },
     onError: (error: Error) => {
