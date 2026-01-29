@@ -10,6 +10,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -36,6 +46,7 @@ import { useFunnels } from "@/hooks/useFunnels";
 import { DynamicField } from "./DynamicField";
 import { FieldSelector } from "./FieldSelector";
 import { InlineFieldCreator } from "./InlineFieldCreator";
+import { toast } from "sonner";
 
 const contactSchema = z.object({
   phone: z
@@ -73,13 +84,14 @@ export const ContactFormDialog = ({
   isLoading,
   currentDeal,
 }: ContactFormDialogProps) => {
-  const { fieldDefinitions, updateField, createField } = useCustomFields();
+  const { fieldDefinitions, updateField, createField, deleteField } = useCustomFields();
   const { funnels } = useFunnels();
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [addedFieldIds, setAddedFieldIds] = useState<string[]>([]);
   const [showCreateField, setShowCreateField] = useState(false);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [selectedStageId, setSelectedStageId] = useState<string>("");
+  const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
@@ -185,6 +197,21 @@ export const ContactFormDialog = ({
         const newValues = { ...prev };
         delete newValues[def.field_key];
         return newValues;
+      });
+    }
+  };
+
+  const handleConfirmDeleteDefinition = async () => {
+    if (!deleteFieldId) return;
+
+    try {
+      await deleteField.mutateAsync(deleteFieldId);
+      // Remove from this dialog UI immediately
+      handleRemoveField(deleteFieldId);
+      setDeleteFieldId(null);
+    } catch (e: any) {
+      toast.error("Erro ao excluir campo", {
+        description: e?.message,
       });
     }
   };
@@ -394,6 +421,7 @@ export const ContactFormDialog = ({
                               : undefined
                           }
                           onRemove={() => handleRemoveField(definition.id)}
+                          onDeleteDefinition={() => setDeleteFieldId(definition.id)}
                         />
                       </div>
                     ))}
@@ -445,6 +473,24 @@ export const ContactFormDialog = ({
             </form>
           </Form>
         </ScrollArea>
+
+        <AlertDialog open={!!deleteFieldId} onOpenChange={(open) => !open && setDeleteFieldId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir campo?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Isso remove o campo para todo o sistema (Contatos e Inbox). Os valores antigos podem permanecer salvos
+                nos contatos, mas o campo não será mais exibido.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmDeleteDefinition}>
+                Excluir campo
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
