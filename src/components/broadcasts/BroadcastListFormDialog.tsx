@@ -196,8 +196,8 @@ export const BroadcastListFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="max-w-lg max-h-[85vh] grid grid-rows-[auto_1fr_auto] overflow-hidden gap-0 p-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>
             {list ? "Editar Lista" : "Nova Lista de Transmissão"}
           </DialogTitle>
@@ -205,8 +205,8 @@ export const BroadcastListFormDialog = ({
             {list ? "Edite as configurações da sua lista." : "Configure sua nova lista de transmissão para campanhas."}
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
-          <form id="broadcast-list-form" onSubmit={handleSubmit} className="space-y-4 pr-4 pb-2">
+        <ScrollArea className="min-h-0 px-6" type="always" scrollHideDelay={0}>
+          <form id="broadcast-list-form" onSubmit={handleSubmit} className="space-y-4 pr-4 pb-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nome da Lista</Label>
               <Input
@@ -454,7 +454,7 @@ export const BroadcastListFormDialog = ({
             )}
           </form>
         </ScrollArea>
-        <DialogFooter className="pt-4">
+        <DialogFooter className="px-6 py-4 border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
