@@ -133,6 +133,19 @@ Deno.serve(async (req) => {
     // Fetch contacts based on list type
     let contacts: Contact[] = [];
     
+    // Extract target funnel from list's filter_criteria
+    let targetFunnelId: string | null = null;
+    let targetStageId: string | null = null;
+    
+    if (campaign.list?.filter_criteria) {
+      const fc = campaign.list.filter_criteria as { funnelId?: string; stageId?: string };
+      targetFunnelId = fc.funnelId || null;
+      targetStageId = fc.stageId || null;
+      if (targetFunnelId) {
+        console.log(`Campaign using target funnel from list: ${targetFunnelId}, stage: ${targetStageId || 'first stage'}`);
+      }
+    }
+
     if (campaign.list?.type === 'manual') {
       // Manual list: fetch from broadcast_list_contacts junction table
       const { data: listContacts, error: contactsError } = await supabase
@@ -349,7 +362,9 @@ Deno.serve(async (req) => {
         total_contacts: filteredContacts.length,
         sent: 0,
         delivered: 0,
-        failed: 0
+        failed: 0,
+        target_funnel_id: targetFunnelId,
+        target_stage_id: targetStageId
       })
       .eq('id', campaignId);
 
