@@ -77,6 +77,18 @@ Deno.serve(async (req: Request) => {
       console.error('Evolution API delete error (continuing anyway):', evolutionError);
     }
 
+    // Limpar referência notification_instance_id em organizations
+    const { error: updateOrgError } = await supabase
+      .from('organizations')
+      .update({ notification_instance_id: null })
+      .eq('notification_instance_id', instance.id);
+
+    if (updateOrgError) {
+      console.error('Error clearing organization notification_instance_id:', updateOrgError);
+    } else {
+      console.log('Cleared organization notification_instance_id reference');
+    }
+
     // Limpar referência única em campaigns.instance_id
     const { error: updateCampaignError } = await supabase
       .from('campaigns')
@@ -105,7 +117,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log('Cleared campaign references for instance:', instance.id);
+    console.log('Cleared all references for instance:', instance.id);
 
     // Deletar do banco de dados
     const { error: deleteError } = await supabase
