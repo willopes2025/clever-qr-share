@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -61,6 +61,18 @@ export function useAnalysisReports() {
     enabled: !!user?.id,
   });
 
+  // Polling automático para relatórios em processamento
+  useEffect(() => {
+    const processingReports = reports?.filter(r => r.status === 'processing');
+    if (!processingReports?.length) return;
+    
+    const interval = setInterval(() => {
+      refetch();
+    }, 15000); // 15 segundos
+    
+    return () => clearInterval(interval);
+  }, [reports, refetch]);
+
   const generateReport = useCallback(async (periodStart: string, periodEnd: string, transcribeAudios = true, tzOffsetMinutes?: number) => {
     if (!user?.id) {
       toast.error('Você precisa estar logado para gerar relatórios');
@@ -96,7 +108,22 @@ export function useAnalysisReports() {
       return reportId;
     } catch (error: any) {
       console.error('Error generating report:', error);
-      toast.error(error.message || 'Erro ao gerar relatório');
+      
+      const isTimeoutError = /failed to fetch|connection|timeout|aborted|failed to send/i.test(
+        error.message || ''
+      );
+      
+      if (isTimeoutError) {
+        toast.info('A análise está sendo processada em segundo plano. A página será atualizada automaticamente.', {
+          duration: 8000,
+        });
+      } else {
+        toast.error(error.message || 'Erro ao gerar relatório');
+      }
+      
+      // Sempre invalidar cache - relatório pode ter sido criado mesmo com erro
+      queryClient.invalidateQueries({ queryKey: ['analysis-reports'] });
+      
       return null;
     } finally {
       setIsGenerating(false);
