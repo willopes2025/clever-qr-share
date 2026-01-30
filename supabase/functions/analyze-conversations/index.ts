@@ -378,11 +378,13 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de qualidade de atendimento ao cliente via WhatsApp. Analise as conversas e gere um relatório detalhado usando a função analyze_conversations.
+            content: `Você é um especialista em análise de qualidade de atendimento ao cliente via WhatsApp.
+
+IMPORTANTE: Você DEVE OBRIGATORIAMENTE chamar a função analyze_conversations para fornecer sua análise. NÃO escreva texto livre. APENAS chame a função com os dados estruturados.
 
 Critérios de avaliação (0-100):
 1. QUALIDADE TEXTUAL: Gramática, ortografia, clareza, pontuação, uso apropriado de emojis
@@ -392,7 +394,9 @@ Critérios de avaliação (0-100):
 5. ANÁLISE DE ÁUDIO: Qualidade das transcrições, completude das mensagens de voz
 
 Seja específico, use exemplos reais das conversas. Forneça feedback construtivo e acionável.
-Limite: 5 pontos fortes, 5 melhorias, 5 recomendações, 6 exemplos destacados, 10 conversas.`
+Limite: 5 pontos fortes, 5 melhorias, 5 recomendações, 6 exemplos destacados, 10 conversas.
+
+LEMBRE-SE: Chame a função analyze_conversations. NÃO responda com texto.`
           },
           {
             role: 'user',
@@ -404,7 +408,9 @@ Estatísticas:
 - Total de mensagens: ${totalMessages}
 - Enviadas pelo atendente: ${sentMessages}
 - Recebidas de clientes: ${receivedMessages}
-- Áudios: ${audioMessages}`
+- Áudios: ${audioMessages}
+
+INSTRUÇÃO FINAL: Use a função analyze_conversations para retornar sua análise estruturada.`
           }
         ],
         tools: [
@@ -412,7 +418,7 @@ Estatísticas:
             type: "function",
             function: {
               name: "analyze_conversations",
-              description: "Gera um relatório estruturado de análise de atendimento",
+              description: "Gera um relatório estruturado de análise de atendimento. OBRIGATÓRIO usar esta função.",
               parameters: reportSchema
             }
           }
@@ -460,7 +466,15 @@ Estatísticas:
     }
 
     const aiData = await analysisResponse.json();
-    console.log('AI response received, parsing...');
+    
+    // Detailed logging for debugging
+    console.log('AI response structure:', JSON.stringify({
+      hasToolCalls: !!aiData.choices?.[0]?.message?.tool_calls,
+      toolCallsCount: aiData.choices?.[0]?.message?.tool_calls?.length || 0,
+      hasContent: !!aiData.choices?.[0]?.message?.content,
+      contentPreview: aiData.choices?.[0]?.message?.content?.substring(0, 150) || null,
+      finishReason: aiData.choices?.[0]?.finish_reason
+    }));
 
     // Try to get tool call result first (structured output)
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
@@ -480,18 +494,119 @@ Estatísticas:
     if (!analysisResult) {
       const aiContent = aiData.choices?.[0]?.message?.content;
       if (aiContent) {
+        console.log('Tool call not found, attempting to extract JSON from content...');
         try {
           let jsonContent = aiContent;
+          
+          // Try to extract JSON from markdown code blocks
           if (jsonContent.includes('```json')) {
             jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
           } else if (jsonContent.includes('```')) {
             jsonContent = jsonContent.replace(/```\n?/g, '');
           }
-          const rawResult = JSON.parse(jsonContent.trim());
-          analysisResult = normalizeAnalysisResult(rawResult);
-          console.log('Successfully parsed content response');
+          
+          // Try direct parse first
+          try {
+            const rawResult = JSON.parse(jsonContent.trim());
+            analysisResult = normalizeAnalysisResult(rawResult);
+            console.log('Successfully parsed content as direct JSON');
+          } catch {
+            // Try to extract JSON object from anywhere in the text using regex
+            const jsonMatch = aiContent.match(/\{[\s\S]*"overall_score"[\s\S]*"executive_summary"[\s\S]*\}/);
+            if (jsonMatch) {
+              const rawResult = JSON.parse(jsonMatch[0]);
+              analysisResult = normalizeAnalysisResult(rawResult);
+              console.log('Successfully extracted JSON via regex');
+            }
+          }
         } catch (e) {
           console.error('Failed to parse content:', e);
+        }
+      }
+    }
+
+    // Retry with simplified prompt if first attempt failed
+    if (!analysisResult) {
+      console.log('First attempt failed, retrying with simplified prompt...');
+      
+      // Use only first 10 conversations for retry
+      const simplifiedTexts = conversationsWithMessages.slice(0, 10).map(conv => {
+        const messagesText = conv.messages.slice(0, 20).map(m => {
+          const sender = m.direction === 'outbound' ? 'ATENDENTE' : 'CLIENTE';
+          let content = m.content?.substring(0, 200) || '';
+          if ((m.message_type === 'audio' || m.message_type === 'ptt') && m.transcription) {
+            content = `[ÁUDIO]: ${m.transcription.substring(0, 150)}`;
+          }
+          return `${sender}: ${content}`;
+        }).join('\n');
+        return `--- ${conv.contact.name || conv.contact.phone} ---\n${messagesText}`;
+      }).join('\n\n');
+
+      const retryResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-pro',
+          messages: [
+            {
+              role: 'system',
+              content: `Você é um analista de atendimento. OBRIGATÓRIO: Use a função analyze_conversations. NÃO escreva texto.`
+            },
+            {
+              role: 'user',
+              content: `Analise resumidamente (${periodStart} a ${periodEnd}):\n\n${simplifiedTexts}\n\nUse a função analyze_conversations.`
+            }
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "analyze_conversations",
+                description: "Retorna análise estruturada. OBRIGATÓRIO.",
+                parameters: reportSchema
+              }
+            }
+          ],
+          tool_choice: { type: "function", function: { name: "analyze_conversations" } }
+        }),
+      });
+
+      if (retryResponse.ok) {
+        const retryData = await retryResponse.json();
+        console.log('Retry response structure:', JSON.stringify({
+          hasToolCalls: !!retryData.choices?.[0]?.message?.tool_calls,
+          contentPreview: retryData.choices?.[0]?.message?.content?.substring(0, 100) || null
+        }));
+
+        const retryToolCall = retryData.choices?.[0]?.message?.tool_calls?.[0];
+        if (retryToolCall?.function?.arguments) {
+          try {
+            const rawResult = JSON.parse(retryToolCall.function.arguments);
+            analysisResult = normalizeAnalysisResult(rawResult);
+            console.log('Successfully parsed retry tool call response');
+          } catch (e) {
+            console.error('Failed to parse retry tool call:', e);
+          }
+        }
+
+        // Last resort: try regex on retry content
+        if (!analysisResult) {
+          const retryContent = retryData.choices?.[0]?.message?.content;
+          if (retryContent) {
+            const jsonMatch = retryContent.match(/\{[\s\S]*"overall_score"[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                const rawResult = JSON.parse(jsonMatch[0]);
+                analysisResult = normalizeAnalysisResult(rawResult);
+                console.log('Successfully extracted JSON from retry via regex');
+              } catch (e) {
+                console.error('Failed to parse retry regex match:', e);
+              }
+            }
+          }
         }
       }
     }
