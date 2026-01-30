@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,13 +104,14 @@ export function CreateTaskDialog({ open, onOpenChange, defaultDate }: CreateTask
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Nova Tarefa</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 pt-4">
-          {/* Tipo de tarefa */}
+        <ScrollArea className="flex-1 -mx-6 px-6" type="always">
+          <div className="space-y-4 pt-4 pb-2">
+            {/* Tipo de tarefa */}
           <div className="space-y-2">
             <Label>Tipo de tarefa</Label>
             <TaskTypeSelector value={taskTypeId} onChange={setTaskTypeId} />
@@ -215,16 +217,18 @@ export function CreateTaskDialog({ open, onOpenChange, defaultDate }: CreateTask
             </div>
           )}
 
-          {/* Botões */}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreate} disabled={!title.trim() || isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar Tarefa
-            </Button>
           </div>
+        </ScrollArea>
+
+        {/* Botões fixos no rodapé */}
+        <div className="flex justify-end gap-2 pt-4 border-t flex-shrink-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleCreate} disabled={!title.trim() || isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Criar Tarefa
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
