@@ -1,147 +1,163 @@
 
-# Plano: Busca por Conteúdo de Mensagens no Inbox
+# Plano: Correção do Limite de 1000 na Busca de Contatos de Campanhas
 
-## Objetivo
+## Problema Identificado
 
-Permitir que a busca "Buscar conversa..." encontre conversas que contenham qualquer palavra digitada no conteúdo das mensagens (não apenas pelo nome ou telefone do contato).
+A campanha "BH Kayros" deveria disparar para **69 contatos** (todos com a tag "Bh Kayros"), mas está disparando apenas para **14**.
 
-## Situação Atual
+**Causa-raiz:** O Supabase tem um **limite padrão de 1000 registros** por query. Como a query de contatos na edge function `start-campaign` não especifica `ORDER BY`, a ordem de retorno é indefinida. Resultado: apenas 14 dos 69 contatos com a tag estão sendo retornados no subset de 1000 registros.
 
-A busca no `ConversationList.tsx` (linha 117) atualmente filtra apenas por:
-- Nome do contato
-- Telefone do contato  
-- Display ID do contato
-
-```typescript
-const matchesSearch = name.toLowerCase().includes(search) || phone.includes(search) || displayId.includes(search);
+**Evidência do banco:**
+```text
+Com LIMIT 1000 (ordem indefinida): 14 contatos com a tag
+Sem limite: 69 contatos com a tag
 ```
 
-## Abordagem Proposta
+## Solução Proposta
 
-Implementar busca em tempo real com **debounce** que consulta as mensagens no banco quando o termo de busca tem 3+ caracteres.
+Modificar a edge function `start-campaign` para buscar **TODOS os contatos** do usuário, usando paginação quando necessário.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ Usuário digita: "paciente"                                  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ debounce 500ms
-                           ▼
+│ ANTES (bugado)                                              │
+│                                                             │
+│ Query: SELECT * FROM contacts WHERE user_id = X            │
+│        AND opted_out = false                                │
+│        -- Sem ORDER BY, sem LIMIT explícito                │
+│        -- Supabase retorna até 1000 registros              │
+│                                                             │
+│ Resultado: 1000 contatos aleatórios (14 têm a tag)         │
+└─────────────────────────────────────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────┐
-│ Query: SELECT DISTINCT conversation_id                      │
-│        FROM inbox_messages                                  │
-│        WHERE content ILIKE '%paciente%'                     │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Resultado: IDs das conversas que contêm "paciente"          │
-│ → Filtro combina com nome/telefone (OR)                     │
+│ DEPOIS (corrigido)                                          │
+│                                                             │
+│ Loop com paginação:                                         │
+│   offset = 0, pageSize = 1000                               │
+│   while (hasMore) {                                         │
+│     Query: SELECT * FROM contacts                           │
+│            WHERE user_id = X AND opted_out = false          │
+│            ORDER BY created_at                              │
+│            LIMIT 1000 OFFSET offset                         │
+│     offset += 1000                                          │
+│   }                                                         │
+│                                                             │
+│ Resultado: Todos os 2631 contatos → 69 com a tag           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Alterações Técnicas
 
-### 1. Criar hook `useConversationSearch.ts`
+### Arquivo: `supabase/functions/start-campaign/index.ts`
 
-Novo hook que faz a busca por conteúdo de mensagens:
+**Modificar a seção de busca de contatos (linhas 162-230):**
+
+1. **Adicionar função de paginação** para buscar todos os contatos:
 
 ```typescript
-// src/hooks/useConversationSearch.ts
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+// Função helper para paginar resultados
+async function fetchAllContacts(
+  supabase: SupabaseClient,
+  userId: string,
+  filters: { status?: string; optedOut?: boolean; asaasPaymentStatus?: string }
+): Promise<Array<{ id: string; name: string | null; phone: string; email: string | null; custom_fields: Record<string, string> | null }>> {
+  const pageSize = 1000;
+  let offset = 0;
+  let allContacts: any[] = [];
+  let hasMore = true;
 
-export const useConversationSearch = (searchTerm: string) => {
-  return useQuery({
-    queryKey: ['conversation-search', searchTerm],
-    queryFn: async () => {
-      if (searchTerm.length < 3) return [];
-      
-      const { data, error } = await supabase
-        .from('inbox_messages')
-        .select('conversation_id')
-        .ilike('content', `%${searchTerm}%`)
-        .limit(100);
-      
-      if (error) throw error;
-      
-      // Return unique conversation IDs
-      return [...new Set(data.map(m => m.conversation_id))];
-    },
-    enabled: searchTerm.length >= 3,
-    staleTime: 30000, // Cache por 30s
-  });
-};
+  while (hasMore) {
+    let query = supabase
+      .from('contacts')
+      .select('id, name, phone, email, custom_fields')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (typeof filters.optedOut === 'boolean') {
+      query = query.eq('opted_out', filters.optedOut);
+    }
+    if (filters.asaasPaymentStatus) {
+      query = query.eq('asaas_payment_status', filters.asaasPaymentStatus);
+    }
+
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allContacts = allContacts.concat(data);
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allContacts;
+}
 ```
 
-### 2. Modificar `ConversationList.tsx`
-
-**Adicionar import e uso do hook:**
+2. **Substituir a query simples** pela função paginada:
 
 ```typescript
-import { useConversationSearch } from "@/hooks/useConversationSearch";
-
-// Dentro do componente:
-const [debouncedSearch, setDebouncedSearch] = useState("");
-
-// Debounce de 500ms
-useEffect(() => {
-  const timer = setTimeout(() => {
-    setDebouncedSearch(searchTerm);
-  }, 500);
-  return () => clearTimeout(timer);
-}, [searchTerm]);
-
-const { data: matchingConversationIds = [] } = useConversationSearch(debouncedSearch);
-```
-
-**Atualizar a lógica de filtro (linha ~112-117):**
-
-```typescript
-const filteredConversations = sortedConversations.filter(conv => {
-  const name = conv.contact?.name || "";
-  const phone = conv.contact?.phone || "";
-  const displayId = (conv.contact as any)?.contact_display_id || "";
-  const search = searchTerm.toLowerCase();
-  
-  // Busca por nome, telefone ou ID
-  const matchesContactSearch = name.toLowerCase().includes(search) || 
-                               phone.includes(search) || 
-                               displayId.includes(search);
-  
-  // Busca por conteúdo de mensagens (quando há resultado da query)
-  const matchesMessageContent = debouncedSearch.length >= 3 && 
-                                matchingConversationIds.includes(conv.id);
-  
-  // Combina: se não digitou nada, mostra todas; senão, combina OR
-  const matchesSearch = !searchTerm ? true : 
-                        (matchesContactSearch || matchesMessageContent);
-  
-  // ... resto dos filtros mantidos
+// Substituir linhas 171-191 por:
+const filteredContacts = await fetchAllContacts(supabase, user.id, {
+  status: filterCriteria.status,
+  optedOut: filterCriteria.optedOut,
+  asaasPaymentStatus: filterCriteria.asaasPaymentStatus
 });
+
+console.log(`Fetched ${filteredContacts.length} total contacts from database`);
 ```
 
-### 3. Criar índice para otimização (opcional mas recomendado)
+3. **Também paginar a busca de tags** (linha 200-203):
 
-Migração SQL para melhorar performance com ~20k mensagens:
+```typescript
+// Buscar todas as tags com paginação
+let taggedContactIds: string[] = [];
+let tagOffset = 0;
+let hasMoreTags = true;
 
-```sql
--- Índice para buscas ILIKE no conteúdo (trigram)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX idx_inbox_messages_content_trgm 
-ON inbox_messages USING gin (content gin_trgm_ops);
+while (hasMoreTags) {
+  const { data: tagBatch, error: tagsError } = await supabase
+    .from('contact_tags')
+    .select('contact_id')
+    .in('tag_id', filterCriteria.tags)
+    .range(tagOffset, tagOffset + 999);
+
+  if (tagsError) throw new Error('Failed to fetch contact tags');
+  
+  if (tagBatch && tagBatch.length > 0) {
+    taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+    tagOffset += 1000;
+    hasMoreTags = tagBatch.length === 1000;
+  } else {
+    hasMoreTags = false;
+  }
+}
+
+const taggedIds = new Set(taggedContactIds);
 ```
 
 ## Resultado Esperado
 
-| Digitação | Comportamento |
-|-----------|---------------|
-| "" (vazio) | Mostra todas as conversas |
-| "Ma" (2 chars) | Filtra apenas por nome/telefone |
-| "Marcelo" (3+ chars) | Busca por nome + conteúdo de mensagens |
-| "paciente" | Retorna conversas onde qualquer mensagem contém "paciente" |
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Lista "BH Kayros" | 14 contatos | 69 contatos |
+| Usuário com 2631 contatos | Limite de 1000 | Todos processados |
+| Tags com muitos contatos | Limite de 1000 | Paginação completa |
 
 ## Arquivos a Modificar
 
-1. **Criar:** `src/hooks/useConversationSearch.ts` - Hook de busca
-2. **Modificar:** `src/components/inbox/ConversationList.tsx` - Integrar busca
-3. **Migração SQL:** Índice trigram para performance (opcional)
+1. **Modificar:** `supabase/functions/start-campaign/index.ts` - Adicionar paginação
+
+## Teste Recomendado
+
+Após a correção:
+1. Reexecutar o disparo para a lista "BH Kayros"
+2. Verificar que o log mostra "Found 69 contacts in list"
+3. Confirmar que 69 mensagens foram criadas em `campaign_messages`
