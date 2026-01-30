@@ -1,118 +1,130 @@
 
-
-# Plano: Correção do Erro de Parsing no Relatório de Análise
+# Correção do Loop ao Clicar em Automações na Etapa de Funil
 
 ## Problema Identificado
 
-Ao gerar um relatório de análise para o cliente "Mercearia Saudável", a edge function `analyze-conversations` falhou com o erro:
-
-```
-Failed to parse content: SyntaxError: Unexpected token 'O', "O relatóri"... is not valid JSON
-```
-
-**Causa Raiz:** A Lovable AI (modelo `google/gemini-2.5-flash`) está ignorando o `tool_choice` forçado e retornando **texto livre em português** ao invés do JSON estruturado esperado via function calling.
-
-O log mostra:
-- A função encontrou 117 conversas e 1000 mensagens
-- A chamada à IA foi feita corretamente
-- A resposta veio como texto ("O relatório...") ao invés de um tool_call estruturado
+Ao clicar no botão de "automações" dentro de uma etapa de funil, o sistema entra em loop e reinicia. O usuário é redirecionado para a página de login.
 
 ## Análise Técnica
 
-O código atual (linha 420) usa:
-```typescript
-tool_choice: { type: "function", function: { name: "analyze_conversations" } }
-```
+Após investigação detalhada do código, identifiquei potenciais causas do problema:
 
-Porém o modelo Gemini pode não respeitar esse formato consistentemente, especialmente quando:
-1. O prompt é muito longo (117 conversas, 1000 mensagens)
-2. O schema tem muitos campos obrigatórios
-3. O contexto é em português
+1. **`AutomationFormDialog` - useEffect com dependências problemáticas**
+   - O useEffect na linha 182-201 tem dependências que podem causar re-renderizações infinitas
+   - As dependências incluem `funnelId` e `defaultStageId` que são passados como props
+   - Quando o dialog abre, ele seta múltiplos estados que podem disparar re-renderizações cascata
+
+2. **`FunnelAutomationsView` - Hook useFunnels sendo chamado**
+   - O componente usa `useFunnels()` que carrega todas as automações
+   - Se houver um problema com os dados das automações (ex: campo inválido), pode causar erro de renderização
+
+3. **ErrorBoundary recarregando a página**
+   - Quando ocorre um erro não tratado, o ErrorBoundary é acionado
+   - Se o usuário clicar em "Tentar novamente", pode causar o loop
+   - O redirecionamento para `/login` sugere que o erro está invalidando a sessão
 
 ## Solução Proposta
 
-Implementar múltiplas estratégias de fallback e reforçar as instruções:
+### 1. Corrigir o useEffect do AutomationFormDialog
 
-### 1. Reforçar instrução no prompt de sistema
-
-Adicionar instrução explícita obrigando o modelo a usar a função:
+Adicionar verificações para evitar atualizações desnecessárias de estado:
 
 ```typescript
-content: `Você é um especialista em análise de qualidade de atendimento...
-
-IMPORTANTE: Você DEVE OBRIGATORIAMENTE chamar a função analyze_conversations para fornecer sua análise. 
-NÃO escreva texto livre. APENAS chame a função com os dados estruturados.`
+useEffect(() => {
+  if (!open) return; // Early return se dialog fechado
+  
+  if (automation) {
+    // Só atualiza se os valores forem diferentes
+    if (name !== automation.name) setName(automation.name);
+    if (selectedFunnelId !== automation.funnel_id) setSelectedFunnelId(automation.funnel_id);
+    // ... etc
+  } else {
+    // Reset para novo
+    setName('');
+    setSelectedFunnelId(funnelId || '');
+    setStageId(defaultStageId || '');
+    // ...
+  }
+}, [open]); // Remover dependências que causam loop
 ```
 
-### 2. Adicionar logging da resposta completa
+### 2. Adicionar try-catch em componentes críticos
 
-Para debug futuro, logar a estrutura da resposta:
-
-```typescript
-console.log('AI response structure:', JSON.stringify({
-  hasToolCalls: !!aiData.choices?.[0]?.message?.tool_calls,
-  contentPreview: aiData.choices?.[0]?.message?.content?.substring(0, 100)
-}));
-```
-
-### 3. Melhorar o parsing de fallback
-
-Se a IA retornar texto, tentar extrair JSON com regex mais robusto:
+Envolver a renderização do `FunnelAutomationsView` com tratamento de erro:
 
 ```typescript
-// Tentar extrair JSON de qualquer lugar do texto
-const jsonMatch = aiContent.match(/\{[\s\S]*"overall_score"[\s\S]*\}/);
-if (jsonMatch) {
-  const rawResult = JSON.parse(jsonMatch[0]);
-  // ...
+// FunnelAutomationsView.tsx - Adicionar estado de erro local
+const [localError, setLocalError] = useState<Error | null>(null);
+
+// Renderização segura
+if (localError) {
+  return (
+    <div className="p-4 text-center text-destructive">
+      <p>Erro ao carregar automações</p>
+      <Button onClick={() => setLocalError(null)}>Tentar novamente</Button>
+    </div>
+  );
 }
 ```
 
-### 4. Adicionar retry automático com prompt simplificado
+### 3. Verificar dados antes de renderizar
 
-Se a primeira tentativa falhar, fazer segunda tentativa com mensagem mais curta:
+No `AutomationCard`, adicionar verificação de dados válidos:
 
 ```typescript
-if (!analysisResult) {
-  console.log('First attempt failed, retrying with simplified prompt...');
-  // Segunda tentativa com apenas 10 conversas
-  const simplifiedConversations = conversationsWithMessages.slice(0, 10);
-  // ... nova chamada
+if (!automation || !automation.id) {
+  return null; // Não renderiza cards inválidos
 }
 ```
 
-### 5. Considerar trocar para modelo mais robusto
+### 4. Simplificar dependências do useEffect
 
-O `google/gemini-2.5-pro` ou `openai/gpt-5-mini` podem ter melhor suporte para function calling forçado.
+O principal problema está no useEffect do `AutomationFormDialog` que tem dependências que mudam frequentemente:
 
-## Alterações Técnicas
+```typescript
+// ANTES (problemático)
+useEffect(() => {
+  // lógica
+}, [open, automation, funnelId, defaultStageId]);
 
-### Arquivo: `supabase/functions/analyze-conversations/index.ts`
+// DEPOIS (corrigido)
+useEffect(() => {
+  if (!open) return;
+  // lógica de reset apenas quando abre
+}, [open]); // Reduzir dependências
+```
 
-**Mudanças:**
+## Arquivos a Modificar
 
-1. **Linhas 384-395** - Reforçar prompt de sistema com instrução obrigatória de usar a função
-2. **Linhas 462-464** - Adicionar logging detalhado da resposta da IA
-3. **Linhas 479-496** - Melhorar regex de extração de JSON do texto
-4. **Após linha 496** - Implementar retry com prompt simplificado
-5. **Linha 381** - Considerar usar `google/gemini-2.5-pro` ao invés de `flash`
+1. **`src/components/funnels/AutomationFormDialog.tsx`**
+   - Corrigir useEffect para evitar loop de dependências
+   - Adicionar verificações de segurança
+
+2. **`src/components/funnels/automations/FunnelAutomationsView.tsx`**
+   - Adicionar tratamento de erro local
+   - Verificar dados antes de renderizar
+
+3. **`src/components/funnels/automations/AutomationCard.tsx`**
+   - Adicionar verificação de automation válida
+
+## Mudanças Detalhadas
+
+### AutomationFormDialog.tsx
+
+- Usar `useRef` para rastrear valores anteriores e evitar re-sets desnecessários
+- Simplificar dependências do useEffect para apenas `[open]`
+- Adicionar memoização dos valores que não mudam
+
+### FunnelAutomationsView.tsx
+
+- Adicionar try-catch na renderização de automações
+- Verificar se `funnel.stages` existe antes de mapear
+- Adicionar loading state mais robusto
 
 ## Resultado Esperado
 
 | Cenário | Antes | Depois |
 |---------|-------|--------|
-| IA retorna texto ao invés de tool_call | Erro de parsing | Extração via regex ou retry |
-| Prompt muito longo | Modelo ignora function calling | Retry com prompt simplificado |
-| Debugging | Logs vagos | Estrutura completa da resposta logada |
-
-## Arquivos a Modificar
-
-1. **Edge Function**: `supabase/functions/analyze-conversations/index.ts`
-
-## Testes Recomendados
-
-Após a correção:
-1. Gerar novo relatório para "Mercearia Saudável" no período de 20/01 a 30/01
-2. Verificar logs para confirmar que a função foi chamada corretamente
-3. Verificar que o relatório foi gerado com sucesso
-
+| Clique em "Automações" na etapa | Loop infinito / Crash | Dialog abre corretamente |
+| Dialog de automação abre | Re-renderizações constantes | Renderização única |
+| Erro em automação específica | Crash da página inteira | Erro isolado, componente individual |
