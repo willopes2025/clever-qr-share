@@ -1036,9 +1036,28 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.log('Created/updated conversation:', conversation?.id, 'assigned_to:', assignedTo);
       }
       
-      // Auto-create deal if instance has default funnel and is incoming message
-      if (defaultFunnelId && !isFromMe && conversation) {
-        await createDealFromNewConversation(supabase, userId, defaultFunnelId, contact.id, conversation.id, contact.name || phone);
+      // Auto-create deal: check if there's a campaign with target funnel first
+      let funnelIdForDeal = defaultFunnelId;
+      let stageIdForDeal: string | null = null;
+      
+      // Check if this contact has a recent campaign message with target funnel
+      const { data: campaignMessage } = await supabase
+        .from('campaign_messages')
+        .select('campaign_id, campaigns!inner(target_funnel_id, target_stage_id)')
+        .eq('contact_id', contact.id)
+        .in('status', ['sent', 'delivered', 'queued'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (campaignMessage?.campaigns?.target_funnel_id) {
+        funnelIdForDeal = campaignMessage.campaigns.target_funnel_id;
+        stageIdForDeal = campaignMessage.campaigns.target_stage_id || null;
+        console.log(`[CAMPAIGN-FUNNEL] Using campaign funnel: ${funnelIdForDeal}, stage: ${stageIdForDeal || 'first'}`);
+      }
+      
+      if (funnelIdForDeal && !isFromMe && conversation) {
+        await createDealFromNewConversation(supabase, userId, funnelIdForDeal, contact.id, conversation.id, contact.name || phone, stageIdForDeal);
       }
     } else {
       // Update conversation
@@ -1070,8 +1089,28 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         
       // Ensure deal exists for existing conversations when instance has funnel
       // This handles the case where funnel was linked after conversation was created
-      if (defaultFunnelId && !isFromMe) {
-        await ensureDealExistsForConversation(supabase, userId, defaultFunnelId, contact.id, conversation.id, contact.name || phone);
+      // Also check for campaign funnel
+      let funnelIdForDeal = defaultFunnelId;
+      let stageIdForDeal: string | null = null;
+      
+      // Check if this contact has a recent campaign message with target funnel
+      const { data: campaignMessage } = await supabase
+        .from('campaign_messages')
+        .select('campaign_id, campaigns!inner(target_funnel_id, target_stage_id)')
+        .eq('contact_id', contact.id)
+        .in('status', ['sent', 'delivered', 'queued'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (campaignMessage?.campaigns?.target_funnel_id) {
+        funnelIdForDeal = campaignMessage.campaigns.target_funnel_id;
+        stageIdForDeal = campaignMessage.campaigns.target_stage_id || null;
+        console.log(`[CAMPAIGN-FUNNEL] Existing conv - using campaign funnel: ${funnelIdForDeal}, stage: ${stageIdForDeal || 'first'}`);
+      }
+      
+      if (funnelIdForDeal && !isFromMe) {
+        await ensureDealExistsForConversation(supabase, userId, funnelIdForDeal, contact.id, conversation.id, contact.name || phone, stageIdForDeal);
       }
     }
 
@@ -1295,9 +1334,9 @@ async function triggerFunnelAutomationsForMessage(supabase: any, userId: string,
 
 // Create a deal in the funnel when a new conversation is created
 // deno-lint-ignore no-explicit-any
-async function createDealFromNewConversation(supabase: any, userId: string, funnelId: string, contactId: string, conversationId: string, contactName: string) {
+async function createDealFromNewConversation(supabase: any, userId: string, funnelId: string, contactId: string, conversationId: string, contactName: string, targetStageId?: string | null) {
   try {
-    console.log(`[FUNNEL-DEAL] Creating deal for conversation ${conversationId} in funnel ${funnelId}`);
+    console.log(`[FUNNEL-DEAL] Creating deal for conversation ${conversationId} in funnel ${funnelId}, targetStage: ${targetStageId || 'first'}`);
     
     // Check if deal already exists for this contact in this funnel
     const { data: existingDeal } = await supabase
@@ -1319,18 +1358,23 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
       return;
     }
     
-    // Get first stage of the funnel
-    const { data: firstStage, error: stageError } = await supabase
-      .from('funnel_stages')
-      .select('id')
-      .eq('funnel_id', funnelId)
-      .order('display_order', { ascending: true })
-      .limit(1)
-      .single();
+    // Get stage for the deal - use targetStageId if provided, otherwise first stage
+    let stageId = targetStageId;
     
-    if (stageError || !firstStage) {
-      console.error('[FUNNEL-DEAL] Could not find first stage:', stageError);
-      return;
+    if (!stageId) {
+      const { data: firstStage, error: stageError } = await supabase
+        .from('funnel_stages')
+        .select('id')
+        .eq('funnel_id', funnelId)
+        .order('display_order', { ascending: true })
+        .limit(1)
+        .single();
+      
+      if (stageError || !firstStage) {
+        console.error('[FUNNEL-DEAL] Could not find first stage:', stageError);
+        return;
+      }
+      stageId = firstStage.id;
     }
     
     // Create the deal
@@ -1339,7 +1383,7 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
       .insert({
         user_id: userId,
         funnel_id: funnelId,
-        stage_id: firstStage.id,
+        stage_id: stageId,
         contact_id: contactId,
         conversation_id: conversationId,
         title: `Lead - ${contactName}`,
@@ -1359,7 +1403,7 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         
-        console.log(`[FUNNEL-AUTOMATIONS] Triggering automations for new deal ${newDeal?.id} entering stage ${firstStage.id}`);
+        console.log(`[FUNNEL-AUTOMATIONS] Triggering automations for new deal ${newDeal?.id} entering stage ${stageId}`);
         
         const automationResponse = await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
           method: 'POST',
@@ -1369,7 +1413,7 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
           },
           body: JSON.stringify({
             dealId: newDeal?.id,
-            toStageId: firstStage.id,
+            toStageId: stageId,
             triggerType: 'on_stage_enter',
           }),
         });
@@ -1388,7 +1432,7 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
 
 // Ensure a deal exists for an existing conversation (when funnel was linked after conversation was created)
 // deno-lint-ignore no-explicit-any
-async function ensureDealExistsForConversation(supabase: any, userId: string, funnelId: string, contactId: string, conversationId: string, contactName: string) {
+async function ensureDealExistsForConversation(supabase: any, userId: string, funnelId: string, contactId: string, conversationId: string, contactName: string, targetStageId?: string | null) {
   try {
     // Check if deal already exists for this contact in this funnel
     const { data: existingDeal } = await supabase
@@ -1410,19 +1454,25 @@ async function ensureDealExistsForConversation(supabase: any, userId: string, fu
     }
     
     // No deal exists, create one
-    console.log(`[FUNNEL-DEAL] Creating deal for existing conversation ${conversationId}`);
+    console.log(`[FUNNEL-DEAL] Creating deal for existing conversation ${conversationId}, targetStage: ${targetStageId || 'first'}`);
     
-    const { data: firstStage } = await supabase
-      .from('funnel_stages')
-      .select('id')
-      .eq('funnel_id', funnelId)
-      .order('display_order', { ascending: true })
-      .limit(1)
-      .single();
+    // Get stage for the deal - use targetStageId if provided, otherwise first stage
+    let stageId = targetStageId;
     
-    if (!firstStage) {
-      console.error('[FUNNEL-DEAL] No first stage found for funnel');
-      return;
+    if (!stageId) {
+      const { data: firstStage } = await supabase
+        .from('funnel_stages')
+        .select('id')
+        .eq('funnel_id', funnelId)
+        .order('display_order', { ascending: true })
+        .limit(1)
+        .single();
+      
+      if (!firstStage) {
+        console.error('[FUNNEL-DEAL] No first stage found for funnel');
+        return;
+      }
+      stageId = firstStage.id;
     }
     
     const { data: newDeal, error: dealError } = await supabase
@@ -1430,7 +1480,7 @@ async function ensureDealExistsForConversation(supabase: any, userId: string, fu
       .insert({
         user_id: userId,
         funnel_id: funnelId,
-        stage_id: firstStage.id,
+        stage_id: stageId,
         contact_id: contactId,
         conversation_id: conversationId,
         title: `Lead - ${contactName}`,
@@ -1450,7 +1500,7 @@ async function ensureDealExistsForConversation(supabase: any, userId: string, fu
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         
-        console.log(`[FUNNEL-AUTOMATIONS] Triggering automations for deal ${newDeal?.id} entering stage ${firstStage.id}`);
+        console.log(`[FUNNEL-AUTOMATIONS] Triggering automations for deal ${newDeal?.id} entering stage ${stageId}`);
         
         const automationResponse = await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
           method: 'POST',
@@ -1460,7 +1510,7 @@ async function ensureDealExistsForConversation(supabase: any, userId: string, fu
           },
           body: JSON.stringify({
             dealId: newDeal?.id,
-            toStageId: firstStage.id,
+            toStageId: stageId,
             triggerType: 'on_stage_enter',
           }),
         });

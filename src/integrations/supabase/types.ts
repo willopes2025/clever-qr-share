@@ -1120,6 +1120,8 @@ export type Database = {
           started_at: string | null
           status: string
           tag_on_delivery_id: string | null
+          target_funnel_id: string | null
+          target_stage_id: string | null
           template_id: string | null
           timezone: string | null
           total_contacts: number
@@ -1161,6 +1163,8 @@ export type Database = {
           started_at?: string | null
           status?: string
           tag_on_delivery_id?: string | null
+          target_funnel_id?: string | null
+          target_stage_id?: string | null
           template_id?: string | null
           timezone?: string | null
           total_contacts?: number
@@ -1202,6 +1206,8 @@ export type Database = {
           started_at?: string | null
           status?: string
           tag_on_delivery_id?: string | null
+          target_funnel_id?: string | null
+          target_stage_id?: string | null
           template_id?: string | null
           timezone?: string | null
           total_contacts?: number
@@ -1228,6 +1234,20 @@ export type Database = {
             columns: ["tag_on_delivery_id"]
             isOneToOne: false
             referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_target_funnel_id_fkey"
+            columns: ["target_funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_target_stage_id_fkey"
+            columns: ["target_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
             referencedColumns: ["id"]
           },
           {
