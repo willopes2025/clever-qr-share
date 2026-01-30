@@ -145,6 +145,11 @@ export const AutomationCard = ({
 }: AutomationCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
 
+  // Safety check for invalid automation data
+  if (!automation || !automation.id) {
+    return null;
+  }
+
   const triggerConfig = automation.trigger_config as Record<string, unknown> || {};
   
   // Build trigger subtitle

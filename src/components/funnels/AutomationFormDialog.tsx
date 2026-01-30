@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -179,8 +179,27 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const selectedFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = selectedFunnel?.stages || [];
 
+  // Use refs to track previous values and prevent unnecessary state updates
+  const prevOpenRef = React.useRef(open);
+  const initRef = React.useRef(false);
+
   useEffect(() => {
-    if (open && automation) {
+    // Only run when dialog opens (transition from closed to open)
+    if (!open) {
+      prevOpenRef.current = false;
+      initRef.current = false;
+      return;
+    }
+    
+    // Prevent re-initialization if already initialized for this open cycle
+    if (initRef.current && prevOpenRef.current === open) {
+      return;
+    }
+    
+    initRef.current = true;
+    prevOpenRef.current = open;
+    
+    if (automation) {
       setName(automation.name);
       setSelectedFunnelId(automation.funnel_id);
       setStageId(automation.stage_id || '');
@@ -188,7 +207,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setTriggerConfig((automation.trigger_config as Record<string, unknown>) || {});
       setActionType(automation.action_type as ActionType);
       setActionConfig((automation.action_config as Record<string, unknown>) || {});
-    } else if (open) {
+    } else {
       setName('');
       setSelectedFunnelId(funnelId || '');
       setStageId(defaultStageId || '');
@@ -198,7 +217,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setActionConfig({});
       setSelectedAgentId('');
     }
-  }, [open, automation, funnelId, defaultStageId]);
+  }, [open]);
 
   const handleGenerateIntents = async () => {
     if (!selectedAgentId) {
