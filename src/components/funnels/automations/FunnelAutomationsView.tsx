@@ -32,9 +32,32 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
   const [draggingAutomation, setDraggingAutomation] = useState<FunnelAutomation | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [automationToDelete, setAutomationToDelete] = useState<FunnelAutomation | null>(null);
+  const [localError, setLocalError] = useState<Error | null>(null);
 
-  const funnelAutomations = automations?.filter(a => a.funnel_id === funnel.id) || [];
-  const stages = funnel.stages || [];
+  // Safe data access with fallbacks
+  const funnelAutomations = automations?.filter(a => a.funnel_id === funnel?.id) || [];
+  const stages = funnel?.stages || [];
+
+  // Local error boundary
+  if (localError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-280px)] gap-4">
+        <p className="text-destructive">Erro ao carregar automações</p>
+        <Button onClick={() => setLocalError(null)} variant="outline">
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
+  // Safety check for missing funnel
+  if (!funnel || !funnel.id) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-280px)]">
+        <p className="text-muted-foreground">Nenhum funil selecionado</p>
+      </div>
+    );
+  }
 
   const handleAddAutomation = (stageId: string | null) => {
     setPresetStageId(stageId);
