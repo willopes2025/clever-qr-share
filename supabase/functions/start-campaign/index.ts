@@ -168,47 +168,87 @@ Deno.serve(async (req) => {
         asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
       } || {};
 
-      let query = supabase
-        .from('contacts')
-        .select('id, name, phone, email, custom_fields')
-        .eq('user_id', user.id);
+      // PAGINATED FETCH: Buscar TODOS os contatos com paginação para evitar limite de 1000
+      const pageSize = 1000;
+      let offset = 0;
+      let allContacts: any[] = [];
+      let hasMore = true;
 
-      // Apply status filter
-      if (filterCriteria.status) {
-        query = query.eq('status', filterCriteria.status);
+      console.log(`Fetching contacts with pagination (filters: ${JSON.stringify(filterCriteria)})`);
+
+      while (hasMore) {
+        let query = supabase
+          .from('contacts')
+          .select('id, name, phone, email, custom_fields')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true })
+          .range(offset, offset + pageSize - 1);
+
+        // Apply status filter
+        if (filterCriteria.status) {
+          query = query.eq('status', filterCriteria.status);
+        }
+
+        // Apply opted_out filter (usually false for active contacts)
+        if (typeof filterCriteria.optedOut === 'boolean') {
+          query = query.eq('opted_out', filterCriteria.optedOut);
+        }
+
+        // Apply Asaas payment status filter
+        if (filterCriteria.asaasPaymentStatus) {
+          query = query.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
+        }
+
+        const { data: batch, error: contactsError } = await query;
+
+        if (contactsError) {
+          console.error('Contacts fetch error:', contactsError);
+          throw new Error('Failed to fetch contacts');
+        }
+
+        if (batch && batch.length > 0) {
+          allContacts = allContacts.concat(batch);
+          offset += pageSize;
+          hasMore = batch.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
 
-      // Apply opted_out filter (usually false for active contacts)
-      if (typeof filterCriteria.optedOut === 'boolean') {
-        query = query.eq('opted_out', filterCriteria.optedOut);
-      }
-
-      // Apply Asaas payment status filter
-      if (filterCriteria.asaasPaymentStatus) {
-        query = query.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
-      }
-
-      const { data: filteredContacts, error: contactsError } = await query;
-
-      if (contactsError) {
-        console.error('Contacts fetch error:', contactsError);
-        throw new Error('Failed to fetch contacts');
-      }
+      console.log(`Fetched ${allContacts.length} total contacts from database (paginated)`);
 
       // If tags filter exists, filter contacts that have those tags
       if (filterCriteria.tags && filterCriteria.tags.length > 0) {
-        const { data: taggedContactIds, error: tagsError } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', filterCriteria.tags);
+        // PAGINATED TAG FETCH: Buscar todas as tags com paginação
+        let taggedContactIds: string[] = [];
+        let tagOffset = 0;
+        let hasMoreTags = true;
 
-        if (tagsError) {
-          console.error('Tags fetch error:', tagsError);
-          throw new Error('Failed to fetch contact tags');
+        while (hasMoreTags) {
+          const { data: tagBatch, error: tagsError } = await supabase
+            .from('contact_tags')
+            .select('contact_id')
+            .in('tag_id', filterCriteria.tags)
+            .range(tagOffset, tagOffset + pageSize - 1);
+
+          if (tagsError) {
+            console.error('Tags fetch error:', tagsError);
+            throw new Error('Failed to fetch contact tags');
+          }
+
+          if (tagBatch && tagBatch.length > 0) {
+            taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+            tagOffset += pageSize;
+            hasMoreTags = tagBatch.length === pageSize;
+          } else {
+            hasMoreTags = false;
+          }
         }
 
-        const taggedIds = new Set(taggedContactIds?.map(tc => tc.contact_id) || []);
-        contacts = (filteredContacts || [])
+        console.log(`Fetched ${taggedContactIds.length} tagged contact IDs (paginated)`);
+
+        const taggedIds = new Set(taggedContactIds);
+        contacts = allContacts
           .filter(c => c.phone && taggedIds.has(c.id))
           .map(c => ({
             id: c.id,
@@ -218,7 +258,7 @@ Deno.serve(async (req) => {
             custom_fields: c.custom_fields as Record<string, string> | null
           }));
       } else {
-        contacts = (filteredContacts || [])
+        contacts = allContacts
           .filter(c => c.phone)
           .map(c => ({
             id: c.id,
