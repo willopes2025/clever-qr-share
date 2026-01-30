@@ -1,190 +1,118 @@
 
-# Plano: Correção de Funil Errado em Disparos de Campanha
+
+# Plano: Correção do Erro de Parsing no Relatório de Análise
 
 ## Problema Identificado
 
-Ao efetuar disparos de campanhas com listas de broadcast filtradas por funil específico, os leads/deals estão sendo criados no **funil padrão da instância WhatsApp** ao invés do **funil configurado na lista de broadcast**.
+Ao gerar um relatório de análise para o cliente "Mercearia Saudável", a edge function `analyze-conversations` falhou com o erro:
 
-## Causa Raiz
-
-O fluxo atual cria deals baseado no `default_funnel_id` da **instância WhatsApp**, ignorando completamente o `filter_criteria.funnelId` da lista de broadcast:
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ FLUXO ATUAL (BUGADO)                                         │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│ 1. Lista de Broadcast                                        │
-│    filter_criteria: { funnelId: "A", stageId: "X" }         │
-│    → Usado APENAS para buscar contatos                       │
-│                                                              │
-│ 2. Campanha usa Instância                                    │
-│    instância.default_funnel_id: "B"                         │
-│                                                              │
-│ 3. Webhook processa mensagem enviada                         │
-│    → Cria deal em: "B" (funil da instância)                 │
-│    → DEVERIA criar em: "A" (funil da lista)                 │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
 ```
+Failed to parse content: SyntaxError: Unexpected token 'O', "O relatóri"... is not valid JSON
+```
+
+**Causa Raiz:** A Lovable AI (modelo `google/gemini-2.5-flash`) está ignorando o `tool_choice` forçado e retornando **texto livre em português** ao invés do JSON estruturado esperado via function calling.
+
+O log mostra:
+- A função encontrou 117 conversas e 1000 mensagens
+- A chamada à IA foi feita corretamente
+- A resposta veio como texto ("O relatório...") ao invés de um tool_call estruturado
+
+## Análise Técnica
+
+O código atual (linha 420) usa:
+```typescript
+tool_choice: { type: "function", function: { name: "analyze_conversations" } }
+```
+
+Porém o modelo Gemini pode não respeitar esse formato consistentemente, especialmente quando:
+1. O prompt é muito longo (117 conversas, 1000 mensagens)
+2. O schema tem muitos campos obrigatórios
+3. O contexto é em português
 
 ## Solução Proposta
 
-Propagar o `funnelId` da lista de broadcast através de todo o fluxo de campanha para que os deals sejam criados no funil correto.
+Implementar múltiplas estratégias de fallback e reforçar as instruções:
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ FLUXO CORRIGIDO                                              │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│ 1. start-campaign                                            │
-│    → Extrair funnelId/stageId do filter_criteria da lista   │
-│    → Armazenar na campanha (novo campo target_funnel_id)    │
-│                                                              │
-│ 2. send-campaign-messages                                    │
-│    → Incluir target_funnel_id nos metadados da mensagem     │
-│    → Passar na chamada ao Evolution API (ou via DB)         │
-│                                                              │
-│ 3. receive-webhook                                           │
-│    → Verificar se mensagem é de campanha                     │
-│    → Se sim, usar o funil da campanha, não da instância     │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+### 1. Reforçar instrução no prompt de sistema
+
+Adicionar instrução explícita obrigando o modelo a usar a função:
+
+```typescript
+content: `Você é um especialista em análise de qualidade de atendimento...
+
+IMPORTANTE: Você DEVE OBRIGATORIAMENTE chamar a função analyze_conversations para fornecer sua análise. 
+NÃO escreva texto livre. APENAS chame a função com os dados estruturados.`
 ```
+
+### 2. Adicionar logging da resposta completa
+
+Para debug futuro, logar a estrutura da resposta:
+
+```typescript
+console.log('AI response structure:', JSON.stringify({
+  hasToolCalls: !!aiData.choices?.[0]?.message?.tool_calls,
+  contentPreview: aiData.choices?.[0]?.message?.content?.substring(0, 100)
+}));
+```
+
+### 3. Melhorar o parsing de fallback
+
+Se a IA retornar texto, tentar extrair JSON com regex mais robusto:
+
+```typescript
+// Tentar extrair JSON de qualquer lugar do texto
+const jsonMatch = aiContent.match(/\{[\s\S]*"overall_score"[\s\S]*\}/);
+if (jsonMatch) {
+  const rawResult = JSON.parse(jsonMatch[0]);
+  // ...
+}
+```
+
+### 4. Adicionar retry automático com prompt simplificado
+
+Se a primeira tentativa falhar, fazer segunda tentativa com mensagem mais curta:
+
+```typescript
+if (!analysisResult) {
+  console.log('First attempt failed, retrying with simplified prompt...');
+  // Segunda tentativa com apenas 10 conversas
+  const simplifiedConversations = conversationsWithMessages.slice(0, 10);
+  // ... nova chamada
+}
+```
+
+### 5. Considerar trocar para modelo mais robusto
+
+O `google/gemini-2.5-pro` ou `openai/gpt-5-mini` podem ter melhor suporte para function calling forçado.
 
 ## Alterações Técnicas
 
-### 1. Migração SQL - Adicionar campos na tabela campaigns
+### Arquivo: `supabase/functions/analyze-conversations/index.ts`
 
-Adicionar campo `target_funnel_id` e `target_stage_id` para rastrear o funil destino:
+**Mudanças:**
 
-```sql
-ALTER TABLE campaigns 
-ADD COLUMN IF NOT EXISTS target_funnel_id UUID REFERENCES funnels(id),
-ADD COLUMN IF NOT EXISTS target_stage_id UUID REFERENCES funnel_stages(id);
-```
-
-### 2. Edge Function: start-campaign/index.ts
-
-Extrair e salvar o funil da lista de broadcast:
-
-```typescript
-// Após carregar a campanha com lista (linha ~65)
-let targetFunnelId: string | null = null;
-let targetStageId: string | null = null;
-
-if (campaign.list?.filter_criteria) {
-  const fc = campaign.list.filter_criteria as { funnelId?: string; stageId?: string };
-  targetFunnelId = fc.funnelId || null;
-  targetStageId = fc.stageId || null;
-  console.log(`Campaign using funnel from list: ${targetFunnelId}, stage: ${targetStageId}`);
-}
-
-// Atualizar campaign status (linha ~347) - adicionar target_funnel_id
-.update({
-  status: 'sending',
-  ...
-  target_funnel_id: targetFunnelId,
-  target_stage_id: targetStageId,
-})
-```
-
-### 3. Edge Function: receive-webhook/index.ts
-
-Modificar a lógica de criação de deal para verificar se há campanha ativa:
-
-```typescript
-// Linha ~1039 - Após criar/atualizar conversa
-// Determinar qual funil usar para o deal
-let funnelIdForDeal: string | null = null;
-let stageIdForDeal: string | null = null;
-
-// Verificar se mensagem é de campanha (isFromMe = true para campanhas)
-if (isFromMe) {
-  // Buscar campanha ativa para este contato
-  const { data: campaignMessage } = await supabase
-    .from('campaign_messages')
-    .select('campaign_id, campaigns!inner(target_funnel_id, target_stage_id)')
-    .eq('contact_id', contact.id)
-    .eq('status', 'sent')
-    .order('sent_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  
-  if (campaignMessage?.campaigns?.target_funnel_id) {
-    funnelIdForDeal = campaignMessage.campaigns.target_funnel_id;
-    stageIdForDeal = campaignMessage.campaigns.target_stage_id;
-    console.log(`[CAMPAIGN-FUNNEL] Using campaign funnel: ${funnelIdForDeal}`);
-  }
-}
-
-// Fallback para funil da instância se não vier de campanha
-if (!funnelIdForDeal && defaultFunnelId && !isFromMe) {
-  funnelIdForDeal = defaultFunnelId;
-}
-
-// Criar deal no funil correto
-if (funnelIdForDeal && conversation) {
-  await createDealFromNewConversation(
-    supabase, 
-    userId, 
-    funnelIdForDeal, 
-    contact.id, 
-    conversation.id, 
-    contact.name || phone,
-    stageIdForDeal // Novo parâmetro para estágio específico
-  );
-}
-```
-
-### 4. Atualizar função createDealFromNewConversation
-
-Aceitar estágio específico como parâmetro:
-
-```typescript
-async function createDealFromNewConversation(
-  supabase: any, 
-  userId: string, 
-  funnelId: string, 
-  contactId: string, 
-  conversationId: string, 
-  contactName: string,
-  targetStageId?: string | null  // Novo parâmetro
-) {
-  // Se targetStageId for fornecido, usar diretamente
-  // Senão, buscar primeiro estágio do funil (comportamento atual)
-  let stageId = targetStageId;
-  
-  if (!stageId) {
-    const { data: firstStage } = await supabase
-      .from('funnel_stages')
-      .select('id')
-      .eq('funnel_id', funnelId)
-      .order('display_order', { ascending: true })
-      .limit(1)
-      .single();
-    stageId = firstStage?.id;
-  }
-  // ... resto da função
-}
-```
+1. **Linhas 384-395** - Reforçar prompt de sistema com instrução obrigatória de usar a função
+2. **Linhas 462-464** - Adicionar logging detalhado da resposta da IA
+3. **Linhas 479-496** - Melhorar regex de extração de JSON do texto
+4. **Após linha 496** - Implementar retry com prompt simplificado
+5. **Linha 381** - Considerar usar `google/gemini-2.5-pro` ao invés de `flash`
 
 ## Resultado Esperado
 
 | Cenário | Antes | Depois |
 |---------|-------|--------|
-| Disparo com lista de funil A | Deal criado no funil da instância (B) | Deal criado no funil A |
-| Disparo com lista sem funil | Deal criado no funil da instância | Deal criado no funil da instância (sem mudança) |
-| Resposta do cliente (incoming) | Deal criado no funil da instância | Deal criado no funil da instância (sem mudança) |
+| IA retorna texto ao invés de tool_call | Erro de parsing | Extração via regex ou retry |
+| Prompt muito longo | Modelo ignora function calling | Retry com prompt simplificado |
+| Debugging | Logs vagos | Estrutura completa da resposta logada |
 
 ## Arquivos a Modificar
 
-1. **Migração SQL**: Adicionar `target_funnel_id` e `target_stage_id` na tabela `campaigns`
-2. **Edge Function**: `supabase/functions/start-campaign/index.ts` - Extrair e salvar funil da lista
-3. **Edge Function**: `supabase/functions/receive-webhook/index.ts` - Usar funil da campanha para deals
+1. **Edge Function**: `supabase/functions/analyze-conversations/index.ts`
 
-## Observações Importantes
+## Testes Recomendados
 
-- A mudança é retrocompatível: campanhas existentes sem `target_funnel_id` continuarão usando o funil da instância
-- O estágio específico (`target_stage_id`) é opcional mas permite mais controle sobre onde o lead entra no funil
-- Mensagens de entrada (não de campanha) continuam usando o `default_funnel_id` da instância normalmente
+Após a correção:
+1. Gerar novo relatório para "Mercearia Saudável" no período de 20/01 a 30/01
+2. Verificar logs para confirmar que a função foi chamada corretamente
+3. Verificar que o relatório foi gerado com sucesso
+
