@@ -1,163 +1,190 @@
 
-# Plano: Correção do Limite de 1000 na Busca de Contatos de Campanhas
+# Plano: Correção de Funil Errado em Disparos de Campanha
 
 ## Problema Identificado
 
-A campanha "BH Kayros" deveria disparar para **69 contatos** (todos com a tag "Bh Kayros"), mas está disparando apenas para **14**.
+Ao efetuar disparos de campanhas com listas de broadcast filtradas por funil específico, os leads/deals estão sendo criados no **funil padrão da instância WhatsApp** ao invés do **funil configurado na lista de broadcast**.
 
-**Causa-raiz:** O Supabase tem um **limite padrão de 1000 registros** por query. Como a query de contatos na edge function `start-campaign` não especifica `ORDER BY`, a ordem de retorno é indefinida. Resultado: apenas 14 dos 69 contatos com a tag estão sendo retornados no subset de 1000 registros.
+## Causa Raiz
 
-**Evidência do banco:**
+O fluxo atual cria deals baseado no `default_funnel_id` da **instância WhatsApp**, ignorando completamente o `filter_criteria.funnelId` da lista de broadcast:
+
 ```text
-Com LIMIT 1000 (ordem indefinida): 14 contatos com a tag
-Sem limite: 69 contatos com a tag
+┌──────────────────────────────────────────────────────────────┐
+│ FLUXO ATUAL (BUGADO)                                         │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ 1. Lista de Broadcast                                        │
+│    filter_criteria: { funnelId: "A", stageId: "X" }         │
+│    → Usado APENAS para buscar contatos                       │
+│                                                              │
+│ 2. Campanha usa Instância                                    │
+│    instância.default_funnel_id: "B"                         │
+│                                                              │
+│ 3. Webhook processa mensagem enviada                         │
+│    → Cria deal em: "B" (funil da instância)                 │
+│    → DEVERIA criar em: "A" (funil da lista)                 │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Solução Proposta
 
-Modificar a edge function `start-campaign` para buscar **TODOS os contatos** do usuário, usando paginação quando necessário.
+Propagar o `funnelId` da lista de broadcast através de todo o fluxo de campanha para que os deals sejam criados no funil correto.
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ ANTES (bugado)                                              │
-│                                                             │
-│ Query: SELECT * FROM contacts WHERE user_id = X            │
-│        AND opted_out = false                                │
-│        -- Sem ORDER BY, sem LIMIT explícito                │
-│        -- Supabase retorna até 1000 registros              │
-│                                                             │
-│ Resultado: 1000 contatos aleatórios (14 têm a tag)         │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│ DEPOIS (corrigido)                                          │
-│                                                             │
-│ Loop com paginação:                                         │
-│   offset = 0, pageSize = 1000                               │
-│   while (hasMore) {                                         │
-│     Query: SELECT * FROM contacts                           │
-│            WHERE user_id = X AND opted_out = false          │
-│            ORDER BY created_at                              │
-│            LIMIT 1000 OFFSET offset                         │
-│     offset += 1000                                          │
-│   }                                                         │
-│                                                             │
-│ Resultado: Todos os 2631 contatos → 69 com a tag           │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ FLUXO CORRIGIDO                                              │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│ 1. start-campaign                                            │
+│    → Extrair funnelId/stageId do filter_criteria da lista   │
+│    → Armazenar na campanha (novo campo target_funnel_id)    │
+│                                                              │
+│ 2. send-campaign-messages                                    │
+│    → Incluir target_funnel_id nos metadados da mensagem     │
+│    → Passar na chamada ao Evolution API (ou via DB)         │
+│                                                              │
+│ 3. receive-webhook                                           │
+│    → Verificar se mensagem é de campanha                     │
+│    → Se sim, usar o funil da campanha, não da instância     │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Alterações Técnicas
 
-### Arquivo: `supabase/functions/start-campaign/index.ts`
+### 1. Migração SQL - Adicionar campos na tabela campaigns
 
-**Modificar a seção de busca de contatos (linhas 162-230):**
+Adicionar campo `target_funnel_id` e `target_stage_id` para rastrear o funil destino:
 
-1. **Adicionar função de paginação** para buscar todos os contatos:
+```sql
+ALTER TABLE campaigns 
+ADD COLUMN IF NOT EXISTS target_funnel_id UUID REFERENCES funnels(id),
+ADD COLUMN IF NOT EXISTS target_stage_id UUID REFERENCES funnel_stages(id);
+```
+
+### 2. Edge Function: start-campaign/index.ts
+
+Extrair e salvar o funil da lista de broadcast:
 
 ```typescript
-// Função helper para paginar resultados
-async function fetchAllContacts(
-  supabase: SupabaseClient,
-  userId: string,
-  filters: { status?: string; optedOut?: boolean; asaasPaymentStatus?: string }
-): Promise<Array<{ id: string; name: string | null; phone: string; email: string | null; custom_fields: Record<string, string> | null }>> {
-  const pageSize = 1000;
-  let offset = 0;
-  let allContacts: any[] = [];
-  let hasMore = true;
+// Após carregar a campanha com lista (linha ~65)
+let targetFunnelId: string | null = null;
+let targetStageId: string | null = null;
 
-  while (hasMore) {
-    let query = supabase
-      .from('contacts')
-      .select('id, name, phone, email, custom_fields')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + pageSize - 1);
-
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
-    if (typeof filters.optedOut === 'boolean') {
-      query = query.eq('opted_out', filters.optedOut);
-    }
-    if (filters.asaasPaymentStatus) {
-      query = query.eq('asaas_payment_status', filters.asaasPaymentStatus);
-    }
-
-    const { data, error } = await query;
-    
-    if (error) throw error;
-    
-    if (data && data.length > 0) {
-      allContacts = allContacts.concat(data);
-      offset += pageSize;
-      hasMore = data.length === pageSize;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allContacts;
+if (campaign.list?.filter_criteria) {
+  const fc = campaign.list.filter_criteria as { funnelId?: string; stageId?: string };
+  targetFunnelId = fc.funnelId || null;
+  targetStageId = fc.stageId || null;
+  console.log(`Campaign using funnel from list: ${targetFunnelId}, stage: ${targetStageId}`);
 }
+
+// Atualizar campaign status (linha ~347) - adicionar target_funnel_id
+.update({
+  status: 'sending',
+  ...
+  target_funnel_id: targetFunnelId,
+  target_stage_id: targetStageId,
+})
 ```
 
-2. **Substituir a query simples** pela função paginada:
+### 3. Edge Function: receive-webhook/index.ts
+
+Modificar a lógica de criação de deal para verificar se há campanha ativa:
 
 ```typescript
-// Substituir linhas 171-191 por:
-const filteredContacts = await fetchAllContacts(supabase, user.id, {
-  status: filterCriteria.status,
-  optedOut: filterCriteria.optedOut,
-  asaasPaymentStatus: filterCriteria.asaasPaymentStatus
-});
+// Linha ~1039 - Após criar/atualizar conversa
+// Determinar qual funil usar para o deal
+let funnelIdForDeal: string | null = null;
+let stageIdForDeal: string | null = null;
 
-console.log(`Fetched ${filteredContacts.length} total contacts from database`);
-```
-
-3. **Também paginar a busca de tags** (linha 200-203):
-
-```typescript
-// Buscar todas as tags com paginação
-let taggedContactIds: string[] = [];
-let tagOffset = 0;
-let hasMoreTags = true;
-
-while (hasMoreTags) {
-  const { data: tagBatch, error: tagsError } = await supabase
-    .from('contact_tags')
-    .select('contact_id')
-    .in('tag_id', filterCriteria.tags)
-    .range(tagOffset, tagOffset + 999);
-
-  if (tagsError) throw new Error('Failed to fetch contact tags');
+// Verificar se mensagem é de campanha (isFromMe = true para campanhas)
+if (isFromMe) {
+  // Buscar campanha ativa para este contato
+  const { data: campaignMessage } = await supabase
+    .from('campaign_messages')
+    .select('campaign_id, campaigns!inner(target_funnel_id, target_stage_id)')
+    .eq('contact_id', contact.id)
+    .eq('status', 'sent')
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
   
-  if (tagBatch && tagBatch.length > 0) {
-    taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
-    tagOffset += 1000;
-    hasMoreTags = tagBatch.length === 1000;
-  } else {
-    hasMoreTags = false;
+  if (campaignMessage?.campaigns?.target_funnel_id) {
+    funnelIdForDeal = campaignMessage.campaigns.target_funnel_id;
+    stageIdForDeal = campaignMessage.campaigns.target_stage_id;
+    console.log(`[CAMPAIGN-FUNNEL] Using campaign funnel: ${funnelIdForDeal}`);
   }
 }
 
-const taggedIds = new Set(taggedContactIds);
+// Fallback para funil da instância se não vier de campanha
+if (!funnelIdForDeal && defaultFunnelId && !isFromMe) {
+  funnelIdForDeal = defaultFunnelId;
+}
+
+// Criar deal no funil correto
+if (funnelIdForDeal && conversation) {
+  await createDealFromNewConversation(
+    supabase, 
+    userId, 
+    funnelIdForDeal, 
+    contact.id, 
+    conversation.id, 
+    contact.name || phone,
+    stageIdForDeal // Novo parâmetro para estágio específico
+  );
+}
+```
+
+### 4. Atualizar função createDealFromNewConversation
+
+Aceitar estágio específico como parâmetro:
+
+```typescript
+async function createDealFromNewConversation(
+  supabase: any, 
+  userId: string, 
+  funnelId: string, 
+  contactId: string, 
+  conversationId: string, 
+  contactName: string,
+  targetStageId?: string | null  // Novo parâmetro
+) {
+  // Se targetStageId for fornecido, usar diretamente
+  // Senão, buscar primeiro estágio do funil (comportamento atual)
+  let stageId = targetStageId;
+  
+  if (!stageId) {
+    const { data: firstStage } = await supabase
+      .from('funnel_stages')
+      .select('id')
+      .eq('funnel_id', funnelId)
+      .order('display_order', { ascending: true })
+      .limit(1)
+      .single();
+    stageId = firstStage?.id;
+  }
+  // ... resto da função
+}
 ```
 
 ## Resultado Esperado
 
 | Cenário | Antes | Depois |
 |---------|-------|--------|
-| Lista "BH Kayros" | 14 contatos | 69 contatos |
-| Usuário com 2631 contatos | Limite de 1000 | Todos processados |
-| Tags com muitos contatos | Limite de 1000 | Paginação completa |
+| Disparo com lista de funil A | Deal criado no funil da instância (B) | Deal criado no funil A |
+| Disparo com lista sem funil | Deal criado no funil da instância | Deal criado no funil da instância (sem mudança) |
+| Resposta do cliente (incoming) | Deal criado no funil da instância | Deal criado no funil da instância (sem mudança) |
 
 ## Arquivos a Modificar
 
-1. **Modificar:** `supabase/functions/start-campaign/index.ts` - Adicionar paginação
+1. **Migração SQL**: Adicionar `target_funnel_id` e `target_stage_id` na tabela `campaigns`
+2. **Edge Function**: `supabase/functions/start-campaign/index.ts` - Extrair e salvar funil da lista
+3. **Edge Function**: `supabase/functions/receive-webhook/index.ts` - Usar funil da campanha para deals
 
-## Teste Recomendado
+## Observações Importantes
 
-Após a correção:
-1. Reexecutar o disparo para a lista "BH Kayros"
-2. Verificar que o log mostra "Found 69 contacts in list"
-3. Confirmar que 69 mensagens foram criadas em `campaign_messages`
+- A mudança é retrocompatível: campanhas existentes sem `target_funnel_id` continuarão usando o funil da instância
+- O estágio específico (`target_stage_id`) é opcional mas permite mais controle sobre onde o lead entra no funil
+- Mensagens de entrada (não de campanha) continuam usando o `default_funnel_id` da instância normalmente
