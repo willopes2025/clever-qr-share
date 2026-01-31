@@ -1,133 +1,175 @@
 
-# Plano: Melhorar Resiliência da Geração de Relatório de Análise
+# Plano: Links de Formulário Rastreáveis com Dados Dinâmicos nas Automações
 
-## Problema Identificado
+## Resumo do Pedido
 
-O relatório de análise foi gerado com sucesso no backend, mas o usuário viu uma mensagem de erro porque:
+O usuário deseja criar links de formulários rastreáveis com parâmetros estáticos pré-definidos que são gerados dinamicamente a partir de automações de funil. Por exemplo: quando um card é movido para uma nova etapa, uma automação pode enviar uma mensagem com um link de formulário contendo dados como data do evento, cidade, vendedor, etc.
 
-1. A Edge Function demorou ~2 minutos para processar (250 conversas, 1000 mensagens, transcrição de áudios)
-2. A conexão HTTP foi fechada pelo navegador antes de receber a resposta
-3. O frontend mostrou "Failed to send a request to the Edge Function"
-4. A lista de relatórios não foi atualizada após o "erro"
+## Como Funciona Atualmente
 
-**Evidência dos logs:**
-```
-18:42:20 - Started analysis, 250 conversations
-18:43:55 - Calling AI for analysis
-18:45:03 - Successfully parsed tool call response
-18:45:05 - ERROR: Http connection closed before message completed
-```
-
-O relatório está lá (ID: `3765b99d-0d03-4c7d-ba35-6a6897ad5984`, nota: 58/100). Só não apareceu na lista porque o cache não foi invalidado.
+O sistema já possui:
+- **Formulários públicos** com suporte a `url_static_params` (parâmetros estáticos na URL)
+- **Automações de funil** com diversos tipos de ação (enviar mensagem, mover etapa, etc.)
+- **Edge Function `submit-form`** que captura parâmetros estáticos no metadata da submissão
 
 ## Solução Proposta
 
-### 1. Invalidar cache após erro (recuperação automática)
+Criar uma nova ação nas automações chamada **"Enviar Link de Formulário"** que:
 
-Mesmo quando ocorre erro na chamada, verificar se um relatório foi criado e atualizar a lista:
+1. Permite selecionar um formulário publicado
+2. Define parâmetros estáticos dinâmicos (usando variáveis do deal/contato)
+3. Gera um link único e rastreável
+4. Envia o link via WhatsApp com uma mensagem personalizada
+
+## Alterações Necessárias
+
+### 1. Novo Tipo de Ação: `send_form_link`
+
+Adicionar ao `AutomationFormDialog.tsx`:
 
 ```typescript
-// useAnalysisReports.ts
-} catch (error: any) {
-  console.error('Error generating report:', error);
-  toast.error(error.message || 'Erro ao gerar relatório');
-  
-  // Mesmo com erro, recarregar lista - o relatório pode ter sido criado
-  queryClient.invalidateQueries({ queryKey: ['analysis-reports'] });
-  
-  return null;
-} finally {
+type ActionType = 
+  // ... existentes
+  | 'send_form_link'; // Nova ação
 ```
 
-### 2. Adicionar polling para relatórios em processamento
+### 2. Interface de Configuração no Dialog
 
-Se o usuário iniciar uma geração, verificar periodicamente se completou:
+Nova seção no formulário de automação para:
+- Selecionar formulário publicado
+- Mensagem de acompanhamento (com variáveis)
+- Lista de parâmetros dinâmicos:
+  - Chave (ex: `vendedor`, `data_evento`, `cidade`)
+  - Valor (texto livre ou variável: `{{nome}}`, `{{etapa}}`, `{{funil}}`, `{{valor}}`)
+  - Opção de usar valores do deal/contato
+
+Variáveis disponíveis:
+- `{{nome}}` - Nome do contato
+- `{{telefone}}` - Telefone do contato
+- `{{email}}` - Email do contato
+- `{{valor}}` - Valor do deal
+- `{{funil}}` - Nome do funil
+- `{{etapa}}` - Nome da etapa atual
+- `{{titulo}}` - Título do deal
+- `{{data}}` - Data atual formatada
+- `{{deal_id}}` - ID do deal (para rastreamento)
+
+### 3. Processamento na Edge Function
+
+Adicionar case `send_form_link` em `process-funnel-automations`:
 
 ```typescript
-// Após iniciar geração, fazer polling a cada 15s
-useEffect(() => {
-  const processingReports = reports?.filter(r => r.status === 'processing');
-  if (!processingReports?.length) return;
+case 'send_form_link': {
+  const formId = actionConfig.form_id as string;
+  const messageTemplate = actionConfig.message as string;
+  const dynamicParams = actionConfig.params as { key: string; value: string }[];
   
-  const interval = setInterval(() => {
-    refetch();
-  }, 15000); // 15 segundos
+  // Buscar slug do formulário
+  const { data: form } = await supabase
+    .from('forms')
+    .select('slug, name')
+    .eq('id', formId)
+    .eq('status', 'published')
+    .single();
   
-  return () => clearInterval(interval);
-}, [reports, refetch]);
-```
-
-### 3. Melhorar feedback ao usuário
-
-Mostrar mensagem mais informativa quando há timeout:
-
-```typescript
-// Detectar erro de timeout
-const isTimeoutError = error.message?.includes('Failed to fetch') || 
-                       error.message?.includes('connection closed');
-
-if (isTimeoutError) {
-  toast.info('A análise está sendo processada. Atualize a página em alguns minutos.');
-} else {
-  toast.error(error.message || 'Erro ao gerar relatório');
+  // Substituir variáveis nos parâmetros
+  const resolvedParams = dynamicParams.map(p => ({
+    key: p.key,
+    value: replaceVariables(p.value)
+  }));
+  
+  // Construir URL com parâmetros path-based
+  const baseUrl = `${publicUrl}/form/${form.slug}`;
+  const paramsPath = resolvedParams
+    .filter(p => p.key && p.value)
+    .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+    .join('/');
+  
+  const formUrl = paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
+  
+  // Enviar mensagem com link
+  const message = replaceVariables(messageTemplate)
+    .replace('{{link}}', formUrl);
+  
+  // ... envio via WhatsApp
 }
 ```
+
+### 4. Armazenar Origem do Link
+
+Na submissão, os parâmetros serão salvos no `metadata.static_params`, permitindo:
+- Identificar qual deal/automação gerou o lead
+- Análise de campanhas e fontes
+- Atribuição correta de leads
 
 ## Arquivos a Modificar
 
-1. **`src/hooks/useAnalysisReports.ts`**
-   - Adicionar invalidação do cache no bloco `catch`
-   - Adicionar polling para relatórios em processamento
-   - Melhorar mensagem de erro para timeouts
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/funnels/AutomationFormDialog.tsx` | Adicionar tipo `send_form_link` e UI de configuração |
+| `supabase/functions/process-funnel-automations/index.ts` | Implementar processamento da nova ação |
 
-## Alterações Técnicas
+## Fluxo de Uso
 
-### useAnalysisReports.ts
+```text
+1. Usuário cria automação "Enviar formulário de evento"
+   ├── Gatilho: Quando entrar na etapa "Confirmação"
+   └── Ação: Enviar link de formulário
+       ├── Formulário: "Pesquisa de Satisfação"
+       ├── Mensagem: "Olá {{nome}}! Por favor, preencha a pesquisa: {{link}}"
+       └── Parâmetros:
+           ├── vendedor = João Silva (fixo)
+           ├── evento = "Evento Outubro 2024" (fixo)
+           ├── deal_id = {{deal_id}} (dinâmico)
+           └── etapa_origem = {{etapa}} (dinâmico)
 
-```typescript
-// 1. Adicionar useEffect para polling
-useEffect(() => {
-  const processingReports = reports?.filter(r => r.status === 'processing');
-  if (!processingReports?.length) return;
-  
-  const interval = setInterval(() => {
-    refetch();
-  }, 15000);
-  
-  return () => clearInterval(interval);
-}, [reports, refetch]);
+2. Card é movido para etapa "Confirmação"
+   └── Automação dispara
+       └── Mensagem enviada via WhatsApp:
+           "Olá Maria! Por favor, preencha a pesquisa: 
+            https://site.com/form/pesquisa-satisfacao/vendedor=João%20Silva/evento=Evento%20Outubro%202024/deal_id=abc123/etapa_origem=Confirmação"
 
-// 2. Modificar catch block do generateReport
-} catch (error: any) {
-  console.error('Error generating report:', error);
-  
-  const isTimeoutError = /failed to fetch|connection|timeout|aborted/i.test(
-    error.message || ''
-  );
-  
-  if (isTimeoutError) {
-    toast.info('A análise está sendo processada em segundo plano. A página será atualizada automaticamente.', {
-      duration: 8000,
-    });
-  } else {
-    toast.error(error.message || 'Erro ao gerar relatório');
-  }
-  
-  // Sempre invalidar cache - relatório pode ter sido criado mesmo com erro
-  queryClient.invalidateQueries({ queryKey: ['analysis-reports'] });
-  
-  return null;
-}
+3. Cliente preenche o formulário
+   └── Submissão salva com metadata.static_params:
+       {
+         "vendedor": "João Silva",
+         "evento": "Evento Outubro 2024",
+         "deal_id": "abc123",
+         "etapa_origem": "Confirmação"
+       }
 ```
 
-## Resultado Esperado
+## Interface Visual da Configuração
 
-| Cenário | Antes | Depois |
-|---------|-------|--------|
-| Timeout durante geração | Erro, lista não atualiza | Mensagem informativa, lista atualiza automaticamente |
-| Relatório em "Processando" | Fica parado até refresh manual | Atualiza automaticamente a cada 15s |
-| Erro de conexão | Lista desatualizada | Cache invalidado, lista recarrega |
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Ação: Enviar Link de Formulário                         │
+├─────────────────────────────────────────────────────────┤
+│ Formulário: [Pesquisa de Satisfação       ▼]            │
+│                                                         │
+│ Mensagem:                                               │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Olá {{nome}}! Por favor, preencha a pesquisa:       │ │
+│ │ {{link}}                                            │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ Parâmetros de Rastreamento:                             │
+│ ┌───────────────┬────────────────────────┬───┐          │
+│ │ vendedor      │ João Silva             │ ✕ │          │
+│ │ evento        │ Evento Outubro 2024    │ ✕ │          │
+│ │ deal_id       │ {{deal_id}}            │ ✕ │          │
+│ │ etapa_origem  │ {{etapa}}              │ ✕ │          │
+│ └───────────────┴────────────────────────┴───┘          │
+│ [+ Adicionar Parâmetro]                                 │
+│                                                         │
+│ Variáveis disponíveis: {{nome}}, {{etapa}}, {{funil}},  │
+│ {{valor}}, {{titulo}}, {{data}}, {{deal_id}}            │
+└─────────────────────────────────────────────────────────┘
+```
 
-## Ação Imediata
+## Benefícios
 
-Para o relatório que já foi gerado, basta **atualizar a página** (F5) que ele aparecerá na lista com nota 58/100.
+1. **Rastreabilidade completa**: Saber exatamente de onde veio cada lead
+2. **Personalização**: Dados dinâmicos baseados no contexto do deal
+3. **Automação**: Links gerados automaticamente sem intervenção manual
+4. **Análise**: Métricas de conversão por campanha, vendedor, etapa, etc.
