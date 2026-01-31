@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Copy, Check, Link, Sparkles, Loader2, Plus } from "lucide-react";
+import { Copy, Check, Link, Sparkles, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -59,6 +59,7 @@ type TriggerType =
 type ActionType = 
   | 'send_message' 
   | 'send_template' 
+  | 'send_form_link'
   | 'add_tag' 
   | 'remove_tag' 
   | 'notify_user' 
@@ -73,6 +74,11 @@ type ActionType =
   | 'close_deal_won'
   | 'close_deal_lost'
   | 'ai_analyze_and_move';
+
+interface FormLinkParam {
+  key: string;
+  value: string;
+}
 
 interface IntentMapping {
   intent: string;
@@ -494,6 +500,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
               <SelectContent>
                 <SelectItem value="send_message">Enviar mensagem</SelectItem>
                 <SelectItem value="send_template">Enviar template</SelectItem>
+                <SelectItem value="send_form_link">📝 Enviar link de formulário</SelectItem>
                 <SelectItem value="add_tag">Adicionar tag</SelectItem>
                 <SelectItem value="remove_tag">Remover tag</SelectItem>
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
@@ -542,6 +549,123 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {actionType === 'send_form_link' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  📝 Gera um link de formulário com parâmetros dinâmicos e envia via WhatsApp.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Formulário</Label>
+                <Select 
+                  value={actionConfig.form_id as string || ''} 
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, form_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar formulário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {forms?.filter(f => f.status === 'published').map((form) => (
+                      <SelectItem key={form.id} value={form.id}>
+                        {form.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(!forms || forms.filter(f => f.status === 'published').length === 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum formulário publicado disponível
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Mensagem</Label>
+                <Textarea
+                  value={actionConfig.message as string || 'Olá {{nome}}! Por favor, preencha o formulário: {{link}}'}
+                  onChange={(e) => setActionConfig({ ...actionConfig, message: e.target.value })}
+                  placeholder="Use {{nome}}, {{link}} para variáveis"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use <code className="bg-muted px-1 rounded">{'{{link}}'}</code> para inserir o link do formulário
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Parâmetros de Rastreamento</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const currentParams = (actionConfig.params as FormLinkParam[]) || [];
+                      setActionConfig({
+                        ...actionConfig,
+                        params: [...currentParams, { key: '', value: '' }]
+                      });
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+                
+                {((actionConfig.params as FormLinkParam[]) || []).map((param, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <Input
+                      value={param.key}
+                      onChange={(e) => {
+                        const params = [...((actionConfig.params as FormLinkParam[]) || [])];
+                        params[index] = { ...params[index], key: e.target.value };
+                        setActionConfig({ ...actionConfig, params });
+                      }}
+                      placeholder="Chave (ex: vendedor)"
+                      className="flex-1"
+                    />
+                    <span className="text-muted-foreground">=</span>
+                    <Input
+                      value={param.value}
+                      onChange={(e) => {
+                        const params = [...((actionConfig.params as FormLinkParam[]) || [])];
+                        params[index] = { ...params[index], value: e.target.value };
+                        setActionConfig({ ...actionConfig, params });
+                      }}
+                      placeholder="Valor ou {{variável}}"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive shrink-0"
+                      onClick={() => {
+                        const params = [...((actionConfig.params as FormLinkParam[]) || [])];
+                        params.splice(index, 1);
+                        setActionConfig({ ...actionConfig, params });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                
+                {(!actionConfig.params || (actionConfig.params as FormLinkParam[]).length === 0) && (
+                  <p className="text-sm text-muted-foreground text-center py-4 border-2 border-dashed rounded-lg">
+                    Adicione parâmetros para rastrear a origem do formulário
+                  </p>
+                )}
+                
+                <div className="p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                  <strong>Variáveis disponíveis:</strong> {`{{nome}}`}, {`{{telefone}}`}, {`{{email}}`}, {`{{valor}}`}, {`{{funil}}`}, {`{{etapa}}`}, {`{{titulo}}`}, {`{{data}}`}, {`{{deal_id}}`}
+                </div>
+              </div>
             </div>
           )}
 
