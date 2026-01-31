@@ -46,7 +46,7 @@ export interface FormField {
   required: boolean;
   options: Array<{ value: string; label: string }> | null;
   validation: Record<string, any> | null;
-  mapping_type: 'contact_field' | 'custom_field' | 'new_custom_field' | null;
+  mapping_type: 'contact_field' | 'custom_field' | 'new_custom_field' | 'lead_field' | 'new_lead_field' | null;
   mapping_target: string | null;
   create_custom_field_on_submit: boolean;
   conditional_logic: Record<string, any> | null;

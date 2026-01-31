@@ -23,7 +23,7 @@ const contactFields = [
 ];
 
 export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
-  const { fieldDefinitions } = useCustomFields();
+  const { fieldDefinitions, leadFieldDefinitions } = useCustomFields();
   const [localField, setLocalField] = useState<FormField | null>(field);
 
   useEffect(() => {
@@ -178,6 +178,10 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                       handleChange('mapping_target', null);
                     } else {
                       handleChange('mapping_type', value);
+                      // Clear target when changing type
+                      if (value !== localField.mapping_type) {
+                        handleChange('mapping_target', null);
+                      }
                     }
                   }}
                 >
@@ -187,8 +191,10 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                   <SelectContent>
                     <SelectItem value="none">Não salvar no perfil</SelectItem>
                     <SelectItem value="contact_field">Campo nativo do contato</SelectItem>
-                    <SelectItem value="custom_field">Campo personalizado existente</SelectItem>
-                    <SelectItem value="new_custom_field">Criar novo campo personalizado</SelectItem>
+                    <SelectItem value="custom_field">Campo personalizado (Contato)</SelectItem>
+                    <SelectItem value="lead_field">Campo personalizado (Lead)</SelectItem>
+                    <SelectItem value="new_custom_field">Criar novo campo de Contato</SelectItem>
+                    <SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -228,10 +234,33 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                   </Select>
                 )}
 
+                {localField.mapping_type === 'lead_field' && (
+                  <Select
+                    value={localField.mapping_target || ''}
+                    onValueChange={(value) => handleChange('mapping_target', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o campo de lead..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leadFieldDefinitions?.map((cf) => (
+                        <SelectItem key={cf.field_key} value={cf.field_key}>
+                          {cf.field_name}
+                        </SelectItem>
+                      ))}
+                      {(!leadFieldDefinitions || leadFieldDefinitions.length === 0) && (
+                        <SelectItem value="" disabled>
+                          Nenhum campo de lead definido
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+
                 {localField.mapping_type === 'new_custom_field' && (
                   <div className="space-y-2">
                     <Input
-                      placeholder="Nome do novo campo..."
+                      placeholder="Nome do novo campo de contato..."
                       value={localField.mapping_target || ''}
                       onChange={(e) => handleChange('mapping_target', e.target.value)}
                     />
@@ -243,6 +272,27 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                         onCheckedChange={(checked) => handleChange('create_custom_field_on_submit', checked)}
                       />
                     </div>
+                  </div>
+                )}
+
+                {localField.mapping_type === 'new_lead_field' && (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Nome do novo campo de lead..."
+                      value={localField.mapping_target || ''}
+                      onChange={(e) => handleChange('mapping_target', e.target.value)}
+                    />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="create_on_submit" className="text-xs">Criar automaticamente</Label>
+                      <Switch
+                        id="create_on_submit"
+                        checked={localField.create_custom_field_on_submit}
+                        onCheckedChange={(checked) => handleChange('create_custom_field_on_submit', checked)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Campo será salvo no Deal/Lead quando roteado para funil
+                    </p>
                   </div>
                 )}
               </div>
