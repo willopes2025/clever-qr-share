@@ -1,175 +1,140 @@
 
-# Plano: Links de Formulário Rastreáveis com Dados Dinâmicos nas Automações
 
-## Resumo do Pedido
+# Plano: Corrigir Dados de Lead Não Aparecendo no Funil
 
-O usuário deseja criar links de formulários rastreáveis com parâmetros estáticos pré-definidos que são gerados dinamicamente a partir de automações de funil. Por exemplo: quando um card é movido para uma nova etapa, uma automação pode enviar uma mensagem com um link de formulário contendo dados como data do evento, cidade, vendedor, etc.
+## Problema Identificado
 
-## Como Funciona Atualmente
+Quando um contato é adicionado via formulário e roteado para um funil, os dados como **município** e **data do evento** não aparecem na etapa do funil.
 
-O sistema já possui:
-- **Formulários públicos** com suporte a `url_static_params` (parâmetros estáticos na URL)
-- **Automações de funil** com diversos tipos de ação (enviar mensagem, mover etapa, etc.)
-- **Edge Function `submit-form`** que captura parâmetros estáticos no metadata da submissão
+### Causa Raiz (Análise Detalhada)
+
+Baseado na investigação do banco de dados:
+
+```
+contact_custom_fields: { municipio: "Vila velha" }  ✅ SALVO
+deal_custom_fields: {}                               ❌ VAZIO
+```
+
+O sistema possui dois tipos de campos personalizados:
+- **Campos de Contato** (`entity_type='contact'`): Salvos em `contacts.custom_fields`
+- **Campos de Lead** (`entity_type='lead'`): Salvos em `funnel_deals.custom_fields`
+
+O problema ocorre porque:
+
+1. O campo "município" está configurado como `entity_type='contact'`
+2. O formulário salva corretamente em `contacts.custom_fields`
+3. Quando o deal é criado, o sistema **NÃO copia os dados** para `funnel_deals.custom_fields`
+4. A seção "Campos do Lead" no funil só exibe campos com `entity_type='lead'`
+5. O usuário não tem nenhum campo definido como `entity_type='lead'`
 
 ## Solução Proposta
 
-Criar uma nova ação nas automações chamada **"Enviar Link de Formulário"** que:
+### Parte 1: Adicionar Opção de Mapeamento para Lead no Builder
 
-1. Permite selecionar um formulário publicado
-2. Define parâmetros estáticos dinâmicos (usando variáveis do deal/contato)
-3. Gera um link único e rastreável
-4. Envia o link via WhatsApp com uma mensagem personalizada
+No `FieldProperties.tsx`, adicionar uma nova opção de mapeamento para campos de lead:
 
-## Alterações Necessárias
-
-### 1. Novo Tipo de Ação: `send_form_link`
-
-Adicionar ao `AutomationFormDialog.tsx`:
-
-```typescript
-type ActionType = 
-  // ... existentes
-  | 'send_form_link'; // Nova ação
+```text
+Mapeamento para o Lead
+├── Não salvar no perfil
+├── Campo nativo do contato (Nome, Email, Telefone)
+├── Campo personalizado existente (Contato) 
+├── Campo personalizado existente (Lead)    ← NOVO
+├── Criar novo campo personalizado
+└── Criar novo campo de Lead                ← NOVO
 ```
 
-### 2. Interface de Configuração no Dialog
+### Parte 2: Modificar Submit-Form para Salvar Dados de Lead
 
-Nova seção no formulário de automação para:
-- Selecionar formulário publicado
-- Mensagem de acompanhamento (com variáveis)
-- Lista de parâmetros dinâmicos:
-  - Chave (ex: `vendedor`, `data_evento`, `cidade`)
-  - Valor (texto livre ou variável: `{{nome}}`, `{{etapa}}`, `{{funil}}`, `{{valor}}`)
-  - Opção de usar valores do deal/contato
+No `submit-form/index.ts`, quando processar campos mapeados, separar entre:
+- `contactCustomFields`: Campos com `entity_type='contact'`
+- `dealCustomFields`: Campos com `entity_type='lead'`
 
-Variáveis disponíveis:
-- `{{nome}}` - Nome do contato
-- `{{telefone}}` - Telefone do contato
-- `{{email}}` - Email do contato
-- `{{valor}}` - Valor do deal
-- `{{funil}}` - Nome do funil
-- `{{etapa}}` - Nome da etapa atual
-- `{{titulo}}` - Título do deal
-- `{{data}}` - Data atual formatada
-- `{{deal_id}}` - ID do deal (para rastreamento)
-
-### 3. Processamento na Edge Function
-
-Adicionar case `send_form_link` em `process-funnel-automations`:
+Quando criar o deal, incluir os `dealCustomFields`:
 
 ```typescript
-case 'send_form_link': {
-  const formId = actionConfig.form_id as string;
-  const messageTemplate = actionConfig.message as string;
-  const dynamicParams = actionConfig.params as { key: string; value: string }[];
-  
-  // Buscar slug do formulário
-  const { data: form } = await supabase
-    .from('forms')
-    .select('slug, name')
-    .eq('id', formId)
-    .eq('status', 'published')
-    .single();
-  
-  // Substituir variáveis nos parâmetros
-  const resolvedParams = dynamicParams.map(p => ({
-    key: p.key,
-    value: replaceVariables(p.value)
-  }));
-  
-  // Construir URL com parâmetros path-based
-  const baseUrl = `${publicUrl}/form/${form.slug}`;
-  const paramsPath = resolvedParams
-    .filter(p => p.key && p.value)
-    .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-    .join('/');
-  
-  const formUrl = paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
-  
-  // Enviar mensagem com link
-  const message = replaceVariables(messageTemplate)
-    .replace('{{link}}', formUrl);
-  
-  // ... envio via WhatsApp
-}
+.insert({
+  funnel_id: form.target_funnel_id,
+  stage_id: stageId,
+  contact_id: contactId,
+  user_id: form.user_id,
+  title: contactData.name || 'Lead do Formulário',
+  source: `Formulário: ${form.name}`,
+  custom_fields: dealCustomFields,  // ← ADICIONAR
+})
 ```
-
-### 4. Armazenar Origem do Link
-
-Na submissão, os parâmetros serão salvos no `metadata.static_params`, permitindo:
-- Identificar qual deal/automação gerou o lead
-- Análise de campanhas e fontes
-- Atribuição correta de leads
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/funnels/AutomationFormDialog.tsx` | Adicionar tipo `send_form_link` e UI de configuração |
-| `supabase/functions/process-funnel-automations/index.ts` | Implementar processamento da nova ação |
+| `src/components/forms/builder/FieldProperties.tsx` | Adicionar opções `lead_field` e `new_lead_field` |
+| `supabase/functions/submit-form/index.ts` | Separar campos por entity_type e incluir no deal |
 
-## Fluxo de Uso
+## Alterações Técnicas
 
-```text
-1. Usuário cria automação "Enviar formulário de evento"
-   ├── Gatilho: Quando entrar na etapa "Confirmação"
-   └── Ação: Enviar link de formulário
-       ├── Formulário: "Pesquisa de Satisfação"
-       ├── Mensagem: "Olá {{nome}}! Por favor, preencha a pesquisa: {{link}}"
-       └── Parâmetros:
-           ├── vendedor = João Silva (fixo)
-           ├── evento = "Evento Outubro 2024" (fixo)
-           ├── deal_id = {{deal_id}} (dinâmico)
-           └── etapa_origem = {{etapa}} (dinâmico)
+### 1. FieldProperties.tsx
 
-2. Card é movido para etapa "Confirmação"
-   └── Automação dispara
-       └── Mensagem enviada via WhatsApp:
-           "Olá Maria! Por favor, preencha a pesquisa: 
-            https://site.com/form/pesquisa-satisfacao/vendedor=João%20Silva/evento=Evento%20Outubro%202024/deal_id=abc123/etapa_origem=Confirmação"
+```typescript
+// Adicionar nas opções do Select de mapping_type:
+<SelectItem value="lead_field">Campo de Lead existente</SelectItem>
+<SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
 
-3. Cliente preenche o formulário
-   └── Submissão salva com metadata.static_params:
-       {
-         "vendedor": "João Silva",
-         "evento": "Evento Outubro 2024",
-         "deal_id": "abc123",
-         "etapa_origem": "Confirmação"
-       }
+// Adicionar seções condicionais para exibir campos de lead:
+{localField.mapping_type === 'lead_field' && (
+  <Select ...>
+    {leadFieldDefinitions?.map((cf) => (...))}
+  </Select>
+)}
 ```
 
-## Interface Visual da Configuração
+### 2. submit-form/index.ts
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│ Ação: Enviar Link de Formulário                         │
-├─────────────────────────────────────────────────────────┤
-│ Formulário: [Pesquisa de Satisfação       ▼]            │
-│                                                         │
-│ Mensagem:                                               │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Olá {{nome}}! Por favor, preencha a pesquisa:       │ │
-│ │ {{link}}                                            │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ Parâmetros de Rastreamento:                             │
-│ ┌───────────────┬────────────────────────┬───┐          │
-│ │ vendedor      │ João Silva             │ ✕ │          │
-│ │ evento        │ Evento Outubro 2024    │ ✕ │          │
-│ │ deal_id       │ {{deal_id}}            │ ✕ │          │
-│ │ etapa_origem  │ {{etapa}}              │ ✕ │          │
-│ └───────────────┴────────────────────────┴───┘          │
-│ [+ Adicionar Parâmetro]                                 │
-│                                                         │
-│ Variáveis disponíveis: {{nome}}, {{etapa}}, {{funil}},  │
-│ {{valor}}, {{titulo}}, {{data}}, {{deal_id}}            │
-└─────────────────────────────────────────────────────────┘
+```typescript
+// Ao processar campos, verificar entity_type:
+let dealCustomFields: Record<string, any> = {};
+
+for (const field of formFields) {
+  // ... lógica existente para contact_field ...
+  
+  if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
+    dealCustomFields[field.mapping_target] = fieldValue;
+  }
+  
+  // ... outros casos ...
+}
+
+// Ao criar deal:
+.insert({
+  // ... campos existentes ...
+  custom_fields: Object.keys(dealCustomFields).length > 0 ? dealCustomFields : null,
+})
 ```
 
-## Benefícios
+## Fluxo Esperado Após Correção
 
-1. **Rastreabilidade completa**: Saber exatamente de onde veio cada lead
-2. **Personalização**: Dados dinâmicos baseados no contexto do deal
-3. **Automação**: Links gerados automaticamente sem intervenção manual
-4. **Análise**: Métricas de conversão por campanha, vendedor, etapa, etc.
+```text
+1. Usuário configura formulário
+   ├── Campo "Município" → Mapear para Lead (lead_field)
+   └── Campo "Data Evento" → Criar novo campo de Lead (new_lead_field)
+
+2. Lead preenche formulário
+   └── submit-form processa:
+       ├── Dados de contato → contacts.custom_fields
+       └── Dados de lead → funnel_deals.custom_fields
+
+3. Deal é criado no funil
+   └── custom_fields = { "municipio": "Vila Velha", "data_evento": "2026-02-15" }
+
+4. Usuário visualiza card no funil
+   └── Seção "Dados do Lead" exibe municipio e data_evento ✅
+```
+
+## Solução Temporária para Dados Existentes
+
+Para os dados que já foram submetidos (como os da Andressa Martins), será necessário:
+
+1. Criar campos de Lead no sistema (via Gerenciador de Campos)
+2. Migrar os dados de `contacts.custom_fields` para `funnel_deals.custom_fields`
+
+Isso pode ser feito via query SQL ou manualmente no sistema.
+
