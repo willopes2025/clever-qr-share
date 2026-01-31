@@ -75,10 +75,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Process field mappings to find contact info
+    // Process field mappings to find contact info and lead custom fields
     let contactData: { name?: string; email?: string; phone?: string; custom_fields?: Record<string, any> } = {
       custom_fields: {}
     };
+    
+    // Separate storage for lead/deal custom fields
+    let dealCustomFields: Record<string, any> = {};
 
   for (const field of formFields) {
     const fieldValue = submissionData[field.id];
@@ -113,9 +116,13 @@ Deno.serve(async (req: Request) => {
         }
       }
     } else if (field.mapping_type === 'custom_field' && field.mapping_target && fieldValue) {
+      // Contact custom field
       contactData.custom_fields![field.mapping_target] = fieldValue;
+    } else if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
+      // Lead/Deal custom field - will be saved to funnel_deals.custom_fields
+      dealCustomFields[field.mapping_target] = fieldValue;
     } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
-      // Create new custom field definition if it doesn't exist
+      // Create new CONTACT custom field definition if it doesn't exist
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
       const { data: existingField } = await supabase
@@ -123,6 +130,7 @@ Deno.serve(async (req: Request) => {
         .select('id')
         .eq('user_id', form.user_id)
         .eq('field_key', fieldKey)
+        .eq('entity_type', 'contact')
         .single();
 
       if (!existingField) {
@@ -135,10 +143,39 @@ Deno.serve(async (req: Request) => {
             field_type: 'text',
             is_required: false,
             display_order: 999,
+            entity_type: 'contact',
           });
       }
 
       contactData.custom_fields![fieldKey] = fieldValue;
+    } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
+      // Create new LEAD custom field definition if it doesn't exist
+      const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      
+      const { data: existingField } = await supabase
+        .from('custom_field_definitions')
+        .select('id')
+        .eq('user_id', form.user_id)
+        .eq('field_key', fieldKey)
+        .eq('entity_type', 'lead')
+        .single();
+
+      if (!existingField) {
+        await supabase
+          .from('custom_field_definitions')
+          .insert({
+            user_id: form.user_id,
+            field_name: field.mapping_target,
+            field_key: fieldKey,
+            field_type: 'text',
+            is_required: false,
+            display_order: 999,
+            entity_type: 'lead',
+          });
+      }
+
+      // Save to deal custom fields
+      dealCustomFields[fieldKey] = fieldValue;
     }
   }
 
@@ -335,17 +372,25 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
         
         if (!existingDeal) {
-          // Create new deal
+          // Create new deal with lead custom fields
+          const dealInsertData: Record<string, any> = {
+            funnel_id: form.target_funnel_id,
+            stage_id: stageId,
+            contact_id: contactId,
+            user_id: form.user_id,
+            title: contactData.name || 'Lead do Formulário',
+            source: `Formulário: ${form.name}`,
+          };
+          
+          // Include lead custom fields if any were collected
+          if (Object.keys(dealCustomFields).length > 0) {
+            dealInsertData.custom_fields = dealCustomFields;
+            console.log('Adding lead custom fields to deal:', dealCustomFields);
+          }
+          
           const { data: newDeal, error: dealError } = await supabase
             .from('funnel_deals')
-            .insert({
-              funnel_id: form.target_funnel_id,
-              stage_id: stageId,
-              contact_id: contactId,
-              user_id: form.user_id,
-              title: contactData.name || 'Lead do Formulário',
-              source: `Formulário: ${form.name}`,
-            })
+            .insert(dealInsertData)
             .select('id')
             .single();
           
