@@ -110,6 +110,13 @@ Deno.serve(async (req: Request) => {
 
     // Helper function to replace variables
     const replaceVariables = (text: string): string => {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
+      
       return text
         .replace(/\{\{nome\}\}/g, deal.contact?.name || 'Cliente')
         .replace(/\{\{telefone\}\}/g, deal.contact?.phone || '')
@@ -117,7 +124,9 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{valor\}\}/g, deal.value?.toString() || '0')
         .replace(/\{\{funil\}\}/g, deal.funnel?.name || '')
         .replace(/\{\{etapa\}\}/g, deal.stage?.name || '')
-        .replace(/\{\{titulo\}\}/g, deal.title || '');
+        .replace(/\{\{titulo\}\}/g, deal.title || '')
+        .replace(/\{\{data\}\}/g, formattedDate)
+        .replace(/\{\{deal_id\}\}/g, deal.id || '');
     };
 
     // Process each automation
@@ -338,6 +347,200 @@ Deno.serve(async (req: Request) => {
             console.log(`[FUNNEL-AUTOMATIONS] Would send template: ${templateId}`);
             // TODO: Integrate with template sending
             results.push({ automationId: automation.id, success: true });
+            break;
+          }
+
+          case 'send_form_link': {
+            const formId = actionConfig.form_id as string;
+            const messageTemplate = (actionConfig.message as string) || 'Olá {{nome}}! Por favor, preencha o formulário: {{link}}';
+            const dynamicParams = (actionConfig.params as { key: string; value: string }[]) || [];
+
+            if (!formId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send form link - no form selected`);
+              results.push({ automationId: automation.id, success: false, error: 'No form selected' });
+              break;
+            }
+
+            // Fetch form slug
+            const { data: form, error: formError } = await supabase
+              .from('forms')
+              .select('slug, name')
+              .eq('id', formId)
+              .eq('status', 'published')
+              .single();
+
+            if (formError || !form) {
+              console.log(`[FUNNEL-AUTOMATIONS] Form not found or not published: ${formId}`);
+              results.push({ automationId: automation.id, success: false, error: 'Form not found or not published' });
+              break;
+            }
+
+            // Verificar se temos contato com telefone
+            if (!deal.contact?.phone) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send form link - no contact phone`);
+              results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
+              break;
+            }
+
+            // Resolve variables in params
+            const resolvedParams = dynamicParams
+              .filter(p => p.key && p.key.trim())
+              .map(p => ({
+                key: p.key.trim(),
+                value: replaceVariables(p.value || '')
+              }))
+              .filter(p => p.value);
+
+            // Build URL with path-based params
+            const publicUrl = Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://clever-qr-share.lovable.app';
+            const baseUrl = `${publicUrl}/form/${form.slug}`;
+            const paramsPath = resolvedParams
+              .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+              .join('/');
+            
+            const formUrl = paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
+
+            // Replace variables in message and insert link
+            const message = replaceVariables(messageTemplate).replace(/\{\{link\}\}/g, formUrl);
+
+            console.log(`[FUNNEL-AUTOMATIONS] Generated form link: ${formUrl}`);
+
+            // Now send the message via WhatsApp (reuse send_message logic)
+            let conversationId = deal.conversation_id;
+            let instanceId: string | null = null;
+            
+            // Buscar conversa mais recente do contato
+            if (!conversationId) {
+              const { data: conv } = await supabase
+                .from('conversations')
+                .select('id, instance_id')
+                .eq('contact_id', deal.contact_id)
+                .eq('user_id', deal.user_id)
+                .order('last_message_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              if (conv) {
+                conversationId = conv.id;
+                instanceId = conv.instance_id;
+              }
+            } else {
+              const { data: existingConv } = await supabase
+                .from('conversations')
+                .select('instance_id')
+                .eq('id', conversationId)
+                .single();
+              
+              instanceId = existingConv?.instance_id || null;
+            }
+            
+            // Se ainda não tem instância, usar a instância padrão conectada do usuário
+            if (!instanceId) {
+              const { data: defaultInstance } = await supabase
+                .from('whatsapp_instances')
+                .select('id')
+                .eq('user_id', deal.user_id)
+                .eq('status', 'connected')
+                .limit(1)
+                .maybeSingle();
+              
+              instanceId = defaultInstance?.id || null;
+            }
+            
+            if (!instanceId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send form link - no connected WhatsApp instance`);
+              results.push({ automationId: automation.id, success: false, error: 'No connected WhatsApp instance' });
+              break;
+            }
+
+            // Buscar dados da instância
+            const { data: instance, error: instanceError } = await supabase
+              .from('whatsapp_instances')
+              .select('instance_name, evolution_instance_name, status')
+              .eq('id', instanceId)
+              .single();
+            
+            if (instanceError || !instance || instance.status !== 'connected') {
+              console.log(`[FUNNEL-AUTOMATIONS] Instance not connected or not found for form link`);
+              results.push({ automationId: automation.id, success: false, error: 'Instance not connected' });
+              break;
+            }
+
+            // Formatar telefone
+            let phone = deal.contact.phone.replace(/\D/g, '');
+            const isLabelIdContact = deal.contact.phone.startsWith('LID_') || deal.contact.label_id;
+            
+            let remoteJid: string;
+            if (isLabelIdContact) {
+              remoteJid = `${deal.contact.label_id || phone}@lid`;
+            } else {
+              if (!phone.startsWith('55')) phone = '55' + phone;
+              remoteJid = `${phone}@s.whatsapp.net`;
+            }
+
+            // Enviar via Evolution API
+            const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+            const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+            
+            if (!evolutionApiUrl || !evolutionApiKey) {
+              console.error(`[FUNNEL-AUTOMATIONS] Evolution API not configured for form link`);
+              results.push({ automationId: automation.id, success: false, error: 'Evolution API not configured' });
+              break;
+            }
+            
+            const evolutionName = instance.evolution_instance_name || instance.instance_name;
+            
+            const sendPayload = remoteJid.endsWith('@lid')
+              ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: message }
+              : { number: phone, text: message };
+            
+            console.log(`[FUNNEL-AUTOMATIONS] Sending form link to ${phone} via ${evolutionName}`);
+            
+            try {
+              const response = await fetch(
+                `${evolutionApiUrl}/message/sendText/${encodeURIComponent(evolutionName)}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': evolutionApiKey
+                  },
+                  body: JSON.stringify(sendPayload)
+                }
+              );
+
+              const result = await response.json();
+              
+              if (response.ok && result.key) {
+                // Criar registro da mensagem se tiver conversa
+                if (conversationId) {
+                  await supabase.from('inbox_messages').insert({
+                    conversation_id: conversationId,
+                    user_id: deal.user_id,
+                    direction: 'outbound',
+                    content: message,
+                    message_type: 'text',
+                    status: 'sent',
+                    sent_at: new Date().toISOString(),
+                    whatsapp_message_id: result.key.id
+                  });
+                  
+                  await supabase.from('conversations').update({
+                    last_message_at: new Date().toISOString(),
+                    last_message_preview: message.substring(0, 100)
+                  }).eq('id', conversationId);
+                }
+                
+                console.log(`[FUNNEL-AUTOMATIONS] Form link sent successfully: ${result.key.id}`);
+                results.push({ automationId: automation.id, success: true });
+              } else {
+                console.error(`[FUNNEL-AUTOMATIONS] Failed to send form link:`, result);
+                results.push({ automationId: automation.id, success: false, error: result.message || 'Send failed' });
+              }
+            } catch (sendError) {
+              console.error(`[FUNNEL-AUTOMATIONS] Error sending form link:`, sendError);
+              results.push({ automationId: automation.id, success: false, error: sendError instanceof Error ? sendError.message : 'Send error' });
+            }
             break;
           }
 
