@@ -1,140 +1,112 @@
 
-
-# Plano: Corrigir Dados de Lead Não Aparecendo no Funil
+# Plano: Corrigir Disparo para Listas Baseadas em Funil
 
 ## Problema Identificado
 
-Quando um contato é adicionado via formulário e roteado para um funil, os dados como **município** e **data do evento** não aparecem na etapa do funil.
+A campanha "CSV" está configurada para disparar apenas para os **86 contatos** da etapa "Qualificação" do funil "Centro de Saúde Visual", mas está enviando para **2762 contatos** (todos os contatos do usuário).
 
-### Causa Raiz (Análise Detalhada)
+### Causa Raiz
 
-Baseado na investigação do banco de dados:
+A Edge Function `start-campaign` **não implementa** a lógica de busca por funil quando a lista dinâmica tem `source: 'funnel'`. O código:
 
-```
-contact_custom_fields: { municipio: "Vila velha" }  ✅ SALVO
-deal_custom_fields: {}                               ❌ VAZIO
-```
+1. Extrai `funnelId` e `stageId` do `filter_criteria` (linha 140-147) ✅
+2. **MAS** na hora de buscar contatos (linha 175+), ignora esses campos e busca diretamente da tabela `contacts` ❌
 
-O sistema possui dois tipos de campos personalizados:
-- **Campos de Contato** (`entity_type='contact'`): Salvos em `contacts.custom_fields`
-- **Campos de Lead** (`entity_type='lead'`): Salvos em `funnel_deals.custom_fields`
+O frontend (`useBroadcastLists.ts`) trata corretamente essa lógica, mas a Edge Function não replica esse comportamento.
 
-O problema ocorre porque:
+### Dados Confirmados
 
-1. O campo "município" está configurado como `entity_type='contact'`
-2. O formulário salva corretamente em `contacts.custom_fields`
-3. Quando o deal é criado, o sistema **NÃO copia os dados** para `funnel_deals.custom_fields`
-4. A seção "Campos do Lead" no funil só exibe campos com `entity_type='lead'`
-5. O usuário não tem nenhum campo definido como `entity_type='lead'`
+| Métrica | Valor |
+|---------|-------|
+| Contatos na etapa do funil | 86 |
+| Total de contatos do usuário | 2762 |
+| Lista configurada | `source: 'funnel'`, `funnelId: Centro Saúde Visual`, `stageId: Qualificação` |
 
-## Solução Proposta
+## Solução
 
-### Parte 1: Adicionar Opção de Mapeamento para Lead no Builder
-
-No `FieldProperties.tsx`, adicionar uma nova opção de mapeamento para campos de lead:
-
-```text
-Mapeamento para o Lead
-├── Não salvar no perfil
-├── Campo nativo do contato (Nome, Email, Telefone)
-├── Campo personalizado existente (Contato) 
-├── Campo personalizado existente (Lead)    ← NOVO
-├── Criar novo campo personalizado
-└── Criar novo campo de Lead                ← NOVO
-```
-
-### Parte 2: Modificar Submit-Form para Salvar Dados de Lead
-
-No `submit-form/index.ts`, quando processar campos mapeados, separar entre:
-- `contactCustomFields`: Campos com `entity_type='contact'`
-- `dealCustomFields`: Campos com `entity_type='lead'`
-
-Quando criar o deal, incluir os `dealCustomFields`:
+Adicionar lógica na Edge Function `start-campaign` para tratar listas dinâmicas com fonte "funnel":
 
 ```typescript
-.insert({
-  funnel_id: form.target_funnel_id,
-  stage_id: stageId,
-  contact_id: contactId,
-  user_id: form.user_id,
-  title: contactData.name || 'Lead do Formulário',
-  source: `Formulário: ${form.name}`,
-  custom_fields: dealCustomFields,  // ← ADICIONAR
-})
+} else if (campaign.list?.type === 'dynamic') {
+  const filterCriteria = campaign.list.filter_criteria as {
+    source?: 'contacts' | 'funnel';
+    funnelId?: string;
+    stageId?: string;
+    status?: string;
+    optedOut?: boolean;
+    tags?: string[];
+    // ...
+  } || {};
+
+  // NOVA LÓGICA: Se fonte é funil, buscar via funnel_deals
+  if (filterCriteria.source === 'funnel' && filterCriteria.funnelId) {
+    console.log(`Fetching contacts from funnel: ${filterCriteria.funnelId}, stage: ${filterCriteria.stageId || 'all'}`);
+    
+    let query = supabase
+      .from('funnel_deals')
+      .select('contact_id, contacts!inner(id, name, phone, email, custom_fields, opted_out)')
+      .eq('funnel_id', filterCriteria.funnelId);
+    
+    // Filtrar por etapa específica se definida
+    if (filterCriteria.stageId && filterCriteria.stageId !== 'all') {
+      query = query.eq('stage_id', filterCriteria.stageId);
+    }
+    
+    // Aplicar filtro de opted_out
+    if (filterCriteria.optedOut === false) {
+      query = query.eq('contacts.opted_out', false);
+    }
+    
+    const { data: funnelContacts, error } = await query;
+    
+    // Remover duplicatas (mesmo contato pode ter múltiplos deals)
+    const uniqueContacts = new Map();
+    for (const fc of funnelContacts || []) {
+      const contact = fc.contacts;
+      if (contact && contact.phone && !uniqueContacts.has(contact.id)) {
+        uniqueContacts.set(contact.id, {
+          id: contact.id,
+          name: contact.name,
+          phone: contact.phone,
+          email: contact.email,
+          custom_fields: contact.custom_fields
+        });
+      }
+    }
+    contacts = Array.from(uniqueContacts.values());
+    
+    console.log(`Found ${contacts.length} unique contacts from funnel`);
+  } else {
+    // Lógica existente para listas baseadas em contatos
+    // ... código atual ...
+  }
+}
 ```
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/forms/builder/FieldProperties.tsx` | Adicionar opções `lead_field` e `new_lead_field` |
-| `supabase/functions/submit-form/index.ts` | Separar campos por entity_type e incluir no deal |
+| `supabase/functions/start-campaign/index.ts` | Adicionar branch para `source === 'funnel'` antes da lógica de contatos |
 
-## Alterações Técnicas
-
-### 1. FieldProperties.tsx
-
-```typescript
-// Adicionar nas opções do Select de mapping_type:
-<SelectItem value="lead_field">Campo de Lead existente</SelectItem>
-<SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
-
-// Adicionar seções condicionais para exibir campos de lead:
-{localField.mapping_type === 'lead_field' && (
-  <Select ...>
-    {leadFieldDefinitions?.map((cf) => (...))}
-  </Select>
-)}
-```
-
-### 2. submit-form/index.ts
-
-```typescript
-// Ao processar campos, verificar entity_type:
-let dealCustomFields: Record<string, any> = {};
-
-for (const field of formFields) {
-  // ... lógica existente para contact_field ...
-  
-  if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
-    dealCustomFields[field.mapping_target] = fieldValue;
-  }
-  
-  // ... outros casos ...
-}
-
-// Ao criar deal:
-.insert({
-  // ... campos existentes ...
-  custom_fields: Object.keys(dealCustomFields).length > 0 ? dealCustomFields : null,
-})
-```
-
-## Fluxo Esperado Após Correção
+## Fluxo Após Correção
 
 ```text
-1. Usuário configura formulário
-   ├── Campo "Município" → Mapear para Lead (lead_field)
-   └── Campo "Data Evento" → Criar novo campo de Lead (new_lead_field)
-
-2. Lead preenche formulário
-   └── submit-form processa:
-       ├── Dados de contato → contacts.custom_fields
-       └── Dados de lead → funnel_deals.custom_fields
-
-3. Deal é criado no funil
-   └── custom_fields = { "municipio": "Vila Velha", "data_evento": "2026-02-15" }
-
-4. Usuário visualiza card no funil
-   └── Seção "Dados do Lead" exibe municipio e data_evento ✅
+1. Usuário inicia campanha com lista "te3wt"
+2. start-campaign recebe filter_criteria:
+   { source: 'funnel', funnelId: '33b9...', stageId: 'b6e1...' }
+3. Edge Function detecta source === 'funnel'
+4. Busca contatos via funnel_deals com filtro de stage_id
+5. Retorna apenas 86 contatos da etapa "Qualificação"
+6. Campanha dispara corretamente para os 86 contatos
 ```
 
-## Solução Temporária para Dados Existentes
+## Alterações Técnicas Detalhadas
 
-Para os dados que já foram submetidos (como os da Andressa Martins), será necessário:
+Na função `start-campaign`, substituir a seção de listas dinâmicas (linhas 175-284) por uma versão que:
 
-1. Criar campos de Lead no sistema (via Gerenciador de Campos)
-2. Migrar os dados de `contacts.custom_fields` para `funnel_deals.custom_fields`
+1. Primeiro verifica se `source === 'funnel'`
+2. Se sim, busca via `funnel_deals` com join em `contacts`
+3. Se não, mantém a lógica atual de buscar diretamente de `contacts`
 
-Isso pode ser feito via query SQL ou manualmente no sistema.
-
+Também aplicar filtros de tags e customFields quando a fonte é funil, similar ao que já existe no frontend.
