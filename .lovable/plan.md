@@ -1,112 +1,76 @@
 
-# Plano: Corrigir Disparo para Listas Baseadas em Funil
+# Plano: Corrigir Envio de Mensagens para Contatos LID
 
 ## Problema Identificado
 
-A campanha "CSV" está configurada para disparar apenas para os **86 contatos** da etapa "Qualificação" do funil "Centro de Saúde Visual", mas está enviando para **2762 contatos** (todos os contatos do usuário).
+Os leads com erro mostram telefones no formato `LID_197186377756911`. Estes são contatos vindos de **Click-to-WhatsApp Ads**, onde o WhatsApp não fornece o número real, apenas um **Label ID (LID)**.
+
+### Erro nos Logs
+
+```
+Evolution API response: {"status":400,"error":"Bad Request","response":{"message":[{"jid":"197186377756911@s.whatsapp.net","exists":false,"number":"197186377756911"}]}}
+```
+
+A Evolution API está tentando verificar se `197186377756911` é um número de telefone válido no WhatsApp, e obviamente falha porque LIDs não são números reais.
 
 ### Causa Raiz
 
-A Edge Function `start-campaign` **não implementa** a lógica de busca por funil quando a lista dinâmica tem `source: 'funnel'`. O código:
-
-1. Extrai `funnelId` e `stageId` do `filter_criteria` (linha 140-147) ✅
-2. **MAS** na hora de buscar contatos (linha 175+), ignora esses campos e busca diretamente da tabela `contacts` ❌
-
-O frontend (`useBroadcastLists.ts`) trata corretamente essa lógica, mas a Edge Function não replica esse comportamento.
-
-### Dados Confirmados
-
-| Métrica | Valor |
-|---------|-------|
-| Contatos na etapa do funil | 86 |
-| Total de contatos do usuário | 2762 |
-| Lista configurada | `source: 'funnel'`, `funnelId: Centro Saúde Visual`, `stageId: Qualificação` |
-
-## Solução
-
-Adicionar lógica na Edge Function `start-campaign` para tratar listas dinâmicas com fonte "funnel":
+No arquivo `send-inbox-message/index.ts`, linha 144-145:
 
 ```typescript
-} else if (campaign.list?.type === 'dynamic') {
-  const filterCriteria = campaign.list.filter_criteria as {
-    source?: 'contacts' | 'funnel';
-    funnelId?: string;
-    stageId?: string;
-    status?: string;
-    optedOut?: boolean;
-    tags?: string[];
-    // ...
-  } || {};
+const sendPayload = isLidMessage 
+  ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: content }
+  : { number: phone, text: content };
+```
 
-  // NOVA LÓGICA: Se fonte é funil, buscar via funnel_deals
-  if (filterCriteria.source === 'funnel' && filterCriteria.funnelId) {
-    console.log(`Fetching contacts from funnel: ${filterCriteria.funnelId}, stage: ${filterCriteria.stageId || 'all'}`);
-    
-    let query = supabase
-      .from('funnel_deals')
-      .select('contact_id, contacts!inner(id, name, phone, email, custom_fields, opted_out)')
-      .eq('funnel_id', filterCriteria.funnelId);
-    
-    // Filtrar por etapa específica se definida
-    if (filterCriteria.stageId && filterCriteria.stageId !== 'all') {
-      query = query.eq('stage_id', filterCriteria.stageId);
-    }
-    
-    // Aplicar filtro de opted_out
-    if (filterCriteria.optedOut === false) {
-      query = query.eq('contacts.opted_out', false);
-    }
-    
-    const { data: funnelContacts, error } = await query;
-    
-    // Remover duplicatas (mesmo contato pode ter múltiplos deals)
-    const uniqueContacts = new Map();
-    for (const fc of funnelContacts || []) {
-      const contact = fc.contacts;
-      if (contact && contact.phone && !uniqueContacts.has(contact.id)) {
-        uniqueContacts.set(contact.id, {
-          id: contact.id,
-          name: contact.name,
-          phone: contact.phone,
-          email: contact.email,
-          custom_fields: contact.custom_fields
-        });
-      }
-    }
-    contacts = Array.from(uniqueContacts.values());
-    
-    console.log(`Found ${contacts.length} unique contacts from funnel`);
-  } else {
-    // Lógica existente para listas baseadas em contatos
-    // ... código atual ...
-  }
+O código está removendo o sufixo `@lid`, enviando apenas o ID numérico (`197186377756911`).
+
+### Código Correto (do ai-campaign-agent)
+
+```typescript
+// Em ai-campaign-agent/index.ts, linhas 1890-1895:
+if (rawPhone.startsWith('LID_')) {
+  isLidContact = true;
+  const labelId = rawPhone.replace('LID_', '');
+  phone = `${labelId}@lid`;  // ← MANTÉM o @lid!
 }
 ```
 
-## Arquivos a Modificar
+A Evolution API requer que contatos LID sejam enviados com o formato `{labelId}@lid` completo.
+
+## Solução
+
+Modificar `send-inbox-message/index.ts` para manter o formato `@lid`:
+
+```typescript
+// ANTES (bugado):
+const sendPayload = isLidMessage 
+  ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: content }
+  : { number: phone, text: content };
+
+// DEPOIS (correto):
+const sendPayload = isLidMessage 
+  ? { number: remoteJid, options: { presence: 'composing' }, text: content }
+  : { number: phone, text: content };
+```
+
+## Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/start-campaign/index.ts` | Adicionar branch para `source === 'funnel'` antes da lógica de contatos |
+| `supabase/functions/send-inbox-message/index.ts` | Manter `@lid` no payload para contatos LID |
 
 ## Fluxo Após Correção
 
 ```text
-1. Usuário inicia campanha com lista "te3wt"
-2. start-campaign recebe filter_criteria:
-   { source: 'funnel', funnelId: '33b9...', stageId: 'b6e1...' }
-3. Edge Function detecta source === 'funnel'
-4. Busca contatos via funnel_deals com filtro de stage_id
-5. Retorna apenas 86 contatos da etapa "Qualificação"
-6. Campanha dispara corretamente para os 86 contatos
+1. Usuário envia mensagem para contato LID
+2. Sistema detecta phone = "LID_197186377756911"
+3. Formata remoteJid = "197186377756911@lid"
+4. Payload enviado = { number: "197186377756911@lid", text: "..." }
+5. Evolution API reconhece formato LID e envia corretamente ✅
 ```
 
-## Alterações Técnicas Detalhadas
+## Nota Importante
 
-Na função `start-campaign`, substituir a seção de listas dinâmicas (linhas 175-284) por uma versão que:
+Contatos com LID puro (sem número real armazenado) são uma limitação do WhatsApp para proteger privacidade de usuários que clicam em anúncios. Não há como "recuperar" o número real desses contatos - só é possível responder usando o LID enquanto a sessão estiver ativa no WhatsApp Business.
 
-1. Primeiro verifica se `source === 'funnel'`
-2. Se sim, busca via `funnel_deals` com join em `contacts`
-3. Se não, mantém a lógica atual de buscar diretamente de `contacts`
-
-Também aplicar filtros de tags e customFields quando a fonte é funil, similar ao que já existe no frontend.
