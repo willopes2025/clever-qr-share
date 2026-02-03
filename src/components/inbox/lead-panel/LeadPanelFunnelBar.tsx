@@ -77,12 +77,12 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
           onValueChange={handleStageChange}
           disabled={updateDeal.isPending}
         >
-          <SelectTrigger className="h-8 text-sm flex-1 border-0 bg-transparent p-0 hover:bg-transparent focus:ring-0 shadow-none">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-xs">{currentFunnel?.name} -</span>
+          <SelectTrigger className="h-8 text-sm flex-1 min-w-0 border border-border/50 bg-muted/30 px-2 hover:bg-muted/50 focus:ring-1 focus:ring-primary/30 rounded-md cursor-pointer">
+            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+              <span className="text-muted-foreground text-xs shrink-0">{currentFunnel?.name} -</span>
               <Badge 
                 variant="secondary"
-                className="font-medium"
+                className="font-medium shrink-0"
                 style={{ 
                   backgroundColor: `${currentStage?.color}20`,
                   color: currentStage?.color,
@@ -93,12 +93,12 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
               </Badge>
             </div>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[100]">
             {currentFunnel?.stages?.map((stage) => (
-              <SelectItem key={stage.id} value={stage.id}>
+              <SelectItem key={stage.id} value={stage.id} className="cursor-pointer">
                 <div className="flex items-center gap-2">
                   <div 
-                    className="w-2.5 h-2.5 rounded-full" 
+                    className="w-2.5 h-2.5 rounded-full shrink-0" 
                     style={{ backgroundColor: stage.color }} 
                   />
                   {stage.name}
