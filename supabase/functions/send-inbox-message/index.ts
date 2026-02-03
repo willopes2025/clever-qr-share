@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     // For LID contacts, we need to use a different payload structure
     const isLidMessage = remoteJid.endsWith('@lid');
     const sendPayload = isLidMessage 
-      ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: content }
+      ? { number: remoteJid, options: { presence: 'composing' }, text: content }
       : { number: phone, text: content };
     
     console.log(`[SEND] Using payload:`, JSON.stringify(sendPayload));
