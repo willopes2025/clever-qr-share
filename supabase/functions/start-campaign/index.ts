@@ -175,111 +175,263 @@ Deno.serve(async (req) => {
     } else if (campaign.list?.type === 'dynamic') {
       // Dynamic list: fetch contacts based on filter_criteria
       const filterCriteria = campaign.list.filter_criteria as {
+        source?: 'contacts' | 'funnel';
+        funnelId?: string;
+        stageId?: string;
         status?: string;
         optedOut?: boolean;
         tags?: string[];
         asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
+        customFields?: Array<{
+          fieldKey: string;
+          operator: 'equals' | 'contains' | 'not_empty' | 'empty';
+          value?: string;
+        }>;
       } || {};
 
-      // PAGINATED FETCH: Buscar TODOS os contatos com paginação para evitar limite de 1000
-      const pageSize = 1000;
-      let offset = 0;
-      let allContacts: any[] = [];
-      let hasMore = true;
+      // NOVA LÓGICA: Se fonte é funil, buscar via funnel_deals
+      if (filterCriteria.source === 'funnel' && filterCriteria.funnelId) {
+        console.log(`Fetching contacts from funnel: ${filterCriteria.funnelId}, stage: ${filterCriteria.stageId || 'all'}`);
+        
+        const pageSize = 1000;
+        let offset = 0;
+        let allFunnelContacts: any[] = [];
+        let hasMore = true;
 
-      console.log(`Fetching contacts with pagination (filters: ${JSON.stringify(filterCriteria)})`);
-
-      while (hasMore) {
-        let query = supabase
-          .from('contacts')
-          .select('id, name, phone, email, custom_fields')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true })
-          .range(offset, offset + pageSize - 1);
-
-        // Apply status filter
-        if (filterCriteria.status) {
-          query = query.eq('status', filterCriteria.status);
-        }
-
-        // Apply opted_out filter (usually false for active contacts)
-        if (typeof filterCriteria.optedOut === 'boolean') {
-          query = query.eq('opted_out', filterCriteria.optedOut);
-        }
-
-        // Apply Asaas payment status filter
-        if (filterCriteria.asaasPaymentStatus) {
-          query = query.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
-        }
-
-        const { data: batch, error: contactsError } = await query;
-
-        if (contactsError) {
-          console.error('Contacts fetch error:', contactsError);
-          throw new Error('Failed to fetch contacts');
-        }
-
-        if (batch && batch.length > 0) {
-          allContacts = allContacts.concat(batch);
-          offset += pageSize;
-          hasMore = batch.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      console.log(`Fetched ${allContacts.length} total contacts from database (paginated)`);
-
-      // If tags filter exists, filter contacts that have those tags
-      if (filterCriteria.tags && filterCriteria.tags.length > 0) {
-        // PAGINATED TAG FETCH: Buscar todas as tags com paginação
-        let taggedContactIds: string[] = [];
-        let tagOffset = 0;
-        let hasMoreTags = true;
-
-        while (hasMoreTags) {
-          const { data: tagBatch, error: tagsError } = await supabase
-            .from('contact_tags')
-            .select('contact_id')
-            .in('tag_id', filterCriteria.tags)
-            .range(tagOffset, tagOffset + pageSize - 1);
-
-          if (tagsError) {
-            console.error('Tags fetch error:', tagsError);
-            throw new Error('Failed to fetch contact tags');
+        while (hasMore) {
+          let query = supabase
+            .from('funnel_deals')
+            .select('contact_id, contacts!inner(id, name, phone, email, custom_fields, opted_out)')
+            .eq('funnel_id', filterCriteria.funnelId)
+            .order('created_at', { ascending: true })
+            .range(offset, offset + pageSize - 1);
+          
+          // Filtrar por etapa específica se definida
+          if (filterCriteria.stageId && filterCriteria.stageId !== 'all') {
+            query = query.eq('stage_id', filterCriteria.stageId);
+          }
+          
+          // Aplicar filtro de opted_out
+          if (filterCriteria.optedOut === false) {
+            query = query.eq('contacts.opted_out', false);
           }
 
-          if (tagBatch && tagBatch.length > 0) {
-            taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
-            tagOffset += pageSize;
-            hasMoreTags = tagBatch.length === pageSize;
+          const { data: batch, error: funnelError } = await query;
+
+          if (funnelError) {
+            console.error('Funnel contacts fetch error:', funnelError);
+            throw new Error('Failed to fetch funnel contacts');
+          }
+
+          if (batch && batch.length > 0) {
+            allFunnelContacts = allFunnelContacts.concat(batch);
+            offset += pageSize;
+            hasMore = batch.length === pageSize;
           } else {
-            hasMoreTags = false;
+            hasMore = false;
           }
         }
 
-        console.log(`Fetched ${taggedContactIds.length} tagged contact IDs (paginated)`);
+        console.log(`Fetched ${allFunnelContacts.length} deals from funnel (paginated)`);
+        
+        // Remover duplicatas (mesmo contato pode ter múltiplos deals)
+        const uniqueContacts = new Map<string, Contact>();
+        for (const fc of allFunnelContacts) {
+          const contact = fc.contacts as any;
+          if (contact && contact.phone && !uniqueContacts.has(contact.id)) {
+            // Aplicar filtro de tags se existir
+            let passesTagFilter = true;
+            if (filterCriteria.tags && filterCriteria.tags.length > 0) {
+              // Será verificado depois em batch
+              passesTagFilter = true;
+            }
+            
+            if (passesTagFilter) {
+              uniqueContacts.set(contact.id, {
+                id: contact.id,
+                name: contact.name,
+                phone: contact.phone,
+                email: contact.email,
+                custom_fields: contact.custom_fields
+              });
+            }
+          }
+        }
 
-        const taggedIds = new Set(taggedContactIds);
-        contacts = allContacts
-          .filter(c => c.phone && taggedIds.has(c.id))
-          .map(c => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone,
-            email: c.email,
-            custom_fields: c.custom_fields as Record<string, string> | null
-          }));
+        // Se há filtro de tags, aplicar
+        if (filterCriteria.tags && filterCriteria.tags.length > 0) {
+          const contactIds = Array.from(uniqueContacts.keys());
+          let taggedContactIds: string[] = [];
+          let tagOffset = 0;
+          let hasMoreTags = true;
+
+          while (hasMoreTags) {
+            const { data: tagBatch, error: tagsError } = await supabase
+              .from('contact_tags')
+              .select('contact_id')
+              .in('tag_id', filterCriteria.tags)
+              .in('contact_id', contactIds)
+              .range(tagOffset, tagOffset + pageSize - 1);
+
+            if (tagsError) {
+              console.error('Tags fetch error:', tagsError);
+              throw new Error('Failed to fetch contact tags');
+            }
+
+            if (tagBatch && tagBatch.length > 0) {
+              taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+              tagOffset += pageSize;
+              hasMoreTags = tagBatch.length === pageSize;
+            } else {
+              hasMoreTags = false;
+            }
+          }
+
+          const taggedIds = new Set(taggedContactIds);
+          for (const [id] of uniqueContacts) {
+            if (!taggedIds.has(id)) {
+              uniqueContacts.delete(id);
+            }
+          }
+        }
+
+        // Aplicar filtro de campos personalizados se existir
+        if (filterCriteria.customFields && filterCriteria.customFields.length > 0) {
+          for (const [id, contact] of uniqueContacts) {
+            const customFields = contact.custom_fields || {};
+            let passesFilter = true;
+
+            for (const cf of filterCriteria.customFields) {
+              const fieldValue = customFields[cf.fieldKey] || '';
+
+              switch (cf.operator) {
+                case 'equals':
+                  if (fieldValue !== cf.value) passesFilter = false;
+                  break;
+                case 'contains':
+                  if (!fieldValue.toLowerCase().includes((cf.value || '').toLowerCase())) passesFilter = false;
+                  break;
+                case 'not_empty':
+                  if (!fieldValue) passesFilter = false;
+                  break;
+                case 'empty':
+                  if (fieldValue) passesFilter = false;
+                  break;
+              }
+
+              if (!passesFilter) break;
+            }
+
+            if (!passesFilter) {
+              uniqueContacts.delete(id);
+            }
+          }
+        }
+
+        contacts = Array.from(uniqueContacts.values());
+        console.log(`Found ${contacts.length} unique contacts from funnel after filters`);
+        
       } else {
-        contacts = allContacts
-          .filter(c => c.phone)
-          .map(c => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone,
-            email: c.email,
-            custom_fields: c.custom_fields as Record<string, string> | null
-          }));
+        // Lógica existente para listas baseadas em contatos
+        const pageSize = 1000;
+        let offset = 0;
+        let allContacts: any[] = [];
+        let hasMore = true;
+
+        console.log(`Fetching contacts with pagination (filters: ${JSON.stringify(filterCriteria)})`);
+
+        while (hasMore) {
+          let query = supabase
+            .from('contacts')
+            .select('id, name, phone, email, custom_fields')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true })
+            .range(offset, offset + pageSize - 1);
+
+          // Apply status filter
+          if (filterCriteria.status) {
+            query = query.eq('status', filterCriteria.status);
+          }
+
+          // Apply opted_out filter (usually false for active contacts)
+          if (typeof filterCriteria.optedOut === 'boolean') {
+            query = query.eq('opted_out', filterCriteria.optedOut);
+          }
+
+          // Apply Asaas payment status filter
+          if (filterCriteria.asaasPaymentStatus) {
+            query = query.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
+          }
+
+          const { data: batch, error: contactsError } = await query;
+
+          if (contactsError) {
+            console.error('Contacts fetch error:', contactsError);
+            throw new Error('Failed to fetch contacts');
+          }
+
+          if (batch && batch.length > 0) {
+            allContacts = allContacts.concat(batch);
+            offset += pageSize;
+            hasMore = batch.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        console.log(`Fetched ${allContacts.length} total contacts from database (paginated)`);
+
+        // If tags filter exists, filter contacts that have those tags
+        if (filterCriteria.tags && filterCriteria.tags.length > 0) {
+          // PAGINATED TAG FETCH: Buscar todas as tags com paginação
+          let taggedContactIds: string[] = [];
+          let tagOffset = 0;
+          let hasMoreTags = true;
+
+          while (hasMoreTags) {
+            const { data: tagBatch, error: tagsError } = await supabase
+              .from('contact_tags')
+              .select('contact_id')
+              .in('tag_id', filterCriteria.tags)
+              .range(tagOffset, tagOffset + pageSize - 1);
+
+            if (tagsError) {
+              console.error('Tags fetch error:', tagsError);
+              throw new Error('Failed to fetch contact tags');
+            }
+
+            if (tagBatch && tagBatch.length > 0) {
+              taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+              tagOffset += pageSize;
+              hasMoreTags = tagBatch.length === pageSize;
+            } else {
+              hasMoreTags = false;
+            }
+          }
+
+          console.log(`Fetched ${taggedContactIds.length} tagged contact IDs (paginated)`);
+
+          const taggedIds = new Set(taggedContactIds);
+          contacts = allContacts
+            .filter(c => c.phone && taggedIds.has(c.id))
+            .map(c => ({
+              id: c.id,
+              name: c.name,
+              phone: c.phone,
+              email: c.email,
+              custom_fields: c.custom_fields as Record<string, string> | null
+            }));
+        } else {
+          contacts = allContacts
+            .filter(c => c.phone)
+            .map(c => ({
+              id: c.id,
+              name: c.name,
+              phone: c.phone,
+              email: c.email,
+              custom_fields: c.custom_fields as Record<string, string> | null
+            }));
+        }
       }
     }
 
