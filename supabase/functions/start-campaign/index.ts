@@ -457,7 +457,8 @@ Deno.serve(async (req) => {
       if (skipMode === 'has_tag' && campaign.skip_tag_id) {
         console.log(`Filtering by tag exclusion: ${campaign.skip_tag_id}`);
         
-        const contactIds = contacts.map(c => c.id);
+        // Fetch ALL contacts with the exclusion tag (paginated)
+        // Then filter locally - avoids Supabase .in() limit of ~1000 items
         const pageSize = 1000;
         let taggedContactIds: string[] = [];
         let tagOffset = 0;
@@ -468,7 +469,6 @@ Deno.serve(async (req) => {
             .from('contact_tags')
             .select('contact_id')
             .eq('tag_id', campaign.skip_tag_id)
-            .in('contact_id', contactIds)
             .range(tagOffset, tagOffset + pageSize - 1);
 
           if (tagsError) {
