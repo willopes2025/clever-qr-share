@@ -1,194 +1,136 @@
 
-# Plano: Corrigir Exclusão de Leads na Retomada de Campanhas
 
-## Problema Identificado
+# Plano: Filtro Alfabético para Inicio de Nome em Disparos
 
-O usuário Matheus Suave está enfrentando um problema onde contatos que já receberam um template específico estão recebendo novamente, mesmo com a opção "Mesmo Template" selecionada como critério de exclusão.
+## Resumo
 
-### Causa Raiz
-
-A função `resume-campaign` **NÃO implementa lógica de exclusão**. Quando uma campanha é retomada:
-
-1. A função apenas conta mensagens `queued` e `sending`
-2. Reseta mensagens travadas (`sending` → `queued`)
-3. Envia TODAS as mensagens pendentes sem verificar exclusões
-
-**Isso significa que:**
-- Ao retomar uma campanha cancelada, TODOS os 1436 contatos na fila receberão mensagens
-- Mesmo que alguns desses contatos já tenham recebido o mesmo template via outra campanha, eles não serão excluídos
-- A lógica de exclusão só é aplicada no `start-campaign`, não no `resume-campaign`
-
-### Evidência nos Logs
-
-```
-15:12:26 - Filtered out 0 contacts (checked 0 records)
-15:12:28 - Created 1437 message records
-15:12:41 - 1 mensagem enviada
-15:13:11 - Campanha cancelada
-```
-
-Quando a campanha foi iniciada pela primeira vez, não havia mensagens anteriores. Porém, ao retomar, as mensagens já enviadas deveriam ser consideradas.
+Adicionar a capacidade de filtrar contatos pelo prefixo do nome (por exemplo: "Ai", "Ao", "Ma") ao criar ou editar uma campanha de disparo. Isso permite que você comece a disparar apenas para contatos cujos nomes iniciam com determinadas letras ou sílabas.
 
 ---
 
-## Solução Proposta
+## Como Vai Funcionar
 
-Adicionar lógica de exclusão na função `resume-campaign` para remover mensagens `queued` de contatos que já receberam mensagens conforme as regras de exclusão.
-
-### Arquivo a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/resume-campaign/index.ts` | Adicionar lógica de exclusão antes de retomar |
+1. Na tela de criação/edição de campanha, nas **Configurações de Envio** (seção avançada), haverá um novo campo: **"Filtrar por início do nome"**
+2. Você pode digitar um ou mais prefixos separados por vírgula (ex: "Ai, Ao, Ma")
+3. Apenas contatos cujos nomes começam com esses prefixos serão incluídos no disparo
+4. O filtro é aplicado **antes** de criar a fila de mensagens, então contatos que não correspondem nem entram na fila
 
 ---
 
-## Detalhes Técnicos
+## Mudanças Necessárias
 
-### Nova Lógica para `resume-campaign`
+### 1. Banco de Dados
 
-```typescript
-// 1. Buscar configurações de exclusão da campanha
-const skipMode = campaign.skip_mode || 'same_template';
-const skipDaysPeriod = campaign.skip_days_period || 30;
-const skipAlreadySent = campaign.skip_already_sent !== false;
+Adicionar nova coluna na tabela `campaigns`:
 
-if (skipAlreadySent) {
-  // 2. Calcular período
-  const periodStart = new Date();
-  periodStart.setDate(periodStart.getDate() - skipDaysPeriod);
-  const periodStartISO = periodStart.toISOString();
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `name_prefix_filter` | `text[]` | Array de prefixos para filtrar nomes (ex: ["Ai", "Ao"]) |
 
-  // 3. Buscar campanhas relevantes baseado no skip_mode
-  let campaignIdsToCheck: string[] = [];
-  
-  if (skipMode === 'same_campaign') {
-    campaignIdsToCheck = [campaignId];
-  } else if (skipMode === 'same_template' && campaign.template_id) {
-    const { data: sameTemplateCampaigns } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('template_id', campaign.template_id);
-    campaignIdsToCheck = sameTemplateCampaigns?.map(c => c.id) || [];
-  } else if (skipMode === 'same_list' && campaign.list_id) {
-    const { data: sameListCampaigns } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('list_id', campaign.list_id);
-    campaignIdsToCheck = sameListCampaigns?.map(c => c.id) || [];
-  } else if (skipMode === 'any_campaign') {
-    const { data: userCampaigns } = await supabase
-      .from('campaigns')
-      .select('id')
-      .eq('user_id', campaign.user_id);
-    campaignIdsToCheck = userCampaigns?.map(c => c.id) || [];
-  }
+### 2. Interface (Frontend)
 
-  // 4. Buscar contatos que já receberam mensagens (com paginação)
-  let allAlreadySentIds: string[] = [];
-  let offset = 0;
-  const pageSize = 1000;
-  let hasMore = true;
+**Arquivo:** `src/components/campaigns/CampaignFormDialog.tsx`
 
-  while (hasMore) {
-    let query = supabase
-      .from('campaign_messages')
-      .select('contact_id')
-      .in('status', ['sent', 'delivered'])
-      .gte('sent_at', periodStartISO)
-      .range(offset, offset + pageSize - 1);
+Adicionar na seção de Configurações de Envio:
+- Novo campo de input para prefixos
+- Instrução de uso (separar por vírgula)
+- Estado local para gerenciar os prefixos
 
-    if (campaignIdsToCheck.length > 0) {
-      query = query.in('campaign_id', campaignIdsToCheck);
-    }
+### 3. Hook de Campanhas
 
-    const { data: batch } = await query;
-    if (batch && batch.length > 0) {
-      allAlreadySentIds.push(...batch.map(m => m.contact_id));
-      offset += pageSize;
-      hasMore = batch.length === pageSize;
-    } else {
-      hasMore = false;
-    }
-  }
+**Arquivo:** `src/hooks/useCampaigns.ts`
 
-  // 5. Marcar mensagens desses contatos como 'skipped' (excluídas)
-  if (allAlreadySentIds.length > 0) {
-    const alreadySentIds = [...new Set(allAlreadySentIds)];
-    
-    const { count: skippedCount } = await supabase
-      .from('campaign_messages')
-      .update({ status: 'skipped' })
-      .eq('campaign_id', campaignId)
-      .eq('status', 'queued')
-      .in('contact_id', alreadySentIds)
-      .select('id', { count: 'exact', head: true });
+Atualizar para incluir o novo campo `name_prefix_filter` nas operações de criar/atualizar campanha.
 
-    console.log(`Excluded ${skippedCount || 0} contacts based on ${skipMode} rule`);
-  }
+### 4. Edge Function (Backend)
+
+**Arquivo:** `supabase/functions/start-campaign/index.ts`
+
+Adicionar lógica para filtrar contatos pelo prefixo do nome **antes** de criar os registros na fila:
+
+```text
+// Pseudocódigo
+if (campaign.name_prefix_filter && campaign.name_prefix_filter.length > 0) {
+  filteredContacts = contacts.filter(contact => {
+    const name = (contact.name || '').toLowerCase().trim();
+    return campaign.name_prefix_filter.some(prefix => 
+      name.startsWith(prefix.toLowerCase().trim())
+    );
+  });
 }
 ```
 
-### Fluxo Atualizado
+---
 
-```
-Campanha Retomada (resume-campaign)
+## Fluxo Visual
+
+```text
+Criação de Campanha
      |
      v
-[Verificar skip_already_sent] --> Exclusões ativadas?
-     |                                    |
-     | Sim                                | Não
-     v                                    v
-[Buscar campanhas por skip_mode]    [Continuar normalmente]
+[Configurações Avançadas]
      |
      v
-[Buscar contact_ids já enviados]
+[Campo: Filtrar por início do nome]
+     |  Input: "Ai, Ao, Ma"
+     v
+[Salvar Campanha]
      |
      v
-[Marcar queued → skipped para esses contatos]
+[Iniciar Campanha] ---> start-campaign
      |
      v
-[Contar mensagens pendentes restantes]
+[Buscar contatos da lista]
      |
      v
-[Chamar send-campaign-messages]
+[Aplicar filtro de prefixo de nome] <-- NOVO
+     |
+     v
+[Aplicar filtro de exclusão (same_template, etc)]
+     |
+     v
+[Criar registros na fila apenas para contatos filtrados]
 ```
 
 ---
 
-## Considerações de Implementação
+## Detalhes de Implementação
 
-### Tratamento para Grandes Volumes
+### Campo na Interface
 
-- A lógica usa paginação para buscar IDs de contatos já enviados
-- Atualização em batch para marcar mensagens como `skipped`
-- Para volumes muito grandes (>10k contatos para excluir), pode ser necessário chunkar as atualizações
+```text
++------------------------------------------+
+| Filtrar por Início do Nome (opcional)    |
++------------------------------------------+
+| [  Ai, Ao, Ma                         ]  |
+| Separe múltiplos prefixos por vírgula    |
++------------------------------------------+
+```
 
-### Status `skipped`
+### Exemplo de Uso
 
-Criaremos um novo status `skipped` para mensagens excluídas por regras de exclusão:
-- Permite distinguir entre mensagens que falharam vs. mensagens excluídas intencionalmente
-- Mantém histórico para auditoria
-- Não conta como "falha" na campanha
+- Lista tem 1.000 contatos
+- Usuário configura filtro: "Ai, Ao"
+- Resultado: Apenas contatos como "Aída", "Airan", "Aoshi" serão incluídos
+- Contatos como "Maria", "João" serão **excluídos** do disparo
 
-### Atualização de Contadores
+---
 
-Após excluir mensagens:
-- Atualizar `total_contacts` da campanha para refletir apenas os que serão enviados
-- Ou manter o total original e adicionar um campo `skipped_contacts`
+## Arquivos a Modificar
+
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| Migração SQL | Criar | Adicionar coluna `name_prefix_filter` |
+| `src/components/campaigns/CampaignFormDialog.tsx` | Modificar | Adicionar campo de input para prefixos |
+| `src/hooks/useCampaigns.ts` | Modificar | Incluir novo campo nas operações |
+| `supabase/functions/start-campaign/index.ts` | Modificar | Aplicar filtro de prefixo antes de criar fila |
 
 ---
 
 ## Resultado Esperado
 
-| Antes | Depois |
-|-------|--------|
-| Retomar envia para TODOS os queued | Retomar aplica regras de exclusão |
-| Contatos duplicados recebem mensagem | Contatos já enviados são marcados como skipped |
-| Log: "0 contacts filtered" (nunca filtrava) | Log: "X contacts excluded by same_template rule" |
+1. Usuário pode configurar prefixos de nome ao criar campanha
+2. Ao iniciar disparo, apenas contatos com nomes que começam com os prefixos entram na fila
+3. Contagem de contatos reflete apenas os que serão enviados
+4. Logs indicam quantos contatos foram filtrados pelo prefixo
 
-## Arquivos a Criar/Modificar
-
-| Arquivo | Tipo | Descrição |
-|---------|------|-----------|
-| `supabase/functions/resume-campaign/index.ts` | Modificar | Adicionar lógica de exclusão completa |
