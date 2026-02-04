@@ -1,5 +1,5 @@
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { TraditionalDashboard } from "@/components/dashboard/TraditionalDashboard";
 import { MobileAppLayout } from "@/mobile/layouts/MobileAppLayout";
 import { MobileHome } from "@/mobile/pages/MobileHome";
@@ -18,9 +18,9 @@ const Dashboard = () => {
 
   // Desktop: full dashboard with sidebar
   return (
-    <DashboardLayout className="p-4 md:p-8">
+    <AppLayout pageTitle="Dashboard" className="p-4 md:p-8">
       <TraditionalDashboard />
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { AppLayout } from "@/layouts/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -79,7 +79,7 @@ const DebtorsManagement = () => {
     .reduce((sum, d) => sum + d.value, 0);
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Devedores">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -232,7 +232,7 @@ const DebtorsManagement = () => {
           </Card>
         </div>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

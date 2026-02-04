@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -96,7 +96,7 @@ const Templates = () => {
   });
 
   return (
-    <DashboardLayout className="p-8 space-y-6 cyber-grid">
+    <AppLayout pageTitle="Templates" className="p-4 md:p-8 space-y-6 cyber-grid">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -279,7 +279,7 @@ const Templates = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 interface MobileAppLayoutProps {
   children: ReactNode;
   pageTitle?: string;
+  className?: string;
 }
 
 const pageVariants = {
@@ -25,7 +26,7 @@ const pageTransition = {
   duration: 0.2
 };
 
-const MobileLayoutContent = ({ children, pageTitle }: MobileAppLayoutProps) => {
+const MobileLayoutContent = ({ children, pageTitle, className }: MobileAppLayoutProps) => {
   const location = useLocation();
 
   return (
@@ -51,7 +52,8 @@ const MobileLayoutContent = ({ children, pageTitle }: MobileAppLayoutProps) => {
           className={cn(
             "flex-1 overflow-y-auto overscroll-contain",
             "pt-14 pb-20", // Header height + bottom nav + extra padding
-            "mobile-scroll"
+            "mobile-scroll",
+            className
           )}
         >
           {children}
@@ -64,10 +66,10 @@ const MobileLayoutContent = ({ children, pageTitle }: MobileAppLayoutProps) => {
   );
 };
 
-export const MobileAppLayout = ({ children, pageTitle }: MobileAppLayoutProps) => {
+export const MobileAppLayout = ({ children, pageTitle, className }: MobileAppLayoutProps) => {
   return (
     <SidebarProvider>
-      <MobileLayoutContent pageTitle={pageTitle}>{children}</MobileLayoutContent>
+      <MobileLayoutContent pageTitle={pageTitle} className={className}>{children}</MobileLayoutContent>
     </SidebarProvider>
   );
 };

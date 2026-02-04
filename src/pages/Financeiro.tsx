@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAsaas } from "@/hooks/useAsaas";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -41,17 +41,17 @@ const Financeiro = () => {
 
   if (isLoadingStatus) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Financeiro">
         <div className="flex flex-col items-center justify-center h-full py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   if (!hasAsaas) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Financeiro">
         <div className="flex flex-col items-center justify-center h-full py-12">
           <Wallet className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">Financeiro não configurado</h2>
@@ -61,7 +61,7 @@ const Financeiro = () => {
               : "Para usar o módulo financeiro, conecte sua conta Asaas em Configurações → Integrações."}
           </p>
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
@@ -69,7 +69,7 @@ const Financeiro = () => {
   const effectiveTab = activeTab === "dashboard" && !canViewDashboard ? getDefaultTab() : activeTab;
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Financeiro">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Financeiro</h1>
@@ -155,7 +155,7 @@ const Financeiro = () => {
           )}
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

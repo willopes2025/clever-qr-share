@@ -21,7 +21,7 @@ export const AppLayout = ({ children, className, pageTitle }: AppLayoutProps) =>
 
   if (isMobile) {
     return (
-      <MobileAppLayout pageTitle={pageTitle}>
+      <MobileAppLayout pageTitle={pageTitle} className={className}>
         {children}
       </MobileAppLayout>
     );

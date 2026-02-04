@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -410,7 +410,7 @@ const Contacts = () => {
   };
 
   return (
-    <DashboardLayout className="p-8 cyber-grid">
+    <AppLayout pageTitle="Contatos" className="p-4 md:p-8 cyber-grid">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
@@ -934,7 +934,7 @@ const Contacts = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

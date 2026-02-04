@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ const AIAgents = () => {
   );
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Agentes IA">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -128,7 +128,7 @@ const AIAgents = () => {
         template={selectedTemplate}
         editingAgentId={editingAgentId}
       />
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

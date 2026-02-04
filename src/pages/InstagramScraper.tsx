@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { InstagramSearchForm, ScrapeType } from "@/components/instagram/InstagramSearchForm";
 import { InstagramResultsTable } from "@/components/instagram/InstagramResultsTable";
 import { InstagramCommentsSearchForm } from "@/components/instagram/InstagramCommentsSearchForm";
@@ -394,7 +394,7 @@ const InstagramScraper = () => {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Instagram">
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -562,7 +562,7 @@ const InstagramScraper = () => {
           }}
         />
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

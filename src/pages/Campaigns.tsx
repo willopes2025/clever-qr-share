@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -127,7 +127,7 @@ const Campaigns = () => {
   };
 
   return (
-    <DashboardLayout className="p-8 cyber-grid">
+    <AppLayout pageTitle="Campanhas" className="p-4 md:p-8 cyber-grid">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Campanhas de Disparo</h1>
@@ -270,7 +270,7 @@ const Campaigns = () => {
         onOpenChange={(open) => !open && setTrackingCampaign(null)}
         campaign={trackingCampaign}
       />
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

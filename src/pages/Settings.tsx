@@ -1,4 +1,4 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { ApiSettings } from "@/components/settings/ApiSettings";
@@ -73,7 +73,7 @@ const Settings = () => {
     : visibleTabs[0]?.value || "profile";
 
   return (
-    <DashboardLayout className="p-8 animated-gradient cyber-grid relative">
+    <AppLayout pageTitle="Configurações" className="p-4 md:p-8 animated-gradient cyber-grid relative">
       {/* Ambient glow effects */}
       <div className="fixed top-20 right-1/4 w-64 h-64 bg-neon-cyan/5 rounded-full blur-3xl pointer-events-none" />
       <div className="fixed bottom-20 left-1/3 w-64 h-64 bg-neon-magenta/5 rounded-full blur-3xl pointer-events-none" />
@@ -105,7 +105,7 @@ const Settings = () => {
           </TabsContent>
         ))}
       </Tabs>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

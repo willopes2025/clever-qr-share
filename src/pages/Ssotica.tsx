@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSsotica } from "@/hooks/useSsotica";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
@@ -33,17 +33,17 @@ const Ssotica = () => {
 
   if (isLoadingStatus) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="ssOtica">
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   if (!hasSsotica) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="ssOtica">
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <Glasses className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">ssOtica não conectado</h2>
@@ -53,12 +53,12 @@ const Ssotica = () => {
               : "Conecte sua conta do ssOtica em Configurações → Integrações para visualizar seus dados de ótica aqui."}
           </p>
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="ssOtica">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4">
@@ -129,7 +129,7 @@ const Ssotica = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

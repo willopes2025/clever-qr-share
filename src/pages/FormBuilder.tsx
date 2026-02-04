@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { useFormById, useFormFields, useForms } from "@/hooks/useForms";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,29 +43,29 @@ const FormBuilder = () => {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Formulário">
         <div className="flex items-center justify-center h-full">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   if (!form) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Formulário">
         <div className="flex flex-col items-center justify-center h-full">
           <p className="text-muted-foreground">Formulário não encontrado</p>
           <Button variant="link" onClick={() => navigate('/forms')}>
             Voltar para formulários
           </Button>
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Formulário">
       <div className="h-full flex flex-col">
         {/* Header */}
         <header className="border-b bg-card px-4 py-3 flex items-center justify-between shrink-0">
@@ -180,7 +180,7 @@ const FormBuilder = () => {
           form={form}
         />
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

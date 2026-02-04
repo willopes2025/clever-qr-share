@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { LeadSearchFilters } from "@/components/leads/LeadSearchFilters";
 import { LeadSearchResults } from "@/components/leads/LeadSearchResults";
 import { ImportLeadsDialog } from "@/components/leads/ImportLeadsDialog";
@@ -227,7 +227,7 @@ const LeadSearch = () => {
   const selectedCnpjs = new Set(selectedCompanies.keys());
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Busca de Leads">
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -289,7 +289,7 @@ const LeadSearch = () => {
           }}
         />
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

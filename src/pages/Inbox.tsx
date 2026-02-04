@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose, Phone } from "lucide-react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageView } from "@/components/inbox/MessageView";
 import { EmptyInbox } from "@/components/inbox/EmptyInbox";
@@ -121,7 +121,7 @@ const Inbox = () => {
   };
 
   return (
-    <DashboardLayout className="h-screen flex flex-col">
+    <AppLayout pageTitle="Inbox" className="h-screen flex flex-col">
       {/* Header - hidden on mobile */}
       {!isMobile && (
         <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card shrink-0">
@@ -294,7 +294,7 @@ const Inbox = () => {
       {showSoftphone && (
         <SoftphoneWidget onClose={() => setShowSoftphone(false)} />
       )}
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

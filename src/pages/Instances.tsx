@@ -1,4 +1,4 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { InstanceCard } from "@/components/InstanceCard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -205,7 +205,7 @@ const Instances = () => {
   };
 
   return (
-    <DashboardLayout className="p-8 isolate cyber-grid">
+    <AppLayout pageTitle="Instâncias" className="p-4 md:p-8 isolate cyber-grid">
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Instâncias</h1>
         <p className="text-muted-foreground">
@@ -633,7 +633,7 @@ const Instances = () => {
           onSaved={handleMembersSaved}
         />
       )}
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

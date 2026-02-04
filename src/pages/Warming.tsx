@@ -1,4 +1,4 @@
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Flame, ArrowLeft } from "lucide-react";
@@ -29,7 +29,7 @@ export default function Warming() {
   const hasActiveSchedules = schedules && schedules.some(s => s.status === 'active');
 
   return (
-    <DashboardLayout className="p-6 space-y-6">
+    <AppLayout pageTitle="Aquecimento" className="p-4 md:p-6 space-y-6">
       <FeatureGate feature="warming">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -162,6 +162,6 @@ export default function Warming() {
         </>
       )}
       </FeatureGate>
-    </DashboardLayout>
+    </AppLayout>
   );
 }
