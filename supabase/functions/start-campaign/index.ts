@@ -599,7 +599,7 @@ Deno.serve(async (req) => {
       return {
         campaign_id: campaignId,
         contact_id: contact.id,
-        phone: contact.phone,
+        phone: normalizePhone(contact.phone), // Normalize for consistent exclusion matching
         contact_name: contact.name,
         message_content: messageContent,
         status: 'queued'
