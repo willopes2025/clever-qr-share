@@ -41,22 +41,13 @@ Deno.serve(async (req) => {
       throw new Error(`Campaign cannot be resumed. Current status: ${campaign.status}`);
     }
 
-    // Count messages by status
-    const { count: queuedCount } = await supabase
-      .from('campaign_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('campaign_id', campaignId)
-      .eq('status', 'queued');
-
+    // Reset stuck messages (those with 'sending' status that never completed)
     const { count: stuckCount } = await supabase
       .from('campaign_messages')
       .select('id', { count: 'exact', head: true })
       .eq('campaign_id', campaignId)
       .eq('status', 'sending');
 
-    console.log(`Found ${queuedCount || 0} queued and ${stuckCount || 0} stuck messages`);
-
-    // Reset stuck messages (those with 'sending' status that never completed)
     if (stuckCount && stuckCount > 0) {
       const { error: resetError } = await supabase
         .from('campaign_messages')
@@ -71,14 +62,124 @@ Deno.serve(async (req) => {
       }
     }
 
-    const totalPending = (queuedCount || 0) + (stuckCount || 0);
+    // ===== APPLY EXCLUSION LOGIC =====
+    const skipMode = campaign.skip_mode || 'same_template';
+    const skipDaysPeriod = campaign.skip_days_period || 30;
+    const skipAlreadySent = campaign.skip_already_sent !== false;
+    let skippedCount = 0;
+
+    if (skipAlreadySent) {
+      console.log(`Applying exclusion rules: mode=${skipMode}, period=${skipDaysPeriod} days`);
+
+      // Calculate period start
+      const periodStart = new Date();
+      periodStart.setDate(periodStart.getDate() - skipDaysPeriod);
+      const periodStartISO = periodStart.toISOString();
+
+      // Get campaigns to check based on skip_mode
+      let campaignIdsToCheck: string[] = [];
+
+      if (skipMode === 'same_campaign') {
+        campaignIdsToCheck = [campaignId];
+      } else if (skipMode === 'same_template' && campaign.template_id) {
+        const { data: sameTemplateCampaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('template_id', campaign.template_id)
+          .eq('user_id', campaign.user_id);
+        campaignIdsToCheck = sameTemplateCampaigns?.map(c => c.id) || [];
+        console.log(`Found ${campaignIdsToCheck.length} campaigns with same template`);
+      } else if (skipMode === 'same_list' && campaign.list_id) {
+        const { data: sameListCampaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('list_id', campaign.list_id)
+          .eq('user_id', campaign.user_id);
+        campaignIdsToCheck = sameListCampaigns?.map(c => c.id) || [];
+        console.log(`Found ${campaignIdsToCheck.length} campaigns with same list`);
+      } else if (skipMode === 'any_campaign') {
+        const { data: userCampaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('user_id', campaign.user_id);
+        campaignIdsToCheck = userCampaigns?.map(c => c.id) || [];
+        console.log(`Found ${campaignIdsToCheck.length} user campaigns for any_campaign mode`);
+      }
+
+      // Fetch already sent contacts with pagination
+      if (campaignIdsToCheck.length > 0) {
+        let allAlreadySentIds: string[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data: batch } = await supabase
+            .from('campaign_messages')
+            .select('contact_id')
+            .in('campaign_id', campaignIdsToCheck)
+            .in('status', ['sent', 'delivered'])
+            .gte('sent_at', periodStartISO)
+            .range(offset, offset + pageSize - 1);
+
+          if (batch && batch.length > 0) {
+            allAlreadySentIds.push(...batch.map(m => m.contact_id));
+            offset += pageSize;
+            hasMore = batch.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        console.log(`Found ${allAlreadySentIds.length} already sent contact records`);
+
+        // Remove duplicates
+        const uniqueAlreadySentIds = [...new Set(allAlreadySentIds)];
+        console.log(`Unique contacts already sent: ${uniqueAlreadySentIds.length}`);
+
+        // Mark queued messages for these contacts as 'skipped'
+        if (uniqueAlreadySentIds.length > 0) {
+          // Process in chunks to avoid query limits
+          const chunkSize = 500;
+          for (let i = 0; i < uniqueAlreadySentIds.length; i += chunkSize) {
+            const chunk = uniqueAlreadySentIds.slice(i, i + chunkSize);
+            
+            const { data: updatedRows } = await supabase
+              .from('campaign_messages')
+              .update({ status: 'skipped' })
+              .eq('campaign_id', campaignId)
+              .eq('status', 'queued')
+              .in('contact_id', chunk)
+              .select('id');
+
+            skippedCount += updatedRows?.length || 0;
+          }
+
+          console.log(`Excluded ${skippedCount} contacts based on ${skipMode} rule`);
+        }
+      }
+    }
+
+    // Count remaining queued messages after exclusion
+    const { count: queuedCount } = await supabase
+      .from('campaign_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('status', 'queued');
+
+    const totalPending = queuedCount || 0;
+
+    console.log(`Remaining queued messages: ${totalPending}`);
 
     if (totalPending === 0) {
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'No pending messages to send',
-          message: 'Todas as mensagens já foram processadas'
+          message: skippedCount > 0 
+            ? `Todas as ${skippedCount} mensagens pendentes foram excluídas pela regra de exclusão "${skipMode}"`
+            : 'Todas as mensagens já foram processadas',
+          skippedMessages: skippedCount
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -140,9 +241,12 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Campanha retomada! ${totalPending} mensagens pendentes.`,
+        message: skippedCount > 0 
+          ? `Campanha retomada! ${totalPending} mensagens pendentes (${skippedCount} excluídas pela regra "${skipMode}").`
+          : `Campanha retomada! ${totalPending} mensagens pendentes.`,
         pendingMessages: totalPending,
-        resetMessages: stuckCount || 0
+        resetMessages: stuckCount || 0,
+        skippedMessages: skippedCount
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
