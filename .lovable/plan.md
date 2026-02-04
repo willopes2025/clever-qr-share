@@ -1,167 +1,189 @@
 
-# Plano: Agendamento de Mensagens na Aba de Tarefas
+# Correção: Políticas RLS do Funil para Organizações
 
-## Resumo
+## Problema Identificado
 
-Adicionar um novo botão **"Mensagem"** ao lado de "Atribuir" no formulário de criação de tarefas do Inbox. Ao clicar, o usuário pode selecionar um template existente ou escrever uma mensagem manual que será enviada automaticamente no dia e hora marcados na tarefa.
+Nos logs do Postgres, encontrei o erro:
+```
+"new row violates row-level security policy for table \"funnel_deal_history\""
+```
 
----
+### Causa Raiz
 
-## Como Vai Funcionar
+As políticas RLS das tabelas de funil não consideram o contexto de **organização**. Membros da mesma organização conseguem **visualizar** os deals, mas não conseguem **modificar** ou criar registros de histórico.
 
-1. No formulário de criação de tarefa, haverá um novo botão: **"Mensagem"**
-2. Ao clicar, abre um popover com duas opções:
-   - **Selecionar Template** - lista os templates existentes
-   - **Escrever Manualmente** - campo de texto livre
-3. A mensagem fica vinculada à tarefa
-4. No dia e hora da tarefa (due_date + due_time), o sistema envia a mensagem automaticamente para o contato da conversa
-5. Após o envio, a tarefa pode ser marcada como concluída automaticamente
+**Políticas Problemáticas Atuais:**
 
----
+| Tabela | Operação | Problema |
+|--------|----------|----------|
+| `funnel_deal_history` | INSERT | Só permite se `deal.user_id = auth.uid()` |
+| `funnel_deal_history` | SELECT | Só permite se `deal.user_id = auth.uid()` |
+| `funnel_deals` | UPDATE | Só permite se `user_id = auth.uid()` |
+| `funnel_deals` | DELETE | Só permite se `user_id = auth.uid()` |
+| `funnel_stages` | INSERT | Só permite se `funnel.user_id = auth.uid()` |
 
-## Visual do Fluxo
+### Fluxo do Erro
 
 ```text
-+------------------------------------------+
-| Título da tarefa                         |
-+------------------------------------------+
-| Descrição (opcional)                     |
-+------------------------------------------+
-| [dd/mm/yyyy] 📅    | [--:--] ⏰           |
-+------------------------------------------+
-| [Normal ▼]                               |
-+------------------------------------------+
-| [🏷 Tipo] [👤 Atribuir] [💬 Mensagem]    |   ← Novo botão
-+------------------------------------------+
-
-Ao clicar em "Mensagem":
-+------------------------------------------+
-| 💬 Agendar Mensagem                      |
-+------------------------------------------+
-| ○ Selecionar Template                    |
-|   [Selecione um template ▼]              |
-|                                          |
-| ○ Escrever Manualmente                   |
-|   +------------------------------------+ |
-|   | Digite sua mensagem...             | |
-|   +------------------------------------+ |
-+------------------------------------------+
-| Será enviada em: 05/02 às 10:00          |
-+------------------------------------------+
+1. Membro "Matheus" (user_id: A) tenta mover um deal
+2. Deal pertence a "Dono da Org" (user_id: B)
+3. Matheus faz UPDATE no funnel_deals → BLOQUEADO (user_id != auth.uid())
+4. Se passasse, tentaria INSERT no funnel_deal_history → BLOQUEADO
 ```
 
 ---
 
-## Mudanças Necessárias
+## Solução
 
-### 1. Banco de Dados
+Atualizar as políticas RLS para usar a função `get_organization_member_ids()` que já existe e é usada em outras políticas (como SELECT de funnel_deals).
 
-Criar nova tabela para mensagens agendadas:
+### Políticas a Corrigir
 
-| Tabela | `scheduled_task_messages` |
-|--------|---------------------------|
-| `id` | uuid (PK) |
-| `task_id` | uuid (FK → conversation_tasks) |
-| `conversation_id` | uuid (FK → conversations) |
-| `contact_id` | uuid (FK → contacts) |
-| `user_id` | uuid |
-| `template_id` | uuid (nullable, FK → message_templates) |
-| `message_content` | text |
-| `scheduled_at` | timestamptz |
-| `status` | text ('pending', 'sent', 'failed') |
-| `sent_at` | timestamptz (nullable) |
-| `error_message` | text (nullable) |
-| `created_at` | timestamptz |
+#### 1. funnel_deal_history - INSERT (Principal)
+```sql
+-- DE:
+WITH CHECK (EXISTS (
+  SELECT 1 FROM funnel_deals
+  WHERE funnel_deals.id = funnel_deal_history.deal_id 
+  AND funnel_deals.user_id = auth.uid()
+))
 
-### 2. Frontend - Novo Componente Seletor de Mensagem
+-- PARA:
+WITH CHECK (EXISTS (
+  SELECT 1 FROM funnel_deals
+  WHERE funnel_deals.id = funnel_deal_history.deal_id 
+  AND (funnel_deals.user_id = auth.uid() 
+       OR funnel_deals.user_id IN (SELECT get_organization_member_ids(auth.uid())))
+))
+```
 
-**Arquivo:** `src/components/calendar/MessageSelector.tsx`
+#### 2. funnel_deal_history - SELECT
+```sql
+-- Atualizar para incluir membros da organização
+USING (EXISTS (
+  SELECT 1 FROM funnel_deals
+  WHERE funnel_deals.id = funnel_deal_history.deal_id 
+  AND (funnel_deals.user_id = auth.uid() 
+       OR funnel_deals.user_id IN (SELECT get_organization_member_ids(auth.uid())))
+))
+```
 
-Componente com:
-- Popover trigger estilo dos outros seletores (Tipo, Atribuir)
-- Radio buttons para "Template" ou "Manual"
-- Select para templates (usa `useMessageTemplates`)
-- Textarea para mensagem manual
-- Preview da mensagem quando template selecionado
-- Indicador do horário agendado
+#### 3. funnel_deals - UPDATE
+```sql
+-- DE:
+USING (auth.uid() = user_id)
 
-### 3. Frontend - TasksTab
+-- PARA:
+USING (user_id = auth.uid() 
+       OR user_id IN (SELECT get_organization_member_ids(auth.uid())))
+```
 
-**Arquivo:** `src/components/inbox/TasksTab.tsx`
+#### 4. funnel_deals - DELETE
+```sql
+-- DE:
+USING (auth.uid() = user_id)
 
-- Adicionar estados: `newMessageTemplateId`, `newMessageContent`, `newMessageMode`
-- Adicionar o componente `MessageSelector` ao lado de `AssigneeSelector`
-- Ao criar tarefa, se houver mensagem, criar registro em `scheduled_task_messages`
-- Exibir indicador visual nas tarefas que têm mensagem agendada
+-- PARA:
+USING (user_id = auth.uid() 
+       OR user_id IN (SELECT get_organization_member_ids(auth.uid())))
+```
 
-### 4. Backend - Edge Function para Processar Mensagens Agendadas
+#### 5. funnel_stages - INSERT
+```sql
+-- DE:
+WITH CHECK (EXISTS (
+  SELECT 1 FROM funnels
+  WHERE funnels.id = funnel_stages.funnel_id 
+  AND funnels.user_id = auth.uid()
+))
 
-**Arquivo:** `supabase/functions/process-scheduled-task-messages/index.ts`
-
-- Executada via pg_cron a cada minuto
-- Busca mensagens com `status = 'pending'` e `scheduled_at <= now()`
-- Para cada mensagem:
-  - Busca a instância WhatsApp da conversa
-  - Substitui variáveis do template (se aplicável)
-  - Envia via `send-inbox-message`
-  - Atualiza status para 'sent' ou 'failed'
-  - Opcionalmente marca a tarefa como concluída
-
-### 5. Hook para Mensagens Agendadas
-
-**Arquivo:** `src/hooks/useScheduledMessages.ts`
-
-- Query para buscar mensagens agendadas de uma tarefa
-- Mutation para criar/atualizar/deletar mensagem agendada
-
----
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Ação |
-|---------|------|
-| Migração SQL | Criar tabela `scheduled_task_messages` |
-| Migração SQL | Criar job pg_cron |
-| `src/components/calendar/MessageSelector.tsx` | Novo componente |
-| `src/components/inbox/TasksTab.tsx` | Integrar seletor de mensagem |
-| `src/hooks/useScheduledMessages.ts` | Novo hook |
-| `supabase/functions/process-scheduled-task-messages/index.ts` | Nova edge function |
+-- PARA:
+WITH CHECK (EXISTS (
+  SELECT 1 FROM funnels
+  WHERE funnels.id = funnel_stages.funnel_id 
+  AND (funnels.user_id = auth.uid() 
+       OR funnels.user_id IN (SELECT get_organization_member_ids(auth.uid())))
+))
+```
 
 ---
 
-## Comportamento Esperado
+## Resumo das Alterações
 
-1. Usuário cria tarefa com título "Lembrar sobre proposta"
-2. Define data: 05/02/2026 às 10:00
-3. Clica em "Mensagem" → Seleciona template "Lembrete de Proposta"
-4. Clica em "Criar"
-5. Sistema cria a tarefa e agendaa mensagem
-6. No dia 05/02 às 10:00, o sistema automaticamente:
-   - Busca a instância conectada da conversa
-   - Substitui {{nome}} pelo nome do contato
-   - Envia a mensagem via WhatsApp
-   - Marca a tarefa como concluída (opcional)
+| Tabela | Operação | Status Atual | Após Correção |
+|--------|----------|--------------|---------------|
+| `funnel_deal_history` | INSERT | Só dono | Dono + Org |
+| `funnel_deal_history` | SELECT | Só dono | Dono + Org |
+| `funnel_deals` | UPDATE | Só dono | Dono + Org |
+| `funnel_deals` | DELETE | Só dono | Dono + Org |
+| `funnel_stages` | INSERT | Só dono | Dono + Org |
 
 ---
 
-## Indicadores Visuais
+## Resultado Esperado
 
-Na lista de tarefas, tarefas com mensagem agendada exibirão:
-- Ícone de mensagem (💬) junto aos outros badges
-- Ao passar o mouse, preview da mensagem
-- Status: pendente (amarelo), enviada (verde), falhou (vermelho)
-
----
-
-## Validações
-
-- Só permite agendar mensagem se a tarefa tiver data E hora definidas
-- Não permite agendar para datas/horas passadas
-- Requer que a conversa tenha uma instância WhatsApp válida
-- Template ou mensagem manual é obrigatório se o botão for ativado
+Após a correção:
+1. Qualquer membro da organização poderá mover leads no funil
+2. O histórico de movimentação será registrado corretamente
+3. A visualização continuará funcionando (já está ok)
+4. A segurança é mantida (apenas membros da mesma organização)
 
 ---
 
-## Observação Importante
+## Seção Técnica
 
-As variáveis de template (como {{nome}}, {{telefone}}) serão substituídas no momento do envio, garantindo que os dados estejam atualizados.
+### Migração SQL Completa
+
+```sql
+-- 1. funnel_deal_history - DROP e CREATE novas políticas
+DROP POLICY IF EXISTS "Users can create history for their deals" ON funnel_deal_history;
+DROP POLICY IF EXISTS "Users can view history of their deals" ON funnel_deal_history;
+
+CREATE POLICY "Org members can create history for org deals" ON funnel_deal_history
+FOR INSERT TO authenticated
+WITH CHECK (EXISTS (
+  SELECT 1 FROM funnel_deals
+  WHERE funnel_deals.id = funnel_deal_history.deal_id 
+  AND (funnel_deals.user_id = auth.uid() 
+       OR funnel_deals.user_id IN (SELECT get_organization_member_ids(auth.uid())))
+));
+
+CREATE POLICY "Org members can view history of org deals" ON funnel_deal_history
+FOR SELECT TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM funnel_deals
+  WHERE funnel_deals.id = funnel_deal_history.deal_id 
+  AND (funnel_deals.user_id = auth.uid() 
+       OR funnel_deals.user_id IN (SELECT get_organization_member_ids(auth.uid())))
+));
+
+-- 2. funnel_deals - UPDATE e DELETE
+DROP POLICY IF EXISTS "Users can update their own deals" ON funnel_deals;
+DROP POLICY IF EXISTS "Users can delete their own deals" ON funnel_deals;
+
+CREATE POLICY "Org members can update org deals" ON funnel_deals
+FOR UPDATE TO authenticated
+USING (user_id = auth.uid() 
+       OR user_id IN (SELECT get_organization_member_ids(auth.uid())));
+
+CREATE POLICY "Org members can delete org deals" ON funnel_deals
+FOR DELETE TO authenticated
+USING (user_id = auth.uid() 
+       OR user_id IN (SELECT get_organization_member_ids(auth.uid())));
+
+-- 3. funnel_stages - INSERT
+DROP POLICY IF EXISTS "Users can create stages in their funnels" ON funnel_stages;
+
+CREATE POLICY "Org members can create stages in org funnels" ON funnel_stages
+FOR INSERT TO authenticated
+WITH CHECK (EXISTS (
+  SELECT 1 FROM funnels
+  WHERE funnels.id = funnel_stages.funnel_id 
+  AND (funnels.user_id = auth.uid() 
+       OR funnels.user_id IN (SELECT get_organization_member_ids(auth.uid())))
+));
+```
+
+### Observação sobre TO authenticated
+
+Todas as novas políticas usam `TO authenticated` explicitamente, seguindo a recomendação do Supabase para evitar que políticas sejam aplicadas ao role errado.
