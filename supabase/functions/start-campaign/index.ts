@@ -549,6 +549,7 @@ Deno.serve(async (req) => {
         sent: 0,
         delivered: 0,
         failed: 0,
+        skipped: skippedCount, // Track duplicate/skipped contacts
         target_funnel_id: targetFunnelId,
         target_stage_id: targetStageId
       })

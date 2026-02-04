@@ -1117,6 +1117,7 @@ export type Database = {
           skip_already_sent: boolean | null
           skip_days_period: number | null
           skip_mode: string | null
+          skipped: number | null
           started_at: string | null
           status: string
           tag_on_delivery_id: string | null
@@ -1160,6 +1161,7 @@ export type Database = {
           skip_already_sent?: boolean | null
           skip_days_period?: number | null
           skip_mode?: string | null
+          skipped?: number | null
           started_at?: string | null
           status?: string
           tag_on_delivery_id?: string | null
@@ -1203,6 +1205,7 @@ export type Database = {
           skip_already_sent?: boolean | null
           skip_days_period?: number | null
           skip_mode?: string | null
+          skipped?: number | null
           started_at?: string | null
           status?: string
           tag_on_delivery_id?: string | null

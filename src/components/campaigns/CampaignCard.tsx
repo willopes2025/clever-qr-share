@@ -15,7 +15,9 @@ import {
   XCircle,
   Loader2,
   Calendar,
-  RotateCcw
+  RotateCcw,
+  Send,
+  Ban
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -103,24 +105,39 @@ export const CampaignCard = ({
       </div>
 
       {(campaign.status === 'sending' || campaign.status === 'completed') && (
-        <div className="space-y-2 mb-4">
+        <div className="space-y-3 mb-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Progresso</span>
             <span className="font-medium">{progress}%</span>
           </div>
           <Progress value={progress} className="h-2" />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{campaign.sent} de {campaign.total_contacts} enviados</span>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-green-600">
-                <CheckCircle2 className="h-3 w-3" />
-                {campaign.delivered}
-              </span>
-              <span className="flex items-center gap-1 text-red-600">
-                <XCircle className="h-3 w-3" />
-                {campaign.failed}
-              </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+            <div className="flex items-center gap-1.5">
+              <Send className="h-3 w-3 text-blue-500" />
+              <span className="text-muted-foreground">Enviados:</span>
+              <span className="font-medium">{campaign.sent}</span>
             </div>
+            <div className="flex items-center gap-1.5 text-green-600">
+              <CheckCircle2 className="h-3 w-3" />
+              <span className="text-muted-foreground text-green-600/70">Entregues:</span>
+              <span className="font-medium">{campaign.delivered}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-red-600">
+              <XCircle className="h-3 w-3" />
+              <span className="text-muted-foreground text-red-600/70">Falhas:</span>
+              <span className="font-medium">{campaign.failed}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Ban className="h-3 w-3" />
+              <span>Duplicados:</span>
+              <span className="font-medium">{campaign.skipped || 0}</span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground border-t pt-2">
+            <span className="flex items-center gap-1.5">
+              <Users className="h-3 w-3" />
+              Total na lista: <span className="font-medium">{campaign.total_contacts + (campaign.skipped || 0)}</span>
+            </span>
           </div>
         </div>
       )}
