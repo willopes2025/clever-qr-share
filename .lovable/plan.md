@@ -1,76 +1,157 @@
 
-# Plano: Corrigir Envio de Mensagens para Contatos LID
+# Plano: Transformar Site em PWA (Android + iOS)
 
-## Problema Identificado
+## Situacao Atual
 
-Os leads com erro mostram telefones no formato `LID_197186377756911`. Estes são contatos vindos de **Click-to-WhatsApp Ads**, onde o WhatsApp não fornece o número real, apenas um **Label ID (LID)**.
+O projeto ja possui algumas configuracoes basicas para mobile:
+- Meta tags `apple-mobile-web-app-capable` e `apple-mobile-web-app-status-bar-style` ja existem
+- Meta tag `theme-color` ja existe (cor `#215C54`)
+- Favicon ja configurado
 
-### Erro nos Logs
+**O que falta:**
+- Arquivo manifest.webmanifest
+- Service Worker
+- Icones PWA (192x192 e 512x512)
+- Link para o manifest no HTML
+- Registro do Service Worker no React
+- Apple touch icon
 
-```
-Evolution API response: {"status":400,"error":"Bad Request","response":{"message":[{"jid":"197186377756911@s.whatsapp.net","exists":false,"number":"197186377756911"}]}}
-```
+## Arquivos a Criar
 
-A Evolution API está tentando verificar se `197186377756911` é um número de telefone válido no WhatsApp, e obviamente falha porque LIDs não são números reais.
+| Arquivo | Descricao |
+|---------|-----------|
+| `public/manifest.webmanifest` | Manifesto PWA com configuracoes do app |
+| `public/service-worker.js` | Service Worker basico |
+| `public/icon-192.png` | Icone 192x192 para PWA |
+| `public/icon-512.png` | Icone 512x512 para PWA |
 
-### Causa Raiz
+## Arquivos a Modificar
 
-No arquivo `send-inbox-message/index.ts`, linha 144-145:
+| Arquivo | Alteracao |
+|---------|-----------|
+| `index.html` | Adicionar link para manifest e apple-touch-icon |
+| `src/main.tsx` | Registrar Service Worker |
 
-```typescript
-const sendPayload = isLidMessage 
-  ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: content }
-  : { number: phone, text: content };
-```
+## Detalhes Tecnicos
 
-O código está removendo o sufixo `@lid`, enviando apenas o ID numérico (`197186377756911`).
+### 1. Manifest (public/manifest.webmanifest)
 
-### Código Correto (do ai-campaign-agent)
-
-```typescript
-// Em ai-campaign-agent/index.ts, linhas 1890-1895:
-if (rawPhone.startsWith('LID_')) {
-  isLidContact = true;
-  const labelId = rawPhone.replace('LID_', '');
-  phone = `${labelId}@lid`;  // ← MANTÉM o @lid!
+```json
+{
+  "name": "Widezap",
+  "short_name": "Widezap",
+  "description": "Plataforma de Disparo WhatsApp com QR Code Ilimitado",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0F0F0F",
+  "theme_color": "#215C54",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
 ```
 
-A Evolution API requer que contatos LID sejam enviados com o formato `{labelId}@lid` completo.
+### 2. Service Worker (public/service-worker.js)
 
-## Solução
+```javascript
+const CACHE_NAME = 'widezap-v1';
 
-Modificar `send-inbox-message/index.ts` para manter o formato `@lid`:
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.filter((name) => name !== CACHE_NAME)
+          .map((name) => caches.delete(name))
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  // Network-first strategy para SPA
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/'))
+    );
+  }
+});
+```
+
+### 3. Alteracoes no index.html
+
+Adicionar dentro do `<head>`:
+
+```html
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+```
+
+### 4. Registro do Service Worker (src/main.tsx)
+
+Adicionar apos o render:
 
 ```typescript
-// ANTES (bugado):
-const sendPayload = isLidMessage 
-  ? { number: remoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: content }
-  : { number: phone, text: content };
-
-// DEPOIS (correto):
-const sendPayload = isLidMessage 
-  ? { number: remoteJid, options: { presence: 'composing' }, text: content }
-  : { number: phone, text: content };
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then((registration) => {
+        console.log('SW registered:', registration.scope);
+      })
+      .catch((error) => {
+        console.log('SW registration failed:', error);
+      });
+  });
+}
 ```
 
-## Arquivo a Modificar
+### 5. Icones PWA
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/send-inbox-message/index.ts` | Manter `@lid` no payload para contatos LID |
+Serao criados icones placeholder com as dimensoes corretas:
+- `icon-192.png`: 192x192 pixels
+- `icon-512.png`: 512x512 pixels
 
-## Fluxo Após Correção
+Nota: Os icones serao criados como placeholders. Voce pode substituir depois por icones personalizados com o logo do Widezap.
 
-```text
-1. Usuário envia mensagem para contato LID
-2. Sistema detecta phone = "LID_197186377756911"
-3. Formata remoteJid = "197186377756911@lid"
-4. Payload enviado = { number: "197186377756911@lid", text: "..." }
-5. Evolution API reconhece formato LID e envia corretamente ✅
-```
+## Compatibilidade com React Router
 
-## Nota Importante
+O Service Worker ja esta configurado com estrategia "network-first" para navegacao, garantindo que:
+- Todas as rotas SPA funcionem corretamente
+- Em caso de offline, retorna a pagina inicial para o React Router gerenciar
+- Nao interfere no roteamento existente
 
-Contatos com LID puro (sem número real armazenado) são uma limitação do WhatsApp para proteger privacidade de usuários que clicam em anúncios. Não há como "recuperar" o número real desses contatos - só é possível responder usando o LID enquanto a sessão estiver ativa no WhatsApp Business.
+## Resultado Esperado
 
+**Android (Chrome):**
+- Banner "Instalar app" aparece automaticamente
+- App abre em tela cheia (modo standalone)
+- Icone na home screen
+
+**iOS (Safari):**
+- Compartilhar → Adicionar a Tela de Inicio
+- App abre em modo standalone
+- Status bar com estilo translucido
+
+**Validacao Tecnica:**
+- Manifest acessivel via `/manifest.webmanifest`
+- Service Worker registrado corretamente
+- Lighthouse PWA score melhorado
+- Pronto para empacotamento via Bubblewrap (TWA)
