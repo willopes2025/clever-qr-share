@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -169,7 +169,7 @@ const Subscription = () => {
   const isOrgMember = subscription?.is_organization_member === true;
 
   return (
-    <DashboardLayout className="p-8 cyber-grid">
+    <AppLayout pageTitle="Assinatura" className="p-4 md:p-8 cyber-grid">
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Assinatura</h1>
         <p className="text-muted-foreground">
@@ -555,7 +555,7 @@ const Subscription = () => {
           </CardContent>
         </Card>
       </motion.div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

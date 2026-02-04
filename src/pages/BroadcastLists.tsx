@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,7 +93,7 @@ const BroadcastLists = () => {
   };
 
   return (
-    <DashboardLayout className="p-8 cyber-grid">
+    <AppLayout pageTitle="Listas" className="p-4 md:p-8 cyber-grid">
       <FeatureGate feature="broadcast">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -238,7 +238,7 @@ const BroadcastLists = () => {
         </AlertDialogContent>
       </AlertDialog>
       </FeatureGate>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

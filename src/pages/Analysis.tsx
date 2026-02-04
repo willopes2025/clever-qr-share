@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
@@ -61,7 +61,7 @@ export default function Analysis() {
 
   if (!hasAccess) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Análise">
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
           <div className="bg-primary/10 p-4 rounded-full mb-6">
             <Sparkles className="h-12 w-12 text-primary" />
@@ -75,24 +75,24 @@ export default function Analysis() {
             Fazer Upgrade
           </Button>
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   if (selectedReport) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Análise">
         <AnalysisReportDetail 
           report={selectedReport} 
           onBack={() => setSelectedReport(null)}
           onExport={() => handleExportPDF(selectedReport)}
         />
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Análise">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -312,6 +312,6 @@ export default function Analysis() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 }

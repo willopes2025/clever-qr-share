@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { MonthView } from "@/components/calendar/MonthView";
 import { WeekView } from "@/components/calendar/WeekView";
@@ -61,7 +61,7 @@ export default function Calendar() {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Calendário">
       <div className="flex flex-col h-[calc(100vh-4rem)]">
         <div className="p-4 md:p-6 border-b">
           <CalendarHeader
@@ -131,6 +131,6 @@ export default function Calendar() {
         onOpenChange={setDetailDialogOpen}
         task={selectedTask}
       />
-    </DashboardLayout>
+    </AppLayout>
   );
 }

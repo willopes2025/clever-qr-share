@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { ChatbotFlowList } from "@/components/chatbot-builder/ChatbotFlowList";
 import { ChatbotFlowEditor } from "@/components/chatbot-builder/ChatbotFlowEditor";
 import { ChatbotFlowFormDialog } from "@/components/chatbot-builder/ChatbotFlowFormDialog";
@@ -14,7 +14,7 @@ const Chatbots = () => {
 
   if (selectedFlow) {
     return (
-      <DashboardLayout>
+      <AppLayout pageTitle="Chatbots">
         <div className="h-screen flex flex-col">
           <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-card shrink-0">
             <div className="flex items-center gap-3">
@@ -35,12 +35,12 @@ const Chatbots = () => {
           </div>
           <ChatbotFlowEditor flow={selectedFlow} />
         </div>
-      </DashboardLayout>
+      </AppLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Chatbots">
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -72,7 +72,7 @@ const Chatbots = () => {
           onOpenChange={setShowCreateDialog}
         />
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus } from "lucide-react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,7 +67,7 @@ const Funnels = () => {
   };
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Funis">
       <FeatureGate feature="funnels">
       <div className="p-6 space-y-6">
         {/* Header */}
@@ -270,7 +270,7 @@ const Funnels = () => {
         </AlertDialogContent>
       </AlertDialog>
       </FeatureGate>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 

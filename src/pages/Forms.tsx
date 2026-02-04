@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, FileEdit, Loader2 } from "lucide-react";
@@ -18,7 +18,7 @@ const Forms = () => {
   );
 
   return (
-    <DashboardLayout>
+    <AppLayout pageTitle="Formulários">
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -63,7 +63,7 @@ const Forms = () => {
           onOpenChange={setShowCreateDialog} 
         />
       </div>
-    </DashboardLayout>
+    </AppLayout>
   );
 };
 
