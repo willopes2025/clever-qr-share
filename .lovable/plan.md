@@ -1,19 +1,21 @@
 
-
-# Plano: Filtro Alfabético para Inicio de Nome em Disparos
+# Plano: Adicionar Estatísticas Detalhadas no Card de Campanha
 
 ## Resumo
 
-Adicionar a capacidade de filtrar contatos pelo prefixo do nome (por exemplo: "Ai", "Ao", "Ma") ao criar ou editar uma campanha de disparo. Isso permite que você comece a disparar apenas para contatos cujos nomes iniciam com determinadas letras ou sílabas.
+Melhorar o card de campanha para exibir estatísticas completas: **enviados**, **falhas**, **total** e **duplicados** (contatos que foram pulados por já terem recebido o template).
 
 ---
 
-## Como Vai Funcionar
+## Situação Atual
 
-1. Na tela de criação/edição de campanha, nas **Configurações de Envio** (seção avançada), haverá um novo campo: **"Filtrar por início do nome"**
-2. Você pode digitar um ou mais prefixos separados por vírgula (ex: "Ai, Ao, Ma")
-3. Apenas contatos cujos nomes começam com esses prefixos serão incluídos no disparo
-4. O filtro é aplicado **antes** de criar a fila de mensagens, então contatos que não correspondem nem entram na fila
+O card atualmente exibe:
+- Progresso em porcentagem
+- `X de Y enviados`
+- ✓ Entregues (verde)
+- ✗ Falhas (vermelho)
+
+**Problema identificado:** Os contatos duplicados são filtrados **antes** de criar registros na fila, então não há como rastrear quantos foram pulados.
 
 ---
 
@@ -21,116 +23,128 @@ Adicionar a capacidade de filtrar contatos pelo prefixo do nome (por exemplo: "A
 
 ### 1. Banco de Dados
 
-Adicionar nova coluna na tabela `campaigns`:
+Adicionar campo `skipped` na tabela `campaigns`:
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| `name_prefix_filter` | `text[]` | Array de prefixos para filtrar nomes (ex: ["Ai", "Ao"]) |
+| `skipped` | `integer` | Contagem de contatos ignorados por duplicidade |
 
-### 2. Interface (Frontend)
-
-**Arquivo:** `src/components/campaigns/CampaignFormDialog.tsx`
-
-Adicionar na seção de Configurações de Envio:
-- Novo campo de input para prefixos
-- Instrução de uso (separar por vírgula)
-- Estado local para gerenciar os prefixos
-
-### 3. Hook de Campanhas
-
-**Arquivo:** `src/hooks/useCampaigns.ts`
-
-Atualizar para incluir o novo campo `name_prefix_filter` nas operações de criar/atualizar campanha.
-
-### 4. Edge Function (Backend)
+### 2. Backend (Edge Function)
 
 **Arquivo:** `supabase/functions/start-campaign/index.ts`
 
-Adicionar lógica para filtrar contatos pelo prefixo do nome **antes** de criar os registros na fila:
+- Atualizar o campo `skipped` na campanha após filtrar duplicados
+- O valor será: `totalContacts - filteredContacts.length`
 
-```text
-// Pseudocódigo
-if (campaign.name_prefix_filter && campaign.name_prefix_filter.length > 0) {
-  filteredContacts = contacts.filter(contact => {
-    const name = (contact.name || '').toLowerCase().trim();
-    return campaign.name_prefix_filter.some(prefix => 
-      name.startsWith(prefix.toLowerCase().trim())
-    );
-  });
+### 3. Frontend - Hook
+
+**Arquivo:** `src/hooks/useCampaigns.ts`
+
+Adicionar `skipped` na interface `Campaign`:
+
+```typescript
+export interface Campaign {
+  // ... campos existentes
+  skipped: number; // NOVO
 }
 ```
 
----
+### 4. Frontend - Card
 
-## Fluxo Visual
+**Arquivo:** `src/components/campaigns/CampaignCard.tsx`
+
+Atualizar a exibição de estatísticas:
 
 ```text
-Criação de Campanha
-     |
-     v
-[Configurações Avançadas]
-     |
-     v
-[Campo: Filtrar por início do nome]
-     |  Input: "Ai, Ao, Ma"
-     v
-[Salvar Campanha]
-     |
-     v
-[Iniciar Campanha] ---> start-campaign
-     |
-     v
-[Buscar contatos da lista]
-     |
-     v
-[Aplicar filtro de prefixo de nome] <-- NOVO
-     |
-     v
-[Aplicar filtro de exclusão (same_template, etc)]
-     |
-     v
-[Criar registros na fila apenas para contatos filtrados]
++----------------------------------------+
+| Progresso                          85% |
+| ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░                 |
+|                                        |
+| 85 de 100 enviados                     |
+|                                        |
+| ✓ 80 Entregues   ✗ 5 Falhas           |
+| ⊘ 15 Duplicados  📊 100 Total          |
++----------------------------------------+
+```
+
+Ou em formato de grid mais limpo:
+
+```text
++----------------------------------------+
+| Progresso                          85% |
+| ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░                 |
+|----------------------------------------|
+|  📤 85        | ✓ 80       | ✗ 5      |
+|  Enviados     | Entregues  | Falhas   |
+|----------------------------------------|
+|  ⊘ 15         | 📊 100                 |
+|  Duplicados   | Total                  |
++----------------------------------------+
 ```
 
 ---
 
-## Detalhes de Implementação
+## Detalhes Técnicos
 
-### Campo na Interface
+### Modificação no start-campaign
 
-```text
-+------------------------------------------+
-| Filtrar por Início do Nome (opcional)    |
-+------------------------------------------+
-| [  Ai, Ao, Ma                         ]  |
-| Separe múltiplos prefixos por vírgula    |
-+------------------------------------------+
+```typescript
+// Após filtrar duplicados
+const skippedCount = originalCount - filteredContacts.length;
+
+// Atualizar campanha com contagem de pulados
+await supabase
+  .from('campaigns')
+  .update({ 
+    skipped: skippedCount,
+    total_contacts: originalCount // manter total original
+  })
+  .eq('id', campaignId);
 ```
 
-### Exemplo de Uso
+### Modificação no CampaignCard.tsx
 
-- Lista tem 1.000 contatos
-- Usuário configura filtro: "Ai, Ao"
-- Resultado: Apenas contatos como "Aída", "Airan", "Aoshi" serão incluídos
-- Contatos como "Maria", "João" serão **excluídos** do disparo
+```typescript
+<div className="grid grid-cols-4 gap-2 text-xs">
+  <div className="flex items-center gap-1">
+    <Send className="h-3 w-3 text-blue-500" />
+    <span>{campaign.sent} Enviados</span>
+  </div>
+  <div className="flex items-center gap-1 text-green-600">
+    <CheckCircle2 className="h-3 w-3" />
+    <span>{campaign.delivered}</span>
+  </div>
+  <div className="flex items-center gap-1 text-red-600">
+    <XCircle className="h-3 w-3" />
+    <span>{campaign.failed}</span>
+  </div>
+  <div className="flex items-center gap-1 text-muted-foreground">
+    <Ban className="h-3 w-3" />
+    <span>{campaign.skipped || 0} Dup.</span>
+  </div>
+</div>
+```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Tipo | Descrição |
-|---------|------|-----------|
-| Migração SQL | Criar | Adicionar coluna `name_prefix_filter` |
-| `src/components/campaigns/CampaignFormDialog.tsx` | Modificar | Adicionar campo de input para prefixos |
-| `src/hooks/useCampaigns.ts` | Modificar | Incluir novo campo nas operações |
-| `supabase/functions/start-campaign/index.ts` | Modificar | Aplicar filtro de prefixo antes de criar fila |
+| Arquivo | Ação |
+|---------|------|
+| Migração SQL | Adicionar coluna `skipped` |
+| `supabase/functions/start-campaign/index.ts` | Salvar contagem de skipped |
+| `src/hooks/useCampaigns.ts` | Adicionar campo na interface |
+| `src/components/campaigns/CampaignCard.tsx` | Exibir novas estatísticas |
 
 ---
 
-## Resultado Esperado
+## Resultado Visual Esperado
 
-1. Usuário pode configurar prefixos de nome ao criar campanha
-2. Ao iniciar disparo, apenas contatos com nomes que começam com os prefixos entram na fila
-3. Contagem de contatos reflete apenas os que serão enviados
-4. Logs indicam quantos contatos foram filtrados pelo prefixo
+O card passará a mostrar:
+- **Enviados:** Quantidade de mensagens enviadas
+- **Entregues:** Confirmados como entregues (verde)
+- **Falhas:** Que falharam no envio (vermelho)
+- **Duplicados:** Contatos pulados por já terem recebido (cinza)
+- **Total:** Total original de contatos na lista
 
+Isso dará visibilidade completa sobre o desempenho do disparo.
