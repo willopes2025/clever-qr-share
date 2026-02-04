@@ -101,7 +101,12 @@ Deno.serve(async (req) => {
 
         // Determinar o JID do contato
         let remoteJid = contact.phone;
-        if (!remoteJid.includes("@")) {
+        
+        // Suporte para contatos LID (Click-to-WhatsApp Ads)
+        if (remoteJid.startsWith("LID_") || contact.label_id) {
+          const lidValue = contact.label_id || remoteJid.replace("LID_", "");
+          remoteJid = `${lidValue}@lid`;
+        } else if (!remoteJid.includes("@")) {
           // Limpar número e adicionar sufixo WhatsApp
           const cleanPhone = remoteJid.replace(/\D/g, "");
           remoteJid = `${cleanPhone}@s.whatsapp.net`;
