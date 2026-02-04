@@ -1117,6 +1117,7 @@ export type Database = {
           skip_already_sent: boolean | null
           skip_days_period: number | null
           skip_mode: string | null
+          skip_tag_id: string | null
           skipped: number | null
           started_at: string | null
           status: string
@@ -1161,6 +1162,7 @@ export type Database = {
           skip_already_sent?: boolean | null
           skip_days_period?: number | null
           skip_mode?: string | null
+          skip_tag_id?: string | null
           skipped?: number | null
           started_at?: string | null
           status?: string
@@ -1205,6 +1207,7 @@ export type Database = {
           skip_already_sent?: boolean | null
           skip_days_period?: number | null
           skip_mode?: string | null
+          skip_tag_id?: string | null
           skipped?: number | null
           started_at?: string | null
           status?: string
@@ -1230,6 +1233,13 @@ export type Database = {
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "broadcast_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_skip_tag_id_fkey"
+            columns: ["skip_tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
           {

@@ -36,8 +36,9 @@ export interface Campaign {
   timezone: string | null;
   // Duplicate control settings
   skip_already_sent: boolean | null;
-  skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | null;
+  skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag' | null;
   skip_days_period: number | null;
+  skip_tag_id: string | null;
   // Tag on delivery
   tag_on_delivery_id: string | null;
   // AI Agent settings
@@ -190,8 +191,9 @@ export const useCampaignMutations = () => {
       timezone?: string;
       // Duplicate control settings
       skip_already_sent?: boolean;
-      skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+      skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag';
       skip_days_period?: number;
+      skip_tag_id?: string | null;
       // Tag on delivery
       tag_on_delivery_id?: string | null;
       // AI settings
@@ -237,6 +239,7 @@ export const useCampaignMutations = () => {
           skip_already_sent: data.skip_already_sent,
           skip_mode: data.skip_mode,
           skip_days_period: data.skip_days_period,
+          skip_tag_id: data.skip_tag_id,
           tag_on_delivery_id: data.tag_on_delivery_id,
           ai_enabled: data.ai_enabled,
           ai_prompt: data.ai_prompt,
@@ -279,8 +282,9 @@ export const useCampaignMutations = () => {
       allowed_days?: string[];
       timezone?: string;
       skip_already_sent?: boolean;
-      skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+      skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag';
       skip_days_period?: number;
+      skip_tag_id?: string | null;
       tag_on_delivery_id?: string | null;
       ai_enabled?: boolean;
       ai_prompt?: string;

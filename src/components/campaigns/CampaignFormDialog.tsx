@@ -35,8 +35,9 @@ interface CampaignFormDialogProps {
     allowed_days: string[];
     timezone: string;
     skip_already_sent: boolean;
-    skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+    skip_mode: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag';
     skip_days_period: number;
+    skip_tag_id: string | null;
     tag_on_delivery_id: string | null;
     ai_enabled: boolean;
     ai_prompt: string;
@@ -89,8 +90,9 @@ export const CampaignFormDialog = ({
 
   // Duplicate control settings
   const [skipAlreadySent, setSkipAlreadySent] = useState(true);
-  const [skipMode, setSkipMode] = useState<'same_campaign' | 'same_template' | 'same_list' | 'any_campaign'>('same_template');
+  const [skipMode, setSkipMode] = useState<'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag'>('same_template');
   const [skipDaysPeriod, setSkipDaysPeriod] = useState(30);
+  const [skipTagId, setSkipTagId] = useState<string | null>(null);
 
   // AI Agent settings - now just selecting an existing agent
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -148,6 +150,7 @@ export const CampaignFormDialog = ({
       setSkipAlreadySent(campaign.skip_already_sent ?? true);
       setSkipMode(campaign.skip_mode ?? 'same_template');
       setSkipDaysPeriod(campaign.skip_days_period ?? 30);
+      setSkipTagId(campaign.skip_tag_id || null);
       setAiEnabled(campaign.ai_enabled ?? false);
       setEnableTagOnDelivery(!!campaign.tag_on_delivery_id);
       setTagOnDeliveryId(campaign.tag_on_delivery_id || null);
@@ -167,6 +170,7 @@ export const CampaignFormDialog = ({
       setSkipAlreadySent(true);
       setSkipMode('same_template');
       setSkipDaysPeriod(30);
+      setSkipTagId(null);
       setAiEnabled(false);
       setSelectedAgentId(null);
       setEnableTagOnDelivery(false);
@@ -224,6 +228,7 @@ export const CampaignFormDialog = ({
       skip_already_sent: skipAlreadySent,
       skip_mode: skipMode,
       skip_days_period: skipDaysPeriod,
+      skip_tag_id: skipMode === 'has_tag' ? skipTagId : null,
       tag_on_delivery_id: enableTagOnDelivery ? tagOnDeliveryId : null,
       ai_enabled: aiEnabled && !!selectedAgentId,
       ai_prompt: '',
@@ -459,6 +464,7 @@ export const CampaignFormDialog = ({
                           <SelectItem value="same_list">Mesma Lista</SelectItem>
                           <SelectItem value="any_campaign">Qualquer Campanha</SelectItem>
                           <SelectItem value="same_campaign">Esta Campanha (para retomadas)</SelectItem>
+                          <SelectItem value="has_tag">Contatos com Tag</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
@@ -466,22 +472,56 @@ export const CampaignFormDialog = ({
                         {skipMode === 'same_list' && 'Exclui contatos que já receberam campanhas desta lista'}
                         {skipMode === 'any_campaign' && 'Exclui contatos que já receberam qualquer campanha'}
                         {skipMode === 'same_campaign' && 'Exclui apenas contatos já enviados nesta campanha (útil para retomar)'}
+                        {skipMode === 'has_tag' && 'Exclui contatos que possuem uma tag específica'}
                       </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Período (dias)</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={skipDaysPeriod}
-                        onChange={(e) => setSkipDaysPeriod(parseInt(e.target.value) || 30)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Considerar envios dos últimos {skipDaysPeriod} dias
-                      </p>
-                    </div>
+                    {skipMode === 'has_tag' && (
+                      <div className="space-y-2">
+                        <Label>Tag de Exclusão</Label>
+                        <Select 
+                          value={skipTagId || 'none'} 
+                          onValueChange={(v) => setSkipTagId(v === 'none' ? null : v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione uma tag" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[100]">
+                            <SelectItem value="none">Nenhuma</SelectItem>
+                            {tags?.map((tag) => (
+                              <SelectItem key={tag.id} value={tag.id}>
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: tag.color }}
+                                  />
+                                  {tag.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Contatos com esta tag não receberão mensagens
+                        </p>
+                      </div>
+                    )}
+
+                    {skipMode !== 'has_tag' && (
+                      <div className="space-y-2">
+                        <Label>Período (dias)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={skipDaysPeriod}
+                          onChange={(e) => setSkipDaysPeriod(parseInt(e.target.value) || 30)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Considerar envios dos últimos {skipDaysPeriod} dias
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
