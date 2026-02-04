@@ -413,6 +413,11 @@ a[role="button"]:not([aria-disabled="true"]) {
   select {
     font-size: 16px !important;
   }
+  
+  /* Prevent tap highlight */
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 /* Hide desktop scrollbar on mobile */
@@ -425,4 +430,15 @@ a[role="button"]:not([aria-disabled="true"]) {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* Mobile scroll momentum */
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Overscroll contain for mobile */
+.overscroll-contain {
+  overscroll-behavior: contain;
 }
