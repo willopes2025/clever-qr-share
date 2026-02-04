@@ -1,112 +1,73 @@
 
-# Plano: Exclusão por Tag nos Critérios de Duplicatas
+# Correção: Erro "Bad Request" na Exclusão por Tag
 
-## Resumo
+## Problema Identificado
 
-Adicionar uma nova opção no **Critério de Exclusão** que permite excluir contatos que possuem uma tag específica. Isso é útil para evitar enviar campanhas para contatos que já receberam mensagens de campanhas anteriores (marcados com a tag "Tag de Entrega").
+O usuário **Matheus Suavel** tentou iniciar uma campanha com:
+- **2 instâncias** de disparo selecionadas
+- **1437 contatos** na lista (funil)
+- **Critério de exclusão:** Tag "Recebeu Ouvidoria"
 
----
+**Erro:** `Tag exclusion fetch error: { message: "Bad Request" }`
 
-## Como Vai Funcionar
-
-1. No dropdown "Critério de Exclusão", haverá uma nova opção: **"Contatos com Tag"**
-2. Ao selecionar essa opção, aparece um segundo campo para **selecionar qual tag** usar como critério
-3. Contatos que possuem essa tag serão excluídos do disparo
-4. Exemplo: Se você aplicou a tag "Campanha Janeiro" em todos que receberam, na próxima campanha pode excluir quem tem essa tag
+**Causa raiz:** O operador `.in('contact_id', contactIds)` do Supabase tem limite de ~1000 itens. Com 1437 contatos, a query falha.
 
 ---
 
-## Visual do Fluxo
+## Solução
+
+Mudar a abordagem: em vez de buscar "quais destes 1437 contatos têm a tag", buscar **todos os contatos com a tag** e depois filtrar localmente.
+
+### Lógica Atual (Problemática)
 
 ```text
-+------------------------------------------+
-| Critério de Exclusão                     |
-+------------------------------------------+
-| [v] Contatos com Tag                     |
-+------------------------------------------+
+SELECT contact_id FROM contact_tags 
+WHERE tag_id = 'xxx' 
+AND contact_id IN (1437 IDs) ← ESTOURA O LIMITE!
+```
 
-+------------------------------------------+
-| Tag de Exclusão                          |
-+------------------------------------------+
-| [v] Campanha Janeiro  [●]                |
-+------------------------------------------+
-| Exclui contatos que possuem esta tag     |
-+------------------------------------------+
+### Nova Lógica (Correta)
+
+```text
+SELECT contact_id FROM contact_tags 
+WHERE tag_id = 'xxx'                ← Busca todos com a tag (paginado)
+
+// Depois filtra localmente
+contacts.filter(c => !taggedIds.has(c.id))
 ```
 
 ---
 
-## Mudanças Necessárias
+## Arquivo a Modificar
 
-### 1. Banco de Dados
+**`supabase/functions/start-campaign/index.ts`**
 
-Adicionar nova coluna na tabela `campaigns`:
+Remover o `.in('contact_id', contactIds)` da query e fazer a interseção no código:
 
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `skip_tag_id` | `uuid` (nullable) | ID da tag a ser usada como critério de exclusão |
+```typescript
+// Antes (linha ~467-472)
+const { data: tagBatch } = await supabase
+  .from('contact_tags')
+  .select('contact_id')
+  .eq('tag_id', campaign.skip_tag_id)
+  .in('contact_id', contactIds)  // ← REMOVER ISSO
+  .range(tagOffset, tagOffset + pageSize - 1);
 
-### 2. Frontend - Formulário
-
-**Arquivo:** `src/components/campaigns/CampaignFormDialog.tsx`
-
-- Adicionar novo valor no `skip_mode`: `'has_tag'`
-- Adicionar estado `skipTagId` para armazenar a tag selecionada
-- Quando `skipMode === 'has_tag'`, exibir dropdown para selecionar a tag
-- Atualizar interface `onSubmit` para incluir `skip_tag_id`
-
-### 3. Frontend - Hook
-
-**Arquivo:** `src/hooks/useCampaigns.ts`
-
-- Adicionar `skip_tag_id` na interface `Campaign`
-- Adicionar tipo `'has_tag'` no union type de `skip_mode`
-- Incluir `skip_tag_id` nas operações de criar/atualizar
-
-### 4. Backend - Edge Function
-
-**Arquivo:** `supabase/functions/start-campaign/index.ts`
-
-Adicionar lógica para filtrar contatos por tag:
-
-```text
-if (skipMode === 'has_tag' && campaign.skip_tag_id) {
-  // Buscar IDs de contatos que têm a tag
-  const { data: taggedContacts } = await supabase
-    .from('contact_tags')
-    .select('contact_id')
-    .eq('tag_id', campaign.skip_tag_id);
-  
-  const taggedIds = new Set(taggedContacts.map(t => t.contact_id));
-  
-  // Excluir contatos que têm a tag
-  filteredContacts = contacts.filter(c => !taggedIds.has(c.id));
-}
+// Depois
+const { data: tagBatch } = await supabase
+  .from('contact_tags')
+  .select('contact_id')
+  .eq('tag_id', campaign.skip_tag_id)
+  .range(tagOffset, tagOffset + pageSize - 1);
 ```
 
----
-
-## Arquivos a Modificar
-
-| Arquivo | Ação |
-|---------|------|
-| Migração SQL | Adicionar coluna `skip_tag_id` |
-| `src/components/campaigns/CampaignFormDialog.tsx` | Nova opção + seletor de tag |
-| `src/hooks/useCampaigns.ts` | Incluir novo campo e tipo |
-| `supabase/functions/start-campaign/index.ts` | Lógica de exclusão por tag |
+A filtragem já acontece na linha 489 (`filter(c => !taggedIds.has(c.id))`), então só precisamos remover o `.in()` da query.
 
 ---
 
-## Comportamento Esperado
+## Resultado Esperado
 
-1. Usuário ativa "Evitar Duplicatas"
-2. Seleciona "Contatos com Tag" no critério
-3. Escolhe a tag (ex: "Já Recebeu Oferta")
-4. Ao iniciar campanha, todos os contatos com essa tag são removidos da fila
-5. O contador de "Duplicados" no card mostra quantos foram excluídos
-
----
-
-## Observação Importante
-
-O campo "Período (dias)" **não se aplica** quando o modo é "Contatos com Tag", pois a tag é permanente (não tem data de expiração). A interface vai ocultar esse campo quando o modo `has_tag` estiver selecionado.
+1. Edge function busca todos os contatos que têm a tag (paginado)
+2. Faz a interseção em memória com os contatos da lista
+3. Remove os que têm a tag do disparo
+4. Campanha inicia normalmente
