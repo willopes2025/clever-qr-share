@@ -1,73 +1,98 @@
 
-
-# Plano: Corrigir Sobreposicao do Usuario no Sidebar Mobile
+# Plano: Corrigir Detecção de Mobile no Primeiro Render
 
 ## Problema Identificado
 
-Na segunda imagem, o avatar do usuario esta aparecendo **no meio da lista de navegacao**, sobrepondo os itens "Disparos" e "Chatbots". Isso ocorre devido a um problema de layout no `MobileSidebarDrawer.tsx`.
+O hook `useIsMobile` está causando um "flash" de layout desktop antes de detectar corretamente que o dispositivo é mobile.
 
-## Causa Raiz
+### Código Atual com Problema
 
 ```typescript
-// Linha 175 - ScrollArea com altura fixa
-<ScrollArea className="flex-1 h-[calc(100vh-14rem)]">
+// src/hooks/use-mobile.tsx
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
 
-// Linha 233 - Secao inferior com posicao absoluta
-<div className="absolute bottom-0 left-0 right-0 ...">
+  React.useEffect(() => {
+    // ... detecção acontece aqui, APÓS primeiro render
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+  }, []);
+
+  return !!isMobile;  // ❌ undefined vira false = mostra desktop primeiro
+}
 ```
 
-O calculo `100vh - 14rem` (224px) nao reserva espaco suficiente para a secao inferior que ocupa aproximadamente 230px (user card + plan button + logout + paddings).
+### Fluxo do Problema
 
-Resultado: quando ha muitos itens de navegacao, a secao absoluta "sobe" e sobrepoe o conteudo.
+```text
+1ª Renderização → isMobile = undefined → !!undefined = false → DashboardLayout (desktop) ❌
+       ↓
+useEffect executa → isMobile = true → Re-render → MobileAppLayout (mobile) ✓
+       ↓
+Usuário vê "flash" do layout errado
+```
 
-## Solucao
+## Solução
 
-Remover o posicionamento absoluto e usar Flexbox para garantir que:
-1. A navegacao ocupe o espaco disponivel com scroll
-2. A secao inferior fique sempre fixa no fundo, sem sobrepor
+Inicializar o estado com detecção síncrona baseada na largura da janela, para que o primeiro render já tenha o valor correto.
 
-## Arquivos a Modificar
+### Código Corrigido
 
-| Arquivo | Alteracao |
+```typescript
+// src/hooks/use-mobile.tsx
+import * as React from "react";
+
+const MOBILE_BREAKPOINT = 768;
+
+// Helper para detectar mobile de forma síncrona
+const getIsMobile = () => {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < MOBILE_BREAKPOINT;
+};
+
+export function useIsMobile() {
+  // Inicializa com valor correto desde o primeiro render
+  const [isMobile, setIsMobile] = React.useState<boolean>(getIsMobile);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return isMobile;
+}
+```
+
+### Mudanças Principais
+
+| Antes | Depois |
+|-------|--------|
+| `useState<boolean \| undefined>(undefined)` | `useState<boolean>(getIsMobile)` |
+| Detecção apenas no useEffect | Detecção síncrona no init |
+| `return !!isMobile` (converte undefined para false) | `return isMobile` (já é boolean) |
+
+## Arquivo a Modificar
+
+| Arquivo | Alteração |
 |---------|-----------|
-| `src/components/MobileSidebarDrawer.tsx` | Corrigir layout com Flexbox |
+| `src/hooks/use-mobile.tsx` | Inicialização síncrona do estado |
 
-## Alteracao Proposta
+## Fluxo Corrigido
 
-### Antes (codigo atual)
-
-```typescript
-<ScrollArea className="flex-1 h-[calc(100vh-14rem)]">
-  <nav>...</nav>
-</ScrollArea>
-
-{/* Bottom section */}
-<div className="absolute bottom-0 left-0 right-0 ...">
+```text
+1ª Renderização → getIsMobile() = true (em mobile) → MobileAppLayout ✓
+       ↓
+useEffect registra listener para mudanças de tamanho
+       ↓
+Usuário vê layout correto imediatamente
 ```
-
-### Depois (correcao)
-
-```typescript
-<div className="flex flex-col h-[calc(100vh-3.5rem)]">
-  {/* Navigation - scrollable */}
-  <ScrollArea className="flex-1 min-h-0">
-    <nav>...</nav>
-  </ScrollArea>
-
-  {/* Bottom section - fixed at bottom, no absolute */}
-  <div className="flex-shrink-0 border-t ...">
-```
-
-## Detalhes Tecnicos
-
-1. **Container Flex**: Envolver ScrollArea e secao inferior em um container flex com altura fixa
-2. **ScrollArea**: Usar `flex-1 min-h-0` para crescer e permitir scroll interno
-3. **Secao Inferior**: Remover `absolute` e usar `flex-shrink-0` para nao encolher
 
 ## Resultado Esperado
 
-- Navegacao com scroll correto
-- Secao do usuario sempre visivel no fundo
-- Nenhuma sobreposicao de elementos
-- Layout responsivo independente da quantidade de itens
-
+- Interface mobile aparece corretamente desde o primeiro momento
+- Sem "flash" do layout desktop
+- Transições suaves ao redimensionar janela
+- Compatível com SSR (verifica `typeof window`)
