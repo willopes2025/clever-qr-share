@@ -441,9 +441,12 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${contacts.length} contacts in list`);
 
-    // Filter out contacts that already received messages based on skip settings
-    let filteredContacts = contacts;
-    let skippedCount = 0;
+     // Filter out contacts that already received messages based on skip settings
+     // IMPORTANT: Exclusion must work across duplicate contact records (e.g., org members / imports)
+     // so we exclude by PHONE (campaign_messages.phone) instead of contact_id.
+     const normalizePhone = (p: string) => String(p || '').replace(/\D/g, '');
+     let filteredContacts = contacts;
+     let skippedCount = 0;
 
     if (campaign.skip_already_sent !== false) {
       const skipMode = campaign.skip_mode || 'same_template';
@@ -481,8 +484,8 @@ Deno.serve(async (req) => {
         campaignIdsToCheck = userCampaigns?.map(c => c.id) || [];
       }
 
-      // Query already sent contacts with pagination to handle >1000 records
-      let allAlreadySentIds: string[] = [];
+       // Query already sent phones with pagination to handle >1000 records
+       let allAlreadySentPhones: string[] = [];
       let offset = 0;
       const pageSize = 1000;
       let hasMore = true;
@@ -490,7 +493,7 @@ Deno.serve(async (req) => {
       while (hasMore) {
         let alreadySentQuery = supabase
           .from('campaign_messages')
-          .select('contact_id')
+           .select('phone')
           .in('status', ['sent', 'delivered'])
           .gte('sent_at', periodStartISO)
           .range(offset, offset + pageSize - 1);
@@ -500,10 +503,15 @@ Deno.serve(async (req) => {
           alreadySentQuery = alreadySentQuery.in('campaign_id', campaignIdsToCheck);
         }
 
-        const { data: batch } = await alreadySentQuery;
+         const { data: batch } = await alreadySentQuery;
 
         if (batch && batch.length > 0) {
-          allAlreadySentIds.push(...batch.map(m => m.contact_id));
+           allAlreadySentPhones.push(
+             ...batch
+               .map((m: any) => m.phone)
+               .filter(Boolean)
+               .map((p: string) => normalizePhone(p))
+           );
           offset += pageSize;
           hasMore = batch.length === pageSize;
         } else {
@@ -511,13 +519,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      const alreadySentIds = new Set(allAlreadySentIds);
+       const alreadySentPhones = new Set(allAlreadySentPhones);
 
-      const originalCount = contacts.length;
-      filteredContacts = contacts.filter(c => !alreadySentIds.has(c.id));
-      skippedCount = originalCount - filteredContacts.length;
+       const originalCount = contacts.length;
+       filteredContacts = contacts.filter(c => !alreadySentPhones.has(normalizePhone(c.phone)));
+       skippedCount = originalCount - filteredContacts.length;
 
-      console.log(`Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days, checked ${allAlreadySentIds.length} records)`);
+       console.log(
+         `Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days, checked ${allAlreadySentPhones.length} phone records)`
+       );
     }
 
     if (filteredContacts.length === 0) {
