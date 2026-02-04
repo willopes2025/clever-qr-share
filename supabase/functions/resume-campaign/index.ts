@@ -18,6 +18,9 @@ Deno.serve(async (req) => {
   try {
     const { campaignId, instanceIds, sendingMode } = await req.json();
 
+     // IMPORTANT: Exclusion must work across duplicate contact records, so we exclude by PHONE.
+     const normalizePhone = (p: string) => String(p || '').replace(/\D/g, '');
+
     if (!campaignId || !instanceIds || instanceIds.length === 0) {
       throw new Error('Campaign ID and instance IDs are required');
     }
@@ -106,9 +109,9 @@ Deno.serve(async (req) => {
         console.log(`Found ${campaignIdsToCheck.length} user campaigns for any_campaign mode`);
       }
 
-      // Fetch already sent contacts with pagination
+       // Fetch already sent phones with pagination
       if (campaignIdsToCheck.length > 0) {
-        let allAlreadySentIds: string[] = [];
+        let allAlreadySentPhones: string[] = [];
         let offset = 0;
         const pageSize = 1000;
         let hasMore = true;
@@ -116,14 +119,19 @@ Deno.serve(async (req) => {
         while (hasMore) {
           const { data: batch } = await supabase
             .from('campaign_messages')
-            .select('contact_id')
+            .select('phone')
             .in('campaign_id', campaignIdsToCheck)
             .in('status', ['sent', 'delivered'])
             .gte('sent_at', periodStartISO)
             .range(offset, offset + pageSize - 1);
 
           if (batch && batch.length > 0) {
-            allAlreadySentIds.push(...batch.map(m => m.contact_id));
+            allAlreadySentPhones.push(
+              ...batch
+                .map((m: any) => m.phone)
+                .filter(Boolean)
+                .map((p: string) => normalizePhone(p))
+            );
             offset += pageSize;
             hasMore = batch.length === pageSize;
           } else {
@@ -131,25 +139,25 @@ Deno.serve(async (req) => {
           }
         }
 
-        console.log(`Found ${allAlreadySentIds.length} already sent contact records`);
+        console.log(`Found ${allAlreadySentPhones.length} already sent phone records`);
 
         // Remove duplicates
-        const uniqueAlreadySentIds = [...new Set(allAlreadySentIds)];
-        console.log(`Unique contacts already sent: ${uniqueAlreadySentIds.length}`);
+        const uniqueAlreadySentPhones = [...new Set(allAlreadySentPhones)];
+        console.log(`Unique phones already sent: ${uniqueAlreadySentPhones.length}`);
 
-        // Mark queued messages for these contacts as 'skipped'
-        if (uniqueAlreadySentIds.length > 0) {
+        // Mark queued messages for these phones as 'skipped'
+        if (uniqueAlreadySentPhones.length > 0) {
           // Process in chunks to avoid query limits
           const chunkSize = 500;
-          for (let i = 0; i < uniqueAlreadySentIds.length; i += chunkSize) {
-            const chunk = uniqueAlreadySentIds.slice(i, i + chunkSize);
+          for (let i = 0; i < uniqueAlreadySentPhones.length; i += chunkSize) {
+            const chunk = uniqueAlreadySentPhones.slice(i, i + chunkSize);
             
             const { data: updatedRows } = await supabase
               .from('campaign_messages')
               .update({ status: 'skipped' })
               .eq('campaign_id', campaignId)
               .eq('status', 'queued')
-              .in('contact_id', chunk)
+              .in('phone', chunk)
               .select('id');
 
             skippedCount += updatedRows?.length || 0;
