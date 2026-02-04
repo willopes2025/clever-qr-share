@@ -48,6 +48,7 @@ import {
   CalendarIcon,
   Settings2,
   CheckSquare,
+  Edit,
 } from "lucide-react";
 import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -61,6 +62,7 @@ import { ContactsTableConfigurable } from "@/components/contacts/ContactsTableCo
 import { ContactsColumnsConfig } from "@/components/contacts/ContactsColumnsConfig";
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
+import { BulkEditDialog, BulkEditUpdates } from "@/components/shared/BulkEditDialog";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useSubscription } from "@/hooks/useSubscription";
 
@@ -82,11 +84,12 @@ const Contacts = () => {
     bulkAddTags,
     bulkRemoveTags,
     bulkOptOut,
+    bulkUpdateContacts,
   } = useContacts();
 
   const { fieldDefinitions } = useCustomFields();
   const { subscription } = useSubscription();
-  const { createDeal } = useFunnels();
+  const { createDeal, funnels } = useFunnels();
 
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
@@ -96,6 +99,8 @@ const Contacts = () => {
   const [showBulkRemoveTagDialog, setShowBulkRemoveTagDialog] = useState(false);
   const [showBulkOptOutConfirm, setShowBulkOptOutConfirm] = useState(false);
   const [showColumnsConfig, setShowColumnsConfig] = useState(false);
+  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithDeals | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
@@ -331,6 +336,26 @@ const Contacts = () => {
         setBulkDeleteConfirm(false);
       },
     });
+  };
+
+  // Handle bulk edit for contacts
+  const handleBulkEditContacts = async (updates: BulkEditUpdates) => {
+    if (selectedIds.length === 0) return;
+    
+    setIsBulkEditing(true);
+    try {
+      await bulkUpdateContacts.mutateAsync({
+        contactIds: selectedIds,
+        updates: {
+          custom_field: updates.custom_field,
+          funnel_assignment: updates.funnel_assignment,
+        },
+      });
+      setShowBulkEditDialog(false);
+      setSelectedIds([]);
+    } finally {
+      setIsBulkEditing(false);
+    }
   };
 
   const handleExport = () => {
@@ -610,6 +635,10 @@ const Contacts = () => {
               <TagsIcon className="h-4 w-4 mr-1" />
               Remover Tags
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowBulkEditDialog(true)} className="neon-border">
+              <Edit className="h-4 w-4 mr-1" />
+              Editar Campos
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowBulkOptOutConfirm(true)} className="neon-border">
               <UserX className="h-4 w-4 mr-1" />
               Marcar Saída
@@ -860,6 +889,21 @@ const Contacts = () => {
           );
         }}
         isLoading={bulkRemoveTags.isPending}
+      />
+
+      {/* Bulk Edit Dialog */}
+      <BulkEditDialog
+        open={showBulkEditDialog}
+        onOpenChange={(open) => {
+          setShowBulkEditDialog(open);
+          if (!open) setSelectedIds([]);
+        }}
+        mode="contacts"
+        selectedCount={selectedIds.length}
+        fieldDefinitions={fieldDefinitions || []}
+        funnels={funnels || []}
+        onConfirm={handleBulkEditContacts}
+        isLoading={isBulkEditing}
       />
 
       {/* Delete confirmation */}

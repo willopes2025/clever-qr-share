@@ -693,6 +693,104 @@ export const useFunnels = () => {
     });
   };
 
+  // Bulk update deals - for mass editing
+  const bulkUpdateDeals = useMutation({
+    mutationFn: async ({ 
+      dealIds, 
+      updates 
+    }: { 
+      dealIds: string[]; 
+      updates: {
+        value?: number;
+        stage_id?: string;
+        responsible_id?: string | null;
+        expected_close_date?: string | null;
+        custom_field?: { key: string; value: unknown };
+      };
+    }) => {
+      const BATCH_SIZE = 50;
+      
+      for (let i = 0; i < dealIds.length; i += BATCH_SIZE) {
+        const batch = dealIds.slice(i, i + BATCH_SIZE);
+        
+        // If stage changed, use updateDeal for each (it handles history)
+        if (updates.stage_id) {
+          for (const dealId of batch) {
+            await supabase
+              .from('funnel_deals')
+              .select('stage_id')
+              .eq('id', dealId)
+              .single()
+              .then(async ({ data: currentDeal }) => {
+                if (currentDeal && currentDeal.stage_id !== updates.stage_id) {
+                  // Create history entry
+                  await supabase.from('funnel_deal_history').insert({
+                    deal_id: dealId,
+                    from_stage_id: currentDeal.stage_id,
+                    to_stage_id: updates.stage_id
+                  });
+                  
+                  // Update deal with new stage
+                  await supabase
+                    .from('funnel_deals')
+                    .update({ 
+                      stage_id: updates.stage_id,
+                      entered_stage_at: new Date().toISOString()
+                    })
+                    .eq('id', dealId);
+                }
+              });
+          }
+        }
+        
+        // For other standard fields, batch update
+        const updateData: Record<string, unknown> = {};
+        if (updates.value !== undefined) updateData.value = updates.value;
+        if (updates.responsible_id !== undefined) updateData.responsible_id = updates.responsible_id;
+        if (updates.expected_close_date !== undefined) updateData.expected_close_date = updates.expected_close_date;
+        
+        if (Object.keys(updateData).length > 0) {
+          const { error } = await supabase
+            .from('funnel_deals')
+            .update(updateData)
+            .in('id', batch);
+            
+          if (error) throw error;
+        }
+        
+        // Custom fields - need individual updates to merge
+        if (updates.custom_field) {
+          for (const dealId of batch) {
+            const { data: deal } = await supabase
+              .from('funnel_deals')
+              .select('custom_fields')
+              .eq('id', dealId)
+              .single();
+              
+            const existingFields = (deal?.custom_fields as Record<string, unknown>) || {};
+            const updatedFields = {
+              ...existingFields,
+              [updates.custom_field.key]: updates.custom_field.value
+            };
+            
+            await supabase
+              .from('funnel_deals')
+              .update({ 
+                custom_fields: updatedFields as Record<string, never>
+              })
+              .eq('id', dealId);
+          }
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['funnels'] });
+      queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
+      toast.success(`${variables.dealIds.length} lead(s) atualizado(s)`);
+    },
+    onError: () => toast.error("Erro ao atualizar leads")
+  });
+
   return {
     funnels,
     isLoading,
@@ -709,6 +807,7 @@ export const useFunnels = () => {
     updateDeal,
     deleteDeal,
     deleteMultipleDeals,
+    bulkUpdateDeals,
     createCloseReason,
     deleteCloseReason,
     createAutomation,
