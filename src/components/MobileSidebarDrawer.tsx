@@ -172,101 +172,103 @@ export const MobileSidebarDrawer = () => {
           </Button>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 h-[calc(100vh-14rem)]">
-          <nav className="py-4 px-3">
-            {dynamicNavGroups.map((group, groupIndex) => (
-              <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
-                <span className="px-4 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                  {group.label}
-                </span>
-                <div className="space-y-0.5 mt-1">
-                  {filterItems(group.items).map((item) => {
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <button
-                        key={item.path}
-                        onClick={() => handleNavigate(item.path)}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                          isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
-                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                        )}
-                      >
-                        <item.icon className="h-5 w-5 shrink-0" />
-                        <span className="flex-1 text-left">{item.label}</span>
-                        {item.showBadge && totalUnread > 0 && (
-                          <Badge 
-                            variant="destructive" 
-                            className="h-5 min-w-5 px-1.5 text-xs font-bold"
-                          >
-                            {totalUnread > 99 ? '99+' : totalUnread}
-                          </Badge>
-                        )}
-                      </button>
-                    );
-                  })}
+        <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+          <ScrollArea className="flex-1 min-h-0">
+            <nav className="py-4 px-3">
+              {dynamicNavGroups.map((group, groupIndex) => (
+                <div key={group.label} className={cn(groupIndex > 0 && "mt-4")}>
+                  <span className="px-4 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                    {group.label}
+                  </span>
+                  <div className="space-y-0.5 mt-1">
+                    {filterItems(group.items).map((item) => {
+                      const isActive = location.pathname === item.path;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => handleNavigate(item.path)}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                            isActive
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-soft"
+                              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <item.icon className="h-5 w-5 shrink-0" />
+                          <span className="flex-1 text-left">{item.label}</span>
+                          {item.showBadge && totalUnread > 0 && (
+                            <Badge 
+                              variant="destructive" 
+                              className="h-5 min-w-5 px-1.5 text-xs font-bold"
+                            >
+                              {totalUnread > 99 ? '99+' : totalUnread}
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-            
-            {isAdmin && (
-              <div className="mt-4">
-                <button
-                  onClick={() => handleNavigate("/admin")}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                    location.pathname === "/admin"
-                      ? "bg-amber-500/20 text-amber-300"
-                      : "text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-300"
-                  )}
-                >
-                  <Shield className="h-5 w-5" />
-                  Admin
-                </button>
-              </div>
-            )}
-          </nav>
-        </ScrollArea>
+              ))}
+              
+              {isAdmin && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => handleNavigate("/admin")}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                      location.pathname === "/admin"
+                        ? "bg-amber-500/20 text-amber-300"
+                        : "text-amber-400/80 hover:bg-amber-500/10 hover:text-amber-300"
+                    )}
+                  >
+                    <Shield className="h-5 w-5" />
+                    Admin
+                  </button>
+                </div>
+              )}
+            </nav>
+          </ScrollArea>
 
-        {/* Bottom section */}
-        <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border/30 p-4 space-y-2 bg-sidebar">
-          {/* Usuário Logado */}
-          <div className="flex items-center gap-3 p-3 bg-sidebar-accent/30 rounded-xl">
-            <Avatar className="h-10 w-10 border-2 border-sidebar-accent">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-sidebar-primary/20 text-sidebar-primary">
-                {profile?.full_name?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {profile?.full_name || 'Usuário'}
-              </p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">
-                {user?.email}
-              </p>
+          {/* Bottom section - fixed at bottom, no absolute */}
+          <div className="flex-shrink-0 border-t border-sidebar-border/30 p-4 space-y-2 bg-sidebar">
+            {/* Usuário Logado */}
+            <div className="flex items-center gap-3 p-3 bg-sidebar-accent/30 rounded-xl">
+              <Avatar className="h-10 w-10 border-2 border-sidebar-accent">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-sidebar-primary/20 text-sidebar-primary">
+                  {profile?.full_name?.charAt(0)?.toUpperCase() || <User className="h-4 w-4" />}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">
+                  {profile?.full_name || 'Usuário'}
+                </p>
+                <p className="text-xs text-sidebar-foreground/60 truncate">
+                  {user?.email}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <button 
-            onClick={() => handleNavigate("/subscription")}
-            className="w-full bg-sidebar-accent/50 rounded-xl p-4 hover:bg-sidebar-accent transition-colors text-left"
-          >
-            <p className="text-xs text-sidebar-foreground/60 mb-1">Plano Ativo</p>
-            <p className="text-sm font-semibold text-sidebar-primary">
-              {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
-            </p>
-          </button>
-          
-          <Button 
-            variant="ghost" 
-            onClick={handleLogout}
-            className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10 rounded-xl"
-          >
-            <LogOut className="h-5 w-5" />
-            Sair do Sistema
-          </Button>
+            <button 
+              onClick={() => handleNavigate("/subscription")}
+              className="w-full bg-sidebar-accent/50 rounded-xl p-4 hover:bg-sidebar-accent transition-colors text-left"
+            >
+              <p className="text-xs text-sidebar-foreground/60 mb-1">Plano Ativo</p>
+              <p className="text-sm font-semibold text-sidebar-primary">
+                {isSubscribed ? (PLANS[currentPlan as keyof typeof PLANS]?.name?.toUpperCase() || currentPlan.toUpperCase()) : 'NENHUM PLANO'}
+              </p>
+            </button>
+            
+            <Button 
+              variant="ghost" 
+              onClick={handleLogout}
+              className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:text-destructive hover:bg-destructive/10 rounded-xl"
+            >
+              <LogOut className="h-5 w-5" />
+              Sair do Sistema
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
