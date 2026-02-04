@@ -7,7 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useUnifiedTasks, UnifiedTask } from "@/hooks/useUnifiedTasks";
 import { useTaskTypes } from "@/hooks/useTaskTypes";
-import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase } from "lucide-react";
+import { useScheduledMessages } from "@/hooks/useScheduledMessages";
+import { useAuth } from "@/hooks/useAuth";
+import { Plus, Calendar, Clock, Trash2, Pencil, CheckSquare, X, Check, ChevronDown, ChevronUp, Tag, Briefcase, MessageSquare } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,8 @@ import {
 } from "@/components/ui/collapsible";
 import { TaskTypeSelector } from "@/components/calendar/TaskTypeSelector";
 import { AssigneeSelector } from "@/components/calendar/AssigneeSelector";
+import { MessageSelector, ScheduledMessageData } from "@/components/calendar/MessageSelector";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface TasksTabProps {
   conversationId: string | null;
@@ -56,8 +60,10 @@ const priorityLabels: Record<string, string> = {
 };
 
 export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
+  const { user } = useAuth();
   const { pendingTasks, completedTasks, isLoading, createTask, updateTask, toggleComplete, deleteTask } = useUnifiedTasks({ conversationId, contactId });
   const { taskTypes } = useTaskTypes();
+  const { createScheduledMessage } = useScheduledMessages();
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -66,6 +72,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
   const [newPriority, setNewPriority] = useState("normal");
   const [newTaskTypeId, setNewTaskTypeId] = useState<string | null>(null);
   const [newAssignedTo, setNewAssignedTo] = useState<string | null>(null);
+  const [newScheduledMessage, setNewScheduledMessage] = useState<ScheduledMessageData | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTask, setEditTask] = useState<Partial<UnifiedTask> & { task_type_id?: string | null; assigned_to?: string | null }>({});
   const [deleteTarget, setDeleteTarget] = useState<UnifiedTask | null>(null);
@@ -73,7 +80,8 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
-    await createTask.mutateAsync({
+    
+    const task = await createTask.mutateAsync({
       title: newTitle.trim(),
       description: newDescription.trim() || undefined,
       due_date: newDueDate || undefined,
@@ -83,6 +91,26 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
       assigned_to: newAssignedTo,
       source: 'conversation',
     });
+
+    // Se tem mensagem agendada, criar o registro
+    if (newScheduledMessage && conversationId && contactId && newDueDate && newDueTime && task) {
+      try {
+        // Combinar data e hora para criar o timestamp
+        const scheduledAt = new Date(`${newDueDate}T${newDueTime}:00`).toISOString();
+        
+        await createScheduledMessage({
+          task_id: task.id,
+          conversation_id: conversationId,
+          contact_id: contactId,
+          template_id: newScheduledMessage.templateId,
+          message_content: newScheduledMessage.content,
+          scheduled_at: scheduledAt,
+        });
+      } catch (error) {
+        console.error('Error creating scheduled message:', error);
+      }
+    }
+
     resetForm();
   };
 
@@ -94,6 +122,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
     setNewPriority("normal");
     setNewTaskTypeId(null);
     setNewAssignedTo(null);
+    setNewScheduledMessage(null);
     setIsCreating(false);
   };
 
@@ -342,7 +371,7 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                     <SelectItem value="urgent">Urgente</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <TaskTypeSelector
                     value={newTaskTypeId}
                     onChange={setNewTaskTypeId}
@@ -353,6 +382,16 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                     onChange={setNewAssignedTo}
                     compact
                   />
+                  {conversationId && (
+                    <MessageSelector
+                      value={newScheduledMessage}
+                      onChange={setNewScheduledMessage}
+                      dueDate={newDueDate}
+                      dueTime={newDueTime}
+                      compact
+                      disabled={!newDueDate || !newDueTime}
+                    />
+                  )}
                 </div>
               </div>
             </ScrollArea>

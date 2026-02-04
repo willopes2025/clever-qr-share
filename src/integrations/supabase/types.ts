@@ -4013,6 +4013,83 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_task_messages: {
+        Row: {
+          contact_id: string
+          conversation_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          message_content: string
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          task_id: string
+          template_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          conversation_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_content: string
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string
+          task_id: string
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          conversation_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_content?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          task_id?: string
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_task_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_task_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_task_messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_task_messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scraped_leads: {
         Row: {
           address: string | null
