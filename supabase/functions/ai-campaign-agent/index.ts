@@ -75,6 +75,17 @@ interface CalendlyAvailability {
   hasBusySlots: boolean;
 }
 
+// Formata data no fuso horário de Brasília (YYYY-MM-DD)
+const formatDateBrazil = (date: Date): string => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+};
+
 // Check if current time is within allowed AI hours
 const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
   const now = new Date();
@@ -163,9 +174,10 @@ const replaceVariables = (
   let result = text;
   
   // System variables
+  const now = new Date();
   result = result.replace(/\{\{nome\}\}/gi, contactName);
-  result = result.replace(/\{\{data\}\}/gi, new Date().toLocaleDateString('pt-BR'));
-  result = result.replace(/\{\{hora\}\}/gi, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  result = result.replace(/\{\{data\}\}/gi, now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+  result = result.replace(/\{\{hora\}\}/gi, now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }));
   
   // Custom variables
   for (const v of variables) {
@@ -280,7 +292,7 @@ const fetchCalendlyAvailability = async (
       body: JSON.stringify({
         action: 'get-availability',
         agentConfigId,
-        date: new Date().toISOString().split('T')[0],
+        date: formatDateBrazil(new Date()),
       }),
     });
     
@@ -1266,8 +1278,8 @@ Deno.serve(async (req: Request) => {
       console.log('[AI-AGENT] Pre-fetching Calendly slots (first response or needs slots)...');
       
       const today = new Date();
-      const startDate = today.toISOString().split('T')[0];
-      const endDate = new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const startDate = formatDateBrazil(today);
+      const endDate = formatDateBrazil(new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000));
       
       console.log(`[AI-AGENT] Fetching slots from ${startDate} to ${endDate}`);
       
@@ -1348,7 +1360,7 @@ Deno.serve(async (req: Request) => {
       minute: '2-digit',
       timeZone: 'America/Sao_Paulo'
     });
-    const anoAtual = agora.getFullYear();
+    const anoAtual = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric' }).format(agora));
     
     // Start with personality prompt (use effective version with slot placeholders replaced)
     let systemPrompt = effectivePersonality || 
