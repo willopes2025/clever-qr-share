@@ -23,6 +23,7 @@ export interface Campaign {
   sent: number;
   delivered: number;
   failed: number;
+  skipped: number;
   created_at: string;
   updated_at: string;
   // Campaign-specific sending settings
