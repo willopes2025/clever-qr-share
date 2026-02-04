@@ -472,28 +472,52 @@ Deno.serve(async (req) => {
           .eq('list_id', campaign.list_id);
         campaignIdsToCheck = sameListCampaigns?.map(c => c.id) || [];
       }
-      // For 'any_campaign', we don't filter by campaign_id
-
-      // Query already sent contacts
-      let alreadySentQuery = supabase
-        .from('campaign_messages')
-        .select('contact_id')
-        .in('status', ['sent', 'delivered'])
-        .gte('sent_at', periodStartISO);
-
-      // Apply campaign filter if not 'any_campaign'
-      if (skipMode !== 'any_campaign' && campaignIdsToCheck.length > 0) {
-        alreadySentQuery = alreadySentQuery.in('campaign_id', campaignIdsToCheck);
+      // For 'any_campaign', get all user campaigns first
+      if (skipMode === 'any_campaign') {
+        const { data: userCampaigns } = await supabase
+          .from('campaigns')
+          .select('id')
+          .eq('user_id', user.id);
+        campaignIdsToCheck = userCampaigns?.map(c => c.id) || [];
       }
 
-      const { data: alreadySent } = await alreadySentQuery;
-      const alreadySentIds = new Set(alreadySent?.map(m => m.contact_id) || []);
+      // Query already sent contacts with pagination to handle >1000 records
+      let allAlreadySentIds: string[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        let alreadySentQuery = supabase
+          .from('campaign_messages')
+          .select('contact_id')
+          .in('status', ['sent', 'delivered'])
+          .gte('sent_at', periodStartISO)
+          .range(offset, offset + pageSize - 1);
+
+        // Apply campaign filter (now also applies to any_campaign with user's campaigns)
+        if (campaignIdsToCheck.length > 0) {
+          alreadySentQuery = alreadySentQuery.in('campaign_id', campaignIdsToCheck);
+        }
+
+        const { data: batch } = await alreadySentQuery;
+
+        if (batch && batch.length > 0) {
+          allAlreadySentIds.push(...batch.map(m => m.contact_id));
+          offset += pageSize;
+          hasMore = batch.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const alreadySentIds = new Set(allAlreadySentIds);
 
       const originalCount = contacts.length;
       filteredContacts = contacts.filter(c => !alreadySentIds.has(c.id));
       skippedCount = originalCount - filteredContacts.length;
 
-      console.log(`Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days)`);
+      console.log(`Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days, checked ${allAlreadySentIds.length} records)`);
     }
 
     if (filteredContacts.length === 0) {

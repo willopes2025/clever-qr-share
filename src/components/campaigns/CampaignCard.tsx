@@ -54,7 +54,7 @@ export const CampaignCard = ({
     ? Math.round((campaign.sent / campaign.total_contacts) * 100) 
     : 0;
 
-  const canEdit = campaign.status === 'draft' || campaign.status === 'scheduled';
+  const canEdit = campaign.status !== 'sending';
   const canStart = campaign.status === 'draft' || campaign.status === 'scheduled';
   const canCancel = campaign.status === 'sending';
   const canDelete = campaign.status !== 'sending';
