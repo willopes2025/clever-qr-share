@@ -1,229 +1,249 @@
 
-# Plano: Interface Mobile Exclusiva (App Mode)
+# Plano: Aplicar MobileAppLayout em Todas as Paginas e Limpar Duplicatas
 
-## Analise da Situacao Atual
+## Situacao Atual
 
-O projeto ja possui uma base solida para mobile:
+### Paginas que precisam migrar para MobileAppLayout
 
-| Componente | Status |
-|------------|--------|
-| `useIsMobile` hook | Existe e detecta < 768px |
-| `MobileHeader` | Existe com logo, notificacoes e usuario |
-| `MobileBottomNav` | Existe com 4 itens (Dashboard, Inbox, Contatos, Mais) |
-| `MobileSidebarDrawer` | Existe como menu lateral completo |
-| `DashboardLayout` | Ja diferencia mobile/desktop |
-| PWA | Recem configurado |
+| Pagina | Layout Atual | Status |
+|--------|--------------|--------|
+| Dashboard | MobileAppLayout | Ja migrado |
+| Inbox | DashboardLayout (com logica mobile interna) | Precisa migrar |
+| Contacts | DashboardLayout | Precisa migrar |
+| Funnels | DashboardLayout | Precisa migrar |
+| Campaigns | DashboardLayout | Precisa migrar |
+| Settings | DashboardLayout | Precisa migrar |
+| AIAgents | DashboardLayout | Precisa migrar |
+| Instances | DashboardLayout | Precisa migrar |
+| Templates | DashboardLayout | Precisa migrar |
+| Calendar | DashboardLayout | Precisa migrar |
+| E outras... | DashboardLayout | Precisa migrar |
 
-**Problema atual**: As paginas (Dashboard, Contacts, Funnels, etc.) nao estao otimizadas para mobile - usam os mesmos componentes desktop com responsividade basica.
+### Componentes Duplicados a Limpar
 
-## Arquitetura Proposta
+| Componente Desktop (remover) | Componente Mobile (manter) |
+|------------------------------|----------------------------|
+| `src/components/MobileHeader.tsx` | `src/mobile/components/MobileHeader.tsx` |
+| `src/components/MobileBottomNav.tsx` | `src/mobile/components/MobileBottomNav.tsx` |
 
-```text
-src/
-  layouts/
-    AppLayout.tsx          # Nova: Decide mobile vs desktop
-  mobile/
-    layouts/
-      MobileAppLayout.tsx  # Shell mobile com bottom nav + header
-    pages/
-      MobileHome.tsx       # Dashboard simplificado
-      MobileInbox.tsx      # Ja otimizado (reutilizar)
-      MobileContacts.tsx   # Lista simplificada
-      MobileFunnels.tsx    # Kanban touch-friendly
-      MobileSettings.tsx   # Configuracoes simplificadas
-    components/
-      MobileCard.tsx       # Cards touch-friendly
-      MobileList.tsx       # Listas com swipe
-      MobileSearchBar.tsx  # Busca fixa no topo
-  components/
-    (manter existentes como desktop)
-```
+### Problema no DashboardLayout
 
-## Etapas de Implementacao
-
-### Etapa 1: AppLayout Router (Decisor Mobile/Desktop)
-
-Criar `src/layouts/AppLayout.tsx`:
+O `DashboardLayout.tsx` atual renderiza componentes mobile condicionalmente:
 
 ```typescript
-const AppLayout = ({ children }) => {
-  const isMobile = useIsMobile();
-  
-  // Mobile: usa shell mobile dedicado
-  // Desktop: usa DashboardLayout existente
-  return isMobile ? (
-    <MobileAppLayout>{children}</MobileAppLayout>
-  ) : (
-    <DashboardLayout>{children}</DashboardLayout>
+{isMobile && (
+  <>
+    <MobileHeader />
+    <MobileSidebarDrawer />
+    <MobileBottomNav />
+  </>
+)}
+```
+
+Isso conflita com o `MobileAppLayout` que deve gerenciar esses componentes.
+
+## Estrategia de Migracao
+
+### Abordagem 1: AppLayout como Router (Recomendada)
+
+Usar o `AppLayout.tsx` ja criado como wrapper padrao que decide automaticamente:
+
+```typescript
+// Em cada pagina:
+import { AppLayout } from "@/layouts/AppLayout";
+
+// Ao inves de:
+<DashboardLayout>...</DashboardLayout>
+
+// Usar:
+<AppLayout pageTitle="Contatos">...</AppLayout>
+```
+
+O `AppLayout` ja encaminha para `MobileAppLayout` ou `DashboardLayout` automaticamente.
+
+### Abordagem 2: Paginas Mobile Dedicadas (Para UX otimizada)
+
+Para paginas complexas como Inbox (que ja tem logica mobile propria), manter a logica interna mas usar o MobileAppLayout.
+
+## Arquivos a Modificar
+
+### 1. Limpar DashboardLayout
+
+Remover renderizacao condicional de componentes mobile:
+
+```typescript
+// ANTES (DashboardLayout.tsx)
+{isMobile && (
+  <>
+    <MobileHeader />
+    <MobileSidebarDrawer />
+    <MobileBottomNav />
+  </>
+)}
+
+// DEPOIS
+// Remover completamente - MobileAppLayout gerencia isso
+```
+
+### 2. Atualizar DashboardLayout imports
+
+Remover imports dos componentes mobile duplicados:
+
+```typescript
+// REMOVER:
+import { MobileHeader } from "@/components/MobileHeader";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
+```
+
+### 3. Migrar Paginas Principais
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/pages/Contacts.tsx` | Usar AppLayout |
+| `src/pages/Funnels.tsx` | Usar AppLayout |
+| `src/pages/Campaigns.tsx` | Usar AppLayout |
+| `src/pages/Settings.tsx` | Usar AppLayout |
+| `src/pages/AIAgents.tsx` | Usar AppLayout |
+| `src/pages/Instances.tsx` | Usar AppLayout |
+| `src/pages/Templates.tsx` | Usar AppLayout |
+| `src/pages/Calendar.tsx` | Usar AppLayout |
+| `src/pages/Inbox.tsx` | Tratamento especial (ja tem logica mobile) |
+| E outras paginas... | Usar AppLayout |
+
+### 4. Deletar Componentes Duplicados
+
+| Arquivo a Deletar | Motivo |
+|-------------------|--------|
+| `src/components/MobileHeader.tsx` | Duplicado de `src/mobile/components/MobileHeader.tsx` |
+| `src/components/MobileBottomNav.tsx` | Duplicado de `src/mobile/components/MobileBottomNav.tsx` |
+
+### 5. Tratamento Especial: Inbox
+
+O Inbox ja tem logica mobile propria sofisticada. Opcoes:
+- Opcao A: Manter logica atual mas envolver com MobileAppLayout (sem header/bottomnav duplicados)
+- Opcao B: Usar DashboardLayout no desktop e MobileAppLayout com conteudo proprio no mobile
+
+Recomendacao: Opcao B - parecido com Dashboard
+
+```typescript
+// Inbox.tsx
+if (isMobile) {
+  return (
+    <MobileAppLayout pageTitle="Inbox">
+      {/* Conteudo mobile existente, sem header proprio */}
+    </MobileAppLayout>
+  );
+}
+return (
+  <DashboardLayout>
+    {/* Conteudo desktop existente */}
+  </DashboardLayout>
+);
+```
+
+## Detalhes Tecnicos
+
+### Padrao de Migracao para Paginas Simples
+
+```typescript
+// ANTES
+import { DashboardLayout } from "@/components/DashboardLayout";
+
+const MinhaPage = () => {
+  return (
+    <DashboardLayout className="p-8">
+      {/* conteudo */}
+    </DashboardLayout>
+  );
+};
+
+// DEPOIS
+import { AppLayout } from "@/layouts/AppLayout";
+
+const MinhaPage = () => {
+  return (
+    <AppLayout pageTitle="Minha Page" className="p-8">
+      {/* conteudo - ajustar padding para mobile */}
+    </AppLayout>
   );
 };
 ```
 
-### Etapa 2: MobileAppLayout (Shell Mobile)
+### Ajustes de Padding Mobile
 
-Criar layout mobile otimizado com:
-- Header compacto fixo (56px)
-- Area de conteudo com scroll nativo
-- Bottom navigation fixa (64px) com safe-area-inset
-- Gestos de navegacao (swipe back)
-- Transicoes suaves entre telas
+O MobileAppLayout ja adiciona `pt-14 pb-20` para header e bottom nav.
+Paginas precisam usar padding condicional:
 
 ```typescript
-// MobileAppLayout.tsx
-<div className="h-screen flex flex-col bg-background">
-  <MobileHeader />
-  <main className="flex-1 overflow-y-auto overscroll-contain">
-    {children}
-  </main>
-  <MobileBottomNav />
-</div>
+<AppLayout pageTitle="Contatos">
+  <div className="p-4 md:p-8">
+    {/* conteudo */}
+  </div>
+</AppLayout>
 ```
 
-### Etapa 3: Paginas Mobile Dedicadas
-
-#### MobileHome (Dashboard Simplificado)
+### Atualizar AppLayout para suportar className
 
 ```typescript
-// Foco em metricas chave + acoes rapidas
-<div className="p-4 space-y-4">
-  <QuickStats /> {/* 4 cards: Leads, Conversas, Campanhas, Vendas */}
-  <QuickActions /> {/* Botoes grandes: Nova Conversa, Novo Lead */}
-  <RecentActivity /> {/* Ultimas 5 atividades */}
-</div>
-```
+// AppLayout.tsx
+export const AppLayout = ({ children, className, pageTitle }: AppLayoutProps) => {
+  const isMobile = useIsMobile();
 
-#### MobileContacts (Lista Otimizada)
-
-```typescript
-// Lista vertical com busca fixa e swipe actions
-<div className="flex flex-col h-full">
-  <MobileSearchBar />
-  <ScrollArea className="flex-1">
-    <MobileContactList onSwipeLeft={handleOptOut} onSwipeRight={handleCall} />
-  </ScrollArea>
-  <FloatingActionButton onClick={addContact} />
-</div>
-```
-
-#### MobileFunnels (Kanban Touch)
-
-```typescript
-// Tabs horizontais por etapa + lista vertical de deals
-<div className="flex flex-col h-full">
-  <FunnelSelector />
-  <StageTabs stages={stages} />
-  <DealsList stage={selectedStage} />
-</div>
-```
-
-### Etapa 4: Componentes Mobile Especificos
-
-| Componente | Descricao |
-|------------|-----------|
-| `MobileCard` | Padding maior (16px), sombras sutis, rounded-2xl |
-| `MobileList` | Items com altura minima 64px, dividers |
-| `MobileSearchBar` | Sticky no topo, full-width |
-| `FloatingActionButton` | Botao flutuante para acao principal |
-| `SwipeableRow` | Linha com acoes ao deslizar |
-| `PullToRefresh` | Pull-to-refresh nativo |
-
-### Etapa 5: Melhorias UX Nativo
-
-```css
-/* index.css - Adicoes mobile */
-@media (max-width: 767px) {
-  /* Prevenir zoom em inputs */
-  input, select, textarea {
-    font-size: 16px !important;
+  if (isMobile) {
+    return (
+      <MobileAppLayout pageTitle={pageTitle}>
+        <div className={className}>{children}</div>
+      </MobileAppLayout>
+    );
   }
-  
-  /* Scroll momentum iOS */
-  .mobile-scroll {
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-  }
-  
-  /* Prevenir highlight de tap */
-  button, a {
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  /* Safe areas para notch/home bar */
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
-```
 
-### Etapa 6: Animacoes com Framer Motion
-
-```typescript
-// Transicoes entre paginas
-const pageVariants = {
-  initial: { opacity: 0, x: 20 },
-  in: { opacity: 1, x: 0 },
-  out: { opacity: 0, x: -20 }
-};
-
-// Fade suave para cards
-const cardVariants = {
-  hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0 }
+  return (
+    <DashboardLayout className={className}>
+      {children}
+    </DashboardLayout>
+  );
 };
 ```
 
-## Arquivos a Criar
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `src/layouts/AppLayout.tsx` | Router mobile/desktop |
-| `src/mobile/layouts/MobileAppLayout.tsx` | Shell mobile |
-| `src/mobile/pages/MobileHome.tsx` | Dashboard mobile |
-| `src/mobile/pages/MobileContacts.tsx` | Contatos mobile |
-| `src/mobile/pages/MobileFunnels.tsx` | Funis mobile |
-| `src/mobile/components/MobileCard.tsx` | Card otimizado |
-| `src/mobile/components/MobileList.tsx` | Lista otimizada |
-| `src/mobile/components/FloatingActionButton.tsx` | FAB |
-| `src/mobile/components/SwipeableRow.tsx` | Linha com swipe |
-
-## Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/pages/Dashboard.tsx` | Usar AppLayout ao inves de DashboardLayout |
-| `src/pages/Contacts.tsx` | Usar AppLayout e renderizar MobileContacts |
-| `src/pages/Funnels.tsx` | Usar AppLayout e renderizar MobileFunnels |
-| `src/components/MobileBottomNav.tsx` | Adicionar animacoes e feedback haptico |
-| `src/components/MobileHeader.tsx` | Adicionar titulo da pagina dinamico |
-| `src/index.css` | Adicionar estilos mobile-first |
-
-## Prioridade de Implementacao
+## Ordem de Execucao
 
 ```text
-1. AppLayout + MobileAppLayout (base)
-2. MobileHome (dashboard simplificado)
-3. Melhorias MobileBottomNav/Header
-4. MobileContacts (lista otimizada)
-5. MobileFunnels (kanban touch)
-6. Componentes reutilizaveis (Card, List, FAB)
-7. Animacoes e transicoes
+1. Atualizar AppLayout para suportar className
+2. Limpar DashboardLayout (remover componentes mobile)
+3. Deletar arquivos duplicados
+4. Migrar paginas principais (Contacts, Funnels, etc.)
+5. Tratamento especial para Inbox
+6. Testar navegacao mobile
 ```
+
+## Lista Completa de Paginas a Migrar
+
+Baseado em `src/pages/`:
+
+| Pagina | Prioridade | Complexidade |
+|--------|------------|--------------|
+| Contacts | Alta | Media (tabela grande) |
+| Funnels | Alta | Media (kanban) |
+| Inbox | Alta | Ja tem mobile |
+| Campaigns | Alta | Baixa |
+| Settings | Alta | Baixa |
+| AIAgents | Media | Baixa |
+| Instances | Media | Media |
+| Templates | Media | Baixa |
+| Calendar | Media | Media |
+| Analysis | Baixa | Baixa |
+| BroadcastLists | Baixa | Baixa |
+| Chatbots | Baixa | Baixa |
+| Forms | Baixa | Baixa |
+| LeadSearch | Baixa | Baixa |
+| Warming | Baixa | Baixa |
+
+Paginas publicas (Login, PrivacyPolicy, etc.) nao precisam de AppLayout.
 
 ## Resultado Esperado
 
-**Visual**: App que parece nativo, sem elementos de "site"
-
-**Performance**:
-- Navegacao instantanea (60fps)
-- Scroll suave com momentum
-- Gestos responsivos
-
-**UX**:
-- Menos informacao, mais foco
-- Acoes principais acessiveis com polegar
-- Feedback visual e haptico
-
-**Tecnico**:
-- Mesmo backend/API
-- Code splitting por plataforma
-- Bundle mobile menor
+- Experiencia mobile consistente em todas as paginas
+- Header e bottom nav unificados
+- Sem componentes duplicados
+- Transicoes suaves entre paginas
+- Codigo mais limpo e manutencao mais facil
