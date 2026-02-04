@@ -451,83 +451,123 @@ Deno.serve(async (req) => {
     if (campaign.skip_already_sent !== false) {
       const skipMode = campaign.skip_mode || 'same_template';
       const skipDaysPeriod = campaign.skip_days_period || 30;
+      const originalCount = contacts.length;
 
-      // Calculate period start date
-      const periodStart = new Date();
-      periodStart.setDate(periodStart.getDate() - skipDaysPeriod);
-      const periodStartISO = periodStart.toISOString();
+      // NEW: Handle "has_tag" skip mode - exclude contacts that have a specific tag
+      if (skipMode === 'has_tag' && campaign.skip_tag_id) {
+        console.log(`Filtering by tag exclusion: ${campaign.skip_tag_id}`);
+        
+        const contactIds = contacts.map(c => c.id);
+        const pageSize = 1000;
+        let taggedContactIds: string[] = [];
+        let tagOffset = 0;
+        let hasMoreTags = true;
 
-      let campaignIdsToCheck: string[] = [];
+        while (hasMoreTags) {
+          const { data: tagBatch, error: tagsError } = await supabase
+            .from('contact_tags')
+            .select('contact_id')
+            .eq('tag_id', campaign.skip_tag_id)
+            .in('contact_id', contactIds)
+            .range(tagOffset, tagOffset + pageSize - 1);
 
-      // Determine which campaigns to check based on skip_mode
-      if (skipMode === 'same_campaign') {
-        campaignIdsToCheck = [campaignId];
-      } else if (skipMode === 'same_template' && campaign.template_id) {
-        const { data: sameTemplateCampaigns } = await supabase
-          .from('campaigns')
-          .select('id')
-          .eq('template_id', campaign.template_id);
-        campaignIdsToCheck = sameTemplateCampaigns?.map(c => c.id) || [];
-      } else if (skipMode === 'same_list' && campaign.list_id) {
-        const { data: sameListCampaigns } = await supabase
-          .from('campaigns')
-          .select('id')
-          .eq('list_id', campaign.list_id);
-        campaignIdsToCheck = sameListCampaigns?.map(c => c.id) || [];
-      }
-      // For 'any_campaign', get all user campaigns first
-      if (skipMode === 'any_campaign') {
-        const { data: userCampaigns } = await supabase
-          .from('campaigns')
-          .select('id')
-          .eq('user_id', user.id);
-        campaignIdsToCheck = userCampaigns?.map(c => c.id) || [];
-      }
+          if (tagsError) {
+            console.error('Tag exclusion fetch error:', tagsError);
+            throw new Error('Failed to fetch contacts with exclusion tag');
+          }
 
-       // Query already sent phones with pagination to handle >1000 records
-       let allAlreadySentPhones: string[] = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let alreadySentQuery = supabase
-          .from('campaign_messages')
-           .select('phone')
-          .in('status', ['sent', 'delivered'])
-          .gte('sent_at', periodStartISO)
-          .range(offset, offset + pageSize - 1);
-
-        // Apply campaign filter (now also applies to any_campaign with user's campaigns)
-        if (campaignIdsToCheck.length > 0) {
-          alreadySentQuery = alreadySentQuery.in('campaign_id', campaignIdsToCheck);
+          if (tagBatch && tagBatch.length > 0) {
+            taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+            tagOffset += pageSize;
+            hasMoreTags = tagBatch.length === pageSize;
+          } else {
+            hasMoreTags = false;
+          }
         }
 
-         const { data: batch } = await alreadySentQuery;
+        const taggedIds = new Set(taggedContactIds);
+        filteredContacts = contacts.filter(c => !taggedIds.has(c.id));
+        skippedCount = originalCount - filteredContacts.length;
 
-        if (batch && batch.length > 0) {
-           allAlreadySentPhones.push(
-             ...batch
-               .map((m: any) => m.phone)
-               .filter(Boolean)
-               .map((p: string) => normalizePhone(p))
-           );
-          offset += pageSize;
-          hasMore = batch.length === pageSize;
-        } else {
-          hasMore = false;
+        console.log(`Filtered out ${skippedCount} contacts with exclusion tag (checked ${taggedContactIds.length} tagged contacts)`);
+      } else {
+        // Existing logic for other skip modes
+        // Calculate period start date
+        const periodStart = new Date();
+        periodStart.setDate(periodStart.getDate() - skipDaysPeriod);
+        const periodStartISO = periodStart.toISOString();
+
+        let campaignIdsToCheck: string[] = [];
+
+        // Determine which campaigns to check based on skip_mode
+        if (skipMode === 'same_campaign') {
+          campaignIdsToCheck = [campaignId];
+        } else if (skipMode === 'same_template' && campaign.template_id) {
+          const { data: sameTemplateCampaigns } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('template_id', campaign.template_id);
+          campaignIdsToCheck = sameTemplateCampaigns?.map(c => c.id) || [];
+        } else if (skipMode === 'same_list' && campaign.list_id) {
+          const { data: sameListCampaigns } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('list_id', campaign.list_id);
+          campaignIdsToCheck = sameListCampaigns?.map(c => c.id) || [];
         }
+        // For 'any_campaign', get all user campaigns first
+        if (skipMode === 'any_campaign') {
+          const { data: userCampaigns } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('user_id', user.id);
+          campaignIdsToCheck = userCampaigns?.map(c => c.id) || [];
+        }
+
+        // Query already sent phones with pagination to handle >1000 records
+        let allAlreadySentPhones: string[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          let alreadySentQuery = supabase
+            .from('campaign_messages')
+            .select('phone')
+            .in('status', ['sent', 'delivered'])
+            .gte('sent_at', periodStartISO)
+            .range(offset, offset + pageSize - 1);
+
+          // Apply campaign filter (now also applies to any_campaign with user's campaigns)
+          if (campaignIdsToCheck.length > 0) {
+            alreadySentQuery = alreadySentQuery.in('campaign_id', campaignIdsToCheck);
+          }
+
+          const { data: batch } = await alreadySentQuery;
+
+          if (batch && batch.length > 0) {
+            allAlreadySentPhones.push(
+              ...batch
+                .map((m: any) => m.phone)
+                .filter(Boolean)
+                .map((p: string) => normalizePhone(p))
+            );
+            offset += pageSize;
+            hasMore = batch.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        const alreadySentPhones = new Set(allAlreadySentPhones);
+
+        filteredContacts = contacts.filter(c => !alreadySentPhones.has(normalizePhone(c.phone)));
+        skippedCount = originalCount - filteredContacts.length;
+
+        console.log(
+          `Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days, checked ${allAlreadySentPhones.length} phone records)`
+        );
       }
-
-       const alreadySentPhones = new Set(allAlreadySentPhones);
-
-       const originalCount = contacts.length;
-       filteredContacts = contacts.filter(c => !alreadySentPhones.has(normalizePhone(c.phone)));
-       skippedCount = originalCount - filteredContacts.length;
-
-       console.log(
-         `Filtered out ${skippedCount} contacts already sent (mode: ${skipMode}, period: ${skipDaysPeriod} days, checked ${allAlreadySentPhones.length} phone records)`
-       );
     }
 
     if (filteredContacts.length === 0) {

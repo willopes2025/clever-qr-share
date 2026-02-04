@@ -43,8 +43,9 @@ const Campaigns = () => {
     allowed_days: string[];
     timezone: string;
     skip_already_sent?: boolean;
-    skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+    skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag';
     skip_days_period?: number;
+    skip_tag_id?: string | null;
     tag_on_delivery_id?: string | null;
     ai_enabled?: boolean;
     ai_prompt?: string;
@@ -74,8 +75,9 @@ const Campaigns = () => {
     allowed_days: string[];
     timezone: string;
     skip_already_sent?: boolean;
-    skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign';
+    skip_mode?: 'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag';
     skip_days_period?: number;
+    skip_tag_id?: string | null;
     tag_on_delivery_id?: string | null;
     ai_enabled?: boolean;
     ai_prompt?: string;
