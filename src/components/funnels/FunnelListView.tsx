@@ -671,10 +671,9 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
                 variant="outline"
                 size="sm"
                 onClick={() => setBulkEditDialogOpen(true)}
-                disabled={!fieldDefinitions?.length}
               >
                 <Edit className="h-4 w-4 mr-2" />
-                Editar Campo
+                Editar em Massa
               </Button>
               <Button
                 variant="destructive"
