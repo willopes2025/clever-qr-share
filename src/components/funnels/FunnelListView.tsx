@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -161,13 +161,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   }, [fieldDefinitions]);
 
   // Sync column order when new custom fields are added
-  useMemo(() => {
+  useEffect(() => {
     const allIds = allColumns.map((c) => c.id);
     const newIds = allIds.filter((id) => !columnOrder.includes(id));
     if (newIds.length > 0) {
       setColumnOrder((prev) => [...prev, ...newIds]);
     }
-  }, [allColumns, columnOrder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
   // Flatten all deals from all stages
   const allDeals = useMemo(() => {
