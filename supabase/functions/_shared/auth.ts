@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.84.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,7 +26,9 @@ type AuthResult = AuthSuccess | AuthFailure;
  * @returns Object with userId and email on success, or error Response on failure
  */
 export async function requireUser(req: Request, maxRetries = 2): Promise<AuthResult> {
-  const authHeader = req.headers.get("Authorization");
+  // Some runtimes forward headers in lower-case; Headers.get() should be case-insensitive,
+  // but we keep a safe fallback.
+  const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     console.error("[auth] Missing or invalid authorization header");
@@ -53,6 +55,7 @@ export async function requireUser(req: Request, maxRetries = 2): Promise<AuthRes
         auth: { persistSession: false },
       });
 
+      // Preferred: validates JWT using signing keys (when available).
       const { data, error } = await supabaseClient.auth.getClaims(token);
 
       if (!error && data?.claims?.sub) {
@@ -75,7 +78,18 @@ export async function requireUser(req: Request, maxRetries = 2): Promise<AuthRes
 
         lastError = adminError;
       } else {
-        lastError = error ?? new Error("No claims returned");
+        // Fallback: Some auth-js versions/environments may throw AuthSessionMissingError
+        // even when a JWT is provided. In that case, try getUser(jwt) explicitly.
+        if (error && String(error.message || "").includes("Auth session missing")) {
+          const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+          if (!userError && userData?.user?.id) {
+            if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt} (getUser fallback)`);
+            return { success: true, userId: userData.user.id, email: userData.user.email };
+          }
+          lastError = userError ?? error;
+        } else {
+          lastError = error ?? new Error("No claims returned");
+        }
       }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
