@@ -54,7 +54,7 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { DealFormDialog } from "./DealFormDialog";
 import { CloseDealDialog } from "./CloseDealDialog";
 import { ColumnsConfigDialog, ColumnDefinition } from "./ColumnsConfigDialog";
-import { BulkEditFieldDialog } from "./BulkEditFieldDialog";
+import { BulkEditDialog, BulkEditUpdates } from "@/components/shared/BulkEditDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import {
   AlertDialog,
@@ -80,7 +80,7 @@ type DealWithStage = FunnelDeal & {
 };
 
 export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
-  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const { fieldDefinitions } = useCustomFields();
@@ -602,30 +602,24 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     }
   };
 
-  // Handle bulk edit
-  const handleBulkEdit = async (fieldKey: string, value: unknown) => {
+  // Handle bulk edit with new dialog
+  const handleBulkEdit = async (updates: BulkEditUpdates) => {
     if (selectedIds.length === 0) return;
 
     setIsBulkEditing(true);
     try {
-      for (const dealId of selectedIds) {
-        const deal = allDeals.find((d) => d.id === dealId);
-        if (deal) {
-          const updatedCustomFields = {
-            ...(deal.custom_fields || {}),
-            [fieldKey]: value,
-          };
-          await updateDeal.mutateAsync({
-            id: dealId,
-            custom_fields: updatedCustomFields,
-          });
-        }
-      }
-      toast.success(`${selectedIds.length} deal(s) atualizado(s)`);
+      await bulkUpdateDeals.mutateAsync({
+        dealIds: selectedIds,
+        updates: {
+          value: updates.value,
+          stage_id: updates.stage_id,
+          responsible_id: updates.responsible_id,
+          expected_close_date: updates.expected_close_date,
+          custom_field: updates.custom_field,
+        },
+      });
       setBulkEditDialogOpen(false);
       setSelectedIds([]);
-    } catch {
-      toast.error("Erro ao atualizar deals");
     } finally {
       setIsBulkEditing(false);
     }
@@ -838,11 +832,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         onSave={handleColumnsConfigSave}
       />
 
-      <BulkEditFieldDialog
+      <BulkEditDialog
         open={bulkEditDialogOpen}
         onOpenChange={setBulkEditDialogOpen}
+        mode="deals"
         selectedCount={selectedIds.length}
         fieldDefinitions={fieldDefinitions || []}
+        stages={funnel.stages || []}
+        members={members || []}
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}
       />

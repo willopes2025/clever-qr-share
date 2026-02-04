@@ -782,6 +782,82 @@ export const useContacts = () => {
     },
   });
 
+  // Bulk update contacts - for mass editing custom fields
+  const bulkUpdateContacts = useMutation({
+    mutationFn: async ({
+      contactIds,
+      updates
+    }: {
+      contactIds: string[];
+      updates: {
+        custom_field?: { key: string; value: unknown };
+        funnel_assignment?: { funnel_id: string; stage_id: string };
+      };
+    }) => {
+      const BATCH_SIZE = 50;
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Usuário não autenticado");
+      
+      for (let i = 0; i < contactIds.length; i += BATCH_SIZE) {
+        const batch = contactIds.slice(i, i + BATCH_SIZE);
+        
+        // Custom fields - need individual updates to merge
+        if (updates.custom_field) {
+          for (const contactId of batch) {
+            const { data: contact } = await supabase
+              .from('contacts')
+              .select('custom_fields')
+              .eq('id', contactId)
+              .single();
+              
+            const existingFields = (contact?.custom_fields as Record<string, unknown>) || {};
+            const updatedFields = {
+              ...existingFields,
+              [updates.custom_field.key]: updates.custom_field.value
+            };
+            
+            await supabase
+              .from('contacts')
+              .update({ 
+                custom_fields: updatedFields as Record<string, string>
+              })
+              .eq('id', contactId);
+          }
+        }
+        
+        // Funnel assignment - create deals for each contact
+        if (updates.funnel_assignment) {
+          for (const contactId of batch) {
+            const { data: contact } = await supabase
+              .from('contacts')
+              .select('name')
+              .eq('id', contactId)
+              .single();
+              
+            await supabase.from('funnel_deals').insert({
+              user_id: userData.user.id,
+              funnel_id: updates.funnel_assignment.funnel_id,
+              stage_id: updates.funnel_assignment.stage_id,
+              contact_id: contactId,
+              title: contact?.name || 'Novo Lead',
+              value: 0
+            });
+          }
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['funnels'] });
+      toast.success(`${variables.contactIds.length} contato(s) atualizado(s)`);
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao atualizar contatos", {
+        description: error.message,
+      });
+    },
+  });
+
   return {
     contacts,
     tags,
@@ -801,5 +877,6 @@ export const useContacts = () => {
     bulkAddTags,
     bulkRemoveTags,
     bulkOptOut,
+    bulkUpdateContacts,
   };
 };
