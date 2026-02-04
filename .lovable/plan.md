@@ -1,73 +1,167 @@
 
-# Correção: Erro "Bad Request" na Exclusão por Tag
+# Plano: Agendamento de Mensagens na Aba de Tarefas
 
-## Problema Identificado
+## Resumo
 
-O usuário **Matheus Suavel** tentou iniciar uma campanha com:
-- **2 instâncias** de disparo selecionadas
-- **1437 contatos** na lista (funil)
-- **Critério de exclusão:** Tag "Recebeu Ouvidoria"
-
-**Erro:** `Tag exclusion fetch error: { message: "Bad Request" }`
-
-**Causa raiz:** O operador `.in('contact_id', contactIds)` do Supabase tem limite de ~1000 itens. Com 1437 contatos, a query falha.
+Adicionar um novo botão **"Mensagem"** ao lado de "Atribuir" no formulário de criação de tarefas do Inbox. Ao clicar, o usuário pode selecionar um template existente ou escrever uma mensagem manual que será enviada automaticamente no dia e hora marcados na tarefa.
 
 ---
 
-## Solução
+## Como Vai Funcionar
 
-Mudar a abordagem: em vez de buscar "quais destes 1437 contatos têm a tag", buscar **todos os contatos com a tag** e depois filtrar localmente.
+1. No formulário de criação de tarefa, haverá um novo botão: **"Mensagem"**
+2. Ao clicar, abre um popover com duas opções:
+   - **Selecionar Template** - lista os templates existentes
+   - **Escrever Manualmente** - campo de texto livre
+3. A mensagem fica vinculada à tarefa
+4. No dia e hora da tarefa (due_date + due_time), o sistema envia a mensagem automaticamente para o contato da conversa
+5. Após o envio, a tarefa pode ser marcada como concluída automaticamente
 
-### Lógica Atual (Problemática)
+---
+
+## Visual do Fluxo
 
 ```text
-SELECT contact_id FROM contact_tags 
-WHERE tag_id = 'xxx' 
-AND contact_id IN (1437 IDs) ← ESTOURA O LIMITE!
-```
++------------------------------------------+
+| Título da tarefa                         |
++------------------------------------------+
+| Descrição (opcional)                     |
++------------------------------------------+
+| [dd/mm/yyyy] 📅    | [--:--] ⏰           |
++------------------------------------------+
+| [Normal ▼]                               |
++------------------------------------------+
+| [🏷 Tipo] [👤 Atribuir] [💬 Mensagem]    |   ← Novo botão
++------------------------------------------+
 
-### Nova Lógica (Correta)
-
-```text
-SELECT contact_id FROM contact_tags 
-WHERE tag_id = 'xxx'                ← Busca todos com a tag (paginado)
-
-// Depois filtra localmente
-contacts.filter(c => !taggedIds.has(c.id))
+Ao clicar em "Mensagem":
++------------------------------------------+
+| 💬 Agendar Mensagem                      |
++------------------------------------------+
+| ○ Selecionar Template                    |
+|   [Selecione um template ▼]              |
+|                                          |
+| ○ Escrever Manualmente                   |
+|   +------------------------------------+ |
+|   | Digite sua mensagem...             | |
+|   +------------------------------------+ |
++------------------------------------------+
+| Será enviada em: 05/02 às 10:00          |
++------------------------------------------+
 ```
 
 ---
 
-## Arquivo a Modificar
+## Mudanças Necessárias
 
-**`supabase/functions/start-campaign/index.ts`**
+### 1. Banco de Dados
 
-Remover o `.in('contact_id', contactIds)` da query e fazer a interseção no código:
+Criar nova tabela para mensagens agendadas:
 
-```typescript
-// Antes (linha ~467-472)
-const { data: tagBatch } = await supabase
-  .from('contact_tags')
-  .select('contact_id')
-  .eq('tag_id', campaign.skip_tag_id)
-  .in('contact_id', contactIds)  // ← REMOVER ISSO
-  .range(tagOffset, tagOffset + pageSize - 1);
+| Tabela | `scheduled_task_messages` |
+|--------|---------------------------|
+| `id` | uuid (PK) |
+| `task_id` | uuid (FK → conversation_tasks) |
+| `conversation_id` | uuid (FK → conversations) |
+| `contact_id` | uuid (FK → contacts) |
+| `user_id` | uuid |
+| `template_id` | uuid (nullable, FK → message_templates) |
+| `message_content` | text |
+| `scheduled_at` | timestamptz |
+| `status` | text ('pending', 'sent', 'failed') |
+| `sent_at` | timestamptz (nullable) |
+| `error_message` | text (nullable) |
+| `created_at` | timestamptz |
 
-// Depois
-const { data: tagBatch } = await supabase
-  .from('contact_tags')
-  .select('contact_id')
-  .eq('tag_id', campaign.skip_tag_id)
-  .range(tagOffset, tagOffset + pageSize - 1);
-```
+### 2. Frontend - Novo Componente Seletor de Mensagem
 
-A filtragem já acontece na linha 489 (`filter(c => !taggedIds.has(c.id))`), então só precisamos remover o `.in()` da query.
+**Arquivo:** `src/components/calendar/MessageSelector.tsx`
+
+Componente com:
+- Popover trigger estilo dos outros seletores (Tipo, Atribuir)
+- Radio buttons para "Template" ou "Manual"
+- Select para templates (usa `useMessageTemplates`)
+- Textarea para mensagem manual
+- Preview da mensagem quando template selecionado
+- Indicador do horário agendado
+
+### 3. Frontend - TasksTab
+
+**Arquivo:** `src/components/inbox/TasksTab.tsx`
+
+- Adicionar estados: `newMessageTemplateId`, `newMessageContent`, `newMessageMode`
+- Adicionar o componente `MessageSelector` ao lado de `AssigneeSelector`
+- Ao criar tarefa, se houver mensagem, criar registro em `scheduled_task_messages`
+- Exibir indicador visual nas tarefas que têm mensagem agendada
+
+### 4. Backend - Edge Function para Processar Mensagens Agendadas
+
+**Arquivo:** `supabase/functions/process-scheduled-task-messages/index.ts`
+
+- Executada via pg_cron a cada minuto
+- Busca mensagens com `status = 'pending'` e `scheduled_at <= now()`
+- Para cada mensagem:
+  - Busca a instância WhatsApp da conversa
+  - Substitui variáveis do template (se aplicável)
+  - Envia via `send-inbox-message`
+  - Atualiza status para 'sent' ou 'failed'
+  - Opcionalmente marca a tarefa como concluída
+
+### 5. Hook para Mensagens Agendadas
+
+**Arquivo:** `src/hooks/useScheduledMessages.ts`
+
+- Query para buscar mensagens agendadas de uma tarefa
+- Mutation para criar/atualizar/deletar mensagem agendada
 
 ---
 
-## Resultado Esperado
+## Arquivos a Criar/Modificar
 
-1. Edge function busca todos os contatos que têm a tag (paginado)
-2. Faz a interseção em memória com os contatos da lista
-3. Remove os que têm a tag do disparo
-4. Campanha inicia normalmente
+| Arquivo | Ação |
+|---------|------|
+| Migração SQL | Criar tabela `scheduled_task_messages` |
+| Migração SQL | Criar job pg_cron |
+| `src/components/calendar/MessageSelector.tsx` | Novo componente |
+| `src/components/inbox/TasksTab.tsx` | Integrar seletor de mensagem |
+| `src/hooks/useScheduledMessages.ts` | Novo hook |
+| `supabase/functions/process-scheduled-task-messages/index.ts` | Nova edge function |
+
+---
+
+## Comportamento Esperado
+
+1. Usuário cria tarefa com título "Lembrar sobre proposta"
+2. Define data: 05/02/2026 às 10:00
+3. Clica em "Mensagem" → Seleciona template "Lembrete de Proposta"
+4. Clica em "Criar"
+5. Sistema cria a tarefa e agendaa mensagem
+6. No dia 05/02 às 10:00, o sistema automaticamente:
+   - Busca a instância conectada da conversa
+   - Substitui {{nome}} pelo nome do contato
+   - Envia a mensagem via WhatsApp
+   - Marca a tarefa como concluída (opcional)
+
+---
+
+## Indicadores Visuais
+
+Na lista de tarefas, tarefas com mensagem agendada exibirão:
+- Ícone de mensagem (💬) junto aos outros badges
+- Ao passar o mouse, preview da mensagem
+- Status: pendente (amarelo), enviada (verde), falhou (vermelho)
+
+---
+
+## Validações
+
+- Só permite agendar mensagem se a tarefa tiver data E hora definidas
+- Não permite agendar para datas/horas passadas
+- Requer que a conversa tenha uma instância WhatsApp válida
+- Template ou mensagem manual é obrigatório se o botão for ativado
+
+---
+
+## Observação Importante
+
+As variáveis de template (como {{nome}}, {{telefone}}) serão substituídas no momento do envio, garantindo que os dados estejam atualizados.
