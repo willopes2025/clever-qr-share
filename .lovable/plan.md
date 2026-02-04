@@ -1,123 +1,76 @@
 
-# Correção: Loop Infinito no FunnelListView
+# Correção: Botão "Editar em Massa" Desabilitado Incorretamente
 
 ## Problema Identificado
 
-O componente `FunnelListView.tsx` está reiniciando constantemente devido a um **uso incorreto de `useMemo`** que causa um loop infinito de renderização.
+O botão de edição em massa no Funil (List View) está **desabilitado** quando não existem campos personalizados cadastrados, mesmo que a funcionalidade de edição em massa permita alterar outros campos como valor, etapa, responsável e data de previsão.
 
-### Código Problemático (Linhas 163-170)
+### Código Problemático (Linha 670-678)
 
 ```typescript
-// ❌ ERRADO - useMemo NÃO deve ter efeitos colaterais
-useMemo(() => {
-  const allIds = allColumns.map((c) => c.id);
-  const newIds = allIds.filter((id) => !columnOrder.includes(id));
-  if (newIds.length > 0) {
-    setColumnOrder((prev) => [...prev, ...newIds]); // setState dentro de useMemo!
-  }
-}, [allColumns, columnOrder]);
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => setBulkEditDialogOpen(true)}
+  disabled={!fieldDefinitions?.length}  // ← Bloqueia o botão desnecessariamente
+>
+  <Edit className="h-4 w-4 mr-2" />
+  Editar Campo  // ← Texto desatualizado
+</Button>
 ```
 
-### Por Que Isso Causa Loop Infinito
+### Por Que Isso Está Errado
 
-| Passo | O que acontece |
-|-------|----------------|
-| 1 | `useMemo` executa e chama `setColumnOrder()` |
-| 2 | React agenda uma re-renderização devido à mudança de estado |
-| 3 | Componente re-renderiza |
-| 4 | `useMemo` executa novamente (nova referência de `allColumns`) |
-| 5 | Se houver diferença, chama `setColumnOrder()` de novo |
-| 6 | Ciclo se repete indefinidamente |
+O `BulkEditDialog` agora permite editar:
+- Valor
+- Etapa
+- Responsável
+- Data de Previsão
+- Campo Personalizado (opcional)
 
-### Regra Violada
-
-**`useMemo` é para computação pura** - nunca deve ter efeitos colaterais como:
-- Chamadas de `setState`
-- Requisições HTTP
-- Modificação de variáveis externas
-- `console.log` em produção
-
----
+A condição `disabled={!fieldDefinitions?.length}` era válida para o antigo dialog que só editava campos personalizados, mas agora é incorreta para o novo dialog mais completo.
 
 ## Solução
 
-Substituir o `useMemo` por `useEffect`, que é o hook correto para sincronização e efeitos colaterais.
-
-### Código Corrigido
-
-```typescript
-// ✅ CORRETO - useEffect para efeitos colaterais
-useEffect(() => {
-  const allIds = allColumns.map((c) => c.id);
-  const newIds = allIds.filter((id) => !columnOrder.includes(id));
-  if (newIds.length > 0) {
-    setColumnOrder((prev) => [...prev, ...newIds]);
-  }
-}, [allColumns]); // ← Remover columnOrder das dependências para evitar loop
-```
-
-### Mudanças Principais
-
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Hook usado | `useMemo` | `useEffect` |
-| Dependências | `[allColumns, columnOrder]` | `[allColumns]` |
-| Comportamento | Loop infinito | Executa apenas quando allColumns muda |
-
----
+1. **Remover** a condição `disabled` do botão
+2. **Atualizar** o texto do botão de "Editar Campo" para "Editar em Massa"
 
 ## Arquivo a Modificar
 
 | Arquivo | Linha | Alteração |
 |---------|-------|-----------|
-| `src/components/funnels/FunnelListView.tsx` | 163-170 | Substituir `useMemo` por `useEffect` |
+| `src/components/funnels/FunnelListView.tsx` | 670-678 | Remover `disabled` e atualizar texto |
 
----
-
-## Seção Técnica
-
-### Migração Completa
+## Alteração
 
 De:
-```typescript
-// Sync column order when new custom fields are added
-useMemo(() => {
-  const allIds = allColumns.map((c) => c.id);
-  const newIds = allIds.filter((id) => !columnOrder.includes(id));
-  if (newIds.length > 0) {
-    setColumnOrder((prev) => [...prev, ...newIds]);
-  }
-}, [allColumns, columnOrder]);
+```tsx
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => setBulkEditDialogOpen(true)}
+  disabled={!fieldDefinitions?.length}
+>
+  <Edit className="h-4 w-4 mr-2" />
+  Editar Campo
+</Button>
 ```
 
 Para:
-```typescript
-// Sync column order when new custom fields are added
-useEffect(() => {
-  const allIds = allColumns.map((c) => c.id);
-  const newIds = allIds.filter((id) => !columnOrder.includes(id));
-  if (newIds.length > 0) {
-    setColumnOrder((prev) => [...prev, ...newIds]);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
+```tsx
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => setBulkEditDialogOpen(true)}
+>
+  <Edit className="h-4 w-4 mr-2" />
+  Editar em Massa
+</Button>
 ```
-
-### Por Que Remover `columnOrder` das Dependências
-
-O `columnOrder` é atualizado *dentro* do próprio efeito. Incluí-lo nas dependências causaria:
-1. useEffect executa → atualiza columnOrder
-2. columnOrder mudou → useEffect executa novamente
-3. Loop infinito
-
-A solução correta é usar a função de atualização (`prev => ...`) que não depende do valor atual do estado externo.
-
----
 
 ## Resultado Esperado
 
 Após a correção:
-1. O funil carregará normalmente sem loops infinitos
-2. Novas colunas personalizadas serão adicionadas à ordem quando criadas
-3. O spinner de loading não ficará aparecendo indefinidamente
-4. Performance significativamente melhor
+- O botão "Editar em Massa" aparecerá **sempre** que houver leads selecionados
+- Usuários poderão editar valor, etapa, responsável e data de previsão mesmo sem campos personalizados
+- O texto do botão refletirá melhor a funcionalidade expandida
