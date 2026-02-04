@@ -1,255 +1,123 @@
 
-# Edição em Massa: Funil e Contatos
+# Correção: Loop Infinito no FunnelListView
 
-## Visão Geral
+## Problema Identificado
 
-Adicionar funcionalidade de edição em massa expandida que permita modificar múltiplos campos de uma vez, incluindo:
-- **Funil List View**: Valor, Etapa, Campos Personalizados (lead)
-- **Contatos**: Campos Personalizados (contato), associação a Funil/Etapa
+O componente `FunnelListView.tsx` está reiniciando constantemente devido a um **uso incorreto de `useMemo`** que causa um loop infinito de renderização.
 
-## O Que Será Construído
+### Código Problemático (Linhas 163-170)
 
-### 1. Novo Dialog: "Edição em Massa Completa"
-
-Um dialog unificado e mais poderoso que substitui/expande o `BulkEditFieldDialog` atual:
-
-```
-+----------------------------------------------------------+
-| Editar em Massa (X selecionados)                         |
-+----------------------------------------------------------+
-| O que deseja alterar?                                    |
-|                                                          |
-| ☐ Valor                                                  |
-|   [R$ _________]                                         |
-|                                                          |
-| ☐ Etapa                                                  |
-|   [Selecione uma etapa ▼]                                |
-|                                                          |
-| ☐ Campo Personalizado                                    |
-|   [Selecione ▼]  →  [Novo valor ▼ / ___]                 |
-|                                                          |
-| ☐ Responsável                                            |
-|   [Selecione membro ▼]                                   |
-|                                                          |
-| ☐ Data de Previsão                                       |
-|   [📅 __/__/____]                                        |
-+----------------------------------------------------------+
-| [Cancelar]                       [Aplicar Alterações]    |
-+----------------------------------------------------------+
+```typescript
+// ❌ ERRADO - useMemo NÃO deve ter efeitos colaterais
+useMemo(() => {
+  const allIds = allColumns.map((c) => c.id);
+  const newIds = allIds.filter((id) => !columnOrder.includes(id));
+  if (newIds.length > 0) {
+    setColumnOrder((prev) => [...prev, ...newIds]); // setState dentro de useMemo!
+  }
+}, [allColumns, columnOrder]);
 ```
 
-### 2. Alterações por Módulo
+### Por Que Isso Causa Loop Infinito
 
-#### Funil (List View) - Campos Editáveis em Massa:
-| Campo | Tipo | Comportamento |
-|-------|------|---------------|
-| Valor | Número | Atualiza `funnel_deals.value` |
-| Etapa | Select | Move todos os deals para a etapa selecionada |
-| Responsável | Select | Atualiza `funnel_deals.responsible_id` |
-| Data de Previsão | Date | Atualiza `funnel_deals.expected_close_date` |
-| Campo Personalizado (Lead) | Dinâmico | Atualiza `funnel_deals.custom_fields[key]` |
+| Passo | O que acontece |
+|-------|----------------|
+| 1 | `useMemo` executa e chama `setColumnOrder()` |
+| 2 | React agenda uma re-renderização devido à mudança de estado |
+| 3 | Componente re-renderiza |
+| 4 | `useMemo` executa novamente (nova referência de `allColumns`) |
+| 5 | Se houver diferença, chama `setColumnOrder()` de novo |
+| 6 | Ciclo se repete indefinidamente |
 
-#### Contatos (Page) - Campos Editáveis em Massa:
-| Campo | Tipo | Comportamento |
-|-------|------|---------------|
-| Campo Personalizado (Contato) | Dinâmico | Atualiza `contacts.custom_fields[key]` |
-| Associar a Funil | Select | Cria novo deal no funil/etapa selecionados |
+### Regra Violada
 
-## Arquivos a Criar/Modificar
+**`useMemo` é para computação pura** - nunca deve ter efeitos colaterais como:
+- Chamadas de `setState`
+- Requisições HTTP
+- Modificação de variáveis externas
+- `console.log` em produção
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/components/shared/BulkEditDialog.tsx` | Criar | Componente unificado de edição em massa |
-| `src/components/funnels/FunnelListView.tsx` | Modificar | Substituir dialog atual pelo novo |
-| `src/pages/Contacts.tsx` | Modificar | Adicionar botão "Editar Campos" nas ações em massa |
-| `src/hooks/useFunnels.ts` | Modificar | Adicionar `bulkUpdateDeals` mutation |
-| `src/hooks/useContacts.ts` | Modificar | Adicionar `bulkUpdateContacts` mutation |
+---
 
-## Fluxo de Uso
+## Solução
 
-### Funil (List View):
-1. Usuário seleciona múltiplos leads via checkbox
-2. Clica em "Editar em Massa" na barra de ações
-3. Seleciona quais campos quer alterar
-4. Define os novos valores
-5. Clica em "Aplicar"
-6. Sistema atualiza todos os deals selecionados
+Substituir o `useMemo` por `useEffect`, que é o hook correto para sincronização e efeitos colaterais.
 
-### Contatos:
-1. Usuário seleciona múltiplos contatos via checkbox
-2. Clica em "Editar Campos" na barra de ações
-3. Escolhe campo personalizado ou associação a funil
-4. Define o valor
-5. Clica em "Aplicar"
+### Código Corrigido
+
+```typescript
+// ✅ CORRETO - useEffect para efeitos colaterais
+useEffect(() => {
+  const allIds = allColumns.map((c) => c.id);
+  const newIds = allIds.filter((id) => !columnOrder.includes(id));
+  if (newIds.length > 0) {
+    setColumnOrder((prev) => [...prev, ...newIds]);
+  }
+}, [allColumns]); // ← Remover columnOrder das dependências para evitar loop
+```
+
+### Mudanças Principais
+
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Hook usado | `useMemo` | `useEffect` |
+| Dependências | `[allColumns, columnOrder]` | `[allColumns]` |
+| Comportamento | Loop infinito | Executa apenas quando allColumns muda |
+
+---
+
+## Arquivo a Modificar
+
+| Arquivo | Linha | Alteração |
+|---------|-------|-----------|
+| `src/components/funnels/FunnelListView.tsx` | 163-170 | Substituir `useMemo` por `useEffect` |
+
+---
 
 ## Seção Técnica
 
-### Novo Hook: `bulkUpdateDeals`
+### Migração Completa
 
+De:
 ```typescript
-const bulkUpdateDeals = useMutation({
-  mutationFn: async ({ 
-    dealIds, 
-    updates 
-  }: { 
-    dealIds: string[]; 
-    updates: {
-      value?: number;
-      stage_id?: string;
-      responsible_id?: string | null;
-      expected_close_date?: string | null;
-      custom_field?: { key: string; value: unknown };
-    };
-  }) => {
-    const BATCH_SIZE = 50;
-    
-    for (let i = 0; i < dealIds.length; i += BATCH_SIZE) {
-      const batch = dealIds.slice(i, i + BATCH_SIZE);
-      
-      // Se mudou de etapa, precisamos de lógica especial
-      if (updates.stage_id) {
-        for (const dealId of batch) {
-          await updateDeal.mutateAsync({ 
-            id: dealId, 
-            stage_id: updates.stage_id 
-          });
-        }
-      } else {
-        // Para outros campos, update em batch
-        const updateData: Record<string, unknown> = {};
-        if (updates.value !== undefined) updateData.value = updates.value;
-        if (updates.responsible_id !== undefined) updateData.responsible_id = updates.responsible_id;
-        if (updates.expected_close_date !== undefined) updateData.expected_close_date = updates.expected_close_date;
-        
-        const { error } = await supabase
-          .from('funnel_deals')
-          .update(updateData)
-          .in('id', batch);
-          
-        if (error) throw error;
-      }
-      
-      // Custom fields - precisam ser atualizados individualmente
-      if (updates.custom_field) {
-        for (const dealId of batch) {
-          const { data: deal } = await supabase
-            .from('funnel_deals')
-            .select('custom_fields')
-            .eq('id', dealId)
-            .single();
-            
-          await supabase
-            .from('funnel_deals')
-            .update({ 
-              custom_fields: {
-                ...(deal?.custom_fields || {}),
-                [updates.custom_field.key]: updates.custom_field.value
-              }
-            })
-            .eq('id', dealId);
-        }
-      }
-    }
-  },
-  onSuccess: (_, variables) => {
-    queryClient.invalidateQueries({ queryKey: ['funnels'] });
-    toast.success(`${variables.dealIds.length} lead(s) atualizado(s)`);
+// Sync column order when new custom fields are added
+useMemo(() => {
+  const allIds = allColumns.map((c) => c.id);
+  const newIds = allIds.filter((id) => !columnOrder.includes(id));
+  if (newIds.length > 0) {
+    setColumnOrder((prev) => [...prev, ...newIds]);
   }
-});
+}, [allColumns, columnOrder]);
 ```
 
-### Novo Hook: `bulkUpdateContacts`
-
+Para:
 ```typescript
-const bulkUpdateContacts = useMutation({
-  mutationFn: async ({
-    contactIds,
-    updates
-  }: {
-    contactIds: string[];
-    updates: {
-      custom_field?: { key: string; value: unknown };
-      funnel_assignment?: { funnel_id: string; stage_id: string };
-    };
-  }) => {
-    const BATCH_SIZE = 50;
-    
-    for (let i = 0; i < contactIds.length; i += BATCH_SIZE) {
-      const batch = contactIds.slice(i, i + BATCH_SIZE);
-      
-      // Custom fields
-      if (updates.custom_field) {
-        for (const contactId of batch) {
-          const { data: contact } = await supabase
-            .from('contacts')
-            .select('custom_fields')
-            .eq('id', contactId)
-            .single();
-            
-          await supabase
-            .from('contacts')
-            .update({ 
-              custom_fields: {
-                ...(contact?.custom_fields || {}),
-                [updates.custom_field.key]: updates.custom_field.value
-              }
-            })
-            .eq('id', contactId);
-        }
-      }
-      
-      // Funnel assignment - criar deals
-      if (updates.funnel_assignment) {
-        for (const contactId of batch) {
-          const { data: contact } = await supabase
-            .from('contacts')
-            .select('name')
-            .eq('id', contactId)
-            .single();
-            
-          await supabase.from('funnel_deals').insert({
-            user_id: user!.id,
-            funnel_id: updates.funnel_assignment.funnel_id,
-            stage_id: updates.funnel_assignment.stage_id,
-            contact_id: contactId,
-            title: contact?.name || 'Novo Lead',
-            value: 0
-          });
-        }
-      }
-    }
-  },
-  onSuccess: (_, variables) => {
-    queryClient.invalidateQueries({ queryKey: ['contacts'] });
-    queryClient.invalidateQueries({ queryKey: ['funnels'] });
-    toast.success(`${variables.contactIds.length} contato(s) atualizado(s)`);
+// Sync column order when new custom fields are added
+useEffect(() => {
+  const allIds = allColumns.map((c) => c.id);
+  const newIds = allIds.filter((id) => !columnOrder.includes(id));
+  if (newIds.length > 0) {
+    setColumnOrder((prev) => [...prev, ...newIds]);
   }
-});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 ```
 
-### Componente BulkEditDialog
+### Por Que Remover `columnOrder` das Dependências
 
-O componente será modular, recebendo:
-- `mode`: 'deals' | 'contacts'
-- `selectedIds`: IDs selecionados
-- `fieldDefinitions`: campos personalizados disponíveis
-- `stages`: etapas do funil (apenas para deals)
-- `funnels`: lista de funis (apenas para contatos)
-- `members`: membros da equipe (apenas para deals)
-- `onConfirm`: callback de confirmação
+O `columnOrder` é atualizado *dentro* do próprio efeito. Incluí-lo nas dependências causaria:
+1. useEffect executa → atualiza columnOrder
+2. columnOrder mudou → useEffect executa novamente
+3. Loop infinito
 
-### UI Melhorada para Funil List View
+A solução correta é usar a função de atualização (`prev => ...`) que não depende do valor atual do estado externo.
 
-O botão atual "Editar Campo" será substituído por um dropdown com mais opções:
+---
 
-```
-[▼ Editar em Massa]
-├── Alterar Valor
-├── Mover para Etapa
-├── Alterar Responsável  
-├── Alterar Data Previsão
-├── Editar Campo Personalizado
-└── Editar Múltiplos Campos... (abre dialog completo)
-```
+## Resultado Esperado
 
-Isso dá atalhos rápidos para ações comuns e o dialog completo para edições mais complexas.
+Após a correção:
+1. O funil carregará normalmente sem loops infinitos
+2. Novas colunas personalizadas serão adicionadas à ordem quando criadas
+3. O spinner de loading não ficará aparecendo indefinidamente
+4. Performance significativamente melhor
