@@ -61,7 +61,8 @@ export const FormCard = ({ form }: FormCardProps) => {
 
   const status = statusConfig[form.status] || statusConfig.draft;
   const formUrl = `${window.location.origin}/f/${form.slug}`;
-  const embedCode = `<iframe src="${formUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
+  const embedUrl = `${window.location.origin}/f/${form.slug}?embed=true`;
+  const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(formUrl);

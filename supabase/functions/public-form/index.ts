@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const slug = url.searchParams.get('slug');
     const staticParamsJson = url.searchParams.get('static_params');
+    const embed = url.searchParams.get('embed') === 'true';
 
     if (!slug) {
       return new Response(
@@ -150,8 +151,8 @@ Deno.serve(async (req) => {
 
     const formFields = fields || [];
 
-    // Generate form HTML with static params
-    const html = generateFormHTML(form, formFields, staticParams);
+    // Generate form HTML with static params and embed mode
+    const html = generateFormHTML(form, formFields, staticParams, embed);
 
     return new Response(html, {
       headers: { 
@@ -169,7 +170,7 @@ Deno.serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[]): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
     .map(field => generateFieldHTML(field))
@@ -179,6 +180,15 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
   const staticParamsHTML = staticParams
     .map(p => `<input type="hidden" name="_static_${escapeHtml(p.key)}" value="${escapeHtml(p.value)}">`)
     .join('\n');
+
+  // Conditional styles for embed mode
+  const bodyStyles = embed 
+    ? `font-family: var(--font-family); background: transparent; min-height: auto; padding: 0;`
+    : `font-family: var(--font-family); background: var(--bg-color); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem;`;
+  
+  const containerStyles = embed
+    ? `background: transparent; border-radius: 0; box-shadow: none; max-width: 100%; width: 100%; padding: 0;`
+    : `background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); max-width: 600px; width: 100%; padding: 2.5rem;`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -201,23 +211,8 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
       --font-family: '${form.font_family || 'Inter'}', sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: var(--font-family);
-      background: var(--bg-color);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-    .form-container {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
-      max-width: 600px;
-      width: 100%;
-      padding: 2.5rem;
-    }
+    body { ${bodyStyles} }
+    .form-container { ${containerStyles} }
     .logo { max-height: 60px; margin-bottom: 1.5rem; }
     h1 { font-size: 1.75rem; font-weight: 600; color: #111; margin-bottom: 0.5rem; }
     .subheader { color: #666; margin-bottom: 2rem; font-size: 1rem; }
@@ -290,9 +285,9 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
 </head>
 <body>
   <div class="form-container">
-    ${form.logo_url ? `<img src="${escapeHtml(form.logo_url)}" alt="Logo" class="logo">` : ''}
-    ${form.header_text ? `<h1>${escapeHtml(form.header_text)}</h1>` : ''}
-    ${form.subheader_text ? `<p class="subheader">${escapeHtml(form.subheader_text)}</p>` : ''}
+    ${!embed && form.logo_url ? `<img src="${escapeHtml(form.logo_url)}" alt="Logo" class="logo">` : ''}
+    ${!embed && form.header_text ? `<h1>${escapeHtml(form.header_text)}</h1>` : ''}
+    ${!embed && form.subheader_text ? `<p class="subheader">${escapeHtml(form.subheader_text)}</p>` : ''}
     
     <form id="public-form">
       <input type="hidden" name="form_id" value="${form.id}">
