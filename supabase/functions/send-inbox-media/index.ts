@@ -199,6 +199,7 @@ Deno.serve(async (req) => {
         .update({
           last_message_at: new Date().toISOString(),
           last_message_preview: previewText.substring(0, 100),
+          last_message_direction: 'outbound',
           instance_id: instanceId,
         })
         .eq('id', conversationId);

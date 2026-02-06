@@ -397,6 +397,7 @@ Deno.serve(async (req) => {
                 .update({
                   last_message_at: timestamp,
                   last_message_preview: content.substring(0, 100),
+                  last_message_direction: 'inbound',
                   unread_count: (conversation.unread_count || 0) + 1,
                   updated_at: new Date().toISOString()
                 })

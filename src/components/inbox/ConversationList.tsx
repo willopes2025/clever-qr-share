@@ -194,8 +194,10 @@ export const ConversationList = ({
       const now = new Date();
       
       if (filters.responseStatus === 'no_response') {
-        if (conv.first_response_at) return false;
+        // Show only conversations where last message was from client (inbound)
+        if (conv.last_message_direction !== 'inbound') return false;
       } else {
+        // Time-based filters: +15min, +1h, +4h, +24h without response
         const minutesThreshold: Record<string, number> = {
           '15min': 15,
           '1h': 60,
@@ -203,7 +205,8 @@ export const ConversationList = ({
           '24h': 1440,
         };
         const threshold = minutesThreshold[filters.responseStatus];
-        if (!lastMsgDate || conv.first_response_at) return false;
+        // Must be inbound (waiting response) and exceeding the threshold
+        if (!lastMsgDate || conv.last_message_direction !== 'inbound') return false;
         if (differenceInMinutes(now, lastMsgDate) < threshold) return false;
       }
     }
