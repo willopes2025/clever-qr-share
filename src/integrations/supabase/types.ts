@@ -2004,6 +2004,7 @@ export type Database = {
           instance_id: string | null
           is_pinned: boolean | null
           last_message_at: string | null
+          last_message_direction: string | null
           last_message_preview: string | null
           meta_phone_number_id: string | null
           preferred_response_format: string | null
@@ -2028,6 +2029,7 @@ export type Database = {
           instance_id?: string | null
           is_pinned?: boolean | null
           last_message_at?: string | null
+          last_message_direction?: string | null
           last_message_preview?: string | null
           meta_phone_number_id?: string | null
           preferred_response_format?: string | null
@@ -2052,6 +2054,7 @@ export type Database = {
           instance_id?: string | null
           is_pinned?: boolean | null
           last_message_at?: string | null
+          last_message_direction?: string | null
           last_message_preview?: string | null
           meta_phone_number_id?: string | null
           preferred_response_format?: string | null

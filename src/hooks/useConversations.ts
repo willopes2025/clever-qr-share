@@ -34,6 +34,8 @@ export interface Conversation {
   // FASE 1: Lead distribution + SLA
   assigned_to?: string | null;
   first_response_at?: string | null;
+  // Last message direction for "no response" filter
+  last_message_direction?: 'inbound' | 'outbound' | null;
   // Provider fields (WhatsApp Lite vs API)
   provider?: 'evolution' | 'meta' | null;
   meta_phone_number_id?: string | null;

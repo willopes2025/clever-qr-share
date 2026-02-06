@@ -2101,6 +2101,7 @@ ${mapeamento}
       .update({
         last_message_at: new Date().toISOString(),
         last_message_preview: aiMessage.substring(0, 100),
+        last_message_direction: 'outbound',
       })
       .eq('id', conversationId);
 

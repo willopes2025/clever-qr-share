@@ -325,7 +325,8 @@ Deno.serve(async (req: Request) => {
                   
                   await supabase.from('conversations').update({
                     last_message_at: new Date().toISOString(),
-                    last_message_preview: message.substring(0, 100)
+                    last_message_preview: message.substring(0, 100),
+                    last_message_direction: 'outbound'
                   }).eq('id', conversationId);
                 }
                 
@@ -527,7 +528,8 @@ Deno.serve(async (req: Request) => {
                   
                   await supabase.from('conversations').update({
                     last_message_at: new Date().toISOString(),
-                    last_message_preview: message.substring(0, 100)
+                    last_message_preview: message.substring(0, 100),
+                    last_message_direction: 'outbound'
                   }).eq('id', conversationId);
                 }
                 

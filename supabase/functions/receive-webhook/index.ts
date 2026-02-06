@@ -1007,6 +1007,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
           unread_count: isFromMe ? 0 : 1,
           last_message_at: new Date().toISOString(),
           last_message_preview: preview,
+          last_message_direction: isFromMe ? 'outbound' : 'inbound',
           assigned_to: assignedTo,
         }, { 
           onConflict: 'user_id,contact_id' 
@@ -1065,6 +1066,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       const updateData: any = {
         last_message_at: new Date().toISOString(),
         last_message_preview: preview,
+        last_message_direction: isFromMe ? 'outbound' : 'inbound',
         instance_id: instanceId,
       };
       
