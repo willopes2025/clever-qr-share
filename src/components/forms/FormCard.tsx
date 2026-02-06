@@ -28,7 +28,8 @@ import {
   Trash2, 
   ExternalLink,
   Eye,
-  Link2
+  Link2,
+  Code
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -60,10 +61,16 @@ export const FormCard = ({ form }: FormCardProps) => {
 
   const status = statusConfig[form.status] || statusConfig.draft;
   const formUrl = `${window.location.origin}/f/${form.slug}`;
+  const embedCode = `<iframe src="${formUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(formUrl);
     toast.success("Link copiado para a área de transferência!");
+  };
+
+  const handleCopyEmbed = () => {
+    navigator.clipboard.writeText(embedCode);
+    toast.success("Código embed copiado! Cole no HTML do seu site.");
   };
 
   const handlePreview = () => {
@@ -112,6 +119,10 @@ export const FormCard = ({ form }: FormCardProps) => {
                 <DropdownMenuItem onClick={handleCopyLink}>
                   <Link2 className="h-4 w-4 mr-2" />
                   Copiar Link
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopyEmbed}>
+                  <Code className="h-4 w-4 mr-2" />
+                  Copiar Código Embed
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => duplicateForm.mutate(form.id)}>
                   <Copy className="h-4 w-4 mr-2" />
