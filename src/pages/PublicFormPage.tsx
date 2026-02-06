@@ -23,12 +23,20 @@ const PublicFormPage = () => {
         })
         .filter(p => p.key && p.value);
 
+      // Check for embed mode from query string
+      const searchParams = new URLSearchParams(location.search);
+      const embedMode = searchParams.get('embed');
+
       // Build URL with params as query string for the edge function
       const params = new URLSearchParams();
       params.set('slug', slug);
       
       if (staticParams.length > 0) {
         params.set('static_params', JSON.stringify(staticParams));
+      }
+
+      if (embedMode === 'true') {
+        params.set('embed', 'true');
       }
 
       const fetchForm = async () => {
