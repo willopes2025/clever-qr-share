@@ -1,76 +1,125 @@
 
-# Correção: Botão "Editar em Massa" Desabilitado Incorretamente
+
+# Correção: Filtro "Sem Resposta" no Inbox
 
 ## Problema Identificado
 
-O botão de edição em massa no Funil (List View) está **desabilitado** quando não existem campos personalizados cadastrados, mesmo que a funcionalidade de edição em massa permita alterar outros campos como valor, etapa, responsável e data de previsão.
+O filtro "Sem resposta" está mostrando conversas que já foram respondidas. Isso acontece porque a lógica atual verifica apenas o campo `first_response_at`, que não é confiável para determinar se a conversa precisa de resposta.
 
-### Código Problemático (Linha 670-678)
+### Exemplo do Problema
 
-```typescript
-<Button
-  variant="outline"
-  size="sm"
-  onClick={() => setBulkEditDialogOpen(true)}
-  disabled={!fieldDefinitions?.length}  // ← Bloqueia o botão desnecessariamente
->
-  <Edit className="h-4 w-4 mr-2" />
-  Editar Campo  // ← Texto desatualizado
-</Button>
-```
+| Conversa | first_response_at | Última Mensagem | Aparece no filtro? | Deveria aparecer? |
+|----------|-------------------|-----------------|-------------------|-------------------|
+| A | `null` | Outbound (atendente enviou) | ✅ Sim | ❌ Não |
+| B | `null` | Inbound (cliente enviou) | ✅ Sim | ✅ Sim |
+| C | Preenchido | Inbound (cliente enviou) | ❌ Não | ✅ Sim |
 
-### Por Que Isso Está Errado
+### Causa Raiz
 
-O `BulkEditDialog` agora permite editar:
-- Valor
-- Etapa
-- Responsável
-- Data de Previsão
-- Campo Personalizado (opcional)
+O sistema não rastreia a **direção da última mensagem** na tabela `conversations`. Sem essa informação, é impossível saber se o cliente está aguardando resposta.
 
-A condição `disabled={!fieldDefinitions?.length}` era válida para o antigo dialog que só editava campos personalizados, mas agora é incorreta para o novo dialog mais completo.
+---
 
 ## Solução
 
-1. **Remover** a condição `disabled` do botão
-2. **Atualizar** o texto do botão de "Editar Campo" para "Editar em Massa"
+Adicionar um novo campo `last_message_direction` à tabela `conversations` e usar esse campo para filtrar corretamente.
 
-## Arquivo a Modificar
+### Lógica Correta
 
-| Arquivo | Linha | Alteração |
-|---------|-------|-----------|
-| `src/components/funnels/FunnelListView.tsx` | 670-678 | Remover `disabled` e atualizar texto |
+Uma conversa aparece em "Sem resposta" quando:
+- `last_message_direction = 'inbound'` (a última mensagem foi do cliente)
 
-## Alteração
+---
 
-De:
-```tsx
-<Button
-  variant="outline"
-  size="sm"
-  onClick={() => setBulkEditDialogOpen(true)}
-  disabled={!fieldDefinitions?.length}
->
-  <Edit className="h-4 w-4 mr-2" />
-  Editar Campo
-</Button>
+## Alterações Necessárias
+
+### 1. Migração de Banco de Dados
+
+Adicionar a coluna `last_message_direction` na tabela `conversations`:
+
+```sql
+ALTER TABLE conversations 
+ADD COLUMN last_message_direction text;
+
+-- Preencher dados existentes baseado na última mensagem
+UPDATE conversations c
+SET last_message_direction = (
+  SELECT direction 
+  FROM inbox_messages 
+  WHERE conversation_id = c.id 
+  ORDER BY created_at DESC 
+  LIMIT 1
+);
 ```
 
-Para:
-```tsx
-<Button
-  variant="outline"
-  size="sm"
-  onClick={() => setBulkEditDialogOpen(true)}
->
-  <Edit className="h-4 w-4 mr-2" />
-  Editar em Massa
-</Button>
+### 2. Atualizar Edge Functions
+
+Todos os webhooks que atualizam `last_message_preview` devem também atualizar `last_message_direction`:
+
+| Edge Function | Direção |
+|---------------|---------|
+| `receive-webhook` | `inbound` (mensagem recebida do cliente) |
+| `meta-whatsapp-webhook` | `inbound` (mensagem recebida do cliente) |
+| `send-inbox-message` | `outbound` (mensagem enviada) |
+| `send-inbox-media` | `outbound` (mensagem enviada) |
+| `meta-whatsapp-send` | `outbound` (mensagem enviada) |
+| `ai-campaign-agent` | `outbound` (resposta da IA) |
+| `process-funnel-automations` | `outbound` (automação) |
+| `process-scheduled-task-messages` | `outbound` (agendamento) |
+
+### 3. Atualizar Hook useConversations
+
+Incluir o campo `last_message_direction` no select e interface:
+
+```typescript
+export interface Conversation {
+  // ... campos existentes
+  last_message_direction?: 'inbound' | 'outbound' | null;
+}
 ```
+
+### 4. Atualizar Lógica de Filtro
+
+Modificar `ConversationList.tsx` para usar o novo campo:
+
+```typescript
+// Apply response status filter
+if (filters.responseStatus !== 'all') {
+  if (filters.responseStatus === 'no_response') {
+    // Nova lógica: última mensagem deve ser inbound
+    if (conv.last_message_direction !== 'inbound') return false;
+  } else {
+    // Filtros de tempo mantêm a mesma lógica
+    // ...
+  }
+}
+```
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| Migração SQL | Adicionar coluna `last_message_direction` |
+| `supabase/functions/receive-webhook/index.ts` | Adicionar `last_message_direction: 'inbound'` |
+| `supabase/functions/meta-whatsapp-webhook/index.ts` | Adicionar `last_message_direction: 'inbound'` |
+| `supabase/functions/send-inbox-message/index.ts` | Adicionar `last_message_direction: 'outbound'` |
+| `supabase/functions/send-inbox-media/index.ts` | Adicionar `last_message_direction: 'outbound'` |
+| `supabase/functions/meta-whatsapp-send/index.ts` | Adicionar `last_message_direction: 'outbound'` |
+| `supabase/functions/ai-campaign-agent/index.ts` | Adicionar `last_message_direction: 'outbound'` |
+| `supabase/functions/process-funnel-automations/index.ts` | Adicionar `last_message_direction: 'outbound'` |
+| `supabase/functions/process-scheduled-task-messages/index.ts` | Adicionar `last_message_direction: 'outbound'` |
+| `src/hooks/useConversations.ts` | Adicionar tipo `last_message_direction` |
+| `src/components/inbox/ConversationList.tsx` | Corrigir lógica do filtro |
+
+---
 
 ## Resultado Esperado
 
 Após a correção:
-- O botão "Editar em Massa" aparecerá **sempre** que houver leads selecionados
-- Usuários poderão editar valor, etapa, responsável e data de previsão mesmo sem campos personalizados
-- O texto do botão refletirá melhor a funcionalidade expandida
+1. ✅ O filtro "Sem resposta" mostrará apenas conversas onde a última mensagem foi do cliente
+2. ✅ Conversas já respondidas não aparecerão no filtro
+3. ✅ Novas mensagens atualizarão automaticamente a direção
+4. ✅ Os filtros de tempo (+15min, +1h, etc) continuarão funcionando corretamente
+
