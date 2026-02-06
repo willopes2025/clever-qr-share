@@ -1,97 +1,87 @@
 
 
-# Correção: Filtro "Sem Resposta" no Inbox
+# Modo Embed Limpo para Formulários
 
 ## Problema Identificado
 
-O filtro "Sem resposta" está mostrando conversas que já foram respondidas. Isso acontece porque a lógica atual verifica apenas o campo `first_response_at`, que não é confiável para determinar se a conversa precisa de resposta.
+O formulário embutido via iframe está aparecendo com elementos visuais extras (background cinza, card branco com sombra, padding excessivo) que conflitam com o design do site onde está sendo incorporado.
 
-### Exemplo do Problema
+### Resultado Atual
+- Background colorido no body
+- Container com box-shadow e border-radius
+- Padding de 2.5rem no container
+- Centralização com flexbox que ocupa 100vh
 
-| Conversa | first_response_at | Última Mensagem | Aparece no filtro? | Deveria aparecer? |
-|----------|-------------------|-----------------|-------------------|-------------------|
-| A | `null` | Outbound (atendente enviou) | ✅ Sim | ❌ Não |
-| B | `null` | Inbound (cliente enviou) | ✅ Sim | ✅ Sim |
-| C | Preenchido | Inbound (cliente enviou) | ❌ Não | ✅ Sim |
-
-### Causa Raiz
-
-O sistema não rastreia a **direção da última mensagem** na tabela `conversations`. Sem essa informação, é impossível saber se o cliente está aguardando resposta.
+### Resultado Desejado
+- Background transparente
+- Sem sombras ou bordas arredondadas
+- Apenas os campos do formulário e o botão de enviar
+- Formulário adapta-se ao container do site
 
 ---
 
 ## Solução
 
-Adicionar um novo campo `last_message_direction` à tabela `conversations` e usar esse campo para filtrar corretamente.
+Adicionar parâmetro `?embed=true` na URL do formulário que ativa um modo de renderização limpo, ideal para iframes.
 
-### Lógica Correta
+### Modo Embed vs Modo Normal
 
-Uma conversa aparece em "Sem resposta" quando:
-- `last_message_direction = 'inbound'` (a última mensagem foi do cliente)
+| Aspecto | Modo Normal | Modo Embed |
+|---------|-------------|------------|
+| Background body | Colorido | Transparente |
+| Container | Card com sombra | Sem container visual |
+| Padding | 2.5rem | Mínimo (1rem) |
+| Altura mínima | 100vh | auto |
+| Logo/Header | Exibe | Oculta |
+| Resultado | Página completa | Apenas campos |
 
 ---
 
 ## Alterações Necessárias
 
-### 1. Migração de Banco de Dados
+### 1. Edge Function `public-form` 
 
-Adicionar a coluna `last_message_direction` na tabela `conversations`:
-
-```sql
-ALTER TABLE conversations 
-ADD COLUMN last_message_direction text;
-
--- Preencher dados existentes baseado na última mensagem
-UPDATE conversations c
-SET last_message_direction = (
-  SELECT direction 
-  FROM inbox_messages 
-  WHERE conversation_id = c.id 
-  ORDER BY created_at DESC 
-  LIMIT 1
-);
-```
-
-### 2. Atualizar Edge Functions
-
-Todos os webhooks que atualizam `last_message_preview` devem também atualizar `last_message_direction`:
-
-| Edge Function | Direção |
-|---------------|---------|
-| `receive-webhook` | `inbound` (mensagem recebida do cliente) |
-| `meta-whatsapp-webhook` | `inbound` (mensagem recebida do cliente) |
-| `send-inbox-message` | `outbound` (mensagem enviada) |
-| `send-inbox-media` | `outbound` (mensagem enviada) |
-| `meta-whatsapp-send` | `outbound` (mensagem enviada) |
-| `ai-campaign-agent` | `outbound` (resposta da IA) |
-| `process-funnel-automations` | `outbound` (automação) |
-| `process-scheduled-task-messages` | `outbound` (agendamento) |
-
-### 3. Atualizar Hook useConversations
-
-Incluir o campo `last_message_direction` no select e interface:
+Modificar para aceitar o parâmetro `embed` e gerar estilos diferentes:
 
 ```typescript
-export interface Conversation {
-  // ... campos existentes
-  last_message_direction?: 'inbound' | 'outbound' | null;
+// Detectar modo embed
+const embed = url.searchParams.get('embed') === 'true';
+
+// Estilos condicionais
+body {
+  background: ${embed ? 'transparent' : 'var(--bg-color)'};
+  min-height: ${embed ? 'auto' : '100vh'};
+  padding: ${embed ? '0' : '2rem'};
+  display: ${embed ? 'block' : 'flex'};
+}
+
+.form-container {
+  background: ${embed ? 'transparent' : 'white'};
+  box-shadow: ${embed ? 'none' : '0 4px 24px rgba(0,0,0,0.1)'};
+  border-radius: ${embed ? '0' : '16px'};
+  padding: ${embed ? '0' : '2.5rem'};
 }
 ```
 
-### 4. Atualizar Lógica de Filtro
+### 2. FormCard.tsx
 
-Modificar `ConversationList.tsx` para usar o novo campo:
+Atualizar o código embed para incluir `?embed=true`:
 
 ```typescript
-// Apply response status filter
-if (filters.responseStatus !== 'all') {
-  if (filters.responseStatus === 'no_response') {
-    // Nova lógica: última mensagem deve ser inbound
-    if (conv.last_message_direction !== 'inbound') return false;
-  } else {
-    // Filtros de tempo mantêm a mesma lógica
-    // ...
-  }
+const embedUrl = `${window.location.origin}/f/${form.slug}?embed=true`;
+const embedCode = `<iframe src="${embedUrl}" ...></iframe>`;
+```
+
+### 3. PublicFormPage.tsx
+
+Passar o parâmetro `embed` da query string para a Edge Function:
+
+```typescript
+const searchParams = new URLSearchParams(location.search);
+const embedMode = searchParams.get('embed');
+
+if (embedMode === 'true') {
+  params.set('embed', 'true');
 }
 ```
 
@@ -101,25 +91,17 @@ if (filters.responseStatus !== 'all') {
 
 | Arquivo | Alteração |
 |---------|-----------|
-| Migração SQL | Adicionar coluna `last_message_direction` |
-| `supabase/functions/receive-webhook/index.ts` | Adicionar `last_message_direction: 'inbound'` |
-| `supabase/functions/meta-whatsapp-webhook/index.ts` | Adicionar `last_message_direction: 'inbound'` |
-| `supabase/functions/send-inbox-message/index.ts` | Adicionar `last_message_direction: 'outbound'` |
-| `supabase/functions/send-inbox-media/index.ts` | Adicionar `last_message_direction: 'outbound'` |
-| `supabase/functions/meta-whatsapp-send/index.ts` | Adicionar `last_message_direction: 'outbound'` |
-| `supabase/functions/ai-campaign-agent/index.ts` | Adicionar `last_message_direction: 'outbound'` |
-| `supabase/functions/process-funnel-automations/index.ts` | Adicionar `last_message_direction: 'outbound'` |
-| `supabase/functions/process-scheduled-task-messages/index.ts` | Adicionar `last_message_direction: 'outbound'` |
-| `src/hooks/useConversations.ts` | Adicionar tipo `last_message_direction` |
-| `src/components/inbox/ConversationList.tsx` | Corrigir lógica do filtro |
+| `supabase/functions/public-form/index.ts` | Adicionar suporte ao parâmetro `embed` e estilos condicionais |
+| `src/components/forms/FormCard.tsx` | URL do embed com `?embed=true` |
+| `src/pages/PublicFormPage.tsx` | Passar parâmetro `embed` para a Edge Function |
 
 ---
 
 ## Resultado Esperado
 
 Após a correção:
-1. ✅ O filtro "Sem resposta" mostrará apenas conversas onde a última mensagem foi do cliente
-2. ✅ Conversas já respondidas não aparecerão no filtro
-3. ✅ Novas mensagens atualizarão automaticamente a direção
-4. ✅ Os filtros de tempo (+15min, +1h, etc) continuarão funcionando corretamente
+1. O código embed copiado incluirá `?embed=true` na URL
+2. O formulário renderizará apenas os campos, sem elementos visuais extras
+3. O formulário se adaptará ao design do site onde for incorporado
+4. O modo normal (sem `?embed=true`) continuará funcionando para visualização direta
 
