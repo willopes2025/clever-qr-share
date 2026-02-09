@@ -1,107 +1,86 @@
 
 
-# Modo Embed Limpo para Formulários
+# Correção do Filtro "Sem Resposta" no Inbox
 
-## Problema Identificado
+## Problema Raiz Identificado
 
-O formulário embutido via iframe está aparecendo com elementos visuais extras (background cinza, card branco com sombra, padding excessivo) que conflitam com o design do site onde está sendo incorporado.
+O filtro "Sem resposta" depende do campo `last_message_direction` na tabela `conversations`. Quando o valor é `'inbound'`, significa que o cliente enviou a ultima mensagem e aguarda resposta. Quando e `'outbound'`, significa que o atendente ja respondeu.
 
-### Resultado Atual
-- Background colorido no body
-- Container com box-shadow e border-radius
-- Padding de 2.5rem no container
-- Centralização com flexbox que ocupa 100vh
+O bug esta na **ordem de execucao** dentro da edge function `receive-webhook`. Existe uma condicao de corrida (race condition) que corrompe o valor de `last_message_direction`.
 
-### Resultado Desejado
-- Background transparente
-- Sem sombras ou bordas arredondadas
-- Apenas os campos do formulário e o botão de enviar
-- Formulário adapta-se ao container do site
+## Como o Bug Acontece
 
----
+```text
+Sequencia de eventos que causa o problema:
 
-## Solução
+1. Cliente envia mensagem
+   -> receive-webhook (messages.upsert)
+   -> Atualiza conversa: last_message_direction = 'inbound'
 
-Adicionar parâmetro `?embed=true` na URL do formulário que ativa um modo de renderização limpo, ideal para iframes.
+2. Atendente responde pelo Inbox
+   -> send-inbox-message
+   -> Insere mensagem no banco com whatsapp_message_id
+   -> Atualiza conversa: last_message_direction = 'outbound'
 
-### Modo Embed vs Modo Normal
+3. Cliente envia nova mensagem
+   -> receive-webhook (messages.upsert)
+   -> Atualiza conversa: last_message_direction = 'inbound'
+   (Conversa aparece corretamente no filtro "Sem resposta")
 
-| Aspecto | Modo Normal | Modo Embed |
-|---------|-------------|------------|
-| Background body | Colorido | Transparente |
-| Container | Card com sombra | Sem container visual |
-| Padding | 2.5rem | Mínimo (1rem) |
-| Altura mínima | 100vh | auto |
-| Logo/Header | Exibe | Oculta |
-| Resultado | Página completa | Apenas campos |
+4. *** PROBLEMA *** Webhook "send.message" do passo 2 chega ATRASADO
+   -> receive-webhook (send.message -> handleMessagesUpsert)
+   -> PRIMEIRO atualiza conversa: last_message_direction = 'outbound'  <-- BUG!
+   -> DEPOIS verifica se mensagem ja existe -> "ja existe, pulando"
+   -> MAS o dano ja foi feito: a direcao foi sobrescrita!
 
----
-
-## Alterações Necessárias
-
-### 1. Edge Function `public-form` 
-
-Modificar para aceitar o parâmetro `embed` e gerar estilos diferentes:
-
-```typescript
-// Detectar modo embed
-const embed = url.searchParams.get('embed') === 'true';
-
-// Estilos condicionais
-body {
-  background: ${embed ? 'transparent' : 'var(--bg-color)'};
-  min-height: ${embed ? 'auto' : '100vh'};
-  padding: ${embed ? '0' : '2rem'};
-  display: ${embed ? 'block' : 'flex'};
-}
-
-.form-container {
-  background: ${embed ? 'transparent' : 'white'};
-  box-shadow: ${embed ? 'none' : '0 4px 24px rgba(0,0,0,0.1)'};
-  border-radius: ${embed ? '0' : '16px'};
-  padding: ${embed ? '0' : '2.5rem'};
-}
+   Resultado: a conversa SOME do filtro "Sem resposta" mesmo
+   tendo mensagem do cliente sem resposta.
 ```
 
-### 2. FormCard.tsx
+O problema esta nas **linhas 1063-1090** vs **linhas 1124-1134** do `receive-webhook/index.ts`. A atualizacao da conversa (incluindo `last_message_direction`) acontece ANTES da verificacao de duplicatas. Entao, mesmo para mensagens duplicadas vindas do webhook `send.message`, a direcao da conversa e sobrescrita.
 
-Atualizar o código embed para incluir `?embed=true`:
+## Solucao
+
+Mover a verificacao de duplicatas para ANTES de qualquer atualizacao na conversa. Assim, se a mensagem ja existe no banco, todo o processamento e pulado, incluindo a atualizacao incorreta de `last_message_direction`.
+
+## Alteracao
+
+### `supabase/functions/receive-webhook/index.ts`
+
+Adicionar verificacao de duplicata logo apos encontrar a conversa (por volta da linha 942), ANTES do bloco que atualiza/cria a conversa:
 
 ```typescript
-const embedUrl = `${window.location.origin}/f/${form.slug}?embed=true`;
-const embedCode = `<iframe src="${embedUrl}" ...></iframe>`;
-```
+// ANTES do bloco if (!conversation) / else que cria/atualiza a conversa:
 
-### 3. PublicFormPage.tsx
+// Early dedup check - skip entirely if message was already processed
+// This prevents send.message webhook echoes from overwriting
+// last_message_direction on conversations
+if (key.id && conversation) {
+  const { data: existingMsg } = await supabase
+    .from('inbox_messages')
+    .select('id')
+    .eq('whatsapp_message_id', key.id)
+    .maybeSingle();
 
-Passar o parâmetro `embed` da query string para a Edge Function:
-
-```typescript
-const searchParams = new URLSearchParams(location.search);
-const embedMode = searchParams.get('embed');
-
-if (embedMode === 'true') {
-  params.set('embed', 'true');
+  if (existingMsg) {
+    console.log(`[DEDUP] Message ${key.id} already exists, skipping entirely`);
+    continue;
+  }
 }
 ```
 
----
+Manter tambem a verificacao existente nas linhas 1124-1134 como fallback de seguranca (para o caso de novas conversas onde `conversation` era null no momento da verificacao antecipada).
 
-## Arquivos a Modificar
+### Arquivo a Modificar
 
-| Arquivo | Alteração |
+| Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/public-form/index.ts` | Adicionar suporte ao parâmetro `embed` e estilos condicionais |
-| `src/components/forms/FormCard.tsx` | URL do embed com `?embed=true` |
-| `src/pages/PublicFormPage.tsx` | Passar parâmetro `embed` para a Edge Function |
+| `supabase/functions/receive-webhook/index.ts` | Adicionar verificacao de duplicata antecipada antes do bloco de atualizacao da conversa |
 
----
+### Impacto
 
-## Resultado Esperado
-
-Após a correção:
-1. O código embed copiado incluirá `?embed=true` na URL
-2. O formulário renderizará apenas os campos, sem elementos visuais extras
-3. O formulário se adaptará ao design do site onde for incorporado
-4. O modo normal (sem `?embed=true`) continuará funcionando para visualização direta
+- Corrige o filtro "Sem resposta" que perde conversas incorretamente
+- Reduz processamento desnecessario de webhooks duplicados (evita queries e updates extras)
+- Nenhuma mudanca no frontend -- o filtro em `ConversationList.tsx` ja funciona corretamente
+- O campo `last_message_direction` no banco ja esta sendo populado pelas edge functions; o problema e exclusivamente na sobrescrita indevida
 
