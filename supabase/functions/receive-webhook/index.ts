@@ -940,6 +940,22 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         .eq('id', conversation.id);
     }
 
+    // Early dedup check - skip entirely if message was already processed
+    // This prevents send.message webhook echoes from overwriting
+    // last_message_direction on conversations
+    if (key.id && conversation) {
+      const { data: existingMsg } = await supabase
+        .from('inbox_messages')
+        .select('id')
+        .eq('whatsapp_message_id', key.id)
+        .maybeSingle();
+
+      if (existingMsg) {
+        console.log(`[DEDUP] Message ${key.id} already exists, skipping entirely`);
+        continue;
+      }
+    }
+
     // Generate preview for conversation list
     let preview = content?.substring(0, 100) || '';
     if (!preview) {
