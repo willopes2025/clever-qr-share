@@ -6,10 +6,11 @@ import { DataSettings } from "@/components/settings/DataSettings";
 import { TeamSettings } from "@/components/settings/TeamSettings";
 import { IntegrationsSettings } from "@/components/settings/IntegrationsSettings";
 import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
+import { MetaWhatsAppSettings } from "@/components/settings/MetaWhatsAppSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
-import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, LucideIcon } from "lucide-react";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
@@ -30,6 +31,7 @@ const allTabs: SettingsTab[] = [
   { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
+  { value: "whatsapp-business", label: "WhatsApp Business", icon: MessageSquare, permission: "manage_settings", adminOnly: true, component: MetaWhatsAppSettings },
   { value: "sip-calls", label: "Chamadas IA", icon: Phone, permission: "manage_settings", adminOnly: true, component: ElevenLabsSIPSettings },
   { value: "integrations", label: "Integrações", icon: Plug, permission: "manage_settings", adminOnly: true, component: IntegrationsSettings },
   { value: "api", label: "API", icon: Server, permission: "manage_settings", adminOnly: true, component: ApiSettings },
