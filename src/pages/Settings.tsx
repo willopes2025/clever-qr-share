@@ -88,7 +88,7 @@ const Settings = () => {
       </div>
 
       <Tabs defaultValue={defaultTab} className="space-y-6 relative z-10">
-        <TabsList className={`grid w-full bg-secondary/50 p-1`} style={{ gridTemplateColumns: `repeat(${Math.min(visibleTabs.length, 5)}, 1fr)` }}>
+        <TabsList className={`flex flex-wrap w-full bg-secondary/50 p-1 h-auto gap-1`}>
           {visibleTabs.map(tab => (
             <TabsTrigger 
               key={tab.value}
