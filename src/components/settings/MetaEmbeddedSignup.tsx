@@ -23,7 +23,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 // Configuration ID from Meta Developers - Embedded Signup Configuration
 // User needs to update this with their actual config ID
-const DEFAULT_CONFIG_ID = "";
+const DEFAULT_CONFIG_ID = "25553459117680213";
 
 interface MetaEmbeddedSignupProps {
   onConnected?: () => void;
