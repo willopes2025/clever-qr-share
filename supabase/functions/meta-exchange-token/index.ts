@@ -89,7 +89,10 @@ serve(async (req) => {
 
     // Get WhatsApp Business Accounts
     console.log('[META-EXCHANGE] Fetching WhatsApp Business Accounts...');
-    const wabaUrl = `https://graph.facebook.com/v24.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`;
+    
+    // Use app access token for debug_token endpoint
+    const appAccessToken = `${APP_ID}|${appSecret}`;
+    const wabaUrl = `https://graph.facebook.com/v24.0/debug_token?input_token=${accessToken}&access_token=${appAccessToken}`;
     const debugResponse = await fetch(wabaUrl);
     const debugData = await debugResponse.json();
     
@@ -110,6 +113,17 @@ serve(async (req) => {
         wabaId = wabaScope.target_ids[0];
         console.log('[META-EXCHANGE] Found WABA ID from scopes:', wabaId);
       }
+      
+      // Also check whatsapp_business_messaging scope for phone number IDs
+      if (!wabaId) {
+        const msgScope = debugData.data.granular_scopes.find(
+          (scope: any) => scope.scope === 'whatsapp_business_messaging'
+        );
+        if (msgScope?.target_ids?.length > 0) {
+          wabaId = msgScope.target_ids[0];
+          console.log('[META-EXCHANGE] Found WABA ID from messaging scope:', wabaId);
+        }
+      }
     }
 
     // If we have WABA ID, get phone numbers
@@ -128,13 +142,36 @@ serve(async (req) => {
         console.log('[META-EXCHANGE] Found phone:', displayPhoneNumber);
       }
     } else {
-      // Alternative: Try to get WABA directly from shared WABAs endpoint
-      console.log('[META-EXCHANGE] Trying shared_wabas endpoint...');
-      const sharedWabaUrl = `https://graph.facebook.com/v24.0/me/businesses?fields=owned_whatsapp_business_accounts,client_whatsapp_business_accounts&access_token=${accessToken}`;
-      const sharedResponse = await fetch(sharedWabaUrl);
-      const sharedData = await sharedResponse.json();
+      // Fallback: Try to get WABA from /me/businesses endpoint
+      console.log('[META-EXCHANGE] Trying /me/businesses endpoint...');
+      const bizUrl = `https://graph.facebook.com/v24.0/me/businesses?fields=id,name&access_token=${accessToken}`;
+      const bizResponse = await fetch(bizUrl);
+      const bizData = await bizResponse.json();
+      console.log('[META-EXCHANGE] Businesses response:', JSON.stringify(bizData, null, 2));
       
-      console.log('[META-EXCHANGE] Shared WABAs response:', JSON.stringify(sharedData, null, 2));
+      // Try each business to find WABAs
+      if (bizData.data?.length > 0) {
+        for (const biz of bizData.data) {
+          const wabaSearchUrl = `https://graph.facebook.com/v24.0/${biz.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`;
+          const wabaSearchResponse = await fetch(wabaSearchUrl);
+          const wabaSearchData = await wabaSearchResponse.json();
+          console.log(`[META-EXCHANGE] WABAs for business ${biz.id}:`, JSON.stringify(wabaSearchData, null, 2));
+          
+          if (wabaSearchData.data?.length > 0) {
+            wabaId = wabaSearchData.data[0].id;
+            // Get phone numbers for this WABA
+            const phoneUrl = `https://graph.facebook.com/v24.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
+            const phoneResponse = await fetch(phoneUrl);
+            const phoneData = await phoneResponse.json();
+            if (phoneData.data?.length > 0) {
+              phoneNumberId = phoneData.data[0].id;
+              displayPhoneNumber = phoneData.data[0].display_phone_number;
+              businessName = phoneData.data[0].verified_name;
+            }
+            break;
+          }
+        }
+      }
     }
 
     if (!wabaId || !phoneNumberId) {
