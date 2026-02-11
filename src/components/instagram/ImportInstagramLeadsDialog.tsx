@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { InstagramProfile } from "@/pages/InstagramScraper";
 import {
   Dialog,
@@ -9,16 +9,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, Users } from "lucide-react";
+import { Loader2, Download, Users, Tag, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { normalizePhoneWithCountryCode } from "@/lib/phone-utils";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 interface ImportInstagramLeadsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profiles: InstagramProfile[];
   onSuccess: () => void;
+}
+
+interface TagItem {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export function ImportInstagramLeadsDialog({
@@ -28,6 +36,60 @@ export function ImportInstagramLeadsDialog({
   onSuccess
 }: ImportInstagramLeadsDialogProps) {
   const [isImporting, setIsImporting] = useState(false);
+  const [existingTags, setExistingTags] = useState<TagItem[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      loadTags();
+      setSelectedTagIds([]);
+      setNewTagName("");
+    }
+  }, [open]);
+
+  const loadTags = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from('tags')
+      .select('id, name, color')
+      .order('name');
+    setExistingTags(data || []);
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    setIsCreatingTag(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({ name: newTagName.trim(), user_id: user.id, color: '#3B82F6' })
+        .select('id, name, color')
+        .single();
+      if (error) {
+        toast.error('Erro ao criar tag');
+        return;
+      }
+      if (data) {
+        setExistingTags(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedTagIds(prev => [...prev, data.id]);
+        setNewTagName("");
+        toast.success(`Tag "${data.name}" criada`);
+      }
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds(prev =>
+      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    );
+  };
 
   const handleImport = async () => {
     setIsImporting(true);
@@ -44,10 +106,8 @@ export function ImportInstagramLeadsDialog({
       let skipped = 0;
 
       for (const profile of profiles) {
-        // Prioritize enriched phone, fallback to instagram identifier
         let phoneIdentifier: string;
         if (profile.phone) {
-          // Normalize phone with country code 55
           phoneIdentifier = normalizePhoneWithCountryCode(profile.phone, '55');
         } else {
           phoneIdentifier = `instagram:${profile.username}`;
@@ -55,7 +115,6 @@ export function ImportInstagramLeadsDialog({
         
         const instagramIdentifier = `instagram:${profile.username}`;
         
-        // Check if contact already exists by phone OR instagram identifier
         const { data: existing } = await supabase
           .from('contacts')
           .select('id')
@@ -64,11 +123,21 @@ export function ImportInstagramLeadsDialog({
           .maybeSingle();
 
         if (existing) {
+          // Even if contact exists, add selected tags
+          if (selectedTagIds.length > 0) {
+            for (const tagId of selectedTagIds) {
+              await supabase
+                .from('contact_tags')
+                .upsert(
+                  { contact_id: existing.id, tag_id: tagId },
+                  { onConflict: 'contact_id,tag_id', ignoreDuplicates: true }
+                );
+            }
+          }
           skipped++;
           continue;
         }
 
-        // Build notes from Instagram data
         const notes: string[] = [];
         notes.push(`Instagram: @${profile.username}`);
         if (profile.source_username) {
@@ -82,7 +151,7 @@ export function ImportInstagramLeadsDialog({
           notes.push('🔒 Perfil privado');
         }
 
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('contacts')
           .insert({
             user_id: user.id,
@@ -102,12 +171,22 @@ export function ImportInstagramLeadsDialog({
               instagram_email: profile.email || null,
               source: 'instagram_scraper'
             }
-          });
+          })
+          .select('id')
+          .single();
 
         if (error) {
           console.error('Error importing contact:', error);
-        } else {
+        } else if (inserted) {
           imported++;
+          // Add tags to newly created contact
+          if (selectedTagIds.length > 0) {
+            for (const tagId of selectedTagIds) {
+              await supabase
+                .from('contact_tags')
+                .insert({ contact_id: inserted.id, tag_id: tagId });
+            }
+          }
         }
       }
 
@@ -155,6 +234,54 @@ export function ImportInstagramLeadsDialog({
                 {publicProfiles.length} públicos, {privateProfiles.length} privados
               </p>
             </div>
+          </div>
+
+          {/* Tag Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-1.5">
+              <Tag className="h-4 w-4" />
+              Tags para aplicar
+            </label>
+            <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 border rounded-lg bg-background">
+              {existingTags.length === 0 && selectedTagIds.length === 0 && (
+                <span className="text-xs text-muted-foreground">Nenhuma tag disponível</span>
+              )}
+              {existingTags.map(tag => (
+                <Badge
+                  key={tag.id}
+                  variant={selectedTagIds.includes(tag.id) ? "default" : "outline"}
+                  className="cursor-pointer text-xs transition-colors"
+                  style={selectedTagIds.includes(tag.id) ? { backgroundColor: tag.color } : {}}
+                  onClick={() => toggleTag(tag.id)}
+                >
+                  {tag.name}
+                  {selectedTagIds.includes(tag.id) && <X className="h-3 w-3 ml-1" />}
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Criar nova tag..."
+                value={newTagName}
+                onChange={e => setNewTagName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreateTag()}
+                className="h-8 text-sm"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreateTag}
+                disabled={!newTagName.trim() || isCreatingTag}
+                className="h-8 px-3"
+              >
+                {isCreatingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+              </Button>
+            </div>
+            {selectedTagIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {selectedTagIds.length} tag(s) serão aplicadas aos contatos importados
+              </p>
+            )}
           </div>
 
           <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
