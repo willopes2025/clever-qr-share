@@ -91,7 +91,7 @@ const PublicFormPage = () => {
         srcDoc={htmlContent}
         className="w-full min-h-screen border-0"
         title="Formulário"
-        sandbox="allow-scripts allow-forms allow-same-origin"
+        sandbox="allow-scripts allow-forms allow-same-origin allow-top-navigation"
       />
     );
   }
