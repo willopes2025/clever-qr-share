@@ -340,7 +340,11 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         form.style.display = 'none';
         
         if (redirectUrl) {
-          window.location.href = redirectUrl;
+          try {
+            window.top.location.href = redirectUrl;
+          } catch (e) {
+            window.location.href = redirectUrl;
+          }
         } else {
           successMessage.style.display = 'block';
         }
