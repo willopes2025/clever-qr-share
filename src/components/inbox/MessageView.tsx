@@ -43,6 +43,7 @@ import { TasksTab } from "./TasksTab";
 import { InternalChatTab } from "./InternalChatTab";
 import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
+import { FormLinkButton } from "./FormLinkButton";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -1022,6 +1023,21 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
             disabled={!selectedInstanceId}
+          />
+
+          <FormLinkButton
+            contactId={conversation.contact_id}
+            conversationId={conversation.id}
+            onInsertMessage={(msg) => {
+              setNewMessage(msg);
+              textareaRef.current?.focus();
+              setTimeout(() => {
+                if (textareaRef.current) {
+                  textareaRef.current.style.height = 'auto';
+                  textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+                }
+              }, 0);
+            }}
           />
           
           {/* Input container - pill style */}
