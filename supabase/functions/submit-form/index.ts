@@ -181,8 +181,46 @@ Deno.serve(async (req: Request) => {
 
     let contactId: string | null = null;
 
-    // Find or create contact if we have phone or email
-    if (contactData.phone || contactData.email) {
+    // Check if a static contact_id was provided (trackable form link from inbox)
+    const staticContactId = staticParams.contact_id;
+    if (staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
+      // Verify the contact exists and belongs to this form's user
+      const { data: existingContact } = await supabase
+        .from('contacts')
+        .select('id, custom_fields')
+        .eq('id', staticContactId)
+        .eq('user_id', form.user_id)
+        .single();
+
+      if (existingContact) {
+        contactId = existingContact.id;
+        console.log(`Using static contact_id: ${contactId}`);
+
+        // Update contact data if provided
+        const updateData: Record<string, any> = {};
+        if (contactData.name) updateData.name = contactData.name;
+        if (contactData.email) updateData.email = contactData.email;
+        if (contactData.phone) updateData.phone = contactData.phone;
+        
+        // Merge custom fields
+        if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
+          updateData.custom_fields = {
+            ...(existingContact.custom_fields || {}),
+            ...contactData.custom_fields,
+          };
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await supabase
+            .from('contacts')
+            .update(updateData)
+            .eq('id', contactId);
+        }
+      }
+    }
+
+    // Find or create contact if we don't have one yet
+    if (!contactId && (contactData.phone || contactData.email)) {
       // Try to find existing contact
       let query = supabase
         .from('contacts')
