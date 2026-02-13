@@ -9,12 +9,156 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Settings } from "lucide-react";
+import { Plus, Trash2, Settings, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface FieldPropertiesProps {
   field: FormField | null;
   onUpdate: (updates: UpdateFieldData) => void;
 }
+
+const DAY_NAMES: Record<string, string> = {
+  '1': 'Segunda', '2': 'Terça', '3': 'Quarta', '4': 'Quinta',
+  '5': 'Sexta', '6': 'Sábado', '0': 'Domingo',
+};
+
+interface ScheduleConfig {
+  slot_duration?: number;
+  min_advance_hours?: number;
+  max_advance_days?: number;
+  blocked_dates?: string[];
+  weekly_hours?: Record<string, { enabled: boolean; start: string; end: string }>;
+}
+
+const SchedulingSettings = ({ settings, onChange }: { settings: ScheduleConfig; onChange: (s: ScheduleConfig) => void }) => {
+  const weeklyHours = settings.weekly_hours || {};
+  const blockedDates = settings.blocked_dates || [];
+  const [newBlockedDate, setNewBlockedDate] = useState('');
+
+  const updateDay = (day: string, key: string, value: any) => {
+    const current = weeklyHours[day] || { enabled: false, start: '08:00', end: '18:00' };
+    onChange({
+      ...settings,
+      weekly_hours: { ...weeklyHours, [day]: { ...current, [key]: value } },
+    });
+  };
+
+  const addBlockedDate = () => {
+    if (newBlockedDate && !blockedDates.includes(newBlockedDate)) {
+      onChange({ ...settings, blocked_dates: [...blockedDates, newBlockedDate] });
+      setNewBlockedDate('');
+    }
+  };
+
+  const removeBlockedDate = (date: string) => {
+    onChange({ ...settings, blocked_dates: blockedDates.filter(d => d !== date) });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Label className="text-sm font-medium">Configurações de Agendamento</Label>
+
+      <div className="space-y-2">
+        <Label className="text-xs">Duração do slot (minutos)</Label>
+        <Select
+          value={String(settings.slot_duration || 30)}
+          onValueChange={(v) => onChange({ ...settings, slot_duration: Number(v) })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="15">15 min</SelectItem>
+            <SelectItem value="30">30 min</SelectItem>
+            <SelectItem value="45">45 min</SelectItem>
+            <SelectItem value="60">60 min</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs">Antecedência mín. (horas)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={settings.min_advance_hours ?? 24}
+            onChange={(e) => onChange({ ...settings, min_advance_hours: Number(e.target.value) })}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Máx. dias no futuro</Label>
+          <Input
+            type="number"
+            min={1}
+            value={settings.max_advance_days ?? 30}
+            onChange={(e) => onChange({ ...settings, max_advance_days: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+
+      <Separator />
+      <Label className="text-xs font-medium">Dias e Horários</Label>
+      <div className="space-y-2">
+        {['1','2','3','4','5','6','0'].map(day => {
+          const dayConfig = weeklyHours[day] || { enabled: false, start: '08:00', end: '18:00' };
+          return (
+            <div key={day} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={dayConfig.enabled}
+                  onCheckedChange={(checked) => updateDay(day, 'enabled', !!checked)}
+                />
+                <span className="text-xs font-medium w-16">{DAY_NAMES[day]}</span>
+                {dayConfig.enabled && (
+                  <div className="flex items-center gap-1 flex-1">
+                    <Input
+                      type="time"
+                      value={dayConfig.start}
+                      onChange={(e) => updateDay(day, 'start', e.target.value)}
+                      className="h-7 text-xs px-1"
+                    />
+                    <span className="text-xs">-</span>
+                    <Input
+                      type="time"
+                      value={dayConfig.end}
+                      onChange={(e) => updateDay(day, 'end', e.target.value)}
+                      className="h-7 text-xs px-1"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <Separator />
+      <Label className="text-xs font-medium">Datas Bloqueadas</Label>
+      <div className="flex gap-1">
+        <Input
+          type="date"
+          value={newBlockedDate}
+          onChange={(e) => setNewBlockedDate(e.target.value)}
+          className="flex-1 h-8 text-xs"
+        />
+        <Button variant="outline" size="sm" className="h-8" onClick={addBlockedDate}>
+          <Plus className="h-3 w-3" />
+        </Button>
+      </div>
+      {blockedDates.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {blockedDates.map(date => (
+            <span key={date} className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-0.5 rounded">
+              {date}
+              <button onClick={() => removeBlockedDate(date)} className="hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const contactFields = [
   { value: 'name', label: 'Nome' },
@@ -69,6 +213,7 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
   const hasOptions = ['select', 'multi_select', 'radio', 'checkbox'].includes(localField.field_type);
   const isLayoutField = ['heading', 'paragraph', 'divider'].includes(localField.field_type);
   const isDistrictField = localField.field_type === 'district';
+  const isSchedulingField = localField.field_type === 'scheduling';
 
   const UF_LIST = [
     'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
@@ -204,6 +349,17 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                   </p>
                 )}
               </div>
+            </>
+          )}
+
+          {/* Scheduling Settings */}
+          {isSchedulingField && (
+            <>
+              <Separator />
+              <SchedulingSettings
+                settings={(localField.settings as any)?.schedule || {}}
+                onChange={(schedule) => handleChange('settings', { ...(localField.settings || {}), schedule })}
+              />
             </>
           )}
 

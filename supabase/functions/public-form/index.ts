@@ -284,6 +284,28 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     .district-search-container { position: relative; }
     .district-search-input { margin-bottom: 0.5rem; }
     .district-select { width: 100%; }
+    /* Scheduling calendar styles */
+    .scheduling-container { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    .calendar-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+    .calendar-header button { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.85rem; }
+    .calendar-header button:hover { background: #f3f4f6; }
+    .calendar-header span { font-weight: 600; font-size: 0.95rem; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0.5rem; }
+    .calendar-grid .day-name { text-align: center; font-size: 0.7rem; font-weight: 600; color: #9ca3af; padding: 0.25rem; }
+    .calendar-grid .day { text-align: center; padding: 0.5rem 0.25rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: all 0.15s; }
+    .calendar-grid .day:hover:not(.disabled):not(.empty) { background: color-mix(in srgb, var(--primary-color) 15%, transparent); }
+    .calendar-grid .day.selected { background: var(--primary-color); color: white; font-weight: 600; }
+    .calendar-grid .day.disabled { color: #d1d5db; cursor: not-allowed; }
+    .calendar-grid .day.empty { cursor: default; }
+    .calendar-grid .day.today { font-weight: 700; color: var(--primary-color); }
+    .slots-container { padding: 1rem; border-top: 1px solid #e5e7eb; }
+    .slots-container h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.75rem; color: #374151; }
+    .slots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.5rem; }
+    .slot-btn { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; font-size: 0.85rem; text-align: center; transition: all 0.15s; }
+    .slot-btn:hover { border-color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 10%, transparent); }
+    .slot-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+    .slots-loading { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
+    .slots-empty { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
   </style>
 </head>
 <body>
@@ -621,6 +643,118 @@ function generateFieldHTML(field: any): string {
         + helpText
         + '<script>' + districtScript + '</script>'
         + '</div>';
+    }
+
+    case 'scheduling': {
+      const scheduleConfig = field.settings?.schedule || {};
+      const weeklyHours = scheduleConfig.weekly_hours || {};
+      const blockedDates = JSON.stringify(scheduleConfig.blocked_dates || []);
+      const maxAdvanceDays = scheduleConfig.max_advance_days || 30;
+      const enabledDays = JSON.stringify(Object.entries(weeklyHours).filter(([,v]: any) => v.enabled).map(([k]: any) => Number(k)));
+      
+      const calendarScript = `(function(){
+        var fieldId="${field.id}";
+        var formId="${field.form_id}";
+        var blockedDates=${blockedDates};
+        var enabledDays=${enabledDays};
+        var maxAdvanceDays=${maxAdvanceDays};
+        var container=document.getElementById("sched-"+fieldId);
+        var hiddenInput=document.getElementById("sched-input-"+fieldId);
+        var today=new Date();today.setHours(0,0,0,0);
+        var maxDate=new Date(today);maxDate.setDate(maxDate.getDate()+maxAdvanceDays);
+        var currentMonth=today.getMonth();
+        var currentYear=today.getFullYear();
+        var selectedDate=null;
+        var selectedSlot=null;
+
+        function pad(n){return n<10?'0'+n:n;}
+        function dateStr(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+        var monthNames=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+        function render(){
+          var html='<div class="calendar-header">';
+          html+='<button type="button" onclick="schedNav(\\'' + fieldId + '\\',-1)">◀</button>';
+          html+='<span>'+monthNames[currentMonth]+' '+currentYear+'</span>';
+          html+='<button type="button" onclick="schedNav(\\'' + fieldId + '\\',1)">▶</button>';
+          html+='</div>';
+          html+='<div class="calendar-grid">';
+          var dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+          dayNames.forEach(function(d){html+='<div class="day-name">'+d+'</div>';});
+          var first=new Date(currentYear,currentMonth,1);
+          var startDay=first.getDay();
+          var daysInMonth=new Date(currentYear,currentMonth+1,0).getDate();
+          for(var i=0;i<startDay;i++)html+='<div class="day empty"></div>';
+          for(var d=1;d<=daysInMonth;d++){
+            var dt=new Date(currentYear,currentMonth,d);
+            var ds=dateStr(dt);
+            var dow=dt.getDay();
+            var disabled=!enabledDays.includes(dow)||dt<today||dt>maxDate||blockedDates.includes(ds);
+            var isToday=dt.getTime()===today.getTime();
+            var isSelected=selectedDate===ds;
+            var cls='day'+(disabled?' disabled':'')+(isToday?' today':'')+(isSelected?' selected':'');
+            html+='<div class="'+cls+'" '+(disabled?'':'onclick="schedSelect(\\'' + fieldId + '\\',\\''+ds+'\\','+dow+')"')+'>'+d+'</div>';
+          }
+          html+='</div>';
+          html+='<div id="sched-slots-'+fieldId+'" class="slots-container" style="display:none;"></div>';
+          container.innerHTML=html;
+          if(selectedDate)loadSlots(selectedDate);
+        }
+
+        window['schedNav_'+fieldId]={currentMonth:currentMonth,currentYear:currentYear,render:render};
+        window.schedNav=function(fid,dir){
+          var s=window['schedNav_'+fid];
+          s.currentMonth+=dir;
+          if(s.currentMonth>11){s.currentMonth=0;s.currentYear++;}
+          if(s.currentMonth<0){s.currentMonth=11;s.currentYear--;}
+          currentMonth=s.currentMonth;currentYear=s.currentYear;
+          render();
+        };
+        window.schedSelect=function(fid,ds,dow){
+          selectedDate=ds;selectedSlot=null;
+          hiddenInput.value='';
+          render();
+        };
+        window.schedSlotPick=function(fid,time){
+          selectedSlot=time;
+          hiddenInput.value=selectedDate+' '+time;
+          var btns=document.querySelectorAll('#sched-slots-'+fid+' .slot-btn');
+          btns.forEach(function(b){b.classList.toggle('selected',b.textContent===time);});
+        };
+
+        function loadSlots(ds){
+          var slotsDiv=document.getElementById('sched-slots-'+fieldId);
+          slotsDiv.style.display='block';
+          slotsDiv.innerHTML='<div class="slots-loading">Carregando horários...</div>';
+          fetch('${Deno.env.get('SUPABASE_URL')}/functions/v1/check-availability?form_id='+formId+'&field_id='+fieldId+'&date='+ds)
+            .then(function(r){return r.json();})
+            .then(function(data){
+              if(!data.slots||data.slots.length===0){
+                slotsDiv.innerHTML='<div class="slots-empty">Nenhum horário disponível nesta data</div>';
+                return;
+              }
+              var html='<h4>Horários disponíveis</h4><div class="slots-grid">';
+              data.slots.forEach(function(slot){
+                var sel=selectedSlot===slot?' selected':'';
+                html+='<button type="button" class="slot-btn'+sel+'" onclick="schedSlotPick(\\'' + fieldId + '\\',\\''+slot+'\\')">'+slot+'</button>';
+              });
+              html+='</div>';
+              slotsDiv.innerHTML=html;
+            })
+            .catch(function(){
+              slotsDiv.innerHTML='<div class="slots-empty">Erro ao carregar horários</div>';
+            });
+        }
+
+        render();
+      })();`;
+
+      return `<div class="field">
+        <label>${escapeHtml(field.label)}${requiredStar}</label>
+        <input type="hidden" id="sched-input-${field.id}" name="${field.id}" ${required}>
+        <div id="sched-${field.id}" class="scheduling-container"></div>
+        ${helpText}
+        <script>${calendarScript}</script>
+      </div>`;
     }
 
     default:

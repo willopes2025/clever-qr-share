@@ -446,6 +446,68 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Handle scheduling fields - create tasks
+  for (const field of formFields) {
+    if (field.field_type === 'scheduling') {
+      const schedValue = submissionData[field.id];
+      if (schedValue && typeof schedValue === 'string') {
+        // Format: "YYYY-MM-DD HH:mm"
+        const parts = schedValue.split(' ');
+        if (parts.length === 2) {
+          const dueDate = parts[0];
+          const dueTime = parts[1];
+          
+          // Build task title
+          const taskTitle = `${field.label}: ${contactData.name || 'Lead do Formulário'}`;
+          
+          try {
+            const { error: taskError } = await supabase
+              .from('conversation_tasks')
+              .insert({
+                user_id: form.user_id,
+                title: taskTitle,
+                description: `Agendamento via formulário "${form.name}"`,
+                due_date: dueDate,
+                due_time: dueTime,
+                contact_id: contactId || null,
+                sync_with_google: true,
+                priority: 'medium',
+              });
+
+            if (taskError) {
+              console.error('Error creating scheduling task:', taskError);
+            } else {
+              console.log(`Scheduling task created for ${dueDate} ${dueTime}`);
+            }
+
+            // Send notification to form owner
+            try {
+              await supabase
+                .from('notifications')
+                .insert({
+                  user_id: form.user_id,
+                  title: 'Novo agendamento',
+                  message: `${contactData.name || 'Lead'} agendou para ${dueDate} às ${dueTime}`,
+                  type: 'scheduling',
+                  metadata: {
+                    form_id: formId,
+                    submission_id: submission.id,
+                    contact_id: contactId,
+                    date: dueDate,
+                    time: dueTime,
+                  },
+                });
+            } catch (notifError) {
+              console.error('Error sending notification:', notifError);
+            }
+          } catch (schedError) {
+            console.error('Error processing scheduling field:', schedError);
+          }
+        }
+      }
+    }
+  }
+
   console.log(`Form submission saved: ${submission.id} for form ${formId}`);
 
     return new Response(
