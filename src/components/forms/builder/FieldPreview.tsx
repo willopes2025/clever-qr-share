@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Star, Minus } from "lucide-react";
+import { Star, Minus, CalendarCheck, Clock } from "lucide-react";
 
 interface FieldPreviewProps {
   field: FormField;
@@ -98,6 +98,35 @@ export const FieldPreview = ({ field }: FieldPreviewProps) => {
             {[1, 2, 3, 4, 5].map((star) => (
               <Star key={star} className="h-6 w-6 text-muted-foreground" />
             ))}
+          </div>
+        );
+
+      case 'scheduling':
+        return (
+          <div className="space-y-3">
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2 mb-3">
+                <CalendarCheck className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium">Calendário de Agendamento</span>
+              </div>
+              <div className="grid grid-cols-7 gap-1 mb-3">
+                {['D','S','T','Q','Q','S','S'].map((d, i) => (
+                  <div key={i} className="text-center text-[10px] font-medium text-muted-foreground">{d}</div>
+                ))}
+                {Array.from({ length: 14 }, (_, i) => (
+                  <div key={i} className={`text-center text-xs py-1 rounded ${i === 5 ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                {['09:00', '10:00', '11:00'].map(t => (
+                  <div key={t} className="text-xs px-2 py-1 border rounded bg-background flex items-center gap-1">
+                    <Clock className="h-3 w-3" />{t}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         );
 

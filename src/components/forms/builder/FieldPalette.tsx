@@ -7,7 +7,8 @@ import {
   Phone, 
   Hash, 
   Calendar, 
-  Clock, 
+  Clock,
+  CalendarCheck,
   List, 
   CheckSquare, 
   Circle, 
@@ -49,6 +50,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'date', label: 'Data', icon: Calendar, category: 'Data e Hora' },
   { type: 'time', label: 'Horário', icon: Clock, category: 'Data e Hora' },
   { type: 'datetime', label: 'Data e Hora', icon: Calendar, category: 'Data e Hora' },
+  { type: 'scheduling', label: 'Agendamento', icon: CalendarCheck, category: 'Data e Hora' },
   
   // Selection
   { type: 'select', label: 'Lista Suspensa', icon: List, category: 'Seleção' },
@@ -95,6 +97,25 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
       autoMappingTarget = fieldType.type;
     }
 
+    // Default schedule settings for scheduling field
+    const defaultSettings = fieldType.type === 'scheduling' ? {
+      schedule: {
+        slot_duration: 30,
+        min_advance_hours: 24,
+        max_advance_days: 30,
+        blocked_dates: [],
+        weekly_hours: {
+          '1': { enabled: true, start: '08:00', end: '18:00' },
+          '2': { enabled: true, start: '08:00', end: '18:00' },
+          '3': { enabled: true, start: '08:00', end: '18:00' },
+          '4': { enabled: true, start: '08:00', end: '18:00' },
+          '5': { enabled: true, start: '08:00', end: '18:00' },
+          '6': { enabled: false, start: '', end: '' },
+          '0': { enabled: false, start: '', end: '' },
+        }
+      }
+    } : {};
+
     createField.mutate(
       {
         form_id: formId,
@@ -110,7 +131,7 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
         create_custom_field_on_submit: false,
         conditional_logic: null,
         position: fieldsCount,
-        settings: {},
+        settings: defaultSettings,
       },
       {
         onSuccess: (data) => {
