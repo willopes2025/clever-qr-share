@@ -593,64 +593,63 @@ function generateFieldHTML(field: any): string {
     case 'divider':
       return `<hr class="divider">`;
 
-    case 'district':
-      const ufs: string[] = field.settings?.ufs || [];
-      const ufsJson = JSON.stringify(ufs);
-      return `<div class="field">
-        <label>${escapeHtml(field.label)}${requiredStar}</label>
-        <div class="district-search-container">
-          <input type="text" class="district-search-input" id="district-search-${field.id}" placeholder="Buscar distrito..." autocomplete="off">
-          <select name="${field.id}" id="district-select-${field.id}" class="district-select" ${required}>
-            <option value="">${escapeHtml(field.placeholder || 'Selecione o distrito...')}</option>
-          </select>
-        </div>
-        ${helpText}
-        <script>
-          (function() {
-            const ufs = ${ufsJson};
-            const selectEl = document.getElementById('district-select-${field.id}');
-            const searchEl = document.getElementById('district-search-${field.id}');
-            let allDistritos = [];
+    case 'district': {
+      const districtUfs: string[] = field.settings?.ufs || [];
+      const districtUfsJson = JSON.stringify(districtUfs);
+      const districtPlaceholder = escapeHtml(field.placeholder || 'Selecione o distrito...');
+      const districtScript = [
+        '(function() {',
+        '  var ufs = ' + districtUfsJson + ';',
+        '  var selectEl = document.getElementById("district-select-' + field.id + '");',
+        '  var searchEl = document.getElementById("district-search-' + field.id + '");',
+        '  var allDistritos = [];',
+        '  function loadDistritos() {',
+        '    if (ufs.length === 0) return;',
+        '    selectEl.innerHTML = "<option value=\\"\\">' + 'Carregando...</option>";',
+        '    Promise.all(ufs.map(function(uf) {',
+        '      return fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados/" + uf + "/distritos?orderBy=nome")',
+        '        .then(function(r) { return r.json(); });',
+        '    })).then(function(results) {',
+        '      var nomes = []; results.forEach(function(arr) { arr.forEach(function(d) { nomes.push(d.nome); }); });',
+        '      var unique = []; nomes.forEach(function(n) { if (unique.indexOf(n) === -1) unique.push(n); });',
+        '      allDistritos = unique.sort();',
+        '      renderOptions(allDistritos);',
+        '    }).catch(function() {',
+        '      selectEl.innerHTML = "<option value=\\"\\">' + 'Erro ao carregar</option>";',
+        '    });',
+        '  }',
+        '  function renderOptions(list) {',
+        '    selectEl.innerHTML = "<option value=\\"\\">' + districtPlaceholder + '</option>";',
+        '    list.forEach(function(nome) {',
+        '      var opt = document.createElement("option");',
+        '      opt.value = nome; opt.textContent = nome;',
+        '      selectEl.appendChild(opt);',
+        '    });',
+        '  }',
+        '  searchEl.addEventListener("input", function() {',
+        '    var term = this.value.toUpperCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");',
+        '    if (term.length < 2) { renderOptions(allDistritos); return; }',
+        '    var filtered = allDistritos.filter(function(d) {',
+        '      return d.toUpperCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").indexOf(term) !== -1;',
+        '    });',
+        '    renderOptions(filtered);',
+        '  });',
+        '  loadDistritos();',
+        '})();',
+      ].join('\n');
 
-            async function loadDistritos() {
-              if (ufs.length === 0) return;
-              selectEl.innerHTML = '<option value="">Carregando...</option>';
-              try {
-                const results = await Promise.all(ufs.map(uf =>
-                  fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/distritos?orderBy=nome')
-                    .then(r => r.json())
-                ));
-                const nomes = results.flat().map(d => d.nome);
-                allDistritos = [...new Set(nomes)].sort();
-                renderOptions(allDistritos);
-              } catch (e) {
-                selectEl.innerHTML = '<option value="">Erro ao carregar</option>';
-              }
-            }
-
-            function renderOptions(list) {
-              selectEl.innerHTML = '<option value="">${escapeHtml(field.placeholder || 'Selecione o distrito...')}</option>';
-              list.forEach(nome => {
-                const opt = document.createElement('option');
-                opt.value = nome;
-                opt.textContent = nome;
-                selectEl.appendChild(opt);
-              });
-            }
-
-            searchEl.addEventListener('input', function() {
-              const term = this.value.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
-              if (term.length < 2) { renderOptions(allDistritos); return; }
-              const filtered = allDistritos.filter(d =>
-                d.toUpperCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').includes(term)
-              );
-              renderOptions(filtered);
-            });
-
-            loadDistritos();
-          })();
-        </script>
-      </div>`;
+      return '<div class="field">'
+        + '<label>' + escapeHtml(field.label) + requiredStar + '</label>'
+        + '<div class="district-search-container">'
+        + '<input type="text" class="district-search-input" id="district-search-' + field.id + '" placeholder="Buscar distrito..." autocomplete="off">'
+        + '<select name="' + field.id + '" id="district-select-' + field.id + '" class="district-select" ' + required + '>'
+        + '<option value="">' + districtPlaceholder + '</option>'
+        + '</select>'
+        + '</div>'
+        + helpText
+        + '<script>' + districtScript + '</script>'
+        + '</div>';
+    }
 
     default:
       return `<div class="field">
