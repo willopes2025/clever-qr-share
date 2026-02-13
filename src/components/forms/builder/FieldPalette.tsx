@@ -61,6 +61,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'name', label: 'Nome Completo', icon: User, category: 'Especiais' },
   { type: 'address', label: 'Endereço', icon: MapPin, category: 'Especiais' },
   { type: 'file', label: 'Upload de Arquivo', icon: FileUp, category: 'Especiais' },
+  { type: 'district', label: 'Distrito', icon: MapPin, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
   
   // Layout

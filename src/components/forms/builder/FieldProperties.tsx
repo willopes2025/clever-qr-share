@@ -68,6 +68,21 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
 
   const hasOptions = ['select', 'multi_select', 'radio', 'checkbox'].includes(localField.field_type);
   const isLayoutField = ['heading', 'paragraph', 'divider'].includes(localField.field_type);
+  const isDistrictField = localField.field_type === 'district';
+
+  const UF_LIST = [
+    'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+    'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+  ];
+
+  const currentUfs: string[] = (localField.settings as any)?.ufs || [];
+
+  const toggleUf = (uf: string) => {
+    const newUfs = currentUfs.includes(uf)
+      ? currentUfs.filter(u => u !== uf)
+      : [...currentUfs, uf];
+    handleChange('settings', { ...(localField.settings || {}), ufs: newUfs });
+  };
 
   return (
     <div className="h-full flex flex-col bg-muted/30">
@@ -156,6 +171,38 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+
+          {/* UF filter for district fields */}
+          {isDistrictField && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Filtrar por UFs</Label>
+                <p className="text-xs text-muted-foreground">
+                  Selecione os estados para filtrar os distritos. Deixe vazio para não carregar automaticamente.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {UF_LIST.map((uf) => (
+                    <Button
+                      key={uf}
+                      type="button"
+                      variant={currentUfs.includes(uf) ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => toggleUf(uf)}
+                    >
+                      {uf}
+                    </Button>
+                  ))}
+                </div>
+                {currentUfs.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Selecionados: {currentUfs.join(', ')}
+                  </p>
+                )}
               </div>
             </>
           )}
