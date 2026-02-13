@@ -389,9 +389,21 @@ export const useFormSubmissions = (formId: string | undefined) => {
     enabled: !!user && !!formId,
   });
 
+  const queryClient = useQueryClient();
+
+  const updateSubmission = async (submissionId: string, updatedData: Record<string, any>) => {
+    const { error } = await supabase
+      .from('form_submissions')
+      .update({ data: updatedData as any })
+      .eq('id', submissionId);
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['form-submissions', formId] });
+  };
+
   return {
     submissions,
     isLoading,
     error,
+    updateSubmission,
   };
 };

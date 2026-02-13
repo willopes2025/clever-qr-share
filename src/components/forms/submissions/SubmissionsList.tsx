@@ -2,13 +2,15 @@ import { useState, useMemo } from "react";
 import { useFormSubmissions, FormField } from "@/hooks/useForms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Download, Filter } from "lucide-react";
+import { Loader2, FileText, Download, Filter, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { EditSubmissionDialog } from "./EditSubmissionDialog";
+import { toast } from "sonner";
 
 interface SubmissionsListProps {
   formId: string;
@@ -16,9 +18,10 @@ interface SubmissionsListProps {
 }
 
 export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
-  const { submissions, isLoading } = useFormSubmissions(formId);
+  const { submissions, isLoading, updateSubmission } = useFormSubmissions(formId);
   const [filterColumn, setFilterColumn] = useState<string>("none");
   const [filterValue, setFilterValue] = useState("");
+  const [editingSubmission, setEditingSubmission] = useState<any>(null);
 
   const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
 
@@ -181,6 +184,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[50px]"></TableHead>
                 <TableHead className="w-[150px]">Data</TableHead>
                 <TableHead className="w-[150px]">Contato</TableHead>
                 {visibleFields.map((field) => (
@@ -193,6 +197,11 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
             <TableBody>
               {filteredSubmissions.map((submission) => (
                 <TableRow key={submission.id}>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingSubmission(submission)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
                   <TableCell className="text-sm">
                     {format(new Date(submission.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                   </TableCell>
@@ -221,6 +230,21 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
+
+      <EditSubmissionDialog
+        open={!!editingSubmission}
+        onOpenChange={(open) => { if (!open) setEditingSubmission(null); }}
+        submission={editingSubmission}
+        fields={fields}
+        onSave={async (id, data) => {
+          try {
+            await updateSubmission(id, data);
+            toast.success("Resposta atualizada com sucesso!");
+          } catch {
+            toast.error("Erro ao atualizar resposta.");
+          }
+        }}
+      />
     </div>
   );
 };
