@@ -125,6 +125,18 @@ export const FieldPreview = ({ field }: FieldPreviewProps) => {
           </div>
         );
 
+      case 'district':
+        return (
+          <Select disabled>
+            <SelectTrigger className="bg-muted/50">
+              <SelectValue placeholder={field.placeholder || "Selecione o distrito..."} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="placeholder">Carregado via API do IBGE</SelectItem>
+            </SelectContent>
+          </Select>
+        );
+
       case 'file':
         return (
           <div className="border-2 border-dashed rounded-lg p-6 text-center bg-muted/30">
