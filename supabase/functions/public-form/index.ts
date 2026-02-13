@@ -601,7 +601,6 @@ function generateFieldHTML(field: any): string {
         '(function() {',
         '  var ufs = ' + districtUfsJson + ';',
         '  var selectEl = document.getElementById("district-select-' + field.id + '");',
-        '  var searchEl = document.getElementById("district-search-' + field.id + '");',
         '  var allDistritos = [];',
         '  function loadDistritos() {',
         '    if (ufs.length === 0) return;',
@@ -626,26 +625,15 @@ function generateFieldHTML(field: any): string {
         '      selectEl.appendChild(opt);',
         '    });',
         '  }',
-        '  searchEl.addEventListener("input", function() {',
-        '    var term = this.value.toUpperCase();',
-        '    if (term.length < 2) { renderOptions(allDistritos); return; }',
-        '    var filtered = allDistritos.filter(function(d) {',
-        '      return d.toUpperCase().indexOf(term) !== -1;',
-        '    });',
-        '    renderOptions(filtered);',
-        '  });',
         '  loadDistritos();',
         '})();',
       ].join('\n');
 
       return '<div class="field">'
         + '<label>' + escapeHtml(field.label) + requiredStar + '</label>'
-        + '<div class="district-search-container">'
-        + '<input type="text" class="district-search-input" id="district-search-' + field.id + '" placeholder="Buscar distrito..." autocomplete="off">'
-        + '<select name="' + field.id + '" id="district-select-' + field.id + '" class="district-select" ' + required + '>'
+        + '<select name="' + field.id + '" id="district-select-' + field.id + '" ' + required + '>'
         + '<option value="">' + districtPlaceholder + '</option>'
         + '</select>'
-        + '</div>'
         + helpText
         + '<script>' + districtScript + '</script>'
         + '</div>';
