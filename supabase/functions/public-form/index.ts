@@ -597,37 +597,21 @@ function generateFieldHTML(field: any): string {
       const districtUfs: string[] = field.settings?.ufs || [];
       const districtUfsJson = JSON.stringify(districtUfs);
       const districtPlaceholder = escapeHtml(field.placeholder || 'Selecione o distrito...');
-      const districtScript = [
-        '(function() {',
-        '  var ufs = ' + districtUfsJson + ';',
-        '  var selectEl = document.getElementById("district-select-' + field.id + '");',
-        '  var allDistritos = [];',
-        '  function loadDistritos() {',
-        '    if (ufs.length === 0) return;',
-        '    selectEl.innerHTML = "<option value=\\"\\">' + 'Carregando...</option>";',
-        '    Promise.all(ufs.map(function(uf) {',
-        '      return fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados/" + uf + "/distritos?orderBy=nome")',
-        '        .then(function(r) { return r.json(); });',
-        '    })).then(function(results) {',
-        '      var nomes = []; results.forEach(function(arr) { arr.forEach(function(d) { nomes.push(d.nome); }); });',
-        '      var unique = []; nomes.forEach(function(n) { if (unique.indexOf(n) === -1) unique.push(n); });',
-        '      allDistritos = unique.sort();',
-        '      renderOptions(allDistritos);',
-        '    }).catch(function() {',
-        '      selectEl.innerHTML = "<option value=\\"\\">' + 'Erro ao carregar</option>";',
-        '    });',
-        '  }',
-        '  function renderOptions(list) {',
-        '    selectEl.innerHTML = "<option value=\\"\\">' + districtPlaceholder + '</option>";',
-        '    list.forEach(function(nome) {',
-        '      var opt = document.createElement("option");',
-        '      opt.value = nome; opt.textContent = nome;',
-        '      selectEl.appendChild(opt);',
-        '    });',
-        '  }',
-        '  loadDistritos();',
-        '})();',
-      ].join('\n');
+      const districtScript = '(function(){' +
+        'var ufs=' + districtUfsJson + ';' +
+        'var sel=document.getElementById("district-select-' + field.id + '");' +
+        'if(ufs.length===0)return;' +
+        'sel.innerHTML="<option value=\\"\\">Carregando...</option>";' +
+        'Promise.all(ufs.map(function(uf){' +
+        'return fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados/"+uf+"/distritos?orderBy=nome").then(function(r){return r.json()});' +
+        '})).then(function(res){' +
+        'var n=[];res.forEach(function(a){a.forEach(function(d){n.push(d.nome)})});' +
+        'var u=[];n.forEach(function(x){if(u.indexOf(x)===-1)u.push(x)});' +
+        'u.sort();' +
+        'sel.innerHTML="<option value=\\"\\">'+districtPlaceholder+'</option>";' +
+        'u.forEach(function(nome){var o=document.createElement("option");o.value=nome;o.textContent=nome;sel.appendChild(o)});' +
+        '}).catch(function(){sel.innerHTML="<option value=\\"\\">Erro ao carregar</option>"});' +
+        '})();';
 
       return '<div class="field">'
         + '<label>' + escapeHtml(field.label) + requiredStar + '</label>'
