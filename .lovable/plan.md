@@ -1,55 +1,107 @@
 
+# Agendamento por Calendario no Formulario
 
-## Adicionar Campo "Distrito" com API do IBGE ao Formulario
+## Resumo
+Adicionar um novo tipo de campo "Agendamento" ao sistema de formularios que exibe um calendario interativo no formulario publico. O lead escolhe uma data e um horario disponivel. Ao submeter, o sistema cria automaticamente uma tarefa no calendario (que sincroniza com Google Calendar) e notifica o responsavel.
 
-### O que sera feito
+## Funcionalidades
 
-Criar um novo tipo de campo `district` (Distrito) no form builder que busca distritos da API do IBGE filtrados por UF, seguindo o mesmo padrao ja existente para municipios.
+### 1. Novo tipo de campo: `scheduling`
+- Aparece na paleta do builder na categoria "Data e Hora"
+- No formulario publico, renderiza um calendario visual + slots de horario
+- O lead seleciona uma data e depois um horario disponivel
 
-### Fluxo do usuario
+### 2. Configuracoes do campo (no painel de propriedades)
+- **Dias da semana disponiveis**: checkboxes para cada dia (Seg-Dom)
+- **Horario por dia**: hora de inicio e fim para cada dia habilitado (ex: Segunda 08:00-18:00)
+- **Intervalo entre slots**: duracao de cada slot (15, 30, 45 ou 60 min)
+- **Datas bloqueadas**: lista de datas especificas a excluir (feriados, ferias etc.)
+- **Antecedencia minima**: quantos dias/horas no minimo antes do agendamento
+- **Antecedencia maxima**: ate quantos dias no futuro mostrar disponibilidade
 
-1. No builder, o usuario adiciona o campo "Distrito" (categoria Especiais)
-2. Nas propriedades do campo, o usuario configura quais UFs filtrar (ou deixa vazio para carregar todas)
-3. No formulario publico, o lead ve um campo de busca/select que carrega os distritos via API do IBGE em tempo real
+### 3. Verificacao de conflitos em tempo real
+- Quando o lead seleciona uma data no calendario, o formulario consulta uma Edge Function (`check-availability`) que:
+  - Busca tarefas existentes (conversation_tasks + deal_tasks) naquela data para o dono do formulario
+  - Retorna os slots ja ocupados
+  - O frontend filtra e mostra apenas slots livres
 
-### API do IBGE utilizada
+### 4. Criacao de tarefa ao submeter
+- Na Edge Function `submit-form`, quando um campo do tipo `scheduling` e detectado:
+  - Cria uma `conversation_task` vinculada ao contato (se existir)
+  - Define `due_date` e `due_time` com os valores escolhidos
+  - Define `sync_with_google: true` para sincronizar com Google Calendar
+  - Titulo da tarefa: label do campo + nome do contato (se disponivel)
 
-```text
-GET https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/distritos?orderBy=nome
+### 5. Notificacao
+- Utiliza o sistema de notificacoes existente para alertar o responsavel sobre o novo agendamento
+
+---
+
+## Detalhes Tecnicos
+
+### Alteracoes no banco de dados
+Nenhuma tabela nova necessaria. As configuracoes de disponibilidade ficam no campo `settings` (JSON) da tabela `form_fields`.
+
+Estrutura do `settings` para campo `scheduling`:
+```json
+{
+  "schedule": {
+    "slot_duration": 30,
+    "min_advance_hours": 24,
+    "max_advance_days": 30,
+    "blocked_dates": ["2026-03-01", "2026-03-02"],
+    "weekly_hours": {
+      "1": { "enabled": true, "start": "08:00", "end": "18:00" },
+      "2": { "enabled": true, "start": "08:00", "end": "18:00" },
+      "3": { "enabled": true, "start": "08:00", "end": "18:00" },
+      "4": { "enabled": true, "start": "08:00", "end": "18:00" },
+      "5": { "enabled": true, "start": "08:00", "end": "18:00" },
+      "6": { "enabled": false, "start": "", "end": "" },
+      "0": { "enabled": false, "start": "", "end": "" }
+    }
+  }
+}
 ```
 
-Retorna um array de objetos com `id` e `nome` de cada distrito da UF.
+### Arquivos a criar/modificar
 
-### Alteracoes
+1. **`src/components/forms/builder/FieldPalette.tsx`** -- Adicionar o tipo `scheduling` na categoria "Data e Hora"
 
-**1. Novo service: `src/services/ibgeDistritos.ts`**
-- Seguir o mesmo padrao de `src/services/ibgeMunicipios.ts`
-- Funcoes: `fetchDistritosByUf`, `fetchDistritosForMultipleUfs`, `searchDistritosInList`
-- Cache em memoria para evitar chamadas repetidas
+2. **`src/components/forms/builder/FieldProperties.tsx`** -- Adicionar painel de configuracao de disponibilidade (dias, horarios, slots, datas bloqueadas)
 
-**2. Novo hook: `src/hooks/useIbgeDistritos.ts`**
-- Seguir o padrao de `src/hooks/useIbgeMunicipios.ts`
-- Receber array de UFs, retornar lista de distritos e funcao de busca
+3. **`src/components/forms/builder/FieldPreview.tsx`** -- Adicionar preview do campo de agendamento no builder
 
-**3. Atualizar `src/components/forms/builder/FieldPalette.tsx`**
-- Adicionar na categoria "Especiais": `{ type: 'district', label: 'Distrito', icon: MapPin, category: 'Especiais' }`
+4. **`supabase/functions/check-availability/index.ts`** (nova) -- Edge Function que recebe `form_id`, `field_id`, `date` e retorna os slots disponiveis, verificando conflitos com tarefas existentes
 
-**4. Atualizar `src/components/forms/builder/FieldPreview.tsx`**
-- Adicionar case `district` no switch, renderizando um select com placeholder "Selecione o distrito..."
+5. **`supabase/functions/public-form/index.ts`** -- Adicionar geracao de HTML/JS para o campo `scheduling` com calendario interativo e consulta de disponibilidade
 
-**5. Atualizar `src/components/forms/builder/FieldProperties.tsx`**
-- Para campos do tipo `district`, exibir opcao de configurar UFs filtradas (multi-select com os 27 estados)
+6. **`supabase/functions/submit-form/index.ts`** -- Adicionar logica para criar `conversation_task` quando campo `scheduling` e submetido, com `sync_with_google: true`
 
-**6. Atualizar `supabase/functions/public-form/index.ts`**
-- Adicionar case `district` na funcao `generateFieldHtml`
-- Renderizar um `<select>` com busca que carrega distritos da API do IBGE via JavaScript no lado do cliente
-- O HTML gerado incluira um script inline que faz fetch na API do IBGE ao carregar a pagina (usando as UFs configuradas no campo)
-- Opcao de busca/filtro no select para facilitar a selecao quando houver muitos distritos
+### Fluxo do formulario publico (campo scheduling)
 
-### Detalhes tecnicos
+```text
+1. Lead abre formulario
+2. Ve um calendario mensal com dias disponiveis destacados
+3. Clica em um dia
+4. Sistema consulta check-availability (fetch async)
+5. Exibe lista de horarios disponiveis para aquele dia
+6. Lead seleciona um horario
+7. Valor e armazenado como "YYYY-MM-DD HH:mm"
+8. Ao submeter, submit-form cria tarefa no calendario
+```
 
-- A API do IBGE e publica e nao requer autenticacao
-- Os distritos sao mais granulares que municipios (um municipio pode ter varios distritos)
-- O campo armazenara o nome do distrito selecionado como valor da submissao
-- As UFs configuradas serao salvas em `field.settings.ufs` (array de strings como `["SP", "RJ"]`)
-- No HTML publico, o JavaScript fara fetch direto na API do IBGE (client-side), sem necessidade de edge function intermediaria
+### Calendario no formulario publico
+Sera renderizado como HTML/CSS/JS puro (inline) na Edge Function `public-form`, sem dependencias externas. Inclui:
+- Grade mensal com navegacao (mes anterior/proximo)
+- Dias desabilitados (fora da disponibilidade configurada) em cinza
+- Ao clicar em um dia, carrega slots via fetch
+- Slots exibidos como botoes clicaveis abaixo do calendario
+
+### Edge Function `check-availability`
+- Recebe: `form_id`, `field_id`, `date` (YYYY-MM-DD)
+- Busca config do campo (settings.schedule)
+- Valida se o dia esta habilitado e nao bloqueado
+- Gera todos os slots possiveis para o dia
+- Busca tarefas existentes (conversation_tasks + deal_tasks) do owner para aquela data
+- Remove slots conflitantes
+- Retorna lista de horarios livres
