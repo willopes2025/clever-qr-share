@@ -1,11 +1,14 @@
+import { useState, useMemo } from "react";
 import { useFormSubmissions, FormField } from "@/hooks/useForms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Download } from "lucide-react";
+import { Loader2, FileText, Download, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 interface SubmissionsListProps {
   formId: string;
@@ -14,17 +17,64 @@ interface SubmissionsListProps {
 
 export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const { submissions, isLoading } = useFormSubmissions(formId);
+  const [filterColumn, setFilterColumn] = useState<string>("none");
+  const [filterValue, setFilterValue] = useState("");
+
+  const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
+
+  // Build column options for filtering
+  const columnOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [
+      { value: "date", label: "Data" },
+      { value: "contact", label: "Contato" },
+      ...visibleFields.map(f => ({ value: f.id, label: f.label })),
+    ];
+    return opts;
+  }, [visibleFields]);
+
+  // Get unique values for the selected column
+  const uniqueValues = useMemo(() => {
+    if (!submissions || filterColumn === "none") return [];
+    const vals = new Set<string>();
+    submissions.forEach(sub => {
+      let val = "";
+      if (filterColumn === "date") {
+        val = format(new Date(sub.created_at), "dd/MM/yyyy");
+      } else if (filterColumn === "contact") {
+        val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
+      } else {
+        const raw = sub.data[filterColumn] ?? "";
+        val = typeof raw === "object" ? JSON.stringify(raw) : String(raw);
+      }
+      if (val && val !== "-") vals.add(val);
+    });
+    return Array.from(vals).sort();
+  }, [submissions, filterColumn]);
+
+  // Filtered submissions
+  const filteredSubmissions = useMemo(() => {
+    if (!submissions) return [];
+    if (filterColumn === "none" || !filterValue) return submissions;
+    return submissions.filter(sub => {
+      let val = "";
+      if (filterColumn === "date") {
+        val = format(new Date(sub.created_at), "dd/MM/yyyy");
+      } else if (filterColumn === "contact") {
+        val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
+      } else {
+        const raw = sub.data[filterColumn] ?? "";
+        val = typeof raw === "object" ? JSON.stringify(raw) : String(raw);
+      }
+      return val.toLowerCase().includes(filterValue.toLowerCase());
+    });
+  }, [submissions, filterColumn, filterValue]);
 
   const handleExportCSV = () => {
-    if (!submissions || submissions.length === 0) return;
-
-    // Build headers
-    const headers = ['Data', 'Contato', ...fields.map(f => f.label)];
-    
-    // Build rows
-    const rows = submissions.map(sub => {
+    if (!filteredSubmissions || filteredSubmissions.length === 0) return;
+    const headers = ['Data', 'Contato', ...visibleFields.map(f => f.label)];
+    const rows = filteredSubmissions.map(sub => {
       const contactName = sub.contacts?.name || sub.contacts?.phone || 'Anônimo';
-      const fieldValues = fields.map(f => {
+      const fieldValues = visibleFields.map(f => {
         const value = sub.data[f.id] ?? sub.data[f.label] ?? '';
         return typeof value === 'object' ? JSON.stringify(value) : String(value);
       });
@@ -34,14 +84,10 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         ...fieldValues,
       ];
     });
-
-    // Create CSV
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')),
     ].join('\n');
-
-    // Download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -77,13 +123,57 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         <div>
           <h3 className="font-medium">Respostas</h3>
           <p className="text-sm text-muted-foreground">
-            {submissions.length} resposta{submissions.length !== 1 ? 's' : ''}
+            {filteredSubmissions.length} de {submissions.length} resposta{submissions.length !== 1 ? 's' : ''}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleExportCSV}>
           <Download className="h-4 w-4 mr-2" />
           Exportar CSV
         </Button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <Select value={filterColumn} onValueChange={(v) => { setFilterColumn(v); setFilterValue(""); }}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Filtrar por coluna..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Sem filtro</SelectItem>
+            {columnOptions.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {filterColumn !== "none" && (
+          uniqueValues.length <= 20 ? (
+            <Select value={filterValue} onValueChange={setFilterValue}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Selecione o valor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {uniqueValues.map(v => (
+                  <SelectItem key={v} value={v}>{v}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              placeholder="Digite para filtrar..."
+              value={filterValue}
+              onChange={(e) => setFilterValue(e.target.value)}
+              className="w-[250px]"
+            />
+          )
+        )}
+
+        {filterValue && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilterColumn("none"); setFilterValue(""); }}>
+            Limpar
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="w-full">
@@ -93,7 +183,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
               <TableRow>
                 <TableHead className="w-[150px]">Data</TableHead>
                 <TableHead className="w-[150px]">Contato</TableHead>
-                {fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type)).map((field) => (
+                {visibleFields.map((field) => (
                   <TableHead key={field.id} className="min-w-[150px]">
                     {field.label}
                   </TableHead>
@@ -101,7 +191,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {submissions.map((submission) => (
+              {filteredSubmissions.map((submission) => (
                 <TableRow key={submission.id}>
                   <TableCell className="text-sm">
                     {format(new Date(submission.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -116,7 +206,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                       <Badge variant="secondary">Anônimo</Badge>
                     )}
                   </TableCell>
-                  {fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type)).map((field) => {
+                  {visibleFields.map((field) => {
                     const value = submission.data[field.id] ?? submission.data[field.label] ?? '-';
                     return (
                       <TableCell key={field.id} className="text-sm max-w-[200px] truncate">
