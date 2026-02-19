@@ -195,16 +195,33 @@ export function useMessagingMetrics(dateRange: DateRange = '7d') {
     queryFn: async (): Promise<MessagingMetrics> => {
       if (!user?.id) throw new Error('User not authenticated');
 
+      // Server-side counts to avoid 1000 row limit
+      const { count: totalSentCount } = await supabase
+        .from('inbox_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const { count: totalReceivedCount } = await supabase
+        .from('inbox_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'inbound')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const totalSent = totalSentCount || 0;
+      const totalReceived = totalReceivedCount || 0;
+
+      // Get messages sample for daily chart (limited data is acceptable for chart)
       const { data: messages, error } = await supabase
         .from('inbox_messages')
         .select('direction, created_at')
         .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+        .lte('created_at', end.toISOString())
+        .limit(1000);
 
       if (error) throw error;
-
-      const totalSent = messages?.filter(m => m.direction === 'outbound').length || 0;
-      const totalReceived = messages?.filter(m => m.direction === 'inbound').length || 0;
 
       // Group by date
       const dailyMap = new Map<string, { sent: number; received: number }>();

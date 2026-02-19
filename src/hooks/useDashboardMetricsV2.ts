@@ -63,15 +63,22 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'open');
 
-      // Auto vs Human attendances
-      const { data: conversationsData } = await supabase
+      // Auto vs Human attendances (server-side counts to avoid 1000 row limit)
+      const { count: autoAttendances } = await supabase
         .from('conversations')
-        .select('ai_handled')
+        .select('*', { count: 'exact', head: true })
+        .eq('ai_handled', true)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
-      const autoAttendances = conversationsData?.filter(c => c.ai_handled).length || 0;
-      const humanAttendances = conversationsData?.filter(c => !c.ai_handled).length || 0;
+      const { count: humanAttendances } = await supabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('ai_handled', false)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const totalConversationsCount = (autoAttendances || 0) + (humanAttendances || 0);
 
       // Unanswered leads (conversations with unread > 0)
       const { count: unansweredLeads } = await supabase
@@ -88,11 +95,10 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
         .order('created_at', { ascending: true })
         .limit(1000);
 
-      // Calculate response rate based on conversations that have outbound messages
-      const totalConversations = conversationsData?.length || 0;
+      // Calculate response rate using server-side count for total conversations
       const respondedConvIds = [...new Set(messagesData?.filter(m => m.direction === 'outbound').map(m => m.conversation_id).filter(Boolean) || [])];
       const respondedConversations = respondedConvIds.length;
-      const responseRate = totalConversations > 0 ? (respondedConversations / totalConversations) * 100 : 0;
+      const responseRate = totalConversationsCount > 0 ? (respondedConversations / totalConversationsCount) * 100 : 0;
 
 
       let totalResponseTime = 0;
@@ -130,8 +136,8 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
       return {
         leadsToday: leadsToday || 0,
         activeConversations: activeConversations || 0,
-        autoAttendances,
-        humanAttendances,
+        autoAttendances: autoAttendances || 0,
+        humanAttendances: humanAttendances || 0,
         unansweredLeads: unansweredLeads || 0,
         avgFirstResponseTime,
         responseRate,
@@ -157,20 +163,44 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
     queryFn: async (): Promise<WhatsAppMetrics> => {
       const { start, end } = getDateRange(dateRange);
 
-      // Get messages data
-      const { data: messagesData } = await supabase
+      // Server-side counts to avoid 1000 row limit
+      const { count: messagesSentCount } = await supabase
         .from('inbox_messages')
-        .select('direction, status, conversation_id')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
         .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
-        .eq('direction', 'outbound');
+        .lte('created_at', end.toISOString());
 
-      const messagesSent = messagesData?.length || 0;
-      const messagesDelivered = messagesData?.filter(m => m.status === 'sent' || m.status === 'received').length || 0;
-      const messagesFailed = messagesData?.filter(m => m.status === 'failed').length || 0;
+      const { count: messagesDeliveredCount } = await supabase
+        .from('inbox_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
+        .in('status', ['sent', 'received'])
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const { count: messagesFailedCount } = await supabase
+        .from('inbox_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
+        .eq('status', 'failed')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const messagesSent = messagesSentCount || 0;
+      const messagesDelivered = messagesDeliveredCount || 0;
+      const messagesFailed = messagesFailedCount || 0;
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
-      // Get conversations to map to instances
+      // Get messages sample for instance distribution (relative chart, limited is ok)
+      const { data: messagesData } = await supabase
+        .from('inbox_messages')
+        .select('conversation_id')
+        .eq('direction', 'outbound')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .limit(1000);
+
       const conversationIds = [...new Set(messagesData?.map(m => m.conversation_id).filter(Boolean) || [])];
       
       const { data: conversationsData } = await supabase
@@ -178,7 +208,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
         .select('id, instance_id')
         .in('id', conversationIds.length > 0 ? conversationIds : ['']);
 
-      // Messages by instance
+      // Messages by instance (sample-based for relative chart)
       const instanceCounts = new Map<string, number>();
       messagesData?.forEach(m => {
         const conv = conversationsData?.find(c => c.id === m.conversation_id);
@@ -381,8 +411,8 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
         }
       }
 
-      // Deals in negotiation (not in final stages)
-      const finalStageIds = stages?.filter(s => s.is_final).map(s => s.id) || [];
+      // Deals in negotiation (not in won/lost stages)
+      const finalStageIds = stages?.filter(s => s.final_type === 'won' || s.final_type === 'lost').map(s => s.id) || [];
       const dealsInNegotiation = deals?.filter(d => !finalStageIds.includes(d.stage_id)).length || 0;
       const valueInNegotiation = deals
         ?.filter(d => !finalStageIds.includes(d.stage_id))
