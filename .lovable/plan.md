@@ -1,107 +1,101 @@
 
-# Agendamento por Calendario no Formulario
 
-## Resumo
-Adicionar um novo tipo de campo "Agendamento" ao sistema de formularios que exibe um calendario interativo no formulario publico. O lead escolhe uma data e um horario disponivel. Ao submeter, o sistema cria automaticamente uma tarefa no calendario (que sincroniza com Google Calendar) e notifica o responsavel.
+# Analise do Dashboard - Problemas Encontrados
 
-## Funcionalidades
+## Problemas Identificados
 
-### 1. Novo tipo de campo: `scheduling`
-- Aparece na paleta do builder na categoria "Data e Hora"
-- No formulario publico, renderiza um calendario visual + slots de horario
-- O lead seleciona uma data e depois um horario disponivel
+### 1. CRITICO: Direção de mensagens inconsistente no `useAdvancedDashboardMetrics.ts`
 
-### 2. Configuracoes do campo (no painel de propriedades)
-- **Dias da semana disponiveis**: checkboxes para cada dia (Seg-Dom)
-- **Horario por dia**: hora de inicio e fim para cada dia habilitado (ex: Segunda 08:00-18:00)
-- **Intervalo entre slots**: duracao de cada slot (15, 30, 45 ou 60 min)
-- **Datas bloqueadas**: lista de datas especificas a excluir (feriados, ferias etc.)
-- **Antecedencia minima**: quantos dias/horas no minimo antes do agendamento
-- **Antecedencia maxima**: ate quantos dias no futuro mostrar disponibilidade
+No hook `useMessagingMetrics` (linha 206-207), o codigo filtra por `'outgoing'` e `'incoming'`, mas os valores reais no banco de dados sao `'outbound'` e `'inbound'`.
 
-### 3. Verificacao de conflitos em tempo real
-- Quando o lead seleciona uma data no calendario, o formulario consulta uma Edge Function (`check-availability`) que:
-  - Busca tarefas existentes (conversation_tasks + deal_tasks) naquela data para o dono do formulario
-  - Retorna os slots ja ocupados
-  - O frontend filtra e mostra apenas slots livres
+**Resultado**: As metricas de mensagens enviadas/recebidas sempre retornam 0.
 
-### 4. Criacao de tarefa ao submeter
-- Na Edge Function `submit-form`, quando um campo do tipo `scheduling` e detectado:
-  - Cria uma `conversation_task` vinculada ao contato (se existir)
-  - Define `due_date` e `due_time` com os valores escolhidos
-  - Define `sync_with_google: true` para sincronizar com Google Calendar
-  - Titulo da tarefa: label do campo + nome do contato (se disponivel)
-
-### 5. Notificacao
-- Utiliza o sistema de notificacoes existente para alertar o responsavel sobre o novo agendamento
+**Correcao**: Trocar `'outgoing'` por `'outbound'` e `'incoming'` por `'inbound'`.
 
 ---
 
-## Detalhes Tecnicos
+### 2. CRITICO: Calculo de tempo de resposta no `useResponseTimeMetrics` (useAdvancedDashboardMetrics.ts)
 
-### Alteracoes no banco de dados
-Nenhuma tabela nova necessaria. As configuracoes de disponibilidade ficam no campo `settings` (JSON) da tabela `form_fields`.
+Mesmo problema: nas linhas 259 e 261, usa `'incoming'` e `'outgoing'` em vez de `'inbound'` e `'outbound'`.
 
-Estrutura do `settings` para campo `scheduling`:
-```json
-{
-  "schedule": {
-    "slot_duration": 30,
-    "min_advance_hours": 24,
-    "max_advance_days": 30,
-    "blocked_dates": ["2026-03-01", "2026-03-02"],
-    "weekly_hours": {
-      "1": { "enabled": true, "start": "08:00", "end": "18:00" },
-      "2": { "enabled": true, "start": "08:00", "end": "18:00" },
-      "3": { "enabled": true, "start": "08:00", "end": "18:00" },
-      "4": { "enabled": true, "start": "08:00", "end": "18:00" },
-      "5": { "enabled": true, "start": "08:00", "end": "18:00" },
-      "6": { "enabled": false, "start": "", "end": "" },
-      "0": { "enabled": false, "start": "", "end": "" }
-    }
-  }
-}
+**Resultado**: O tempo medio de resposta sempre retorna 0.
+
+---
+
+### 3. MEDIO: Status de conversa incorreto no `useConversationMetrics`
+
+O codigo filtra por `status === 'resolved'` e `status === 'pending'` (linhas 400-402), mas o banco de dados so tem os status `'open'`, `'active'` e `'archived'`. Nao existe `'resolved'` nem `'pending'`.
+
+**Resultado**: As metricas de conversas resolvidas e pendentes sempre retornam 0.
+
+**Correcao**: Mapear corretamente:
+- `'resolved'` deve ser `'archived'`
+- `'pending'` pode ser removido ou mapeado para `'active'`
+
+---
+
+### 4. MEDIO: Status de entrega de mensagem incorreto no `useWhatsAppMetrics` (V2)
+
+Na linha 167, filtra mensagens entregues por `status === 'sent' || status === 'read'`, mas no banco so existem `'sent'`, `'received'` e `'failed'`. Nao existe `'read'`.
+
+**Correcao**: Trocar `'read'` por `'received'`.
+
+---
+
+### 5. MEDIO: "Em Negociacao" inclui deals perdidos no `useFinancialMetrics` (V2)
+
+Na linha 644-646, o filtro para deals em negociacao exclui apenas os `wonStageIds`, mas nao exclui os deals em stages com `final_type === 'lost'`. Isso infla o valor "Em Negociacao" incluindo deals que ja foram perdidos.
+
+**Correcao**: Tambem filtrar os `lostStageIds`:
+```typescript
+const finalStageIds = stages?.filter(s => s.final_type === 'won' || s.final_type === 'lost').map(s => s.id) || [];
+const openDeals = deals?.filter(d => !finalStageIds.includes(d.stage_id)) || [];
 ```
 
-### Arquivos a criar/modificar
+---
 
-1. **`src/components/forms/builder/FieldPalette.tsx`** -- Adicionar o tipo `scheduling` na categoria "Data e Hora"
+### 6. MEDIO: Calculo de `avgResponseTime` no `useAgentPerformanceMetrics` (V2)
 
-2. **`src/components/forms/builder/FieldProperties.tsx`** -- Adicionar painel de configuracao de disponibilidade (dias, horarios, slots, datas bloqueadas)
+Na linha 576-578, a media do tempo de resposta dos agentes e feita pela media dos `avgResponseTime` de cada agente, mas esse valor nao esta sendo acumulado corretamente - quando um agente tem multiplas entradas de metricas, a media e sobrescrita em vez de recalculada.
 
-3. **`src/components/forms/builder/FieldPreview.tsx`** -- Adicionar preview do campo de agendamento no builder
+**Correcao**: Acumular e recalcular a media ponderada.
 
-4. **`supabase/functions/check-availability/index.ts`** (nova) -- Edge Function que recebe `form_id`, `field_id`, `date` e retorna os slots disponiveis, verificando conflitos com tarefas existentes
+---
 
-5. **`supabase/functions/public-form/index.ts`** -- Adicionar geracao de HTML/JS para o campo `scheduling` com calendario interativo e consulta de disponibilidade
+### 7. BAIXO: Taxa de resposta (`responseRate`) logica questionavel
 
-6. **`supabase/functions/submit-form/index.ts`** -- Adicionar logica para criar `conversation_task` quando campo `scheduling` e submetido, com `sync_with_google: true`
+Na linha 85-86, a "taxa de resposta" e calculada como conversas onde `ai_handled !== null` dividido pelo total. Como `ai_handled` e booleano, tanto `true` quanto `false` contam como "respondidas". Isso significa que basicamente toda conversa conta como respondida, tornando a metrica inutil.
 
-### Fluxo do formulario publico (campo scheduling)
+**Correcao**: Calcular com base em conversas que realmente receberam resposta (existencia de mensagem outbound).
 
-```text
-1. Lead abre formulario
-2. Ve um calendario mensal com dias disponiveis destacados
-3. Clica em um dia
-4. Sistema consulta check-availability (fetch async)
-5. Exibe lista de horarios disponiveis para aquele dia
-6. Lead seleciona um horario
-7. Valor e armazenado como "YYYY-MM-DD HH:mm"
-8. Ao submeter, submit-form cria tarefa no calendario
-```
+---
 
-### Calendario no formulario publico
-Sera renderizado como HTML/CSS/JS puro (inline) na Edge Function `public-form`, sem dependencias externas. Inclui:
-- Grade mensal com navegacao (mes anterior/proximo)
-- Dias desabilitados (fora da disponibilidade configurada) em cinza
-- Ao clicar em um dia, carrega slots via fetch
-- Slots exibidos como botoes clicaveis abaixo do calendario
+### 8. BAIXO: `abandonedConversations` com logica invertida
 
-### Edge Function `check-availability`
-- Recebe: `form_id`, `field_id`, `date` (YYYY-MM-DD)
-- Busca config do campo (settings.schedule)
-- Valida se o dia esta habilitado e nao bloqueado
-- Gera todos os slots possiveis para o dia
-- Busca tarefas existentes (conversation_tasks + deal_tasks) do owner para aquela data
-- Remove slots conflitantes
-- Retorna lista de horarios livres
+Na linha 581-586, "conversas abandonadas" filtra por `status = 'resolved'` que nao existe no banco (deveria ser `'archived'`), e usa `ai_handled = false` como proxy para abandono, o que nao e preciso.
+
+---
+
+## Resumo das Correcoes
+
+| # | Arquivo | Severidade | Problema |
+|---|---------|-----------|----------|
+| 1 | useAdvancedDashboardMetrics.ts | Critico | `'outgoing'/'incoming'` deveria ser `'outbound'/'inbound'` |
+| 2 | useAdvancedDashboardMetrics.ts | Critico | Mesmo problema no calculo de tempo de resposta |
+| 3 | useAdvancedDashboardMetrics.ts | Medio | Status `'resolved'/'pending'` nao existem no banco |
+| 4 | useDashboardMetricsV2.ts | Medio | Status `'read'` nao existe, deveria ser `'received'` |
+| 5 | useDashboardMetricsV2.ts | Medio | "Em Negociacao" inclui deals perdidos |
+| 6 | useDashboardMetricsV2.ts | Medio | Media de tempo de resposta dos agentes incorreta |
+| 7 | useDashboardMetricsV2.ts | Baixo | Taxa de resposta sempre ~100% |
+| 8 | useDashboardMetricsV2.ts | Baixo | Conversas abandonadas com filtro inexistente |
+
+## Plano de Implementacao
+
+1. Corrigir as direcoes de mensagens em `useAdvancedDashboardMetrics.ts` (`outgoing` -> `outbound`, `incoming` -> `inbound`)
+2. Corrigir os status de conversa (`resolved` -> `archived`, remover `pending`)
+3. Corrigir status de entrega (`read` -> `received`) em `useDashboardMetricsV2.ts`
+4. Corrigir filtro de "Em Negociacao" para excluir deals perdidos
+5. Corrigir calculo de media de tempo de resposta dos agentes
+6. Melhorar logica de taxa de resposta para ser baseada em mensagens outbound reais
+7. Corrigir filtro de conversas abandonadas
+
