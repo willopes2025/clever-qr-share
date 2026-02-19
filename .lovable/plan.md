@@ -1,101 +1,89 @@
 
+# Correcao: Limite de 1000 Linhas no Dashboard
 
-# Analise do Dashboard - Problemas Encontrados
+## Problema Identificado
 
-## Problemas Identificados
+O numero "1,000 Enviadas" esta errado porque o Supabase retorna no maximo **1000 linhas por consulta** por padrao. O numero real de mensagens enviadas nos ultimos 30 dias e **19,577**.
 
-### 1. CRITICO: Direção de mensagens inconsistente no `useAdvancedDashboardMetrics.ts`
+Esse mesmo problema afeta varias consultas no dashboard que buscam dados da tabela `inbox_messages` sem usar contagem server-side.
 
-No hook `useMessagingMetrics` (linha 206-207), o codigo filtra por `'outgoing'` e `'incoming'`, mas os valores reais no banco de dados sao `'outbound'` e `'inbound'`.
+## Consultas Afetadas
 
-**Resultado**: As metricas de mensagens enviadas/recebidas sempre retornam 0.
+| Arquivo | Consulta | Problema |
+|---------|---------|----------|
+| `useDashboardMetricsV2.ts` linha 161-166 | WhatsApp `messagesSent` | Conta `.length` em vez de usar `count: 'exact'` |
+| `useDashboardMetricsV2.ts` linha 84-89 | Overview `messagesData` para tempo de resposta | Busca ate 1000 mensagens |
+| `useDashboardMetricsV2.ts` linha 67-71 | Overview `conversationsData` para auto/humano | Pode atingir limite com muitas conversas |
+| `useAdvancedDashboardMetrics.ts` linha 198-202 | Messaging metrics `totalSent/totalReceived` | Conta `.length` em array limitado |
+| `useAdvancedDashboardMetrics.ts` linha 244-250 | Response time metrics | Busca mensagens sem limite adequado |
 
-**Correcao**: Trocar `'outgoing'` por `'outbound'` e `'incoming'` por `'inbound'`.
+## Solucao
 
----
+### 1. WhatsApp Metrics - Usar contagem server-side (CRITICO)
 
-### 2. CRITICO: Calculo de tempo de resposta no `useResponseTimeMetrics` (useAdvancedDashboardMetrics.ts)
+Substituir a busca de todas as linhas por 3 queries de contagem separadas:
 
-Mesmo problema: nas linhas 259 e 261, usa `'incoming'` e `'outgoing'` em vez de `'inbound'` e `'outbound'`.
-
-**Resultado**: O tempo medio de resposta sempre retorna 0.
-
----
-
-### 3. MEDIO: Status de conversa incorreto no `useConversationMetrics`
-
-O codigo filtra por `status === 'resolved'` e `status === 'pending'` (linhas 400-402), mas o banco de dados so tem os status `'open'`, `'active'` e `'archived'`. Nao existe `'resolved'` nem `'pending'`.
-
-**Resultado**: As metricas de conversas resolvidas e pendentes sempre retornam 0.
-
-**Correcao**: Mapear corretamente:
-- `'resolved'` deve ser `'archived'`
-- `'pending'` pode ser removido ou mapeado para `'active'`
-
----
-
-### 4. MEDIO: Status de entrega de mensagem incorreto no `useWhatsAppMetrics` (V2)
-
-Na linha 167, filtra mensagens entregues por `status === 'sent' || status === 'read'`, mas no banco so existem `'sent'`, `'received'` e `'failed'`. Nao existe `'read'`.
-
-**Correcao**: Trocar `'read'` por `'received'`.
-
----
-
-### 5. MEDIO: "Em Negociacao" inclui deals perdidos no `useFinancialMetrics` (V2)
-
-Na linha 644-646, o filtro para deals em negociacao exclui apenas os `wonStageIds`, mas nao exclui os deals em stages com `final_type === 'lost'`. Isso infla o valor "Em Negociacao" incluindo deals que ja foram perdidos.
-
-**Correcao**: Tambem filtrar os `lostStageIds`:
 ```typescript
-const finalStageIds = stages?.filter(s => s.final_type === 'won' || s.final_type === 'lost').map(s => s.id) || [];
-const openDeals = deals?.filter(d => !finalStageIds.includes(d.stage_id)) || [];
+// Enviadas (total outbound)
+const { count: messagesSent } = await supabase
+  .from('inbox_messages')
+  .select('*', { count: 'exact', head: true })
+  .eq('direction', 'outbound')
+  .gte('created_at', start.toISOString())
+  .lte('created_at', end.toISOString());
+
+// Entregues (sent + received status)
+const { count: messagesDelivered } = await supabase
+  .from('inbox_messages')
+  .select('*', { count: 'exact', head: true })
+  .eq('direction', 'outbound')
+  .in('status', ['sent', 'received'])
+  .gte('created_at', start.toISOString())
+  .lte('created_at', end.toISOString());
+
+// Falhadas
+const { count: messagesFailed } = await supabase
+  .from('inbox_messages')
+  .select('*', { count: 'exact', head: true })
+  .eq('direction', 'outbound')
+  .eq('status', 'failed')
+  .gte('created_at', start.toISOString())
+  .lte('created_at', end.toISOString());
 ```
 
----
+Para "Mensagens por Chip", buscar apenas os `conversation_id` distintos com uma abordagem de agrupamento via SQL ou manter a logica atual que e aceitavel para o grafico de barras (quantidade relativa entre chips nao precisa ser exata).
 
-### 6. MEDIO: Calculo de `avgResponseTime` no `useAgentPerformanceMetrics` (V2)
+### 2. Overview Metrics - Contagens server-side para auto/humano
 
-Na linha 576-578, a media do tempo de resposta dos agentes e feita pela media dos `avgResponseTime` de cada agente, mas esse valor nao esta sendo acumulado corretamente - quando um agente tem multiplas entradas de metricas, a media e sobrescrita em vez de recalculada.
+Substituir busca de `conversationsData` por queries de contagem:
 
-**Correcao**: Acumular e recalcular a media ponderada.
+```typescript
+const { count: autoAttendances } = await supabase
+  .from('conversations')
+  .select('*', { count: 'exact', head: true })
+  .eq('ai_handled', true)
+  .gte('created_at', start.toISOString());
 
----
+const { count: humanAttendances } = await supabase
+  .from('conversations')
+  .select('*', { count: 'exact', head: true })
+  .eq('ai_handled', false)
+  .gte('created_at', start.toISOString());
+```
 
-### 7. BAIXO: Taxa de resposta (`responseRate`) logica questionavel
+### 3. Advanced Dashboard Metrics - Contagens server-side
 
-Na linha 85-86, a "taxa de resposta" e calculada como conversas onde `ai_handled !== null` dividido pelo total. Como `ai_handled` e booleano, tanto `true` quanto `false` contam como "respondidas". Isso significa que basicamente toda conversa conta como respondida, tornando a metrica inutil.
+Substituir `useMessagingMetrics` para usar queries de contagem para `totalSent` e `totalReceived`, e manter a busca de dados apenas para o grafico diario (que pode usar amostragem limitada).
 
-**Correcao**: Calcular com base em conversas que realmente receberam resposta (existencia de mensagem outbound).
+### 4. Taxa de Resposta - Ajustar calculo
 
----
+A taxa de resposta precisa ser recalculada usando contagens server-side em vez de contar arrays limitados a 1000.
 
-### 8. BAIXO: `abandonedConversations` com logica invertida
+### 5. Financial Metrics - Correcao residual
 
-Na linha 581-586, "conversas abandonadas" filtra por `status = 'resolved'` que nao existe no banco (deveria ser `'archived'`), e usa `ai_handled = false` como proxy para abandono, o que nao e preciso.
+A linha 385 do `useDashboardMetricsV2.ts` ainda usa `is_final` para filtrar deals em negociacao, mas deveria usar `final_type` como foi corrigido no outro trecho (linhas 392-401). Corrigir para consistencia.
 
----
+## Arquivos a Modificar
 
-## Resumo das Correcoes
-
-| # | Arquivo | Severidade | Problema |
-|---|---------|-----------|----------|
-| 1 | useAdvancedDashboardMetrics.ts | Critico | `'outgoing'/'incoming'` deveria ser `'outbound'/'inbound'` |
-| 2 | useAdvancedDashboardMetrics.ts | Critico | Mesmo problema no calculo de tempo de resposta |
-| 3 | useAdvancedDashboardMetrics.ts | Medio | Status `'resolved'/'pending'` nao existem no banco |
-| 4 | useDashboardMetricsV2.ts | Medio | Status `'read'` nao existe, deveria ser `'received'` |
-| 5 | useDashboardMetricsV2.ts | Medio | "Em Negociacao" inclui deals perdidos |
-| 6 | useDashboardMetricsV2.ts | Medio | Media de tempo de resposta dos agentes incorreta |
-| 7 | useDashboardMetricsV2.ts | Baixo | Taxa de resposta sempre ~100% |
-| 8 | useDashboardMetricsV2.ts | Baixo | Conversas abandonadas com filtro inexistente |
-
-## Plano de Implementacao
-
-1. Corrigir as direcoes de mensagens em `useAdvancedDashboardMetrics.ts` (`outgoing` -> `outbound`, `incoming` -> `inbound`)
-2. Corrigir os status de conversa (`resolved` -> `archived`, remover `pending`)
-3. Corrigir status de entrega (`read` -> `received`) em `useDashboardMetricsV2.ts`
-4. Corrigir filtro de "Em Negociacao" para excluir deals perdidos
-5. Corrigir calculo de media de tempo de resposta dos agentes
-6. Melhorar logica de taxa de resposta para ser baseada em mensagens outbound reais
-7. Corrigir filtro de conversas abandonadas
-
+1. `src/hooks/useDashboardMetricsV2.ts` - Queries de contagem para WhatsApp e Overview
+2. `src/hooks/useAdvancedDashboardMetrics.ts` - Queries de contagem para Messaging metrics
