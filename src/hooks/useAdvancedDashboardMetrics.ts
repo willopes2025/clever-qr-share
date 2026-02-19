@@ -203,8 +203,8 @@ export function useMessagingMetrics(dateRange: DateRange = '7d') {
 
       if (error) throw error;
 
-      const totalSent = messages?.filter(m => m.direction === 'outgoing').length || 0;
-      const totalReceived = messages?.filter(m => m.direction === 'incoming').length || 0;
+      const totalSent = messages?.filter(m => m.direction === 'outbound').length || 0;
+      const totalReceived = messages?.filter(m => m.direction === 'inbound').length || 0;
 
       // Group by date
       const dailyMap = new Map<string, { sent: number; received: number }>();
@@ -212,7 +212,7 @@ export function useMessagingMetrics(dateRange: DateRange = '7d') {
       messages?.forEach(msg => {
         const dateKey = format(new Date(msg.created_at), 'yyyy-MM-dd');
         const current = dailyMap.get(dateKey) || { sent: 0, received: 0 };
-        if (msg.direction === 'outgoing') {
+        if (msg.direction === 'outbound') {
           current.sent++;
         } else {
           current.received++;
@@ -256,9 +256,9 @@ export function useResponseTimeMetrics(dateRange: DateRange = '7d') {
       let lastIncoming: { convId: string; time: Date } | null = null;
 
       messages?.forEach(msg => {
-        if (msg.direction === 'incoming') {
+        if (msg.direction === 'inbound') {
           lastIncoming = { convId: msg.conversation_id, time: new Date(msg.created_at) };
-        } else if (msg.direction === 'outgoing' && lastIncoming && lastIncoming.convId === msg.conversation_id) {
+        } else if (msg.direction === 'outbound' && lastIncoming && lastIncoming.convId === msg.conversation_id) {
           const responseTime = differenceInSeconds(new Date(msg.created_at), lastIncoming.time);
           if (responseTime > 0 && responseTime < 86400) { // Less than 24h
             responseTimes.push({
@@ -392,14 +392,14 @@ export function useConversationMetrics(dateRange: DateRange = '7d') {
 
       const { data: conversations, error } = await supabase
         .from('conversations')
-        .select('status, ai_handled, ai_handoff_requested')
+        .select('status, ai_handled, ai_handoff_requested, unread_count')
         .gte('created_at', start.toISOString());
 
       if (error) throw error;
 
-      const totalOpen = conversations?.filter(c => c.status === 'open').length || 0;
-      const totalResolved = conversations?.filter(c => c.status === 'resolved').length || 0;
-      const totalPending = conversations?.filter(c => c.status === 'pending').length || 0;
+      const totalOpen = conversations?.filter(c => c.status === 'open' || c.status === 'active').length || 0;
+      const totalResolved = conversations?.filter(c => c.status === 'archived').length || 0;
+      const totalPending = conversations?.filter(c => c.status === 'open' && (c as any).unread_count > 0).length || 0;
       const aiHandled = conversations?.filter(c => c.ai_handled).length || 0;
       const handoffRequested = conversations?.filter(c => c.ai_handoff_requested).length || 0;
 

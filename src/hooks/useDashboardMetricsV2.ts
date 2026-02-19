@@ -80,11 +80,6 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
         .gt('unread_count', 0)
         .eq('status', 'open');
 
-      // Calculate response rate
-      const totalConversations = conversationsData?.length || 0;
-      const respondedConversations = conversationsData?.filter(c => c.ai_handled !== null).length || 0;
-      const responseRate = totalConversations > 0 ? (respondedConversations / totalConversations) * 100 : 0;
-
       // Avg first response time - using inbox_messages
       const { data: messagesData } = await supabase
         .from('inbox_messages')
@@ -92,6 +87,13 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
         .gte('created_at', start.toISOString())
         .order('created_at', { ascending: true })
         .limit(1000);
+
+      // Calculate response rate based on conversations that have outbound messages
+      const totalConversations = conversationsData?.length || 0;
+      const respondedConvIds = [...new Set(messagesData?.filter(m => m.direction === 'outbound').map(m => m.conversation_id).filter(Boolean) || [])];
+      const respondedConversations = respondedConvIds.length;
+      const responseRate = totalConversations > 0 ? (respondedConversations / totalConversations) * 100 : 0;
+
 
       let totalResponseTime = 0;
       let responseCount = 0;
@@ -164,7 +166,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
         .eq('direction', 'outbound');
 
       const messagesSent = messagesData?.length || 0;
-      const messagesDelivered = messagesData?.filter(m => m.status === 'sent' || m.status === 'read').length || 0;
+      const messagesDelivered = messagesData?.filter(m => m.status === 'sent' || m.status === 'received').length || 0;
       const messagesFailed = messagesData?.filter(m => m.status === 'failed').length || 0;
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
@@ -484,7 +486,7 @@ export const useAutomationMetrics = (dateRange: DateRange = '7d') => {
         .eq('ai_handled', true)
         .gte('created_at', start.toISOString());
 
-      const resolvedByBot = botConversations?.filter(c => c.status === 'resolved' && !c.ai_handoff_requested).length || 0;
+      const resolvedByBot = botConversations?.filter(c => c.status === 'archived' && !c.ai_handoff_requested).length || 0;
       const transferredToHuman = botConversations?.filter(c => c.ai_handoff_requested).length || 0;
       
       const totalBotHandled = botConversations?.length || 0;
@@ -546,27 +548,36 @@ export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d') => {
         .from('profiles')
         .select('id, full_name');
 
-      // Aggregate by agent
-      const agentMap = new Map<string, AgentMetric>();
+      // Aggregate by agent with weighted average for response time
+      const agentMap = new Map<string, AgentMetric & { _responseTimeSum: number; _responseTimeCount: number }>();
       
       metricsData?.forEach(m => {
         const existing = agentMap.get(m.user_id);
         const profile = profiles?.find(p => p.id === m.user_id);
+        const responseTime = m.avg_response_time_seconds || 0;
+        const convHandled = m.conversations_handled || 0;
         
         if (existing) {
-          existing.attendances += m.conversations_handled || 0;
+          existing.attendances += convHandled;
           existing.messagesSent += m.messages_sent || 0;
           existing.dealsWon += m.deals_won || 0;
           existing.dealsValue += Number(m.deals_value) || 0;
+          existing._responseTimeSum += responseTime * convHandled;
+          existing._responseTimeCount += convHandled;
+          existing.avgResponseTime = existing._responseTimeCount > 0
+            ? existing._responseTimeSum / existing._responseTimeCount
+            : 0;
         } else {
           agentMap.set(m.user_id, {
             agentId: m.user_id,
             agentName: profile?.full_name || 'Usuário',
-            attendances: m.conversations_handled || 0,
+            attendances: convHandled,
             messagesSent: m.messages_sent || 0,
-            avgResponseTime: m.avg_response_time_seconds || 0,
+            avgResponseTime: responseTime,
             dealsWon: m.deals_won || 0,
             dealsValue: Number(m.deals_value) || 0,
+            _responseTimeSum: responseTime * convHandled,
+            _responseTimeCount: convHandled,
           });
         }
       });
@@ -577,13 +588,13 @@ export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d') => {
         ? agents.reduce((sum, a) => sum + a.avgResponseTime, 0) / agents.length 
         : 0;
 
-      // Abandoned conversations (status = 'resolved' but no outbound messages in last 24h before closing)
+      // Abandoned conversations (archived without human response)
       const { count: abandonedConversations } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'resolved')
+        .eq('status', 'archived')
         .gte('updated_at', start.toISOString())
-        .is('ai_handled', false);
+        .eq('last_message_direction', 'inbound');
 
       // Resumed conversations
       const { count: resumedConversations } = await supabase
@@ -641,8 +652,10 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d') => {
       const salesTotal = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
       const avgTicket = wonDeals.length > 0 ? salesTotal / wonDeals.length : 0;
 
-      // Value in negotiation
-      const openDeals = deals?.filter(d => !wonStageIds.includes(d.stage_id)) || [];
+      // Value in negotiation (exclude both won and lost stages)
+      const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
+      const finalStageIds = [...wonStageIds, ...lostStageIds];
+      const openDeals = deals?.filter(d => !finalStageIds.includes(d.stage_id)) || [];
       const valueInNegotiation = openDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
       // Estimated revenue (value * probability)
