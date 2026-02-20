@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
     const formFields = fields || [];
 
     // Generate form HTML with static params and embed mode
-    const html = generateFormHTML(form, formFields, staticParams, embed);
+    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl);
 
     return new Response(html, {
       headers: { 
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = ''): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
     .map(field => generateFieldHTML(field))
