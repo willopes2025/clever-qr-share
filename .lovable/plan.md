@@ -1,89 +1,52 @@
 
-# Correcao: Limite de 1000 Linhas no Dashboard
+# Corrigir preview de links do formulario no WhatsApp (OG Tags)
 
-## Problema Identificado
+## Problema Atual
 
-O numero "1,000 Enviadas" esta errado porque o Supabase retorna no maximo **1000 linhas por consulta** por padrao. O numero real de mensagens enviadas nos ultimos 30 dias e **19,577**.
+As meta tags Open Graph (que geram a preview do link no WhatsApp) so sao adicionadas ao HTML quando o campo `og_image_url` esta preenchido. Alem disso, faltam as tags `og:description`, `og:url` e `og:type`, que sao essenciais para a preview completa.
 
-Esse mesmo problema afeta varias consultas no dashboard que buscam dados da tabela `inbox_messages` sem usar contagem server-side.
+## Como Funciona Hoje
 
-## Consultas Afetadas
+No arquivo `supabase/functions/public-form/index.ts` (linhas 200-203):
 
-| Arquivo | Consulta | Problema |
-|---------|---------|----------|
-| `useDashboardMetricsV2.ts` linha 161-166 | WhatsApp `messagesSent` | Conta `.length` em vez de usar `count: 'exact'` |
-| `useDashboardMetricsV2.ts` linha 84-89 | Overview `messagesData` para tempo de resposta | Busca ate 1000 mensagens |
-| `useDashboardMetricsV2.ts` linha 67-71 | Overview `conversationsData` para auto/humano | Pode atingir limite com muitas conversas |
-| `useAdvancedDashboardMetrics.ts` linha 198-202 | Messaging metrics `totalSent/totalReceived` | Conta `.length` em array limitado |
-| `useAdvancedDashboardMetrics.ts` linha 244-250 | Response time metrics | Busca mensagens sem limite adequado |
+```
+${form.og_image_url ? `
+  <meta property="og:image" content="...">
+  <meta property="og:title" content="...">
+` : ''}
+```
+
+Isso significa que se voce nao colocar uma imagem, nenhuma tag OG e gerada — e o WhatsApp nao mostra preview nenhuma.
 
 ## Solucao
 
-### 1. WhatsApp Metrics - Usar contagem server-side (CRITICO)
+Alterar a Edge Function `public-form` para **sempre** gerar as tags OG essenciais, independente de ter imagem ou nao:
 
-Substituir a busca de todas as linhas por 3 queries de contagem separadas:
-
-```typescript
-// Enviadas (total outbound)
-const { count: messagesSent } = await supabase
-  .from('inbox_messages')
-  .select('*', { count: 'exact', head: true })
-  .eq('direction', 'outbound')
-  .gte('created_at', start.toISOString())
-  .lte('created_at', end.toISOString());
-
-// Entregues (sent + received status)
-const { count: messagesDelivered } = await supabase
-  .from('inbox_messages')
-  .select('*', { count: 'exact', head: true })
-  .eq('direction', 'outbound')
-  .in('status', ['sent', 'received'])
-  .gte('created_at', start.toISOString())
-  .lte('created_at', end.toISOString());
-
-// Falhadas
-const { count: messagesFailed } = await supabase
-  .from('inbox_messages')
-  .select('*', { count: 'exact', head: true })
-  .eq('direction', 'outbound')
-  .eq('status', 'failed')
-  .gte('created_at', start.toISOString())
-  .lte('created_at', end.toISOString());
+```
+<meta property="og:type" content="website">
+<meta property="og:title" content="[Titulo da pagina ou nome do formulario]">
+<meta property="og:description" content="[Meta description do formulario]">
+<meta property="og:url" content="[URL publica do formulario]">
+[se tiver imagem] <meta property="og:image" content="[URL da imagem]">
 ```
 
-Para "Mensagens por Chip", buscar apenas os `conversation_id` distintos com uma abordagem de agrupamento via SQL ou manter a logica atual que e aceitavel para o grafico de barras (quantidade relativa entre chips nao precisa ser exata).
+## Como Configurar (Apos a Correcao)
 
-### 2. Overview Metrics - Contagens server-side para auto/humano
+1. Abra o formulario no editor
+2. Va na aba **Aparencia**
+3. Preencha os campos na secao "SEO e Compartilhamento":
+   - **Titulo da Pagina (SEO)** — Texto em negrito que aparece na preview
+   - **Descricao (Meta Description)** — Texto descritivo abaixo do titulo
+   - **Imagem de Compartilhamento (OG Image)** — URL de uma imagem para a miniatura
 
-Substituir busca de `conversationsData` por queries de contagem:
+## Alteracoes Tecnicas
 
-```typescript
-const { count: autoAttendances } = await supabase
-  .from('conversations')
-  .select('*', { count: 'exact', head: true })
-  .eq('ai_handled', true)
-  .gte('created_at', start.toISOString());
+### Arquivo: `supabase/functions/public-form/index.ts`
 
-const { count: humanAttendances } = await supabase
-  .from('conversations')
-  .select('*', { count: 'exact', head: true })
-  .eq('ai_handled', false)
-  .gte('created_at', start.toISOString());
-```
+Substituir o bloco condicional das meta tags OG (linhas 200-203) por tags que sao sempre renderizadas:
 
-### 3. Advanced Dashboard Metrics - Contagens server-side
-
-Substituir `useMessagingMetrics` para usar queries de contagem para `totalSent` e `totalReceived`, e manter a busca de dados apenas para o grafico diario (que pode usar amostragem limitada).
-
-### 4. Taxa de Resposta - Ajustar calculo
-
-A taxa de resposta precisa ser recalculada usando contagens server-side em vez de contar arrays limitados a 1000.
-
-### 5. Financial Metrics - Correcao residual
-
-A linha 385 do `useDashboardMetricsV2.ts` ainda usa `is_final` para filtrar deals em negociacao, mas deveria usar `final_type` como foi corrigido no outro trecho (linhas 392-401). Corrigir para consistencia.
-
-## Arquivos a Modificar
-
-1. `src/hooks/useDashboardMetricsV2.ts` - Queries de contagem para WhatsApp e Overview
-2. `src/hooks/useAdvancedDashboardMetrics.ts` - Queries de contagem para Messaging metrics
+- `og:type` sempre como "website"
+- `og:title` sempre presente, usando `page_title` ou `form.name`
+- `og:description` sempre presente quando `meta_description` existir
+- `og:url` construido a partir do slug do formulario
+- `og:image` condicional, apenas quando `og_image_url` estiver preenchido
