@@ -135,8 +135,9 @@ export const useForms = () => {
       if (error) throw error;
       return data as Form;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['forms'] });
+      queryClient.invalidateQueries({ queryKey: ['form', data.id] });
       toast.success("Formulário atualizado!");
     },
     onError: (error: Error) => {
