@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
     const slug = url.searchParams.get('slug');
     const staticParamsJson = url.searchParams.get('static_params');
     const embed = url.searchParams.get('embed') === 'true';
+    const originUrl = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/$/, '') || 'https://clever-qr-share.lovable.app';
 
     if (!slug) {
       return new Response(
@@ -197,10 +198,11 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(form.page_title || form.name)}</title>
   ${form.meta_description ? `<meta name="description" content="${escapeHtml(form.meta_description)}">` : ''}
-  ${form.og_image_url ? `
-  <meta property="og:image" content="${escapeHtml(form.og_image_url)}">
+  <meta property="og:type" content="website">
   <meta property="og:title" content="${escapeHtml(form.page_title || form.name)}">
-  ` : ''}
+  ${form.meta_description ? `<meta property="og:description" content="${escapeHtml(form.meta_description)}">` : ''}
+  <meta property="og:url" content="${originUrl}/f/${form.slug}">
+  ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(form.font_family || 'Inter')}:wght@400;500;600&display=swap" rel="stylesheet">
