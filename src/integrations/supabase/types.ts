@@ -1283,6 +1283,7 @@ export type Database = {
           error_message: string | null
           flow_id: string | null
           id: string
+          scheduled_resume_at: string | null
           started_at: string | null
           status: string | null
           trigger_automation_id: string | null
@@ -1300,6 +1301,7 @@ export type Database = {
           error_message?: string | null
           flow_id?: string | null
           id?: string
+          scheduled_resume_at?: string | null
           started_at?: string | null
           status?: string | null
           trigger_automation_id?: string | null
@@ -1317,6 +1319,7 @@ export type Database = {
           error_message?: string | null
           flow_id?: string | null
           id?: string
+          scheduled_resume_at?: string | null
           started_at?: string | null
           status?: string | null
           trigger_automation_id?: string | null

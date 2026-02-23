@@ -70,6 +70,7 @@ Deno.serve(async (req: Request) => {
 
     // Create or update execution record
     let execution: any;
+    let resumingFromSchedule = false;
     if (executionId) {
       // Resuming existing execution
       const { data } = await supabase
@@ -79,7 +80,19 @@ Deno.serve(async (req: Request) => {
         .single();
       execution = data;
 
-      if (execution && inputValue !== undefined) {
+      if (execution?.status === 'scheduled') {
+        // Resuming from a scheduled delay - mark to skip the delay node
+        resumingFromSchedule = true;
+        const variables = execution.variables || {};
+        delete variables._delay_done;
+        delete variables._msg_delay_done;
+        await supabase
+          .from('chatbot_executions')
+          .update({ variables, status: 'running', scheduled_resume_at: null })
+          .eq('id', executionId);
+        execution.variables = variables;
+        execution.status = 'running';
+      } else if (execution && inputValue !== undefined) {
         // Save the input value in variables
         const variables = execution.variables || {};
         const currentNode = nodes.find((n: any) => n.id === execution.current_node_id);
@@ -233,10 +246,9 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'message': {
-          // Check if message node has a delay before sending
+          // If resuming from a scheduled delay on this node, skip the delay
           const msgDelay = node.data?.delay ? parseInt(String(node.data.delay)) : 0;
-          if (msgDelay > 0) {
-            // If delay exceeds safe execution time (50s), schedule for later
+          if (msgDelay > 0 && !resumingFromSchedule) {
             if (msgDelay > 50) {
               const resumeAt = new Date(Date.now() + msgDelay * 1000).toISOString();
               await supabase
@@ -244,7 +256,6 @@ Deno.serve(async (req: Request) => {
                 .update({ 
                   status: 'scheduled', 
                   current_node_id: node.id,
-                  variables: { ...(execution.variables || {}), _msg_delay_done: false },
                   scheduled_resume_at: resumeAt,
                 })
                 .eq('id', execution.id);
@@ -254,6 +265,8 @@ Deno.serve(async (req: Request) => {
             }
             await new Promise(r => setTimeout(r, msgDelay * 1000));
           }
+          // Reset resume flag after handling this node
+          resumingFromSchedule = false;
 
           const text = substituteVars(node.data?.message || node.data?.text || '');
           if (text) {
@@ -350,7 +363,15 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'delay': {
-          // Read duration + unit from the builder (duration in the chosen unit)
+          // If resuming from a scheduled delay on this node, skip straight to next
+          if (resumingFromSchedule) {
+            console.log('[FLOW] Resuming from scheduled delay, skipping to next node');
+            resumingFromSchedule = false;
+            currentId = getNextNode(node.id);
+            break;
+          }
+
+          // Read duration + unit from the builder
           const duration = node.data?.duration ? parseInt(String(node.data.duration)) : (node.data?.delay || node.data?.seconds || 5);
           const unit = (node.data?.unit as string) || 'seconds';
           
@@ -368,12 +389,11 @@ Deno.serve(async (req: Request) => {
               .update({ 
                 status: 'scheduled', 
                 current_node_id: node.id,
-                variables: { ...(execution.variables || {}), _delay_done: true },
                 scheduled_resume_at: resumeAt,
               })
               .eq('id', execution.id);
             console.log(`[FLOW] Delay too long (${delaySeconds}s), scheduled resume at ${resumeAt}`);
-            currentId = null; // Stop processing, will be resumed by cron
+            currentId = null;
             break;
           }
 
