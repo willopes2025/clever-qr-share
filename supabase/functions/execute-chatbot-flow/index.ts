@@ -233,10 +233,32 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'message': {
+          // Check if message node has a delay before sending
+          const msgDelay = node.data?.delay ? parseInt(String(node.data.delay)) : 0;
+          if (msgDelay > 0) {
+            // If delay exceeds safe execution time (50s), schedule for later
+            if (msgDelay > 50) {
+              const resumeAt = new Date(Date.now() + msgDelay * 1000).toISOString();
+              await supabase
+                .from('chatbot_executions')
+                .update({ 
+                  status: 'scheduled', 
+                  current_node_id: node.id,
+                  variables: { ...(execution.variables || {}), _msg_delay_done: false },
+                  scheduled_resume_at: resumeAt,
+                })
+                .eq('id', execution.id);
+              console.log(`[FLOW] Message delay ${msgDelay}s too long, scheduled resume at ${resumeAt}`);
+              currentId = null;
+              break;
+            }
+            await new Promise(r => setTimeout(r, msgDelay * 1000));
+          }
+
           const text = substituteVars(node.data?.message || node.data?.text || '');
           if (text) {
             await sendMessage(text);
-            // Small delay between messages
+            // Small delay between consecutive messages
             await new Promise(r => setTimeout(r, 1500));
           }
           currentId = getNextNode(node.id);
@@ -328,9 +350,34 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'delay': {
-          const delaySeconds = node.data?.delay || node.data?.seconds || 3;
-          console.log(`[FLOW] Delaying ${delaySeconds}s`);
-          await new Promise(r => setTimeout(r, Math.min(delaySeconds * 1000, 30000)));
+          // Read duration + unit from the builder (duration in the chosen unit)
+          const duration = node.data?.duration ? parseInt(String(node.data.duration)) : (node.data?.delay || node.data?.seconds || 5);
+          const unit = (node.data?.unit as string) || 'seconds';
+          
+          let delaySeconds = duration;
+          if (unit === 'minutes') delaySeconds = duration * 60;
+          else if (unit === 'hours') delaySeconds = duration * 3600;
+
+          console.log(`[FLOW] Delay node: ${duration} ${unit} = ${delaySeconds}s`);
+
+          // If delay exceeds safe execution time (50s), schedule for later
+          if (delaySeconds > 50) {
+            const resumeAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
+            await supabase
+              .from('chatbot_executions')
+              .update({ 
+                status: 'scheduled', 
+                current_node_id: node.id,
+                variables: { ...(execution.variables || {}), _delay_done: true },
+                scheduled_resume_at: resumeAt,
+              })
+              .eq('id', execution.id);
+            console.log(`[FLOW] Delay too long (${delaySeconds}s), scheduled resume at ${resumeAt}`);
+            currentId = null; // Stop processing, will be resumed by cron
+            break;
+          }
+
+          await new Promise(r => setTimeout(r, delaySeconds * 1000));
           currentId = getNextNode(node.id);
           break;
         }
