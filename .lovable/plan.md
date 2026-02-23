@@ -1,52 +1,94 @@
 
-# Corrigir preview de links do formulario no WhatsApp (OG Tags)
+# Fluxos do Chatbot disponíveis no comando "/" do Inbox
 
-## Problema Atual
+## Objetivo
+Adicionar os fluxos do chatbot como opções no menu de comandos rápidos ("/") da caixa de mensagem do Inbox. Quando o agente digitar "/", além dos templates existentes, verá também os fluxos ativos do chatbot para dispará-los diretamente na conversa.
 
-As meta tags Open Graph (que geram a preview do link no WhatsApp) so sao adicionadas ao HTML quando o campo `og_image_url` esta preenchido. Alem disso, faltam as tags `og:description`, `og:url` e `og:type`, que sao essenciais para a preview completa.
+## Como vai funcionar
 
-## Como Funciona Hoje
+1. O agente digita "/" na caixa de mensagem do Inbox
+2. O popup mostra duas seções: **Respostas Rápidas** (templates existentes) e **Fluxos do Chatbot** (novo)
+3. Ao selecionar um fluxo, o sistema inicia a execução automática desse fluxo para o contato da conversa atual
+4. As mensagens do fluxo (nó "message") são enviadas sequencialmente ao contato via WhatsApp
+5. Perguntas (nó "question") aguardam resposta do contato antes de continuar
 
-No arquivo `supabase/functions/public-form/index.ts` (linhas 200-203):
+---
 
-```
-${form.og_image_url ? `
-  <meta property="og:image" content="...">
-  <meta property="og:title" content="...">
-` : ''}
-```
+## Detalhes Técnicos
 
-Isso significa que se voce nao colocar uma imagem, nenhuma tag OG e gerada — e o WhatsApp nao mostra preview nenhuma.
+### 1. Atualizar o SlashCommandPopup para suportar fluxos
 
-## Solucao
+**Arquivo:** `src/components/inbox/SlashCommandPopup.tsx`
 
-Alterar a Edge Function `public-form` para **sempre** gerar as tags OG essenciais, independente de ter imagem ou nao:
+- Adicionar nova prop `flows` (lista de `ChatbotFlow[]`)
+- Criar uma seção separada "Fluxos do Chatbot" no popup com ícone diferenciado (Bot/Workflow)
+- Filtrar fluxos pelo termo de busca (nome e descrição)
+- Adicionar callback `onSelectFlow` para quando um fluxo for selecionado
+- Unificar a navegação por teclado (setas/Enter) entre templates e fluxos
 
-```
-<meta property="og:type" content="website">
-<meta property="og:title" content="[Titulo da pagina ou nome do formulario]">
-<meta property="og:description" content="[Meta description do formulario]">
-<meta property="og:url" content="[URL publica do formulario]">
-[se tiver imagem] <meta property="og:image" content="[URL da imagem]">
-```
+### 2. Carregar fluxos ativos no MessageView
 
-## Como Configurar (Apos a Correcao)
+**Arquivo:** `src/components/inbox/MessageView.tsx`
 
-1. Abra o formulario no editor
-2. Va na aba **Aparencia**
-3. Preencha os campos na secao "SEO e Compartilhamento":
-   - **Titulo da Pagina (SEO)** — Texto em negrito que aparece na preview
-   - **Descricao (Meta Description)** — Texto descritivo abaixo do titulo
-   - **Imagem de Compartilhamento (OG Image)** — URL de uma imagem para a miniatura
+- Importar e usar o hook `useChatbotFlows`
+- Filtrar apenas fluxos ativos (`is_active === true`)
+- Passar os fluxos e callback `onSelectFlow` para o `SlashCommandPopup`
+- Implementar `handleFlowSelect` que dispara a execução do fluxo
 
-## Alteracoes Tecnicas
+### 3. Criar Edge Function para executar fluxo no Inbox
 
-### Arquivo: `supabase/functions/public-form/index.ts`
+**Arquivo:** `supabase/functions/execute-chatbot-flow/index.ts`
 
-Substituir o bloco condicional das meta tags OG (linhas 200-203) por tags que sao sempre renderizadas:
+Nova edge function que:
+- Recebe `flowId`, `conversationId`, `contactId`, `instanceId` e `userId`
+- Carrega os nós e arestas do fluxo do banco
+- Percorre os nós sequencialmente (seguindo a mesma lógica do `ChatbotTestDialog`)
+- Para nós do tipo **message**: envia a mensagem via Evolution API / Meta API e salva no banco de mensagens
+- Para nós do tipo **question**: envia a pergunta e marca a conversa como "aguardando resposta do fluxo"
+- Para nós do tipo **action**: executa ações (adicionar tag, mover funil, transferir para humano, etc.)
+- Para nós do tipo **delay**: agenda continuação com atraso configurado
+- Substitui variáveis (nome, telefone) com dados do contato
 
-- `og:type` sempre como "website"
-- `og:title` sempre presente, usando `page_title` ou `form.name`
-- `og:description` sempre presente quando `meta_description` existir
-- `og:url` construido a partir do slug do formulario
-- `og:image` condicional, apenas quando `og_image_url` estiver preenchido
+### 4. Tabela de estado de execução de fluxo
+
+**Migração SQL** para criar a tabela `chatbot_flow_executions`:
+
+- `id` (UUID, PK)
+- `flow_id` (referência ao fluxo)
+- `conversation_id` (referência à conversa)
+- `contact_id` (referência ao contato)
+- `user_id` (quem disparou)
+- `instance_id` (instância WhatsApp)
+- `current_node_id` (nó atual sendo processado)
+- `status` (running, waiting_input, completed, paused, error)
+- `variables` (JSONB - variáveis coletadas durante execução)
+- `created_at`, `updated_at`
+
+Com políticas RLS para que apenas o próprio usuário acesse suas execuções.
+
+### 5. Integrar com receive-webhook para continuar fluxos
+
+**Arquivo:** `supabase/functions/receive-webhook/index.ts`
+
+- Ao receber mensagem inbound, verificar se existe uma execução de fluxo ativa (`status = 'waiting_input'`) para aquela conversa
+- Se existir, processar a resposta como input do nó "question" e continuar a execução do fluxo chamando a edge function `execute-chatbot-flow` com o próximo nó
+
+### 6. Indicador visual no Inbox
+
+**Arquivo:** `src/components/inbox/MessageView.tsx`
+
+- Mostrar badge/indicador quando um fluxo está em execução na conversa
+- Botão para pausar/cancelar fluxo ativo
+- Mensagens enviadas pelo fluxo terão um badge "Bot" ou "Fluxo" para diferenciar de mensagens manuais
+
+---
+
+## Resumo dos arquivos a criar/modificar
+
+| Arquivo | Ação |
+|---------|------|
+| `src/components/inbox/SlashCommandPopup.tsx` | Modificar - adicionar seção de fluxos |
+| `src/components/inbox/MessageView.tsx` | Modificar - carregar fluxos e handler de seleção |
+| `supabase/functions/execute-chatbot-flow/index.ts` | Criar - engine de execução de fluxo |
+| `supabase/functions/receive-webhook/index.ts` | Modificar - continuar fluxos aguardando input |
+| Migração SQL | Criar tabela `chatbot_flow_executions` + RLS |
