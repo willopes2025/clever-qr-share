@@ -1259,6 +1259,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         
         await checkAndCountWarmingMessage(supabase, userId, instanceId, phone, effectiveContent);
         
+        // Check if there's an active chatbot flow execution waiting for input
+        await checkAndContinueChatbotFlow(supabase, supabaseUrl, supabaseServiceKey, conversation.id, contact.id, userId, effectiveContent);
+        
         // Check if conversation has AI agent enabled and trigger response with transcription
         // Pass the message type so AI can mirror the format (text vs audio)
         await triggerAIAgentIfEnabled(supabaseUrl, supabaseServiceKey, conversation.id, effectiveContent, instanceName, instanceId, messageType);
@@ -1863,5 +1866,50 @@ async function updateSLAMetrics(supabase: any, userId: string, conversationId: s
     }
   } catch (error) {
     console.error('[SLA] Error updating SLA metrics:', error);
+  }
+}
+
+// Check if there's an active chatbot flow waiting for input and continue it
+// deno-lint-ignore no-explicit-any
+async function checkAndContinueChatbotFlow(supabase: any, supabaseUrl: string, supabaseServiceKey: string, conversationId: string, contactId: string, userId: string, messageContent: string) {
+  try {
+    // Check for active execution waiting for input on this conversation
+    const { data: activeExecution } = await supabase
+      .from('chatbot_executions')
+      .select('id, flow_id, current_node_id')
+      .eq('conversation_id', conversationId)
+      .eq('status', 'waiting_input')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!activeExecution) {
+      return;
+    }
+
+    console.log(`[CHATBOT-FLOW] Found active execution ${activeExecution.id} waiting for input, continuing...`);
+
+    // Call execute-chatbot-flow to continue from the current node
+    const response = await fetch(`${supabaseUrl}/functions/v1/execute-chatbot-flow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({
+        flowId: activeExecution.flow_id,
+        conversationId,
+        contactId,
+        userId,
+        executionId: activeExecution.id,
+        currentNodeId: activeExecution.current_node_id,
+        inputValue: messageContent,
+      }),
+    });
+
+    const result = await response.json();
+    console.log(`[CHATBOT-FLOW] Continue result:`, result);
+  } catch (error) {
+    console.error('[CHATBOT-FLOW] Error continuing flow:', error);
   }
 }

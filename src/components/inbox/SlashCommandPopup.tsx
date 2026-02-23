@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Zap, FileText, Image, Video, Music } from "lucide-react";
+import { Zap, FileText, Image, Video, Music, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageTemplate, CATEGORY_LABELS, CATEGORY_COLORS } from "@/hooks/useMessageTemplates";
+import { ChatbotFlow } from "@/hooks/useChatbotFlows";
 import { motion, AnimatePresence } from "framer-motion";
 
 const getMediaBadge = (mediaType: string | null) => {
@@ -23,9 +24,11 @@ const getMediaBadge = (mediaType: string | null) => {
 interface SlashCommandPopupProps {
   isOpen: boolean;
   templates: MessageTemplate[];
+  flows?: ChatbotFlow[];
   searchTerm: string;
   selectedIndex: number;
   onSelect: (template: MessageTemplate) => void;
+  onSelectFlow?: (flow: ChatbotFlow) => void;
   onClose: () => void;
   contactName?: string;
   anchorRef?: React.RefObject<HTMLTextAreaElement>;
@@ -34,9 +37,11 @@ interface SlashCommandPopupProps {
 export const SlashCommandPopup = ({
   isOpen,
   templates,
+  flows = [],
   searchTerm,
   selectedIndex,
   onSelect,
+  onSelectFlow,
   onClose,
   contactName,
   anchorRef,
@@ -54,7 +59,21 @@ export const SlashCommandPopup = ({
       template.content.toLowerCase().includes(search) ||
       CATEGORY_LABELS[template.category].toLowerCase().includes(search)
     );
-  }).slice(0, 8); // Limit to 8 results
+  }).slice(0, 8);
+
+  // Filter flows based on search term
+  const filteredFlows = flows.filter(flow => {
+    if (!flow.is_active) return false;
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      flow.name.toLowerCase().includes(search) ||
+      (flow.description || '').toLowerCase().includes(search)
+    );
+  }).slice(0, 5);
+
+  // Total items for unified keyboard navigation
+  const totalItems = filteredTemplates.length + filteredFlows.length;
 
   // Update position when anchor changes
   useEffect(() => {
@@ -84,7 +103,6 @@ export const SlashCommandPopup = ({
       .replace(/\{\{phone\}\}/gi, "[phone]")
       .replace(/\{\{email\}\}/gi, "[email]");
     
-    // Truncate if too long
     if (preview.length > 80) {
       preview = preview.substring(0, 80) + "...";
     }
@@ -123,15 +141,15 @@ export const SlashCommandPopup = ({
               </div>
             </div>
 
-            {/* Template list */}
-            <ScrollArea className="max-h-[300px]" ref={listRef}>
-              {filteredTemplates.length === 0 ? (
+            {/* Template and Flow list */}
+            <ScrollArea className="max-h-[350px]" ref={listRef}>
+              {totalItems === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
                   <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">
                     {searchTerm 
-                      ? `Nenhum template encontrado para "${searchTerm}"` 
-                      : "Nenhum template disponível"
+                      ? `Nenhum resultado para "${searchTerm}"` 
+                      : "Nenhum template ou fluxo disponível"
                     }
                   </p>
                   <p className="text-xs mt-1">
@@ -140,50 +158,105 @@ export const SlashCommandPopup = ({
                 </div>
               ) : (
                 <div className="py-1">
-                  {filteredTemplates.map((template, index) => (
-                    <button
-                      key={template.id}
-                      ref={index === selectedIndex ? selectedRef : null}
-                      onClick={() => onSelect(template)}
-                      className={cn(
-                        "w-full px-3 py-2 text-left transition-colors",
-                        "hover:bg-accent/50 focus:outline-none",
-                        index === selectedIndex && "bg-accent"
+                  {/* Templates section */}
+                  {filteredTemplates.length > 0 && (
+                    <>
+                      {filteredFlows.length > 0 && (
+                        <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          Templates
+                        </div>
                       )}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">
-                          /{template.name.toLowerCase().replace(/\s+/g, '-')}
-                        </span>
-                        <Badge 
-                          variant="outline" 
-                          className={cn("text-[10px] px-1.5 py-0", CATEGORY_COLORS[template.category])}
+                      {filteredTemplates.map((template, index) => (
+                        <button
+                          key={template.id}
+                          ref={index === selectedIndex ? selectedRef : null}
+                          onClick={() => onSelect(template)}
+                          className={cn(
+                            "w-full px-3 py-2 text-left transition-colors",
+                            "hover:bg-accent/50 focus:outline-none",
+                            index === selectedIndex && "bg-accent"
+                          )}
                         >
-                          {CATEGORY_LABELS[template.category]}
-                        </Badge>
-                        {template.media_url && template.media_type && (() => {
-                          const mediaBadge = getMediaBadge(template.media_type);
-                          if (!mediaBadge) return null;
-                          const IconComponent = mediaBadge.icon;
-                          return (
-                            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 gap-1", mediaBadge.className)}>
-                              <IconComponent className="h-2.5 w-2.5" />
-                              + {mediaBadge.label}
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm">
+                              /{template.name.toLowerCase().replace(/\s+/g, '-')}
+                            </span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn("text-[10px] px-1.5 py-0", CATEGORY_COLORS[template.category])}
+                            >
+                              {CATEGORY_LABELS[template.category]}
                             </Badge>
-                          );
-                        })()}
+                            {template.media_url && template.media_type && (() => {
+                              const mediaBadge = getMediaBadge(template.media_type);
+                              if (!mediaBadge) return null;
+                              const IconComponent = mediaBadge.icon;
+                              return (
+                                <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 gap-1", mediaBadge.className)}>
+                                  <IconComponent className="h-2.5 w-2.5" />
+                                  + {mediaBadge.label}
+                                </Badge>
+                              );
+                            })()}
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {previewContent(template.content)}
+                          </p>
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Flows section */}
+                  {filteredFlows.length > 0 && (
+                    <>
+                      <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1 border-t border-border pt-2">
+                        <div className="flex items-center gap-1">
+                          <Bot className="h-3 w-3" />
+                          Fluxos do Chatbot
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {previewContent(template.content)}
-                      </p>
-                    </button>
-                  ))}
+                      {filteredFlows.map((flow, index) => {
+                        const globalIndex = filteredTemplates.length + index;
+                        return (
+                          <button
+                            key={flow.id}
+                            ref={globalIndex === selectedIndex ? selectedRef : null}
+                            onClick={() => onSelectFlow?.(flow)}
+                            className={cn(
+                              "w-full px-3 py-2 text-left transition-colors",
+                              "hover:bg-accent/50 focus:outline-none",
+                              globalIndex === selectedIndex && "bg-accent"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Bot className="h-3.5 w-3.5 text-primary" />
+                              <span className="font-medium text-sm">
+                                /{flow.name.toLowerCase().replace(/\s+/g, '-')}
+                              </span>
+                              <Badge 
+                                variant="outline" 
+                                className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/20"
+                              >
+                                Fluxo
+                              </Badge>
+                            </div>
+                            {flow.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {flow.description}
+                              </p>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               )}
             </ScrollArea>
 
             {/* Footer with keyboard hints */}
-            {filteredTemplates.length > 0 && (
+            {totalItems > 0 && (
               <div className="px-3 py-1.5 border-t border-border bg-muted/30 text-[10px] text-muted-foreground flex gap-3">
                 <span>↑↓ navegar</span>
                 <span>Enter selecionar</span>

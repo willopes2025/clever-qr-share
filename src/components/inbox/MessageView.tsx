@@ -45,6 +45,7 @@ import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
+import { useChatbotFlows, ChatbotFlow } from "@/hooks/useChatbotFlows";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -78,6 +79,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
+  const { flows } = useChatbotFlows();
   const { profile } = useProfile();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -118,6 +120,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     [templates]
   );
 
+  // Filter active flows for slash commands
+  const activeFlows = useMemo(() => 
+    flows?.filter(f => f.is_active) || [], 
+    [flows]
+  );
+
   // Filtered templates based on slash search
   const filteredSlashTemplates = useMemo(() => {
     if (!slashSearchTerm) return activeTemplates;
@@ -127,6 +135,16 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       template.content.toLowerCase().includes(search)
     );
   }, [activeTemplates, slashSearchTerm]);
+
+  // Filtered flows based on slash search
+  const filteredSlashFlows = useMemo(() => {
+    if (!slashSearchTerm) return activeFlows;
+    const search = slashSearchTerm.toLowerCase();
+    return activeFlows.filter(flow => 
+      flow.name.toLowerCase().includes(search) ||
+      (flow.description || '').toLowerCase().includes(search)
+    );
+  }, [activeFlows, slashSearchTerm]);
 
   // Set default instance when instances load or conversation changes
   useEffect(() => {
@@ -358,8 +376,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     if (slashCommandOpen) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
+        const totalItems = filteredSlashTemplates.length + filteredSlashFlows.length;
         setSlashSelectedIndex(prev => 
-          Math.min(prev + 1, Math.min(filteredSlashTemplates.length - 1, 7))
+          Math.min(prev + 1, totalItems - 1)
         );
         return;
       }
@@ -370,8 +389,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        if (filteredSlashTemplates[slashSelectedIndex]) {
+        if (slashSelectedIndex < filteredSlashTemplates.length) {
           handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+        } else {
+          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length;
+          if (filteredSlashFlows[flowIndex]) {
+            handleFlowSelect(filteredSlashFlows[flowIndex]);
+          }
         }
         return;
       }
@@ -452,6 +476,43 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
       }
     }, 0);
+  };
+
+  const handleFlowSelect = async (flow: ChatbotFlow) => {
+    setSlashCommandOpen(false);
+    setSlashSearchTerm("");
+    setNewMessage("");
+
+    if (!selectedInstanceId) {
+      toast.error("Selecione uma instância primeiro");
+      return;
+    }
+
+    toast.info(`Iniciando fluxo "${flow.name}"...`);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('execute-chatbot-flow', {
+        body: {
+          flowId: flow.id,
+          conversationId: conversation.id,
+          contactId: conversation.contact_id,
+          userId: conversation.user_id,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.status === 'completed') {
+        toast.success(`Fluxo "${flow.name}" executado com sucesso`);
+      } else if (data?.status === 'waiting_input') {
+        toast.success(`Fluxo "${flow.name}" aguardando resposta do contato`);
+      }
+
+      refetch();
+    } catch (error: any) {
+      console.error('Error executing flow:', error);
+      toast.error('Erro ao executar fluxo: ' + (error.message || 'Erro desconhecido'));
+    }
   };
 
   const handleEmojiSelect = (emoji: string) => {
@@ -1134,9 +1195,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         <SlashCommandPopup
           isOpen={slashCommandOpen}
           templates={activeTemplates}
+          flows={activeFlows}
           searchTerm={slashSearchTerm}
           selectedIndex={slashSelectedIndex}
           onSelect={handleSlashSelect}
+          onSelectFlow={handleFlowSelect}
           onClose={() => setSlashCommandOpen(false)}
           contactName={conversation.contact?.name || undefined}
           anchorRef={textareaRef}
