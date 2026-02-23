@@ -248,3 +248,6 @@ verify_jwt = false
 
 [functions.check-availability]
 verify_jwt = false
+
+[functions.execute-chatbot-flow]
+verify_jwt = false
