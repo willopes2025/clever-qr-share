@@ -505,7 +505,7 @@ Deno.serve(async (req: Request) => {
         user_id, status, sent, delivered, failed, total_contacts,
         message_interval_min, message_interval_max, daily_limit,
         allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at,
-        tag_on_delivery_id
+        tag_on_delivery_id, template_id
       `)
       .eq('id', campaignId)
       .single();
@@ -745,8 +745,26 @@ Deno.serve(async (req: Request) => {
       formattedPhone = '55' + formattedPhone;
     }
 
-    // Send message via Evolution API
-    const evolutionResponse = await fetch(`${evolutionApiUrl}/message/sendText/${selectedInstance.instance_name}`, {
+    // Fetch template media info if template exists
+    let templateMedia: { media_url: string; media_type: string } | null = null;
+    if (campaign.template_id) {
+      const { data: template } = await supabase
+        .from('message_templates')
+        .select('media_url, media_type')
+        .eq('id', campaign.template_id)
+        .single();
+      
+      if (template?.media_url && template?.media_type) {
+        templateMedia = { media_url: template.media_url, media_type: template.media_type };
+        console.log(`Template has media: ${template.media_type} - ${template.media_url}`);
+      }
+    }
+
+    // Encode instance name for URL
+    const encodedInstanceName = encodeURIComponent(selectedInstance.instance_name);
+
+    // Send text message via Evolution API
+    const evolutionResponse = await fetch(`${evolutionApiUrl}/message/sendText/${encodedInstanceName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -761,8 +779,60 @@ Deno.serve(async (req: Request) => {
     const evolutionResult = await evolutionResponse.json();
 
     if (evolutionResponse.ok && evolutionResult.key) {
-      console.log(`Message sent successfully to ${formattedPhone}`);
+      console.log(`Text message sent successfully to ${formattedPhone}`);
       
+      // Send media if template has media attached
+      if (templateMedia) {
+        try {
+          let mediaEndpoint: string;
+          let mediaBody: Record<string, unknown>;
+
+          if (templateMedia.media_type === 'audio') {
+            mediaEndpoint = `${evolutionApiUrl}/message/sendWhatsAppAudio/${encodedInstanceName}`;
+            mediaBody = {
+              number: formattedPhone,
+              audio: templateMedia.media_url,
+            };
+          } else {
+            mediaEndpoint = `${evolutionApiUrl}/message/sendMedia/${encodedInstanceName}`;
+            mediaBody = {
+              number: formattedPhone,
+              mediatype: templateMedia.media_type,
+              media: templateMedia.media_url,
+              caption: '',
+            };
+            if (templateMedia.media_type === 'document') {
+              mediaBody.fileName = 'document';
+            }
+          }
+
+          console.log(`Sending ${templateMedia.media_type} to ${formattedPhone}...`);
+          
+          // Small delay between text and media to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          const mediaResponse = await fetch(mediaEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey,
+            },
+            body: JSON.stringify(mediaBody),
+          });
+
+          const mediaResult = await mediaResponse.json();
+
+          if (mediaResponse.ok && mediaResult.key) {
+            console.log(`Media sent successfully to ${formattedPhone}`);
+          } else {
+            console.error(`Failed to send media to ${formattedPhone}:`, mediaResult);
+          }
+        } catch (mediaError) {
+          console.error(`Error sending media to ${formattedPhone}:`, mediaError);
+          // Don't fail the whole message, text was already sent
+        }
+      }
+
       // Update message as sent
       await supabase
         .from('campaign_messages')
@@ -796,7 +866,6 @@ Deno.serve(async (req: Request) => {
           console.log(`Tag ${campaign.tag_on_delivery_id} applied to contact ${message.contact_id}`);
         } catch (tagError) {
           console.error(`Failed to apply tag to contact ${message.contact_id}:`, tagError);
-          // Don't fail the whole operation, just log the error
         }
       }
 
