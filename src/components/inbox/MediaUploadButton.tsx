@@ -28,10 +28,10 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (video: 16MB, others: 10MB)
-    const maxSize = type === 'video' ? 16 * 1024 * 1024 : 10 * 1024 * 1024;
+    // Validate file size (video: 35MB, others: 10MB)
+    const maxSize = type === 'video' ? 35 * 1024 * 1024 : 10 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '16MB' : '10MB'}.`);
+      toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '35MB' : '10MB'}.`);
       return;
     }
 
