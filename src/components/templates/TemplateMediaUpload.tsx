@@ -26,7 +26,7 @@ const ACCEPTED_TYPES: Record<string, string> = {
 
 const MAX_SIZE_MB: Record<string, number> = {
   image: 5,
-  video: 16,
+  video: 35,
   audio: 16,
   document: 20
 };
