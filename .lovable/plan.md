@@ -1,94 +1,70 @@
 
-# Fluxos do Chatbot disponíveis no comando "/" do Inbox
+# Correção: Mídia duplicada no Inbox
 
-## Objetivo
-Adicionar os fluxos do chatbot como opções no menu de comandos rápidos ("/") da caixa de mensagem do Inbox. Quando o agente digitar "/", além dos templates existentes, verá também os fluxos ativos do chatbot para dispará-los diretamente na conversa.
+## Problema Identificado
 
-## Como vai funcionar
+Quando uma mídia (foto, vídeo, documento) é enviada pelo Inbox, ela aparece **duas vezes** na conversa. Isso acontece por uma **condição de corrida** (race condition):
 
-1. O agente digita "/" na caixa de mensagem do Inbox
-2. O popup mostra duas seções: **Respostas Rápidas** (templates existentes) e **Fluxos do Chatbot** (novo)
-3. Ao selecionar um fluxo, o sistema inicia a execução automática desse fluxo para o contato da conversa atual
-4. As mensagens do fluxo (nó "message") são enviadas sequencialmente ao contato via WhatsApp
-5. Perguntas (nó "question") aguardam resposta do contato antes de continuar
+1. O sistema cria a mensagem no banco **sem** o ID do WhatsApp
+2. Envia a mídia pela Evolution API
+3. A Evolution API ecoa a mensagem de volta via webhook
+4. O webhook chega **antes** do sistema salvar o ID do WhatsApp na mensagem original
+5. Como o webhook não encontra mensagem com aquele ID, ele cria uma **segunda** mensagem
 
----
+## Solução
 
-## Detalhes Técnicos
+Corrigir a deduplicação no webhook (`receive-webhook`) para que, ao receber uma mensagem **outbound** (fromMe), ele verifique se já existe uma mensagem recente do mesmo tipo na mesma conversa, evitando duplicatas.
 
-### 1. Atualizar o SlashCommandPopup para suportar fluxos
+### Mudanças
 
-**Arquivo:** `src/components/inbox/SlashCommandPopup.tsx`
+**1. `supabase/functions/receive-webhook/index.ts`**
 
-- Adicionar nova prop `flows` (lista de `ChatbotFlow[]`)
-- Criar uma seção separada "Fluxos do Chatbot" no popup com ícone diferenciado (Bot/Workflow)
-- Filtrar fluxos pelo termo de busca (nome e descrição)
-- Adicionar callback `onSelectFlow` para quando um fluxo for selecionado
-- Unificar a navegação por teclado (setas/Enter) entre templates e fluxos
+Antes de inserir uma mensagem outbound (fromMe), adicionar uma verificação extra: buscar mensagens outbound recentes (ultimos 60 segundos) na mesma conversa com o mesmo `message_type` e `media_url` similar, ou com status `sending`/`sent` sem `whatsapp_message_id`. Se encontrar, apenas atualizar o `whatsapp_message_id` da mensagem existente ao invés de criar uma nova.
 
-### 2. Carregar fluxos ativos no MessageView
+```text
+Fluxo corrigido:
+1. Webhook recebe mensagem outbound (fromMe=true)
+2. Verifica por whatsapp_message_id (dedup existente)
+3. SE nao encontrou E eh outbound:
+   - Busca mensagem recente na conversa com mesmo tipo, sem whatsapp_message_id
+   - Se encontrou: atualiza o whatsapp_message_id e status -> skip insert
+   - Se nao encontrou: insere normalmente
+```
 
-**Arquivo:** `src/components/inbox/MessageView.tsx`
+**2. `supabase/functions/send-inbox-media/index.ts`** (ajuste menor)
 
-- Importar e usar o hook `useChatbotFlows`
-- Filtrar apenas fluxos ativos (`is_active === true`)
-- Passar os fluxos e callback `onSelectFlow` para o `SlashCommandPopup`
-- Implementar `handleFlowSelect` que dispara a execução do fluxo
+Nenhuma mudança estrutural necessaria -- o fluxo ja salva o `whatsapp_message_id` apos envio. A correcao principal fica no webhook.
 
-### 3. Criar Edge Function para executar fluxo no Inbox
+## Detalhes Tecnicos
 
-**Arquivo:** `supabase/functions/execute-chatbot-flow/index.ts`
+No `receive-webhook/index.ts`, apos a verificacao existente por `whatsapp_message_id` (linha ~1140), adicionar para mensagens `fromMe`:
 
-Nova edge function que:
-- Recebe `flowId`, `conversationId`, `contactId`, `instanceId` e `userId`
-- Carrega os nós e arestas do fluxo do banco
-- Percorre os nós sequencialmente (seguindo a mesma lógica do `ChatbotTestDialog`)
-- Para nós do tipo **message**: envia a mensagem via Evolution API / Meta API e salva no banco de mensagens
-- Para nós do tipo **question**: envia a pergunta e marca a conversa como "aguardando resposta do fluxo"
-- Para nós do tipo **action**: executa ações (adicionar tag, mover funil, transferir para humano, etc.)
-- Para nós do tipo **delay**: agenda continuação com atraso configurado
-- Substitui variáveis (nome, telefone) com dados do contato
+```typescript
+// Extra dedup for outbound messages (race condition with send-inbox-media/send-inbox-message)
+if (isFromMe && !existingMessage) {
+  const recentCutoff = new Date(Date.now() - 60000).toISOString();
+  const { data: pendingMsg } = await supabase
+    .from('inbox_messages')
+    .select('id')
+    .eq('conversation_id', conversation.id)
+    .eq('direction', 'outbound')
+    .eq('message_type', messageType)
+    .is('whatsapp_message_id', null)
+    .gte('sent_at', recentCutoff)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
 
-### 4. Tabela de estado de execução de fluxo
+  if (pendingMsg) {
+    // Update existing message with whatsapp_message_id instead of creating duplicate
+    await supabase
+      .from('inbox_messages')
+      .update({ whatsapp_message_id: key.id, status: 'sent' })
+      .eq('id', pendingMsg.id);
+    console.log(`[DEDUP] Matched outbound media to pending message ${pendingMsg.id}`);
+    continue; // Skip insert
+  }
+}
+```
 
-**Migração SQL** para criar a tabela `chatbot_flow_executions`:
-
-- `id` (UUID, PK)
-- `flow_id` (referência ao fluxo)
-- `conversation_id` (referência à conversa)
-- `contact_id` (referência ao contato)
-- `user_id` (quem disparou)
-- `instance_id` (instância WhatsApp)
-- `current_node_id` (nó atual sendo processado)
-- `status` (running, waiting_input, completed, paused, error)
-- `variables` (JSONB - variáveis coletadas durante execução)
-- `created_at`, `updated_at`
-
-Com políticas RLS para que apenas o próprio usuário acesse suas execuções.
-
-### 5. Integrar com receive-webhook para continuar fluxos
-
-**Arquivo:** `supabase/functions/receive-webhook/index.ts`
-
-- Ao receber mensagem inbound, verificar se existe uma execução de fluxo ativa (`status = 'waiting_input'`) para aquela conversa
-- Se existir, processar a resposta como input do nó "question" e continuar a execução do fluxo chamando a edge function `execute-chatbot-flow` com o próximo nó
-
-### 6. Indicador visual no Inbox
-
-**Arquivo:** `src/components/inbox/MessageView.tsx`
-
-- Mostrar badge/indicador quando um fluxo está em execução na conversa
-- Botão para pausar/cancelar fluxo ativo
-- Mensagens enviadas pelo fluxo terão um badge "Bot" ou "Fluxo" para diferenciar de mensagens manuais
-
----
-
-## Resumo dos arquivos a criar/modificar
-
-| Arquivo | Ação |
-|---------|------|
-| `src/components/inbox/SlashCommandPopup.tsx` | Modificar - adicionar seção de fluxos |
-| `src/components/inbox/MessageView.tsx` | Modificar - carregar fluxos e handler de seleção |
-| `supabase/functions/execute-chatbot-flow/index.ts` | Criar - engine de execução de fluxo |
-| `supabase/functions/receive-webhook/index.ts` | Modificar - continuar fluxos aguardando input |
-| Migração SQL | Criar tabela `chatbot_flow_executions` + RLS |
+Isso resolve a duplicacao sem afetar mensagens inbound ou outros fluxos.
