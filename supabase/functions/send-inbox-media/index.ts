@@ -74,17 +74,27 @@ Deno.serve(async (req) => {
       throw new Error('Contact not found');
     }
     
-    // Format phone number
-    let phone = contactData.phone.replace(/\D/g, '');
+    // Format phone number - handle LID contacts (Click-to-WhatsApp Ads)
+    let phone: string;
+    const isLidContact = contactData.phone.startsWith('LID_');
     
-    // Validate phone
-    if (phone.length > 13 || phone.length < 10) {
-      throw new Error(`Número de telefone inválido: ${contactData.phone}`);
-    }
-    
-    // Add Brazil country code if missing
-    if (!phone.startsWith('55')) {
-      phone = '55' + phone;
+    if (isLidContact) {
+      // LID contacts must use the labelId@lid format
+      const labelId = contactData.phone.replace('LID_', '');
+      phone = `${labelId}@lid`;
+      console.log(`[LID] Using LID format for contact: ${phone}`);
+    } else {
+      phone = contactData.phone.replace(/\D/g, '');
+      
+      // Validate phone
+      if (phone.length > 13 || phone.length < 10) {
+        throw new Error(`Número de telefone inválido: ${contactData.phone}`);
+      }
+      
+      // Add Brazil country code if missing
+      if (!phone.startsWith('55')) {
+        phone = '55' + phone;
+      }
     }
 
     // Create message record first
