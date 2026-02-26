@@ -1149,6 +1149,32 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
+    // Extra dedup for outbound messages (race condition with send-inbox-media/send-inbox-message)
+    if (isFromMe && !existingMessage) {
+      const recentCutoff = new Date(Date.now() - 60000).toISOString();
+      const { data: pendingMsg } = await supabase
+        .from('inbox_messages')
+        .select('id')
+        .eq('conversation_id', conversation.id)
+        .eq('direction', 'outbound')
+        .eq('message_type', messageType)
+        .is('whatsapp_message_id', null)
+        .gte('sent_at', recentCutoff)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (pendingMsg) {
+        // Update existing message with whatsapp_message_id instead of creating duplicate
+        await supabase
+          .from('inbox_messages')
+          .update({ whatsapp_message_id: key.id, status: 'sent' })
+          .eq('id', pendingMsg.id);
+        console.log(`[DEDUP] Matched outbound media to pending message ${pendingMsg.id}`);
+        continue; // Skip insert
+      }
+    }
+
     // Insert message with media support
     // Note: direction must be 'inbound' or 'outbound' per database constraint
     const { error: msgError } = await supabase
