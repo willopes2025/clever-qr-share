@@ -110,6 +110,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isScrolledToBottom = useRef(true);
+  const isProcessingSlashRef = useRef(false);
 
   // Get connected instances only
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
@@ -389,6 +390,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
+        if (isProcessingSlashRef.current) return;
         if (slashSelectedIndex < filteredSlashTemplates.length) {
           handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
         } else {
@@ -436,6 +438,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   const handleSlashSelect = async (template: MessageTemplate) => {
+    if (isProcessingSlashRef.current) return;
+    isProcessingSlashRef.current = true;
+
+    try {
     // Validate instance first
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
@@ -534,6 +540,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
       }
     }, 0);
+    } finally {
+      isProcessingSlashRef.current = false;
+    }
   };
 
   const handleFlowSelect = async (flow: ChatbotFlow) => {
