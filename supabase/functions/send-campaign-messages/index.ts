@@ -815,7 +815,7 @@ Deno.serve(async (req: Request) => {
 
         // Insert text message into inbox_messages
         if (conversationId) {
-          await supabase.from('inbox_messages').insert({
+          const { error: textInsertError } = await supabase.from('inbox_messages').insert({
             conversation_id: conversationId,
             user_id: campaign.user_id,
             direction: 'outbound',
@@ -826,12 +826,20 @@ Deno.serve(async (req: Request) => {
             whatsapp_message_id: evolutionResult.key.id,
           });
 
-          await supabase.from('conversations').update({
+          if (textInsertError) {
+            console.error(`Error persisting text message for ${formattedPhone}:`, textInsertError);
+          }
+
+          const { error: conversationUpdateError } = await supabase.from('conversations').update({
             last_message_at: new Date().toISOString(),
             last_message_preview: message.message_content.substring(0, 100),
             last_message_direction: 'outbound',
             instance_id: selectedInstance.id,
           }).eq('id', conversationId);
+
+          if (conversationUpdateError) {
+            console.error(`Error updating conversation after text send for ${formattedPhone}:`, conversationUpdateError);
+          }
         }
       } catch (convError) {
         console.error(`Error persisting conversation/message for ${formattedPhone}:`, convError);
@@ -889,21 +897,26 @@ Deno.serve(async (req: Request) => {
                   : templateMedia.media_type === 'document' ? 'document'
                   : 'image';
 
-                await supabase.from('inbox_messages').insert({
+                const mediaLabel = templateMedia.media_type === 'audio' ? '🎵 Áudio'
+                  : templateMedia.media_type === 'video' ? '🎬 Vídeo'
+                  : templateMedia.media_type === 'document' ? '📄 Documento'
+                  : '📷 Imagem';
+
+                const { error: mediaPersistError } = await supabase.from('inbox_messages').insert({
                   conversation_id: conversationId,
                   user_id: campaign.user_id,
                   direction: 'outbound',
-                  content: '',
+                  content: mediaLabel,
                   message_type: mediaMessageType,
                   media_url: templateMedia.media_url,
-                  media_mime_type: templateMedia.media_type === 'audio' ? 'audio/ogg' 
-                    : templateMedia.media_type === 'video' ? 'video/mp4'
-                    : templateMedia.media_type === 'document' ? 'application/pdf'
-                    : 'image/jpeg',
                   status: 'sent',
                   sent_at: new Date().toISOString(),
                   whatsapp_message_id: mediaResult.key.id,
                 });
+
+                if (mediaPersistError) {
+                  console.error(`Error persisting media message for ${formattedPhone}:`, mediaPersistError);
+                }
               } catch (mediaInsertError) {
                 console.error(`Error persisting media message for ${formattedPhone}:`, mediaInsertError);
               }
