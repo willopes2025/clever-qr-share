@@ -1,70 +1,61 @@
 
-# Correção: Mídia duplicada no Inbox
+
+# Correção: Vídeo do template não sendo enviado no Inbox
 
 ## Problema Identificado
 
-Quando uma mídia (foto, vídeo, documento) é enviada pelo Inbox, ela aparece **duas vezes** na conversa. Isso acontece por uma **condição de corrida** (race condition):
+Ao selecionar o template "Disparo prestação de contas" via comando `/` no Inbox, apenas o texto é enviado ao contato -- o vídeo (16MB) não chega. Verifiquei no banco de dados que:
 
-1. O sistema cria a mensagem no banco **sem** o ID do WhatsApp
-2. Envia a mídia pela Evolution API
-3. A Evolution API ecoa a mensagem de volta via webhook
-4. O webhook chega **antes** do sistema salvar o ID do WhatsApp na mensagem original
-5. Como o webhook não encontra mensagem com aquele ID, ele cria uma **segunda** mensagem
+- O template existe com `media_type: video` e `media_url` apontando para o storage
+- **Nenhuma mensagem** no banco de dados utiliza a URL do template (`template-1772015898240.mp4`), confirmando que a mídia nunca foi enviada via Inbox com esse template
+- Vários vídeos foram enviados individualmente (via upload manual), confirmando que o fluxo de mídia funciona em geral
+
+## Causa Raiz
+
+O fluxo de seleção de template (`handleSlashSelect` em `MessageView.tsx`) tem dois problemas:
+
+1. **Envio assíncrono sem feedback adequado**: A mídia é enviada via `await handleSendMedia(...)`, mas se a instância não estiver selecionada ou ocorrer um erro, o toast de erro pode passar despercebido enquanto o texto permanece no input
+2. **Texto e mídia desconectados**: O texto vai para o campo de input (usuário envia manualmente com Enter), mas a mídia é disparada automaticamente. Se a mídia falhar, o usuário não percebe e envia apenas o texto
 
 ## Solução
 
-Corrigir a deduplicação no webhook (`receive-webhook`) para que, ao receber uma mensagem **outbound** (fromMe), ele verifique se já existe uma mensagem recente do mesmo tipo na mesma conversa, evitando duplicatas.
+Modificar o fluxo de seleção de template para **enviar texto e mídia juntos** de forma mais robusta:
 
-### Mudanças
+### Mudanças em `src/components/inbox/MessageView.tsx`
 
-**1. `supabase/functions/receive-webhook/index.ts`**
+1. **Enviar o texto automaticamente junto com a mídia** quando o template tem mídia: ao invés de apenas colocar o texto no input e enviar a mídia separadamente, enviar o texto via `handleSendMessage` automaticamente e depois enviar a mídia com um pequeno delay
 
-Antes de inserir uma mensagem outbound (fromMe), adicionar uma verificação extra: buscar mensagens outbound recentes (ultimos 60 segundos) na mesma conversa com o mesmo `message_type` e `media_url` similar, ou com status `sending`/`sent` sem `whatsapp_message_id`. Se encontrar, apenas atualizar o `whatsapp_message_id` da mensagem existente ao invés de criar uma nova.
+2. **Melhorar feedback de erro**: Quando a mídia falhar, mostrar um toast claro indicando que "O vídeo do template não foi enviado"
+
+3. **Validar instância antes de processar**: Verificar se há instância selecionada logo no início do `handleSlashSelect`, antes de processar o template
+
+### Mudança no fluxo:
 
 ```text
-Fluxo corrigido:
-1. Webhook recebe mensagem outbound (fromMe=true)
-2. Verifica por whatsapp_message_id (dedup existente)
-3. SE nao encontrou E eh outbound:
-   - Busca mensagem recente na conversa com mesmo tipo, sem whatsapp_message_id
-   - Se encontrou: atualiza o whatsapp_message_id e status -> skip insert
-   - Se nao encontrou: insere normalmente
+ANTES:
+1. Template selecionado
+2. Texto colocado no input (usuario precisa apertar Enter)
+3. Media enviada automaticamente (se falhar, usuario nao percebe)
+4. Usuario aperta Enter -> envia texto
+Resultado: texto chega, video pode nao chegar
+
+DEPOIS:
+1. Template selecionado
+2. Valida instancia selecionada
+3. Envia texto automaticamente via handleSendMessage
+4. Envia media automaticamente com feedback claro de erro
+Resultado: ambos sao enviados juntos, com feedback claro
 ```
 
-**2. `supabase/functions/send-inbox-media/index.ts`** (ajuste menor)
+### Detalhes da implementacao
 
-Nenhuma mudança estrutural necessaria -- o fluxo ja salva o `whatsapp_message_id` apos envio. A correcao principal fica no webhook.
+No `handleSlashSelect`, quando o template tem midia:
+- Chamar `handleSendMessage` com o conteudo processado (envio automatico do texto)
+- Aguardar 500ms para evitar race condition
+- Chamar `handleSendMedia` com o `media_url` do template
+- Se a midia falhar, mostrar toast explicito: "Erro ao enviar o vídeo do template"
+- Limpar o campo de mensagem
 
-## Detalhes Tecnicos
+Quando o template NAO tem midia:
+- Manter comportamento atual (texto no input, usuario envia manualmente)
 
-No `receive-webhook/index.ts`, apos a verificacao existente por `whatsapp_message_id` (linha ~1140), adicionar para mensagens `fromMe`:
-
-```typescript
-// Extra dedup for outbound messages (race condition with send-inbox-media/send-inbox-message)
-if (isFromMe && !existingMessage) {
-  const recentCutoff = new Date(Date.now() - 60000).toISOString();
-  const { data: pendingMsg } = await supabase
-    .from('inbox_messages')
-    .select('id')
-    .eq('conversation_id', conversation.id)
-    .eq('direction', 'outbound')
-    .eq('message_type', messageType)
-    .is('whatsapp_message_id', null)
-    .gte('sent_at', recentCutoff)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (pendingMsg) {
-    // Update existing message with whatsapp_message_id instead of creating duplicate
-    await supabase
-      .from('inbox_messages')
-      .update({ whatsapp_message_id: key.id, status: 'sent' })
-      .eq('id', pendingMsg.id);
-    console.log(`[DEDUP] Matched outbound media to pending message ${pendingMsg.id}`);
-    continue; // Skip insert
-  }
-}
-```
-
-Isso resolve a duplicacao sem afetar mensagens inbound ou outros fluxos.
