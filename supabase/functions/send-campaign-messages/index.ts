@@ -780,6 +780,62 @@ Deno.serve(async (req: Request) => {
 
     if (evolutionResponse.ok && evolutionResult.key) {
       console.log(`Text message sent successfully to ${formattedPhone}`);
+
+      // Find or create conversation for this contact so messages appear in Inbox
+      let conversationId: string | null = null;
+      try {
+        // Look for existing conversation
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', message.contact_id)
+          .eq('user_id', campaign.user_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingConv) {
+          conversationId = existingConv.id;
+        } else {
+          // Create new conversation
+          const { data: newConv } = await supabase
+            .from('conversations')
+            .insert({
+              contact_id: message.contact_id,
+              user_id: campaign.user_id,
+              status: 'open',
+              instance_id: selectedInstance.id,
+              campaign_id: campaignId,
+              provider: 'evolution',
+            })
+            .select('id')
+            .single();
+          if (newConv) conversationId = newConv.id;
+        }
+
+        // Insert text message into inbox_messages
+        if (conversationId) {
+          await supabase.from('inbox_messages').insert({
+            conversation_id: conversationId,
+            user_id: campaign.user_id,
+            direction: 'outbound',
+            content: message.message_content,
+            message_type: 'text',
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            whatsapp_message_id: evolutionResult.key.id,
+          });
+
+          await supabase.from('conversations').update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: message.message_content.substring(0, 100),
+            last_message_direction: 'outbound',
+            instance_id: selectedInstance.id,
+          }).eq('id', conversationId);
+        }
+      } catch (convError) {
+        console.error(`Error persisting conversation/message for ${formattedPhone}:`, convError);
+      }
       
       // Send media if template has media attached
       if (templateMedia) {
@@ -824,6 +880,34 @@ Deno.serve(async (req: Request) => {
 
           if (mediaResponse.ok && mediaResult.key) {
             console.log(`Media sent successfully to ${formattedPhone}`);
+
+            // Persist media message in inbox
+            if (conversationId) {
+              try {
+                const mediaMessageType = templateMedia.media_type === 'audio' ? 'audio'
+                  : templateMedia.media_type === 'video' ? 'video'
+                  : templateMedia.media_type === 'document' ? 'document'
+                  : 'image';
+
+                await supabase.from('inbox_messages').insert({
+                  conversation_id: conversationId,
+                  user_id: campaign.user_id,
+                  direction: 'outbound',
+                  content: '',
+                  message_type: mediaMessageType,
+                  media_url: templateMedia.media_url,
+                  media_mime_type: templateMedia.media_type === 'audio' ? 'audio/ogg' 
+                    : templateMedia.media_type === 'video' ? 'video/mp4'
+                    : templateMedia.media_type === 'document' ? 'application/pdf'
+                    : 'image/jpeg',
+                  status: 'sent',
+                  sent_at: new Date().toISOString(),
+                  whatsapp_message_id: mediaResult.key.id,
+                });
+              } catch (mediaInsertError) {
+                console.error(`Error persisting media message for ${formattedPhone}:`, mediaInsertError);
+              }
+            }
           } else {
             console.error(`Failed to send media to ${formattedPhone}:`, mediaResult);
           }
