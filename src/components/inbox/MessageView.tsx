@@ -436,6 +436,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   const handleSlashSelect = async (template: MessageTemplate) => {
+    // Validate instance first
+    if (!selectedInstanceId) {
+      toast.error("Selecione uma instância primeiro");
+      setSlashCommandOpen(false);
+      return;
+    }
+
     const cursorPos = textareaRef.current?.selectionStart || newMessage.length;
     const textBeforeCursor = newMessage.substring(0, cursorPos);
     const textAfterCursor = newMessage.substring(cursorPos);
@@ -456,17 +463,68 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       .replace(/\{\{telefone\}\}/gi, conversation.contact?.phone || "")
       .replace(/\{\{phone\}\}/gi, conversation.contact?.phone || "");
     
-    // Build new message
-    const newText = textBeforeCursor.substring(0, slashStart) + processedContent + textAfterCursor;
-    setNewMessage(newText);
+    const finalText = textBeforeCursor.substring(0, slashStart) + processedContent + textAfterCursor;
+    
     setSlashCommandOpen(false);
     setSlashSearchTerm("");
-    
-    // If template has media, send it automatically
+
+    // If template has media, send BOTH text and media automatically
     if (template.media_url && template.media_type) {
       const mediaType = template.media_type as 'image' | 'document' | 'audio' | 'video';
-      await handleSendMedia(template.media_url, mediaType);
+      
+      // Send text automatically if there's content
+      if (finalText.trim()) {
+        setNewMessage("");
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+        
+        const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const optimisticMessage: OptimisticMessage = {
+          id: optimisticId,
+          conversation_id: conversation.id,
+          content: finalText.trim(),
+          direction: 'outbound',
+          status: 'sending',
+          message_type: 'text',
+          created_at: new Date().toISOString(),
+          sent_at: null,
+          delivered_at: null,
+          read_at: null,
+          media_url: null,
+          whatsapp_message_id: null,
+          user_id: '',
+          isOptimistic: true,
+        };
+        setOptimisticMessages(prev => [...prev, optimisticMessage]);
+        setTimeout(() => scrollToBottom("smooth"), 50);
+        
+        sendMessage.mutateAsync({
+          content: finalText.trim(),
+          conversationId: conversation.id,
+          instanceId: selectedInstanceId,
+        }).catch(() => {
+          toast.error("Erro ao enviar texto do template");
+          setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
+        });
+      }
+      
+      // Send media with a small delay to avoid race condition
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      try {
+        await handleSendMedia(template.media_url, mediaType);
+      } catch (error) {
+        const mediaLabels: Record<string, string> = { video: 'vídeo', image: 'imagem', audio: 'áudio', document: 'documento' };
+        toast.error(`Erro ao enviar ${mediaLabels[mediaType] || 'mídia'} do template`);
+      }
+      
+      textareaRef.current?.focus();
+      return;
     }
+    
+    // Template WITHOUT media: keep current behavior (text in input, user sends manually)
+    setNewMessage(finalText);
     
     // Focus and resize
     textareaRef.current?.focus();
