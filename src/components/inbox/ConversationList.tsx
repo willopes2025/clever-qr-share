@@ -1,6 +1,8 @@
 import { format, isToday, isYesterday, subDays, differenceInMinutes, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, MessageCircle, Inbox, Archive, Bot, UserCheck, Target, User, Clock, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +10,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useConversationSearch } from "@/hooks/useConversationSearch";
 import { useContactSearch } from "@/hooks/useContactSearch";
 import { ConversationContextMenu } from "./ConversationContextMenu";
@@ -52,6 +54,12 @@ const formatMessageTime = (dateString: string | null) => {
   return format(date, "dd/MM", { locale: ptBR });
 };
 
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
 type FilterTab = "all" | "unread" | "archived";
 
 export const ConversationList = ({ 
@@ -92,10 +100,95 @@ export const ConversationList = ({
   
   // Hook para busca server-side por nome/telefone/ID de contatos
   const { data: matchingContactConvIds = [], isLoading: isSearchingContacts } = useContactSearch(debouncedSearch);
-  
-  const isSearching = isSearchingMessages || isSearchingContacts;
-  
+
+  const mergedSearchConversationIds = useMemo(
+    () => Array.from(new Set([...matchingConversationIds, ...matchingContactConvIds])),
+    [matchingConversationIds, matchingContactConvIds]
+  );
+
+  const loadedConversationIds = useMemo(
+    () => new Set(conversations.map((conversation) => conversation.id)),
+    [conversations]
+  );
+
+  const missingConversationIds = useMemo(
+    () => mergedSearchConversationIds.filter((id) => !loadedConversationIds.has(id)),
+    [mergedSearchConversationIds, loadedConversationIds]
+  );
+
+  const { data: missingSearchConversations = [], isLoading: isLoadingMissingSearchConversations } = useQuery({
+    queryKey: ["search-missing-conversations", missingConversationIds],
+    enabled: debouncedSearch.length >= 3 && missingConversationIds.length > 0,
+    queryFn: async () => {
+      const { data: conversationsData, error: conversationsError } = await supabase
+        .from("conversations")
+        .select(`
+          *,
+          contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
+          tag_assignments:conversation_tag_assignments(tag_id)
+        `)
+        .in("id", missingConversationIds);
+
+      if (conversationsError) throw conversationsError;
+      if (!conversationsData?.length) return [];
+
+      const contactIds = conversationsData
+        .map((conversation) => conversation.contact_id)
+        .filter((contactId): contactId is string => Boolean(contactId));
+
+      const dealsMap: Record<string, Conversation["deal"]> = {};
+
+      if (contactIds.length > 0) {
+        const { data: dealsData, error: dealsError } = await supabase
+          .from("funnel_deals")
+          .select(`
+            id,
+            contact_id,
+            stage_id,
+            funnel_id,
+            funnel:funnels(name),
+            stage:funnel_stages(name, color)
+          `)
+          .in("contact_id", contactIds)
+          .is("closed_at", null);
+
+        if (dealsError) throw dealsError;
+
+        dealsData?.forEach((deal: any) => {
+          if (deal.contact_id) {
+            dealsMap[deal.contact_id] = {
+              id: deal.id,
+              stage_id: deal.stage_id,
+              funnel_id: deal.funnel_id,
+              funnel_name: deal.funnel?.name ?? null,
+              stage_name: deal.stage?.name ?? null,
+              stage_color: deal.stage?.color ?? null,
+            };
+          }
+        });
+      }
+
+      return conversationsData.map((conversation: any) => ({
+        ...conversation,
+        deal: dealsMap[conversation.contact_id] ?? null,
+      })) as ConversationWithTags[];
+    },
+    staleTime: 30000,
+  });
+
+  const isSearching = isSearchingMessages || isSearchingContacts || isLoadingMissingSearchConversations;
+
   const { members } = useTeamMembers();
+
+  const mergedConversations = useMemo(() => {
+    const conversationMap = new Map<string, ConversationWithTags>();
+
+    [...conversations, ...missingSearchConversations].forEach((conversation) => {
+      conversationMap.set(conversation.id, conversation);
+    });
+
+    return Array.from(conversationMap.values());
+  }, [conversations, missingSearchConversations]);
   
   // Helper to get member name by user_id
   const getMemberName = (userId: string | null | undefined) => {
@@ -122,7 +215,7 @@ export const ConversationList = ({
   };
 
   // Sort: pinned first, then by last_message_at
-  const sortedConversations = [...conversations].sort((a, b) => {
+  const sortedConversations = [...mergedConversations].sort((a, b) => {
     if (a.is_pinned && !b.is_pinned) return -1;
     if (!a.is_pinned && b.is_pinned) return 1;
     return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
@@ -131,25 +224,30 @@ export const ConversationList = ({
   const filteredConversations = sortedConversations.filter(conv => {
     const name = conv.contact?.name || "";
     const phone = conv.contact?.phone || "";
-    const displayId = (conv.contact as any)?.contact_display_id || "";
-    const search = searchTerm.toLowerCase();
-    
+    const displayId = ((conv.contact as any)?.contact_display_id || "").toString();
+
+    const normalizedSearch = normalizeText(searchTerm.trim());
+    const searchDigits = searchTerm.replace(/\D/g, "");
+    const normalizedName = normalizeText(name);
+    const normalizedDisplayId = displayId.toLowerCase();
+    const digitsOnlyPhone = phone.replace(/\D/g, "");
+
     // Busca por nome, telefone ou ID (local)
-    const matchesContactSearch = name.toLowerCase().includes(search) || 
-                                 phone.includes(search) || 
-                                 displayId.includes(search);
-    
-    // Busca por conteúdo de mensagens (server-side, 3+ chars)
-    const matchesMessageContent = debouncedSearch.length >= 3 && 
-                                  matchingConversationIds.includes(conv.id);
-    
-    // Busca server-side por nome/telefone/ID de contato (3+ chars)
-    const matchesContactServer = debouncedSearch.length >= 3 && 
-                                 matchingContactConvIds.includes(conv.id);
-    
+    const matchesContactSearch =
+      normalizedName.includes(normalizedSearch) ||
+      normalizedDisplayId.includes(normalizedSearch) ||
+      (searchDigits.length > 0 && digitsOnlyPhone.includes(searchDigits));
+
+    // Busca server-side (mensagens + contatos)
+    const matchesServerSearch =
+      debouncedSearch.length >= 3 && mergedSearchConversationIds.includes(conv.id);
+
+    const hasSearchTerm = searchTerm.trim().length > 0;
+
     // Combina: se não digitou nada, mostra todas; senão, combina OR
-    const matchesSearch = !searchTerm ? true : 
-                          (matchesContactSearch || matchesMessageContent || matchesContactServer);
+    const matchesSearch = !hasSearchTerm
+      ? true
+      : (matchesContactSearch || matchesServerSearch);
     
     // Apply tab filter
     if (activeTab === "unread") {
