@@ -1,70 +1,51 @@
 
 
-# Aba "Oportunidades" no Funil de Vendas
+# Oportunidades: Dados editáveis + Navegação para conversa
 
-## Conceito
+## O que será feito
 
-Nova aba no módulo de Funis que usa IA (Gemini 2.5 Flash) para analisar as conversas dos deals de um funil específico e ranquear as melhores oportunidades de fechamento. A IA avalia sinais de compra, engajamento e contexto das mensagens para gerar um score e justificativa por deal.
+### 1. Persistir oportunidades no banco de dados
+Atualmente os resultados da análise vivem apenas em memória (state + cache ref). Para permitir que o usuário anexe dados, precisamos de uma tabela `funnel_opportunities`.
 
-## Dados exibidos por oportunidade
+**Nova tabela `funnel_opportunities`:**
+- `id` (uuid, PK)
+- `funnel_id` (uuid, FK funnels)
+- `deal_id` (uuid, FK funnel_deals)
+- `contact_id` (uuid, FK contacts)
+- `conversation_id` (uuid, nullable)
+- `contact_name`, `contact_phone`, `contact_email` (text)
+- `stage_name` (text)
+- `value` (numeric)
+- `score` (integer)
+- `insight` (text)
+- `user_notes` (text, nullable) — campo editável pelo usuário
+- `status` (text, default 'open') — para marcar como 'contacted', 'won', 'lost', etc.
+- `user_id` (uuid, FK auth.users)
+- `created_at`, `updated_at` (timestamptz)
 
-| Campo | Origem |
-|-------|--------|
-| Nome | `contacts.name` via `funnel_deals.contact_id` |
-| Telefone | `contacts.phone` |
-| Email | `contacts.email` (se houver) |
-| Etapa atual | `funnel_stages.name` via `funnel_deals.stage_id` |
-| Valor do deal | `funnel_deals.value` |
-| Score de oportunidade | Gerado pela IA (1-100) |
-| Motivo/Insight | Texto da IA explicando por que é uma boa oportunidade |
+RLS: `user_id IN (SELECT get_organization_member_ids(auth.uid()))` para SELECT/UPDATE/DELETE, `auth.uid() = user_id` para INSERT.
 
-## Arquitetura
+### 2. Edge Function atualizada
+A função `analyze-funnel-opportunities` passará a salvar os resultados na tabela `funnel_opportunities` (usando service role para inserção), fazendo upsert por `deal_id + funnel_id`. Também retornará `contact_id` e `conversation_id` nos resultados.
 
-### 1. Edge Function `analyze-funnel-opportunities`
+### 3. Componente FunnelOpportunitiesView atualizado
 
-- Recebe `funnel_id` como parâmetro
-- Busca todos os deals abertos do funil (excluindo etapas won/lost)
-- Para cada deal com `conversation_id`, busca as últimas 30 mensagens da conversa
-- Envia o contexto (mensagens + dados do deal) para Gemini 2.5 Flash via Lovable AI
-- IA retorna um JSON com score (1-100) e justificativa para cada deal
-- Retorna a lista ranqueada por score decrescente
+**Coluna ID do contato:** Adicionar coluna com `ContactIdBadge` + `contact_display_id`. Para isso, a Edge Function também retornará `contact_display_id`.
 
-### 2. Componente `FunnelOpportunitiesView`
+**Nome clicável:** O nome do contato será um link que abre a conversa no Inbox em nova aba (`window.open(/inbox?conversationId=xxx, '_blank')`). Se não houver `conversation_id`, abre com `contactId`.
 
-- Tabela com colunas: Score, Nome, Telefone, Email, Etapa, Valor, Insight da IA
-- Ordenada por score (maior primeiro)
-- Badge colorido no score (verde >70, amarelo 40-70, vermelho <40)
-- Botão "Analisar Oportunidades" que dispara a análise
-- Estado de loading durante processamento
-- Cache do resultado na sessão para não re-analisar a cada troca de aba
+**Dados editáveis por linha:**
+- Campo `user_notes` (textarea inline ou via dialog) para o usuário anotar informações sobre a oportunidade
+- Campo `status` (select: Aberto, Contactado, Ganho, Perdido) para classificar
+- Salvar alterações via `supabase.from('funnel_opportunities').update(...)` direto no frontend
 
-### 3. Integração na página Funnels
+**Carregar dados persistidos:** Ao abrir a aba, primeiro carrega oportunidades já salvas da tabela. Botão "Analisar" faz nova análise e sobrescreve scores/insights mas preserva `user_notes` e `status`.
 
-- Nova aba "Oportunidades" com ícone `Sparkles` no `TabsList` existente
-- `viewMode` ganha valor `'opportunities'`
-- Renderiza `FunnelOpportunitiesView` quando selecionado
-
-## Arquivos a criar/editar
+### 4. Arquivos a criar/editar
 
 | Arquivo | Ação |
 |---------|------|
-| `supabase/functions/analyze-funnel-opportunities/index.ts` | Criar - Edge Function |
-| `src/components/funnels/FunnelOpportunitiesView.tsx` | Criar - Componente da aba |
-| `src/pages/Funnels.tsx` | Editar - Adicionar aba e viewMode |
-| `supabase/config.toml` | Atualizar automaticamente (JWT config) |
-
-## Fluxo
-
-1. Usuário seleciona funil e clica na aba "Oportunidades"
-2. Clica em "Analisar Oportunidades"
-3. Edge Function busca deals abertos + mensagens das conversas
-4. Envia para Gemini 2.5 Flash com prompt estruturado pedindo análise de sinais de compra
-5. Retorna lista ranqueada com scores e insights
-6. Frontend exibe tabela ordenada por score
-
-## Segurança
-
-- Edge Function valida autenticação do usuário
-- Verifica que o usuário pertence à organização dona do funil
-- Não expõe dados entre organizações
+| Migration SQL | Criar tabela `funnel_opportunities` + RLS |
+| `supabase/functions/analyze-funnel-opportunities/index.ts` | Retornar `contact_id`, `conversation_id`, `contact_display_id`; persistir resultados |
+| `src/components/funnels/FunnelOpportunitiesView.tsx` | Adicionar colunas ID e nome clicável, campos editáveis, carregar do banco |
 
