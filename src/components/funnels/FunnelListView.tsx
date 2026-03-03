@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
 import {
   MoreHorizontal,
   Phone,
@@ -78,6 +80,12 @@ type DealWithStage = FunnelDeal & {
   isFinal: boolean;
   stage_id: string;
 };
+
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
 export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
@@ -183,16 +191,98 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     );
   }, [funnel.stages]);
 
+  const contactFilterRaw = columnFilters.contact?.trim() || "";
+  const normalizedContactFilter = normalizeText(contactFilterRaw);
+  const contactFilterDigits = contactFilterRaw.replace(/\D/g, "");
+  const shouldSearchServerDeals = normalizedContactFilter.length >= 3 || contactFilterDigits.length >= 4;
+
+  const { data: serverMatchedDeals = [] } = useQuery({
+    queryKey: ["funnel-server-search", funnel.id, normalizedContactFilter, contactFilterDigits],
+    enabled: shouldSearchServerDeals,
+    queryFn: async () => {
+      const matchingContactIds = new Set<string>();
+
+      if (normalizedContactFilter.length >= 3) {
+        const safeTerm = normalizedContactFilter.replace(/[,%]/g, " ");
+
+        const { data: contactByName, error: nameError } = await supabase
+          .from("contacts")
+          .select("id")
+          .or(`name.ilike.%${safeTerm}%,contact_display_id.ilike.%${safeTerm}%,phone.ilike.%${safeTerm}%`)
+          .limit(1000);
+
+        if (nameError) throw nameError;
+        contactByName?.forEach((contact) => matchingContactIds.add(contact.id));
+      }
+
+      if (contactFilterDigits.length >= 4) {
+        const { data: contactByPhone, error: phoneError } = await supabase
+          .from("contacts")
+          .select("id")
+          .ilike("phone", `%${contactFilterDigits}%`)
+          .limit(1000);
+
+        if (phoneError) throw phoneError;
+        contactByPhone?.forEach((contact) => matchingContactIds.add(contact.id));
+      }
+
+      const matchedContactIds = Array.from(matchingContactIds);
+      if (matchedContactIds.length === 0) return [];
+
+      const { data: dealsData, error: dealsError } = await supabase
+        .from("funnel_deals")
+        .select(`
+          *,
+          contact:contacts(id, name, phone, email),
+          close_reason:funnel_close_reasons(*),
+          stage:funnel_stages(name, color, is_final)
+        `)
+        .eq("funnel_id", funnel.id)
+        .in("contact_id", matchedContactIds)
+        .order("updated_at", { ascending: false })
+        .limit(1000);
+
+      if (dealsError) throw dealsError;
+
+      return (dealsData || []).map((deal: any) => ({
+        ...deal,
+        stageName:
+          deal.stage?.name || funnel.stages?.find((stage) => stage.id === deal.stage_id)?.name || "Sem etapa",
+        stageColor:
+          deal.stage?.color || funnel.stages?.find((stage) => stage.id === deal.stage_id)?.color || "#94A3B8",
+        isFinal:
+          deal.stage?.is_final || funnel.stages?.find((stage) => stage.id === deal.stage_id)?.is_final || false,
+        stage_id: deal.stage_id,
+      })) as DealWithStage[];
+    },
+    staleTime: 30000,
+  });
+
+  const searchableDeals = useMemo(() => {
+    if (!shouldSearchServerDeals) return allDeals;
+
+    const dealsMap = new Map<string, DealWithStage>();
+    [...allDeals, ...serverMatchedDeals].forEach((deal) => {
+      dealsMap.set(deal.id, deal);
+    });
+
+    return Array.from(dealsMap.values());
+  }, [allDeals, serverMatchedDeals, shouldSearchServerDeals]);
+
   // Filtered deals based on column filters
   const filteredDeals = useMemo(() => {
-    return allDeals.filter((deal) => {
+    return searchableDeals.filter((deal) => {
       // Contact filter
       if (columnFilters.contact) {
-        const search = columnFilters.contact.toLowerCase();
+        const normalizedDealName = normalizeText(deal.contact?.name || "");
+        const normalizedDealTitle = normalizeText(deal.title || "");
+        const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
+
         const matches =
-          deal.title?.toLowerCase().includes(search) ||
-          deal.contact?.name?.toLowerCase().includes(search) ||
-          deal.contact?.phone?.includes(columnFilters.contact);
+          normalizedDealTitle.includes(normalizedContactFilter) ||
+          normalizedDealName.includes(normalizedContactFilter) ||
+          (contactFilterDigits.length > 0 && phoneDigits.includes(contactFilterDigits));
+
         if (!matches) return false;
       }
 
@@ -240,7 +330,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
 
       return true;
     });
-  }, [allDeals, columnFilters]);
+  }, [searchableDeals, columnFilters, normalizedContactFilter, contactFilterDigits]);
 
   const getTimeInStage = (enteredAt: string) => {
     const days = Math.floor(
