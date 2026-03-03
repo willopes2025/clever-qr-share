@@ -1,51 +1,45 @@
 
 
-# Oportunidades: Dados editáveis + Navegação para conversa
+# Melhorar busca de leads no Inbox
 
-## O que será feito
+## Problema atual
 
-### 1. Persistir oportunidades no banco de dados
-Atualmente os resultados da análise vivem apenas em memória (state + cache ref). Para permitir que o usuário anexe dados, precisamos de uma tabela `funnel_opportunities`.
+A busca atual no `ConversationList.tsx` já faz `phone.includes(search)` e `name.toLowerCase().includes(search)`, que teoricamente deveria funcionar para buscas parciais. Porém, os telefones são armazenados com DDI (ex: `5527988355451`), e a busca local funciona apenas sobre as conversas já carregadas em memória.
 
-**Nova tabela `funnel_opportunities`:**
-- `id` (uuid, PK)
-- `funnel_id` (uuid, FK funnels)
-- `deal_id` (uuid, FK funnel_deals)
-- `contact_id` (uuid, FK contacts)
-- `conversation_id` (uuid, nullable)
-- `contact_name`, `contact_phone`, `contact_email` (text)
-- `stage_name` (text)
-- `value` (numeric)
-- `score` (integer)
-- `insight` (text)
-- `user_notes` (text, nullable) — campo editável pelo usuário
-- `status` (text, default 'open') — para marcar como 'contacted', 'won', 'lost', etc.
-- `user_id` (uuid, FK auth.users)
-- `created_at`, `updated_at` (timestamptz)
+O problema principal: a busca por conteúdo via `useConversationSearch` só busca mensagens (mínimo 3 chars), mas **não busca contatos no servidor**. Se o usuário tem muitas conversas e busca "maria" ou "5451", só encontra matches entre as conversas já carregadas pelo hook `useConversations`.
 
-RLS: `user_id IN (SELECT get_organization_member_ids(auth.uid()))` para SELECT/UPDATE/DELETE, `auth.uid() = user_id` para INSERT.
+## Solução
 
-### 2. Edge Function atualizada
-A função `analyze-funnel-opportunities` passará a salvar os resultados na tabela `funnel_opportunities` (usando service role para inserção), fazendo upsert por `deal_id + funnel_id`. Também retornará `contact_id` e `conversation_id` nos resultados.
+### 1. Criar hook `useContactSearch` para busca server-side de contatos
 
-### 3. Componente FunnelOpportunitiesView atualizado
+Novo hook que busca contatos no banco por nome OU telefone parcial quando o termo tem 3+ caracteres. Retorna `conversation_id`s matching.
 
-**Coluna ID do contato:** Adicionar coluna com `ContactIdBadge` + `contact_display_id`. Para isso, a Edge Function também retornará `contact_display_id`.
+```typescript
+// src/hooks/useContactSearch.ts
+// Busca contacts onde name ILIKE %term% OR phone ILIKE %term%
+// Depois busca conversations com esses contact_ids
+```
 
-**Nome clicável:** O nome do contato será um link que abre a conversa no Inbox em nova aba (`window.open(/inbox?conversationId=xxx, '_blank')`). Se não houver `conversation_id`, abre com `contactId`.
+### 2. Atualizar `ConversationList.tsx`
 
-**Dados editáveis por linha:**
-- Campo `user_notes` (textarea inline ou via dialog) para o usuário anotar informações sobre a oportunidade
-- Campo `status` (select: Aberto, Contactado, Ganho, Perdido) para classificar
-- Salvar alterações via `supabase.from('funnel_opportunities').update(...)` direto no frontend
+- Importar `useContactSearch` ao lado de `useConversationSearch`
+- Na lógica de filtro, combinar resultados: contactSearch OR messageSearch OR localMatch
+- Garantir que a busca por telefone parcial (ex: "5451") encontre contatos com `phone LIKE '%5451%'` no servidor
+- Atualizar placeholder do input para indicar que aceita busca por nome, telefone parcial ou conteúdo
 
-**Carregar dados persistidos:** Ao abrir a aba, primeiro carrega oportunidades já salvas da tabela. Botão "Analisar" faz nova análise e sobrescreve scores/insights mas preserva `user_notes` e `status`.
+### Arquivos a criar/editar
 
-### 4. Arquivos a criar/editar
-
-| Arquivo | Ação |
+| Arquivo | Acao |
 |---------|------|
-| Migration SQL | Criar tabela `funnel_opportunities` + RLS |
-| `supabase/functions/analyze-funnel-opportunities/index.ts` | Retornar `contact_id`, `conversation_id`, `contact_display_id`; persistir resultados |
-| `src/components/funnels/FunnelOpportunitiesView.tsx` | Adicionar colunas ID e nome clicável, campos editáveis, carregar do banco |
+| `src/hooks/useContactSearch.ts` | Criar - busca server-side por nome/telefone parcial |
+| `src/components/inbox/ConversationList.tsx` | Editar - integrar hook de busca de contatos |
+
+## Fluxo
+
+1. Usuário digita "5451" ou "maria" no campo de busca
+2. Após 500ms debounce e 3+ chars:
+   - `useContactSearch`: busca `contacts` onde `phone ILIKE '%5451%'` ou `name ILIKE '%maria%'`, retorna `conversation_id`s via join com `conversations`
+   - `useConversationSearch`: busca mensagens (já existe)
+3. Filtro combina: local match OR contact server match OR message content match
+4. Resultado mostra todas as conversas que correspondem
 
