@@ -1,62 +1,70 @@
 
 
-# Diagnóstico: Bot retorno não aparece para outros usuários
+# Aba "Oportunidades" no Funil de Vendas
 
-## Causa Raiz Identificada
+## Conceito
 
-As **políticas de segurança (RLS)** das tabelas de chatbot estão restritivas demais — usam `user_id = auth.uid()` em vez de `get_organization_member_ids()`. Isso impede membros da mesma organização de ver/usar os fluxos e suas execuções.
+Nova aba no módulo de Funis que usa IA (Gemini 2.5 Flash) para analisar as conversas dos deals de um funil específico e ranquear as melhores oportunidades de fechamento. A IA avalia sinais de compra, engajamento e contexto das mensagens para gerar um score e justificativa por deal.
 
-### Tabelas afetadas
+## Dados exibidos por oportunidade
 
-| Tabela | Política atual | Problema |
-|--------|---------------|----------|
-| `chatbot_flows` | `user_id = auth.uid()` | Outros membros não veem os fluxos no menu `/` |
-| `chatbot_flow_nodes` | `user_id = auth.uid()` | Nós do fluxo invisíveis para outros membros |
-| `chatbot_flow_edges` | `user_id = auth.uid()` | Conexões do fluxo invisíveis para outros membros |
-| `chatbot_executions` | `user_id = auth.uid()` | Execuções do bot invisíveis para outros membros |
+| Campo | Origem |
+|-------|--------|
+| Nome | `contacts.name` via `funnel_deals.contact_id` |
+| Telefone | `contacts.phone` |
+| Email | `contacts.email` (se houver) |
+| Etapa atual | `funnel_stages.name` via `funnel_deals.stage_id` |
+| Valor do deal | `funnel_deals.value` |
+| Score de oportunidade | Gerado pela IA (1-100) |
+| Motivo/Insight | Texto da IA explicando por que é uma boa oportunidade |
 
-**Nota:** As mensagens em si (`inbox_messages`) e conversas (`conversations`) já usam `get_organization_member_ids` e estão corretas. O problema é que os fluxos e execuções ficam invisíveis, impedindo que outros membros disparem fluxos pelo `/` e vejam o status das execuções.
+## Arquitetura
 
-## Solução
+### 1. Edge Function `analyze-funnel-opportunities`
 
-### 1. Atualizar RLS das 4 tabelas de chatbot
+- Recebe `funnel_id` como parâmetro
+- Busca todos os deals abertos do funil (excluindo etapas won/lost)
+- Para cada deal com `conversation_id`, busca as últimas 30 mensagens da conversa
+- Envia o contexto (mensagens + dados do deal) para Gemini 2.5 Flash via Lovable AI
+- IA retorna um JSON com score (1-100) e justificativa para cada deal
+- Retorna a lista ranqueada por score decrescente
 
-Substituir as políticas SELECT (e ALL no caso de `chatbot_executions`) para usar `get_organization_member_ids(auth.uid())`, seguindo o mesmo padrão já usado em `conversations` e `inbox_messages`:
+### 2. Componente `FunnelOpportunitiesView`
 
-**Para cada tabela:**
-- DROP da política SELECT atual
-- CREATE nova política SELECT usando `user_id IN (SELECT get_organization_member_ids(auth.uid()))`
-- Para `chatbot_executions`: substituir a política ALL por políticas separadas (SELECT com org, INSERT/UPDATE/DELETE com owner)
+- Tabela com colunas: Score, Nome, Telefone, Email, Etapa, Valor, Insight da IA
+- Ordenada por score (maior primeiro)
+- Badge colorido no score (verde >70, amarelo 40-70, vermelho <40)
+- Botão "Analisar Oportunidades" que dispara a análise
+- Estado de loading durante processamento
+- Cache do resultado na sessão para não re-analisar a cada troca de aba
 
-### 2. Migrations SQL
+### 3. Integração na página Funnels
 
-```sql
--- chatbot_flows: permitir SELECT por membros da org
-DROP POLICY "Users can view their own flows" ON chatbot_flows;
-CREATE POLICY "Users can view organization flows" ON chatbot_flows
-  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+- Nova aba "Oportunidades" com ícone `Sparkles` no `TabsList` existente
+- `viewMode` ganha valor `'opportunities'`
+- Renderiza `FunnelOpportunitiesView` quando selecionado
 
--- chatbot_flow_nodes: permitir SELECT por membros da org
-DROP POLICY "Users can view their own nodes" ON chatbot_flow_nodes;
-CREATE POLICY "Users can view organization nodes" ON chatbot_flow_nodes
-  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+## Arquivos a criar/editar
 
--- chatbot_flow_edges: permitir SELECT por membros da org
-DROP POLICY "Users can view their own edges" ON chatbot_flow_edges;
-CREATE POLICY "Users can view organization edges" ON chatbot_flow_edges
-  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/analyze-funnel-opportunities/index.ts` | Criar - Edge Function |
+| `src/components/funnels/FunnelOpportunitiesView.tsx` | Criar - Componente da aba |
+| `src/pages/Funnels.tsx` | Editar - Adicionar aba e viewMode |
+| `supabase/config.toml` | Atualizar automaticamente (JWT config) |
 
--- chatbot_executions: substituir ALL por políticas granulares
-DROP POLICY "Users can manage their chatbot executions" ON chatbot_executions;
-CREATE POLICY "Users can view organization executions" ON chatbot_executions
-  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
-CREATE POLICY "Users can insert their own executions" ON chatbot_executions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update organization executions" ON chatbot_executions
-  FOR UPDATE USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
-CREATE POLICY "Users can delete their own executions" ON chatbot_executions
-  FOR DELETE USING (auth.uid() = user_id);
-```
+## Fluxo
 
-Nenhuma alteração de código frontend é necessária — o hook `useChatbotFlows` já busca sem filtro de `user_id` (confia no RLS).
+1. Usuário seleciona funil e clica na aba "Oportunidades"
+2. Clica em "Analisar Oportunidades"
+3. Edge Function busca deals abertos + mensagens das conversas
+4. Envia para Gemini 2.5 Flash com prompt estruturado pedindo análise de sinais de compra
+5. Retorna lista ranqueada com scores e insights
+6. Frontend exibe tabela ordenada por score
+
+## Segurança
+
+- Edge Function valida autenticação do usuário
+- Verifica que o usuário pertence à organização dona do funil
+- Não expõe dados entre organizações
 
