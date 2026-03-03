@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { useState, useEffect } from "react";
 import { useConversationSearch } from "@/hooks/useConversationSearch";
+import { useContactSearch } from "@/hooks/useContactSearch";
 import { ConversationContextMenu } from "./ConversationContextMenu";
 import { ConversationQuickActions } from "./ConversationQuickActions";
 import { formatForDisplay } from "@/lib/phone-utils";
@@ -87,7 +88,12 @@ export const ConversationList = ({
   }, [searchTerm]);
   
   // Hook para busca por conteúdo de mensagens
-  const { data: matchingConversationIds = [], isLoading: isSearching } = useConversationSearch(debouncedSearch);
+  const { data: matchingConversationIds = [], isLoading: isSearchingMessages } = useConversationSearch(debouncedSearch);
+  
+  // Hook para busca server-side por nome/telefone/ID de contatos
+  const { data: matchingContactConvIds = [], isLoading: isSearchingContacts } = useContactSearch(debouncedSearch);
+  
+  const isSearching = isSearchingMessages || isSearchingContacts;
   
   const { members } = useTeamMembers();
   
@@ -133,13 +139,17 @@ export const ConversationList = ({
                                  phone.includes(search) || 
                                  displayId.includes(search);
     
-    // Busca por conteúdo de mensagens (quando há resultado da query com 3+ chars)
+    // Busca por conteúdo de mensagens (server-side, 3+ chars)
     const matchesMessageContent = debouncedSearch.length >= 3 && 
                                   matchingConversationIds.includes(conv.id);
     
+    // Busca server-side por nome/telefone/ID de contato (3+ chars)
+    const matchesContactServer = debouncedSearch.length >= 3 && 
+                                 matchingContactConvIds.includes(conv.id);
+    
     // Combina: se não digitou nada, mostra todas; senão, combina OR
     const matchesSearch = !searchTerm ? true : 
-                          (matchesContactSearch || matchesMessageContent);
+                          (matchesContactSearch || matchesMessageContent || matchesContactServer);
     
     // Apply tab filter
     if (activeTab === "unread") {
@@ -277,7 +287,7 @@ export const ConversationList = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           )}
           <Input
-            placeholder="Buscar conversa..."
+            placeholder="Buscar por nome, telefone ou conteúdo..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 bg-muted/50"
