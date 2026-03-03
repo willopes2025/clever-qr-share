@@ -2873,6 +2873,91 @@ export type Database = {
           },
         ]
       }
+      funnel_opportunities: {
+        Row: {
+          contact_display_id: string | null
+          contact_email: string | null
+          contact_id: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          conversation_id: string | null
+          created_at: string | null
+          deal_id: string
+          funnel_id: string
+          id: string
+          insight: string | null
+          score: number | null
+          stage_name: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+          user_notes: string | null
+          value: number | null
+        }
+        Insert: {
+          contact_display_id?: string | null
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          deal_id: string
+          funnel_id: string
+          id?: string
+          insight?: string | null
+          score?: number | null
+          stage_name?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+          user_notes?: string | null
+          value?: number | null
+        }
+        Update: {
+          contact_display_id?: string | null
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          deal_id?: string
+          funnel_id?: string
+          id?: string
+          insight?: string | null
+          score?: number | null
+          stage_name?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+          user_notes?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_opportunities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_opportunities_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_opportunities_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnel_stages: {
         Row: {
           color: string | null
