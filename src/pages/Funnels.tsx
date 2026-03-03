@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles } from "lucide-react";
 import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
@@ -32,12 +32,13 @@ import { AutomationsDialog } from "@/components/funnels/AutomationsDialog";
 import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
 import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAutomationsView";
 import { ImportContactsToFunnelDialog } from "@/components/funnels/ImportContactsToFunnelDialog";
+import { FunnelOpportunitiesView } from "@/components/funnels/FunnelOpportunitiesView";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
   const { funnels, isLoading, deleteFunnel } = useFunnels();
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'automations' | 'dashboard'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'automations' | 'dashboard' | 'opportunities'>('kanban');
   const [showFunnelForm, setShowFunnelForm] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<{ id: string; name: string; description?: string; color?: string } | null>(null);
   const [showCloseReasons, setShowCloseReasons] = useState(false);
@@ -180,7 +181,7 @@ const Funnels = () => {
                 )}
               </div>
 
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'automations' | 'dashboard')}>
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'automations' | 'dashboard' | 'opportunities')}>
                 <TabsList>
                   <TabsTrigger value="kanban">
                     <LayoutGrid className="h-4 w-4 mr-2" />
@@ -189,6 +190,10 @@ const Funnels = () => {
                   <TabsTrigger value="list">
                     <List className="h-4 w-4 mr-2" />
                     Lista
+                  </TabsTrigger>
+                  <TabsTrigger value="opportunities">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Oportunidades
                   </TabsTrigger>
                   <TabsTrigger value="automations">
                     <Workflow className="h-4 w-4 mr-2" />
@@ -211,9 +216,11 @@ const Funnels = () => {
                 ? <FunnelKanbanView funnel={currentFunnel} />
                 : viewMode === 'list'
                   ? <FunnelListView funnel={currentFunnel} />
-                  : viewMode === 'automations'
-                    ? <FunnelAutomationsView funnel={currentFunnel} />
-                    : <FunnelDashboard funnel={currentFunnel} />
+                  : viewMode === 'opportunities'
+                    ? <FunnelOpportunitiesView funnel={currentFunnel} />
+                    : viewMode === 'automations'
+                      ? <FunnelAutomationsView funnel={currentFunnel} />
+                      : <FunnelDashboard funnel={currentFunnel} />
             )}
           </>
         )}
