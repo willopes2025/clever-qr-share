@@ -16,9 +16,12 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } },
     });
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) throw new Error("Unauthorized");
@@ -26,7 +29,6 @@ serve(async (req) => {
     const { funnel_id } = await req.json();
     if (!funnel_id) throw new Error("funnel_id is required");
 
-    // Verify user owns/belongs to the funnel's org
     const { data: funnel, error: funnelError } = await supabase
       .from("funnels")
       .select("id, name")
@@ -34,7 +36,6 @@ serve(async (req) => {
       .single();
     if (funnelError || !funnel) throw new Error("Funnel not found or access denied");
 
-    // Get open deals (exclude won/lost stages)
     const { data: stages } = await supabase
       .from("funnel_stages")
       .select("id, name, final_type")
@@ -65,15 +66,13 @@ serve(async (req) => {
       });
     }
 
-    // Get contacts
     const contactIds = [...new Set(deals.map((d: any) => d.contact_id).filter(Boolean))];
     const { data: contacts } = await supabase
       .from("contacts")
-      .select("id, name, phone, email")
+      .select("id, name, phone, email, contact_display_id")
       .in("id", contactIds);
     const contactMap = Object.fromEntries((contacts || []).map((c: any) => [c.id, c]));
 
-    // Get messages for deals with conversation_id (last 30 per conversation)
     const conversationIds = [...new Set(deals.map((d: any) => d.conversation_id).filter(Boolean))];
     const messagesMap: Record<string, any[]> = {};
 
@@ -89,7 +88,6 @@ serve(async (req) => {
       }
     }
 
-    // Build context for AI
     const dealsContext = deals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const messages = deal.conversation_id ? messagesMap[deal.conversation_id] || [] : [];
@@ -208,9 +206,12 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       const aiResult = scoreMap[deal.id] || { score: 0, insight: "Sem dados suficientes para análise" };
       return {
         deal_id: deal.id,
+        contact_id: deal.contact_id,
+        conversation_id: deal.conversation_id || null,
         contact_name: contact.name || "Sem nome",
         contact_phone: contact.phone || "",
         contact_email: contact.email || "",
+        contact_display_id: contact.contact_display_id || null,
         stage_name: stageMap[deal.stage_id] || "Desconhecida",
         value: deal.value || 0,
         score: aiResult.score,
@@ -219,6 +220,45 @@ Retorne APENAS o JSON usando a tool fornecida.`,
     });
 
     results.sort((a: any, b: any) => b.score - a.score);
+
+    // Load existing user_notes and status to preserve them
+    const dealIds = results.map((r: any) => r.deal_id);
+    const { data: existingOpps } = await supabaseAdmin
+      .from("funnel_opportunities")
+      .select("deal_id, user_notes, status")
+      .eq("funnel_id", funnel_id)
+      .in("deal_id", dealIds);
+    const existingMap = Object.fromEntries(
+      (existingOpps || []).map((o: any) => [o.deal_id, o])
+    );
+
+    // Upsert results into funnel_opportunities using service role
+    const upsertRows = results.map((r: any) => {
+      const existing = existingMap[r.deal_id];
+      return {
+        funnel_id,
+        deal_id: r.deal_id,
+        contact_id: r.contact_id,
+        conversation_id: r.conversation_id,
+        contact_name: r.contact_name,
+        contact_phone: r.contact_phone,
+        contact_email: r.contact_email,
+        contact_display_id: r.contact_display_id,
+        stage_name: r.stage_name,
+        value: r.value,
+        score: r.score,
+        insight: r.insight,
+        user_notes: existing?.user_notes || null,
+        status: existing?.status || 'open',
+        user_id: user.id,
+      };
+    });
+
+    if (upsertRows.length) {
+      await supabaseAdmin
+        .from("funnel_opportunities")
+        .upsert(upsertRows, { onConflict: "funnel_id,deal_id" });
+    }
 
     return new Response(JSON.stringify({ opportunities: results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
