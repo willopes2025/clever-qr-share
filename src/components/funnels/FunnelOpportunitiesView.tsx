@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink } from "lucide-react";
+import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -149,6 +149,34 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+  const exportToCSV = () => {
+    if (!opportunities.length) return;
+    const statusLabel = (s: string) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
+    const headers = ["Score", "ID", "Nome", "Telefone", "Email", "Etapa", "Valor", "Status", "Insight", "Anotações"];
+    const rows = opportunities.map((opp) => [
+      opp.score,
+      opp.contact_display_id || "",
+      opp.contact_name,
+      opp.contact_phone,
+      opp.contact_email,
+      opp.stage_name,
+      opp.value || 0,
+      statusLabel(opp.status || "open"),
+      `"${(opp.insight || "").replace(/"/g, '""')}"`,
+      `"${(opp.user_notes || "").replace(/"/g, '""')}"`,
+    ]);
+    const BOM = "\uFEFF";
+    const csv = BOM + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `oportunidades-${funnel.name.replace(/\s+/g, "-").toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Exportação concluída!");
+  };
+
   if (!hasLoaded && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -186,10 +214,16 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           </h3>
           <p className="text-sm text-muted-foreground">Ordenadas por probabilidade de fechamento</p>
         </div>
-        <Button variant="outline" size="sm" onClick={reAnalyze}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Re-analisar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportToCSV} disabled={!opportunities.length}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
+          <Button variant="outline" size="sm" onClick={reAnalyze}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Re-analisar
+          </Button>
+        </div>
       </div>
 
       {opportunities.length === 0 ? (
