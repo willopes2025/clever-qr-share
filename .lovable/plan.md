@@ -1,53 +1,62 @@
 
 
-# Correção: Template enviado duas vezes no Inbox
+# Diagnóstico: Bot retorno não aparece para outros usuários
 
-## Problema
+## Causa Raiz Identificada
 
-Ao selecionar um template (especialmente com mídia) via comando `/` e pressionar Enter, o sistema envia a mensagem **duas vezes**. Isso acontece porque o evento `keydown` do Enter pode disparar em repetição (key repeat) antes do React re-renderizar, causando duas chamadas ao `handleSlashSelect`.
+As **políticas de segurança (RLS)** das tabelas de chatbot estão restritivas demais — usam `user_id = auth.uid()` em vez de `get_organization_member_ids()`. Isso impede membros da mesma organização de ver/usar os fluxos e suas execuções.
 
-## Causa Raiz
+### Tabelas afetadas
 
-No `handleKeyDown`, quando o Enter é pressionado com o menu slash aberto:
-1. Primeiro `keydown` chama `handleSlashSelect` (async) e define `setSlashCommandOpen(false)`
-2. React **ainda não re-renderizou** -- o estado `slashCommandOpen` continua `true` na closure atual
-3. O key repeat do Enter dispara um segundo `keydown` na mesma closure
-4. `slashCommandOpen` ainda é `true` → `handleSlashSelect` é chamado **novamente**
-5. Resultado: duas mensagens de texto + duas mídias enviadas
+| Tabela | Política atual | Problema |
+|--------|---------------|----------|
+| `chatbot_flows` | `user_id = auth.uid()` | Outros membros não veem os fluxos no menu `/` |
+| `chatbot_flow_nodes` | `user_id = auth.uid()` | Nós do fluxo invisíveis para outros membros |
+| `chatbot_flow_edges` | `user_id = auth.uid()` | Conexões do fluxo invisíveis para outros membros |
+| `chatbot_executions` | `user_id = auth.uid()` | Execuções do bot invisíveis para outros membros |
+
+**Nota:** As mensagens em si (`inbox_messages`) e conversas (`conversations`) já usam `get_organization_member_ids` e estão corretas. O problema é que os fluxos e execuções ficam invisíveis, impedindo que outros membros disparem fluxos pelo `/` e vejam o status das execuções.
 
 ## Solução
 
-Adicionar uma **ref de guarda** (`isProcessingSlashRef`) para impedir re-entrada no `handleSlashSelect`:
+### 1. Atualizar RLS das 4 tabelas de chatbot
 
-### Mudanças em `src/components/inbox/MessageView.tsx`
+Substituir as políticas SELECT (e ALL no caso de `chatbot_executions`) para usar `get_organization_member_ids(auth.uid())`, seguindo o mesmo padrão já usado em `conversations` e `inbox_messages`:
 
-1. **Adicionar ref de controle**:
-```typescript
-const isProcessingSlashRef = useRef(false);
+**Para cada tabela:**
+- DROP da política SELECT atual
+- CREATE nova política SELECT usando `user_id IN (SELECT get_organization_member_ids(auth.uid()))`
+- Para `chatbot_executions`: substituir a política ALL por políticas separadas (SELECT com org, INSERT/UPDATE/DELETE com owner)
+
+### 2. Migrations SQL
+
+```sql
+-- chatbot_flows: permitir SELECT por membros da org
+DROP POLICY "Users can view their own flows" ON chatbot_flows;
+CREATE POLICY "Users can view organization flows" ON chatbot_flows
+  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+
+-- chatbot_flow_nodes: permitir SELECT por membros da org
+DROP POLICY "Users can view their own nodes" ON chatbot_flow_nodes;
+CREATE POLICY "Users can view organization nodes" ON chatbot_flow_nodes
+  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+
+-- chatbot_flow_edges: permitir SELECT por membros da org
+DROP POLICY "Users can view their own edges" ON chatbot_flow_edges;
+CREATE POLICY "Users can view organization edges" ON chatbot_flow_edges
+  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+
+-- chatbot_executions: substituir ALL por políticas granulares
+DROP POLICY "Users can manage their chatbot executions" ON chatbot_executions;
+CREATE POLICY "Users can view organization executions" ON chatbot_executions
+  FOR SELECT USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+CREATE POLICY "Users can insert their own executions" ON chatbot_executions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update organization executions" ON chatbot_executions
+  FOR UPDATE USING (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+CREATE POLICY "Users can delete their own executions" ON chatbot_executions
+  FOR DELETE USING (auth.uid() = user_id);
 ```
 
-2. **Proteger `handleSlashSelect`** com early return se já estiver processando:
-```typescript
-const handleSlashSelect = async (template: MessageTemplate) => {
-  if (isProcessingSlashRef.current) return; // Guard against re-entry
-  isProcessingSlashRef.current = true;
-  
-  try {
-    // ... existing logic ...
-  } finally {
-    isProcessingSlashRef.current = false;
-  }
-};
-```
-
-3. **Proteger `handleKeyDown`** adicionando verificação da ref antes de chamar handleSlashSelect:
-```typescript
-if (e.key === "Enter" || e.key === "Tab") {
-  e.preventDefault();
-  if (isProcessingSlashRef.current) return; // Prevent double-fire
-  // ... rest of selection logic
-}
-```
-
-Essa abordagem resolve o problema sem alterar o fluxo existente, usando uma ref (síncrona e imediata) ao invés de depender do estado React (assíncrono).
+Nenhuma alteração de código frontend é necessária — o hook `useChatbotFlows` já busca sem filtro de `user_id` (confia no RLS).
 
