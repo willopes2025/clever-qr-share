@@ -907,13 +907,40 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         contact = newContact;
         console.log('Created/updated contact:', contact?.id, 'with label_id:', labelId, 'avatar_url:', avatarUrl ? 'yes' : 'no');
       }
-    } else if (labelId && !contact.label_id) {
-      // Update existing contact to add label_id for future matching
-      console.log(`Updating contact ${contact.id} with label_id: ${labelId}`);
-      await supabase
-        .from('contacts')
-        .update({ label_id: labelId })
-        .eq('id', contact.id);
+    } else {
+      // Contact already exists - check if we need to update label_id or name
+      const updates: Record<string, string> = {};
+
+      if (labelId && !contact.label_id) {
+        console.log(`Updating contact ${contact.id} with label_id: ${labelId}`);
+        updates.label_id = labelId;
+      }
+
+      // Update generic name with pushName from WhatsApp profile
+      if (pushName && pushName.trim()) {
+        const currentName = contact.name || '';
+        const isGenericName = !currentName 
+          || currentName === 'Cliente' 
+          || /^\d+$/.test(currentName) 
+          || /^55\d{10,11}$/.test(currentName)
+          || /^\(\d{2}\)\s?\d{4,5}-?\d{4}$/.test(currentName);
+        
+        const isPushNameValid = pushName.trim().length > 0 
+          && !/^\d+$/.test(pushName.trim()) 
+          && !/^55\d{10,11}$/.test(pushName.trim());
+
+        if (isGenericName && isPushNameValid) {
+          console.log(`Updating contact ${contact.id} name from "${currentName}" to pushName "${pushName}"`);
+          updates.name = pushName.trim();
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from('contacts')
+          .update(updates)
+          .eq('id', contact.id);
+      }
     }
 
     if (!contact) {
