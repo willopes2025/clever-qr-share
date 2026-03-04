@@ -1,43 +1,40 @@
 
 
-# Fix: Conversa de busca server-side não abre ao clicar
+# Usar pushName do WhatsApp como nome inicial do contato
 
 ## Problema
 
-O `Inbox.tsx` armazena apenas o `selectedConversationId` e depois busca o objeto completo somente dentro de `conversations` (do hook `useConversations`). Conversas encontradas via busca server-side (que não estavam no cache local) existem apenas dentro do `ConversationList` como `missingSearchConversations` — por isso, ao clicar, `selectedConversation` resolve como `null` e o painel de mensagens não abre.
+Na linha 766 do `receive-webhook/index.ts`, o `pushName` (nome do perfil WhatsApp) é extraído corretamente. Porém:
+
+1. Se a **primeira mensagem** é enviada pelo usuário (outgoing/fromMe), o `pushName` é descartado e o nome fica "Cliente"
+2. Quando o contato **responde depois**, o webhook tem o `pushName` correto, mas o código **nunca atualiza** o nome de contatos existentes — só usa o `pushName` na criação
 
 ## Solução
 
-1. **Guardar o objeto completo da conversa selecionada** no `Inbox.tsx` como fallback. Quando `handleSelectConversation` é chamado, armazenar o objeto em um `useState<Conversation | null>` separado.
+Adicionar lógica para atualizar o nome do contato existente com o `pushName` quando:
+- O contato já existe no banco
+- O nome atual é genérico ("Cliente", null, vazio, ou apenas números/telefone)
+- O `pushName` recebido é válido (não vazio, não é número de telefone)
 
-2. **Atualizar o `selectedConversation` memo** para usar o objeto das `conversations` atualizadas (para manter dados frescos), mas se não encontrar lá, usar o objeto salvo como fallback.
+### Mudança no `receive-webhook/index.ts`
 
-## Arquivos a editar
+Após o bloco que encontra o contato existente (por volta da linha 910-917, onde já atualiza `label_id`), adicionar verificação:
+
+```
+Se contact existe E pushName é válido E nome atual é genérico → atualizar nome com pushName
+```
+
+Nomes considerados "genéricos" (que devem ser substituídos pelo pushName):
+- "Cliente"
+- null / undefined / vazio
+- Apenas dígitos (ex: "5527988355451")
+- Formato de telefone brasileiro
+
+Isso garante que:
+- Se o usuário editou o nome manualmente (ex: "Marina Jadjesky"), ele **não é sobrescrito**
+- Apenas nomes genéricos/placeholder são substituídos pelo nome real do WhatsApp
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/Inbox.tsx` | Adicionar `fallbackConversation` state; atualizar `handleSelectConversation` para salvar objeto; atualizar memo `selectedConversation` para usar fallback |
-
-## Detalhes
-
-```typescript
-// Novo state
-const [fallbackConversation, setFallbackConversation] = useState<Conversation | null>(null);
-
-// handleSelectConversation atualizado
-const handleSelectConversation = (conversation: Conversation) => {
-  setSelectedConversationId(conversation.id);
-  setFallbackConversation(conversation); // salva objeto completo
-  // ... resto igual
-};
-
-// selectedConversation memo atualizado
-const selectedConversation = useMemo(() => {
-  if (!selectedConversationId) return null;
-  return conversations?.find(c => c.id === selectedConversationId) 
-    || fallbackConversation?.id === selectedConversationId ? fallbackConversation : null;
-}, [conversations, selectedConversationId, fallbackConversation]);
-```
-
-Mudança mínima (~5 linhas), sem efeitos colaterais.
+| `supabase/functions/receive-webhook/index.ts` | Adicionar lógica para atualizar nome genérico com pushName válido |
 
