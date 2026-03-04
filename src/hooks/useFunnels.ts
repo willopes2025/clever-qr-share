@@ -456,11 +456,15 @@ export const useFunnels = () => {
       
       // Cancel outgoing queries
       await queryClient.cancelQueries({ queryKey: ['funnels'] });
+      await queryClient.cancelQueries({ queryKey: ['contact-deal'] });
       
       // Snapshot current data
       const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
       
-      // Optimistic update - move deal to new stage instantly
+      // Snapshot all contact-deal queries
+      const contactDealQueries = queryClient.getQueriesData({ queryKey: ['contact-deal'] });
+      
+      // Optimistic update - move deal to new stage instantly in funnels cache
       queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
         if (!old) return old;
         
@@ -496,15 +500,30 @@ export const useFunnels = () => {
           };
         });
       });
+
+      // Optimistic update - update contact-deal cache so LeadPanelFunnelBar reflects instantly
+      contactDealQueries.forEach(([queryKey, data]) => {
+        if (data && (data as any).stage_id) {
+          const deal = data as any;
+          if (deal.id === id) {
+            queryClient.setQueryData(queryKey, { ...deal, stage_id, entered_stage_at: new Date().toISOString() });
+          }
+        }
+      });
       
-      return { previousFunnels };
+      return { previousFunnels, contactDealQueries };
     },
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousFunnels) {
         queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
-        toast.error("Erro ao mover deal");
       }
+      if (context?.contactDealQueries) {
+        context.contactDealQueries.forEach(([queryKey, data]: [any, any]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      toast.error("Erro ao mover deal");
     },
     onSuccess: (result) => {
       if (!result) return;

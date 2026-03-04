@@ -29,19 +29,35 @@ export const LeadPanelHeader = ({ conversation, onClose, isMobile }: LeadPanelHe
   const contactDisplayId = (conversation.contact as any)?.contact_display_id;
 
   const handleSaveName = async () => {
+    const newName = editedName.trim() || null;
+    
+    // Optimistic update - update cache immediately
+    const previousConversations = queryClient.getQueryData(['conversations']);
+    queryClient.setQueryData(['conversations'], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((c: any) => 
+        c.contact_id === conversation.contact_id 
+          ? { ...c, contact: { ...c.contact, name: newName } }
+          : c
+      );
+    });
+    setIsEditing(false);
+
     try {
       const { error } = await supabase
         .from('contacts')
-        .update({ name: editedName.trim() || null })
+        .update({ name: newName })
         .eq('id', conversation.contact_id);
       
       if (error) throw error;
       
-      setIsEditing(false);
       toast.success("Nome atualizado");
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
     } catch (error) {
+      // Rollback on error
+      queryClient.setQueryData(['conversations'], previousConversations);
+      setIsEditing(true);
       toast.error("Erro ao atualizar nome");
     }
   };
