@@ -21,6 +21,18 @@ export const LeadPanelNotes = ({ conversation }: LeadPanelNotesProps) => {
   }, [conversation.contact?.notes]);
 
   const handleSave = async () => {
+    // Optimistic update
+    const previousConversations = queryClient.getQueryData(['conversations']);
+    queryClient.setQueryData(['conversations'], (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((c: any) => 
+        c.contact_id === conversation.contact_id 
+          ? { ...c, contact: { ...c.contact, notes } }
+          : c
+      );
+    });
+    setIsEditing(false);
+
     try {
       const { error } = await supabase
         .from('contacts')
@@ -29,10 +41,12 @@ export const LeadPanelNotes = ({ conversation }: LeadPanelNotesProps) => {
       
       if (error) throw error;
       
-      setIsEditing(false);
       toast.success("Notas salvas");
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     } catch (error) {
+      // Rollback
+      queryClient.setQueryData(['conversations'], previousConversations);
+      setIsEditing(true);
       toast.error("Erro ao salvar notas");
     }
   };
