@@ -21,6 +21,7 @@ const Inbox = () => {
   const { conversations, isLoading, markAsRead, refetch } = useConversations();
   const { isConfigured: isVoipConfigured } = useFusionPBXConfig();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [fallbackConversation, setFallbackConversation] = useState<Conversation | null>(null);
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
   const [showSoftphone, setShowSoftphone] = useState(false);
   const isMobile = useIsMobile();
@@ -59,8 +60,9 @@ const Inbox = () => {
   // Keep the selected conversation in sync with updated data
   const selectedConversation = useMemo(() => {
     if (!selectedConversationId) return null;
-    return conversations?.find(c => c.id === selectedConversationId) || null;
-  }, [conversations, selectedConversationId]);
+    return conversations?.find(c => c.id === selectedConversationId) 
+      || (fallbackConversation?.id === selectedConversationId ? fallbackConversation : null);
+  }, [conversations, selectedConversationId, fallbackConversation]);
 
   // Real-time subscription for conversations
   useEffect(() => {
@@ -86,6 +88,7 @@ const Inbox = () => {
 
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversationId(conversation.id);
+    setFallbackConversation(conversation);
     if (isMobile) {
       setMobileShowMessages(true);
     }
