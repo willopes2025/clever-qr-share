@@ -917,21 +917,26 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       }
 
       // Update generic name with pushName from WhatsApp profile
-      if (pushName && pushName.trim()) {
+      // Only use pushName from incoming messages (outgoing pushName = user's own name)
+      if (!isFromMe && pushName && pushName.trim()) {
         const currentName = contact.name || '';
+        const trimmedPush = pushName.trim();
         const isGenericName = !currentName 
           || currentName === 'Cliente' 
+          || currentName === trimmedPush // already same, skip
           || /^\d+$/.test(currentName) 
           || /^55\d{10,11}$/.test(currentName)
+          || /^\+?\d[\d\s\-()]+$/.test(currentName) // any phone-like format
           || /^\(\d{2}\)\s?\d{4,5}-?\d{4}$/.test(currentName);
         
-        const isPushNameValid = pushName.trim().length > 0 
-          && !/^\d+$/.test(pushName.trim()) 
-          && !/^55\d{10,11}$/.test(pushName.trim());
+        const isPushNameValid = trimmedPush.length >= 2
+          && !/^\d+$/.test(trimmedPush) 
+          && !/^55\d{10,11}$/.test(trimmedPush)
+          && !trimmedPush.startsWith('LID_');
 
-        if (isGenericName && isPushNameValid) {
-          console.log(`Updating contact ${contact.id} name from "${currentName}" to pushName "${pushName}"`);
-          updates.name = pushName.trim();
+        if (isGenericName && isPushNameValid && currentName !== trimmedPush) {
+          console.log(`Updating contact ${contact.id} name from "${currentName}" to pushName "${trimmedPush}"`);
+          updates.name = trimmedPush;
         }
       }
 
