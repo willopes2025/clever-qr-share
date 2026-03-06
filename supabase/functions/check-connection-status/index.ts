@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     if (status === 'connected') {
       try {
         const detailsResponse = await fetch(
-          `${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`,
+          `${evolutionApiUrl}/instance/fetchInstances?instanceName=${evolutionApiName}`,
           {
             method: 'GET',
             headers: {
