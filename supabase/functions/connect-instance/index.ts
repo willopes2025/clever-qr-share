@@ -74,8 +74,8 @@ Deno.serve(async (req) => {
       throw new Error('Instância não encontrada');
     }
 
-    // Obter QR Code da Evolution API - use the actual instance_name from the database
-    const evolutionInstanceName = instance.instance_name;
+    // Obter QR Code da Evolution API - use evolution_instance_name (unique API identifier)
+    const evolutionInstanceName = instance.evolution_instance_name || instance.instance_name;
     console.log(`Calling Evolution API to connect instance: ${evolutionInstanceName}`);
     
     const evolutionResponse = await fetch(

@@ -54,9 +54,10 @@ Deno.serve(async (req: Request) => {
       throw new Error('Instância não encontrada');
     }
 
-    // Verificar status na Evolution API
+    // Verificar status na Evolution API - use evolution_instance_name (unique API identifier)
+    const evolutionApiName = instance.evolution_instance_name || instance.instance_name;
     const evolutionResponse = await fetch(
-      `${evolutionApiUrl}/instance/connectionState/${instanceName}`,
+      `${evolutionApiUrl}/instance/connectionState/${evolutionApiName}`,
       {
         method: 'GET',
         headers: {
@@ -88,7 +89,7 @@ Deno.serve(async (req: Request) => {
     if (status === 'connected') {
       try {
         const detailsResponse = await fetch(
-          `${evolutionApiUrl}/instance/fetchInstances?instanceName=${instanceName}`,
+          `${evolutionApiUrl}/instance/fetchInstances?instanceName=${evolutionApiName}`,
           {
             method: 'GET',
             headers: {
