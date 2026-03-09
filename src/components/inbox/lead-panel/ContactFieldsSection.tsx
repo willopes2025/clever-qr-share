@@ -19,6 +19,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
+import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
