@@ -33,11 +33,20 @@ interface ContactFieldsSectionProps {
     email?: string | null;
     custom_fields?: Record<string, any> | null;
   };
+  activeTabId?: string | null;
 }
 
-export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => {
+export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSectionProps) => {
   const { contactFieldDefinitions, updateContactCustomFields, createField, deleteField } = useCustomFields();
+  const { tabs } = useLeadPanelTabs();
   const queryClient = useQueryClient();
+
+  // Filter fields based on active tab's field_keys
+  const activeTabData = tabs?.find(t => t.id === activeTabId);
+  const tabFieldKeys = activeTabData?.field_keys || [];
+  const filteredContactFields = tabFieldKeys.length > 0
+    ? contactFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+    : contactFieldDefinitions;
   
   const customFields = (contact.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
