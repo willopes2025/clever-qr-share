@@ -36,7 +36,15 @@ interface LeadFieldsSectionProps {
 
 export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps) => {
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
+  const { tabs } = useLeadPanelTabs();
   const queryClient = useQueryClient();
+
+  // Filter fields based on active tab's field_keys
+  const activeTabData = tabs?.find(t => t.id === activeTabId);
+  const tabFieldKeys = activeTabData?.field_keys || [];
+  const filteredLeadFields = tabFieldKeys.length > 0
+    ? leadFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+    : leadFieldDefinitions;
   
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
