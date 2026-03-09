@@ -121,9 +121,58 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
                 selected={value ? new Date(value) : undefined}
                 onSelect={(date) => handleSave(definition.field_key, date?.toISOString())}
                 locale={ptBR}
+                className="pointer-events-auto"
               />
             </PopoverContent>
           </Popover>
+        );
+
+      case 'time':
+        return (
+          <Input
+            type="time"
+            value={value || ''}
+            onChange={(e) => handleSave(definition.field_key, e.target.value)}
+            className="h-8 w-32 text-sm border-border/50 hover:border-primary/50 hover:bg-primary/5"
+          />
+        );
+
+      case 'datetime':
+        return (
+          <div className="flex items-center gap-1.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
+                  {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={value ? new Date(value) : undefined}
+                  onSelect={(date) => {
+                    if (!date) return handleSave(definition.field_key, null);
+                    const existing = value ? new Date(value) : new Date();
+                    date.setHours(existing.getHours(), existing.getMinutes());
+                    handleSave(definition.field_key, date.toISOString());
+                  }}
+                  locale={ptBR}
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={value ? format(new Date(value), "HH:mm") : ''}
+              onChange={(e) => {
+                const [hours, minutes] = e.target.value.split(':').map(Number);
+                const d = value ? new Date(value) : new Date();
+                d.setHours(hours, minutes);
+                handleSave(definition.field_key, d.toISOString());
+              }}
+              className="h-8 w-24 text-sm border-border/50 hover:border-primary/50 hover:bg-primary/5"
+            />
+          </div>
         );
 
       case 'select':

@@ -163,9 +163,86 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                   toast.success("Campo atualizado com sucesso");
                 }}
                 locale={ptBR}
+                className="pointer-events-auto"
               />
             </PopoverContent>
           </Popover>
+        );
+
+      case 'time':
+        return (
+          <Input
+            type="time"
+            value={value || ''}
+            onChange={(e) => {
+              handleFieldChange(definition.field_key, e.target.value);
+              updateContactCustomFields.mutate({
+                contactId,
+                customFields: { ...localFields, [definition.field_key]: e.target.value },
+              });
+              toast.success("Campo atualizado com sucesso");
+            }}
+            className="h-9 w-full text-sm border-border/50 hover:border-primary/50 hover:bg-primary/5"
+          />
+        );
+
+      case 'datetime':
+        const dtValue = value ? (isValid(new Date(value)) ? new Date(value) : undefined) : undefined;
+        return (
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-9 justify-start text-left font-normal flex-1 border-border/50 hover:border-primary/50 hover:bg-primary/5",
+                    !dtValue && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dtValue ? format(dtValue, "dd/MM/yyyy", { locale: ptBR }) : "Data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dtValue}
+                  onSelect={(date) => {
+                    if (!date) return;
+                    const existing = dtValue || new Date();
+                    date.setHours(existing.getHours(), existing.getMinutes());
+                    const iso = date.toISOString();
+                    handleFieldChange(definition.field_key, iso);
+                    updateContactCustomFields.mutate({
+                      contactId,
+                      customFields: { ...localFields, [definition.field_key]: iso },
+                    });
+                    toast.success("Campo atualizado com sucesso");
+                  }}
+                  locale={ptBR}
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <Input
+              type="time"
+              value={dtValue ? format(dtValue, "HH:mm") : ''}
+              onChange={(e) => {
+                const [hours, minutes] = e.target.value.split(':').map(Number);
+                const d = dtValue ? new Date(dtValue) : new Date();
+                d.setHours(hours, minutes);
+                const iso = d.toISOString();
+                handleFieldChange(definition.field_key, iso);
+                updateContactCustomFields.mutate({
+                  contactId,
+                  customFields: { ...localFields, [definition.field_key]: iso },
+                });
+                toast.success("Campo atualizado com sucesso");
+              }}
+              className="h-9 w-28 text-sm border-border/50 hover:border-primary/50 hover:bg-primary/5"
+            />
+          </div>
         );
 
       case 'select':
