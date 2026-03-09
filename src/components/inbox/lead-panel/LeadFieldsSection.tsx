@@ -257,13 +257,21 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         )}
       </div>
 
-      {/* Lead Fields */}
-      {leadFieldDefinitions.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          Nenhum campo de lead configurado
-        </p>
-      ) : (
-        leadFieldDefinitions.map((field) => (
+      {/* Lead Fields - filtered by active tab */}
+      {(() => {
+        const { tabs } = require("@/hooks/useLeadPanelTabs").useLeadPanelTabs();
+        const activeTab = tabs?.find((t: any) => t.id === activeTabId);
+        const tabFieldKeys = activeTab?.field_keys || [];
+        const filteredFields = tabFieldKeys.length > 0
+          ? leadFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+          : leadFieldDefinitions;
+        
+        return filteredFields.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Nenhum campo configurado para esta aba
+          </p>
+        ) : (
+          filteredFields.map((field) => (
           <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
             <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
             <div className="flex-1 flex justify-end items-center">
