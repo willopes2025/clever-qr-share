@@ -73,6 +73,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
             id: activeDeal.id,
             custom_fields: activeDeal.custom_fields as Record<string, any> | null,
           } : null}
+          activeTabId={activeTab}
         />
 
         {/* Separator with Contact Name */}
@@ -88,6 +89,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
               email: (conversation.contact as any).email || null,
               custom_fields: conversation.contact.custom_fields as Record<string, any> | null,
             }}
+            activeTabId={activeTab}
           />
         )}
 

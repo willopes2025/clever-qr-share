@@ -19,6 +19,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
+import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { CustomFieldsManager } from "../CustomFieldsManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,11 +31,20 @@ interface LeadFieldsSectionProps {
     title?: string;
     custom_fields?: Record<string, any> | null;
   } | null;
+  activeTabId?: string | null;
 }
 
-export const LeadFieldsSection = ({ deal }: LeadFieldsSectionProps) => {
+export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps) => {
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
+  const { tabs } = useLeadPanelTabs();
   const queryClient = useQueryClient();
+
+  // Filter fields based on active tab's field_keys
+  const activeTabData = tabs?.find(t => t.id === activeTabId);
+  const tabFieldKeys = activeTabData?.field_keys || [];
+  const filteredLeadFields = tabFieldKeys.length > 0
+    ? leadFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+    : leadFieldDefinitions;
   
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
@@ -256,13 +266,13 @@ export const LeadFieldsSection = ({ deal }: LeadFieldsSectionProps) => {
         )}
       </div>
 
-      {/* Lead Fields */}
-      {leadFieldDefinitions.length === 0 ? (
+      {/* Lead Fields - filtered by active tab */}
+      {filteredLeadFields.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">
-          Nenhum campo de lead configurado
+          Nenhum campo configurado para esta aba
         </p>
       ) : (
-        leadFieldDefinitions.map((field) => (
+        filteredLeadFields.map((field) => (
           <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
             <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
             <div className="flex-1 flex justify-end items-center">

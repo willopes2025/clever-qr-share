@@ -19,6 +19,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
+import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -32,11 +33,20 @@ interface ContactFieldsSectionProps {
     email?: string | null;
     custom_fields?: Record<string, any> | null;
   };
+  activeTabId?: string | null;
 }
 
-export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => {
+export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSectionProps) => {
   const { contactFieldDefinitions, updateContactCustomFields, createField, deleteField } = useCustomFields();
+  const { tabs } = useLeadPanelTabs();
   const queryClient = useQueryClient();
+
+  // Filter fields based on active tab's field_keys
+  const activeTabData = tabs?.find(t => t.id === activeTabId);
+  const tabFieldKeys = activeTabData?.field_keys || [];
+  const filteredContactFields = tabFieldKeys.length > 0
+    ? contactFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+    : contactFieldDefinitions;
   
   const customFields = (contact.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
@@ -263,7 +273,7 @@ export const ContactFieldsSection = ({ contact }: ContactFieldsSectionProps) => 
       )}
 
       {/* Custom Contact Fields */}
-      {contactFieldDefinitions.map((field) => (
+      {filteredContactFields.map((field) => (
         <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field">
           <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
           <div className="flex-1 flex justify-end items-center gap-1">
