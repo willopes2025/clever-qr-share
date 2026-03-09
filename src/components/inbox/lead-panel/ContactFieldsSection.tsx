@@ -273,7 +273,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       )}
 
       {/* Custom Contact Fields */}
-      {contactFieldDefinitions.map((field) => (
+      {filteredContactFields.map((field) => (
         <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field">
           <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
           <div className="flex-1 flex justify-end items-center gap-1">
