@@ -30,9 +30,10 @@ interface LeadFieldsSectionProps {
     title?: string;
     custom_fields?: Record<string, any> | null;
   } | null;
+  activeTabId?: string | null;
 }
 
-export const LeadFieldsSection = ({ deal }: LeadFieldsSectionProps) => {
+export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps) => {
   const { leadFieldDefinitions, updateDealCustomFields } = useCustomFields();
   const queryClient = useQueryClient();
   
