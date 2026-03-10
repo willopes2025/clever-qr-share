@@ -1209,6 +1209,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
 
     // Insert message with media support
     // Note: direction must be 'inbound' or 'outbound' per database constraint
+    // Uses upsert with onConflict on whatsapp_message_id to prevent duplicates from race conditions
     const { error: msgError } = await supabase
       .from('inbox_messages')
       .insert({
@@ -1222,6 +1223,12 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         whatsapp_message_id: key.id,
         sent_at: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
       });
+
+    // Check if error is a unique constraint violation (duplicate whatsapp_message_id)
+    if (msgError && (msgError.code === '23505' || msgError.message?.includes('unique') || msgError.message?.includes('duplicate'))) {
+      console.log(`[DEDUP] Duplicate whatsapp_message_id ${key.id} rejected by unique constraint, skipping`);
+      continue;
+    }
 
     if (msgError) {
       console.error('Error inserting message:', msgError);
