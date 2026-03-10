@@ -1,46 +1,44 @@
 
 
-# Corrigir mensagens duplicadas no Inbox
+# Otimização: Atualizações otimistas no painel do lead (Inbox)
 
 ## Problema
 
-Existem **369 `whatsapp_message_id` duplicados** no banco de dados. A causa raiz é uma **condição de corrida**: quando dois webhooks chegam simultaneamente para a mesma mensagem, ambos passam na verificação de deduplicação (SELECT) antes de qualquer INSERT, resultando em duplicatas. Não existe um índice UNIQUE na coluna `whatsapp_message_id` para prevenir isso no nível do banco.
+Ao editar o nome do contato ou alterar a etapa do funil no painel lateral do Inbox, o sistema faz `invalidateQueries(['conversations'])`, que dispara um refetch completo de **todas as conversas + deals ativos**. Essa query é pesada (join de conversations + contacts + deals + tags) e causa um delay visível de alguns segundos.
 
-## Solução
+O mesmo ocorre na troca de etapa via `LeadPanelFunnelBar`: o `updateDeal` já tem optimistic update para o cache `['funnels']` (usado no Kanban), mas **não** atualiza otimisticamente o cache `['conversations']` nem o `['contact-deal']`.
 
-### 1. Migração SQL: Limpar duplicatas existentes e criar índice UNIQUE
+## Solução: Optimistic Updates locais
 
-- Deletar registros duplicados, mantendo apenas o mais antigo (menor `created_at`) para cada `whatsapp_message_id`
-- Criar um índice UNIQUE parcial em `whatsapp_message_id` (apenas WHERE NOT NULL), impedindo futuras duplicatas no nível do banco
+Aplicar atualizações otimistas nos caches do React Query para que a UI reflita a mudança instantaneamente, sem esperar o refetch.
 
-```sql
--- Remove duplicates keeping the oldest
-DELETE FROM inbox_messages 
-WHERE id IN (
-  SELECT id FROM (
-    SELECT id, ROW_NUMBER() OVER (
-      PARTITION BY whatsapp_message_id 
-      ORDER BY created_at ASC
-    ) as rn
-    FROM inbox_messages
-    WHERE whatsapp_message_id IS NOT NULL
-  ) sub WHERE rn > 1
-);
+### 1. `LeadPanelHeader.tsx` — Edição de nome do contato
 
--- Prevent future duplicates
-CREATE UNIQUE INDEX idx_inbox_messages_whatsapp_id_unique 
-ON inbox_messages (whatsapp_message_id) 
-WHERE whatsapp_message_id IS NOT NULL;
-```
+- Antes do `await supabase.update()`, atualizar otimisticamente o cache `['conversations']` alterando o `contact.name` da conversa correspondente
+- Se der erro, reverter ao snapshot anterior
+- Manter o `invalidateQueries` no final para sincronizar dados reais (mas a UI já mostra o valor novo)
 
-### 2. Edge Function `receive-webhook/index.ts`: Usar INSERT com ON CONFLICT
+### 2. `LeadPanelNotes.tsx` — Edição de notas
 
-Alterar o INSERT de mensagens para usar upsert/on-conflict, de modo que mesmo que a verificação SELECT passe, o banco rejeita a duplicata silenciosamente. Adicionalmente, usar `INSERT ... ON CONFLICT DO NOTHING` via o método `.upsert()` com `ignoreDuplicates: true`, ou tratar o erro de unique constraint no catch.
+- Mesmo padrão: atualizar `contact.notes` no cache `['conversations']` antes da chamada ao banco
+- Reverter se falhar
 
-### Arquivos afetados
+### 3. `LeadPanelFunnelBar.tsx` — Troca de etapa do funil
+
+- Ao trocar de etapa, além do optimistic update no cache `['funnels']` (que já existe), atualizar também o cache `['contact-deal', contactId]` para que o dropdown reflita a nova etapa imediatamente
+- Atualizar o `deal` dentro do cache `['conversations']` para o `stage_name`, `stage_color` e `stage_id` ficarem corretos
+
+### 4. `useFunnels.ts` — `updateDeal.onMutate`
+
+- Estender o `onMutate` existente para também atualizar o cache `['contact-deal']` e `['conversations']` otimisticamente quando `stage_id` muda
+
+## Arquivos a editar
 
 | Arquivo | Mudança |
 |---------|---------|
-| Nova migração SQL | Limpa 369+ duplicatas e cria UNIQUE index |
-| `supabase/functions/receive-webhook/index.ts` | Tratar erro de unique violation no INSERT para ignorar duplicatas silenciosamente |
+| `src/components/inbox/lead-panel/LeadPanelHeader.tsx` | Optimistic update do nome no cache `conversations` |
+| `src/components/inbox/lead-panel/LeadPanelNotes.tsx` | Optimistic update das notas no cache `conversations` |
+| `src/hooks/useFunnels.ts` | Estender `onMutate` do `updateDeal` para atualizar caches `contact-deal` e `conversations` |
+
+Mudança de baixo risco — mantém o `invalidateQueries` para sincronização eventual, mas o usuário vê a mudança instantaneamente.
 
