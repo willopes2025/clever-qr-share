@@ -1,0 +1,1 @@
+DELETE FROM lead_panel_tabs WHERE id = '97cb20e5-705d-4cd9-bb46-db1bc34e83f4';
