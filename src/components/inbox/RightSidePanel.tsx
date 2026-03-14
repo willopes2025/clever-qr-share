@@ -131,7 +131,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
 
   // Desktop: Simple panel
   return (
-    <div className="h-full w-full border-l border-border/50 bg-card overflow-hidden">
+    <div className="h-full w-full min-w-0 border-l border-border/50 bg-card overflow-hidden">
       {panelContent}
     </div>
   );
