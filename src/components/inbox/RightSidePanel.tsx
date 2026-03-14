@@ -43,7 +43,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
   }, [conversation.id]);
 
   const panelContent = (
-    <div className="h-full flex flex-col bg-card">
+    <div className="h-full min-w-0 flex flex-col bg-card">
       {/* Header with contact name */}
       <LeadPanelHeader 
         conversation={conversation} 
@@ -51,7 +51,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
         isMobile={isMobile}
       />
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-w-0">
         {/* Tags Section */}
         <LeadPanelTagsSection conversationId={conversation.id} />
 
@@ -131,7 +131,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
 
   // Desktop: Simple panel
   return (
-    <div className="h-full w-full border-l border-border/50 bg-card overflow-hidden">
+    <div className="h-full w-full min-w-0 border-l border-border/50 bg-card overflow-hidden">
       {panelContent}
     </div>
   );

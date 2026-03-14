@@ -31,15 +31,15 @@ export const LeadPanelTabs = ({ activeTab, onTabChange }: LeadPanelTabsProps) =>
 
   return (
     <>
-      <div className="px-3 py-2 border-b border-border/40 flex items-center gap-1.5 bg-muted/20 overflow-hidden">
-        <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide">
-          <div className="flex w-max min-w-full items-center gap-1.5 pr-1">
+      <div className="px-3 py-2 border-b border-border/40 flex min-w-0 items-center gap-1.5 bg-muted/20 overflow-hidden">
+        <div className="flex-1 min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-1 pr-1">
             {tabs?.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap",
+                  "shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap",
                   activeTab === tab.id
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-foreground/70 hover:text-foreground hover:bg-muted"
