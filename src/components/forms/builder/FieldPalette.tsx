@@ -123,7 +123,7 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     createField.mutate(
       {
         form_id: formId,
-        field_type: fieldType.type,
+        field_type: fieldType.type === 'lead_code' ? 'short_text' : fieldType.type,
         label: fieldType.label,
         placeholder: null,
         help_text: null,
