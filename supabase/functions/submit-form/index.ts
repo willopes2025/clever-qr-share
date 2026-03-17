@@ -83,6 +83,18 @@ Deno.serve(async (req: Request) => {
     // Separate storage for lead/deal custom fields
     let dealCustomFields: Record<string, any> = {};
 
+  // Check for lookup_by_display_id field first
+  let lookupDisplayId: string | null = null;
+  for (const field of formFields) {
+    if (field.mapping_type === 'lookup_by_display_id') {
+      const val = submissionData[field.id];
+      if (val) {
+        lookupDisplayId = String(val).trim();
+      }
+      break;
+    }
+  }
+
   for (const field of formFields) {
     const fieldValue = submissionData[field.id];
     
@@ -90,12 +102,12 @@ Deno.serve(async (req: Request) => {
     const hasNameParts = submissionData[`${field.id}_first`] !== undefined;
     const hasPhoneParts = submissionData[`${field.id}_country_code`] !== undefined;
     
-    // Skip only if no direct value AND no composite parts
+    // Skip lookup field from data processing and skip empty values
+    if (field.mapping_type === 'lookup_by_display_id') continue;
     if (!fieldValue && !hasNameParts && !hasPhoneParts) continue;
 
     if (field.mapping_type === 'contact_field') {
       if (field.mapping_target === 'name') {
-        // Handle name field (first + last) - check composite fields first
         if (submissionData[`${field.id}_first`]) {
           contactData.name = `${submissionData[`${field.id}_first`]} ${submissionData[`${field.id}_last`] || ''}`.trim();
         } else if (fieldValue) {
@@ -106,23 +118,18 @@ Deno.serve(async (req: Request) => {
           contactData.email = String(fieldValue);
         }
       } else if (field.mapping_target === 'phone') {
-        // Get phone number and country code
         const phoneValue = fieldValue || '';
         const phoneDigits = String(phoneValue).replace(/\D/g, '');
         const countryCode = submissionData[`${field.id}_country_code`] || '55';
-        // Combine country code with phone number
         if (phoneDigits) {
           contactData.phone = `${countryCode}${phoneDigits}`;
         }
       }
     } else if (field.mapping_type === 'custom_field' && field.mapping_target && fieldValue) {
-      // Contact custom field
       contactData.custom_fields![field.mapping_target] = fieldValue;
     } else if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
-      // Lead/Deal custom field - will be saved to funnel_deals.custom_fields
       dealCustomFields[field.mapping_target] = fieldValue;
     } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
-      // Create new CONTACT custom field definition if it doesn't exist
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
       const { data: existingField } = await supabase
@@ -149,7 +156,6 @@ Deno.serve(async (req: Request) => {
 
       contactData.custom_fields![fieldKey] = fieldValue;
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
-      // Create new LEAD custom field definition if it doesn't exist
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
       const { data: existingField } = await supabase
@@ -174,12 +180,53 @@ Deno.serve(async (req: Request) => {
           });
       }
 
-      // Save to deal custom fields
       dealCustomFields[fieldKey] = fieldValue;
     }
   }
 
     let contactId: string | null = null;
+
+    // Check if lookup_by_display_id was used to find contact by display code
+    if (lookupDisplayId) {
+      const paddedId = lookupDisplayId.replace(/\D/g, '').padStart(4, '0');
+      const { data: lookupContact } = await supabase
+        .from('contacts')
+        .select('id, custom_fields')
+        .eq('user_id', form.user_id)
+        .eq('contact_display_id', paddedId)
+        .single();
+
+      if (lookupContact) {
+        contactId = lookupContact.id;
+        console.log(`Found contact by display_id ${paddedId}: ${contactId}`);
+
+        // Update contact data if provided
+        const updateData: Record<string, any> = {};
+        if (contactData.name) updateData.name = contactData.name;
+        if (contactData.email) updateData.email = contactData.email;
+        if (contactData.phone) updateData.phone = contactData.phone;
+        
+        if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
+          updateData.custom_fields = {
+            ...(lookupContact.custom_fields || {}),
+            ...contactData.custom_fields,
+          };
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await supabase
+            .from('contacts')
+            .update(updateData)
+            .eq('id', contactId);
+        }
+      } else {
+        console.warn(`Contact not found for display_id: ${paddedId}`);
+        return new Response(
+          JSON.stringify({ error: `Lead com código "${lookupDisplayId}" não encontrado` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Check if a static contact_id was provided (trackable form link from inbox)
     const staticContactId = staticParams.contact_id;
@@ -438,7 +485,28 @@ Deno.serve(async (req: Request) => {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
         } else {
-          console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
+          // Update existing deal's custom fields if we have new lead data
+          if (Object.keys(dealCustomFields).length > 0) {
+            const { data: dealWithFields } = await supabase
+              .from('funnel_deals')
+              .select('custom_fields')
+              .eq('id', existingDeal.id)
+              .single();
+            
+            const mergedDealFields = {
+              ...((dealWithFields?.custom_fields as Record<string, any>) || {}),
+              ...dealCustomFields,
+            };
+            
+            await supabase
+              .from('funnel_deals')
+              .update({ custom_fields: mergedDealFields })
+              .eq('id', existingDeal.id);
+            
+            console.log(`Updated deal ${existingDeal.id} custom fields with form data`);
+          } else {
+            console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
+          }
         }
       }
     } catch (dealError) {

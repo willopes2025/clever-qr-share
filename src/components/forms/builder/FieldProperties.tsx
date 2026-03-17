@@ -393,6 +393,7 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Não salvar no perfil</SelectItem>
+                    <SelectItem value="lookup_by_display_id">🔍 Buscar lead por código</SelectItem>
                     <SelectItem value="contact_field">Campo nativo do contato</SelectItem>
                     <SelectItem value="custom_field">Campo personalizado (Contato)</SelectItem>
                     <SelectItem value="lead_field">Campo personalizado (Lead)</SelectItem>
@@ -400,6 +401,12 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                     <SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {(localField.mapping_type as string) === 'lookup_by_display_id' && (
+                  <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 p-2 rounded">
+                    Este campo será usado para buscar um lead existente pelo código (ex: 0042). Os demais campos do formulário atualizarão os dados desse lead.
+                  </p>
+                )}
 
                 {localField.mapping_type === 'contact_field' && (
                   <Select
