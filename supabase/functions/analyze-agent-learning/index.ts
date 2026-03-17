@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { agentConfigId, date } = await req.json();
+    const { agentConfigId, date, period, conversationId } = await req.json();
 
     if (!agentConfigId) {
       return new Response(
@@ -69,27 +69,68 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Determine date range
-    const analysisDate = date ? new Date(date) : new Date();
-    analysisDate.setDate(analysisDate.getDate() - 1); // Yesterday by default
-    const startOfDay = new Date(analysisDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(analysisDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Get all organization member IDs for org-wide search
+    const { data: memberIds } = await supabase.rpc("get_organization_member_ids", {
+      _user_id: agentConfig.user_id,
+    });
 
-    console.log(`Analyzing conversations from ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    const orgUserIds = memberIds && memberIds.length > 0
+      ? memberIds
+      : [agentConfig.user_id];
 
-    // Get conversations with AI handled or from the funnel
+    console.log(`Searching conversations for ${orgUserIds.length} org members`);
+
+    // Determine date range based on period parameter
+    const now = new Date();
+    let startDate: Date;
+    let endDate = now;
+
+    if (conversationId) {
+      // When analyzing a specific conversation, no date filter needed
+      startDate = new Date(0);
+    } else if (period === "yesterday") {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
+      startDate = yesterday;
+      endDate = new Date(yesterday);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (period === "last_30_days") {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 30);
+      startDate.setHours(0, 0, 0, 0);
+    } else if (date) {
+      const analysisDate = new Date(date);
+      analysisDate.setHours(0, 0, 0, 0);
+      startDate = analysisDate;
+      endDate = new Date(analysisDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // Default: last 7 days
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+    }
+
+    console.log(`Analyzing conversations from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+    // Build conversations query - org-wide, no ai_handled filter
     let conversationsQuery = supabase
       .from("conversations")
       .select("id, contact_id")
-      .eq("user_id", agentConfig.user_id)
-      .eq("ai_handled", true)
-      .gte("last_message_at", startOfDay.toISOString())
-      .lte("last_message_at", endOfDay.toISOString());
+      .in("user_id", orgUserIds);
+
+    // If a specific conversation is requested, filter by it
+    if (conversationId) {
+      conversationsQuery = conversationsQuery.eq("id", conversationId);
+    } else {
+      conversationsQuery = conversationsQuery
+        .gte("last_message_at", startDate.toISOString())
+        .lte("last_message_at", endDate.toISOString());
+    }
 
     // If funnel is linked, also filter by deals in that funnel
-    if (agentConfig.funnel_id) {
+    if (agentConfig.funnel_id && !conversationId) {
       const { data: funnelDeals } = await supabase
         .from("funnel_deals")
         .select("contact_id")
@@ -114,7 +155,7 @@ Deno.serve(async (req: Request) => {
     if (!conversations || conversations.length === 0) {
       console.log("No conversations found for analysis");
       return new Response(
-        JSON.stringify({ message: "No conversations found for analysis", suggestions: [] }),
+        JSON.stringify({ message: "No conversations found for analysis", suggestionsCount: 0, suggestions: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -142,7 +183,7 @@ Deno.serve(async (req: Request) => {
     if (!messages || messages.length < 2) {
       console.log("Not enough messages for analysis");
       return new Response(
-        JSON.stringify({ message: "Not enough messages for analysis", suggestions: [] }),
+        JSON.stringify({ message: "Not enough messages for analysis", suggestionsCount: 0, suggestions: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -160,8 +201,8 @@ Deno.serve(async (req: Request) => {
       grouped.get(msg.conversation_id)!.push(msg);
     }
 
-    for (const [conversationId, msgs] of grouped) {
-      conversationGroups.push({ conversationId, messages: msgs });
+    for (const [convId, msgs] of grouped) {
+      conversationGroups.push({ conversationId: convId, messages: msgs });
     }
 
     // Build prompt for AI analysis
@@ -313,7 +354,7 @@ ${conversationTexts}`;
     if (suggestions.length === 0) {
       console.log("No suggestions extracted from AI");
       return new Response(
-        JSON.stringify({ message: "No learning suggestions identified", suggestions: [] }),
+        JSON.stringify({ message: "No learning suggestions identified", suggestionsCount: 0, suggestions: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -321,9 +362,13 @@ ${conversationTexts}`;
     console.log(`Extracted ${suggestions.length} suggestions`);
 
     // Get a sample conversation ID for reference
-    const sampleConversationId = conversationGroups[0]?.conversationId;
+    const sampleConversationId = conversationId || conversationGroups[0]?.conversationId;
+
+    // Collect all source message IDs
+    const allMessageIds = messages.map(m => m.id);
 
     // Save suggestions to database
+    const analysisDate = new Date().toISOString().split('T')[0];
     const suggestionsToInsert = suggestions.map(s => ({
       agent_config_id: agentConfigId,
       user_id: agentConfig.user_id,
@@ -333,7 +378,8 @@ ${conversationTexts}`;
       category: s.category,
       confidence_score: Math.min(1, Math.max(0.5, s.confidence_score)),
       source_conversation_id: sampleConversationId,
-      analysis_date: analysisDate.toISOString().split('T')[0],
+      source_message_ids: allMessageIds.slice(0, 50),
+      analysis_date: analysisDate,
       status: 'pending'
     }));
 
