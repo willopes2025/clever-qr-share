@@ -1091,11 +1091,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Fetch knowledge base, variables, stages, and calendar integration if agent config exists
+    // Fetch knowledge base, variables, stages, calendar integration, and templates
     let knowledgeItems: KnowledgeItem[] = [];
     let variables: AgentVariable[] = [];
     let stages: AgentStage[] = [];
     let calendarIntegration: CalendarIntegration | null = null;
+    // deno-lint-ignore no-explicit-any
+    let availableTemplates: any[] = [];
     
     if (agentConfig?.id) {
       // Fetch knowledge items
@@ -1137,6 +1139,17 @@ Deno.serve(async (req: Request) => {
         calendarIntegration = calendarData as CalendarIntegration;
       }
     }
+
+    // Fetch available templates for the user (for AI to send)
+    const { data: templatesData } = await supabase
+      .from('message_templates')
+      .select('id, name, content, category, media_type, media_url, media_filename')
+      .eq('user_id', conversation.user_id)
+      .eq('is_active', true)
+      .order('name');
+    
+    availableTemplates = templatesData || [];
+    console.log(`[AI-AGENT] Found ${availableTemplates.length} available templates`);
 
     // Fetch or create conversation stage data
     let stageData: StageData | null = null;
@@ -1626,6 +1639,33 @@ ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra toda
 - Se não souber responder algo específico, sugira falar com um atendente
 - Não invente informações que não estão na base de conhecimento`;
 
+    // Add available templates context for AI
+    if (availableTemplates.length > 0) {
+      const templatesList = availableTemplates.map(t => {
+        let desc = `- [${t.id}] "${t.name}" (${t.category}): ${t.content.substring(0, 80)}...`;
+        if (t.media_type) desc += ` [Mídia: ${t.media_type}]`;
+        return desc;
+      }).join('\n');
+      
+      systemPrompt += `\n\n## 📋 TEMPLATES DISPONÍVEIS
+Você pode enviar templates pré-prontos quando achar relevante. Use a ferramenta send_template para isso.
+Decida com inteligência: envie template quando for útil (ex: catálogo, informações padronizadas, materiais), 
+mas prefira texto livre para respostas conversacionais normais.
+
+Templates disponíveis:
+${templatesList}
+
+### Quando usar templates:
+- Cliente pede informações que um template cobre (catálogo, preços, materiais)
+- Para enviar mídia relevante (imagens, vídeos, documentos)
+- Para respostas padronizadas e profissionais
+- Você pode enviar o template sozinho OU junto com uma mensagem de texto
+
+### Quando NÃO usar templates:
+- Respostas conversacionais simples (saudações, confirmações)
+- Quando nenhum template é relevante para o contexto`;
+    }
+
     // Replace variables in system prompt
     systemPrompt = replaceVariables(systemPrompt, variables, contactName, collectedData);
 
@@ -1644,9 +1684,39 @@ ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra toda
       max_tokens: 500,
     };
 
-    // Add tools if calendar integration is active
+    // Add tools
+    const tools = [];
     if (hasCalendarIntegration) {
-      aiRequestBody.tools = getCalendlyTools();
+      tools.push(...getCalendlyTools());
+    }
+    
+    // Add template tool if templates are available
+    if (availableTemplates.length > 0) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'send_template',
+          description: 'Envia um template pré-pronto para o cliente. Use quando o conteúdo de um template for relevante para a conversa. Pode incluir texto, imagens, vídeos ou documentos.',
+          parameters: {
+            type: 'object',
+            properties: {
+              template_id: {
+                type: 'string',
+                description: 'ID do template a ser enviado (use o ID entre colchetes da lista de templates disponíveis)',
+              },
+              accompanying_message: {
+                type: 'string',
+                description: 'Mensagem de texto opcional para enviar JUNTO com o template. Deixe vazio se o template for auto-explicativo.',
+              },
+            },
+            required: ['template_id'],
+          },
+        },
+      });
+    }
+    
+    if (tools.length > 0) {
+      aiRequestBody.tools = tools;
       aiRequestBody.tool_choice = 'auto';
     }
 
@@ -1838,6 +1908,180 @@ ${mapeamento}
                 role: 'tool',
                 tool_call_id: toolCall.id,
                 content: `❌ Erro ao criar agendamento: ${bookingResult.error}. Verifique se o horário ainda está disponível ou ofereça o link de agendamento manual.`,
+              });
+            }
+          }
+        } else if (functionName === 'send_template') {
+          const templateId = args.template_id || '';
+          const accompanyingMessage = args.accompanying_message || '';
+          
+          console.log(`[AI-AGENT] send_template called with template_id: "${templateId}"`);
+          
+          const template = availableTemplates.find((t: { id: string }) => t.id === templateId);
+          
+          if (!template) {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: '❌ Template não encontrado. Verifique o ID e tente novamente.',
+            });
+          } else {
+            try {
+              // Fetch template variations
+              const { data: variations } = await supabase
+                .from('template_variations')
+                .select('content, media_type, media_url, media_filename')
+                .eq('template_id', templateId);
+              
+              // Pick a random variation or use the main template
+              let selectedContent = template.content;
+              let selectedMediaType = template.media_type;
+              let selectedMediaUrl = template.media_url;
+              let selectedMediaFilename = template.media_filename;
+              
+              if (variations && variations.length > 0) {
+                const randomVariation = variations[Math.floor(Math.random() * variations.length)];
+                selectedContent = randomVariation.content;
+                if (randomVariation.media_url) {
+                  selectedMediaType = randomVariation.media_type;
+                  selectedMediaUrl = randomVariation.media_url;
+                  selectedMediaFilename = randomVariation.media_filename;
+                }
+              }
+              
+              // Replace variables in template content
+              selectedContent = replaceVariables(selectedContent, variables, contactName, collectedData);
+              
+              // Prepare phone for sending
+              const rawPhoneTemplate = contactData?.phone || '';
+              let phoneTemplate: string;
+              if (rawPhoneTemplate.startsWith('LID_')) {
+                const labelId = rawPhoneTemplate.replace('LID_', '');
+                phoneTemplate = `${labelId}@lid`;
+              } else {
+                phoneTemplate = rawPhoneTemplate.replace(/\D/g, '');
+                if (!phoneTemplate.startsWith('55')) phoneTemplate = '55' + phoneTemplate;
+              }
+              
+              // Send accompanying text message first if provided
+              if (accompanyingMessage) {
+                const accompanyingText = replaceVariables(accompanyingMessage, variables, contactName, collectedData);
+                await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                  body: JSON.stringify({ number: phoneTemplate, text: accompanyingText }),
+                });
+                
+                // Save accompanying message to inbox
+                await supabase.from('inbox_messages').insert({
+                  user_id: conversation.user_id,
+                  conversation_id: conversationId,
+                  content: accompanyingText,
+                  direction: 'outbound',
+                  status: 'sent',
+                  message_type: 'text',
+                  sent_at: new Date().toISOString(),
+                  is_ai_generated: true,
+                  sent_by_ai_agent_id: config.id,
+                });
+                
+                // Small delay between text and template
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+              
+              // Send template content (text)
+              const textResponse = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                body: JSON.stringify({ number: phoneTemplate, text: selectedContent }),
+              });
+              const textResult = await textResponse.json();
+              const templateTextMsgId = textResult.key?.id || null;
+              
+              // Save template text to inbox
+              await supabase.from('inbox_messages').insert({
+                user_id: conversation.user_id,
+                conversation_id: conversationId,
+                content: selectedContent,
+                direction: 'outbound',
+                status: 'sent',
+                message_type: 'text',
+                whatsapp_message_id: templateTextMsgId,
+                sent_at: new Date().toISOString(),
+                is_ai_generated: true,
+                sent_by_ai_agent_id: config.id,
+              });
+              
+              // Send media if template has media
+              if (selectedMediaUrl && selectedMediaType) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                let mediaEndpoint: string;
+                // deno-lint-ignore no-explicit-any
+                let mediaBody: Record<string, any>;
+                
+                if (selectedMediaType === 'audio') {
+                  mediaEndpoint = `${evolutionApiUrl}/message/sendWhatsAppAudio/${evolutionInstanceName}`;
+                  mediaBody = { number: phoneTemplate, audio: selectedMediaUrl };
+                } else {
+                  mediaEndpoint = `${evolutionApiUrl}/message/sendMedia/${evolutionInstanceName}`;
+                  mediaBody = {
+                    number: phoneTemplate,
+                    media: selectedMediaUrl,
+                    mediatype: selectedMediaType === 'document' ? 'document' : selectedMediaType,
+                    caption: '',
+                  };
+                  if (selectedMediaFilename) {
+                    mediaBody.fileName = selectedMediaFilename;
+                  }
+                }
+                
+                const mediaResponse = await fetch(mediaEndpoint, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                  body: JSON.stringify(mediaBody),
+                });
+                const mediaResult = await mediaResponse.json();
+                const mediaMsgId = mediaResult.key?.id || null;
+                
+                // Save media message to inbox
+                await supabase.from('inbox_messages').insert({
+                  user_id: conversation.user_id,
+                  conversation_id: conversationId,
+                  content: selectedMediaFilename || selectedMediaType,
+                  direction: 'outbound',
+                  status: 'sent',
+                  message_type: selectedMediaType,
+                  media_url: selectedMediaUrl,
+                  whatsapp_message_id: mediaMsgId,
+                  sent_at: new Date().toISOString(),
+                  is_ai_generated: true,
+                  sent_by_ai_agent_id: config.id,
+                });
+                
+                console.log(`[AI-AGENT] Template media sent: ${selectedMediaType}`);
+              }
+              
+              // Update conversation
+              await supabase.from('conversations').update({
+                last_message_at: new Date().toISOString(),
+                last_message_preview: selectedContent.substring(0, 100),
+                last_message_direction: 'outbound',
+              }).eq('id', conversationId);
+              
+              console.log(`[AI-AGENT] Template "${template.name}" sent successfully`);
+              
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `✅ Template "${template.name}" enviado com sucesso ao cliente!${selectedMediaType ? ` (incluindo ${selectedMediaType})` : ''} Conteúdo: "${selectedContent.substring(0, 100)}..."`,
+              });
+            } catch (templateError) {
+              console.error('[AI-AGENT] Error sending template:', templateError);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao enviar template: ${templateError instanceof Error ? templateError.message : 'Erro desconhecido'}`,
               });
             }
           }
