@@ -195,22 +195,22 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       case 'number':
         if (isEditing) {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 min-w-0">
               <Input
                 type="number"
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
-                className="h-8 w-28 text-sm border-primary/30 focus:border-primary"
+                className="h-8 w-20 min-w-0 text-sm border-primary/30 focus:border-primary"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSave(definition.field_key, localFields[definition.field_key]);
                   if (e.key === 'Escape') setEditingField(null);
                 }}
               />
-              <Button size="icon" variant="default" className="h-7 w-7" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
+              <Button size="icon" variant="default" className="h-7 w-7 shrink-0" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
                 <Check className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setEditingField(null)}>
+              <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => setEditingField(null)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
