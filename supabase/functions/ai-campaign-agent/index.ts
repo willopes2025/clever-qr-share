@@ -1639,6 +1639,33 @@ ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra toda
 - Se não souber responder algo específico, sugira falar com um atendente
 - Não invente informações que não estão na base de conhecimento`;
 
+    // Add available templates context for AI
+    if (availableTemplates.length > 0) {
+      const templatesList = availableTemplates.map(t => {
+        let desc = `- [${t.id}] "${t.name}" (${t.category}): ${t.content.substring(0, 80)}...`;
+        if (t.media_type) desc += ` [Mídia: ${t.media_type}]`;
+        return desc;
+      }).join('\n');
+      
+      systemPrompt += `\n\n## 📋 TEMPLATES DISPONÍVEIS
+Você pode enviar templates pré-prontos quando achar relevante. Use a ferramenta send_template para isso.
+Decida com inteligência: envie template quando for útil (ex: catálogo, informações padronizadas, materiais), 
+mas prefira texto livre para respostas conversacionais normais.
+
+Templates disponíveis:
+${templatesList}
+
+### Quando usar templates:
+- Cliente pede informações que um template cobre (catálogo, preços, materiais)
+- Para enviar mídia relevante (imagens, vídeos, documentos)
+- Para respostas padronizadas e profissionais
+- Você pode enviar o template sozinho OU junto com uma mensagem de texto
+
+### Quando NÃO usar templates:
+- Respostas conversacionais simples (saudações, confirmações)
+- Quando nenhum template é relevante para o contexto`;
+    }
+
     // Replace variables in system prompt
     systemPrompt = replaceVariables(systemPrompt, variables, contactName, collectedData);
 
