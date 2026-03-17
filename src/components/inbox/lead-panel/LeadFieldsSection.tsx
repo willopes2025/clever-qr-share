@@ -42,8 +42,17 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   // Filter fields based on active tab's field_keys
   const activeTabData = tabs?.find(t => t.id === activeTabId);
   const tabFieldKeys = activeTabData?.field_keys || [];
+  
+  // Collect all field_keys assigned to ANY tab
+  const allAssignedFieldKeys = new Set(
+    (tabs || []).flatMap(t => t.field_keys || [])
+  );
+  
+  // Show tab-specific fields + unassigned fields (orphans)
   const filteredLeadFields = tabFieldKeys.length > 0
-    ? leadFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+    ? leadFieldDefinitions.filter(f => 
+        tabFieldKeys.includes(f.field_key) || !allAssignedFieldKeys.has(f.field_key)
+      )
     : leadFieldDefinitions;
   
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
