@@ -331,3 +331,5 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         ))
       )}
     </div>
+  );
+};
