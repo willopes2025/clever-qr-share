@@ -266,7 +266,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   }
 
   return (
-    <div className="p-4 space-y-2">
+    <div className="p-4 space-y-2 min-w-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-2">
         <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg">
