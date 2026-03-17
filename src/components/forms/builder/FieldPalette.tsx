@@ -130,7 +130,7 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
         required: false,
         options: defaultOptions,
         validation: null,
-        mapping_type: autoMappingType,
+        mapping_type: autoMappingType as any,
         mapping_target: autoMappingTarget,
         create_custom_field_on_submit: false,
         conditional_logic: null,
