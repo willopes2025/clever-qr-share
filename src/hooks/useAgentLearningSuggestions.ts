@@ -68,7 +68,7 @@ export function useLearningSuggestionMutations() {
           title: title,
           content: content,
           source_type: "text",
-          status: "processed",
+          status: "completed",
         })
         .select()
         .single();
