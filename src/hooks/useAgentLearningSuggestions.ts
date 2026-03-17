@@ -94,9 +94,10 @@ export function useLearningSuggestionMutations() {
       queryClient.invalidateQueries({ queryKey: ["knowledge-items", variables.suggestion.agent_config_id] });
       toast.success("Conhecimento adicionado à base!");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error approving suggestion:", error);
-      toast.error("Erro ao aprovar sugestão");
+      console.error("Error details:", JSON.stringify(error, null, 2));
+      toast.error(`Erro ao aprovar sugestão: ${error?.message || error?.code || 'desconhecido'}`);
     },
   });
 
