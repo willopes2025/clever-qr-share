@@ -393,6 +393,7 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Não salvar no perfil</SelectItem>
+                    <SelectItem value="lookup_by_display_id">🔍 Buscar lead por código</SelectItem>
                     <SelectItem value="contact_field">Campo nativo do contato</SelectItem>
                     <SelectItem value="custom_field">Campo personalizado (Contato)</SelectItem>
                     <SelectItem value="lead_field">Campo personalizado (Lead)</SelectItem>

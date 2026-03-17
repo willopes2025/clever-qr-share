@@ -1,0 +1,2 @@
+ALTER TABLE form_fields DROP CONSTRAINT IF EXISTS form_fields_mapping_type_check;
+ALTER TABLE form_fields ADD CONSTRAINT form_fields_mapping_type_check CHECK (mapping_type IN ('contact_field', 'custom_field', 'new_custom_field', 'lead_field', 'new_lead_field', 'lookup_by_display_id'));
