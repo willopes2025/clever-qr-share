@@ -64,6 +64,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'address', label: 'Endereço', icon: MapPin, category: 'Especiais' },
   { type: 'file', label: 'Upload de Arquivo', icon: FileUp, category: 'Especiais' },
   { type: 'district', label: 'Distrito', icon: MapPin, category: 'Especiais' },
+  { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
   
   // Layout
@@ -89,10 +90,13 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
       : null;
 
     // Auto-mapear campos especiais para campos nativos do contato
-    let autoMappingType: 'contact_field' | 'custom_field' | 'new_custom_field' | null = null;
+    let autoMappingType: 'contact_field' | 'custom_field' | 'new_custom_field' | 'lookup_by_display_id' | null = null;
     let autoMappingTarget: string | null = null;
 
-    if (['name', 'phone', 'email'].includes(fieldType.type)) {
+    if (fieldType.type === 'lead_code') {
+      autoMappingType = 'lookup_by_display_id';
+      autoMappingTarget = 'contact_display_id';
+    } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
     }
@@ -119,14 +123,14 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     createField.mutate(
       {
         form_id: formId,
-        field_type: fieldType.type,
+        field_type: fieldType.type === 'lead_code' ? 'short_text' : fieldType.type,
         label: fieldType.label,
         placeholder: null,
         help_text: null,
         required: false,
         options: defaultOptions,
         validation: null,
-        mapping_type: autoMappingType,
+        mapping_type: autoMappingType as any,
         mapping_target: autoMappingTarget,
         create_custom_field_on_submit: false,
         conditional_logic: null,
