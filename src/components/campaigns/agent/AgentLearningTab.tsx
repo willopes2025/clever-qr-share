@@ -54,9 +54,12 @@ export const AgentLearningTab = ({ agentConfigId }: AgentLearningTabProps) => {
 
   const handleAnalyze = () => {
     if (!agentConfigId) return;
-    analyzeConversations.mutate({ agentConfigId, date: period === "yesterday" ? undefined : undefined });
-    // Pass period to the edge function
-    analyzeConversations.mutate({ agentConfigId, date: period } as any);
+    const periodMap: Record<string, string> = {
+      yesterday: "yesterday",
+      last_7_days: "last_7_days",
+      last_30_days: "last_30_days",
+    };
+    analyzeConversations.mutate({ agentConfigId, date: periodMap[period] || period } as any);
   };
 
   const handleApprove = (suggestion: LearningSuggestion) => {

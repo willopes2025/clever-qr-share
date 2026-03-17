@@ -18,6 +18,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { AIAgentTemplate } from "@/data/ai-agent-templates";
 import { AgentStagesTab } from "@/components/campaigns/agent/AgentStagesTab";
+import { AgentLearningTab } from "@/components/campaigns/agent/AgentLearningTab";
 
 interface AIAgentFormDialogProps {
   open: boolean;
