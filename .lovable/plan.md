@@ -1,44 +1,36 @@
 
 
-# Otimização: Atualizações otimistas no painel do lead (Inbox)
+## Análise: Formulário que atualiza dados do lead pelo código do lead
 
-## Problema
+### O que já existe
 
-Ao editar o nome do contato ou alterar a etapa do funil no painel lateral do Inbox, o sistema faz `invalidateQueries(['conversations'])`, que dispara um refetch completo de **todas as conversas + deals ativos**. Essa query é pesada (join de conversations + contacts + deals + tags) e causa um delay visível de alguns segundos.
+O sistema atual de formulários (`submit-form`) já suporta localizar contatos por `contact_id` (via parâmetro estático `_static_contact_id`) e atualizar seus dados. Porém, **não existe** a possibilidade de localizar um contato pelo `contact_display_id` (código visível como "0001", "0042", etc.).
 
-O mesmo ocorre na troca de etapa via `LeadPanelFunnelBar`: o `updateDeal` já tem optimistic update para o cache `['funnels']` (usado no Kanban), mas **não** atualiza otimisticamente o cache `['conversations']` nem o `['contact-deal']`.
+### Como implementar
 
-## Solução: Optimistic Updates locais
+A ideia é permitir que o formulário tenha um campo onde o respondente digita o código do lead (ex: "0042"), e o sistema use esse código para localizar o contato existente e atualizar seus dados (contato + deal/lead).
 
-Aplicar atualizações otimistas nos caches do React Query para que a UI reflita a mudança instantaneamente, sem esperar o refetch.
+### Plano
 
-### 1. `LeadPanelHeader.tsx` — Edição de nome do contato
+#### 1. Novo mapping_type: `lookup_by_display_id`
+- Adicionar o valor `lookup_by_display_id` ao constraint `form_fields_mapping_type_check` na tabela `form_fields`.
+- Isso permite que um campo do formulário seja configurado como "campo de busca por código do lead".
 
-- Antes do `await supabase.update()`, atualizar otimisticamente o cache `['conversations']` alterando o `contact.name` da conversa correspondente
-- Se der erro, reverter ao snapshot anterior
-- Manter o `invalidateQueries` no final para sincronizar dados reais (mas a UI já mostra o valor novo)
+#### 2. Atualizar `submit-form` Edge Function
+- Antes de tentar criar/buscar contato por telefone/email, verificar se algum campo tem `mapping_type = 'lookup_by_display_id'`.
+- Se existir, buscar o contato na tabela `contacts` usando `contact_display_id` igual ao valor informado.
+- Se encontrado, usar esse contato como base (igual ao fluxo do `_static_contact_id`) e atualizar seus dados e custom fields.
+- Se não encontrado, retornar erro informando que o código não foi encontrado.
 
-### 2. `LeadPanelNotes.tsx` — Edição de notas
+#### 3. Atualizar o Form Builder (UI)
+- No seletor de mapeamento de campo (`FormFieldMappingConfig` ou similar), adicionar a opção "Buscar lead por código" como tipo de mapeamento.
+- Quando selecionado, o campo funciona como identificador de busca, não como dado a ser salvo.
 
-- Mesmo padrão: atualizar `contact.notes` no cache `['conversations']` antes da chamada ao banco
-- Reverter se falhar
+#### 4. Atualizar `public-form` para exibir o campo normalmente
+- Nenhuma mudança necessária no renderizador -- o campo aparece como input de texto normal.
 
-### 3. `LeadPanelFunnelBar.tsx` — Troca de etapa do funil
-
-- Ao trocar de etapa, além do optimistic update no cache `['funnels']` (que já existe), atualizar também o cache `['contact-deal', contactId]` para que o dropdown reflita a nova etapa imediatamente
-- Atualizar o `deal` dentro do cache `['conversations']` para o `stage_name`, `stage_color` e `stage_id` ficarem corretos
-
-### 4. `useFunnels.ts` — `updateDeal.onMutate`
-
-- Estender o `onMutate` existente para também atualizar o cache `['contact-deal']` e `['conversations']` otimisticamente quando `stage_id` muda
-
-## Arquivos a editar
-
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/inbox/lead-panel/LeadPanelHeader.tsx` | Optimistic update do nome no cache `conversations` |
-| `src/components/inbox/lead-panel/LeadPanelNotes.tsx` | Optimistic update das notas no cache `conversations` |
-| `src/hooks/useFunnels.ts` | Estender `onMutate` do `updateDeal` para atualizar caches `contact-deal` e `conversations` |
-
-Mudança de baixo risco — mantém o `invalidateQueries` para sincronização eventual, mas o usuário vê a mudança instantaneamente.
+### Resumo de arquivos alterados
+- **Migração SQL**: Adicionar `lookup_by_display_id` ao constraint `form_fields_mapping_type_check`
+- **`supabase/functions/submit-form/index.ts`**: Lógica de busca por `contact_display_id`
+- **Componente de mapeamento no Form Builder**: Adicionar opção de mapeamento "Buscar lead por código"
 
