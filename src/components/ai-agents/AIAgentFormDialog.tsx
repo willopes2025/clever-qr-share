@@ -452,7 +452,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-7 w-full">
+                <TabsList className="grid grid-cols-8 w-full">
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
@@ -472,6 +472,10 @@ export const AIAgentFormDialog = ({
                   <TabsTrigger value="stages" disabled={!agentId} className="flex items-center gap-1">
                     <Workflow className="h-4 w-4" />
                     <span className="hidden sm:inline">Etapas</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="learning" disabled={!agentId} className="flex items-center gap-1">
+                    <GraduationCap className="h-4 w-4" />
+                    <span className="hidden sm:inline">Aprendizado</span>
                   </TabsTrigger>
                   <TabsTrigger value="calendar" disabled={!agentId} className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
