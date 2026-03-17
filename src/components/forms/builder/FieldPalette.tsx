@@ -64,6 +64,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'address', label: 'Endereço', icon: MapPin, category: 'Especiais' },
   { type: 'file', label: 'Upload de Arquivo', icon: FileUp, category: 'Especiais' },
   { type: 'district', label: 'Distrito', icon: MapPin, category: 'Especiais' },
+  { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
   
   // Layout
