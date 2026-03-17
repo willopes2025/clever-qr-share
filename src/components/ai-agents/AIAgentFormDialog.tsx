@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap } from "lucide-react";
 import { AgentIntegrationsTab } from "@/components/campaigns/agent/AgentIntegrationsTab";
 import { AgentCalendarTab } from "@/components/campaigns/agent/AgentCalendarTab";
 import { AIAgentTestDialog } from "./AIAgentTestDialog";
@@ -18,6 +18,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import { AIAgentTemplate } from "@/data/ai-agent-templates";
 import { AgentStagesTab } from "@/components/campaigns/agent/AgentStagesTab";
+import { AgentLearningTab } from "@/components/campaigns/agent/AgentLearningTab";
 
 interface AIAgentFormDialogProps {
   open: boolean;
@@ -451,7 +452,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-7 w-full">
+                <TabsList className="grid grid-cols-8 w-full">
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
@@ -471,6 +472,10 @@ export const AIAgentFormDialog = ({
                   <TabsTrigger value="stages" disabled={!agentId} className="flex items-center gap-1">
                     <Workflow className="h-4 w-4" />
                     <span className="hidden sm:inline">Etapas</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="learning" disabled={!agentId} className="flex items-center gap-1">
+                    <GraduationCap className="h-4 w-4" />
+                    <span className="hidden sm:inline">Aprendizado</span>
                   </TabsTrigger>
                   <TabsTrigger value="calendar" disabled={!agentId} className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
@@ -734,6 +739,10 @@ export const AIAgentFormDialog = ({
                       Salve o agente primeiro para configurar etapas
                     </p>
                   )}
+                </TabsContent>
+
+                <TabsContent value="learning" className="mt-4">
+                  <AgentLearningTab agentConfigId={agentId} />
                 </TabsContent>
 
                 <TabsContent value="calendar" className="mt-4">

@@ -137,9 +137,9 @@ export function useLearningSuggestionMutations() {
   });
 
   const analyzeConversations = useMutation({
-    mutationFn: async ({ agentConfigId, date }: { agentConfigId: string; date?: string }) => {
+    mutationFn: async ({ agentConfigId, date, period, conversationId }: { agentConfigId: string; date?: string; period?: string; conversationId?: string }) => {
       const { data, error } = await supabase.functions.invoke("analyze-agent-learning", {
-        body: { agentConfigId, date },
+        body: { agentConfigId, date, period, conversationId },
       });
 
       if (error) throw error;
