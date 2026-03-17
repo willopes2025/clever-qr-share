@@ -722,15 +722,7 @@ export const AIAgentFormDialog = ({
                 </TabsContent>
 
                 <TabsContent value="knowledge" className="mt-4">
-                  {agentId ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      Base de conhecimento disponível após salvar
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-8">
-                      Salve o agente primeiro para adicionar conhecimento
-                    </p>
-                  )}
+                  <AgentKnowledgeTabWrapper agentConfigId={agentId} />
                 </TabsContent>
 
                 <TabsContent value="stages" className="mt-4">
