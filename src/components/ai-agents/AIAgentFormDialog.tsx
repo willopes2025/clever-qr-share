@@ -29,6 +29,17 @@ interface AIAgentFormDialogProps {
   editingAgentId: string | null;
 }
 
+const AgentKnowledgeTabWrapper = ({ agentConfigId }: { agentConfigId: string | null }) => {
+  const { data: knowledgeItems = [], isLoading } = useKnowledgeItems(agentConfigId);
+  return (
+    <AgentKnowledgeTab
+      agentConfigId={agentConfigId}
+      knowledgeItems={knowledgeItems}
+      isLoading={isLoading}
+    />
+  );
+};
+
 type DialogStep = "company_context" | "agent_form";
 
 export const AIAgentFormDialog = ({
