@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap } from "lucide-react";
 import { AgentIntegrationsTab } from "@/components/campaigns/agent/AgentIntegrationsTab";
 import { AgentCalendarTab } from "@/components/campaigns/agent/AgentCalendarTab";
 import { AIAgentTestDialog } from "./AIAgentTestDialog";
