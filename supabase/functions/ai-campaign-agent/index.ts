@@ -1684,9 +1684,39 @@ ${templatesList}
       max_tokens: 500,
     };
 
-    // Add tools if calendar integration is active
+    // Add tools
+    const tools = [];
     if (hasCalendarIntegration) {
-      aiRequestBody.tools = getCalendlyTools();
+      tools.push(...getCalendlyTools());
+    }
+    
+    // Add template tool if templates are available
+    if (availableTemplates.length > 0) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'send_template',
+          description: 'Envia um template pré-pronto para o cliente. Use quando o conteúdo de um template for relevante para a conversa. Pode incluir texto, imagens, vídeos ou documentos.',
+          parameters: {
+            type: 'object',
+            properties: {
+              template_id: {
+                type: 'string',
+                description: 'ID do template a ser enviado (use o ID entre colchetes da lista de templates disponíveis)',
+              },
+              accompanying_message: {
+                type: 'string',
+                description: 'Mensagem de texto opcional para enviar JUNTO com o template. Deixe vazio se o template for auto-explicativo.',
+              },
+            },
+            required: ['template_id'],
+          },
+        },
+      });
+    }
+    
+    if (tools.length > 0) {
+      aiRequestBody.tools = tools;
       aiRequestBody.tool_choice = 'auto';
     }
 
