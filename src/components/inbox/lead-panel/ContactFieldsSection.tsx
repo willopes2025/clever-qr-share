@@ -277,7 +277,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
             <Input
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
-              className="h-8 w-40 text-sm border-primary/30 focus:border-primary"
+              className="h-8 flex-1 min-w-0 text-sm border-primary/30 focus:border-primary"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveName();
