@@ -186,6 +186,48 @@ Deno.serve(async (req: Request) => {
 
     let contactId: string | null = null;
 
+    // Check if lookup_by_display_id was used to find contact by display code
+    if (lookupDisplayId) {
+      const paddedId = lookupDisplayId.replace(/\D/g, '').padStart(4, '0');
+      const { data: lookupContact } = await supabase
+        .from('contacts')
+        .select('id, custom_fields')
+        .eq('user_id', form.user_id)
+        .eq('contact_display_id', paddedId)
+        .single();
+
+      if (lookupContact) {
+        contactId = lookupContact.id;
+        console.log(`Found contact by display_id ${paddedId}: ${contactId}`);
+
+        // Update contact data if provided
+        const updateData: Record<string, any> = {};
+        if (contactData.name) updateData.name = contactData.name;
+        if (contactData.email) updateData.email = contactData.email;
+        if (contactData.phone) updateData.phone = contactData.phone;
+        
+        if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
+          updateData.custom_fields = {
+            ...(lookupContact.custom_fields || {}),
+            ...contactData.custom_fields,
+          };
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await supabase
+            .from('contacts')
+            .update(updateData)
+            .eq('id', contactId);
+        }
+      } else {
+        console.warn(`Contact not found for display_id: ${paddedId}`);
+        return new Response(
+          JSON.stringify({ error: `Lead com código "${lookupDisplayId}" não encontrado` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Check if a static contact_id was provided (trackable form link from inbox)
     const staticContactId = staticParams.contact_id;
     if (staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
