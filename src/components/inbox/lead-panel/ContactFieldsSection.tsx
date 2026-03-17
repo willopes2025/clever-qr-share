@@ -195,22 +195,22 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       case 'number':
         if (isEditing) {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 min-w-0">
               <Input
                 type="number"
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
-                className="h-8 w-28 text-sm border-primary/30 focus:border-primary"
+                className="h-8 w-20 min-w-0 text-sm border-primary/30 focus:border-primary"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSave(definition.field_key, localFields[definition.field_key]);
                   if (e.key === 'Escape') setEditingField(null);
                 }}
               />
-              <Button size="icon" variant="default" className="h-7 w-7" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
+              <Button size="icon" variant="default" className="h-7 w-7 shrink-0" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
                 <Check className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setEditingField(null)}>
+              <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => setEditingField(null)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -229,21 +229,21 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       default: // text, url, phone, email
         if (isEditing) {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
               <Input
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
-                className="h-8 flex-1 text-sm border-primary/30 focus:border-primary"
+                className="h-8 flex-1 min-w-0 text-sm border-primary/30 focus:border-primary"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSave(definition.field_key, localFields[definition.field_key]);
                   if (e.key === 'Escape') setEditingField(null);
                 }}
               />
-              <Button size="icon" variant="default" className="h-7 w-7" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
+              <Button size="icon" variant="default" className="h-7 w-7 shrink-0" onClick={() => handleSave(definition.field_key, localFields[definition.field_key])}>
                 <Check className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setEditingField(null)}>
+              <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => setEditingField(null)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -252,7 +252,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
         return (
           <button 
             onClick={() => setEditingField(definition.field_key)}
-            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] max-w-[180px]"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden"
           >
             <span className="truncate">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
@@ -262,18 +262,18 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
   };
 
   return (
-    <div className="p-4 space-y-2 min-w-0 overflow-hidden">
+    <div className="p-4 space-y-2 min-w-0">
       {/* Header */}
-      <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-lg mb-3">
-        <User className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-semibold text-muted-foreground">Dados do Contato</span>
+      <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-lg mb-3 min-w-0">
+        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="text-sm font-semibold text-muted-foreground truncate">Dados do Contato</span>
       </div>
 
       {/* Nome Completo - Campo Editável */}
-      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-        <span className="text-xs font-medium text-foreground/70">Nome Completo</span>
+      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+        <span className="text-xs font-medium text-foreground/70 shrink-0">Nome Completo</span>
         {isEditingName ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
             <Input
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
@@ -287,10 +287,10 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
                 }
               }}
             />
-            <Button size="icon" variant="default" className="h-7 w-7" onClick={handleSaveName}>
+            <Button size="icon" variant="default" className="h-7 w-7 shrink-0" onClick={handleSaveName}>
               <Check className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => {
+            <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => {
               setLocalName(contact.name || '');
               setIsEditingName(false);
             }}>
@@ -300,7 +300,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
         ) : (
           <button 
             onClick={() => setIsEditingName(true)}
-            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] max-w-[180px]"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden"
           >
             <span className="truncate">{contact.name || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
@@ -309,27 +309,27 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       </div>
 
       {/* Standard Contact Fields */}
-      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-        <span className="text-xs font-medium text-foreground/70">Telefone</span>
-        <span className="text-sm text-foreground">{contact.phone || '-'}</span>
+      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+        <span className="text-xs font-medium text-foreground/70 shrink-0">Telefone</span>
+        <span className="text-sm text-foreground truncate min-w-0">{contact.phone || '-'}</span>
       </div>
       
       {contact.email && (
-        <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-          <span className="text-xs font-medium text-foreground/70">Email</span>
-          <span className="text-sm text-foreground truncate max-w-[180px]">{contact.email}</span>
+        <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+          <span className="text-xs font-medium text-foreground/70 shrink-0">Email</span>
+          <span className="text-sm text-foreground truncate min-w-0">{contact.email}</span>
         </div>
       )}
 
       {/* Custom Contact Fields */}
       {filteredContactFields.map((field) => (
-        <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field">
-          <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
-          <div className="flex-1 flex justify-end items-center gap-1">
+        <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2">
+          <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
+          <div className="flex-1 flex justify-end items-center gap-1 min-w-0 overflow-hidden">
             {renderFieldValue(field)}
             <button
               onClick={() => deleteField.mutate(field.id)}
-              className="opacity-0 group-hover/field:opacity-100 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+              className="opacity-0 group-hover/field:opacity-100 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
               title="Excluir campo"
             >
               <Trash2 className="h-3.5 w-3.5" />
