@@ -189,12 +189,18 @@ Deno.serve(async (req: Request) => {
     // Check if lookup_by_display_id was used to find contact by display code
     if (lookupDisplayId) {
       const paddedId = lookupDisplayId.replace(/\D/g, '').padStart(4, '0');
+      
+      // Get all organization member IDs to search across the org
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: form.user_id });
+      const memberIds = orgMemberIds?.map((r: any) => typeof r === 'string' ? r : r.get_organization_member_ids) || [form.user_id];
+      
       const { data: lookupContact } = await supabase
         .from('contacts')
-        .select('id, custom_fields')
-        .eq('user_id', form.user_id)
+        .select('id, custom_fields, user_id')
+        .in('user_id', memberIds)
         .eq('contact_display_id', paddedId)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (lookupContact) {
         contactId = lookupContact.id;
@@ -220,7 +226,7 @@ Deno.serve(async (req: Request) => {
             .eq('id', contactId);
         }
       } else {
-        console.warn(`Contact not found for display_id: ${paddedId}`);
+        console.warn(`Contact not found for display_id: ${paddedId} across org members`);
         return new Response(
           JSON.stringify({ error: `Lead com código "${lookupDisplayId}" não encontrado` }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
