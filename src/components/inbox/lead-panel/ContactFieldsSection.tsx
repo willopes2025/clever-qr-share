@@ -44,8 +44,17 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
   // Filter fields based on active tab's field_keys
   const activeTabData = tabs?.find(t => t.id === activeTabId);
   const tabFieldKeys = activeTabData?.field_keys || [];
+  
+  // Collect all field_keys assigned to ANY tab
+  const allAssignedFieldKeys = new Set(
+    (tabs || []).flatMap(t => t.field_keys || [])
+  );
+  
+  // Show tab-specific fields + unassigned fields (orphans)
   const filteredContactFields = tabFieldKeys.length > 0
-    ? contactFieldDefinitions.filter(f => tabFieldKeys.includes(f.field_key))
+    ? contactFieldDefinitions.filter(f => 
+        tabFieldKeys.includes(f.field_key) || !allAssignedFieldKeys.has(f.field_key)
+      )
     : contactFieldDefinitions;
   
   const customFields = (contact.custom_fields || {}) as Record<string, any>;
