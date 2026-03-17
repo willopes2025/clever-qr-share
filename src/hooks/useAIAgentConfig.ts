@@ -333,9 +333,21 @@ export const useKnowledgeItemMutations = () => {
         .single();
 
       if (error) throw error;
+
+      const { data: processData, error: processError } = await supabase.functions.invoke('process-knowledge-url', {
+        body: { knowledgeItemId: data.id },
+      });
+
+      if (processError) {
+        throw new Error(processError.message || 'Erro ao processar URL');
+      }
+
+      if (processData && typeof processData === 'object' && 'success' in processData && !processData.success) {
+        throw new Error(
+          typeof processData.error === 'string' ? processData.error : 'Erro ao processar URL'
+        );
+      }
       
-      // Trigger URL processing (could be an edge function)
-      // For now, just return the item
       return data;
     },
     onSuccess: (_, variables) => {
