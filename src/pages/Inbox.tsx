@@ -271,7 +271,7 @@ const Inbox = () => {
                   isRightPanelCollapsed ? "w-0" : "w-96"
                 )}
               >
-                <div className="w-96 h-full">
+                <div className="w-96 h-full min-w-0 overflow-hidden">
                   <RightSidePanel
                     conversation={selectedConversation}
                     isOpen={true}
