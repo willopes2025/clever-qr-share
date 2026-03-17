@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { AIAgentTemplate } from "@/data/ai-agent-templates";
 import { AgentStagesTab } from "@/components/campaigns/agent/AgentStagesTab";
 import { AgentLearningTab } from "@/components/campaigns/agent/AgentLearningTab";
+import { AgentKnowledgeTab } from "@/components/campaigns/agent/AgentKnowledgeTab";
+import { useKnowledgeItems } from "@/hooks/useAIAgentConfig";
 
 interface AIAgentFormDialogProps {
   open: boolean;
@@ -26,6 +28,17 @@ interface AIAgentFormDialogProps {
   template: AIAgentTemplate | null;
   editingAgentId: string | null;
 }
+
+const AgentKnowledgeTabWrapper = ({ agentConfigId }: { agentConfigId: string | null }) => {
+  const { data: knowledgeItems = [], isLoading } = useKnowledgeItems(agentConfigId);
+  return (
+    <AgentKnowledgeTab
+      agentConfigId={agentConfigId}
+      knowledgeItems={knowledgeItems}
+      isLoading={isLoading}
+    />
+  );
+};
 
 type DialogStep = "company_context" | "agent_form";
 
@@ -720,15 +733,7 @@ export const AIAgentFormDialog = ({
                 </TabsContent>
 
                 <TabsContent value="knowledge" className="mt-4">
-                  {agentId ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      Base de conhecimento disponível após salvar
-                    </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-8">
-                      Salve o agente primeiro para adicionar conhecimento
-                    </p>
-                  )}
+                  <AgentKnowledgeTabWrapper agentConfigId={agentId} />
                 </TabsContent>
 
                 <TabsContent value="stages" className="mt-4">
