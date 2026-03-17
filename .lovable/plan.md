@@ -1,29 +1,44 @@
 
 
-## Problema Identificado
+# Otimização: Atualizações otimistas no painel do lead (Inbox)
 
-As políticas de segurança (RLS) nas tabelas `ai_knowledge_suggestions` e `ai_agent_knowledge_items` estão configuradas como `auth.uid() = user_id`, ou seja, restringem acesso apenas ao **usuário exato** cujo ID está na coluna `user_id`.
+## Problema
 
-A Edge Function `analyze-agent-learning` grava as sugestões com `user_id = agentConfig.user_id` (o dono do agente). Se o usuário logado não for o dono do agente:
-1. **Não consegue VER** as sugestões (SELECT bloqueado pelo RLS)
-2. **Não consegue ATUALIZAR** as sugestões ao aprovar/ignorar (UPDATE bloqueado)
+Ao editar o nome do contato ou alterar a etapa do funil no painel lateral do Inbox, o sistema faz `invalidateQueries(['conversations'])`, que dispara um refetch completo de **todas as conversas + deals ativos**. Essa query é pesada (join de conversations + contacts + deals + tags) e causa um delay visível de alguns segundos.
 
-Mesmo que o usuário seja o dono, o `update` na tabela `ai_knowledge_suggestions` pode falhar silenciosamente se houver discrepância de IDs.
+O mesmo ocorre na troca de etapa via `LeadPanelFunnelBar`: o `updateDeal` já tem optimistic update para o cache `['funnels']` (usado no Kanban), mas **não** atualiza otimisticamente o cache `['conversations']` nem o `['contact-deal']`.
 
-## Solução
+## Solução: Optimistic Updates locais
 
-### 1. Atualizar RLS de `ai_knowledge_suggestions` para org-wide
-- Trocar `auth.uid() = user_id` por verificação via `get_organization_member_ids`
-- SELECT, UPDATE, DELETE: permitir para membros da mesma organização
-- INSERT: manter `auth.uid() = user_id` ou org-wide
+Aplicar atualizações otimistas nos caches do React Query para que a UI reflita a mudança instantaneamente, sem esperar o refetch.
 
-### 2. Atualizar RLS de `ai_agent_knowledge_items` para org-wide
-- Mesma lógica: permitir que membros da organização vejam e criem itens de conhecimento
+### 1. `LeadPanelHeader.tsx` — Edição de nome do contato
 
-### 3. Corrigir o hook `useAgentLearningSuggestions`
-- No `approveSuggestion`, a query de SELECT filtra por `agent_config_id` mas o RLS bloqueia. Com o RLS corrigido, isso resolve automaticamente.
+- Antes do `await supabase.update()`, atualizar otimisticamente o cache `['conversations']` alterando o `contact.name` da conversa correspondente
+- Se der erro, reverter ao snapshot anterior
+- Manter o `invalidateQueries` no final para sincronizar dados reais (mas a UI já mostra o valor novo)
 
-### Alterações
-- **Migração SQL**: Dropar e recriar as policies das duas tabelas usando `user_id IN (SELECT get_organization_member_ids(auth.uid()))`
-- **Sem alterações no frontend** — o código já está correto, só o RLS está bloqueando
+### 2. `LeadPanelNotes.tsx` — Edição de notas
+
+- Mesmo padrão: atualizar `contact.notes` no cache `['conversations']` antes da chamada ao banco
+- Reverter se falhar
+
+### 3. `LeadPanelFunnelBar.tsx` — Troca de etapa do funil
+
+- Ao trocar de etapa, além do optimistic update no cache `['funnels']` (que já existe), atualizar também o cache `['contact-deal', contactId]` para que o dropdown reflita a nova etapa imediatamente
+- Atualizar o `deal` dentro do cache `['conversations']` para o `stage_name`, `stage_color` e `stage_id` ficarem corretos
+
+### 4. `useFunnels.ts` — `updateDeal.onMutate`
+
+- Estender o `onMutate` existente para também atualizar o cache `['contact-deal']` e `['conversations']` otimisticamente quando `stage_id` muda
+
+## Arquivos a editar
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/inbox/lead-panel/LeadPanelHeader.tsx` | Optimistic update do nome no cache `conversations` |
+| `src/components/inbox/lead-panel/LeadPanelNotes.tsx` | Optimistic update das notas no cache `conversations` |
+| `src/hooks/useFunnels.ts` | Estender `onMutate` do `updateDeal` para atualizar caches `contact-deal` e `conversations` |
+
+Mudança de baixo risco — mantém o `invalidateQueries` para sincronização eventual, mas o usuário vê a mudança instantaneamente.
 
