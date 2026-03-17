@@ -90,10 +90,13 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
       : null;
 
     // Auto-mapear campos especiais para campos nativos do contato
-    let autoMappingType: 'contact_field' | 'custom_field' | 'new_custom_field' | null = null;
+    let autoMappingType: 'contact_field' | 'custom_field' | 'new_custom_field' | 'lookup_by_display_id' | null = null;
     let autoMappingTarget: string | null = null;
 
-    if (['name', 'phone', 'email'].includes(fieldType.type)) {
+    if (fieldType.type === 'lead_code') {
+      autoMappingType = 'lookup_by_display_id';
+      autoMappingTarget = 'contact_display_id';
+    } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
     }
