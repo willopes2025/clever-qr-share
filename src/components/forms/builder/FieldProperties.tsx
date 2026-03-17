@@ -402,6 +402,12 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                   </SelectContent>
                 </Select>
 
+                {localField.mapping_type === 'lookup_by_display_id' && (
+                  <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 p-2 rounded">
+                    Este campo será usado para buscar um lead existente pelo código (ex: 0042). Os demais campos do formulário atualizarão os dados desse lead.
+                  </p>
+                )}
+
                 {localField.mapping_type === 'contact_field' && (
                   <Select
                     value={localField.mapping_target || ''}
