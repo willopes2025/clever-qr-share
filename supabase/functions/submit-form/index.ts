@@ -485,7 +485,28 @@ Deno.serve(async (req: Request) => {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
         } else {
-          console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
+          // Update existing deal's custom fields if we have new lead data
+          if (Object.keys(dealCustomFields).length > 0) {
+            const { data: dealWithFields } = await supabase
+              .from('funnel_deals')
+              .select('custom_fields')
+              .eq('id', existingDeal.id)
+              .single();
+            
+            const mergedDealFields = {
+              ...((dealWithFields?.custom_fields as Record<string, any>) || {}),
+              ...dealCustomFields,
+            };
+            
+            await supabase
+              .from('funnel_deals')
+              .update({ custom_fields: mergedDealFields })
+              .eq('id', existingDeal.id);
+            
+            console.log(`Updated deal ${existingDeal.id} custom fields with form data`);
+          } else {
+            console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
+          }
         }
       }
     } catch (dealError) {
