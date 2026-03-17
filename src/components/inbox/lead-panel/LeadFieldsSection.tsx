@@ -266,25 +266,25 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   }
 
   return (
-    <div className="p-4 space-y-2 min-w-0 overflow-hidden">
+    <div className="p-4 space-y-2 min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 mb-2">
-        <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg">
-          <Target className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold text-primary">Dados do Lead</span>
+      <div className="flex items-center justify-between pb-3 mb-2 min-w-0">
+        <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg min-w-0">
+          <Target className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold text-primary truncate">Dados do Lead</span>
         </div>
         <CustomFieldsManager />
       </div>
 
       {/* Título do Lead - Campo Editável */}
-      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-        <span className="text-xs font-medium text-foreground/70">Título do Lead</span>
+      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+        <span className="text-xs font-medium text-foreground/70 shrink-0">Título do Lead</span>
         {isEditingTitle ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
             <Input
               value={localTitle}
               onChange={(e) => setLocalTitle(e.target.value)}
-              className="h-8 flex-1 min-w-0 text-sm border-primary/30 focus:border-primary"
+              className="h-8 min-w-0 flex-1 text-sm border-primary/30 focus:border-primary"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveTitle();
@@ -294,10 +294,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
                 }
               }}
             />
-            <Button size="icon" variant="default" className="h-7 w-7" onClick={handleSaveTitle}>
+            <Button size="icon" variant="default" className="h-7 w-7 shrink-0" onClick={handleSaveTitle}>
               <Check className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => {
+            <Button size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => {
               setLocalTitle(deal?.title || '');
               setIsEditingTitle(false);
             }}>
@@ -307,7 +307,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         ) : (
           <button 
             onClick={() => setIsEditingTitle(true)}
-            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] max-w-[180px]"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden"
           >
             <span className="truncate">{deal?.title || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
@@ -322,14 +322,12 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         </p>
       ) : (
         filteredLeadFields.map((field) => (
-          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-            <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
-            <div className="flex-1 flex justify-end items-center">
+          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+            <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
+            <div className="flex-1 flex justify-end items-center min-w-0 overflow-hidden">
               {renderFieldValue(field)}
             </div>
           </div>
         ))
       )}
     </div>
-  );
-};
