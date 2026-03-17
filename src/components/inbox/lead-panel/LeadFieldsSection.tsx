@@ -266,7 +266,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   }
 
   return (
-    <div className="p-4 space-y-2">
+    <div className="p-4 space-y-2 min-w-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-2">
         <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg">
@@ -284,7 +284,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             <Input
               value={localTitle}
               onChange={(e) => setLocalTitle(e.target.value)}
-              className="h-8 w-40 text-sm border-primary/30 focus:border-primary"
+              className="h-8 flex-1 min-w-0 text-sm border-primary/30 focus:border-primary"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveTitle();

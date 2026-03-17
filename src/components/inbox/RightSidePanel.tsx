@@ -51,7 +51,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
         isMobile={isMobile}
       />
 
-      <ScrollArea className="flex-1 min-w-0">
+      <ScrollArea className="flex-1 min-w-0 overflow-hidden">
         {/* Tags Section */}
         <LeadPanelTagsSection conversationId={conversation.id} />
 

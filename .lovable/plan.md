@@ -1,34 +1,44 @@
 
 
+# Otimização: Atualizações otimistas no painel do lead (Inbox)
+
 ## Problema
 
-O painel do lead tem largura fixa de `w-96` (384px). O `ScrollArea` dentro do `RightSidePanel` controla o scroll vertical, mas os componentes filhos (abas, campos, etc.) não respeitam essa largura máxima. Quando muitas abas são adicionadas ou campos com conteúdo largo são exibidos, o conteúdo interno força o painel a expandir horizontalmente, empurrando elementos para fora da tela.
+Ao editar o nome do contato ou alterar a etapa do funil no painel lateral do Inbox, o sistema faz `invalidateQueries(['conversations'])`, que dispara um refetch completo de **todas as conversas + deals ativos**. Essa query é pesada (join de conversations + contacts + deals + tags) e causa um delay visível de alguns segundos.
 
-A raiz do problema está em dois pontos:
+O mesmo ocorre na troca de etapa via `LeadPanelFunnelBar`: o `updateDeal` já tem optimistic update para o cache `['funnels']` (usado no Kanban), mas **não** atualiza otimisticamente o cache `['conversations']` nem o `['contact-deal']`.
 
-1. **Container pai com `w-96` fixo + inner `div` também com `w-96`** no `Inbox.tsx` (linha 274): o container externo tem `overflow-hidden`, mas o interno não tem restrição de largura relativa.
+## Solução: Optimistic Updates locais
 
-2. **`ScrollArea` não restringe largura dos filhos**: O `ScrollAreaPrimitive.Viewport` usa `w-full` mas herda do pai que pode expandir. Os filhos como `LeadFieldsSection` e `ContactFieldsSection` têm elementos com larguras fixas (inputs, botões de edição) que podem ultrapassar o container.
+Aplicar atualizações otimistas nos caches do React Query para que a UI reflita a mudança instantaneamente, sem esperar o refetch.
 
-## Plano de Correção
+### 1. `LeadPanelHeader.tsx` — Edição de nome do contato
 
-### 1. Corrigir container no `Inbox.tsx`
-- Trocar `<div className="w-96 h-full">` por `<div className="w-96 h-full min-w-0 overflow-hidden">` para garantir que o conteúdo interno nunca extrapole.
+- Antes do `await supabase.update()`, atualizar otimisticamente o cache `['conversations']` alterando o `contact.name` da conversa correspondente
+- Se der erro, reverter ao snapshot anterior
+- Manter o `invalidateQueries` no final para sincronizar dados reais (mas a UI já mostra o valor novo)
 
-### 2. Corrigir `RightSidePanel.tsx`
-- Adicionar `overflow-hidden` ao `ScrollArea` para reforçar contenção horizontal.
+### 2. `LeadPanelNotes.tsx` — Edição de notas
 
-### 3. Corrigir `LeadFieldsSection.tsx` e `ContactFieldsSection.tsx`
-- Adicionar `min-w-0 overflow-hidden` ao container raiz (`<div className="p-4 space-y-2">`) de ambos.
-- Nos campos de edição inline, garantir que inputs e botões usem `min-w-0` e `overflow-hidden` para não expandir além do container.
-- Reduzir largura dos inputs de edição de `w-40` para `w-32` ou usar `flex-1 min-w-0` para que se adaptem.
+- Mesmo padrão: atualizar `contact.notes` no cache `['conversations']` antes da chamada ao banco
+- Reverter se falhar
 
-### 4. Corrigir `LeadPanelTabs.tsx`
-- Já está com `overflow-hidden` no container externo e `overflow-x-auto` no interno -- sem alteração necessária.
+### 3. `LeadPanelFunnelBar.tsx` — Troca de etapa do funil
 
-### Resumo das alterações
-- `src/pages/Inbox.tsx` -- adicionar `min-w-0 overflow-hidden` no wrapper interno
-- `src/components/inbox/RightSidePanel.tsx` -- `overflow-hidden` no ScrollArea
-- `src/components/inbox/lead-panel/LeadFieldsSection.tsx` -- `min-w-0 overflow-hidden` no container + ajustar inputs
-- `src/components/inbox/lead-panel/ContactFieldsSection.tsx` -- mesmas correções
+- Ao trocar de etapa, além do optimistic update no cache `['funnels']` (que já existe), atualizar também o cache `['contact-deal', contactId]` para que o dropdown reflita a nova etapa imediatamente
+- Atualizar o `deal` dentro do cache `['conversations']` para o `stage_name`, `stage_color` e `stage_id` ficarem corretos
+
+### 4. `useFunnels.ts` — `updateDeal.onMutate`
+
+- Estender o `onMutate` existente para também atualizar o cache `['contact-deal']` e `['conversations']` otimisticamente quando `stage_id` muda
+
+## Arquivos a editar
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/inbox/lead-panel/LeadPanelHeader.tsx` | Optimistic update do nome no cache `conversations` |
+| `src/components/inbox/lead-panel/LeadPanelNotes.tsx` | Optimistic update das notas no cache `conversations` |
+| `src/hooks/useFunnels.ts` | Estender `onMutate` do `updateDeal` para atualizar caches `contact-deal` e `conversations` |
+
+Mudança de baixo risco — mantém o `invalidateQueries` para sincronização eventual, mas o usuário vê a mudança instantaneamente.
 
