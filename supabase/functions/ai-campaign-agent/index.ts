@@ -1091,11 +1091,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Fetch knowledge base, variables, stages, and calendar integration if agent config exists
+    // Fetch knowledge base, variables, stages, calendar integration, and templates
     let knowledgeItems: KnowledgeItem[] = [];
     let variables: AgentVariable[] = [];
     let stages: AgentStage[] = [];
     let calendarIntegration: CalendarIntegration | null = null;
+    // deno-lint-ignore no-explicit-any
+    let availableTemplates: any[] = [];
     
     if (agentConfig?.id) {
       // Fetch knowledge items
@@ -1137,6 +1139,17 @@ Deno.serve(async (req: Request) => {
         calendarIntegration = calendarData as CalendarIntegration;
       }
     }
+
+    // Fetch available templates for the user (for AI to send)
+    const { data: templatesData } = await supabase
+      .from('message_templates')
+      .select('id, name, content, category, media_type, media_url, media_filename')
+      .eq('user_id', conversation.user_id)
+      .eq('is_active', true)
+      .order('name');
+    
+    availableTemplates = templatesData || [];
+    console.log(`[AI-AGENT] Found ${availableTemplates.length} available templates`);
 
     // Fetch or create conversation stage data
     let stageData: StageData | null = null;
