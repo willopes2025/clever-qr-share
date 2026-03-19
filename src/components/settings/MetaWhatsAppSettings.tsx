@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MetaEmbeddedSignup } from "./MetaEmbeddedSignup";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WhatsAppConnectButton, WhatsAppNumbersList } from "./meta-official";
 
 const SUPABASE_PROJECT_ID = "fgbenetdksqnvwkgnips";
 const WEBHOOK_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/meta-whatsapp-webhook`;
