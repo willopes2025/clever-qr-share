@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { useConversationNotes } from "@/hooks/useConversationNotes";
 import { useConversationTasks } from "@/hooks/useConversationTasks";
 import { useInternalMessages } from "@/hooks/useInternalMessages";
