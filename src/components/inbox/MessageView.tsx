@@ -153,14 +153,22 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     );
   }, [activeFlows, slashSearchTerm]);
 
-  // Set default instance when instances load or conversation changes
+  // Set default instance/meta number when conversation changes
   useEffect(() => {
-    if (conversation.instance_id) {
-      setSelectedInstanceId(conversation.instance_id);
-    } else if (connectedInstances.length > 0 && !selectedInstanceId) {
-      setSelectedInstanceId(connectedInstances[0].id);
+    if (isMetaConversation) {
+      const metaId = (conversation as any).meta_phone_number_id || "";
+      setSelectedMetaNumberId(metaId);
+      if (!metaId && metaNumbers.length > 0) {
+        setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+      }
+    } else {
+      if (conversation.instance_id) {
+        setSelectedInstanceId(conversation.instance_id);
+      } else if (connectedInstances.length > 0 && !selectedInstanceId) {
+        setSelectedInstanceId(connectedInstances[0].id);
+      }
     }
-  }, [conversation.instance_id, connectedInstances, selectedInstanceId]);
+  }, [conversation.instance_id, (conversation as any).meta_phone_number_id, conversation.provider, connectedInstances, metaNumbers]);
 
   // Persist sender name preference
   useEffect(() => {
