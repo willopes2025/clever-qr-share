@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Conversation, InboxMessage, useMessages } from "@/hooks/useConversations";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { useConversationNotes } from "@/hooks/useConversationNotes";
 import { useConversationTasks } from "@/hooks/useConversationTasks";
 import { useInternalMessages } from "@/hooks/useInternalMessages";
@@ -74,6 +75,7 @@ interface OptimisticMessage extends InboxMessage {
 export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
+  const { metaNumbers, getLabel: getMetaLabel } = useMetaNumbersMap();
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
@@ -84,8 +86,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
+  const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
+  );
+  const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
+    (conversation as any).meta_phone_number_id || ""
   );
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -147,14 +153,22 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     );
   }, [activeFlows, slashSearchTerm]);
 
-  // Set default instance when instances load or conversation changes
+  // Set default instance/meta number when conversation changes
   useEffect(() => {
-    if (conversation.instance_id) {
-      setSelectedInstanceId(conversation.instance_id);
-    } else if (connectedInstances.length > 0 && !selectedInstanceId) {
-      setSelectedInstanceId(connectedInstances[0].id);
+    if (isMetaConversation) {
+      const metaId = (conversation as any).meta_phone_number_id || "";
+      setSelectedMetaNumberId(metaId);
+      if (!metaId && metaNumbers.length > 0) {
+        setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+      }
+    } else {
+      if (conversation.instance_id) {
+        setSelectedInstanceId(conversation.instance_id);
+      } else if (connectedInstances.length > 0 && !selectedInstanceId) {
+        setSelectedInstanceId(connectedInstances[0].id);
+      }
     }
-  }, [conversation.instance_id, connectedInstances, selectedInstanceId]);
+  }, [conversation.instance_id, (conversation as any).meta_phone_number_id, conversation.provider, connectedInstances, metaNumbers]);
 
   // Persist sender name preference
   useEffect(() => {
@@ -242,7 +256,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   }, [optimisticMessages.length]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !selectedInstanceId) return;
+    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    if (!newMessage.trim() || !hasValidSender) return;
 
     let messageContent = newMessage.trim();
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -308,7 +323,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     textareaRef.current?.focus();
 
     // Send in background - no await blocking
-    sendMessage.mutateAsync({
+    sendMessage.mutateAsync(isMetaConversation ? {
+      content: messageContent,
+      conversationId: conversation.id,
+      instanceId: selectedMetaNumberId, // meta uses phone_number_id as instanceId in send-inbox-message
+    } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
@@ -321,8 +340,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
-    if (!selectedInstanceId) {
-      toast.error("Selecione uma instância primeiro");
+    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    if (!hasValidSender) {
+      toast.error("Selecione um número primeiro");
       return;
     }
 
@@ -359,7 +379,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     try {
       await sendMediaMessage.mutateAsync({
         conversationId: conversation.id,
-        instanceId: selectedInstanceId,
+        instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
       });
@@ -768,6 +788,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                     className="text-xs text-muted-foreground"
                   >
                     {conversation.contact?.phone}
+                    {isMetaConversation && selectedMetaNumberId && (
+                      <span className="ml-1.5 text-blue-500">
+                        via {getMetaLabel(selectedMetaNumberId)}
+                      </span>
+                    )}
                   </motion.p>
                 )}
               </AnimatePresence>
@@ -810,7 +835,53 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           {/* Desktop: Full buttons */}
           {!isMobile ? (
             <>
-              {/* Instance Selector - Primary */}
+              {/* Instance / Meta Number Selector - Primary */}
+              {isMetaConversation ? (
+                <Select 
+                  value={selectedMetaNumberId} 
+                  onValueChange={async (value) => {
+                    setSelectedMetaNumberId(value);
+                    try {
+                      await supabase
+                        .from('conversations')
+                        .update({ meta_phone_number_id: value })
+                        .eq('id', conversation.id);
+                      toast.success("Número Meta atualizado");
+                    } catch (error) {
+                      toast.error("Erro ao atualizar número");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] h-9">
+                    <div className="flex items-center min-w-0 flex-1">
+                      <Cloud className="h-4 w-4 mr-1 text-blue-500 shrink-0" />
+                      <span className="truncate">
+                        <SelectValue placeholder="Número API" />
+                      </span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {metaNumbers.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Nenhum número Meta ativo
+                      </div>
+                    ) : (
+                      metaNumbers.map((num) => (
+                        <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
+                          <div className="flex flex-col items-start">
+                            <span>{num.display_name || num.phone_number_id}</span>
+                            {num.phone_number && (
+                              <span className="text-xs text-muted-foreground">
+                                {num.phone_number}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
               <Select 
                 value={selectedInstanceId} 
                 onValueChange={async (value) => {
@@ -855,6 +926,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                   )}
                 </SelectContent>
               </Select>
+              )}
 
               {/* Invoke AI Button - Primary */}
               <Tooltip>

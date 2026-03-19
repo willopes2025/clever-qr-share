@@ -15,6 +15,7 @@ import {
 import { Filter, X, User, Bot, Clock, Megaphone, Pin, Phone, Tag, Calendar, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { useConversationTags } from "@/hooks/useConversationTags";
 import { useFunnels } from "@/hooks/useFunnels";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
@@ -85,6 +86,7 @@ const providerOptions = [
 export const ConversationFiltersComponent = ({ filters, onFiltersChange }: ConversationFiltersProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const { instances } = useWhatsAppInstances();
+  const { metaNumbers } = useMetaNumbersMap();
   const { tags } = useConversationTags();
   const { funnels } = useFunnels();
   const { members } = useTeamMembers();
@@ -151,6 +153,11 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
   const campaignOptions = useMemo(() => 
     campaigns?.map(c => ({ value: c.id, label: c.name })) || [], 
     [campaigns]
+  );
+
+  const metaNumberOptions = useMemo(() =>
+    metaNumbers?.map(n => ({ value: n.phone_number_id, label: n.display_name || n.phone_number || n.phone_number_id })) || [],
+    [metaNumbers]
   );
 
   const selectedDateFilter = dateFilterOptions.find(d => d.value === filters.dateFilter);
@@ -306,6 +313,37 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
                   placeholder="Todos os telefones"
                   maxDisplay={2}
                 />
+              </div>
+              )}
+
+              {/* Meta Number Filter - Only show when provider is meta or all */}
+              {filters.provider !== 'evolution' && metaNumberOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Phone className="h-3 w-3" />
+                  Número API (Meta)
+                </label>
+                <Select
+                  value={filters.metaPhoneNumberId || "all"}
+                  onValueChange={(value) =>
+                    onFiltersChange({
+                      ...filters,
+                      metaPhoneNumberId: value === 'all' ? null : value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos os números" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os números</SelectItem>
+                    {metaNumberOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               )}
 
@@ -720,6 +758,21 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
               size="sm"
               className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
               onClick={() => onFiltersChange({ ...filters, isPinned: false })}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        )}
+
+        {filters.metaPhoneNumberId && (
+          <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
+            <Phone className="h-3 w-3" />
+            {metaNumberOptions.find(n => n.value === filters.metaPhoneNumberId)?.label || 'Número Meta'}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
+              onClick={() => onFiltersChange({ ...filters, metaPhoneNumberId: null })}
             >
               <X className="h-3 w-3" />
             </Button>

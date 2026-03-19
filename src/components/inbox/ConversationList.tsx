@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ProviderBadge } from "./ProviderBadge";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 
 interface ConversationWithTags extends Conversation {
   tag_assignments?: { tag_id: string }[];
@@ -179,6 +180,7 @@ export const ConversationList = ({
   const isSearching = isSearchingMessages || isSearchingContacts || isLoadingMissingSearchConversations;
 
   const { members } = useTeamMembers();
+  const { getLabel: getMetaLabel } = useMetaNumbersMap();
 
   const mergedConversations = useMemo(() => {
     const conversationMap = new Map<string, ConversationWithTags>();
@@ -533,7 +535,7 @@ export const ConversationList = ({
                           />
                         </div>
                       </div>
-                      {/* Contact ID + Phone Number + Provider Badge */}
+                      {/* Contact ID + Phone Number + Provider Badge + Meta Number */}
                       <div className="flex items-center gap-2 mb-0.5">
                         <ProviderBadge 
                           provider={(conversation as any).provider || (conversation.instance_id ? 'evolution' : 'meta')} 
@@ -545,6 +547,11 @@ export const ConversationList = ({
                         <p className="text-xs text-muted-foreground truncate">
                           {formatForDisplay(conversation.contact?.phone || "")}
                         </p>
+                        {conversation.meta_phone_number_id && (
+                          <span className="text-[10px] text-muted-foreground truncate shrink-0">
+                            via {getMetaLabel(conversation.meta_phone_number_id)}
+                          </span>
+                        )}
                       </div>
                       {/* Assigned + SLA Badges */}
                       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
