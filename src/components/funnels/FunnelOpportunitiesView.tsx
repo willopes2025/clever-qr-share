@@ -57,6 +57,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
+  const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
+  const [showBroadcast, setShowBroadcast] = useState(false);
   const cacheRef = useRef<Record<string, boolean>>({});
 
   // Load persisted opportunities from DB on mount
