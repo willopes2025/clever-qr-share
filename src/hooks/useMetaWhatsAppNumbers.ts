@@ -24,13 +24,12 @@ export const useMetaWhatsAppNumbers = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: metaNumbers, isLoading } = useQuery({
+  const { data: metaNumbers, isLoading, refetch } = useQuery({
     queryKey: ['meta-whatsapp-numbers', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
         .select('*')
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
