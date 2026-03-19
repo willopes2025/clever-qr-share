@@ -287,7 +287,13 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
             </TableHeader>
             <TableBody>
               {opportunities.map((opp) => (
-                <TableRow key={opp.deal_id}>
+                <TableRow key={opp.deal_id} className={selectedDealIds.has(opp.deal_id) ? "bg-muted/50" : ""}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedDealIds.has(opp.deal_id)}
+                      onCheckedChange={() => toggleSelect(opp.deal_id)}
+                    />
+                  </TableCell>
                   <TableCell>{getScoreBadge(opp.score)}</TableCell>
                   <TableCell>
                     <ContactIdBadge displayId={opp.contact_display_id} size="sm" />
