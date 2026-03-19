@@ -763,6 +763,21 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
             </Button>
           </Badge>
         )}
+
+        {filters.metaPhoneNumberId && (
+          <Badge variant="secondary" className="h-7 gap-1 pl-2 pr-1">
+            <Phone className="h-3 w-3" />
+            {metaNumberOptions.find(n => n.value === filters.metaPhoneNumberId)?.label || 'Número Meta'}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 ml-1 hover:bg-transparent"
+              onClick={() => onFiltersChange({ ...filters, metaPhoneNumberId: null })}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        )}
       </div>
     </div>
   );
