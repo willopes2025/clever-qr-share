@@ -788,6 +788,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                     className="text-xs text-muted-foreground"
                   >
                     {conversation.contact?.phone}
+                    {isMetaConversation && selectedMetaNumberId && (
+                      <span className="ml-1.5 text-blue-500">
+                        via {getMetaLabel(selectedMetaNumberId)}
+                      </span>
+                    )}
                   </motion.p>
                 )}
               </AnimatePresence>
