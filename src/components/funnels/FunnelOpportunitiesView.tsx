@@ -379,6 +379,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         open={showBroadcast}
         onOpenChange={setShowBroadcast}
         selectedContacts={selectedContacts}
+        selectedDealIds={Array.from(selectedDealIds)}
+        funnelId={funnel.id}
         funnelName={funnel.name}
       />
     </div>
