@@ -31,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MetaEmbeddedSignup } from "./MetaEmbeddedSignup";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WhatsAppConnectButton, WhatsAppNumbersList } from "./meta-official";
 
 const SUPABASE_PROJECT_ID = "fgbenetdksqnvwkgnips";
 const WEBHOOK_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/meta-whatsapp-webhook`;
@@ -490,11 +491,15 @@ export const MetaWhatsAppSettings = () => {
   if (!isConnected) {
     return (
       <div className="space-y-6">
+        {/* New: Embedded Signup connect button + numbers list */}
+        <WhatsAppConnectButton onConnected={() => setIsConnected(true)} />
+        <WhatsAppNumbersList />
+
         <Tabs value={connectionMode} onValueChange={(v) => setConnectionMode(v as 'quick' | 'manual')} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="quick" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              Conexão Rápida
+              Conexão Rápida (Legacy)
             </TabsTrigger>
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -536,6 +541,9 @@ export const MetaWhatsAppSettings = () => {
   // If connected, show full management UI
   return (
     <div className="space-y-6">
+      {/* Connected numbers management */}
+      <WhatsAppConnectButton onConnected={() => {}} />
+      <WhatsAppNumbersList />
       <Card className="border-primary/20 bg-card/50 backdrop-blur-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
