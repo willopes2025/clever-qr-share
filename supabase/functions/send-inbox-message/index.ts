@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const META_API_URL = 'https://graph.facebook.com/v19.0';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -12,8 +14,6 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
-  const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -30,26 +30,161 @@ Deno.serve(async (req) => {
 
     const { conversationId, content, instanceId } = await req.json();
 
-    if (!conversationId || !content || !instanceId) {
-      throw new Error('conversationId, content and instanceId are required');
+    if (!conversationId || !content) {
+      throw new Error('conversationId and content are required');
     }
 
-    console.log(`Sending inbox message for conversation ${conversationId} via instance ${instanceId}`);
+    console.log(`[SEND] Sending inbox message for conversation ${conversationId}`);
 
-    // Get conversation with contact info
+    // Get conversation with contact info and provider
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select(`
         id,
         user_id,
+        provider,
+        meta_phone_number_id,
+        instance_id,
         contact:contacts(id, phone, name, label_id)
       `)
       .eq('id', conversationId)
       .single();
 
     if (convError || !conversation) {
-      console.error('Conversation fetch error:', convError);
+      console.error('[SEND] Conversation fetch error:', convError);
       throw new Error('Failed to fetch conversation');
+    }
+
+    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null; label_id: string | null } | null;
+    if (!contactData || !contactData.phone) {
+      throw new Error('Contact not found');
+    }
+
+    const isMeta = conversation.provider === 'meta';
+
+    // =========================================
+    // META WHATSAPP CLOUD API
+    // =========================================
+    if (isMeta) {
+      console.log('[SEND] Routing to Meta WhatsApp Cloud API');
+      
+      // Get Meta integration for this user
+      const { data: integration } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('user_id', conversation.user_id)
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!integration?.credentials?.access_token) {
+        throw new Error('Integração Meta WhatsApp não configurada ou sem access_token');
+      }
+
+      // Determine phone_number_id
+      let phoneNumberId = conversation.meta_phone_number_id;
+      
+      if (!phoneNumberId) {
+        // Try meta_whatsapp_numbers
+        const { data: metaNumber } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('phone_number_id')
+          .eq('user_id', conversation.user_id)
+          .eq('is_active', true)
+          .order('connected_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        phoneNumberId = metaNumber?.phone_number_id || integration.credentials?.phone_number_id;
+      }
+
+      if (!phoneNumberId) {
+        throw new Error('Phone Number ID não encontrado para envio Meta');
+      }
+
+      const formattedPhone = contactData.phone.replace(/[^0-9]/g, '');
+
+      // Create message record first
+      const { data: message, error: msgError } = await supabase
+        .from('inbox_messages')
+        .insert({
+          conversation_id: conversationId,
+          user_id: conversation.user_id,
+          direction: 'outbound',
+          content,
+          message_type: 'text',
+          status: 'sending',
+          sent_at: new Date().toISOString(),
+          sent_by_user_id: senderUserId,
+        })
+        .select()
+        .single();
+
+      if (msgError) throw new Error('Failed to create message record');
+
+      // Send via Meta API
+      const messagePayload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: formattedPhone,
+        type: 'text',
+        text: { body: content },
+      };
+
+      console.log(`[SEND-META] Sending to ${formattedPhone} via phone_number_id ${phoneNumberId}`);
+
+      const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${integration.credentials.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messagePayload),
+      });
+
+      const result = await response.json();
+      console.log('[SEND-META] API response:', JSON.stringify(result));
+
+      if (!response.ok) {
+        await supabase.from('inbox_messages').update({ status: 'failed' }).eq('id', message.id);
+        throw new Error(result.error?.message || 'Erro ao enviar via Meta API');
+      }
+
+      const whatsappMessageId = result.messages?.[0]?.id;
+
+      // Update message status
+      await supabase
+        .from('inbox_messages')
+        .update({ status: 'sent', whatsapp_message_id: whatsappMessageId })
+        .eq('id', message.id);
+
+      // Update conversation
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_at: new Date().toISOString(),
+          last_message_preview: content.substring(0, 100),
+          last_message_direction: 'outbound',
+        })
+        .eq('id', conversationId);
+
+      // Handle AI handoff
+      await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, content, instanceId);
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Message sent via Meta', messageId: message.id, whatsappMessageId }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // =========================================
+    // EVOLUTION API (default)
+    // =========================================
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+
+    if (!instanceId) {
+      throw new Error('instanceId is required for Evolution API');
     }
 
     // Get instance info
@@ -59,63 +194,28 @@ Deno.serve(async (req) => {
       .eq('id', instanceId)
       .single();
 
-    if (instError || !instance) {
-      console.error('Instance fetch error:', instError);
-      throw new Error('Failed to fetch instance');
-    }
+    if (instError || !instance) throw new Error('Failed to fetch instance');
+    if (instance.status !== 'connected') throw new Error('Instance is not connected');
 
-    if (instance.status !== 'connected') {
-      throw new Error('Instance is not connected');
-    }
-
-    // Type-safe access to contact - cast through unknown first
-    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null; label_id: string | null } | null;
-    if (!contactData || !contactData.phone) {
-      console.error('Contact data:', JSON.stringify(conversation.contact));
-      throw new Error('Contact not found');
-    }
-    
-    // Format phone number - handle Label IDs (LID) from Click-to-WhatsApp Ads
+    // Format phone number
     let phone = contactData.phone.replace(/\D/g, '');
     let remoteJid: string;
     
-    console.log(`Original phone from contact: ${contactData.phone}, cleaned: ${phone}, label_id: ${contactData.label_id}`);
-    
-    // Check if this is a Label ID (LID) contact from Click-to-WhatsApp Ads
     const isLabelIdContact = contactData.phone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
     
     if (isLabelIdContact) {
-      // For Label ID contacts, we need to use the label_id as the remoteJid
       const labelId = contactData.label_id || phone;
-      console.log(`[LID] Detected Label ID contact, using LID for remoteJid: ${labelId}`);
       remoteJid = `${labelId}@lid`;
     } else {
-      // Validate phone number format for regular contacts
-      // Brazilian phones: 10-11 digits without country code, 12-13 with country code (55)
-      if (phone.length < 10) {
-        console.error(`Invalid phone number format: ${phone}`);
-        throw new Error(`Número de telefone inválido: ${contactData.phone}. O telefone precisa ter pelo menos 10 dígitos.`);
-      }
-      
-      // Add Brazil country code if missing
-      if (!phone.startsWith('55')) {
-        phone = '55' + phone;
-      }
-      
-      // Final validation: Brazilian phone with country code should be 12-13 digits
-      if (phone.length < 12 || phone.length > 13) {
-        console.error(`Phone number has invalid length after formatting: ${phone} (${phone.length} digits)`);
-        throw new Error(`Número de telefone inválido: formato incorreto.`);
-      }
-      
+      if (phone.length < 10) throw new Error(`Número inválido: ${contactData.phone}`);
+      if (!phone.startsWith('55')) phone = '55' + phone;
+      if (phone.length < 12 || phone.length > 13) throw new Error('Número inválido: formato incorreto');
       remoteJid = `${phone}@s.whatsapp.net`;
     }
 
-    // Use evolution_instance_name if available, fallback to instance_name
     const evolutionName = instance.evolution_instance_name || instance.instance_name;
-    console.log(`Sending message to ${remoteJid} via ${evolutionName} (display: ${instance.instance_name})`);
 
-    // Create message record first with 'sending' status
+    // Create message record
     const { data: message, error: msgError } = await supabase
       .from('inbox_messages')
       .insert({
@@ -130,49 +230,31 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
-    
-    console.log(`Message created with sent_by_user_id: ${senderUserId}`);
 
-    if (msgError) {
-      console.error('Message insert error:', msgError);
-      throw new Error('Failed to create message record');
-    }
+    if (msgError) throw new Error('Failed to create message record');
 
-    // Send via Evolution API - use remoteJid which handles both regular phones and Label IDs
-    // For LID contacts, we need to use a different payload structure
     const isLidMessage = remoteJid.endsWith('@lid');
     const sendPayload = isLidMessage 
       ? { number: remoteJid, options: { presence: 'composing' }, text: content }
       : { number: phone, text: content };
-    
-    console.log(`[SEND] Using payload:`, JSON.stringify(sendPayload));
-    
+
     const response = await fetch(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': evolutionApiKey
-        },
-        body: JSON.stringify(sendPayload)
+        headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+        body: JSON.stringify(sendPayload),
       }
     );
 
     const result = await response.json();
-    console.log('Evolution API response:', JSON.stringify(result));
 
     if (response.ok && result.key) {
-      // Message sent successfully
       await supabase
         .from('inbox_messages')
-        .update({ 
-          status: 'sent',
-          whatsapp_message_id: result.key.id
-        })
+        .update({ status: 'sent', whatsapp_message_id: result.key.id })
         .eq('id', message.id);
 
-      // Update conversation
       await supabase
         .from('conversations')
         .update({
@@ -183,162 +265,114 @@ Deno.serve(async (req) => {
         })
         .eq('id', conversationId);
 
-      // Handle AI handoff logic when human agent sends message
-      if (senderUserId) {
-        // Fetch agent config to get custom emoji settings
-        let pauseEmoji = '🛑'; // default
-        let resumeEmoji = '✅'; // default
-
-        // Get instance's default funnel to find the agent config
-        const { data: instanceData } = await supabase
-          .from('whatsapp_instances')
-          .select('default_funnel_id')
-          .eq('id', instanceId)
-          .single();
-
-        if (instanceData?.default_funnel_id) {
-          const { data: agentConfig } = await supabase
-            .from('ai_agent_configs')
-            .select('pause_emoji, resume_emoji')
-            .eq('funnel_id', instanceData.default_funnel_id)
-            .eq('is_active', true)
-            .single();
-          
-          if (agentConfig) {
-            pauseEmoji = agentConfig.pause_emoji || pauseEmoji;
-            resumeEmoji = agentConfig.resume_emoji || resumeEmoji;
-            console.log(`[HANDOFF] Using custom emojis - pause: ${pauseEmoji}, resume: ${resumeEmoji}`);
-          }
-        }
-
-        // Also check for agent by campaign_id or instance owner
-        if (pauseEmoji === '🛑' && resumeEmoji === '✅') {
-          // Try to find agent by user_id (instance owner)
-          const { data: ownerAgent } = await supabase
-            .from('ai_agent_configs')
-            .select('pause_emoji, resume_emoji')
-            .eq('user_id', conversation.user_id)
-            .eq('is_active', true)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .single();
-
-          if (ownerAgent) {
-            pauseEmoji = ownerAgent.pause_emoji || pauseEmoji;
-            resumeEmoji = ownerAgent.resume_emoji || resumeEmoji;
-            console.log(`[HANDOFF] Using owner agent emojis - pause: ${pauseEmoji}, resume: ${resumeEmoji}`);
-          }
-        }
-
-        // Check if message contains pause or resume emoji
-        const shouldPauseAI = pauseEmoji && content.includes(pauseEmoji);
-        const shouldResumeAI = resumeEmoji && content.includes(resumeEmoji);
-
-        // Also keep fallback text patterns for resume
-        const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
-        const hasResumeTextPattern = textPatterns.some(pattern => pattern.test(content));
-
-        if (shouldResumeAI || hasResumeTextPattern) {
-          // Resume AI - human is signaling AI should take over
-          await supabase
-            .from('conversations')
-            .update({
-              ai_paused: false,
-              ai_handoff_requested: false,
-              ai_handoff_reason: null,
-            })
-            .eq('id', conversationId);
-          
-          console.log(`[HANDOFF] AI resumed for conversation ${conversationId} by user ${senderUserId} (emoji: ${resumeEmoji})`);
-        } else if (shouldPauseAI) {
-          // Explicitly pause AI with custom emoji
-          await supabase
-            .from('conversations')
-            .update({
-              ai_paused: true,
-              ai_handoff_requested: true,
-              ai_handoff_reason: `Pausado via emoji ${pauseEmoji} pelo atendente`,
-            })
-            .eq('id', conversationId);
-          
-          console.log(`[HANDOFF] AI explicitly paused for conversation ${conversationId} via emoji ${pauseEmoji}`);
-        } else {
-          // Any other message from human pauses AI
-          await supabase
-            .from('conversations')
-            .update({
-              ai_paused: true,
-              ai_handoff_requested: true,
-              ai_handoff_reason: 'Atendente assumiu a conversa',
-            })
-            .eq('id', conversationId);
-          
-          console.log(`[HANDOFF] AI paused for conversation ${conversationId} - human (${senderUserId}) took over`);
-        }
-      }
-
-      console.log(`Message sent successfully to ${phone}`);
+      await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, content, instanceId);
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Message sent successfully',
-          messageId: message.id,
-          whatsappMessageId: result.key.id
-        }),
+        JSON.stringify({ success: true, message: 'Message sent', messageId: message.id, whatsappMessageId: result.key.id }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // Message failed - check for specific error types
       let errorMessage = result.message || result.error || 'Unknown error';
       
-      // Check if instance doesn't exist in Evolution API
       if (response.status === 404 && result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.some((m: string) => m.includes('does not exist'))) {
-          // Update instance status in database
-          await supabase
-            .from('whatsapp_instances')
-            .update({ status: 'disconnected' })
-            .eq('id', instanceId);
-          
-          errorMessage = `A instância WhatsApp "${instance.instance_name}" foi desconectada. Por favor, reconecte-a nas configurações.`;
-          console.error(`Instance ${instance.instance_name} not found in Evolution API - marked as disconnected`);
+          await supabase.from('whatsapp_instances').update({ status: 'disconnected' }).eq('id', instanceId);
+          errorMessage = `Instância "${instance.instance_name}" desconectada. Reconecte nas configurações.`;
         }
       }
       
-      // Check if number doesn't exist on WhatsApp
       if (result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.length > 0 && msgDetails[0]?.exists === false) {
-          errorMessage = `Este número (${phone}) não está registrado no WhatsApp. Verifique se o número está correto.`;
+          errorMessage = `Número (${phone}) não registrado no WhatsApp.`;
         }
       }
       
-      await supabase
-        .from('inbox_messages')
-        .update({ 
-          status: 'failed'
-        })
-        .eq('id', message.id);
-
-      console.error(`Message failed: ${errorMessage}`);
-      
+      await supabase.from('inbox_messages').update({ status: 'failed' }).eq('id', message.id);
       throw new Error(errorMessage);
     }
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in send-inbox-message:', errorMessage);
+    console.error('[SEND] Error:', errorMessage);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: errorMessage
-      }),
-      { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({ success: false, error: errorMessage }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+
+// Helper: Handle AI Handoff logic
+async function handleAIHandoff(
+  supabase: any,
+  conversationId: string,
+  conversationUserId: string,
+  senderUserId: string | null,
+  content: string,
+  instanceId?: string
+) {
+  if (!senderUserId) return;
+
+  let pauseEmoji = '🛑';
+  let resumeEmoji = '✅';
+
+  if (instanceId) {
+    const { data: instanceData } = await supabase
+      .from('whatsapp_instances')
+      .select('default_funnel_id')
+      .eq('id', instanceId)
+      .single();
+
+    if (instanceData?.default_funnel_id) {
+      const { data: agentConfig } = await supabase
+        .from('ai_agent_configs')
+        .select('pause_emoji, resume_emoji')
+        .eq('funnel_id', instanceData.default_funnel_id)
+        .eq('is_active', true)
+        .single();
+      
+      if (agentConfig) {
+        pauseEmoji = agentConfig.pause_emoji || pauseEmoji;
+        resumeEmoji = agentConfig.resume_emoji || resumeEmoji;
+      }
+    }
+  }
+
+  if (pauseEmoji === '🛑' && resumeEmoji === '✅') {
+    const { data: ownerAgent } = await supabase
+      .from('ai_agent_configs')
+      .select('pause_emoji, resume_emoji')
+      .eq('user_id', conversationUserId)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (ownerAgent) {
+      pauseEmoji = ownerAgent.pause_emoji || pauseEmoji;
+      resumeEmoji = ownerAgent.resume_emoji || resumeEmoji;
+    }
+  }
+
+  const shouldPauseAI = pauseEmoji && content.includes(pauseEmoji);
+  const shouldResumeAI = resumeEmoji && content.includes(resumeEmoji);
+  const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
+  const hasResumeTextPattern = textPatterns.some(pattern => pattern.test(content));
+
+  if (shouldResumeAI || hasResumeTextPattern) {
+    await supabase.from('conversations').update({
+      ai_paused: false, ai_handoff_requested: false, ai_handoff_reason: null,
+    }).eq('id', conversationId);
+  } else if (shouldPauseAI) {
+    await supabase.from('conversations').update({
+      ai_paused: true, ai_handoff_requested: true,
+      ai_handoff_reason: `Pausado via emoji ${pauseEmoji}`,
+    }).eq('id', conversationId);
+  } else {
+    await supabase.from('conversations').update({
+      ai_paused: true, ai_handoff_requested: true,
+      ai_handoff_reason: 'Atendente assumiu a conversa',
+    }).eq('id', conversationId);
+  }
+}
