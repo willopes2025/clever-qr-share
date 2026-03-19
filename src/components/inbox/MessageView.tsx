@@ -379,7 +379,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     try {
       await sendMediaMessage.mutateAsync({
         conversationId: conversation.id,
-        instanceId: selectedInstanceId,
+        instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
       });
