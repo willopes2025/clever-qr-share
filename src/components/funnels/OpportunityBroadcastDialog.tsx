@@ -192,14 +192,14 @@ export const OpportunityBroadcastDialog = ({
     }
   };
 
-  const handleInstanceConfirm = async ({ instanceIds, sendingMode }: { instanceIds: string[]; sendingMode: SendingMode }) => {
+  const handleInstanceConfirm = async ({ instanceIds, sendingMode }: { instanceIds: string[]; sendingMode: string }) => {
     if (!pendingCampaignId) return;
 
     try {
       await startCampaign.mutateAsync({
         campaignId: pendingCampaignId,
         instanceIds,
-        sendingMode,
+        sendingMode: sendingMode as CampaignSendingMode,
       });
 
       setShowInstanceDialog(false);
