@@ -374,6 +374,13 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           </Table>
         </div>
       )}
+
+      <OpportunityBroadcastDialog
+        open={showBroadcast}
+        onOpenChange={setShowBroadcast}
+        selectedContacts={selectedContacts}
+        funnelName={funnel.name}
+      />
     </div>
   );
 };
