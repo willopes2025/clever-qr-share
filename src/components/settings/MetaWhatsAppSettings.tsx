@@ -491,11 +491,15 @@ export const MetaWhatsAppSettings = () => {
   if (!isConnected) {
     return (
       <div className="space-y-6">
+        {/* New: Embedded Signup connect button + numbers list */}
+        <WhatsAppConnectButton onConnected={() => setIsConnected(true)} />
+        <WhatsAppNumbersList />
+
         <Tabs value={connectionMode} onValueChange={(v) => setConnectionMode(v as 'quick' | 'manual')} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="quick" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
-              Conexão Rápida
+              Conexão Rápida (Legacy)
             </TabsTrigger>
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
