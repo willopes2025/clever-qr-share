@@ -320,7 +320,18 @@ Notas do vendedor: ${c.userNotes || 'Nenhuma'}
 
     console.log(`Inserted ${messageRecords.length} AI-generated campaign messages`);
 
-    // 8. Trigger send-campaign-messages
+    // 8. Fetch instance details and trigger send-campaign-messages
+    const { data: instancesData } = await supabase
+      .from('whatsapp_instances')
+      .select('id, instance_name, warming_level')
+      .in('id', instance_ids);
+
+    const instancesList = (instancesData || []).map((inst: any) => ({
+      id: inst.id,
+      instance_name: inst.instance_name,
+      warming_level: inst.warming_level || 1,
+    }));
+
     const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
 
     EdgeRuntime.waitUntil(
@@ -332,7 +343,7 @@ Notas do vendedor: ${c.userNotes || 'Nenhuma'}
         },
         body: JSON.stringify({
           campaignId: campaign.id,
-          instanceIds: instance_ids,
+          instances: instancesList,
           sendingMode: sending_mode,
         }),
       }).catch((err) => console.error('Failed to invoke send-campaign-messages:', err))
