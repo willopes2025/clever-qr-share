@@ -180,10 +180,41 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Save ALL phone numbers to meta_whatsapp_numbers table
-    console.log(`[META-EXCHANGE] Saving ${allPhoneNumbers.length} phone numbers to meta_whatsapp_numbers...`);
+    // Register and save ALL phone numbers
+    console.log(`[META-EXCHANGE] Registering and saving ${allPhoneNumbers.length} phone numbers...`);
     
     for (const phone of allPhoneNumbers) {
+      // Step 1: Register the phone number via Meta API (required after Embedded Signup)
+      try {
+        console.log(`[META-EXCHANGE] Registering phone number ${phone.id}...`);
+        const registerResponse = await fetch(
+          `https://graph.facebook.com/v24.0/${phone.id}/register`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              pin: '123456',
+            }),
+          }
+        );
+        const registerResult = await registerResponse.json();
+        console.log(`[META-EXCHANGE] Register result for ${phone.id}:`, JSON.stringify(registerResult));
+        
+        if (!registerResponse.ok) {
+          console.warn(`[META-EXCHANGE] Registration warning for ${phone.id}:`, registerResult.error?.message);
+        }
+      } catch (regError) {
+        console.error(`[META-EXCHANGE] Registration error for ${phone.id}:`, regError);
+      }
+
+      // Step 2: Subscribe the WABA to our app's webhook
+      // (only need to do once but it's idempotent)
+      
+      // Step 3: Save to database
       const { error: numberError } = await adminClient
         .from('meta_whatsapp_numbers')
         .upsert({
@@ -203,6 +234,25 @@ serve(async (req) => {
       } else {
         console.log(`[META-EXCHANGE] Saved phone number: ${phone.display_phone_number} (${phone.id})`);
       }
+    }
+
+    // Subscribe WABA to app webhook (idempotent)
+    try {
+      console.log(`[META-EXCHANGE] Subscribing WABA ${wabaId} to app webhook...`);
+      const subscribeResponse = await fetch(
+        `https://graph.facebook.com/v24.0/${wabaId}/subscribed_apps`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const subscribeResult = await subscribeResponse.json();
+      console.log(`[META-EXCHANGE] Subscribe result:`, JSON.stringify(subscribeResult));
+    } catch (subError) {
+      console.error(`[META-EXCHANGE] Subscribe error:`, subError);
     }
 
     // Save/update integrations table with access_token (use first phone as primary)
