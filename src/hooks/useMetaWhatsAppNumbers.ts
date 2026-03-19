@@ -120,6 +120,7 @@ export const useMetaWhatsAppNumbers = () => {
   return {
     metaNumbers,
     isLoading,
+    refetch,
     addNumber,
     updateNumber,
     deleteNumber,
