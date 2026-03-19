@@ -340,8 +340,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   };
 
   const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
-    if (!selectedInstanceId) {
-      toast.error("Selecione uma instância primeiro");
+    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    if (!hasValidSender) {
+      toast.error("Selecione um número primeiro");
       return;
     }
 
