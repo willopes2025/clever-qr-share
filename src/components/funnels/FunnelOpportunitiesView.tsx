@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
 
 interface Opportunity {
   id?: string;
@@ -55,6 +57,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
+  const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
+  const [showBroadcast, setShowBroadcast] = useState(false);
   const cacheRef = useRef<Record<string, boolean>>({});
 
   // Load persisted opportunities from DB on mount
@@ -149,6 +153,28 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+  const toggleSelect = (dealId: string) => {
+    setSelectedDealIds(prev => {
+      const next = new Set(prev);
+      if (next.has(dealId)) next.delete(dealId); else next.add(dealId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedDealIds.size === opportunities.length) {
+      setSelectedDealIds(new Set());
+    } else {
+      setSelectedDealIds(new Set(opportunities.map(o => o.deal_id)));
+    }
+  };
+
+  const selectedContacts = useMemo(() => {
+    return opportunities
+      .filter(o => selectedDealIds.has(o.deal_id) && o.contact_id)
+      .map(o => ({ contactId: o.contact_id!, contactName: o.contact_name }));
+  }, [selectedDealIds, opportunities]);
+
   const exportToCSV = () => {
     if (!opportunities.length) return;
     const statusLabel = (s: string) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
@@ -215,6 +241,12 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           <p className="text-sm text-muted-foreground">Ordenadas por probabilidade de fechamento</p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedDealIds.size > 0 && (
+            <Button size="sm" onClick={() => setShowBroadcast(true)}>
+              <Send className="h-4 w-4 mr-2" />
+              Disparar ({selectedDealIds.size})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={exportToCSV} disabled={!opportunities.length}>
             <Download className="h-4 w-4 mr-2" />
             Exportar
@@ -235,6 +267,12 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={opportunities.length > 0 && selectedDealIds.size === opportunities.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="w-[80px]">Score</TableHead>
                 <TableHead>ID</TableHead>
                 <TableHead>Nome</TableHead>
@@ -249,7 +287,13 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
             </TableHeader>
             <TableBody>
               {opportunities.map((opp) => (
-                <TableRow key={opp.deal_id}>
+                <TableRow key={opp.deal_id} className={selectedDealIds.has(opp.deal_id) ? "bg-muted/50" : ""}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedDealIds.has(opp.deal_id)}
+                      onCheckedChange={() => toggleSelect(opp.deal_id)}
+                    />
+                  </TableCell>
                   <TableCell>{getScoreBadge(opp.score)}</TableCell>
                   <TableCell>
                     <ContactIdBadge displayId={opp.contact_display_id} size="sm" />
@@ -330,6 +374,13 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           </Table>
         </div>
       )}
+
+      <OpportunityBroadcastDialog
+        open={showBroadcast}
+        onOpenChange={setShowBroadcast}
+        selectedContacts={selectedContacts}
+        funnelName={funnel.name}
+      />
     </div>
   );
 };
