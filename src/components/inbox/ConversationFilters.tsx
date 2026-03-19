@@ -86,6 +86,7 @@ const providerOptions = [
 export const ConversationFiltersComponent = ({ filters, onFiltersChange }: ConversationFiltersProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const { instances } = useWhatsAppInstances();
+  const { metaNumbers } = useMetaNumbersMap();
   const { tags } = useConversationTags();
   const { funnels } = useFunnels();
   const { members } = useTeamMembers();
