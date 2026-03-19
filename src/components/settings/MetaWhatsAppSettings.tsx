@@ -541,6 +541,9 @@ export const MetaWhatsAppSettings = () => {
   // If connected, show full management UI
   return (
     <div className="space-y-6">
+      {/* Connected numbers management */}
+      <WhatsAppConnectButton onConnected={() => {}} />
+      <WhatsAppNumbersList />
       <Card className="border-primary/20 bg-card/50 backdrop-blur-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
