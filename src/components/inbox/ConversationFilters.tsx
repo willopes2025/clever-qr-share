@@ -15,6 +15,7 @@ import {
 import { Filter, X, User, Bot, Clock, Megaphone, Pin, Phone, Tag, Calendar, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { useConversationTags } from "@/hooks/useConversationTags";
 import { useFunnels } from "@/hooks/useFunnels";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
