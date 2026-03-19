@@ -7,6 +7,7 @@ export interface MetaNumberInfo {
   phone_number_id: string;
   phone_number: string | null;
   display_name: string | null;
+  waba_id: string | null;
 }
 
 export const useMetaNumbersMap = () => {
