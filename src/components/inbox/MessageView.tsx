@@ -835,7 +835,53 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
           {/* Desktop: Full buttons */}
           {!isMobile ? (
             <>
-              {/* Instance Selector - Primary */}
+              {/* Instance / Meta Number Selector - Primary */}
+              {isMetaConversation ? (
+                <Select 
+                  value={selectedMetaNumberId} 
+                  onValueChange={async (value) => {
+                    setSelectedMetaNumberId(value);
+                    try {
+                      await supabase
+                        .from('conversations')
+                        .update({ meta_phone_number_id: value })
+                        .eq('id', conversation.id);
+                      toast.success("Número Meta atualizado");
+                    } catch (error) {
+                      toast.error("Erro ao atualizar número");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] h-9">
+                    <div className="flex items-center min-w-0 flex-1">
+                      <Cloud className="h-4 w-4 mr-1 text-blue-500 shrink-0" />
+                      <span className="truncate">
+                        <SelectValue placeholder="Número API" />
+                      </span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {metaNumbers.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Nenhum número Meta ativo
+                      </div>
+                    ) : (
+                      metaNumbers.map((num) => (
+                        <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
+                          <div className="flex flex-col items-start">
+                            <span>{num.display_name || num.phone_number_id}</span>
+                            {num.phone_number && (
+                              <span className="text-xs text-muted-foreground">
+                                {num.phone_number}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
               <Select 
                 value={selectedInstanceId} 
                 onValueChange={async (value) => {
@@ -880,6 +926,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
                   )}
                 </SelectContent>
               </Select>
+              )}
 
               {/* Invoke AI Button - Primary */}
               <Tooltip>
