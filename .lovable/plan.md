@@ -1,47 +1,42 @@
 
 
-## Mensagens Personalizadas por IA no Disparo de Oportunidades
+## Plano: Separar conversas por número Meta e exibir número correto no Inbox
+
+### Problema Atual
+1. **Conversas Meta não mostram qual número recebeu a mensagem** — o campo `meta_phone_number_id` está preenchido nas conversas, mas não é exibido na lista nem no header do chat.
+2. **O seletor de instância no MessageView só mostra instâncias Evolution API** — para conversas Meta, não há como ver/trocar o número Meta remetente.
+3. **O filtro por número Meta já existe nos filtros** (`metaPhoneNumberId`), mas precisa de melhor visibilidade.
 
 ### O que será feito
 
-Adicionar uma opção no dialog de disparo em massa para que a IA gere mensagens personalizadas para cada lead, baseadas nos dados da análise de oportunidades (score, insight, histórico de conversa).
+**1. Exibir o número Meta na lista de conversas**
+- Na `ConversationList`, ao lado do `ProviderBadge`, mostrar o número Meta formatado (ex: `+55 27 2666-0075`) buscando da tabela `meta_whatsapp_numbers` via um hook/query.
+- Criar um pequeno hook `useMetaWhatsAppNumbers` que carrega os números ativos e permite mapear `phone_number_id` → `phone_number` / `display_name`.
 
-### Fluxo do usuário
+**2. Adaptar o seletor de número no MessageView para conversas Meta**
+- Quando `conversation.provider === 'meta'`, substituir o seletor de instâncias Evolution pelo seletor de números Meta.
+- Listar os números da tabela `meta_whatsapp_numbers` (ativos) no dropdown.
+- Ao trocar o número, atualizar `conversation.meta_phone_number_id` no banco.
+- Desabilitar a validação `!selectedInstanceId` para conversas Meta (usar `meta_phone_number_id` em vez disso).
 
-1. Seleciona oportunidades e clica "Disparar"
-2. No dialog, escolhe entre **Template** (existente) ou **Mensagem IA Personalizada** (novo)
-3. Se escolher IA: escreve instruções/prompt (ex: "faça um follow-up mencionando o interesse do cliente")
-4. Clica em confirmar → sistema gera mensagens via IA para cada contato → cria campanha → inicia disparo
+**3. Mostrar o número Meta no header do chat**
+- Abaixo do nome do contato no `MessageView`, exibir o número Meta de onde veio/vai a conversa (ex: "via +55 27 2666-0075").
 
-### Alterações técnicas
+**4. Melhorar filtro rápido por número Meta**
+- Adicionar chips de filtro rápido ou tornar o filtro `metaPhoneNumberId` mais acessível nos `ConversationFilters`, listando os números Meta como opções no dropdown.
 
-#### 1. Nova Edge Function: `supabase/functions/generate-opportunity-messages/index.ts`
-- Recebe: `funnel_id`, lista de `deal_ids`, `prompt` do usuário, configurações de campanha (intervalos, horários, etc.), `instance_ids`, `sending_mode`
-- Para cada deal: busca dados do contato, oportunidade (score/insight) e últimas mensagens da conversa
-- Envia tudo para Gemini 2.5 Flash com tool calling, pedindo uma mensagem personalizada por contato
-- Cria broadcast list temporária → insere contatos → cria campanha → insere `campaign_messages` com conteúdo IA gerado → inicia disparo chamando `send-campaign-messages`
-- Retorna o `campaign_id` criado
+### Arquivos a modificar
 
-#### 2. `src/components/funnels/OpportunityBroadcastDialog.tsx`
-- Adicionar toggle/tabs no topo: "Template" vs "Mensagem IA"
-- Quando "Mensagem IA" selecionado:
-  - Esconde seleção de template
-  - Mostra campo de texto para instruções/prompt do usuário
-  - Mostra preview explicativo ("A IA criará uma mensagem única para cada contato baseada no histórico e análise")
-- No submit com modo IA: chama `generate-opportunity-messages` ao invés do fluxo atual de criar lista + campanha manualmente
+| Arquivo | Mudança |
+|---|---|
+| `src/hooks/useMetaWhatsAppNumbers.ts` | **Novo** — hook para buscar números Meta ativos |
+| `src/components/inbox/MessageView.tsx` | Seletor condicional: Evolution vs Meta; header com número Meta |
+| `src/components/inbox/ConversationList.tsx` | Exibir número Meta ao lado do ProviderBadge |
+| `src/components/inbox/ConversationFilters.tsx` | Popular dropdown de números Meta usando o novo hook |
 
-#### 3. `src/components/funnels/FunnelOpportunitiesView.tsx`
-- Passar `deal_ids` selecionados e `funnel_id` para o dialog (já passa `selectedContacts` e `funnelName`, adicionar os IDs dos deals)
+### Detalhes técnicos
 
-### Dados que a IA terá para personalizar
-
-- Nome e telefone do contato
-- Score e insight da análise de oportunidades
-- Etapa atual no funil e valor do deal
-- Últimas 20 mensagens da conversa (se houver)
-- Prompt/instruções do usuário
-
-### Sem alterações no banco de dados
-
-A edge function cria `campaign_messages` com `message_content` já preenchido pela IA (mesmo campo usado pelo fluxo normal de templates). O `send-campaign-messages` envia normalmente.
+- O hook `useMetaWhatsAppNumbers` fará `supabase.from('meta_whatsapp_numbers').select('phone_number_id, phone_number, display_name').eq('is_active', true)` e retornará um mapa `Record<string, { phone_number, display_name }>`.
+- No `MessageView`, a lógica de envio já funciona para Meta via `send-inbox-message` — só precisa garantir que o `meta_phone_number_id` correto esteja na conversa.
+- O seletor Meta usará o mesmo componente `Select` mas populado com números Meta em vez de instâncias Evolution.
 
