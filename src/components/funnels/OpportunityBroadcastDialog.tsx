@@ -11,10 +11,10 @@ import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
-import { useCampaignMutations } from '@/hooks/useCampaigns';
+import { useCampaignMutations, type SendingMode as CampaignSendingMode } from '@/hooks/useCampaigns';
 import { useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
 import { AgentPicker } from '@/components/shared/AgentPicker';
-import { SelectInstanceDialog, type SendingMode } from '@/components/campaigns/SelectInstanceDialog';
+import { SelectInstanceDialog } from '@/components/campaigns/SelectInstanceDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
