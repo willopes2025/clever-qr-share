@@ -323,7 +323,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     textareaRef.current?.focus();
 
     // Send in background - no await blocking
-    sendMessage.mutateAsync({
+    sendMessage.mutateAsync(isMetaConversation ? {
+      content: messageContent,
+      conversationId: conversation.id,
+      instanceId: selectedMetaNumberId, // meta uses phone_number_id as instanceId in send-inbox-message
+    } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
