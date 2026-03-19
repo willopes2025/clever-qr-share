@@ -3,11 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send } from 'lucide-react';
+import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles } from 'lucide-react';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,6 +35,8 @@ interface OpportunityBroadcastDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedContacts: { contactId: string; contactName: string }[];
+  selectedDealIds: string[];
+  funnelId: string;
   funnelName: string;
 }
 
@@ -40,6 +44,8 @@ export const OpportunityBroadcastDialog = ({
   open,
   onOpenChange,
   selectedContacts,
+  selectedDealIds,
+  funnelId,
   funnelName,
 }: OpportunityBroadcastDialogProps) => {
   const { user } = useAuth();
@@ -49,8 +55,16 @@ export const OpportunityBroadcastDialog = ({
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
 
-  // Form state
+  // Message mode
+  const [messageMode, setMessageMode] = useState<'template' | 'ai'>('template');
+
+  // Template mode state
   const [templateId, setTemplateId] = useState('');
+
+  // AI mode state
+  const [aiPrompt, setAiPrompt] = useState('');
+
+  // Shared state
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [intervalMin, setIntervalMin] = useState(90);
   const [intervalMax, setIntervalMax] = useState(180);
@@ -72,7 +86,7 @@ export const OpportunityBroadcastDialog = ({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
-  // AI
+  // AI Agent (only for template mode)
   const [aiEnabled, setAiEnabled] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
@@ -80,6 +94,9 @@ export const OpportunityBroadcastDialog = ({
   const [showInstanceDialog, setShowInstanceDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingCampaignId, setPendingCampaignId] = useState<string | null>(null);
+
+  // For AI mode - we need instance selection before generating
+  const [pendingAiInstanceConfig, setPendingAiInstanceConfig] = useState<{ instanceIds: string[]; sendingMode: string } | null>(null);
 
   const { data: tags } = useQuery({
     queryKey: ['tags', user?.id],
@@ -109,12 +126,20 @@ export const OpportunityBroadcastDialog = ({
     }
   };
 
+  const isSubmitDisabled = messageMode === 'template' ? !templateId : !aiPrompt.trim();
+
   const handleSubmit = async () => {
+    if (messageMode === 'ai') {
+      // For AI mode, open instance dialog first, then generate
+      setShowInstanceDialog(true);
+      return;
+    }
+
+    // Template mode - existing flow
     if (!templateId || !user?.id) return;
     setIsProcessing(true);
 
     try {
-      // 1. Create temporary broadcast list
       const { data: list, error: listError } = await supabase
         .from('broadcast_lists')
         .insert({
@@ -128,7 +153,6 @@ export const OpportunityBroadcastDialog = ({
 
       if (listError) throw listError;
 
-      // 2. Add contacts to the list
       const contactEntries = selectedContacts.map(c => ({
         list_id: list.id,
         contact_id: c.contactId,
@@ -140,7 +164,6 @@ export const OpportunityBroadcastDialog = ({
 
       if (contactsError) throw contactsError;
 
-      // 3. Create campaign
       const campaign = await createCampaign.mutateAsync({
         name: `Disparo Oportunidades - ${funnelName}`,
         template_id: templateId,
@@ -169,7 +192,6 @@ export const OpportunityBroadcastDialog = ({
         ai_active_hours_end: 20,
       });
 
-      // 4. Link AI agent if enabled
       if (aiEnabled && selectedAgentId && campaign?.id) {
         try {
           await linkConfigToCampaign.mutateAsync({
@@ -181,7 +203,6 @@ export const OpportunityBroadcastDialog = ({
         }
       }
 
-      // 5. Open instance selection dialog
       setPendingCampaignId(campaign.id);
       setShowInstanceDialog(true);
     } catch (error: any) {
@@ -193,6 +214,59 @@ export const OpportunityBroadcastDialog = ({
   };
 
   const handleInstanceConfirm = async ({ instanceIds, sendingMode }: { instanceIds: string[]; sendingMode: string }) => {
+    if (messageMode === 'ai') {
+      // AI mode: call edge function that generates messages + creates campaign + starts sending
+      setIsProcessing(true);
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (!token) throw new Error('Sessão expirada');
+
+        const { data, error } = await supabase.functions.invoke('generate-opportunity-messages', {
+          body: {
+            funnel_id: funnelId,
+            deal_ids: selectedDealIds,
+            prompt: aiPrompt,
+            instance_ids: instanceIds,
+            sending_mode: sendingMode,
+            campaign_config: {
+              message_interval_min: intervalMin,
+              message_interval_max: intervalMax,
+              daily_limit: dailyLimit,
+              allowed_start_hour: startHour,
+              allowed_end_hour: endHour,
+              allowed_days: allowedDays,
+              timezone: 'America/Sao_Paulo',
+              skip_already_sent: skipAlreadySent,
+              skip_mode: skipMode,
+              skip_days_period: skipDaysPeriod,
+              skip_tag_id: skipMode === 'has_tag' ? skipTagId : null,
+              tag_on_delivery_id: enableTagOnDelivery ? tagOnDeliveryId : null,
+              ai_enabled: aiEnabled && !!selectedAgentId,
+              agent_id: aiEnabled ? selectedAgentId : null,
+            },
+          },
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        setShowInstanceDialog(false);
+        onOpenChange(false);
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+        toast.success(`Disparo IA iniciado! ${data?.messages_generated || selectedContacts.length} mensagens personalizadas criadas.`);
+
+        setAiPrompt('');
+      } catch (error: any) {
+        console.error(error);
+        toast.error('Erro ao gerar mensagens IA: ' + error.message);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // Template mode - existing flow
     if (!pendingCampaignId) return;
 
     try {
@@ -207,7 +281,6 @@ export const OpportunityBroadcastDialog = ({
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success(`Disparo iniciado para ${selectedContacts.length} contatos!`);
 
-      // Reset state
       setTemplateId('');
       setPendingCampaignId(null);
     } catch (error: any) {
@@ -230,27 +303,72 @@ export const OpportunityBroadcastDialog = ({
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Template selection */}
-            <div className="space-y-2">
-              <Label>Template de Mensagem *</Label>
-              <Select value={templateId} onValueChange={setTemplateId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um template" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeTemplates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      {template.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedTemplate && (
-                <div className="p-3 bg-muted rounded-lg text-sm">
-                  <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
+            {/* Mode Selection */}
+            <Tabs value={messageMode} onValueChange={(v) => setMessageMode(v as 'template' | 'ai')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="template" className="gap-2">
+                  <Send className="h-4 w-4" />
+                  Template
+                </TabsTrigger>
+                <TabsTrigger value="ai" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Mensagem IA
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Template Mode */}
+            {messageMode === 'template' && (
+              <div className="space-y-2">
+                <Label>Template de Mensagem *</Label>
+                <Select value={templateId} onValueChange={setTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTemplate && (
+                  <div className="p-3 bg-muted rounded-lg text-sm">
+                    <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Mode */}
+            {messageMode === 'ai' && (
+              <div className="space-y-4">
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+                  <div className="flex items-center gap-2 text-primary font-medium">
+                    <Sparkles className="h-4 w-4" />
+                    Mensagens Personalizadas por IA
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    A IA criará uma mensagem <strong>única</strong> para cada contato, baseada no histórico de conversa, 
+                    score de oportunidade, insight da análise e suas instruções abaixo.
+                  </p>
                 </div>
-              )}
-            </div>
+
+                <div className="space-y-2">
+                  <Label>Instruções para a IA *</Label>
+                  <Textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Ex: Faça um follow-up mencionando o interesse do cliente. Ofereça uma condição especial de fechamento este mês."
+                    className="min-h-[100px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Descreva o objetivo da mensagem. A IA usará os dados de cada oportunidade para personalizar.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Contacts preview */}
             <div className="p-3 bg-muted/50 rounded-lg">
@@ -461,34 +579,36 @@ export const OpportunityBroadcastDialog = ({
               </CollapsibleContent>
             </Collapsible>
 
-            {/* AI Agent */}
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <Button type="button" variant="outline" className="w-full justify-between">
-                  <span className="flex items-center gap-2">
-                    <Bot className="h-4 w-4" />
-                    Agente de IA
-                    {aiEnabled && selectedAgentId && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
-                  </span>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-4">
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                  <div className="space-y-0.5">
-                    <Label className="font-medium">Ativar Agente de IA</Label>
-                    <p className="text-sm text-muted-foreground">Responde automaticamente às mensagens dos contatos</p>
+            {/* AI Agent - only for template mode */}
+            {messageMode === 'template' && (
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-between">
+                    <span className="flex items-center gap-2">
+                      <Bot className="h-4 w-4" />
+                      Agente de IA
+                      {aiEnabled && selectedAgentId && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-4">
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium">Ativar Agente de IA</Label>
+                      <p className="text-sm text-muted-foreground">Responde automaticamente às mensagens dos contatos</p>
+                    </div>
+                    <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
                   </div>
-                  <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
-                </div>
-                {aiEnabled && (
-                  <div className="space-y-2">
-                    <Label>Selecione um Agente</Label>
-                    <AgentPicker selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
-                  </div>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
+                  {aiEnabled && (
+                    <div className="space-y-2">
+                      <Label>Selecione um Agente</Label>
+                      <AgentPicker selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-2">
@@ -497,17 +617,17 @@ export const OpportunityBroadcastDialog = ({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={!templateId || isProcessing || createCampaign.isPending}
+                disabled={isSubmitDisabled || isProcessing || createCampaign.isPending}
               >
                 {isProcessing || createCampaign.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Preparando...
+                    {messageMode === 'ai' ? 'Gerando mensagens...' : 'Preparando...'}
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Selecionar Instância e Disparar
+                    {messageMode === 'ai' ? <Sparkles className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                    {messageMode === 'ai' ? 'Gerar e Disparar com IA' : 'Selecionar Instância e Disparar'}
                   </>
                 )}
               </Button>
@@ -520,11 +640,14 @@ export const OpportunityBroadcastDialog = ({
         open={showInstanceDialog}
         onOpenChange={(open) => {
           setShowInstanceDialog(open);
-          if (!open) setPendingCampaignId(null);
+          if (!open) {
+            setPendingCampaignId(null);
+            setPendingAiInstanceConfig(null);
+          }
         }}
         onConfirm={handleInstanceConfirm}
-        isLoading={startCampaign.isPending}
-        campaignName={`Disparo Oportunidades - ${funnelName}`}
+        isLoading={isProcessing || startCampaign.isPending}
+        campaignName={messageMode === 'ai' ? `Disparo IA - Oportunidades` : `Disparo Oportunidades - ${funnelName}`}
       />
     </>
   );
