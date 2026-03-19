@@ -153,6 +153,28 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+  const toggleSelect = (dealId: string) => {
+    setSelectedDealIds(prev => {
+      const next = new Set(prev);
+      if (next.has(dealId)) next.delete(dealId); else next.add(dealId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedDealIds.size === opportunities.length) {
+      setSelectedDealIds(new Set());
+    } else {
+      setSelectedDealIds(new Set(opportunities.map(o => o.deal_id)));
+    }
+  };
+
+  const selectedContacts = useMemo(() => {
+    return opportunities
+      .filter(o => selectedDealIds.has(o.deal_id) && o.contact_id)
+      .map(o => ({ contactId: o.contact_id!, contactName: o.contact_name }));
+  }, [selectedDealIds, opportunities]);
+
   const exportToCSV = () => {
     if (!opportunities.length) return;
     const statusLabel = (s: string) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
