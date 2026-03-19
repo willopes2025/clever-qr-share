@@ -180,6 +180,7 @@ export const ConversationList = ({
   const isSearching = isSearchingMessages || isSearchingContacts || isLoadingMissingSearchConversations;
 
   const { members } = useTeamMembers();
+  const { getLabel: getMetaLabel } = useMetaNumbersMap();
 
   const mergedConversations = useMemo(() => {
     const conversationMap = new Map<string, ConversationWithTags>();
