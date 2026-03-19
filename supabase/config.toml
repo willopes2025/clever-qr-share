@@ -251,3 +251,6 @@ verify_jwt = false
 
 [functions.execute-chatbot-flow]
 verify_jwt = false
+
+[functions.generate-opportunity-messages]
+verify_jwt = false
