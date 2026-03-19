@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
