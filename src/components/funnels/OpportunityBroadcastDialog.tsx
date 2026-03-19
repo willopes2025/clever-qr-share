@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCampaignMutations } from '@/hooks/useCampaigns';
 import { useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
 import { AgentPicker } from '@/components/shared/AgentPicker';
-import { SelectInstanceDialog, SendingMode } from '@/components/campaigns/SelectInstanceDialog';
+import { SelectInstanceDialog, type SendingMode } from '@/components/campaigns/SelectInstanceDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
