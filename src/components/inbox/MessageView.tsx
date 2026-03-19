@@ -256,7 +256,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   }, [optimisticMessages.length]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !selectedInstanceId) return;
+    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    if (!newMessage.trim() || !hasValidSender) return;
 
     let messageContent = newMessage.trim();
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
