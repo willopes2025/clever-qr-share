@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ProviderBadge } from "./ProviderBadge";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 
 interface ConversationWithTags extends Conversation {
   tag_assignments?: { tag_id: string }[];
