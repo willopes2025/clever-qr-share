@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -25,6 +25,7 @@ interface SendMessageRequest {
   document?: { link?: string; id?: string; filename?: string; caption?: string };
   interactive?: any;
   conversationId?: string;
+  phoneNumberId?: string; // Allow specifying which number to send from
 }
 
 Deno.serve(async (req: Request) => {
@@ -46,7 +47,6 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Verify user
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
@@ -61,7 +61,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Get user's Meta WhatsApp integration from database
+    const body: SendMessageRequest = await req.json();
+    console.log('[META-SEND] Request:', JSON.stringify(body, null, 2));
+
+    if (!body.to) {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Número do destinatário é obrigatório' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Get user's integration (contains the access_token)
     const { data: integration, error: integrationError } = await supabase
       .from('integrations')
       .select('*')
@@ -82,8 +95,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const accessToken = integration.credentials?.access_token;
-    const phoneNumberId = integration.credentials?.phone_number_id;
-
     if (!accessToken) {
       return new Response(JSON.stringify({ 
         success: false,
@@ -94,30 +105,59 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Determine which phone_number_id to use
+    let phoneNumberId = body.phoneNumberId || null;
+
+    if (!phoneNumberId) {
+      // If conversationId provided, check which meta number is associated
+      if (body.conversationId) {
+        const { data: conversation } = await supabase
+          .from('conversations')
+          .select('meta_phone_number_id')
+          .eq('id', body.conversationId)
+          .maybeSingle();
+        
+        if (conversation?.meta_phone_number_id) {
+          phoneNumberId = conversation.meta_phone_number_id;
+          console.log('[META-SEND] Using phone_number_id from conversation:', phoneNumberId);
+        }
+      }
+
+      // Fallback: use first active meta number for this user
+      if (!phoneNumberId) {
+        const { data: metaNumber } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('phone_number_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('connected_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (metaNumber) {
+          phoneNumberId = metaNumber.phone_number_id;
+          console.log('[META-SEND] Using phone_number_id from meta_whatsapp_numbers:', phoneNumberId);
+        }
+      }
+
+      // Final fallback: use from integration credentials
+      if (!phoneNumberId) {
+        phoneNumberId = integration.credentials?.phone_number_id;
+        console.log('[META-SEND] Using phone_number_id from integration:', phoneNumberId);
+      }
+    }
+
     if (!phoneNumberId) {
       return new Response(JSON.stringify({ 
         success: false,
-        error: 'Phone Number ID não configurado na integração' 
+        error: 'Phone Number ID não configurado. Conecte um número nas configurações.' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const body: SendMessageRequest = await req.json();
-    console.log('[META-SEND] Request:', JSON.stringify(body, null, 2));
-
-    if (!body.to) {
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: 'Número do destinatário é obrigatório' 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Format phone number (remove + and spaces)
+    // Format phone number
     const formattedPhone = body.to.replace(/[^0-9]/g, '');
 
     // Build message payload
@@ -166,7 +206,6 @@ Deno.serve(async (req: Request) => {
 
     console.log('[META-SEND] Sending to Meta API with phone_number_id:', phoneNumberId);
 
-    // Send message via Meta API
     const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
       method: 'POST',
       headers: {
@@ -214,7 +253,6 @@ Deno.serve(async (req: Request) => {
           user_id: user.id
         });
 
-      // Update conversation
       await supabase
         .from('conversations')
         .update({
