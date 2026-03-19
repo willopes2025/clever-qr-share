@@ -316,6 +316,37 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
               </div>
               )}
 
+              {/* Meta Number Filter - Only show when provider is meta or all */}
+              {filters.provider !== 'evolution' && metaNumberOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Phone className="h-3 w-3" />
+                  Número API (Meta)
+                </label>
+                <Select
+                  value={filters.metaPhoneNumberId || "all"}
+                  onValueChange={(value) =>
+                    onFiltersChange({
+                      ...filters,
+                      metaPhoneNumberId: value === 'all' ? null : value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos os números" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os números</SelectItem>
+                    {metaNumberOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              )}
+
               {/* Tag Filter */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
