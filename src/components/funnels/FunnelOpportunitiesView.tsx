@@ -241,6 +241,12 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           <p className="text-sm text-muted-foreground">Ordenadas por probabilidade de fechamento</p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedDealIds.size > 0 && (
+            <Button size="sm" onClick={() => setShowBroadcast(true)}>
+              <Send className="h-4 w-4 mr-2" />
+              Disparar ({selectedDealIds.size})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={exportToCSV} disabled={!opportunities.length}>
             <Download className="h-4 w-4 mr-2" />
             Exportar
