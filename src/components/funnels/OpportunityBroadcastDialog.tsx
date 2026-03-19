@@ -1,0 +1,531 @@
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send } from 'lucide-react';
+import { useMessageTemplates } from '@/hooks/useMessageTemplates';
+import { useContacts } from '@/hooks/useContacts';
+import { useAuth } from '@/hooks/useAuth';
+import { useCampaignMutations } from '@/hooks/useCampaigns';
+import { useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
+import { AgentPicker } from '@/components/shared/AgentPicker';
+import { SelectInstanceDialog, SendingMode } from '@/components/campaigns/SelectInstanceDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+const DAYS_OF_WEEK = [
+  { value: 'mon', label: 'Seg' },
+  { value: 'tue', label: 'Ter' },
+  { value: 'wed', label: 'Qua' },
+  { value: 'thu', label: 'Qui' },
+  { value: 'fri', label: 'Sex' },
+  { value: 'sat', label: 'Sáb' },
+  { value: 'sun', label: 'Dom' },
+];
+
+interface OpportunityBroadcastDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedContacts: { contactId: string; contactName: string }[];
+  funnelName: string;
+}
+
+export const OpportunityBroadcastDialog = ({
+  open,
+  onOpenChange,
+  selectedContacts,
+  funnelName,
+}: OpportunityBroadcastDialogProps) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { templates } = useMessageTemplates();
+  const { createTag } = useContacts();
+  const { createCampaign, startCampaign } = useCampaignMutations();
+  const { linkConfigToCampaign } = useAgentConfigMutations();
+
+  // Form state
+  const [templateId, setTemplateId] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [intervalMin, setIntervalMin] = useState(90);
+  const [intervalMax, setIntervalMax] = useState(180);
+  const [dailyLimit, setDailyLimit] = useState(1000);
+  const [startHour, setStartHour] = useState(8);
+  const [endHour, setEndHour] = useState(20);
+  const [allowedDays, setAllowedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri']);
+
+  // Duplicate control
+  const [skipAlreadySent, setSkipAlreadySent] = useState(true);
+  const [skipMode, setSkipMode] = useState<'same_campaign' | 'same_template' | 'same_list' | 'any_campaign' | 'has_tag'>('same_template');
+  const [skipDaysPeriod, setSkipDaysPeriod] = useState(30);
+  const [skipTagId, setSkipTagId] = useState<string | null>(null);
+
+  // Tag on delivery
+  const [enableTagOnDelivery, setEnableTagOnDelivery] = useState(false);
+  const [tagOnDeliveryId, setTagOnDeliveryId] = useState<string | null>(null);
+  const [showCreateTag, setShowCreateTag] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#3B82F6');
+
+  // AI
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  // Instance selection
+  const [showInstanceDialog, setShowInstanceDialog] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [pendingCampaignId, setPendingCampaignId] = useState<string | null>(null);
+
+  const { data: tags } = useQuery({
+    queryKey: ['tags', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from('tags').select('*').order('name');
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const activeTemplates = templates?.filter(t => t.is_active) || [];
+  const selectedTemplate = activeTemplates.find(t => t.id === templateId);
+
+  const toggleDay = (day: string) => {
+    setAllowedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    try {
+      const newTag = await createTag.mutateAsync({ name: newTagName.trim(), color: newTagColor });
+      setTagOnDeliveryId(newTag.id);
+      setShowCreateTag(false);
+      setNewTagName('');
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!templateId || !user?.id) return;
+    setIsProcessing(true);
+
+    try {
+      // 1. Create temporary broadcast list
+      const { data: list, error: listError } = await supabase
+        .from('broadcast_lists')
+        .insert({
+          user_id: user.id,
+          name: `Oportunidades - ${funnelName} - ${new Date().toLocaleString('pt-BR')}`,
+          description: `Lista temporária criada a partir de ${selectedContacts.length} oportunidades selecionadas`,
+          type: 'manual' as const,
+        })
+        .select()
+        .single();
+
+      if (listError) throw listError;
+
+      // 2. Add contacts to the list
+      const contactEntries = selectedContacts.map(c => ({
+        list_id: list.id,
+        contact_id: c.contactId,
+      }));
+
+      const { error: contactsError } = await supabase
+        .from('broadcast_list_contacts')
+        .insert(contactEntries);
+
+      if (contactsError) throw contactsError;
+
+      // 3. Create campaign
+      const campaign = await createCampaign.mutateAsync({
+        name: `Disparo Oportunidades - ${funnelName}`,
+        template_id: templateId,
+        list_id: list.id,
+        scheduled_at: null,
+        message_interval_min: intervalMin,
+        message_interval_max: intervalMax,
+        daily_limit: dailyLimit,
+        allowed_start_hour: startHour,
+        allowed_end_hour: endHour,
+        allowed_days: allowedDays,
+        timezone: 'America/Sao_Paulo',
+        skip_already_sent: skipAlreadySent,
+        skip_mode: skipMode,
+        skip_days_period: skipDaysPeriod,
+        skip_tag_id: skipMode === 'has_tag' ? skipTagId : null,
+        tag_on_delivery_id: enableTagOnDelivery ? tagOnDeliveryId : null,
+        ai_enabled: aiEnabled && !!selectedAgentId,
+        ai_prompt: '',
+        ai_knowledge_base: '',
+        ai_max_interactions: 10,
+        ai_response_delay_min: 3,
+        ai_response_delay_max: 8,
+        ai_handoff_keywords: ['atendente', 'humano', 'pessoa', 'falar com alguém'],
+        ai_active_hours_start: 8,
+        ai_active_hours_end: 20,
+      });
+
+      // 4. Link AI agent if enabled
+      if (aiEnabled && selectedAgentId && campaign?.id) {
+        try {
+          await linkConfigToCampaign.mutateAsync({
+            configId: selectedAgentId,
+            campaignId: campaign.id,
+          });
+        } catch (error) {
+          console.error('Failed to link agent:', error);
+        }
+      }
+
+      // 5. Open instance selection dialog
+      setPendingCampaignId(campaign.id);
+      setShowInstanceDialog(true);
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Erro ao preparar disparo: ' + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleInstanceConfirm = async ({ instanceIds, sendingMode }: { instanceIds: string[]; sendingMode: SendingMode }) => {
+    if (!pendingCampaignId) return;
+
+    try {
+      await startCampaign.mutateAsync({
+        campaignId: pendingCampaignId,
+        instanceIds,
+        sendingMode,
+      });
+
+      setShowInstanceDialog(false);
+      onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success(`Disparo iniciado para ${selectedContacts.length} contatos!`);
+
+      // Reset state
+      setTemplateId('');
+      setPendingCampaignId(null);
+    } catch (error: any) {
+      toast.error('Erro ao iniciar disparo: ' + error.message);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={open && !showInstanceDialog} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Disparar Mensagem em Massa
+            </DialogTitle>
+            <DialogDescription>
+              Enviar mensagem para {selectedContacts.length} oportunidade{selectedContacts.length !== 1 ? 's' : ''} selecionada{selectedContacts.length !== 1 ? 's' : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Template selection */}
+            <div className="space-y-2">
+              <Label>Template de Mensagem *</Label>
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTemplate && (
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Contacts preview */}
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium">{selectedContacts.length} contatos selecionados</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedContacts.slice(0, 5).map(c => c.contactName).join(', ')}
+                {selectedContacts.length > 5 && ` e mais ${selectedContacts.length - 5}...`}
+              </p>
+            </div>
+
+            {/* Advanced Sending Settings */}
+            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" className="w-full justify-between">
+                  <span className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    Configurações de Envio
+                  </span>
+                  {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Intervalo Mínimo (seg)</Label>
+                    <Input type="number" min={1} value={intervalMin} onChange={(e) => setIntervalMin(parseInt(e.target.value) || 1)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Intervalo Máximo (seg)</Label>
+                    <Input type="number" min={1} value={intervalMax} onChange={(e) => setIntervalMax(parseInt(e.target.value) || 1)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Limite Diário de Mensagens</Label>
+                  <Input type="number" min={1} value={dailyLimit} onChange={(e) => setDailyLimit(parseInt(e.target.value) || 1)} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Hora Início</Label>
+                    <Select value={startHour.toString()} onValueChange={(v) => setStartHour(parseInt(v))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hora Fim</Label>
+                    <Select value={endHour.toString()} onValueChange={(v) => setEndHour(parseInt(v))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, '0')}:00</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Dias Permitidos</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map((day) => (
+                      <div key={day.value} className="flex items-center space-x-2">
+                        <Checkbox id={`opp-${day.value}`} checked={allowedDays.includes(day.value)} onCheckedChange={() => toggleDay(day.value)} />
+                        <Label htmlFor={`opp-${day.value}`} className="text-sm cursor-pointer">{day.label}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Duplicate Control */}
+                <div className="space-y-4 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="flex items-center gap-2">
+                        <UserX className="h-4 w-4" />
+                        Evitar Duplicatas
+                      </Label>
+                      <p className="text-sm text-muted-foreground">Não enviar para quem já recebeu mensagens</p>
+                    </div>
+                    <Switch checked={skipAlreadySent} onCheckedChange={setSkipAlreadySent} />
+                  </div>
+
+                  {skipAlreadySent && (
+                    <div className="space-y-4 pl-4 border-l-2 border-muted">
+                      <div className="space-y-2">
+                        <Label>Critério de Exclusão</Label>
+                        <Select value={skipMode} onValueChange={(v) => setSkipMode(v as typeof skipMode)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="same_template">Mesmo Template (recomendado)</SelectItem>
+                            <SelectItem value="same_list">Mesma Lista</SelectItem>
+                            <SelectItem value="any_campaign">Qualquer Campanha</SelectItem>
+                            <SelectItem value="same_campaign">Esta Campanha (para retomadas)</SelectItem>
+                            <SelectItem value="has_tag">Contatos com Tag</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {skipMode === 'has_tag' && (
+                        <div className="space-y-2">
+                          <Label>Tag de Exclusão</Label>
+                          <Select value={skipTagId || 'none'} onValueChange={(v) => setSkipTagId(v === 'none' ? null : v)}>
+                            <SelectTrigger><SelectValue placeholder="Selecione uma tag" /></SelectTrigger>
+                            <SelectContent className="z-[100]">
+                              <SelectItem value="none">Nenhuma</SelectItem>
+                              {tags?.map((tag) => (
+                                <SelectItem key={tag.id} value={tag.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                                    {tag.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {skipMode !== 'has_tag' && (
+                        <div className="space-y-2">
+                          <Label>Período (dias)</Label>
+                          <Input type="number" min={1} max={365} value={skipDaysPeriod} onChange={(e) => setSkipDaysPeriod(parseInt(e.target.value) || 30)} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Tag on Delivery */}
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" className="w-full justify-between">
+                  <span className="flex items-center gap-2">
+                    <Tag className="h-4 w-4" />
+                    Tag de Entrega
+                    {enableTagOnDelivery && tagOnDeliveryId && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-4">
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="space-y-0.5">
+                    <Label className="font-medium">Aplicar Tag ao Entregar</Label>
+                    <p className="text-sm text-muted-foreground">Adiciona uma tag aos contatos que receberam a mensagem</p>
+                  </div>
+                  <Switch checked={enableTagOnDelivery} onCheckedChange={setEnableTagOnDelivery} />
+                </div>
+
+                {enableTagOnDelivery && (
+                  <div className="space-y-4 pl-4 border-l-2 border-muted">
+                    <div className="space-y-2">
+                      <Label>Selecione a Tag</Label>
+                      <Select value={tagOnDeliveryId || 'none'} onValueChange={(v) => setTagOnDeliveryId(v === 'none' ? null : v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione uma tag" /></SelectTrigger>
+                        <SelectContent className="z-[100]">
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {tags?.map((tag) => (
+                            <SelectItem key={tag.id} value={tag.id}>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }} />
+                                {tag.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {!showCreateTag ? (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setShowCreateTag(true)} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Criar nova tag
+                      </Button>
+                    ) : (
+                      <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                        <div className="space-y-2">
+                          <Label>Nome da Tag</Label>
+                          <Input value={newTagName} onChange={(e) => setNewTagName(e.target.value)} placeholder="Ex: Oportunidade Quente" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cor</Label>
+                          <div className="flex gap-2">
+                            {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'].map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setNewTagColor(color)}
+                                className={`w-8 h-8 rounded-full border-2 transition-all ${newTagColor === color ? 'border-foreground scale-110' : 'border-transparent'}`}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="button" size="sm" onClick={handleCreateTag} disabled={!newTagName.trim() || createTag.isPending}>Criar</Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => { setShowCreateTag(false); setNewTagName(''); }}>Cancelar</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* AI Agent */}
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" className="w-full justify-between">
+                  <span className="flex items-center gap-2">
+                    <Bot className="h-4 w-4" />
+                    Agente de IA
+                    {aiEnabled && selectedAgentId && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-primary text-xs rounded-full">Ativo</span>}
+                  </span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-4">
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="space-y-0.5">
+                    <Label className="font-medium">Ativar Agente de IA</Label>
+                    <p className="text-sm text-muted-foreground">Responde automaticamente às mensagens dos contatos</p>
+                  </div>
+                  <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+                </div>
+                {aiEnabled && (
+                  <div className="space-y-2">
+                    <Label>Selecione um Agente</Label>
+                    <AgentPicker selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={!templateId || isProcessing || createCampaign.isPending}
+              >
+                {isProcessing || createCampaign.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Preparando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Selecionar Instância e Disparar
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SelectInstanceDialog
+        open={showInstanceDialog}
+        onOpenChange={(open) => {
+          setShowInstanceDialog(open);
+          if (!open) setPendingCampaignId(null);
+        }}
+        onConfirm={handleInstanceConfirm}
+        isLoading={startCampaign.isPending}
+        campaignName={`Disparo Oportunidades - ${funnelName}`}
+      />
+    </>
+  );
+};
