@@ -21,6 +21,57 @@ interface TemplateComponent {
   }>;
 }
 
+async function getMetaCredentials(
+  supabaseClient: ReturnType<typeof createClient>,
+  userId: string
+) {
+  // Try integrations table first
+  const { data: integration } = await supabaseClient
+    .from("integrations")
+    .select("credentials")
+    .eq("user_id", userId)
+    .eq("provider", "meta_whatsapp")
+    .eq("is_active", true)
+    .single();
+
+  let accessToken: string | undefined;
+
+  if (integration?.credentials) {
+    const creds = integration.credentials as { access_token?: string };
+    accessToken = creds.access_token;
+  }
+
+  if (!accessToken) {
+    accessToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN");
+  }
+
+  return { accessToken };
+}
+
+async function getUserWabas(
+  supabaseClient: ReturnType<typeof createClient>,
+  userId: string
+): Promise<Array<{ waba_id: string; display_name: string | null; phone_number: string | null }>> {
+  const { data } = await supabaseClient
+    .from("meta_whatsapp_numbers")
+    .select("waba_id, display_name, phone_number")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (!data || data.length === 0) return [];
+
+  // Deduplicate by waba_id
+  const seen = new Set<string>();
+  const unique: typeof data = [];
+  for (const row of data) {
+    if (row.waba_id && !seen.has(row.waba_id)) {
+      seen.add(row.waba_id);
+      unique.push(row);
+    }
+  }
+  return unique;
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -49,60 +100,55 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { action, templateId, templateData } = await req.json();
+    const { action, templateId, templateData, wabaId: requestedWabaId } = await req.json();
     console.log(`[meta-template-manager] Action: ${action}, User: ${user.id}`);
 
-    // Get user's Meta integration config - try integrations table first, then env secrets
-    const { data: integration } = await supabaseClient
-      .from("integrations")
-      .select("credentials")
-      .eq("user_id", user.id)
-      .eq("provider", "meta_whatsapp")
-      .eq("is_active", true)
-      .single();
+    const { accessToken } = await getMetaCredentials(supabaseClient, user.id);
 
-    let accessToken: string | undefined;
-    let wabaId: string | undefined;
-
-    if (integration?.credentials) {
-      const creds = integration.credentials as {
-        access_token?: string;
-        phone_number_id?: string;
-        waba_id?: string;
-        business_account_id?: string;
-      };
-      accessToken = creds.access_token;
-      wabaId = creds.waba_id || creds.business_account_id;
-    }
-    
-    // Fallback to environment secrets if not in database
     if (!accessToken) {
-      accessToken = Deno.env.get("META_WHATSAPP_ACCESS_TOKEN");
-    }
-    if (!wabaId) {
-      wabaId = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID");
-    }
-
-    if (!accessToken || !wabaId) {
       return new Response(
-        JSON.stringify({ error: "Meta WhatsApp integration not configured. Configure via integrations or add META_WHATSAPP_ACCESS_TOKEN and META_WHATSAPP_BUSINESS_ACCOUNT_ID secrets." }),
+        JSON.stringify({ error: "Meta WhatsApp access token not configured." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // Resolve wabaId: use requested, or fallback to env/integration
+    let wabaId = requestedWabaId as string | undefined;
+    if (!wabaId) {
+      // Try integration credentials
+      const { data: integration } = await supabaseClient
+        .from("integrations")
+        .select("credentials")
+        .eq("user_id", user.id)
+        .eq("provider", "meta_whatsapp")
+        .eq("is_active", true)
+        .single();
+
+      if (integration?.credentials) {
+        const creds = integration.credentials as { waba_id?: string; business_account_id?: string };
+        wabaId = creds.waba_id || creds.business_account_id;
+      }
+      if (!wabaId) {
+        wabaId = Deno.env.get("META_WHATSAPP_BUSINESS_ACCOUNT_ID");
+      }
+    }
 
     switch (action) {
       case "create": {
-        // Build template components for Meta API
+        if (!wabaId) {
+          return new Response(
+            JSON.stringify({ error: "WABA ID is required to create a template. Select a number/WABA." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
         const components: TemplateComponent[] = [];
 
-        // Header component
         if (templateData.header_type && templateData.header_type !== "NONE") {
           const headerComponent: TemplateComponent = {
             type: "HEADER",
             format: templateData.header_type,
           };
-          
           if (templateData.header_type === "TEXT" && templateData.header_content) {
             headerComponent.text = templateData.header_content;
             if (templateData.header_example) {
@@ -112,27 +158,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
           components.push(headerComponent);
         }
 
-        // Body component (required)
         const bodyComponent: TemplateComponent = {
           type: "BODY",
           text: templateData.body_text,
         };
-        
-        // Add examples for variables if present
         if (templateData.body_examples && templateData.body_examples.length > 0) {
           bodyComponent.example = { body_text: [templateData.body_examples] };
         }
         components.push(bodyComponent);
 
-        // Footer component
         if (templateData.footer_text) {
-          components.push({
-            type: "FOOTER",
-            text: templateData.footer_text,
-          });
+          components.push({ type: "FOOTER", text: templateData.footer_text });
         }
 
-        // Buttons component
         if (templateData.buttons && templateData.buttons.length > 0) {
           components.push({
             type: "BUTTONS",
@@ -145,7 +183,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
           });
         }
 
-        // Submit to Meta API
         const metaResponse = await fetch(
           `${GRAPH_API_BASE}/${wabaId}/message_templates`,
           {
@@ -167,7 +204,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         console.log("[meta-template-manager] Meta API response:", JSON.stringify(metaResult));
 
         if (!metaResponse.ok) {
-          // Save as draft with error
           await supabaseClient.from("meta_templates").insert({
             user_id: user.id,
             waba_id: wabaId,
@@ -186,15 +222,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
           });
 
           return new Response(
-            JSON.stringify({ 
+            JSON.stringify({
               error: metaResult.error?.message || "Failed to submit template to Meta",
-              details: metaResult.error
+              details: metaResult.error,
             }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
-        // Save to database with Meta template ID
         const { data: savedTemplate, error: saveError } = await supabaseClient
           .from("meta_templates")
           .insert({
@@ -222,102 +257,144 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
 
         return new Response(
-          JSON.stringify({ 
-            success: true, 
+          JSON.stringify({
+            success: true,
             template: savedTemplate,
             meta_template_id: metaResult.id,
-            status: metaResult.status
+            status: metaResult.status,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       case "sync": {
-        // Sync all pending templates from Meta
-        const metaResponse = await fetch(
-          `${GRAPH_API_BASE}/${wabaId}/message_templates?limit=100`,
-          {
-            headers: { "Authorization": `Bearer ${accessToken}` },
-          }
-        );
+        // Get all distinct WABAs for this user
+        const userWabas = await getUserWabas(supabaseClient, user.id);
 
-        if (!metaResponse.ok) {
-          const errorData = await metaResponse.json();
+        // If no numbers in DB, fallback to single wabaId
+        const wabasToSync: string[] = userWabas.length > 0
+          ? userWabas.map((w) => w.waba_id)
+          : wabaId ? [wabaId] : [];
+
+        if (wabasToSync.length === 0) {
           return new Response(
-            JSON.stringify({ error: "Failed to fetch templates from Meta", details: errorData }),
+            JSON.stringify({ error: "No WABA configured. Connect a WhatsApp number first." }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
-        const metaData = await metaResponse.json();
-        const metaTemplates = metaData.data || [];
-
-        // Get local templates
+        // Get all local templates for this user
         const { data: localTemplates } = await supabaseClient
           .from("meta_templates")
           .select("*")
           .eq("user_id", user.id);
 
-        let updated = 0;
-        let added = 0;
+        let totalSynced = 0;
+        let totalUpdated = 0;
+        let totalAdded = 0;
 
-        for (const metaTemplate of metaTemplates) {
-          const localTemplate = localTemplates?.find(
-            (t: { name: string }) => t.name === metaTemplate.name
+        for (const currentWabaId of wabasToSync) {
+          console.log(`[meta-template-manager] Syncing WABA: ${currentWabaId}`);
+
+          const metaResponse = await fetch(
+            `${GRAPH_API_BASE}/${currentWabaId}/message_templates?limit=100`,
+            {
+              headers: { "Authorization": `Bearer ${accessToken}` },
+            }
           );
 
-          const newStatus = metaTemplate.status?.toLowerCase() || "pending";
+          if (!metaResponse.ok) {
+            const errorData = await metaResponse.json();
+            console.warn(`[meta-template-manager] Failed to sync WABA ${currentWabaId}:`, errorData);
+            continue; // Skip this WABA but continue with others
+          }
 
-          if (localTemplate) {
-            // Update existing
-            if (localTemplate.status !== newStatus) {
-              await supabaseClient
-                .from("meta_templates")
-                .update({
+          const metaData = await metaResponse.json();
+          const metaTemplates = metaData.data || [];
+          totalSynced += metaTemplates.length;
+
+          for (const metaTemplate of metaTemplates) {
+            // Match by name AND waba_id to avoid cross-account collisions
+            const localTemplate = localTemplates?.find(
+              (t: { name: string; waba_id: string | null }) =>
+                t.name === metaTemplate.name && t.waba_id === currentWabaId
+            );
+
+            const newStatus = metaTemplate.status?.toLowerCase() || "pending";
+
+            if (localTemplate) {
+              if (localTemplate.status !== newStatus || !localTemplate.meta_template_id) {
+                await supabaseClient
+                  .from("meta_templates")
+                  .update({
+                    meta_template_id: metaTemplate.id,
+                    status: newStatus,
+                    rejection_reason: metaTemplate.rejected_reason || null,
+                    approved_at: newStatus === "approved" ? new Date().toISOString() : null,
+                  })
+                  .eq("id", localTemplate.id);
+                totalUpdated++;
+              }
+            } else {
+              // Check if there's a duplicate by name only (old data without waba_id)
+              const duplicateByName = localTemplates?.find(
+                (t: { name: string; waba_id: string | null }) =>
+                  t.name === metaTemplate.name && !t.waba_id
+              );
+
+              if (duplicateByName) {
+                // Fix the old record: set its waba_id
+                await supabaseClient
+                  .from("meta_templates")
+                  .update({
+                    waba_id: currentWabaId,
+                    meta_template_id: metaTemplate.id,
+                    status: newStatus,
+                  })
+                  .eq("id", duplicateByName.id);
+                totalUpdated++;
+              } else {
+                const bodyComponent = metaTemplate.components?.find(
+                  (c: { type: string }) => c.type === "BODY"
+                );
+                const headerComponent = metaTemplate.components?.find(
+                  (c: { type: string }) => c.type === "HEADER"
+                );
+                const footerComponent = metaTemplate.components?.find(
+                  (c: { type: string }) => c.type === "FOOTER"
+                );
+                const buttonsComponent = metaTemplate.components?.find(
+                  (c: { type: string }) => c.type === "BUTTONS"
+                );
+
+                await supabaseClient.from("meta_templates").insert({
+                  user_id: user.id,
                   meta_template_id: metaTemplate.id,
+                  waba_id: currentWabaId,
+                  name: metaTemplate.name,
+                  language: metaTemplate.language,
+                  category: metaTemplate.category,
                   status: newStatus,
-                  rejection_reason: metaTemplate.rejected_reason || null,
+                  header_type: headerComponent?.format || "NONE",
+                  header_content: headerComponent?.text,
+                  body_text: bodyComponent?.text || "",
+                  footer_text: footerComponent?.text,
+                  buttons: buttonsComponent?.buttons || [],
                   approved_at: newStatus === "approved" ? new Date().toISOString() : null,
-                })
-                .eq("id", localTemplate.id);
-              updated++;
+                });
+                totalAdded++;
+              }
             }
-          } else {
-            // Add new template from Meta
-            const bodyComponent = metaTemplate.components?.find(
-              (c: { type: string }) => c.type === "BODY"
-            );
-            const headerComponent = metaTemplate.components?.find(
-              (c: { type: string }) => c.type === "HEADER"
-            );
-            const footerComponent = metaTemplate.components?.find(
-              (c: { type: string }) => c.type === "FOOTER"
-            );
-
-            await supabaseClient.from("meta_templates").insert({
-              user_id: user.id,
-              meta_template_id: metaTemplate.id,
-              waba_id: wabaId,
-              name: metaTemplate.name,
-              language: metaTemplate.language,
-              category: metaTemplate.category,
-              status: newStatus,
-              header_type: headerComponent?.format || "NONE",
-              header_content: headerComponent?.text,
-              body_text: bodyComponent?.text || "",
-              footer_text: footerComponent?.text,
-              approved_at: newStatus === "approved" ? new Date().toISOString() : null,
-            });
-            added++;
           }
         }
 
         return new Response(
-          JSON.stringify({ 
-            success: true, 
-            synced: metaTemplates.length,
-            updated,
-            added
+          JSON.stringify({
+            success: true,
+            synced: totalSynced,
+            updated: totalUpdated,
+            added: totalAdded,
+            wabas_synced: wabasToSync.length,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -331,7 +408,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
           );
         }
 
-        // Get template from database
         const { data: template } = await supabaseClient
           .from("meta_templates")
           .select("*")
@@ -346,10 +422,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           );
         }
 
-        // Delete from Meta if it was submitted
-        if (template.meta_template_id) {
+        const deleteWabaId = template.waba_id || wabaId;
+
+        if (template.meta_template_id && deleteWabaId) {
           const metaResponse = await fetch(
-            `${GRAPH_API_BASE}/${wabaId}/message_templates?name=${template.name}`,
+            `${GRAPH_API_BASE}/${deleteWabaId}/message_templates?name=${template.name}`,
             {
               method: "DELETE",
               headers: { "Authorization": `Bearer ${accessToken}` },
@@ -362,7 +439,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
         }
 
-        // Delete from database
         await supabaseClient
           .from("meta_templates")
           .delete()
@@ -375,7 +451,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       case "get": {
-        // Get single template
         if (!templateId) {
           return new Response(
             JSON.stringify({ error: "Template ID required" }),
@@ -404,12 +479,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       case "list": {
-        // List all user templates
-        const { data: templates, error: listError } = await supabaseClient
+        let query = supabaseClient
           .from("meta_templates")
           .select("*")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
+
+        // Filter by wabaId if provided
+        if (requestedWabaId) {
+          query = query.eq("waba_id", requestedWabaId);
+        }
+
+        const { data: templates, error: listError } = await query;
 
         if (listError) {
           return new Response(
@@ -425,12 +506,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       case "save_draft": {
-        // Save as draft without submitting to Meta
+        const draftWabaId = requestedWabaId || wabaId;
+
         const { data: savedTemplate, error: saveError } = await supabaseClient
           .from("meta_templates")
           .insert({
             user_id: user.id,
-            waba_id: wabaId,
+            waba_id: draftWabaId,
             name: templateData.name,
             language: templateData.language || "pt_BR",
             category: templateData.category,
