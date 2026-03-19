@@ -17,18 +17,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, RefreshCw, MoreVertical, Trash2, Eye, AlertCircle, Check, Clock, X, FileText } from "lucide-react";
 import { MetaTemplate, useMetaTemplates } from "@/hooks/useMetaTemplates";
+import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { MetaTemplateForm } from "./MetaTemplateForm";
+import { MetaTemplateDeleteDialog } from "./MetaTemplateDeleteDialog";
+import { MetaTemplatePreviewDialog } from "./MetaTemplatePreviewDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -48,6 +48,9 @@ const CATEGORY_LABELS = {
 };
 
 export function MetaTemplatesList() {
+  const [filterWabaId, setFilterWabaId] = useState<string | null>(null);
+  const { metaNumbers } = useMetaNumbersMap();
+
   const {
     templates,
     isLoading,
@@ -57,11 +60,41 @@ export function MetaTemplatesList() {
     isDeleting,
     syncTemplates,
     isSyncing,
-  } = useMetaTemplates();
+  } = useMetaTemplates(filterWabaId);
 
   const [showForm, setShowForm] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<MetaTemplate | null>(null);
+
+  // Build unique WABA options from meta numbers
+  const wabaOptions = (() => {
+    const seen = new Set<string>();
+    const options: Array<{ waba_id: string; label: string }> = [];
+    for (const num of metaNumbers) {
+      if (num.phone_number_id) {
+        // Use waba_id from the numbersMap - we need to get it from the raw data
+        // The metaNumbers from useMetaNumbersMap only has phone_number_id, phone_number, display_name
+        // We need waba_id - let's derive from templates or use a separate approach
+      }
+    }
+    // Derive WABAs from templates themselves
+    for (const t of templates) {
+      if (t.waba_id && !seen.has(t.waba_id)) {
+        seen.add(t.waba_id);
+        // Find a matching number for display
+        const matchingNum = metaNumbers.find(n => {
+          // We can't match directly without waba_id in metaNumbers hook
+          // Show the waba_id shortened
+          return false;
+        });
+        options.push({
+          waba_id: t.waba_id,
+          label: `WABA ...${t.waba_id.slice(-6)}`,
+        });
+      }
+    }
+    return options;
+  })();
 
   const handleCreate = (data: { templateData: Parameters<typeof createTemplate>[0]["templateData"]; submitToMeta: boolean }) => {
     createTemplate(data, {
@@ -88,6 +121,11 @@ export function MetaTemplatesList() {
     );
   };
 
+  const getWabaLabel = (wabaId: string | null) => {
+    if (!wabaId) return null;
+    return `...${wabaId.slice(-6)}`;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -99,6 +137,24 @@ export function MetaTemplatesList() {
             </CardDescription>
           </div>
           <div className="flex gap-2">
+            {wabaOptions.length > 1 && (
+              <Select
+                value={filterWabaId || "all"}
+                onValueChange={(v) => setFilterWabaId(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Todas as contas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as contas</SelectItem>
+                  {wabaOptions.map((opt) => (
+                    <SelectItem key={opt.waba_id} value={opt.waba_id}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button variant="outline" onClick={() => syncTemplates()} disabled={isSyncing}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
               Sincronizar
@@ -131,6 +187,7 @@ export function MetaTemplatesList() {
                 <TableHead>Categoria</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Idioma</TableHead>
+                {wabaOptions.length > 1 && <TableHead>Conta</TableHead>}
                 <TableHead>Criado em</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
@@ -155,6 +212,13 @@ export function MetaTemplatesList() {
                   </TableCell>
                   <TableCell>{getStatusBadge(template.status)}</TableCell>
                   <TableCell>{template.language}</TableCell>
+                  {wabaOptions.length > 1 && (
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {getWabaLabel(template.waba_id)}
+                      </span>
+                    </TableCell>
+                  )}
                   <TableCell>
                     {format(new Date(template.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                   </TableCell>
@@ -186,7 +250,6 @@ export function MetaTemplatesList() {
           </Table>
         )}
 
-        {/* Create Form Dialog */}
         <MetaTemplateForm
           open={showForm}
           onOpenChange={setShowForm}
@@ -194,85 +257,18 @@ export function MetaTemplatesList() {
           isSubmitting={isCreating}
         />
 
-        {/* Delete Confirmation */}
-        <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir Template</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir este template? Esta ação não pode ser desfeita.
-                Se o template já foi submetido ao Meta, ele também será excluído de lá.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={isDeleting}
-              >
-                {isDeleting ? "Excluindo..." : "Excluir"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <MetaTemplateDeleteDialog
+          open={!!deleteId}
+          onOpenChange={() => setDeleteId(null)}
+          onConfirm={handleDelete}
+          isDeleting={isDeleting}
+        />
 
-        {/* Preview Dialog */}
-        <AlertDialog open={!!previewTemplate} onOpenChange={() => setPreviewTemplate(null)}>
-          <AlertDialogContent className="max-w-lg">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                {previewTemplate?.name}
-                {previewTemplate && getStatusBadge(previewTemplate.status)}
-              </AlertDialogTitle>
-            </AlertDialogHeader>
-            {previewTemplate && (
-              <div className="space-y-3">
-                <div className="bg-muted rounded-lg p-4 space-y-2">
-                  {previewTemplate.header_type === "TEXT" && previewTemplate.header_content && (
-                    <p className="font-semibold text-sm">{previewTemplate.header_content}</p>
-                  )}
-                  {previewTemplate.header_type && 
-                   previewTemplate.header_type !== "TEXT" && 
-                   previewTemplate.header_type !== "NONE" && (
-                    <div className="bg-background rounded h-24 flex items-center justify-center text-muted-foreground text-sm">
-                      [{previewTemplate.header_type}]
-                    </div>
-                  )}
-                  <p className="text-sm whitespace-pre-wrap">{previewTemplate.body_text}</p>
-                  {previewTemplate.footer_text && (
-                    <p className="text-xs text-muted-foreground">{previewTemplate.footer_text}</p>
-                  )}
-                  {previewTemplate.buttons && previewTemplate.buttons.length > 0 && (
-                    <div className="flex flex-col gap-1 pt-2 border-t">
-                      {previewTemplate.buttons.map((btn, idx) => (
-                        <Button key={idx} variant="outline" size="sm" className="w-full" disabled>
-                          {btn.text}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p><strong>Categoria:</strong> {CATEGORY_LABELS[previewTemplate.category]}</p>
-                  <p><strong>Idioma:</strong> {previewTemplate.language}</p>
-                  {previewTemplate.meta_template_id && (
-                    <p><strong>ID Meta:</strong> {previewTemplate.meta_template_id}</p>
-                  )}
-                  {previewTemplate.submitted_at && (
-                    <p><strong>Enviado em:</strong> {format(new Date(previewTemplate.submitted_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
-                  )}
-                  {previewTemplate.approved_at && (
-                    <p><strong>Aprovado em:</strong> {format(new Date(previewTemplate.approved_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
-                  )}
-                </div>
-              </div>
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel>Fechar</AlertDialogCancel>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <MetaTemplatePreviewDialog
+          template={previewTemplate}
+          onClose={() => setPreviewTemplate(null)}
+          getStatusBadge={getStatusBadge}
+        />
       </CardContent>
     </Card>
   );
