@@ -40,10 +40,14 @@ export const useMetaWhatsAppNumbers = () => {
   });
 
   const addNumber = useMutation({
-    mutationFn: async ({ phoneNumberId, displayName, phoneNumber }: { 
+    mutationFn: async ({ phoneNumberId, displayName, phoneNumber, wabaId, businessAccountId, qualityRating, messagingLimit }: { 
       phoneNumberId: string; 
       displayName?: string; 
-      phoneNumber?: string 
+      phoneNumber?: string;
+      wabaId?: string;
+      businessAccountId?: string;
+      qualityRating?: string;
+      messagingLimit?: string;
     }) => {
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
@@ -52,7 +56,14 @@ export const useMetaWhatsAppNumbers = () => {
           phone_number_id: phoneNumberId,
           display_name: displayName || null,
           phone_number: phoneNumber || null,
-        }, { onConflict: 'user_id,phone_number_id' })
+          waba_id: wabaId || null,
+          business_account_id: businessAccountId || null,
+          quality_rating: qualityRating || null,
+          messaging_limit: messagingLimit || null,
+          status: 'connected',
+          is_active: true,
+          connected_at: new Date().toISOString(),
+        }, { onConflict: 'phone_number_id' })
         .select()
         .single();
 
