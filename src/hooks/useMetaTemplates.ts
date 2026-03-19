@@ -1,4 +1,3 @@
-import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -71,21 +70,25 @@ async function invokeTemplateManager(action: string, data?: Record<string, unkno
   return response.data;
 }
 
-export function useMetaTemplates() {
+export function useMetaTemplates(filterWabaId?: string | null) {
   const queryClient = useQueryClient();
 
   const { data: templates = [], isLoading, refetch } = useQuery({
-    queryKey: ["meta-templates"],
+    queryKey: ["meta-templates", filterWabaId],
     queryFn: async () => {
-      const result = await invokeTemplateManager("list");
+      const params: Record<string, unknown> = {};
+      if (filterWabaId) {
+        params.wabaId = filterWabaId;
+      }
+      const result = await invokeTemplateManager("list", params);
       return (result.templates || []) as MetaTemplate[];
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async ({ templateData, submitToMeta }: { templateData: CreateTemplateData; submitToMeta: boolean }) => {
+    mutationFn: async ({ templateData, submitToMeta, wabaId }: { templateData: CreateTemplateData; submitToMeta: boolean; wabaId?: string }) => {
       const action = submitToMeta ? "create" : "save_draft";
-      return invokeTemplateManager(action, { templateData });
+      return invokeTemplateManager(action, { templateData, wabaId });
     },
     onSuccess: (_, { submitToMeta }) => {
       queryClient.invalidateQueries({ queryKey: ["meta-templates"] });
@@ -119,7 +122,7 @@ export function useMetaTemplates() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["meta-templates"] });
-      toast.success(`Sincronizado: ${data.synced} templates (${data.updated} atualizados, ${data.added} adicionados)`);
+      toast.success(`Sincronizado: ${data.synced} templates de ${data.wabas_synced} conta(s) (${data.updated} atualizados, ${data.added} adicionados)`);
     },
     onError: (error: Error) => {
       toast.error(`Erro ao sincronizar: ${error.message}`);
