@@ -267,6 +267,12 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={opportunities.length > 0 && selectedDealIds.size === opportunities.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="w-[80px]">Score</TableHead>
                 <TableHead>ID</TableHead>
                 <TableHead>Nome</TableHead>
