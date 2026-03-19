@@ -154,23 +154,51 @@ Deno.serve(async (req) => {
 
       console.log('[META-WEBHOOK] Phone Number ID from payload:', webhookPhoneNumberId);
 
-      // Find the integration by phone_number_id from credentials
-      let integration;
+      // Step 1: Find the user via meta_whatsapp_numbers table (primary lookup)
+      let integration = null;
+      let foundUserId: string | null = null;
+
       if (webhookPhoneNumberId) {
+        // Check meta_whatsapp_numbers first (supports multiple numbers per user)
+        const { data: metaNumber } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('user_id')
+          .eq('phone_number_id', webhookPhoneNumberId)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (metaNumber) {
+          foundUserId = metaNumber.user_id;
+          console.log('[META-WEBHOOK] Found user via meta_whatsapp_numbers:', foundUserId);
+
+          // Get the integration for this user (contains access_token)
+          const { data: userIntegration } = await supabase
+            .from('integrations')
+            .select('*')
+            .eq('user_id', foundUserId)
+            .eq('provider', 'meta_whatsapp')
+            .eq('is_active', true)
+            .maybeSingle();
+
+          integration = userIntegration;
+        }
+      }
+
+      // Step 2: Fallback to integrations table search
+      if (!integration && webhookPhoneNumberId) {
         const { data: integrations } = await supabase
           .from('integrations')
           .select('*')
           .eq('provider', 'meta_whatsapp')
           .eq('is_active', true);
 
-        // Find integration matching the phone_number_id
         integration = integrations?.find(
-          (i: any) => i.credentials?.phone_number_id === webhookPhoneNumberId
+          (i: any) => i.credentials?.phone_number_id === webhookPhoneNumberId ||
+                      i.credentials?.all_phone_number_ids?.includes(webhookPhoneNumberId)
         );
       }
 
       if (!integration) {
-        // Fallback: try to get the first active integration
         const { data: fallbackIntegration } = await supabase
           .from('integrations')
           .select('*')
@@ -185,7 +213,6 @@ Deno.serve(async (req) => {
       if (!integration) {
         console.log('[META-WEBHOOK] No active Meta WhatsApp integration found');
         
-        // Log event even without integration (for debugging)
         await logWebhookEvent(supabase, null, 'POST', 200, webhookPhoneNumberId, eventType, body, 'No integration found', null);
         
         return new Response(JSON.stringify({ success: true, message: 'No integration found' }), {

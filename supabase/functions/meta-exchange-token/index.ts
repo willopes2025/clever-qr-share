@@ -3,19 +3,17 @@ import { createClient } from "npm:@supabase/supabase-js@2.84.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const APP_ID = '25248752291487782';
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -42,7 +40,6 @@ serve(async (req) => {
 
     const userId = claimsData.claims.sub as string;
 
-    // Get request body
     const { code } = await req.json();
     
     if (!code) {
@@ -52,7 +49,6 @@ serve(async (req) => {
       );
     }
 
-    // Get App Secret from Supabase secrets
     const appSecret = Deno.env.get('META_WHATSAPP_APP_SECRET');
     if (!appSecret) {
       console.error('[META-EXCHANGE] META_WHATSAPP_APP_SECRET not configured');
@@ -64,7 +60,6 @@ serve(async (req) => {
 
     console.log('[META-EXCHANGE] Exchanging code for access token...');
 
-    // Exchange code for access token
     const tokenUrl = `https://graph.facebook.com/v24.0/oauth/access_token?` +
       `client_id=${APP_ID}` +
       `&client_secret=${appSecret}` +
@@ -90,7 +85,6 @@ serve(async (req) => {
     // Get WhatsApp Business Accounts
     console.log('[META-EXCHANGE] Fetching WhatsApp Business Accounts...');
     
-    // Use app access token for debug_token endpoint
     const appAccessToken = `${APP_ID}|${appSecret}`;
     const wabaUrl = `https://graph.facebook.com/v24.0/debug_token?input_token=${accessToken}&access_token=${appAccessToken}`;
     const debugResponse = await fetch(wabaUrl);
@@ -98,11 +92,8 @@ serve(async (req) => {
     
     console.log('[META-EXCHANGE] Debug token response:', JSON.stringify(debugData, null, 2));
 
-    // Get shared WABA from the token permissions
     let wabaId: string | null = null;
-    let phoneNumberId: string | null = null;
-    let displayPhoneNumber: string | null = null;
-    let businessName: string | null = null;
+    let allPhoneNumbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> = [];
 
     // Try to get WABA from granular scopes
     if (debugData.data?.granular_scopes) {
@@ -114,7 +105,6 @@ serve(async (req) => {
         console.log('[META-EXCHANGE] Found WABA ID from scopes:', wabaId);
       }
       
-      // Also check whatsapp_business_messaging scope for phone number IDs
       if (!wabaId) {
         const msgScope = debugData.data.granular_scopes.find(
           (scope: any) => scope.scope === 'whatsapp_business_messaging'
@@ -126,7 +116,7 @@ serve(async (req) => {
       }
     }
 
-    // If we have WABA ID, get phone numbers
+    // If we have WABA ID, get ALL phone numbers
     if (wabaId) {
       const phoneUrl = `https://graph.facebook.com/v24.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
       const phoneResponse = await fetch(phoneUrl);
@@ -135,11 +125,12 @@ serve(async (req) => {
       console.log('[META-EXCHANGE] Phone numbers response:', JSON.stringify(phoneData, null, 2));
 
       if (phoneData.data?.length > 0) {
-        const phone = phoneData.data[0];
-        phoneNumberId = phone.id;
-        displayPhoneNumber = phone.display_phone_number;
-        businessName = phone.verified_name;
-        console.log('[META-EXCHANGE] Found phone:', displayPhoneNumber);
+        allPhoneNumbers = phoneData.data.map((phone: any) => ({
+          id: phone.id,
+          display_phone_number: phone.display_phone_number,
+          verified_name: phone.verified_name,
+          quality_rating: phone.quality_rating,
+        }));
       }
     } else {
       // Fallback: Try to get WABA from /me/businesses endpoint
@@ -149,7 +140,6 @@ serve(async (req) => {
       const bizData = await bizResponse.json();
       console.log('[META-EXCHANGE] Businesses response:', JSON.stringify(bizData, null, 2));
       
-      // Try each business to find WABAs
       if (bizData.data?.length > 0) {
         for (const biz of bizData.data) {
           const wabaSearchUrl = `https://graph.facebook.com/v24.0/${biz.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`;
@@ -159,14 +149,16 @@ serve(async (req) => {
           
           if (wabaSearchData.data?.length > 0) {
             wabaId = wabaSearchData.data[0].id;
-            // Get phone numbers for this WABA
             const phoneUrl = `https://graph.facebook.com/v24.0/${wabaId}/phone_numbers?access_token=${accessToken}`;
             const phoneResponse = await fetch(phoneUrl);
             const phoneData = await phoneResponse.json();
             if (phoneData.data?.length > 0) {
-              phoneNumberId = phoneData.data[0].id;
-              displayPhoneNumber = phoneData.data[0].display_phone_number;
-              businessName = phoneData.data[0].verified_name;
+              allPhoneNumbers = phoneData.data.map((phone: any) => ({
+                id: phone.id,
+                display_phone_number: phone.display_phone_number,
+                verified_name: phone.verified_name,
+                quality_rating: phone.quality_rating,
+              }));
             }
             break;
           }
@@ -174,41 +166,61 @@ serve(async (req) => {
       }
     }
 
-    if (!wabaId || !phoneNumberId) {
-      // Last resort: check if this is a system user token
-      console.log('[META-EXCHANGE] Trying to get WABA from me endpoint...');
-      const meUrl = `https://graph.facebook.com/v24.0/me?fields=id,name&access_token=${accessToken}`;
-      const meResponse = await fetch(meUrl);
-      const meData = await meResponse.json();
-      console.log('[META-EXCHANGE] Me endpoint response:', JSON.stringify(meData, null, 2));
-
+    if (!wabaId || allPhoneNumbers.length === 0) {
+      console.log('[META-EXCHANGE] No WABA or phone numbers found');
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'Não foi possível encontrar a conta WhatsApp Business. Verifique se você completou o processo de compartilhamento.',
-          debug: { debugData, meData }
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Save credentials to integrations table
-    console.log('[META-EXCHANGE] Saving integration to database...');
-    
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    // Save ALL phone numbers to meta_whatsapp_numbers table
+    console.log(`[META-EXCHANGE] Saving ${allPhoneNumbers.length} phone numbers to meta_whatsapp_numbers...`);
+    
+    for (const phone of allPhoneNumbers) {
+      const { error: numberError } = await adminClient
+        .from('meta_whatsapp_numbers')
+        .upsert({
+          user_id: userId,
+          phone_number_id: phone.id,
+          display_name: phone.verified_name || null,
+          phone_number: phone.display_phone_number || null,
+          waba_id: wabaId,
+          quality_rating: phone.quality_rating || null,
+          status: 'connected',
+          is_active: true,
+          connected_at: new Date().toISOString(),
+        }, { onConflict: 'phone_number_id' });
+
+      if (numberError) {
+        console.error(`[META-EXCHANGE] Error saving phone number ${phone.id}:`, numberError);
+      } else {
+        console.log(`[META-EXCHANGE] Saved phone number: ${phone.display_phone_number} (${phone.id})`);
+      }
+    }
+
+    // Save/update integrations table with access_token (use first phone as primary)
+    const primaryPhone = allPhoneNumbers[0];
+    
     const { error: upsertError } = await adminClient
       .from('integrations')
       .upsert({
         user_id: userId,
         provider: 'meta_whatsapp',
         credentials: {
-          phone_number_id: phoneNumberId,
+          phone_number_id: primaryPhone.id,
           business_account_id: wabaId,
           access_token: accessToken,
-          display_phone_number: displayPhoneNumber,
-          business_name: businessName,
+          app_secret: appSecret,
+          display_phone_number: primaryPhone.display_phone_number,
+          business_name: primaryPhone.verified_name,
+          all_phone_number_ids: allPhoneNumbers.map(p => p.id),
         },
         is_active: true,
         last_sync_at: new Date().toISOString(),
@@ -229,10 +241,15 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        phoneNumberId,
+        phoneNumberId: primaryPhone.id,
         wabaId,
-        displayPhoneNumber,
-        businessName,
+        displayPhoneNumber: primaryPhone.display_phone_number,
+        businessName: primaryPhone.verified_name,
+        allPhoneNumbers: allPhoneNumbers.map(p => ({
+          phoneNumberId: p.id,
+          displayPhoneNumber: p.display_phone_number,
+          businessName: p.verified_name,
+        })),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
