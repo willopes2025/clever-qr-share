@@ -155,6 +155,11 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
     [campaigns]
   );
 
+  const metaNumberOptions = useMemo(() =>
+    metaNumbers?.map(n => ({ value: n.phone_number_id, label: n.display_name || n.phone_number || n.phone_number_id })) || [],
+    [metaNumbers]
+  );
+
   const selectedDateFilter = dateFilterOptions.find(d => d.value === filters.dateFilter);
   const selectedResponseStatus = responseStatusOptions.find(r => r.value === filters.responseStatus);
   const selectedAiStatus = aiStatusOptions.find(a => a.value === filters.aiStatus);
