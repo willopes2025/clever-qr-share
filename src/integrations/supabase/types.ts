@@ -3833,34 +3833,52 @@ export type Database = {
       }
       meta_whatsapp_numbers: {
         Row: {
+          business_account_id: string | null
+          connected_at: string | null
           created_at: string | null
           display_name: string | null
           id: string
           is_active: boolean | null
+          messaging_limit: string | null
           phone_number: string | null
           phone_number_id: string
+          quality_rating: string | null
+          status: string | null
           updated_at: string | null
           user_id: string
+          waba_id: string | null
         }
         Insert: {
+          business_account_id?: string | null
+          connected_at?: string | null
           created_at?: string | null
           display_name?: string | null
           id?: string
           is_active?: boolean | null
+          messaging_limit?: string | null
           phone_number?: string | null
           phone_number_id: string
+          quality_rating?: string | null
+          status?: string | null
           updated_at?: string | null
           user_id: string
+          waba_id?: string | null
         }
         Update: {
+          business_account_id?: string | null
+          connected_at?: string | null
           created_at?: string | null
           display_name?: string | null
           id?: string
           is_active?: boolean | null
+          messaging_limit?: string | null
           phone_number?: string | null
           phone_number_id?: string
+          quality_rating?: string | null
+          status?: string | null
           updated_at?: string | null
           user_id?: string
+          waba_id?: string | null
         }
         Relationships: []
       }

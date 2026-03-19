@@ -10,6 +10,12 @@ export interface MetaWhatsAppNumber {
   display_name: string | null;
   phone_number: string | null;
   is_active: boolean;
+  waba_id: string | null;
+  business_account_id: string | null;
+  quality_rating: string | null;
+  messaging_limit: string | null;
+  status: string | null;
+  connected_at: string | null;
   created_at: string;
   updated_at: string;
 }
