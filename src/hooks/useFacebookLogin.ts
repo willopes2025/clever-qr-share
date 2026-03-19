@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -20,7 +20,6 @@ declare global {
           extras?: {
             setup?: Record<string, unknown>;
             featureType?: string;
-            sessionInfoVersion?: number;
           };
         }
       ) => void;
@@ -49,6 +48,13 @@ interface EmbeddedSignupResult {
   error?: string;
 }
 
+// Data captured from the WA_EMBEDDED_SIGNUP message event
+interface EmbeddedSignupSessionData {
+  phone_number_id?: string;
+  waba_id?: string;
+  business_id?: string;
+}
+
 export const useFacebookLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -58,6 +64,40 @@ export const useFacebookLogin = () => {
     displayPhoneNumber: string;
     businessName?: string;
   } | null>(null);
+
+  // Store session data from the message event listener
+  const sessionDataRef = useRef<EmbeddedSignupSessionData | null>(null);
+
+  // Listen for WA_EMBEDDED_SIGNUP message events from Meta's popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from facebook.com
+      if (!event.origin.endsWith('facebook.com')) return;
+      
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data.type === 'WA_EMBEDDED_SIGNUP') {
+          console.log('[FB-LOGIN] WA_EMBEDDED_SIGNUP message event:', JSON.stringify(data));
+          
+          if (data.event === 'FINISH' || data.event === 'FINISH_ONLY_WABA') {
+            sessionDataRef.current = {
+              phone_number_id: data.data?.phone_number_id,
+              waba_id: data.data?.waba_id,
+              business_id: data.data?.business_id,
+            };
+            console.log('[FB-LOGIN] Captured session data:', sessionDataRef.current);
+          } else if (data.event === 'CANCEL') {
+            console.log('[FB-LOGIN] User cancelled at step:', data.data?.current_step);
+          }
+        }
+      } catch {
+        // Non-JSON messages, ignore
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const isSdkLoaded = useCallback(() => {
     return typeof window !== 'undefined' && window.FB !== undefined;
@@ -71,7 +111,7 @@ export const useFacebookLogin = () => {
       }
 
       let attempts = 0;
-      const maxAttempts = 50; // 5 seconds max wait
+      const maxAttempts = 50;
       
       const checkSdk = setInterval(() => {
         attempts++;
@@ -88,6 +128,7 @@ export const useFacebookLogin = () => {
 
   const launchEmbeddedSignup = useCallback(async (configId: string): Promise<EmbeddedSignupResult> => {
     setIsLoading(true);
+    sessionDataRef.current = null; // Reset session data
     
     try {
       await waitForSdk();
@@ -98,8 +139,11 @@ export const useFacebookLogin = () => {
             console.log('[FB-LOGIN] Response:', response);
 
             if (response.status === 'connected' && response.authResponse?.code) {
-              // Exchange the code for tokens via edge function
-              exchangeCodeForToken(response.authResponse.code)
+              // Pass the session data (phone_number_id, waba_id) from message event
+              const sessionData = sessionDataRef.current;
+              console.log('[FB-LOGIN] Session data at code exchange:', sessionData);
+
+              exchangeCodeForToken(response.authResponse.code, sessionData)
                 .then((result) => {
                   if (result.success) {
                     setIsConnected(true);
@@ -130,7 +174,6 @@ export const useFacebookLogin = () => {
             extras: {
               setup: {},
               featureType: 'only_waba_sharing',
-              sessionInfoVersion: 3,
             },
           }
         );
@@ -143,10 +186,19 @@ export const useFacebookLogin = () => {
     }
   }, [waitForSdk]);
 
-  const exchangeCodeForToken = async (code: string): Promise<EmbeddedSignupResult> => {
+  const exchangeCodeForToken = async (
+    code: string,
+    sessionData: EmbeddedSignupSessionData | null
+  ): Promise<EmbeddedSignupResult> => {
     try {
       const { data, error } = await supabase.functions.invoke('meta-exchange-token', {
-        body: { code }
+        body: { 
+          code,
+          // Pass the IDs captured from the message event
+          phone_number_id: sessionData?.phone_number_id,
+          waba_id: sessionData?.waba_id,
+          business_id: sessionData?.business_id,
+        }
       });
 
       if (error) {
