@@ -86,8 +86,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
+  const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
+  );
+  const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
+    (conversation as any).meta_phone_number_id || ""
   );
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
