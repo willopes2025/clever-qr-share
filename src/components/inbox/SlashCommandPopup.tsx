@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Zap, FileText, Image, Video, Music, Bot } from "lucide-react";
+import { Zap, FileText, Image, Video, Music, Bot, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageTemplate, CATEGORY_LABELS, CATEGORY_COLORS } from "@/hooks/useMessageTemplates";
+import { MetaTemplate } from "@/hooks/useMetaTemplates";
 import { ChatbotFlow } from "@/hooks/useChatbotFlows";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -21,13 +22,21 @@ const getMediaBadge = (mediaType: string | null) => {
   return config[mediaType] || null;
 };
 
+const META_CATEGORY_LABELS: Record<string, string> = {
+  MARKETING: "Marketing",
+  UTILITY: "Utilidade",
+  AUTHENTICATION: "Autenticação",
+};
+
 interface SlashCommandPopupProps {
   isOpen: boolean;
   templates: MessageTemplate[];
+  metaTemplates?: MetaTemplate[];
   flows?: ChatbotFlow[];
   searchTerm: string;
   selectedIndex: number;
   onSelect: (template: MessageTemplate) => void;
+  onSelectMetaTemplate?: (template: MetaTemplate) => void;
   onSelectFlow?: (flow: ChatbotFlow) => void;
   onClose: () => void;
   contactName?: string;
@@ -37,10 +46,12 @@ interface SlashCommandPopupProps {
 export const SlashCommandPopup = ({
   isOpen,
   templates,
+  metaTemplates = [],
   flows = [],
   searchTerm,
   selectedIndex,
   onSelect,
+  onSelectMetaTemplate,
   onSelectFlow,
   onClose,
   contactName,
@@ -61,6 +72,18 @@ export const SlashCommandPopup = ({
     );
   }).slice(0, 8);
 
+  // Filter Meta templates (only approved)
+  const filteredMetaTemplates = metaTemplates.filter(template => {
+    if (template.status !== 'approved') return false;
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      template.name.toLowerCase().includes(search) ||
+      template.body_text.toLowerCase().includes(search) ||
+      (META_CATEGORY_LABELS[template.category] || '').toLowerCase().includes(search)
+    );
+  }).slice(0, 8);
+
   // Filter flows based on search term
   const filteredFlows = flows.filter(flow => {
     if (!flow.is_active) return false;
@@ -73,7 +96,7 @@ export const SlashCommandPopup = ({
   }).slice(0, 5);
 
   // Total items for unified keyboard navigation
-  const totalItems = filteredTemplates.length + filteredFlows.length;
+  const totalItems = filteredTemplates.length + filteredMetaTemplates.length + filteredFlows.length;
 
   // Update position when anchor changes
   useEffect(() => {
@@ -158,10 +181,10 @@ export const SlashCommandPopup = ({
                 </div>
               ) : (
                 <div className="py-1">
-                  {/* Templates section */}
+                  {/* Regular Templates section */}
                   {filteredTemplates.length > 0 && (
                     <>
-                      {filteredFlows.length > 0 && (
+                      {(filteredMetaTemplates.length > 0 || filteredFlows.length > 0) && (
                         <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                           Templates
                         </div>
@@ -207,6 +230,61 @@ export const SlashCommandPopup = ({
                     </>
                   )}
 
+                  {/* Meta Templates section */}
+                  {filteredMetaTemplates.length > 0 && (
+                    <>
+                      <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1 border-t border-border pt-2">
+                        <div className="flex items-center gap-1">
+                          <Globe className="h-3 w-3" />
+                          Templates Meta (Oficial)
+                        </div>
+                      </div>
+                      {filteredMetaTemplates.map((template, index) => {
+                        const globalIndex = filteredTemplates.length + index;
+                        const headerBadge = template.header_type && template.header_type !== 'NONE' && template.header_type !== 'TEXT'
+                          ? getMediaBadge(template.header_type.toLowerCase())
+                          : null;
+                        return (
+                          <button
+                            key={template.id}
+                            ref={globalIndex === selectedIndex ? selectedRef : null}
+                            onClick={() => onSelectMetaTemplate?.(template)}
+                            className={cn(
+                              "w-full px-3 py-2 text-left transition-colors",
+                              "hover:bg-accent/50 focus:outline-none",
+                              globalIndex === selectedIndex && "bg-accent"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <Globe className="h-3.5 w-3.5 text-green-600" />
+                              <span className="font-medium text-sm">
+                                /{template.name}
+                              </span>
+                              <Badge 
+                                variant="outline" 
+                                className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-700 border-green-200"
+                              >
+                                {META_CATEGORY_LABELS[template.category] || template.category}
+                              </Badge>
+                              {headerBadge && (() => {
+                                const IconComponent = headerBadge.icon;
+                                return (
+                                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 gap-1", headerBadge.className)}>
+                                    <IconComponent className="h-2.5 w-2.5" />
+                                    + {headerBadge.label}
+                                  </Badge>
+                                );
+                              })()}
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {previewContent(template.body_text)}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
                   {/* Flows section */}
                   {filteredFlows.length > 0 && (
                     <>
@@ -217,7 +295,7 @@ export const SlashCommandPopup = ({
                         </div>
                       </div>
                       {filteredFlows.map((flow, index) => {
-                        const globalIndex = filteredTemplates.length + index;
+                        const globalIndex = filteredTemplates.length + filteredMetaTemplates.length + index;
                         return (
                           <button
                             key={flow.id}
