@@ -46,6 +46,7 @@ import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
+import { useMetaTemplates, MetaTemplate } from "@/hooks/useMetaTemplates";
 import { useChatbotFlows, ChatbotFlow } from "@/hooks/useChatbotFlows";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
