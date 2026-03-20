@@ -415,7 +415,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     if (slashCommandOpen) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        const totalItems = filteredSlashTemplates.length + filteredSlashFlows.length;
+        const totalItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
         setSlashSelectedIndex(prev => 
           Math.min(prev + 1, totalItems - 1)
         );
@@ -431,8 +431,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         if (isProcessingSlashRef.current) return;
         if (slashSelectedIndex < filteredSlashTemplates.length) {
           handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+        } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
+          const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
+          if (filteredSlashMetaTemplates[metaIndex]) {
+            handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
+          }
         } else {
-          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length;
+          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
           if (filteredSlashFlows[flowIndex]) {
             handleFlowSelect(filteredSlashFlows[flowIndex]);
           }
