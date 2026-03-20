@@ -147,6 +147,8 @@ Deno.serve(async (req) => {
               eventType = 'status';
             }
             break;
+          } else if (change.field === 'message_template_status_update') {
+            eventType = 'template_status_update';
           }
         }
         if (webhookPhoneNumberId) break;
@@ -249,6 +251,53 @@ Deno.serve(async (req) => {
       // Process each entry
       for (const entry of body.entry || []) {
         for (const change of entry.changes || []) {
+          // Handle template status updates
+          if (change.field === 'message_template_status_update') {
+            const value = change.value;
+            const templateName = value?.message_template_name;
+            const templateStatus = value?.event?.toLowerCase(); // APPROVED, REJECTED, PENDING_DELETION, etc.
+            const rejectionReason = value?.reason || value?.other_info?.description || null;
+
+            console.log('[META-WEBHOOK] Template status update:', { templateName, templateStatus, rejectionReason });
+
+            if (templateName && templateStatus && userId) {
+              const statusMap: Record<string, string> = {
+                approved: 'approved',
+                rejected: 'rejected',
+                pending_deletion: 'disabled',
+                disabled: 'disabled',
+                paused: 'paused',
+                flagged: 'paused',
+              };
+
+              const mappedStatus = statusMap[templateStatus] || templateStatus;
+
+              const updateData: Record<string, any> = {
+                status: mappedStatus,
+              };
+
+              if (mappedStatus === 'approved') {
+                updateData.approved_at = new Date().toISOString();
+                updateData.rejection_reason = null;
+              } else if (mappedStatus === 'rejected') {
+                updateData.rejection_reason = rejectionReason;
+              }
+
+              const { error: updateError } = await supabase
+                .from('meta_templates')
+                .update(updateData)
+                .eq('user_id', userId)
+                .eq('name', templateName);
+
+              if (updateError) {
+                console.error('[META-WEBHOOK] Error updating template status:', updateError);
+              } else {
+                console.log('[META-WEBHOOK] Template status updated:', templateName, '->', mappedStatus);
+              }
+            }
+            continue;
+          }
+
           if (change.field === 'messages') {
             const value = change.value;
 
