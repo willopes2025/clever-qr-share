@@ -147,6 +147,8 @@ Deno.serve(async (req) => {
               eventType = 'status';
             }
             break;
+          } else if (change.field === 'message_template_status_update') {
+            eventType = 'template_status_update';
           }
         }
         if (webhookPhoneNumberId) break;
