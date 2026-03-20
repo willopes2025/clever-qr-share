@@ -1437,10 +1437,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         <SlashCommandPopup
           isOpen={slashCommandOpen}
           templates={activeTemplates}
+          metaTemplates={approvedMetaTemplates}
           flows={activeFlows}
           searchTerm={slashSearchTerm}
           selectedIndex={slashSelectedIndex}
           onSelect={handleSlashSelect}
+          onSelectMetaTemplate={handleMetaTemplateSelect}
           onSelectFlow={handleFlowSelect}
           onClose={() => setSlashCommandOpen(false)}
           contactName={conversation.contact?.name || undefined}
