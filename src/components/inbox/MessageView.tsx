@@ -82,7 +82,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
-  const { templates: metaTemplates } = useMetaTemplates();
+  // Get the WABA ID for the current conversation's Meta number to filter templates
+  const conversationMetaNumberId = (conversation as any).meta_phone_number_id;
+  const conversationWabaId = conversationMetaNumberId 
+    ? metaNumbers.find(n => n.phone_number_id === conversationMetaNumberId)?.waba_id || null
+    : null;
+  const { templates: metaTemplates } = useMetaTemplates(conversationWabaId);
   const { flows } = useChatbotFlows();
   const { profile } = useProfile();
   const queryClient = useQueryClient();
