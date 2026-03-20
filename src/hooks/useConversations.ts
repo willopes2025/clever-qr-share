@@ -325,12 +325,14 @@ export const useMessages = (conversationId: string | null) => {
   });
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, conversationId, instanceId }: { content: string; conversationId: string; instanceId: string }) => {
+    mutationFn: async ({ content, conversationId, instanceId, messageType, metaTemplate }: { content: string; conversationId: string; instanceId: string; messageType?: string; metaTemplate?: any }) => {
       const { data, error } = await supabase.functions.invoke('send-inbox-message', {
         body: {
           conversationId,
           content,
           instanceId,
+          ...(messageType && { messageType }),
+          ...(metaTemplate && { metaTemplate }),
         },
       });
 
