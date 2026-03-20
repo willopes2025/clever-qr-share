@@ -66,35 +66,29 @@ export function MetaTemplatesList() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<MetaTemplate | null>(null);
 
-  // Build unique WABA options from meta numbers
-  const wabaOptions = (() => {
-    const seen = new Set<string>();
-    const options: Array<{ waba_id: string; label: string }> = [];
-    for (const num of metaNumbers) {
-      if (num.phone_number_id) {
-        // Use waba_id from the numbersMap - we need to get it from the raw data
-        // The metaNumbers from useMetaNumbersMap only has phone_number_id, phone_number, display_name
-        // We need waba_id - let's derive from templates or use a separate approach
-      }
-    }
-    // Derive WABAs from templates themselves
-    for (const t of templates) {
-      if (t.waba_id && !seen.has(t.waba_id)) {
-        seen.add(t.waba_id);
-        // Find a matching number for display
-        const matchingNum = metaNumbers.find(n => {
-          // We can't match directly without waba_id in metaNumbers hook
-          // Show the waba_id shortened
-          return false;
-        });
-        options.push({
-          waba_id: t.waba_id,
-          label: `WABA ...${t.waba_id.slice(-6)}`,
-        });
-      }
-    }
-    return options;
-  })();
+  const activeWabaIds = Array.from(
+    new Set(metaNumbers.map((num) => num.waba_id).filter((value): value is string => Boolean(value)))
+  );
+
+  const visibleTemplates = templates.filter((template) => {
+    if (!template.waba_id) return true;
+    if (activeWabaIds.length === 0) return true;
+    return activeWabaIds.includes(template.waba_id);
+  });
+
+  const wabaOptions = Array.from(
+    new Map(
+      metaNumbers
+        .filter((num): num is typeof num & { waba_id: string } => Boolean(num.waba_id))
+        .map((num) => [
+          num.waba_id,
+          {
+            waba_id: num.waba_id,
+            label: num.display_name || num.phone_number || `WABA ...${num.waba_id.slice(-6)}`,
+          },
+        ])
+    ).values()
+  );
 
   const handleCreate = (data: { templateData: Parameters<typeof createTemplate>[0]["templateData"]; submitToMeta: boolean }) => {
     createTemplate(data, {
@@ -123,7 +117,8 @@ export function MetaTemplatesList() {
 
   const getWabaLabel = (wabaId: string | null) => {
     if (!wabaId) return null;
-    return `...${wabaId.slice(-6)}`;
+    const matchingNumber = metaNumbers.find((num) => num.waba_id === wabaId);
+    return matchingNumber?.display_name || matchingNumber?.phone_number || `...${wabaId.slice(-6)}`;
   };
 
   return (
@@ -171,7 +166,7 @@ export function MetaTemplatesList() {
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : templates.length === 0 ? (
+        ) : visibleTemplates.length === 0 ? (
           <div className="text-center py-8 space-y-3">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">Nenhum template encontrado</p>
@@ -193,7 +188,7 @@ export function MetaTemplatesList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((template) => (
+              {visibleTemplates.map((template) => (
                 <TableRow key={template.id}>
                   <TableCell className="font-medium">
                     <div>
