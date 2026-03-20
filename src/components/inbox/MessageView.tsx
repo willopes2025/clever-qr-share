@@ -82,6 +82,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
+  const { templates: metaTemplates } = useMetaTemplates();
   const { flows } = useChatbotFlows();
   const { profile } = useProfile();
   const queryClient = useQueryClient();
