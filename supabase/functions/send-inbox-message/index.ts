@@ -104,6 +104,109 @@ Deno.serve(async (req) => {
 
       const formattedPhone = contactData.phone.replace(/[^0-9]/g, '');
 
+      // ---- META TEMPLATE MESSAGE ----
+      if (messageType === 'meta_template' && metaTemplate) {
+        console.log(`[SEND-META] Sending template "${metaTemplate.name}" to ${formattedPhone}`);
+
+        // Build template components with variable substitution
+        const components: any[] = [];
+        
+        if (metaTemplate.headerType && metaTemplate.headerType !== 'NONE' && metaTemplate.headerType !== 'TEXT') {
+          if (metaTemplate.headerContent) {
+            const mediaTypeMap: Record<string, string> = { IMAGE: 'image', VIDEO: 'video', DOCUMENT: 'document' };
+            const mediaType = mediaTypeMap[metaTemplate.headerType];
+            if (mediaType) {
+              components.push({
+                type: 'header',
+                parameters: [{ type: mediaType, [mediaType]: { link: metaTemplate.headerContent } }],
+              });
+            }
+          }
+        }
+
+        if (metaTemplate.bodyVariables && metaTemplate.bodyVariables.length > 0) {
+          components.push({
+            type: 'body',
+            parameters: metaTemplate.bodyVariables.map((v: string) => ({ type: 'text', text: v })),
+          });
+        }
+
+        const messagePayload: any = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'template',
+          template: {
+            name: metaTemplate.name,
+            language: { code: metaTemplate.language || 'pt_BR' },
+          },
+        };
+
+        if (components.length > 0) {
+          messagePayload.template.components = components;
+        }
+
+        // Create message record
+        const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.bodyText || ''}`;
+        const { data: message, error: msgError } = await supabase
+          .from('inbox_messages')
+          .insert({
+            conversation_id: conversationId,
+            user_id: conversation.user_id,
+            direction: 'outbound',
+            content: displayContent,
+            message_type: 'text',
+            status: 'sending',
+            sent_at: new Date().toISOString(),
+            sent_by_user_id: senderUserId,
+          })
+          .select()
+          .single();
+
+        if (msgError) throw new Error('Failed to create message record');
+
+        const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${integration.credentials.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(messagePayload),
+        });
+
+        const result = await response.json();
+        console.log('[SEND-META] Template API response:', JSON.stringify(result));
+
+        if (!response.ok) {
+          await supabase.from('inbox_messages').update({ status: 'failed' }).eq('id', message.id);
+          throw new Error(result.error?.message || 'Erro ao enviar template via Meta API');
+        }
+
+        const whatsappMessageId = result.messages?.[0]?.id;
+
+        await supabase
+          .from('inbox_messages')
+          .update({ status: 'sent', whatsapp_message_id: whatsappMessageId })
+          .eq('id', message.id);
+
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: displayContent.substring(0, 100),
+            last_message_direction: 'outbound',
+          })
+          .eq('id', conversationId);
+
+        await handleAIHandoff(supabase, conversationId, conversation.user_id, senderUserId, displayContent, instanceId);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Template sent via Meta', messageId: message.id, whatsappMessageId }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ---- REGULAR TEXT MESSAGE ----
       // Create message record first
       const { data: message, error: msgError } = await supabase
         .from('inbox_messages')
