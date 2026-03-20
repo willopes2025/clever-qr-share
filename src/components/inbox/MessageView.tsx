@@ -135,6 +135,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     [flows]
   );
 
+  // Filter approved Meta templates for slash commands (only for Meta conversations)
+  const approvedMetaTemplates = useMemo(() => 
+    isMetaConversation ? metaTemplates.filter(t => t.status === 'approved') : [],
+    [metaTemplates, isMetaConversation]
+  );
+
   // Filtered templates based on slash search
   const filteredSlashTemplates = useMemo(() => {
     if (!slashSearchTerm) return activeTemplates;
@@ -144,6 +150,16 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       template.content.toLowerCase().includes(search)
     );
   }, [activeTemplates, slashSearchTerm]);
+
+  // Filtered Meta templates based on slash search
+  const filteredSlashMetaTemplates = useMemo(() => {
+    if (!slashSearchTerm) return approvedMetaTemplates;
+    const search = slashSearchTerm.toLowerCase();
+    return approvedMetaTemplates.filter(template => 
+      template.name.toLowerCase().includes(search) ||
+      template.body_text.toLowerCase().includes(search)
+    );
+  }, [approvedMetaTemplates, slashSearchTerm]);
 
   // Filtered flows based on slash search
   const filteredSlashFlows = useMemo(() => {
