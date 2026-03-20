@@ -588,6 +588,86 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     }
   };
 
+  const handleMetaTemplateSelect = async (template: MetaTemplate) => {
+    if (isProcessingSlashRef.current) return;
+    isProcessingSlashRef.current = true;
+
+    try {
+      setSlashCommandOpen(false);
+      setSlashSearchTerm("");
+      setNewMessage("");
+
+      if (!selectedMetaNumberId) {
+        toast.error("Selecione um número Meta primeiro");
+        return;
+      }
+
+      // Substitute variables in body text
+      let bodyText = template.body_text
+        .replace(/\{\{1\}\}/g, conversation.contact?.name || '')
+        .replace(/\{\{2\}\}/g, conversation.contact?.phone || '');
+
+      const displayContent = `[Template: ${template.name}] ${bodyText}`;
+
+      // Add optimistic message
+      const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const optimisticMessage: OptimisticMessage = {
+        id: optimisticId,
+        conversation_id: conversation.id,
+        content: displayContent,
+        direction: 'outbound',
+        status: 'sending',
+        message_type: 'text',
+        created_at: new Date().toISOString(),
+        sent_at: null,
+        delivered_at: null,
+        read_at: null,
+        media_url: null,
+        whatsapp_message_id: null,
+        user_id: '',
+        isOptimistic: true,
+      };
+      setOptimisticMessages(prev => [...prev, optimisticMessage]);
+      setTimeout(() => scrollToBottom("smooth"), 50);
+
+      // Build body variables from template body_examples or contact data
+      const bodyVariables: string[] = [];
+      const varMatches = template.body_text.match(/\{\{\d+\}\}/g);
+      if (varMatches) {
+        varMatches.forEach((match, i) => {
+          const varNum = parseInt(match.replace(/[{}]/g, ''));
+          if (varNum === 1) bodyVariables.push(conversation.contact?.name || '');
+          else if (varNum === 2) bodyVariables.push(conversation.contact?.phone || '');
+          else bodyVariables.push(template.body_examples?.[i] || '');
+        });
+      }
+
+      try {
+        await sendMessage.mutateAsync({
+          content: displayContent,
+          conversationId: conversation.id,
+          instanceId: selectedMetaNumberId,
+          messageType: 'meta_template',
+          metaTemplate: {
+            name: template.name,
+            language: template.language,
+            bodyText: bodyText,
+            headerType: template.header_type,
+            headerContent: template.header_content,
+            bodyVariables: bodyVariables.length > 0 ? bodyVariables : undefined,
+          },
+        } as any);
+      } catch (error) {
+        toast.error("Erro ao enviar template Meta");
+        setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
+      }
+
+      textareaRef.current?.focus();
+    } finally {
+      isProcessingSlashRef.current = false;
+    }
+  };
+
   const handleFlowSelect = async (flow: ChatbotFlow) => {
     setSlashCommandOpen(false);
     setSlashSearchTerm("");
