@@ -46,6 +46,7 @@ import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
+import { useMetaTemplates, MetaTemplate } from "@/hooks/useMetaTemplates";
 import { useChatbotFlows, ChatbotFlow } from "@/hooks/useChatbotFlows";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -81,6 +82,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
+  const { templates: metaTemplates } = useMetaTemplates();
   const { flows } = useChatbotFlows();
   const { profile } = useProfile();
   const queryClient = useQueryClient();
@@ -133,6 +135,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     [flows]
   );
 
+  // Filter approved Meta templates for slash commands (only for Meta conversations)
+  const approvedMetaTemplates = useMemo(() => 
+    isMetaConversation ? metaTemplates.filter(t => t.status === 'approved') : [],
+    [metaTemplates, isMetaConversation]
+  );
+
   // Filtered templates based on slash search
   const filteredSlashTemplates = useMemo(() => {
     if (!slashSearchTerm) return activeTemplates;
@@ -142,6 +150,16 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       template.content.toLowerCase().includes(search)
     );
   }, [activeTemplates, slashSearchTerm]);
+
+  // Filtered Meta templates based on slash search
+  const filteredSlashMetaTemplates = useMemo(() => {
+    if (!slashSearchTerm) return approvedMetaTemplates;
+    const search = slashSearchTerm.toLowerCase();
+    return approvedMetaTemplates.filter(template => 
+      template.name.toLowerCase().includes(search) ||
+      template.body_text.toLowerCase().includes(search)
+    );
+  }, [approvedMetaTemplates, slashSearchTerm]);
 
   // Filtered flows based on slash search
   const filteredSlashFlows = useMemo(() => {
@@ -397,7 +415,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     if (slashCommandOpen) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        const totalItems = filteredSlashTemplates.length + filteredSlashFlows.length;
+        const totalItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
         setSlashSelectedIndex(prev => 
           Math.min(prev + 1, totalItems - 1)
         );
@@ -413,8 +431,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         if (isProcessingSlashRef.current) return;
         if (slashSelectedIndex < filteredSlashTemplates.length) {
           handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+        } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
+          const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
+          if (filteredSlashMetaTemplates[metaIndex]) {
+            handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
+          }
         } else {
-          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length;
+          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
           if (filteredSlashFlows[flowIndex]) {
             handleFlowSelect(filteredSlashFlows[flowIndex]);
           }
@@ -560,6 +583,86 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
       }
     }, 0);
+    } finally {
+      isProcessingSlashRef.current = false;
+    }
+  };
+
+  const handleMetaTemplateSelect = async (template: MetaTemplate) => {
+    if (isProcessingSlashRef.current) return;
+    isProcessingSlashRef.current = true;
+
+    try {
+      setSlashCommandOpen(false);
+      setSlashSearchTerm("");
+      setNewMessage("");
+
+      if (!selectedMetaNumberId) {
+        toast.error("Selecione um número Meta primeiro");
+        return;
+      }
+
+      // Substitute variables in body text
+      let bodyText = template.body_text
+        .replace(/\{\{1\}\}/g, conversation.contact?.name || '')
+        .replace(/\{\{2\}\}/g, conversation.contact?.phone || '');
+
+      const displayContent = `[Template: ${template.name}] ${bodyText}`;
+
+      // Add optimistic message
+      const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const optimisticMessage: OptimisticMessage = {
+        id: optimisticId,
+        conversation_id: conversation.id,
+        content: displayContent,
+        direction: 'outbound',
+        status: 'sending',
+        message_type: 'text',
+        created_at: new Date().toISOString(),
+        sent_at: null,
+        delivered_at: null,
+        read_at: null,
+        media_url: null,
+        whatsapp_message_id: null,
+        user_id: '',
+        isOptimistic: true,
+      };
+      setOptimisticMessages(prev => [...prev, optimisticMessage]);
+      setTimeout(() => scrollToBottom("smooth"), 50);
+
+      // Build body variables from template body_examples or contact data
+      const bodyVariables: string[] = [];
+      const varMatches = template.body_text.match(/\{\{\d+\}\}/g);
+      if (varMatches) {
+        varMatches.forEach((match, i) => {
+          const varNum = parseInt(match.replace(/[{}]/g, ''));
+          if (varNum === 1) bodyVariables.push(conversation.contact?.name || '');
+          else if (varNum === 2) bodyVariables.push(conversation.contact?.phone || '');
+          else bodyVariables.push(template.body_examples?.[i] || '');
+        });
+      }
+
+      try {
+        await sendMessage.mutateAsync({
+          content: displayContent,
+          conversationId: conversation.id,
+          instanceId: selectedMetaNumberId,
+          messageType: 'meta_template',
+          metaTemplate: {
+            name: template.name,
+            language: template.language,
+            bodyText: bodyText,
+            headerType: template.header_type,
+            headerContent: template.header_content,
+            bodyVariables: bodyVariables.length > 0 ? bodyVariables : undefined,
+          },
+        } as any);
+      } catch (error) {
+        toast.error("Erro ao enviar template Meta");
+        setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
+      }
+
+      textareaRef.current?.focus();
     } finally {
       isProcessingSlashRef.current = false;
     }
@@ -1334,10 +1437,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         <SlashCommandPopup
           isOpen={slashCommandOpen}
           templates={activeTemplates}
+          metaTemplates={approvedMetaTemplates}
           flows={activeFlows}
           searchTerm={slashSearchTerm}
           selectedIndex={slashSelectedIndex}
           onSelect={handleSlashSelect}
+          onSelectMetaTemplate={handleMetaTemplateSelect}
           onSelectFlow={handleFlowSelect}
           onClose={() => setSlashCommandOpen(false)}
           contactName={conversation.contact?.name || undefined}
