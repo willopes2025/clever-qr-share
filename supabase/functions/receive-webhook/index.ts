@@ -1117,6 +1117,12 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         last_message_direction: isFromMe ? 'outbound' : 'inbound',
         instance_id: instanceId,
       };
+
+      // Reopen archived conversations when inbound message arrives
+      if (!isFromMe && conversation.status === 'archived') {
+        updateData.status = 'open';
+        console.log('[WEBHOOK] Reopening archived conversation:', conversation.id);
+      }
       
       if (!isFromMe) {
         // Increment unread count for incoming messages
