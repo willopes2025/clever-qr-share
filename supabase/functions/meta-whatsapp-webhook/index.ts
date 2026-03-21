@@ -469,7 +469,7 @@ Deno.serve(async (req) => {
                 console.log('[META-WEBHOOK] Message saved successfully to inbox_messages');
               }
 
-              // Update conversation
+              // Update conversation (reopen if archived)
               const { error: convUpdateError } = await supabase
                 .from('conversations')
                 .update({
@@ -477,7 +477,8 @@ Deno.serve(async (req) => {
                   last_message_preview: content.substring(0, 100),
                   last_message_direction: 'inbound',
                   unread_count: (conversation.unread_count || 0) + 1,
-                  updated_at: new Date().toISOString()
+                  updated_at: new Date().toISOString(),
+                  status: 'open'
                 })
                 .eq('id', conversation.id);
 
