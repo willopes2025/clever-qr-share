@@ -1,17 +1,29 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { startOfDay, startOfWeek, startOfMonth, subDays, subHours, differenceInMinutes } from 'date-fns';
+import { startOfDay, subDays, subHours, differenceInMinutes } from 'date-fns';
 
-export type DateRange = 'today' | '7d' | '30d' | '90d';
+export type DateRange = 'today' | '7d' | '30d' | '90d' | 'custom';
 
-interface DateRangeResult {
+export interface DateRangeResult {
   start: Date;
   end: Date;
 }
 
-export const getDateRange = (range: DateRange): DateRangeResult => {
+export interface CustomDateRange {
+  from: Date;
+  to: Date;
+}
+
+export const getDateRange = (range: DateRange, customRange?: CustomDateRange): DateRangeResult => {
   const end = new Date();
   let start: Date;
+
+  if (range === 'custom' && customRange) {
+    return {
+      start: startOfDay(customRange.from),
+      end: new Date(customRange.to.getFullYear(), customRange.to.getMonth(), customRange.to.getDate(), 23, 59, 59, 999),
+    };
+  }
   
   switch (range) {
     case 'today':
@@ -40,30 +52,30 @@ export interface OverviewMetrics {
   autoAttendances: number;
   humanAttendances: number;
   unansweredLeads: number;
-  avgFirstResponseTime: number; // in seconds
-  responseRate: number; // percentage
+  avgFirstResponseTime: number;
+  responseRate: number;
 }
 
-export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
+export const useOverviewMetrics = (dateRange: DateRange = 'today', customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['overview-metrics', dateRange],
+    queryKey: ['overview-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<OverviewMetrics> => {
-      const { start, end } = getDateRange(dateRange);
+      const { start, end } = getDateRange(dateRange, customRange);
       
-      // Leads today (contacts created today)
       const { count: leadsToday } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
-      // Active conversations
+      // Active conversations within selected period
       const { count: activeConversations } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'open');
+        .eq('status', 'open')
+        .gte('last_message_at', start.toISOString())
+        .lte('last_message_at', end.toISOString());
 
-      // Auto vs Human attendances (server-side counts to avoid 1000 row limit)
       const { count: autoAttendances } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
@@ -80,26 +92,23 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
 
       const totalConversationsCount = (autoAttendances || 0) + (humanAttendances || 0);
 
-      // Unanswered leads (conversations with unread > 0)
       const { count: unansweredLeads } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
         .gt('unread_count', 0)
         .eq('status', 'open');
 
-      // Avg first response time - using inbox_messages
       const { data: messagesData } = await supabase
         .from('inbox_messages')
         .select('conversation_id, direction, created_at')
         .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
         .order('created_at', { ascending: true })
         .limit(1000);
 
-      // Calculate response rate using server-side count for total conversations
       const respondedConvIds = [...new Set(messagesData?.filter(m => m.direction === 'outbound').map(m => m.conversation_id).filter(Boolean) || [])];
       const respondedConversations = respondedConvIds.length;
       const responseRate = totalConversationsCount > 0 ? (respondedConversations / totalConversationsCount) * 100 : 0;
-
 
       let totalResponseTime = 0;
       let responseCount = 0;
@@ -123,8 +132,8 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today') => {
           } else if (msg.direction === 'outbound' && conv.inbound && !conv.outbound) {
             conv.outbound = msgDate;
             const responseTime = differenceInMinutes(conv.outbound, conv.inbound);
-            if (responseTime >= 0 && responseTime < 1440) { // Less than 24h
-              totalResponseTime += responseTime * 60; // Convert to seconds
+            if (responseTime >= 0 && responseTime < 1440) {
+              totalResponseTime += responseTime * 60;
               responseCount++;
             }
           }
@@ -157,13 +166,12 @@ export interface WhatsAppMetrics {
   inactiveChips: number;
 }
 
-export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
+export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['whatsapp-metrics', dateRange],
+    queryKey: ['whatsapp-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<WhatsAppMetrics> => {
-      const { start, end } = getDateRange(dateRange);
+      const { start, end } = getDateRange(dateRange, customRange);
 
-      // Server-side counts to avoid 1000 row limit
       const { count: messagesSentCount } = await supabase
         .from('inbox_messages')
         .select('*', { count: 'exact', head: true })
@@ -171,11 +179,12 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
+      // Fix: only count 'delivered' and 'received' as truly delivered (not 'sent')
       const { count: messagesDeliveredCount } = await supabase
         .from('inbox_messages')
         .select('*', { count: 'exact', head: true })
         .eq('direction', 'outbound')
-        .in('status', ['sent', 'received'])
+        .in('status', ['delivered', 'received'])
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
@@ -192,7 +201,6 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
       const messagesFailed = messagesFailedCount || 0;
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
-      // Get messages sample for instance distribution (relative chart, limited is ok)
       const { data: messagesData } = await supabase
         .from('inbox_messages')
         .select('conversation_id')
@@ -208,7 +216,6 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
         .select('id, instance_id')
         .in('id', conversationIds.length > 0 ? conversationIds : ['']);
 
-      // Messages by instance (sample-based for relative chart)
       const instanceCounts = new Map<string, number>();
       messagesData?.forEach(m => {
         const conv = conversationsData?.find(c => c.id === m.conversation_id);
@@ -217,7 +224,6 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
         }
       });
 
-      // Get instance names
       const { data: instances } = await supabase
         .from('whatsapp_instances')
         .select('id, instance_name, status');
@@ -249,46 +255,32 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d') => {
 
 // ==================== LEAD METRICS ====================
 export interface LeadMetrics {
-  leadsToday: number;
-  leadsWeek: number;
-  leadsMonth: number;
+  leadsPeriod: number;
   leadsBySource: Array<{ source: string; count: number }>;
   duplicateLeads: number;
   reactivatedLeads: number;
 }
 
-export const useLeadMetrics = (dateRange: DateRange = '7d') => {
+export const useLeadMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['lead-metrics', dateRange],
+    queryKey: ['lead-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<LeadMetrics> => {
-      const now = new Date();
-      const todayStart = startOfDay(now);
-      const weekStart = startOfWeek(now);
-      const monthStart = startOfMonth(now);
+      const { start, end } = getDateRange(dateRange, customRange);
 
-      // Leads today
-      const { count: leadsToday } = await supabase
+      // Leads in selected period
+      const { count: leadsPeriod } = await supabase
         .from('contacts')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayStart.toISOString());
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
-      // Leads this week
-      const { count: leadsWeek } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', weekStart.toISOString());
-
-      // Leads this month
-      const { count: leadsMonth } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', monthStart.toISOString());
-
-      // Leads by source (using deals source)
+      // Leads by source filtered by period
       const { data: dealsData } = await supabase
         .from('funnel_deals')
         .select('source')
-        .not('source', 'is', null);
+        .not('source', 'is', null)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
       const sourceCounts = new Map<string, number>();
       dealsData?.forEach(d => {
@@ -301,10 +293,12 @@ export const useLeadMetrics = (dateRange: DateRange = '7d') => {
         .map(([source, count]) => ({ source, count }))
         .sort((a, b) => b.count - a.count);
 
-      // Duplicate leads (contacts with same phone)
+      // Duplicate leads in period
       const { data: contacts } = await supabase
         .from('contacts')
-        .select('phone');
+        .select('phone')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
       const phoneCounts = new Map<string, number>();
       contacts?.forEach(c => {
@@ -312,18 +306,16 @@ export const useLeadMetrics = (dateRange: DateRange = '7d') => {
       });
       const duplicateLeads = Array.from(phoneCounts.values()).filter(count => count > 1).length;
 
-      // Reactivated leads (conversations with activity after 7 days of inactivity)
-      const sevenDaysAgo = subDays(now, 7);
+      // Reactivated leads in period
       const { count: reactivatedLeads } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
-        .lt('updated_at', sevenDaysAgo.toISOString())
-        .gt('last_message_at', sevenDaysAgo.toISOString());
+        .lt('updated_at', start.toISOString())
+        .gte('last_message_at', start.toISOString())
+        .lte('last_message_at', end.toISOString());
 
       return {
-        leadsToday: leadsToday || 0,
-        leadsWeek: leadsWeek || 0,
-        leadsMonth: leadsMonth || 0,
+        leadsPeriod: leadsPeriod || 0,
         leadsBySource,
         duplicateLeads,
         reactivatedLeads: reactivatedLeads || 0,
@@ -351,16 +343,15 @@ export interface FunnelMetrics {
   valueClosed: number;
   dealsLost: number;
   valueLost: number;
-  avgSalesCycle: number; // in days
+  avgSalesCycle: number;
 }
 
-export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string) => {
+export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string, customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['funnel-metrics', dateRange, funnelId],
+    queryKey: ['funnel-metrics', dateRange, funnelId, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<FunnelMetrics> => {
-      const { start } = getDateRange(dateRange);
+      const { start, end } = getDateRange(dateRange, customRange);
 
-      // Get stages for selected funnel or all
       let stagesQuery = supabase
         .from('funnel_stages')
         .select('id, name, color, probability, is_final, final_type, display_order, funnel_id')
@@ -372,15 +363,16 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
 
       const { data: stages } = await stagesQuery;
 
-      // Get deals for stages
       const stageIds = stages?.map(s => s.id) || [];
       
+      // Fix: filter deals by created_at within selected period
       const { data: deals } = await supabase
         .from('funnel_deals')
         .select('id, stage_id, value, closed_at, created_at')
-        .in('stage_id', stageIds.length > 0 ? stageIds : ['']);
+        .in('stage_id', stageIds.length > 0 ? stageIds : [''])
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
-      // Calculate stage metrics
       const stageMetrics: FunnelStageMetric[] = (stages || [])
         .filter(s => !s.is_final)
         .map(stage => {
@@ -395,11 +387,10 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
             dealCount,
             dealValue,
             probability: stage.probability || 0,
-            conversionRate: 0, // Will be calculated
+            conversionRate: 0,
           };
         });
 
-      // Calculate conversion rates
       for (let i = 0; i < stageMetrics.length; i++) {
         if (i === 0) {
           stageMetrics[i].conversionRate = 100;
@@ -411,26 +402,22 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
         }
       }
 
-      // Deals in negotiation (not in won/lost stages)
       const finalStageIds = stages?.filter(s => s.final_type === 'won' || s.final_type === 'lost').map(s => s.id) || [];
       const dealsInNegotiation = deals?.filter(d => !finalStageIds.includes(d.stage_id)).length || 0;
       const valueInNegotiation = deals
         ?.filter(d => !finalStageIds.includes(d.stage_id))
         .reduce((sum, d) => sum + (d.value || 0), 0) || 0;
 
-      // Won deals
       const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
       const wonDeals = deals?.filter(d => wonStageIds.includes(d.stage_id)) || [];
       const dealsClosed = wonDeals.length;
       const valueClosed = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
-      // Lost deals
       const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
       const lostDeals = deals?.filter(d => lostStageIds.includes(d.stage_id)) || [];
       const dealsLost = lostDeals.length;
       const valueLost = lostDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
-      // Avg sales cycle
       let totalCycleDays = 0;
       let cycleCount = 0;
       wonDeals.forEach(deal => {
@@ -490,31 +477,29 @@ export interface AutomationMetrics {
   flowFailures: number;
 }
 
-export const useAutomationMetrics = (dateRange: DateRange = '7d') => {
+export const useAutomationMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['automation-metrics', dateRange],
+    queryKey: ['automation-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<AutomationMetrics> => {
-      const { start, end } = getDateRange(dateRange);
+      const { start, end } = getDateRange(dateRange, customRange);
       const todayStart = startOfDay(new Date());
 
-      // Active flows
       const { count: activeFlows } = await supabase
         .from('chatbot_flows')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
-      // Flows triggered today
       const { count: flowsTriggeredToday } = await supabase
         .from('chatbot_executions')
         .select('*', { count: 'exact', head: true })
         .gte('started_at', todayStart.toISOString());
 
-      // Bot handled conversations
       const { data: botConversations } = await supabase
         .from('conversations')
         .select('ai_handled, ai_handoff_requested, status')
         .eq('ai_handled', true)
-        .gte('created_at', start.toISOString());
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
       const resolvedByBot = botConversations?.filter(c => c.status === 'archived' && !c.ai_handoff_requested).length || 0;
       const transferredToHuman = botConversations?.filter(c => c.ai_handoff_requested).length || 0;
@@ -522,12 +507,12 @@ export const useAutomationMetrics = (dateRange: DateRange = '7d') => {
       const totalBotHandled = botConversations?.length || 0;
       const botSuccessRate = totalBotHandled > 0 ? (resolvedByBot / totalBotHandled) * 100 : 0;
 
-      // Flow failures
       const { count: flowFailures } = await supabase
         .from('chatbot_executions')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'error')
-        .gte('started_at', start.toISOString());
+        .gte('started_at', start.toISOString())
+        .lte('started_at', end.toISOString());
 
       return {
         activeFlows: activeFlows || 0,
@@ -547,7 +532,7 @@ export interface AgentMetric {
   agentName: string;
   attendances: number;
   messagesSent: number;
-  avgResponseTime: number; // in seconds
+  avgResponseTime: number;
   dealsWon: number;
   dealsValue: number;
 }
@@ -560,25 +545,22 @@ export interface AgentPerformanceMetrics {
   resumedConversations: number;
 }
 
-export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d') => {
+export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['agent-performance-metrics', dateRange],
+    queryKey: ['agent-performance-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<AgentPerformanceMetrics> => {
-      const { start, end } = getDateRange(dateRange);
+      const { start, end } = getDateRange(dateRange, customRange);
 
-      // Get performance metrics
       const { data: metricsData } = await supabase
         .from('user_performance_metrics')
         .select('user_id, messages_sent, conversations_handled, deals_won, deals_value, avg_response_time_seconds')
         .gte('metric_date', start.toISOString().split('T')[0])
         .lte('metric_date', end.toISOString().split('T')[0]);
 
-      // Get profiles for names
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name');
 
-      // Aggregate by agent with weighted average for response time
       const agentMap = new Map<string, AgentMetric & { _responseTimeSum: number; _responseTimeCount: number }>();
       
       metricsData?.forEach(m => {
@@ -614,25 +596,27 @@ export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d') => {
 
       const agents = Array.from(agentMap.values()).sort((a, b) => b.dealsValue - a.dealsValue);
       const totalAttendances = agents.reduce((sum, a) => sum + a.attendances, 0);
-      const avgResponseTime = agents.length > 0 
-        ? agents.reduce((sum, a) => sum + a.avgResponseTime, 0) / agents.length 
-        : 0;
+      
+      // Fix: weighted average for global response time
+      const totalResponseTimeSum = agents.reduce((sum, a) => sum + (a as any)._responseTimeSum, 0);
+      const totalResponseTimeCount = agents.reduce((sum, a) => sum + (a as any)._responseTimeCount, 0);
+      const avgResponseTime = totalResponseTimeCount > 0 ? totalResponseTimeSum / totalResponseTimeCount : 0;
 
-      // Abandoned conversations (archived without human response)
       const { count: abandonedConversations } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'archived')
         .gte('updated_at', start.toISOString())
+        .lte('updated_at', end.toISOString())
         .eq('last_message_direction', 'inbound');
 
-      // Resumed conversations
       const { count: resumedConversations } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'open')
         .lt('created_at', start.toISOString())
-        .gte('last_message_at', start.toISOString());
+        .gte('last_message_at', start.toISOString())
+        .lte('last_message_at', end.toISOString());
 
       return {
         agents,
@@ -654,20 +638,18 @@ export interface FinancialMetrics {
   salesByPeriod: Array<{ date: string; value: number }>;
 }
 
-export const useFinancialMetrics = (dateRange: DateRange = '30d') => {
+export const useFinancialMetrics = (dateRange: DateRange = '30d', customRange?: CustomDateRange) => {
   return useQuery({
-    queryKey: ['financial-metrics', dateRange],
+    queryKey: ['financial-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<FinancialMetrics> => {
-      const { start, end } = getDateRange(dateRange);
+      const { start, end } = getDateRange(dateRange, customRange);
 
-      // Get stages to identify won deals
       const { data: stages } = await supabase
         .from('funnel_stages')
         .select('id, probability, final_type');
 
       const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
 
-      // Get all deals
       const { data: deals } = await supabase
         .from('funnel_deals')
         .select('id, stage_id, value, closed_at, created_at');
@@ -676,19 +658,19 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d') => {
       const wonDeals = deals?.filter(d => 
         wonStageIds.includes(d.stage_id) && 
         d.closed_at && 
-        new Date(d.closed_at) >= start
+        new Date(d.closed_at) >= start &&
+        new Date(d.closed_at) <= end
       ) || [];
       
       const salesTotal = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
       const avgTicket = wonDeals.length > 0 ? salesTotal / wonDeals.length : 0;
 
-      // Value in negotiation (exclude both won and lost stages)
+      // Value in negotiation (pipeline total - always current state)
       const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
       const finalStageIds = [...wonStageIds, ...lostStageIds];
       const openDeals = deals?.filter(d => !finalStageIds.includes(d.stage_id)) || [];
       const valueInNegotiation = openDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
-      // Estimated revenue (value * probability)
       let estimatedRevenue = 0;
       openDeals.forEach(deal => {
         const stage = stages?.find(s => s.id === deal.stage_id);
@@ -696,7 +678,6 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d') => {
         estimatedRevenue += (deal.value || 0) * probability;
       });
 
-      // Sales by period (group by date)
       const salesByDate = new Map<string, number>();
       wonDeals.forEach(deal => {
         if (deal.closed_at) {
@@ -745,7 +726,6 @@ export const useAlertMetrics = () => {
       const thirtyMinutesAgo = subHours(now, 0.5);
       const twentyFourHoursAgo = subHours(now, 24);
 
-      // Leads without response for 30+ minutes
       const { count: unansweredCount } = await supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
@@ -763,7 +743,6 @@ export const useAlertMetrics = () => {
         });
       }
 
-      // Chips with high failure rate
       const { data: alertInstances } = await supabase
         .from('whatsapp_instances')
         .select('id, instance_name, status');
@@ -774,7 +753,6 @@ export const useAlertMetrics = () => {
         .gte('created_at', twentyFourHoursAgo.toISOString())
         .eq('direction', 'outbound');
 
-      // Get conversations to map to instances
       const recentConvIds = [...new Set(recentMessages?.map(m => m.conversation_id).filter(Boolean) || [])];
       const { data: recentConversations } = await supabase
         .from('conversations')
@@ -810,7 +788,6 @@ export const useAlertMetrics = () => {
         }
       });
 
-      // Inactive or broken flows
       const { data: flows } = await supabase
         .from('chatbot_flows')
         .select('id, name, is_active, updated_at');
@@ -837,9 +814,7 @@ export const useAlertMetrics = () => {
         }
       });
 
-      // Sudden drop in leads
       const yesterday = subDays(now, 1);
-      const dayBefore = subDays(now, 2);
       
       const { count: leadsToday } = await supabase
         .from('contacts')
@@ -864,7 +839,6 @@ export const useAlertMetrics = () => {
         }
       }
 
-      // Abnormal message peak
       const { count: messagesToday } = await supabase
         .from('inbox_messages')
         .select('*', { count: 'exact', head: true })
@@ -902,6 +876,6 @@ export const useAlertMetrics = () => {
         infoCount,
       };
     },
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 60000,
   });
 };
