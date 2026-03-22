@@ -1,42 +1,79 @@
 
 
-## Plano: Separar conversas por número Meta e exibir número correto no Inbox
+## Análise do Dashboard - Problemas Encontrados e Plano de Melhoria
 
-### Problema Atual
-1. **Conversas Meta não mostram qual número recebeu a mensagem** — o campo `meta_phone_number_id` está preenchido nas conversas, mas não é exibido na lista nem no header do chat.
-2. **O seletor de instância no MessageView só mostra instâncias Evolution API** — para conversas Meta, não há como ver/trocar o número Meta remetente.
-3. **O filtro por número Meta já existe nos filtros** (`metaPhoneNumberId`), mas precisa de melhor visibilidade.
+### Problemas nos Cálculos Atuais
 
-### O que será feito
+**1. Leads Section (`useLeadMetrics`) ignora o `dateRange` selecionado**
+- `leadsToday`, `leadsWeek`, `leadsMonth` usam sempre datas fixas (hoje, início da semana, início do mês) em vez de respeitar o filtro de período selecionado pelo usuário.
+- `leadsBySource` busca **todos** os deals sem filtro de data.
+- `duplicateLeads` busca **todos** os contatos sem filtro de data.
+- `reactivatedLeads` usa sempre 7 dias fixos.
 
-**1. Exibir o número Meta na lista de conversas**
-- Na `ConversationList`, ao lado do `ProviderBadge`, mostrar o número Meta formatado (ex: `+55 27 2666-0075`) buscando da tabela `meta_whatsapp_numbers` via um hook/query.
-- Criar um pequeno hook `useMetaWhatsAppNumbers` que carrega os números ativos e permite mapear `phone_number_id` → `phone_number` / `display_name`.
+**2. WhatsApp Section (`useWhatsAppMetrics`) - `deliveryRate` imprecisa**
+- A taxa de entrega conta mensagens com status `sent` e `received` como "entregues", mas `sent` significa apenas que foi enviado, não entregue. Deveria usar `delivered` ou `received`.
 
-**2. Adaptar o seletor de número no MessageView para conversas Meta**
-- Quando `conversation.provider === 'meta'`, substituir o seletor de instâncias Evolution pelo seletor de números Meta.
-- Listar os números da tabela `meta_whatsapp_numbers` (ativos) no dropdown.
-- Ao trocar o número, atualizar `conversation.meta_phone_number_id` no banco.
-- Desabilitar a validação `!selectedInstanceId` para conversas Meta (usar `meta_phone_number_id` em vez disso).
+**3. Funnel Section (`useFunnelMetrics`) - não filtra deals por data**
+- Busca **todos** os deals dos stages, ignorando o `dateRange`. Contagens de "Em Negociação", "Vendas Fechadas" e "Perdidos" mostram dados históricos totais, não do período selecionado.
 
-**3. Mostrar o número Meta no header do chat**
-- Abaixo do nome do contato no `MessageView`, exibir o número Meta de onde veio/vai a conversa (ex: "via +55 27 2666-0075").
+**4. Financial Section (`useFinancialMetrics`) - pipeline sem filtro de data**
+- `valueInNegotiation` e `estimatedRevenue` consideram **todos** os deals abertos, não apenas os do período.
 
-**4. Melhorar filtro rápido por número Meta**
-- Adicionar chips de filtro rápido ou tornar o filtro `metaPhoneNumberId` mais acessível nos `ConversationFilters`, listando os números Meta como opções no dropdown.
+**5. Overview Section - `activeConversations` sem filtro de data**
+- Conta todas as conversas abertas independente do período selecionado.
 
-### Arquivos a modificar
+**6. Response Time (`useOverviewMetrics`) - limitado a 1000 mensagens**
+- O cálculo de tempo de resposta busca apenas 1000 mensagens, o que pode dar resultados distorcidos em períodos longos (90d).
+
+**7. Agent Performance - média de tempo de resposta incorreta**
+- Calcula média simples entre agentes em vez de média ponderada pelo volume de atendimentos.
+
+---
+
+### Plano de Implementação
+
+#### 1. Adicionar filtro de data personalizado (após 90 dias)
+
+**Mudanças no tipo `DateRange`:**
+- Alterar `DateRange` em `useDashboardMetricsV2.ts` para aceitar `'today' | '7d' | '30d' | '90d' | 'custom'`
+- Criar um novo state no `TraditionalDashboard` para armazenar `customDateRange: { from: Date; to: Date } | null`
+- Atualizar `getDateRange()` para aceitar um parâmetro opcional de datas customizadas
+- Passar as datas customizadas para todos os hooks
+
+**Mudanças no `DashboardDateFilter`:**
+- Adicionar botão "Personalizado" com ícone de calendário
+- Usar `Popover` + `Calendar` (mode="range") como já existe no `SsoticaDateFilter`
+- Mostrar as datas selecionadas quando em modo personalizado
+
+#### 2. Corrigir cálculos dos KPIs
+
+**`useLeadMetrics`:**
+- Fazer `leadsToday/leadsWeek/leadsMonth` respeitar o dateRange ou remover redundância (já que Overview mostra leads do período)
+- Filtrar `leadsBySource` pelo período selecionado
+- Filtrar `duplicateLeads` pelo período selecionado
+
+**`useFunnelMetrics`:**
+- Filtrar deals por `created_at` dentro do período selecionado
+
+**`useFinancialMetrics`:**
+- Manter `valueInNegotiation` como total (faz sentido para pipeline) mas deixar claro no label
+
+**`useWhatsAppMetrics`:**
+- Revisar status de entrega para usar os status corretos do banco
+
+**`useAgentPerformanceMetrics`:**
+- Corrigir cálculo de média de tempo de resposta para usar média ponderada global
+
+---
+
+### Arquivos Modificados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/hooks/useMetaWhatsAppNumbers.ts` | **Novo** — hook para buscar números Meta ativos |
-| `src/components/inbox/MessageView.tsx` | Seletor condicional: Evolution vs Meta; header com número Meta |
-| `src/components/inbox/ConversationList.tsx` | Exibir número Meta ao lado do ProviderBadge |
-| `src/components/inbox/ConversationFilters.tsx` | Popular dropdown de números Meta usando o novo hook |
-
-### Detalhes técnicos
-
-- O hook `useMetaWhatsAppNumbers` fará `supabase.from('meta_whatsapp_numbers').select('phone_number_id, phone_number, display_name').eq('is_active', true)` e retornará um mapa `Record<string, { phone_number, display_name }>`.
-- No `MessageView`, a lógica de envio já funciona para Meta via `send-inbox-message` — só precisa garantir que o `meta_phone_number_id` correto esteja na conversa.
-- O seletor Meta usará o mesmo componente `Select` mas populado com números Meta em vez de instâncias Evolution.
+| `src/hooks/useDashboardMetricsV2.ts` | Tipo `DateRange` + `getDateRange()` aceitar custom + correções nos cálculos |
+| `src/hooks/useAdvancedDashboardMetrics.ts` | Alinhar tipo `DateRange` com custom |
+| `src/components/dashboard/DashboardDateFilter.tsx` | Adicionar opção "Personalizado" com calendar range picker |
+| `src/components/dashboard/TraditionalDashboard.tsx` | State para custom dates, passar para todos os componentes |
+| `src/components/dashboard/LeadsSection.tsx` | Adaptar à nova interface |
+| Demais seções do dashboard | Adaptar à nova assinatura de props se necessário |
 
