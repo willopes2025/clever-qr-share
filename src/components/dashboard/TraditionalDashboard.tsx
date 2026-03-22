@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DateRange } from '@/hooks/useAdvancedDashboardMetrics';
+import { DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { DashboardDateFilter } from './DashboardDateFilter';
 import { OverviewSection } from './OverviewSection';
 import { WhatsAppSection } from './WhatsAppSection';
@@ -12,39 +12,39 @@ import { AlertsSection } from './AlertsSection';
 
 export const TraditionalDashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange>('7d');
+  const [customRange, setCustomRange] = useState<CustomDateRange | undefined>(undefined);
 
   return (
     <div className="space-y-6">
-      {/* Header com título e filtro */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Visão completa de performance</p>
         </div>
-        <DashboardDateFilter value={dateRange} onChange={setDateRange} />
+        <DashboardDateFilter 
+          value={dateRange} 
+          onChange={setDateRange} 
+          customRange={customRange}
+          onCustomRangeChange={setCustomRange}
+        />
       </div>
 
-      {/* Visão Geral */}
-      <OverviewSection dateRange={dateRange} />
+      <OverviewSection dateRange={dateRange} customRange={customRange} />
 
-      {/* WhatsApp + Leads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <WhatsAppSection dateRange={dateRange} />
-        <LeadsSection dateRange={dateRange} />
+        <WhatsAppSection dateRange={dateRange} customRange={customRange} />
+        <LeadsSection dateRange={dateRange} customRange={customRange} />
       </div>
 
-      {/* Funil/CRM */}
-      <FunnelSection dateRange={dateRange} />
+      <FunnelSection dateRange={dateRange} customRange={customRange} />
 
-      {/* Financeiro + Automação */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <FinancialSection dateRange={dateRange} />
-        <AutomationSection dateRange={dateRange} />
+        <FinancialSection dateRange={dateRange} customRange={customRange} />
+        <AutomationSection dateRange={dateRange} customRange={customRange} />
       </div>
 
-      {/* Atendimento + Alertas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AgentPerformanceSection dateRange={dateRange} />
+        <AgentPerformanceSection dateRange={dateRange} customRange={customRange} />
         <AlertsSection />
       </div>
     </div>

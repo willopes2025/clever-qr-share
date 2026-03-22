@@ -1,23 +1,18 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useLeadMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
-import { Users, Calendar, CalendarDays, Copy, RefreshCcw } from 'lucide-react';
+import { useLeadMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
+import { Users, Copy, RefreshCcw } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
 interface LeadsSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(217, 91%, 60%)', 'hsl(142, 71%, 45%)', 'hsl(48, 96%, 53%)', 'hsl(280, 87%, 65%)'];
 
-export const LeadsSection = ({ dateRange }: LeadsSectionProps) => {
-  const { data, isLoading } = useLeadMetrics(dateRange);
-
-  const metrics = [
-    { title: 'Hoje', value: data?.leadsToday || 0, icon: Users },
-    { title: 'Semana', value: data?.leadsWeek || 0, icon: Calendar },
-    { title: 'Mês', value: data?.leadsMonth || 0, icon: CalendarDays },
-  ];
+export const LeadsSection = ({ dateRange, customRange }: LeadsSectionProps) => {
+  const { data, isLoading } = useLeadMetrics(dateRange, customRange);
 
   const pieData = data?.leadsBySource.slice(0, 5).map((item, index) => ({
     name: item.source,
@@ -33,19 +28,15 @@ export const LeadsSection = ({ dateRange }: LeadsSectionProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Lead Counts */}
-        <div className="grid grid-cols-3 gap-3">
-          {metrics.map((metric, index) => (
-            <div key={index} className="flex flex-col items-center p-3 rounded-lg border bg-card">
-              <metric.icon className="h-4 w-4 text-primary mb-1" />
-              {isLoading ? (
-                <Skeleton className="h-6 w-10" />
-              ) : (
-                <span className="text-xl font-bold">{metric.value.toLocaleString()}</span>
-              )}
-              <span className="text-xs text-muted-foreground">{metric.title}</span>
-            </div>
-          ))}
+        {/* Lead Count for Period */}
+        <div className="flex flex-col items-center p-4 rounded-lg border bg-card">
+          <Users className="h-5 w-5 text-primary mb-1" />
+          {isLoading ? (
+            <Skeleton className="h-8 w-16" />
+          ) : (
+            <span className="text-2xl font-bold">{(data?.leadsPeriod || 0).toLocaleString()}</span>
+          )}
+          <span className="text-sm text-muted-foreground">Leads no período</span>
         </div>
 
         {/* Additional Metrics */}

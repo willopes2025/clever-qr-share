@@ -1,16 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { useWhatsAppMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { useWhatsAppMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { Send, CheckCheck, XCircle, Percent, Smartphone } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 
 interface WhatsAppSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
-export const WhatsAppSection = ({ dateRange }: WhatsAppSectionProps) => {
-  const { data, isLoading } = useWhatsAppMetrics(dateRange);
+export const WhatsAppSection = ({ dateRange, customRange }: WhatsAppSectionProps) => {
+  const { data, isLoading } = useWhatsAppMetrics(dateRange, customRange);
 
   const metrics = [
     { title: 'Enviadas', value: data?.messagesSent || 0, icon: Send, color: 'text-blue-500' },
@@ -27,7 +28,6 @@ export const WhatsAppSection = ({ dateRange }: WhatsAppSectionProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {metrics.map((metric, index) => (
             <div key={index} className="flex items-center gap-2 p-2 rounded-lg border bg-card">
@@ -46,7 +46,6 @@ export const WhatsAppSection = ({ dateRange }: WhatsAppSectionProps) => {
           ))}
         </div>
 
-        {/* Chips Status */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Smartphone className="h-4 w-4 text-muted-foreground" />
@@ -60,7 +59,6 @@ export const WhatsAppSection = ({ dateRange }: WhatsAppSectionProps) => {
           </Badge>
         </div>
 
-        {/* Messages by Instance Chart */}
         {data?.messagesByInstance && data.messagesByInstance.length > 0 && (
           <div className="h-40">
             <span className="text-sm text-muted-foreground mb-2 block">Mensagens por Chip</span>

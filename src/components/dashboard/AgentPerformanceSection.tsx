@@ -2,12 +2,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAgentPerformanceMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { useAgentPerformanceMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { Users, Clock, MessageSquare, Trophy } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface AgentPerformanceSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
 const formatTime = (seconds: number): string => {
@@ -21,8 +22,8 @@ const formatCurrency = (value: number): string => {
   return `R$ ${value.toFixed(0)}`;
 };
 
-export const AgentPerformanceSection = ({ dateRange }: AgentPerformanceSectionProps) => {
-  const { data, isLoading } = useAgentPerformanceMetrics(dateRange);
+export const AgentPerformanceSection = ({ dateRange, customRange }: AgentPerformanceSectionProps) => {
+  const { data, isLoading } = useAgentPerformanceMetrics(dateRange, customRange);
 
   const summaryCards = [
     { title: 'Total Atendimentos', value: data?.totalAttendances || 0, icon: Users },
@@ -46,7 +47,6 @@ export const AgentPerformanceSection = ({ dateRange }: AgentPerformanceSectionPr
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {summaryCards.map((card, index) => (
             <div key={index} className="flex items-center gap-2 p-2 rounded-lg border bg-card">
@@ -65,7 +65,6 @@ export const AgentPerformanceSection = ({ dateRange }: AgentPerformanceSectionPr
           ))}
         </div>
 
-        {/* Agent Ranking Table */}
         <div className="space-y-2">
           <span className="text-sm text-muted-foreground">Ranking de Atendentes</span>
           {isLoading ? (
