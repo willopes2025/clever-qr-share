@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useFunnelMetrics, useFunnelsList, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { useFunnelMetrics, useFunnelsList, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { TrendingUp, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 interface FunnelSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
 const formatCurrency = (value: number): string => {
@@ -16,10 +17,10 @@ const formatCurrency = (value: number): string => {
   return `R$ ${value.toFixed(0)}`;
 };
 
-export const FunnelSection = ({ dateRange }: FunnelSectionProps) => {
+export const FunnelSection = ({ dateRange, customRange }: FunnelSectionProps) => {
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | undefined>(undefined);
   const { data: funnels } = useFunnelsList();
-  const { data, isLoading } = useFunnelMetrics(dateRange, selectedFunnelId);
+  const { data, isLoading } = useFunnelMetrics(dateRange, selectedFunnelId, customRange);
 
   const summaryCards = [
     { 
@@ -82,7 +83,6 @@ export const FunnelSection = ({ dateRange }: FunnelSectionProps) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {summaryCards.map((card, index) => (
             <div key={index} className={`p-3 rounded-lg border ${card.bgColor}`}>
@@ -106,7 +106,6 @@ export const FunnelSection = ({ dateRange }: FunnelSectionProps) => {
           ))}
         </div>
 
-        {/* Funnel Stages */}
         <div className="space-y-2">
           <span className="text-sm text-muted-foreground">Leads por Etapa</span>
           {isLoading ? (
@@ -115,7 +114,7 @@ export const FunnelSection = ({ dateRange }: FunnelSectionProps) => {
             </div>
           ) : (
             <div className="space-y-2">
-              {data?.stages.map((stage, index) => {
+              {data?.stages.map((stage) => {
                 const maxDeals = Math.max(...(data?.stages.map(s => s.dealCount) || [1]));
                 const widthPercent = maxDeals > 0 ? (stage.dealCount / maxDeals) * 100 : 0;
                 

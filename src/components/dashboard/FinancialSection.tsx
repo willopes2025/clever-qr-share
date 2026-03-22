@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useFinancialMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { useFinancialMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { DollarSign, TrendingUp, Target, Calculator } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { format, parseISO } from 'date-fns';
@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface FinancialSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
 const formatCurrency = (value: number): string => {
@@ -16,8 +17,8 @@ const formatCurrency = (value: number): string => {
   return `R$ ${value.toFixed(0)}`;
 };
 
-export const FinancialSection = ({ dateRange }: FinancialSectionProps) => {
-  const { data, isLoading } = useFinancialMetrics(dateRange);
+export const FinancialSection = ({ dateRange, customRange }: FinancialSectionProps) => {
+  const { data, isLoading } = useFinancialMetrics(dateRange, customRange);
 
   const metrics = [
     { 
@@ -28,7 +29,7 @@ export const FinancialSection = ({ dateRange }: FinancialSectionProps) => {
       bgColor: 'bg-green-500/10'
     },
     { 
-      title: 'Em Negociação', 
+      title: 'Em Negociação (total)', 
       value: formatCurrency(data?.valueInNegotiation || 0), 
       icon: TrendingUp, 
       color: 'text-blue-500',
@@ -63,7 +64,6 @@ export const FinancialSection = ({ dateRange }: FinancialSectionProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Metrics Grid */}
         <div className="grid grid-cols-2 gap-3">
           {metrics.map((metric, index) => (
             <div key={index} className={`p-3 rounded-lg border ${metric.bgColor}`}>
@@ -80,7 +80,6 @@ export const FinancialSection = ({ dateRange }: FinancialSectionProps) => {
           ))}
         </div>
 
-        {/* Sales Chart */}
         {chartData.length > 0 && (
           <div className="space-y-2">
             <span className="text-sm text-muted-foreground">Evolução de Vendas</span>

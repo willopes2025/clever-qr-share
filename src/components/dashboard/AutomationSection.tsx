@@ -1,16 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { useAutomationMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { useAutomationMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { Bot, Zap, CheckCircle, ArrowRightLeft, AlertTriangle } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 interface AutomationSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
-export const AutomationSection = ({ dateRange }: AutomationSectionProps) => {
-  const { data, isLoading } = useAutomationMetrics(dateRange);
+export const AutomationSection = ({ dateRange, customRange }: AutomationSectionProps) => {
+  const { data, isLoading } = useAutomationMetrics(dateRange, customRange);
 
   const metrics = [
     { title: 'Fluxos Ativos', value: data?.activeFlows || 0, icon: Bot, color: 'text-purple-500' },
@@ -33,7 +34,6 @@ export const AutomationSection = ({ dateRange }: AutomationSectionProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Metrics Grid */}
         <div className="grid grid-cols-3 gap-2">
           {metrics.slice(0, 3).map((metric, index) => (
             <div key={index} className="flex flex-col items-center p-2 rounded-lg border bg-card">
@@ -64,7 +64,6 @@ export const AutomationSection = ({ dateRange }: AutomationSectionProps) => {
           ))}
         </div>
 
-        {/* Bot Success Rate */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Taxa de Sucesso do Bot</span>
@@ -82,7 +81,6 @@ export const AutomationSection = ({ dateRange }: AutomationSectionProps) => {
           />
         </div>
 
-        {/* Resolution Distribution */}
         {pieData.length > 0 && (
           <div className="h-32">
             <ResponsiveContainer width="100%" height="100%">

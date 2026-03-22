@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useOverviewMetrics, DateRange } from '@/hooks/useDashboardMetricsV2';
+import { useOverviewMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { Users, MessageSquare, Bot, User, AlertCircle, Clock, TrendingUp } from 'lucide-react';
 
 interface OverviewSectionProps {
   dateRange: DateRange;
+  customRange?: CustomDateRange;
 }
 
 const formatTime = (seconds: number): string => {
@@ -13,8 +14,8 @@ const formatTime = (seconds: number): string => {
   return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
 };
 
-export const OverviewSection = ({ dateRange }: OverviewSectionProps) => {
-  const { data, isLoading } = useOverviewMetrics(dateRange);
+export const OverviewSection = ({ dateRange, customRange }: OverviewSectionProps) => {
+  const { data, isLoading } = useOverviewMetrics(dateRange, customRange);
 
   const metrics = [
     {
