@@ -367,6 +367,7 @@ Deno.serve(async (req) => {
           last_message_preview: content.substring(0, 100),
           last_message_direction: 'outbound',
           instance_id: instanceId,
+          unread_count: 0,
         })
         .eq('id', conversationId);
 
