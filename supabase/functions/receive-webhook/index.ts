@@ -1127,6 +1127,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       if (!isFromMe) {
         // Increment unread count for incoming messages
         updateData.unread_count = (conversation.unread_count || 0) + 1;
+      } else {
+        // Reset unread count when outbound message is sent
+        updateData.unread_count = 0;
       }
       
       // Track first_response_at for SLA calculation (outbound message after conversation creation)
