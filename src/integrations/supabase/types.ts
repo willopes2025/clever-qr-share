@@ -4805,6 +4805,9 @@ export type Database = {
           allowed_days: string[]
           allowed_end_hour: number
           allowed_start_hour: number
+          auto_create_leads: boolean | null
+          auto_lead_funnel_id: string | null
+          auto_lead_stage_id: string | null
           auto_retry: boolean
           created_at: string
           daily_limit: number
@@ -4823,6 +4826,9 @@ export type Database = {
           allowed_days?: string[]
           allowed_end_hour?: number
           allowed_start_hour?: number
+          auto_create_leads?: boolean | null
+          auto_lead_funnel_id?: string | null
+          auto_lead_stage_id?: string | null
           auto_retry?: boolean
           created_at?: string
           daily_limit?: number
@@ -4841,6 +4847,9 @@ export type Database = {
           allowed_days?: string[]
           allowed_end_hour?: number
           allowed_start_hour?: number
+          auto_create_leads?: boolean | null
+          auto_lead_funnel_id?: string | null
+          auto_lead_stage_id?: string | null
           auto_retry?: boolean
           created_at?: string
           daily_limit?: number
@@ -4855,7 +4864,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_auto_lead_funnel_id_fkey"
+            columns: ["auto_lead_funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_settings_auto_lead_stage_id_fkey"
+            columns: ["auto_lead_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_status_history: {
         Row: {
