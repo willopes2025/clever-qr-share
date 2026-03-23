@@ -87,6 +87,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const conversationWabaId = conversationMetaNumberId 
     ? metaNumbers.find(n => n.phone_number_id === conversationMetaNumberId)?.waba_id || null
     : null;
+  // Fetch Meta templates - pass null to get all templates when no specific WABA is linked
   const { templates: metaTemplates } = useMetaTemplates(conversationWabaId);
   const { flows } = useChatbotFlows();
   const { profile } = useProfile();
