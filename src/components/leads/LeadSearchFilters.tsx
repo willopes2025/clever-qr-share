@@ -12,9 +12,9 @@ import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ESTADOS } from "@/data/estados";
 import { DDD_LIST, getDddsByUf } from "@/data/ddd";
-import { CNAE_LIST, searchCnae } from "@/data/cnae";
 import { NATUREZA_JURIDICA } from "@/data/natureza-juridica";
 import { useIbgeMunicipios } from "@/hooks/useIbgeMunicipios";
+import { useIbgeCnae } from "@/hooks/useIbgeCnae";
 
 interface LeadSearchFiltersProps {
   filters: SearchFilters;
