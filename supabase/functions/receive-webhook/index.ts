@@ -225,7 +225,25 @@ Deno.serve(async (req: Request) => {
     // Handle different event types - check multiple formats
     const eventLower = event?.toLowerCase() || '';
     
-    const defaultFunnelId = instanceData.default_funnel_id;
+    let defaultFunnelId = instanceData.default_funnel_id;
+    
+    // Fallback: if instance has no funnel, check global user_settings
+    if (!defaultFunnelId) {
+      try {
+        const { data: userSettings } = await supabase
+          .from('user_settings')
+          .select('auto_create_leads, auto_lead_funnel_id, auto_lead_stage_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (userSettings?.auto_create_leads && userSettings?.auto_lead_funnel_id) {
+          defaultFunnelId = userSettings.auto_lead_funnel_id;
+          console.log('[WEBHOOK] Using global auto-lead funnel:', defaultFunnelId);
+        }
+      } catch (settingsErr) {
+        console.error('[WEBHOOK] Error fetching user_settings for auto-lead:', settingsErr);
+      }
+    }
     
     if (eventLower === 'messages.upsert' || eventLower === 'messages_upsert') {
       console.log('>>> Handling MESSAGES.UPSERT event');
