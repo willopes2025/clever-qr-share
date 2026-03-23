@@ -29,6 +29,7 @@ interface SettingsTab {
 const allTabs: SettingsTab[] = [
   { value: "profile", label: "Perfil", icon: User, component: ProfileSettings },
   { value: "ai-tokens", label: "Tokens AI", icon: Coins, component: AITokensSettings },
+  { value: "leads", label: "Leads", icon: Zap, component: AutoLeadSettings },
   { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
