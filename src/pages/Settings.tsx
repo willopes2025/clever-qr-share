@@ -10,7 +10,8 @@ import { MetaWhatsAppSettings } from "@/components/settings/MetaWhatsAppSettings
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
-import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, LucideIcon } from "lucide-react";
+import { AutoLeadSettings } from "@/components/settings/AutoLeadSettings";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
@@ -28,6 +29,7 @@ interface SettingsTab {
 const allTabs: SettingsTab[] = [
   { value: "profile", label: "Perfil", icon: User, component: ProfileSettings },
   { value: "ai-tokens", label: "Tokens AI", icon: Coins, component: AITokensSettings },
+  { value: "leads", label: "Leads", icon: Zap, component: AutoLeadSettings },
   { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
@@ -47,8 +49,8 @@ const Settings = () => {
     if (isLoading) return [allTabs[0]]; // Só mostra perfil enquanto carrega
     
     return allTabs.filter(tab => {
-      // Perfil e ai-tokens sempre visível
-      if (tab.value === "profile" || tab.value === "ai-tokens") return true;
+      // Perfil, ai-tokens e leads sempre visível
+      if (tab.value === "profile" || tab.value === "ai-tokens" || tab.value === "leads") return true;
       
       // Se não tem organização, mostra tudo (legado)
       if (!organization) return true;
