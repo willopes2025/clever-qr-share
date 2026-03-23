@@ -375,6 +375,79 @@ Deno.serve(async (req) => {
                 }
                 conversation = newConversation;
                 console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
+
+                // Auto-create lead for new conversations based on user_settings
+                if (conversation && userId) {
+                  try {
+                    const { data: userSettings } = await supabase
+                      .from('user_settings')
+                      .select('auto_create_leads, auto_lead_funnel_id, auto_lead_stage_id')
+                      .eq('user_id', userId)
+                      .maybeSingle();
+
+                    if (userSettings?.auto_create_leads && userSettings?.auto_lead_funnel_id) {
+                      console.log('[META-WEBHOOK] Auto-creating lead for new contact in funnel:', userSettings.auto_lead_funnel_id);
+                      
+                      const { data: existingDeal } = await supabase
+                        .from('funnel_deals')
+                        .select('id')
+                        .eq('contact_id', contact.id)
+                        .eq('funnel_id', userSettings.auto_lead_funnel_id)
+                        .limit(1)
+                        .maybeSingle();
+
+                      if (!existingDeal) {
+                        let dealStageId = userSettings.auto_lead_stage_id;
+                        if (!dealStageId) {
+                          const { data: firstStage } = await supabase
+                            .from('funnel_stages')
+                            .select('id')
+                            .eq('funnel_id', userSettings.auto_lead_funnel_id)
+                            .order('display_order', { ascending: true })
+                            .limit(1)
+                            .single();
+                          dealStageId = firstStage?.id;
+                        }
+
+                        if (dealStageId) {
+                          const { data: newDeal, error: dealError } = await supabase
+                            .from('funnel_deals')
+                            .insert({
+                              user_id: userId,
+                              funnel_id: userSettings.auto_lead_funnel_id,
+                              stage_id: dealStageId,
+                              contact_id: contact.id,
+                              conversation_id: conversation.id,
+                              title: `Lead - ${contactName}`,
+                              value: 0,
+                              source: 'whatsapp',
+                            })
+                            .select('id')
+                            .single();
+
+                          if (dealError) {
+                            console.error('[META-WEBHOOK] Error auto-creating deal:', dealError);
+                          } else {
+                            console.log('[META-WEBHOOK] Auto-created deal:', newDeal?.id);
+                            try {
+                              const fnUrl = Deno.env.get("SUPABASE_URL")!;
+                              const fnKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+                              await fetch(`${fnUrl}/functions/v1/process-funnel-automations`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${fnKey}` },
+                                body: JSON.stringify({ dealId: newDeal?.id, toStageId: dealStageId, triggerType: 'on_stage_enter' }),
+                              });
+                            } catch (autoErr) {
+                              console.error('[META-WEBHOOK] Error triggering automations:', autoErr);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (autoLeadError) {
+                    console.error('[META-WEBHOOK] Error in auto-lead creation:', autoLeadError);
+                  }
+                }
               }
 
               if (!conversation) {
