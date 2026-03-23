@@ -75,6 +75,14 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
     }
   };
 
+  const findExistingContactByPhone = (phone: string) => {
+    if (!contacts) return null;
+    return contacts.find(c => {
+      const cDigits = extractDigits(c.phone);
+      return cDigits === phone || cDigits.endsWith(phone) || phone.endsWith(cDigits);
+    });
+  };
+
   const handleCreateAndChat = async () => {
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
@@ -93,6 +101,25 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
     setIsCreatingNew(true);
     
     try {
+      // Check if contact already exists
+      const existingContact = findExistingContactByPhone(fullNumber);
+      
+      if (existingContact) {
+        // Contact exists, just create/open conversation
+        const result = await createConversation.mutateAsync({ 
+          contactId: existingContact.id,
+          instanceId: selectedInstanceId 
+        });
+        if (result) {
+          onConversationCreated(result.id);
+          setOpen(false);
+          setSearchTerm("");
+          setNewPhone("");
+          toast.success("Conversa aberta");
+        }
+        return;
+      }
+
       // Create contact first
       const newContact = await createContact.mutateAsync({
         phone: fullNumber,
@@ -100,7 +127,6 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
       });
 
       if (newContact) {
-        // Create conversation with the new contact
         const result = await createConversation.mutateAsync({ 
           contactId: newContact.id,
           instanceId: selectedInstanceId 
@@ -116,6 +142,26 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
       }
     } catch (error: any) {
       if (error?.message?.includes('duplicate') || error?.code === '23505') {
+        // Duplicate - try to find and open existing
+        const existingContact = findExistingContactByPhone(fullNumber);
+        if (existingContact) {
+          try {
+            const result = await createConversation.mutateAsync({ 
+              contactId: existingContact.id,
+              instanceId: selectedInstanceId 
+            });
+            if (result) {
+              onConversationCreated(result.id);
+              setOpen(false);
+              setSearchTerm("");
+              setNewPhone("");
+              toast.success("Conversa aberta");
+              return;
+            }
+          } catch (e) {
+            // fall through
+          }
+        }
         toast.error("Este número já está cadastrado");
       } else {
         toast.error("Erro ao criar contato");
