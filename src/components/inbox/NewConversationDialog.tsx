@@ -82,12 +82,13 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
     }
 
     const digits = extractDigits(newPhone);
-    const validation = validateBrazilianPhone(digits);
     
-    if (!validation.valid) {
-      toast.error(validation.message);
+    if (digits.length < 8) {
+      toast.error("Número muito curto");
       return;
     }
+    
+    const fullNumber = `${countryCode}${digits}`;
 
     setIsCreatingNew(true);
     
