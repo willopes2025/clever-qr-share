@@ -18,6 +18,9 @@ export interface UserSettings {
   max_retries: number;
   email_notifications: boolean;
   timezone: string;
+  auto_create_leads: boolean;
+  auto_lead_funnel_id: string | null;
+  auto_lead_stage_id: string | null;
   created_at: string;
   updated_at: string;
 }
