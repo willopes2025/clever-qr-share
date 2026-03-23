@@ -48,6 +48,7 @@ export const LeadSearchFilters = ({
   onReset,
 }: LeadSearchFiltersProps) => {
   const [cnaeSearch, setCnaeSearch] = useState("");
+  const { cnaes: allCnaes, isLoading: isLoadingCnaes, searchCnae } = useIbgeCnae();
   const [municipioSearch, setMunicipioSearch] = useState("");
   const [bairroDraft, setBairroDraft] = useState("");
   const [cepDraft, setCepDraft] = useState("");
