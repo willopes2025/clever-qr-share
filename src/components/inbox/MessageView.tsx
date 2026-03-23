@@ -87,6 +87,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const conversationWabaId = conversationMetaNumberId 
     ? metaNumbers.find(n => n.phone_number_id === conversationMetaNumberId)?.waba_id || null
     : null;
+  // Fetch Meta templates - pass null to get all templates when no specific WABA is linked
   const { templates: metaTemplates } = useMetaTemplates(conversationWabaId);
   const { flows } = useChatbotFlows();
   const { profile } = useProfile();
@@ -140,10 +141,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     [flows]
   );
 
-  // Filter approved Meta templates for slash commands (only for Meta conversations)
+  // Filter approved Meta templates for slash commands (available for all conversations)
   const approvedMetaTemplates = useMemo(() => 
-    isMetaConversation ? metaTemplates.filter(t => t.status === 'approved') : [],
-    [metaTemplates, isMetaConversation]
+    metaTemplates.filter(t => t.status === 'approved'),
+    [metaTemplates]
   );
 
   // Filtered templates based on slash search
