@@ -95,7 +95,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
     try {
       // Create contact first
       const newContact = await createContact.mutateAsync({
-        phone: digits,
+        phone: fullNumber,
         name: null,
       });
 
