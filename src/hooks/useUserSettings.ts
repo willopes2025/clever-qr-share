@@ -38,6 +38,9 @@ const defaultSettings: Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'upd
   max_retries: 3,
   email_notifications: true,
   timezone: 'America/Sao_Paulo',
+  auto_create_leads: false,
+  auto_lead_funnel_id: null,
+  auto_lead_stage_id: null,
 };
 
 export const useUserSettings = () => {

@@ -49,8 +49,8 @@ const Settings = () => {
     if (isLoading) return [allTabs[0]]; // Só mostra perfil enquanto carrega
     
     return allTabs.filter(tab => {
-      // Perfil e ai-tokens sempre visível
-      if (tab.value === "profile" || tab.value === "ai-tokens") return true;
+      // Perfil, ai-tokens e leads sempre visível
+      if (tab.value === "profile" || tab.value === "ai-tokens" || tab.value === "leads") return true;
       
       // Se não tem organização, mostra tudo (legado)
       if (!organization) return true;
