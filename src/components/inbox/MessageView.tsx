@@ -141,10 +141,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     [flows]
   );
 
-  // Filter approved Meta templates for slash commands (only for Meta conversations)
+  // Filter approved Meta templates for slash commands (available for all conversations)
   const approvedMetaTemplates = useMemo(() => 
-    isMetaConversation ? metaTemplates.filter(t => t.status === 'approved') : [],
-    [metaTemplates, isMetaConversation]
+    metaTemplates.filter(t => t.status === 'approved'),
+    [metaTemplates]
   );
 
   // Filtered templates based on slash search
