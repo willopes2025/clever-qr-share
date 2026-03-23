@@ -12,9 +12,9 @@ import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ESTADOS } from "@/data/estados";
 import { DDD_LIST, getDddsByUf } from "@/data/ddd";
-import { CNAE_LIST, searchCnae } from "@/data/cnae";
 import { NATUREZA_JURIDICA } from "@/data/natureza-juridica";
 import { useIbgeMunicipios } from "@/hooks/useIbgeMunicipios";
+import { useIbgeCnae } from "@/hooks/useIbgeCnae";
 
 interface LeadSearchFiltersProps {
   filters: SearchFilters;
@@ -48,6 +48,7 @@ export const LeadSearchFilters = ({
   onReset,
 }: LeadSearchFiltersProps) => {
   const [cnaeSearch, setCnaeSearch] = useState("");
+  const { cnaes: allCnaes, isLoading: isLoadingCnaes, searchCnae } = useIbgeCnae();
   const [municipioSearch, setMunicipioSearch] = useState("");
   const [bairroDraft, setBairroDraft] = useState("");
   const [cepDraft, setCepDraft] = useState("");
@@ -185,11 +186,10 @@ export const LeadSearchFilters = ({
       .map(m => ({ value: m, label: m }));
   }, [filters.uf, municipioSearch, ibgeMunicipios, isLoadingMunicipios]);
 
-  // Filter CNAEs based on search
+  // Filter CNAEs based on search (dynamic from IBGE API)
   const cnaeOptions = useMemo(() => {
-    if (cnaeSearch.length < 2) return CNAE_LIST.slice(0, 30).map(c => ({ value: c.value, label: c.label }));
     return searchCnae(cnaeSearch).map(c => ({ value: c.value, label: c.label }));
-  }, [cnaeSearch]);
+  }, [cnaeSearch, searchCnae]);
 
   const activeFiltersCount = () => {
     let count = 0;
