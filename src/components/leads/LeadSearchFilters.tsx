@@ -186,11 +186,10 @@ export const LeadSearchFilters = ({
       .map(m => ({ value: m, label: m }));
   }, [filters.uf, municipioSearch, ibgeMunicipios, isLoadingMunicipios]);
 
-  // Filter CNAEs based on search
+  // Filter CNAEs based on search (dynamic from IBGE API)
   const cnaeOptions = useMemo(() => {
-    if (cnaeSearch.length < 2) return CNAE_LIST.slice(0, 30).map(c => ({ value: c.value, label: c.label }));
     return searchCnae(cnaeSearch).map(c => ({ value: c.value, label: c.label }));
-  }, [cnaeSearch]);
+  }, [cnaeSearch, searchCnae]);
 
   const activeFiltersCount = () => {
     let count = 0;
