@@ -10,7 +10,8 @@ import { MetaWhatsAppSettings } from "@/components/settings/MetaWhatsAppSettings
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
-import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, LucideIcon } from "lucide-react";
+import { AutoLeadSettings } from "@/components/settings/AutoLeadSettings";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
