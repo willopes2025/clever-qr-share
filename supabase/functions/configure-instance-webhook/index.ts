@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       // Configure webhook for all user's instances
       const { data: instances, error: instancesError } = await supabase
         .from('whatsapp_instances')
-        .select('instance_name')
+        .select('instance_name, evolution_instance_name')
         .eq('user_id', user.id);
 
       if (instancesError) {
@@ -65,9 +65,10 @@ Deno.serve(async (req) => {
 
       const results = [];
       for (const instance of instances || []) {
+        const evoName = instance.evolution_instance_name || instance.instance_name;
         try {
           const response = await fetch(
-            `${evolutionApiUrl}/webhook/set/${instance.instance_name}`,
+            `${evolutionApiUrl}/webhook/set/${evoName}`,
             {
               method: 'POST',
               headers: {
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
       // Verify user owns the instance
       const { data: instance, error: instanceError } = await supabase
         .from('whatsapp_instances')
-        .select('id')
+        .select('id, evolution_instance_name, instance_name')
         .eq('user_id', user.id)
         .eq('instance_name', instanceName)
         .single();
@@ -116,10 +117,11 @@ Deno.serve(async (req) => {
         throw new Error('Instância não encontrada');
       }
 
-      console.log(`Configuring webhook for instance: ${instanceName}`);
+      const evoName = instance.evolution_instance_name || instance.instance_name;
+      console.log(`Configuring webhook for instance: ${evoName} (display: ${instanceName})`);
 
       const response = await fetch(
-        `${evolutionApiUrl}/webhook/set/${instanceName}`,
+        `${evolutionApiUrl}/webhook/set/${evoName}`,
         {
           method: 'POST',
           headers: {

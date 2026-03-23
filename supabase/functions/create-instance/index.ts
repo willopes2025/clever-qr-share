@@ -176,6 +176,7 @@ Deno.serve(async (req) => {
       .insert({
         user_id: user.id,
         instance_name: sanitizedName,
+        evolution_instance_name: sanitizedName,
         status: 'disconnected',
         is_notification_only: isNotificationOnly,
       })
