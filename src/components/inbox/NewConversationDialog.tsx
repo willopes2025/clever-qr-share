@@ -168,7 +168,23 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           {/* Create New Contact */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Novo contato</Label>
-            <div className="flex gap-2 w-full min-w-0">
+          <div className="flex gap-2 w-full min-w-0">
+              <Select value={countryCode} onValueChange={setCountryCode}>
+                <SelectTrigger className="w-[90px] shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="55">🇧🇷 +55</SelectItem>
+                  <SelectItem value="1">🇺🇸 +1</SelectItem>
+                  <SelectItem value="351">🇵🇹 +351</SelectItem>
+                  <SelectItem value="54">🇦🇷 +54</SelectItem>
+                  <SelectItem value="56">🇨🇱 +56</SelectItem>
+                  <SelectItem value="57">🇨🇴 +57</SelectItem>
+                  <SelectItem value="52">🇲🇽 +52</SelectItem>
+                  <SelectItem value="595">🇵🇾 +595</SelectItem>
+                  <SelectItem value="598">🇺🇾 +598</SelectItem>
+                </SelectContent>
+              </Select>
               <Input
                 placeholder="(11) 99999-9999"
                 value={newPhone}
