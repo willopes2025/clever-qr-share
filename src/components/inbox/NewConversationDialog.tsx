@@ -34,6 +34,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>("");
   const [newPhone, setNewPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("55");
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const { contacts, isLoading, createContact } = useContacts();
   const { createConversation } = useConversations();
