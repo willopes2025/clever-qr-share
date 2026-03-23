@@ -1,0 +1,1 @@
+UPDATE whatsapp_instances SET evolution_instance_name = instance_name WHERE evolution_instance_name IS NULL;
