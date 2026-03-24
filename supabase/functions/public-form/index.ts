@@ -493,7 +493,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'number':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="number" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}
