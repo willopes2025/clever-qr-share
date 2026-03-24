@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { ManageTabsDialog } from "./ManageTabsDialog";
 
@@ -14,7 +14,6 @@ export const LeadPanelTabs = ({ activeTab, onTabChange }: LeadPanelTabsProps) =>
   const { tabs, isLoading } = useLeadPanelTabs();
   const [manageOpen, setManageOpen] = useState(false);
 
-  // Set default tab on first load - using useEffect to avoid state update during render
   useEffect(() => {
     if (!isLoading && tabs && tabs.length > 0 && !activeTab) {
       onTabChange(tabs[0].id);
@@ -31,37 +30,31 @@ export const LeadPanelTabs = ({ activeTab, onTabChange }: LeadPanelTabsProps) =>
 
   return (
     <>
-      <div className="px-3 py-2 border-b border-border/40 flex min-w-0 items-center gap-1.5 bg-muted/20 overflow-hidden">
+      <div className="px-3 py-2 border-b border-border/40 flex items-center gap-1.5 bg-muted/20">
         <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-1 pr-1">
-            {tabs?.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={cn(
-                  "shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap",
-                  activeTab === tab.id
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-foreground/70 hover:text-foreground hover:bg-muted"
-                )}
-              >
-                {tab.name}
-              </button>
-            ))}
-          </div>
+          <Select value={activeTab || undefined} onValueChange={onTabChange}>
+            <SelectTrigger className="h-9 text-sm font-medium bg-background border-border/50">
+              <SelectValue placeholder="Selecione uma aba" />
+            </SelectTrigger>
+            <SelectContent>
+              {tabs?.map((tab) => (
+                <SelectItem key={tab.id} value={tab.id}>
+                  {tab.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="shrink-0 pl-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0 hover:bg-muted"
-            onClick={() => setManageOpen(true)}
-            aria-label="Configurar abas"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 hover:bg-muted"
+          onClick={() => setManageOpen(true)}
+          aria-label="Configurar abas"
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
       </div>
 
       <ManageTabsDialog open={manageOpen} onOpenChange={setManageOpen} />
