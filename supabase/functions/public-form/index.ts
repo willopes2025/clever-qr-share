@@ -442,6 +442,64 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         });
       }
     });
+
+    // Conditional logic: show/hide fields based on other fields' values
+    document.querySelectorAll('[data-conditional-field]').forEach(function(el) {
+      var refFieldId = el.getAttribute('data-conditional-field');
+      var operator = el.getAttribute('data-conditional-operator');
+      var expectedValue = el.getAttribute('data-conditional-value');
+
+      function getRefValue() {
+        // Check radio buttons first
+        var radio = document.querySelector('input[name="' + refFieldId + '"]:checked');
+        if (radio) return radio.value;
+        // Check select/input
+        var input = document.querySelector('[name="' + refFieldId + '"]');
+        if (input) return input.value;
+        // Check checkboxes
+        var checked = document.querySelectorAll('[name="' + refFieldId + '[]"]:checked');
+        if (checked.length > 0) {
+          var vals = [];
+          checked.forEach(function(c) { vals.push(c.value); });
+          return vals.join(',');
+        }
+        return '';
+      }
+
+      function evaluate() {
+        var val = getRefValue();
+        var show = false;
+        switch (operator) {
+          case 'equals': show = val === expectedValue; break;
+          case 'not_equals': show = val !== expectedValue; break;
+          case 'contains': show = val.indexOf(expectedValue) !== -1; break;
+          case 'is_empty': show = val === ''; break;
+          case 'is_not_empty': show = val !== ''; break;
+          default: show = val === expectedValue;
+        }
+        el.style.display = show ? '' : 'none';
+        // Disable required on hidden fields
+        var inputs = el.querySelectorAll('input, select, textarea');
+        inputs.forEach(function(inp) {
+          if (!show) {
+            inp.removeAttribute('required');
+            inp.dataset.wasRequired = inp.dataset.wasRequired || inp.hasAttribute('required') ? 'true' : '';
+          } else if (inp.dataset.wasRequired === 'true') {
+            inp.setAttribute('required', '');
+          }
+        });
+      }
+
+      // Listen to changes on the reference field
+      var refInputs = document.querySelectorAll('[name="' + refFieldId + '"], [name="' + refFieldId + '[]"]');
+      refInputs.forEach(function(inp) {
+        inp.addEventListener('change', evaluate);
+        inp.addEventListener('input', evaluate);
+      });
+
+      // Initial evaluation
+      evaluate();
+    });
   </script>
 </body>
 </html>`;
@@ -452,30 +510,36 @@ function generateFieldHTML(field: any): string {
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
 
+  // Conditional logic data attributes
+  const cl = field.conditional_logic;
+  const conditionalAttrs = cl?.enabled && cl?.field_id
+    ? ` data-conditional-field="${escapeHtml(cl.field_id)}" data-conditional-operator="${escapeHtml(cl.operator || 'equals')}" data-conditional-value="${escapeHtml(cl.value || '')}" style="display:none;"`
+    : '';
+
   switch (field.field_type) {
     case 'short_text':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="text" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}
       </div>`;
 
     case 'long_text':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <textarea name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}></textarea>
         ${helpText}
       </div>`;
 
     case 'email':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="email" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}
       </div>`;
 
     case 'phone':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="phone-input-group">
           <select name="${field.id}_country_code" class="country-code-select">
@@ -487,35 +551,35 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'number':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="number" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}
       </div>`;
 
     case 'url':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="url" name="${field.id}" placeholder="${escapeHtml(field.placeholder || 'https://')}" ${required}>
         ${helpText}
       </div>`;
 
     case 'date':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="date" name="${field.id}" ${required}>
         ${helpText}
       </div>`;
 
     case 'time':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="time" name="${field.id}" ${required}>
         ${helpText}
       </div>`;
 
     case 'datetime':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="datetime-local" name="${field.id}" ${required}>
         ${helpText}
@@ -525,7 +589,7 @@ function generateFieldHTML(field: any): string {
       const selectOptions = (field.options || [])
         .map((opt: any) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`)
         .join('');
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <select name="${field.id}" ${required}>
           <option value="">${escapeHtml(field.placeholder || 'Selecione...')}</option>
@@ -543,7 +607,7 @@ function generateFieldHTML(field: any): string {
             <span>${escapeHtml(opt.label)}</span>
           </label>
         `).join('');
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="checkbox-group">${checkboxes}</div>
         ${helpText}
@@ -557,14 +621,14 @@ function generateFieldHTML(field: any): string {
             <span>${escapeHtml(opt.label)}</span>
           </label>
         `).join('');
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="radio-group">${radios}</div>
         ${helpText}
       </div>`;
 
     case 'rating':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="rating">
           <input type="hidden" name="${field.id}" value="">
@@ -578,7 +642,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'name':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="name-group">
           <input type="text" name="${field.id}_first" placeholder="Nome" ${required}>
@@ -588,7 +652,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'address':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="address-group">
           <input type="text" name="${field.id}_street" placeholder="Rua" ${required}>
@@ -637,7 +701,7 @@ function generateFieldHTML(field: any): string {
         '}).catch(function(){sel.innerHTML="<option value=\\"\\">Erro ao carregar</option>"});' +
         '})();';
 
-      return '<div class="field">'
+      return '<div class="field"' + conditionalAttrs + '>'
         + '<label>' + escapeHtml(field.label) + requiredStar + '</label>'
         + '<select name="' + field.id + '" id="district-select-' + field.id + '" ' + required + '>'
         + '<option value="">' + districtPlaceholder + '</option>'
@@ -653,6 +717,7 @@ function generateFieldHTML(field: any): string {
       const blockedDates = JSON.stringify(scheduleConfig.blocked_dates || []);
       const maxAdvanceDays = scheduleConfig.max_advance_days || 30;
       const enabledDays = JSON.stringify(Object.entries(weeklyHours).filter(([,v]: any) => v.enabled).map(([k]: any) => Number(k)));
+      // Note: scheduling field uses conditionalAttrs on its wrapper div below
       
       const calendarScript = `(function(){
         var fieldId="${field.id}";
@@ -750,7 +815,7 @@ function generateFieldHTML(field: any): string {
         render();
       })();`;
 
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="hidden" id="sched-input-${field.id}" name="${field.id}" ${required}>
         <div id="sched-${field.id}" class="scheduling-container"></div>
@@ -760,7 +825,7 @@ function generateFieldHTML(field: any): string {
     }
 
     default:
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="text" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}

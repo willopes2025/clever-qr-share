@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface FieldPropertiesProps {
   field: FormField | null;
+  allFields?: FormField[];
   onUpdate: (updates: UpdateFieldData) => void;
 }
 
@@ -166,7 +167,7 @@ const contactFields = [
   { value: 'phone', label: 'Telefone' },
 ];
 
-export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
+export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldPropertiesProps) => {
   const { fieldDefinitions, leadFieldDefinitions } = useCustomFields();
   const [localField, setLocalField] = useState<FormField | null>(field);
 
@@ -503,6 +504,95 @@ export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
                     <p className="text-xs text-muted-foreground">
                       Campo será salvo no Deal/Lead quando roteado para funil
                     </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Conditional Logic */}
+          {!isLayoutField && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Lógica Condicional</Label>
+                <p className="text-xs text-muted-foreground">
+                  Mostrar este campo apenas quando uma condição for atendida
+                </p>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="conditional_enabled" className="text-xs">Ativar condição</Label>
+                  <Switch
+                    id="conditional_enabled"
+                    checked={!!(localField.conditional_logic as any)?.enabled}
+                    onCheckedChange={(checked) => {
+                      const current = (localField.conditional_logic || {}) as Record<string, any>;
+                      handleChange('conditional_logic', { ...current, enabled: checked });
+                    }}
+                  />
+                </div>
+
+                {(localField.conditional_logic as any)?.enabled && (
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Campo de referência</Label>
+                      <Select
+                        value={(localField.conditional_logic as any)?.field_id || ''}
+                        onValueChange={(value) => {
+                          const current = (localField.conditional_logic || {}) as Record<string, any>;
+                          handleChange('conditional_logic', { ...current, field_id: value });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um campo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allFields
+                            .filter(f => f.id !== localField.id)
+                            .map(f => (
+                              <SelectItem key={f.id} value={f.id}>
+                                {f.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Operador</Label>
+                      <Select
+                        value={(localField.conditional_logic as any)?.operator || 'equals'}
+                        onValueChange={(value) => {
+                          const current = (localField.conditional_logic || {}) as Record<string, any>;
+                          handleChange('conditional_logic', { ...current, operator: value });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="equals">Igual a</SelectItem>
+                          <SelectItem value="not_equals">Diferente de</SelectItem>
+                          <SelectItem value="contains">Contém</SelectItem>
+                          <SelectItem value="is_empty">Está vazio</SelectItem>
+                          <SelectItem value="is_not_empty">Não está vazio</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {!['is_empty', 'is_not_empty'].includes((localField.conditional_logic as any)?.operator) && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Valor esperado</Label>
+                        <Input
+                          value={(localField.conditional_logic as any)?.value || ''}
+                          onChange={(e) => {
+                            const current = (localField.conditional_logic || {}) as Record<string, any>;
+                            handleChange('conditional_logic', { ...current, value: e.target.value });
+                          }}
+                          placeholder="Ex: Sim"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
