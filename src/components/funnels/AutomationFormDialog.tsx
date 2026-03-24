@@ -506,6 +506,107 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {/* Condições (opcional) */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Condições (opcional)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setConditions([...conditions, { field: '', operator: 'equals', value: '' }])}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar
+              </Button>
+            </div>
+            {conditions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Sem condições — a automação será executada sempre que o gatilho disparar.
+              </p>
+            )}
+            {conditions.map((cond, index) => (
+              <div key={index} className="flex items-center gap-2 flex-wrap">
+                <Select
+                  value={cond.field}
+                  onValueChange={(v) => {
+                    const updated = [...conditions];
+                    updated[index] = { ...updated[index], field: v };
+                    setConditions(updated);
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] h-9 text-sm">
+                    <SelectValue placeholder="Campo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contact_name">Nome do contato</SelectItem>
+                    <SelectItem value="contact_email">Email</SelectItem>
+                    <SelectItem value="deal_value">Valor do deal</SelectItem>
+                    <SelectItem value="deal_title">Título do deal</SelectItem>
+                    {fieldDefinitions?.filter(f => f.entity_type === 'lead').map((field) => (
+                      <SelectItem key={field.id} value={`custom:${field.field_key}`}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                    {fieldDefinitions?.filter(f => f.entity_type === 'contact').map((field) => (
+                      <SelectItem key={field.id} value={`contact_custom:${field.field_key}`}>
+                        📇 {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={cond.operator}
+                  onValueChange={(v) => {
+                    const updated = [...conditions];
+                    updated[index] = { ...updated[index], operator: v as AutomationCondition['operator'] };
+                    setConditions(updated);
+                  }}
+                >
+                  <SelectTrigger className="w-[130px] h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="equals">Igual a</SelectItem>
+                    <SelectItem value="not_equals">Diferente de</SelectItem>
+                    <SelectItem value="contains">Contém</SelectItem>
+                    <SelectItem value="not_empty">Não está vazio</SelectItem>
+                    <SelectItem value="empty">Está vazio</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {(cond.operator === 'equals' || cond.operator === 'not_equals' || cond.operator === 'contains') && (
+                  <Input
+                    value={cond.value}
+                    onChange={(e) => {
+                      const updated = [...conditions];
+                      updated[index] = { ...updated[index], value: e.target.value };
+                      setConditions(updated);
+                    }}
+                    placeholder="Valor"
+                    className="w-[120px] h-9 text-sm"
+                  />
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                  onClick={() => setConditions(conditions.filter((_, i) => i !== index))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {conditions.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                Todas as condições precisam ser verdadeiras (lógica "E")
+              </p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>Ação</Label>
             <Select value={actionType} onValueChange={(v) => setActionType(v as ActionType)}>
@@ -520,6 +621,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="remove_tag">Remover tag</SelectItem>
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
                 <SelectItem value="move_stage">Mover para etapa</SelectItem>
+                <SelectItem value="move_to_funnel">🔀 Mover para outro funil</SelectItem>
                 <SelectItem value="trigger_chatbot_flow">Acionar fluxo de chatbot</SelectItem>
                 <SelectItem value="set_custom_field">Definir campo personalizado</SelectItem>
                 <SelectItem value="set_deal_value">Definir valor do deal</SelectItem>
