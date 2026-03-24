@@ -167,7 +167,7 @@ const contactFields = [
   { value: 'phone', label: 'Telefone' },
 ];
 
-export const FieldProperties = ({ field, onUpdate }: FieldPropertiesProps) => {
+export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldPropertiesProps) => {
   const { fieldDefinitions, leadFieldDefinitions } = useCustomFields();
   const [localField, setLocalField] = useState<FormField | null>(field);
 
