@@ -807,7 +807,62 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
-          {(actionType === 'add_tag' || actionType === 'remove_tag') && (
+          {actionType === 'move_to_funnel' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  🔀 Move o lead para outro funil, criando um novo deal no funil de destino.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Funil de destino</Label>
+                <Select 
+                  value={actionConfig.target_funnel_id as string || ''} 
+                  onValueChange={(v) => {
+                    const targetFunnel = funnels?.find(f => f.id === v);
+                    setActionConfig({ 
+                      ...actionConfig, 
+                      target_funnel_id: v, 
+                      target_stage_id: targetFunnel?.stages?.[0]?.id || '' 
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar funil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funnels?.filter(f => f.id !== selectedFunnelId).map((funnel) => (
+                      <SelectItem key={funnel.id} value={funnel.id}>
+                        {funnel.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {actionConfig.target_funnel_id && (
+                <div className="space-y-2">
+                  <Label>Etapa de destino</Label>
+                  <Select 
+                    value={actionConfig.target_stage_id as string || ''} 
+                    onValueChange={(v) => setActionConfig({ ...actionConfig, target_stage_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar etapa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {funnels?.find(f => f.id === actionConfig.target_funnel_id)?.stages?.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+
+
             <div className="space-y-3">
               <Label>Tag</Label>
               {!showNewTagInput ? (
