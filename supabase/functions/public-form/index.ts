@@ -474,7 +474,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'email':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="email" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}
