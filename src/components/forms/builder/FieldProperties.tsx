@@ -517,7 +517,7 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Lógica Condicional</Label>
                 <p className="text-xs text-muted-foreground">
-                  Mostrar este campo apenas quando uma condição for atendida
+                  Mostrar este campo apenas quando condições forem atendidas
                 </p>
 
                 <div className="flex items-center justify-between">
@@ -527,74 +527,152 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                     checked={!!(localField.conditional_logic as any)?.enabled}
                     onCheckedChange={(checked) => {
                       const current = (localField.conditional_logic || {}) as Record<string, any>;
-                      handleChange('conditional_logic', { ...current, enabled: checked });
+                      const conditions = current.conditions || [{ field_id: '', operator: 'equals', value: '' }];
+                      handleChange('conditional_logic', { ...current, enabled: checked, conditions, logic_operator: current.logic_operator || 'and' });
                     }}
                   />
                 </div>
 
-                {(localField.conditional_logic as any)?.enabled && (
-                  <div className="space-y-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Campo de referência</Label>
-                      <Select
-                        value={(localField.conditional_logic as any)?.field_id || ''}
-                        onValueChange={(value) => {
-                          const current = (localField.conditional_logic || {}) as Record<string, any>;
-                          handleChange('conditional_logic', { ...current, field_id: value });
+                {(localField.conditional_logic as any)?.enabled && (() => {
+                  const cl = localField.conditional_logic as any;
+                  // Migrate from old single-condition format
+                  const conditions: Array<{field_id: string; operator: string; value: string}> = 
+                    Array.isArray(cl.conditions) && cl.conditions.length > 0
+                      ? cl.conditions
+                      : cl.field_id 
+                        ? [{ field_id: cl.field_id, operator: cl.operator || 'equals', value: cl.value || '' }]
+                        : [{ field_id: '', operator: 'equals', value: '' }];
+                  const logicOp = cl.logic_operator || 'and';
+
+                  const updateConditions = (newConditions: typeof conditions, newLogicOp?: string) => {
+                    handleChange('conditional_logic', {
+                      enabled: true,
+                      conditions: newConditions,
+                      logic_operator: newLogicOp || logicOp,
+                    });
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Logic operator selector */}
+                      {conditions.length > 1 && (
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs shrink-0">Combinar com:</Label>
+                          <Select value={logicOp} onValueChange={(v) => updateConditions(conditions, v)}>
+                            <SelectTrigger className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="and">E (todas)</SelectItem>
+                              <SelectItem value="or">OU (qualquer uma)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {conditions.map((cond, idx) => (
+                        <div key={idx} className="space-y-2 p-2 border rounded-md border-border/50 bg-muted/30 relative">
+                          {conditions.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute top-1 right-1 h-6 w-6"
+                              onClick={() => {
+                                const newConds = conditions.filter((_, i) => i !== idx);
+                                updateConditions(newConds);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+
+                          {idx > 0 && (
+                            <div className="text-center text-xs font-medium text-muted-foreground -mt-1 mb-1">
+                              {logicOp === 'and' ? 'E' : 'OU'}
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Campo de referência</Label>
+                            <Select
+                              value={cond.field_id || ''}
+                              onValueChange={(value) => {
+                                const newConds = [...conditions];
+                                newConds[idx] = { ...newConds[idx], field_id: value };
+                                updateConditions(newConds);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione um campo..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allFields
+                                  .filter(f => f.id !== localField.id)
+                                  .map(f => (
+                                    <SelectItem key={f.id} value={f.id}>
+                                      {f.label}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label className="text-xs">Operador</Label>
+                            <Select
+                              value={cond.operator || 'equals'}
+                              onValueChange={(value) => {
+                                const newConds = [...conditions];
+                                newConds[idx] = { ...newConds[idx], operator: value };
+                                updateConditions(newConds);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="equals">Igual a</SelectItem>
+                                <SelectItem value="not_equals">Diferente de</SelectItem>
+                                <SelectItem value="contains">Contém</SelectItem>
+                                <SelectItem value="is_empty">Está vazio</SelectItem>
+                                <SelectItem value="is_not_empty">Não está vazio</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {!['is_empty', 'is_not_empty'].includes(cond.operator) && (
+                            <div className="space-y-1">
+                              <Label className="text-xs">Valor esperado</Label>
+                              <Input
+                                value={cond.value || ''}
+                                onChange={(e) => {
+                                  const newConds = [...conditions];
+                                  newConds[idx] = { ...newConds[idx], value: e.target.value };
+                                  updateConditions(newConds);
+                                }}
+                                placeholder="Ex: Sim"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          updateConditions([...conditions, { field_id: '', operator: 'equals', value: '' }]);
                         }}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um campo..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allFields
-                            .filter(f => f.id !== localField.id)
-                            .map(f => (
-                              <SelectItem key={f.id} value={f.id}>
-                                {f.label}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Adicionar condição
+                      </Button>
                     </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-xs">Operador</Label>
-                      <Select
-                        value={(localField.conditional_logic as any)?.operator || 'equals'}
-                        onValueChange={(value) => {
-                          const current = (localField.conditional_logic || {}) as Record<string, any>;
-                          handleChange('conditional_logic', { ...current, operator: value });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="equals">Igual a</SelectItem>
-                          <SelectItem value="not_equals">Diferente de</SelectItem>
-                          <SelectItem value="contains">Contém</SelectItem>
-                          <SelectItem value="is_empty">Está vazio</SelectItem>
-                          <SelectItem value="is_not_empty">Não está vazio</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {!['is_empty', 'is_not_empty'].includes((localField.conditional_logic as any)?.operator) && (
-                      <div className="space-y-1">
-                        <Label className="text-xs">Valor esperado</Label>
-                        <Input
-                          value={(localField.conditional_logic as any)?.value || ''}
-                          onChange={(e) => {
-                            const current = (localField.conditional_logic || {}) as Record<string, any>;
-                            handleChange('conditional_logic', { ...current, value: e.target.value });
-                          }}
-                          placeholder="Ex: Sim"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </>
           )}

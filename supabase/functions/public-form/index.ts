@@ -457,69 +457,98 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     )};
 
     // Conditional logic: show/hide fields based on other fields' values
+    // Supports multiple conditions with AND/OR logic
+    function getFieldValue(fieldId) {
+      var labelMap = fieldOptionLabels[fieldId] || {};
+      function getRefLabel(rawValue) { return labelMap[rawValue] || rawValue; }
+      var radio = document.querySelector('input[name="' + fieldId + '"]:checked');
+      if (radio) return getRefLabel(radio.value);
+      var input = document.querySelector('[name="' + fieldId + '"]');
+      if (input && input.tagName === 'SELECT') {
+        var selected = input.options[input.selectedIndex];
+        return selected ? getRefLabel(selected.value) : '';
+      }
+      if (input) return input.value;
+      var checked = document.querySelectorAll('[name="' + fieldId + '[]"]:checked');
+      if (checked.length > 0) {
+        var vals = [];
+        checked.forEach(function(c) { vals.push(getRefLabel(c.value)); });
+        return vals.join(',');
+      }
+      return '';
+    }
+
+    function evaluateCondition(cond) {
+      var val = getFieldValue(cond.field_id);
+      switch (cond.operator) {
+        case 'equals': return val === (cond.value || '');
+        case 'not_equals': return val !== (cond.value || '');
+        case 'contains': return val.indexOf(cond.value || '') !== -1;
+        case 'is_empty': return val === '';
+        case 'is_not_empty': return val !== '';
+        default: return val === (cond.value || '');
+      }
+    }
+
+    function toggleField(el, show) {
+      el.style.display = show ? '' : 'none';
+      var inputs = el.querySelectorAll('input, select, textarea');
+      inputs.forEach(function(inp) {
+        if (!show) {
+          if (inp.hasAttribute('required')) inp.dataset.wasRequired = 'true';
+          inp.removeAttribute('required');
+        } else if (inp.dataset.wasRequired === 'true') {
+          inp.setAttribute('required', '');
+        }
+      });
+    }
+
+    // New multi-condition format
+    document.querySelectorAll('[data-conditional-rules]').forEach(function(el) {
+      var conditions = [];
+      try { conditions = JSON.parse(el.getAttribute('data-conditional-rules')); } catch(e) {}
+      var logicOp = el.getAttribute('data-conditional-logic') || 'and';
+      var refFieldIds = {};
+      conditions.forEach(function(c) { if (c.field_id) refFieldIds[c.field_id] = true; });
+
+      function evaluate() {
+        var show = false;
+        if (conditions.length === 0) { show = true; }
+        else if (logicOp === 'or') {
+          show = conditions.some(function(c) { return evaluateCondition(c); });
+        } else {
+          show = conditions.every(function(c) { return evaluateCondition(c); });
+        }
+        toggleField(el, show);
+      }
+
+      Object.keys(refFieldIds).forEach(function(fieldId) {
+        var refInputs = document.querySelectorAll('[name="' + fieldId + '"], [name="' + fieldId + '[]"]');
+        refInputs.forEach(function(inp) {
+          inp.addEventListener('change', evaluate);
+          inp.addEventListener('input', evaluate);
+        });
+      });
+      evaluate();
+    });
+
+    // Backward compat: old single-condition data attributes
     document.querySelectorAll('[data-conditional-field]').forEach(function(el) {
+      if (el.hasAttribute('data-conditional-rules')) return;
       var refFieldId = el.getAttribute('data-conditional-field');
       var operator = el.getAttribute('data-conditional-operator');
       var expectedValue = el.getAttribute('data-conditional-value');
-      var labelMap = fieldOptionLabels[refFieldId] || {};
-
-      function getRefLabel(rawValue) {
-        return labelMap[rawValue] || rawValue;
-      }
-
-      function getRefValue() {
-        // Check radio buttons first
-        var radio = document.querySelector('input[name="' + refFieldId + '"]:checked');
-        if (radio) return getRefLabel(radio.value);
-        // Check select/input
-        var input = document.querySelector('[name="' + refFieldId + '"]');
-        if (input && input.tagName === 'SELECT') {
-          var selected = input.options[input.selectedIndex];
-          return selected ? getRefLabel(selected.value) : '';
-        }
-        if (input) return input.value;
-        // Check checkboxes
-        var checked = document.querySelectorAll('[name="' + refFieldId + '[]"]:checked');
-        if (checked.length > 0) {
-          var vals = [];
-          checked.forEach(function(c) { vals.push(getRefLabel(c.value)); });
-          return vals.join(',');
-        }
-        return '';
-      }
 
       function evaluate() {
-        var val = getRefValue();
-        var show = false;
-        switch (operator) {
-          case 'equals': show = val === expectedValue; break;
-          case 'not_equals': show = val !== expectedValue; break;
-          case 'contains': show = val.indexOf(expectedValue) !== -1; break;
-          case 'is_empty': show = val === ''; break;
-          case 'is_not_empty': show = val !== ''; break;
-          default: show = val === expectedValue;
-        }
-        el.style.display = show ? '' : 'none';
-        // Disable required on hidden fields
-        var inputs = el.querySelectorAll('input, select, textarea');
-        inputs.forEach(function(inp) {
-          if (!show) {
-            inp.removeAttribute('required');
-            inp.dataset.wasRequired = inp.dataset.wasRequired || inp.hasAttribute('required') ? 'true' : '';
-          } else if (inp.dataset.wasRequired === 'true') {
-            inp.setAttribute('required', '');
-          }
-        });
+        var show = evaluateCondition({ field_id: refFieldId, operator: operator, value: expectedValue });
+        toggleField(el, show);
       }
 
-      // Listen to changes on the reference field
       var refInputs = document.querySelectorAll('[name="' + refFieldId + '"], [name="' + refFieldId + '[]"]');
       refInputs.forEach(function(inp) {
         inp.addEventListener('change', evaluate);
         inp.addEventListener('input', evaluate);
       });
-
-      // Initial evaluation
       evaluate();
     });
   </script>
@@ -532,11 +561,23 @@ function generateFieldHTML(field: any): string {
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
 
-  // Conditional logic data attributes
+  // Conditional logic data attributes - supports multiple conditions
   const cl = field.conditional_logic;
-  const conditionalAttrs = cl?.enabled && cl?.field_id
-    ? ` data-conditional-field="${escapeHtml(cl.field_id)}" data-conditional-operator="${escapeHtml(cl.operator || 'equals')}" data-conditional-value="${escapeHtml(cl.value || '')}" style="display:none;"`
-    : '';
+  let conditionalAttrs = '';
+  if (cl?.enabled) {
+    // Build conditions array (backward compatible with single-condition format)
+    const conditions = Array.isArray(cl.conditions) && cl.conditions.length > 0
+      ? cl.conditions
+      : cl.field_id
+        ? [{ field_id: cl.field_id, operator: cl.operator || 'equals', value: cl.value || '' }]
+        : [];
+    
+    if (conditions.length > 0) {
+      const logicOp = cl.logic_operator || 'and';
+      const conditionsJson = JSON.stringify(conditions).replace(/"/g, '&quot;');
+      conditionalAttrs = ` data-conditional-rules="${conditionsJson}" data-conditional-logic="${logicOp}" style="display:none;"`;
+    }
+  }
 
   switch (field.field_type) {
     case 'short_text':
