@@ -531,7 +531,7 @@ function generateFieldHTML(field: any): string {
       const selectOptions = (field.options || [])
         .map((opt: any) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`)
         .join('');
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <select name="${field.id}" ${required}>
           <option value="">${escapeHtml(field.placeholder || 'Selecione...')}</option>
