@@ -27,13 +27,16 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const checkInFlightRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const checkSubscription = useCallback(async () => {
+  const checkSubscription = useCallback(async (isInitial = false) => {
     // Prevent concurrent checks
     if (checkInFlightRef.current) return;
     if (authLoading) return;
 
     checkInFlightRef.current = true;
-    setLoading(true);
+    // Only show loading spinner on initial check, not on re-checks
+    if (isInitial || !subscription) {
+      setLoading(true);
+    }
 
     try {
       // Get current session
