@@ -138,6 +138,26 @@ const FormBuilder = () => {
                   selectedFieldId={selectedFieldId}
                   onSelectField={setSelectedFieldId}
                   onDeleteField={(id) => deleteField.mutate(id)}
+                  onDuplicateField={(fieldId) => {
+                    const source = fields?.find(f => f.id === fieldId);
+                    if (!source || !id) return;
+                    createField.mutate({
+                      form_id: id,
+                      field_type: source.field_type,
+                      label: `${source.label} (cópia)`,
+                      placeholder: source.placeholder,
+                      help_text: source.help_text,
+                      required: source.required,
+                      options: source.options,
+                      validation: source.validation,
+                      mapping_type: source.mapping_type,
+                      mapping_target: source.mapping_target,
+                      create_custom_field_on_submit: source.create_custom_field_on_submit,
+                      conditional_logic: source.conditional_logic,
+                      position: source.position + 1,
+                      settings: source.settings,
+                    });
+                  }}
                   onUpdateOrder={(orderedIds) => {
                     const orderedFields = orderedIds.map((id, index) => ({
                       id,
