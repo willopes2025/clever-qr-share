@@ -659,6 +659,7 @@ function generateFieldHTML(field: any): string {
       const blockedDates = JSON.stringify(scheduleConfig.blocked_dates || []);
       const maxAdvanceDays = scheduleConfig.max_advance_days || 30;
       const enabledDays = JSON.stringify(Object.entries(weeklyHours).filter(([,v]: any) => v.enabled).map(([k]: any) => Number(k)));
+      // Note: scheduling field uses conditionalAttrs on its wrapper div below
       
       const calendarScript = `(function(){
         var fieldId="${field.id}";
