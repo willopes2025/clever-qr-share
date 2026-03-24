@@ -507,7 +507,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'date':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="date" name="${field.id}" ${required}>
         ${helpText}
