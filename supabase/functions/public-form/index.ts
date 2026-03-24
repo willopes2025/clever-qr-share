@@ -594,7 +594,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'address':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="address-group">
           <input type="text" name="${field.id}_street" placeholder="Rua" ${required}>
