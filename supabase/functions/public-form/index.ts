@@ -443,24 +443,46 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
       }
     });
 
+    // Build value-to-label mapping for fields with options (radio, select, checkbox)
+    var fieldOptionLabels = ${JSON.stringify(
+      fields.reduce((acc: Record<string, Record<string, string>>, f: any) => {
+        if (f.options && Array.isArray(f.options) && f.options.length > 0) {
+          acc[f.id] = {};
+          f.options.forEach((opt: any) => {
+            acc[f.id][opt.value] = opt.label;
+          });
+        }
+        return acc;
+      }, {} as Record<string, Record<string, string>>)
+    )};
+
     // Conditional logic: show/hide fields based on other fields' values
     document.querySelectorAll('[data-conditional-field]').forEach(function(el) {
       var refFieldId = el.getAttribute('data-conditional-field');
       var operator = el.getAttribute('data-conditional-operator');
       var expectedValue = el.getAttribute('data-conditional-value');
+      var labelMap = fieldOptionLabels[refFieldId] || {};
+
+      function getRefLabel(rawValue) {
+        return labelMap[rawValue] || rawValue;
+      }
 
       function getRefValue() {
         // Check radio buttons first
         var radio = document.querySelector('input[name="' + refFieldId + '"]:checked');
-        if (radio) return radio.value;
+        if (radio) return getRefLabel(radio.value);
         // Check select/input
         var input = document.querySelector('[name="' + refFieldId + '"]');
+        if (input && input.tagName === 'SELECT') {
+          var selected = input.options[input.selectedIndex];
+          return selected ? getRefLabel(selected.value) : '';
+        }
         if (input) return input.value;
         // Check checkboxes
         var checked = document.querySelectorAll('[name="' + refFieldId + '[]"]:checked');
         if (checked.length > 0) {
           var vals = [];
-          checked.forEach(function(c) { vals.push(c.value); });
+          checked.forEach(function(c) { vals.push(getRefLabel(c.value)); });
           return vals.join(',');
         }
         return '';
