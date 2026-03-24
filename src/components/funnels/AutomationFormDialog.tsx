@@ -189,7 +189,6 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
   const [conditions, setConditions] = useState<AutomationCondition[]>([]);
-  const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
   const selectedFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = selectedFunnel?.stages || [];
