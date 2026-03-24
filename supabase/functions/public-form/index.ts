@@ -643,7 +643,7 @@ function generateFieldHTML(field: any): string {
         '}).catch(function(){sel.innerHTML="<option value=\\"\\">Erro ao carregar</option>"});' +
         '})();';
 
-      return '<div class="field">'
+      return '<div class="field"' + conditionalAttrs + '>'
         + '<label>' + escapeHtml(field.label) + requiredStar + '</label>'
         + '<select name="' + field.id + '" id="district-select-' + field.id + '" ' + required + '>'
         + '<option value="">' + districtPlaceholder + '</option>'
