@@ -452,6 +452,12 @@ function generateFieldHTML(field: any): string {
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
 
+  // Conditional logic data attributes
+  const cl = field.conditional_logic;
+  const conditionalAttrs = cl?.enabled && cl?.field_id
+    ? ` data-conditional-field="${escapeHtml(cl.field_id)}" data-conditional-operator="${escapeHtml(cl.operator || 'equals')}" data-conditional-value="${escapeHtml(cl.value || '')}" style="display:none;"`
+    : '';
+
   switch (field.field_type) {
     case 'short_text':
       return `<div class="field">
