@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
       .from('funnel_deals')
       .select(`
         *,
-        contact:contacts(id, name, phone, email, label_id),
+        contact:contacts(id, name, phone, email, label_id, custom_fields),
         stage:funnel_stages(id, name, is_final, final_type),
         funnel:funnels(id, name)
       `)
