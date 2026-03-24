@@ -444,7 +444,7 @@ Deno.serve(async (req: Request) => {
               .filter(p => p.value);
 
             // Build URL with path-based params
-            const publicUrl = Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovable.app') || 'https://clever-qr-share.lovable.app';
+            const publicUrl = 'https://clever-qr-share.lovable.app';
             const baseUrl = `${publicUrl}/form/${form.slug}`;
             const paramsPath = resolvedParams
               .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)

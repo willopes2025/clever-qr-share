@@ -60,9 +60,9 @@ export const FormCard = ({ form }: FormCardProps) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const status = statusConfig[form.status] || statusConfig.draft;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const formUrl = `${supabaseUrl}/functions/v1/public-form?slug=${form.slug}`;
-  const embedUrl = `${supabaseUrl}/functions/v1/public-form?slug=${form.slug}&embed=true`;
+  const publicBaseUrl = `${window.location.origin}/form/${form.slug}`;
+  const formUrl = publicBaseUrl;
+  const embedUrl = `${publicBaseUrl}?embed=true`;
   const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
   const handleCopyLink = () => {
