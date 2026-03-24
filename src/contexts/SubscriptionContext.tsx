@@ -114,7 +114,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     if (authLoading) return;
 
     if (user && session?.access_token) {
-      checkSubscription();
+      checkSubscription(!subscription);
     } else if (!user) {
       setSubscription(null);
       setLoading(false);
