@@ -1053,7 +1053,7 @@ Não adicione explicações, apenas o número.`
                 .from('funnel_stages')
                 .select('id')
                 .eq('funnel_id', targetFunnelId)
-                .order('position', { ascending: true })
+                .order('display_order', { ascending: true })
                 .limit(1)
                 .single();
               finalTargetStageId = firstStage?.id;

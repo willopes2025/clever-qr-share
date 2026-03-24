@@ -40,13 +40,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Verify it's the correct trigger type
-    if (automation.trigger_type !== 'on_existing_deals') {
-      return new Response(JSON.stringify({ error: "Automation is not of type on_existing_deals" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Allow any trigger type - this function can be used to run any automation on existing deals
 
     // Fetch all active deals in the funnel
     let query = supabase

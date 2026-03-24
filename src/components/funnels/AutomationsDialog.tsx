@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Zap } from "lucide-react";
+import { Plus, Trash2, Zap, Play, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useFunnels, FunnelAutomation } from "@/hooks/useFunnels";
 import { AutomationFormDialog } from "./AutomationFormDialog";
+import { invokeFunctionWithAuth } from "@/lib/supabase-functions";
+import { toast } from "sonner";
 
 interface AutomationsDialogProps {
   open: boolean;
