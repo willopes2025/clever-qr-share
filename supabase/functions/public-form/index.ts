@@ -767,7 +767,7 @@ function generateFieldHTML(field: any): string {
     }
 
     default:
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="text" name="${field.id}" placeholder="${escapeHtml(field.placeholder || '')}" ${required}>
         ${helpText}
