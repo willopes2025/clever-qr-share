@@ -1,54 +1,38 @@
 
 
-# Plano: Duplicar Campos, Ocultar e Lógica Condicional no Form Builder
+# Adicionar Condições nas Automações do Funil
 
-## O que muda
+## Resumo
+Adicionar um sistema de **condições opcionais** às automações do funil. Isso permite que uma automação só execute se determinadas condições forem atendidas — por exemplo, "Quando um lead entrar no funil, **se** o campo 'loja' for igual a 'Programa Seven', mover para outro funil."
 
-### 1. Duplicar Campo (Botão direito / Context Menu)
-Ao clicar com o botão direito em um campo no canvas, aparece um menu de contexto com opções: **Duplicar** e **Excluir**. Duplicar cria uma cópia do campo com `position + 1` e label sufixada com "(cópia)".
+## O que muda para o usuário
+- No formulário de automação, aparecerá uma nova seção **"Condições (opcional)"** entre o gatilho e a ação
+- O usuário poderá adicionar uma ou mais condições com: **Campo** + **Operador** + **Valor**
+- Campos disponíveis: campos personalizados do lead, nome do contato, email, valor do deal
+- Operadores: igual a, contém, não está vazio, está vazio, diferente de
+- Múltiplas condições funcionam com lógica "E" (todas precisam ser verdadeiras)
+- Nova ação disponível: **"Mover para outro funil"** — permite selecionar funil de destino e etapa
 
-### 2. Ocultar Campo (Visibilidade condicional)
-No painel de propriedades (`FieldProperties.tsx`), adicionar uma seção **"Lógica Condicional"** que permite:
-- Ativar/desativar visibilidade condicional via toggle
-- Selecionar o **campo de referência** (outro campo do formulário, ex: "Tem dependente?")
-- Selecionar o **operador** (igual a, diferente de, contém, está vazio)
-- Definir o **valor esperado** (ex: "Sim")
+## Detalhes Técnicos
 
-Os dados ficam salvos no campo `conditional_logic` (JSONB já existente na tabela `form_fields`):
-```json
-{
-  "enabled": true,
-  "field_id": "uuid-do-campo-referencia",
-  "operator": "equals",
-  "value": "Sim"
-}
-```
+### 1. UI — AutomationFormDialog.tsx
+- Adicionar estado `conditions` como array de `{ field: string, operator: string, value: string }`
+- Renderizar seção de condições com botão "Adicionar condição" (similar ao padrão já usado em `CustomFieldFilterRow`)
+- Campos selecionáveis: campos personalizados (do hook existente `useCustomFields`), `contact_name`, `contact_email`, `deal_value`, `deal_title`
+- Operadores: `equals`, `not_equals`, `contains`, `not_empty`, `empty`
+- Salvar condições no `trigger_config.conditions` do registro da automação
+- Adicionar nova ação `move_to_funnel` com seletores de funil destino + etapa destino
 
-### 3. Renderização condicional no formulário público
-Na edge function `public-form`, adicionar JavaScript que esconde/mostra campos com base na `conditional_logic`, reagindo a mudanças no campo de referência em tempo real.
+### 2. Edge Function — process-funnel-automations/index.ts
+- Após filtrar por stage e trigger type, antes de executar a ação, verificar `trigger_config.conditions`
+- Para cada condição, avaliar o valor do campo no deal (`custom_fields`, `contact.name`, `contact.email`, `deal.value`, `deal.title`)
+- Se qualquer condição falhar, pular a automação com log
+- Implementar handler para nova ação `move_to_funnel`: cria novo deal no funil/etapa destino, move contato, e opcionalmente fecha o deal original
 
-## Arquivos a editar
+### 3. Arquivos a modificar
+- `src/components/funnels/AutomationFormDialog.tsx` — UI de condições + nova ação
+- `supabase/functions/process-funnel-automations/index.ts` — lógica de avaliação de condições + handler `move_to_funnel`
 
-### `src/components/forms/builder/FieldCanvas.tsx`
-- Substituir o botão de delete por um **ContextMenu** (Radix) no clique direito com opções: Duplicar, Excluir
-- Adicionar prop `onDuplicateField`
-- Manter o botão de delete no hover como atalho visual
-
-### `src/pages/FormBuilder.tsx`
-- Criar handler `handleDuplicateField` que lê o campo selecionado, cria um novo com `createField.mutate(...)` copiando todos os dados exceto `id`
-
-### `src/components/forms/builder/FieldProperties.tsx`
-- Adicionar seção **"Lógica Condicional"** no final do painel:
-  - Toggle para ativar
-  - Select para escolher campo de referência (lista dos outros campos do formulário)
-  - Select para operador
-  - Input para valor esperado
-- Requer receber `allFields` como prop adicional
-
-### `supabase/functions/public-form/index.ts`
-- Ao gerar o HTML dos campos, adicionar `data-conditional-field`, `data-conditional-operator`, `data-conditional-value` nos campos com lógica condicional
-- Adicionar script JS que escuta `change`/`input` nos campos referenciados e faz `show/hide` dos campos dependentes
-
-## Sem migração de banco
-O campo `conditional_logic` (JSONB) já existe na tabela `form_fields`.
+### 4. Sem mudanças no banco
+As condições serão armazenadas no campo JSONB `trigger_config` já existente na tabela `funnel_automations`. A nova ação usa `action_config` para armazenar `target_funnel_id` e `target_stage_id`.
 
