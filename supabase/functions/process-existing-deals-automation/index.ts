@@ -256,6 +256,75 @@ Deno.serve(async (req: Request) => {
             break;
           }
 
+          case 'move_to_funnel': {
+            const targetFunnelId = actionConfig.target_funnel_id as string;
+            const targetStageId = actionConfig.target_stage_id as string;
+
+            if (!targetFunnelId) {
+              results.push({ dealId: deal.id, success: false, error: 'No target funnel' });
+              break;
+            }
+
+            let finalTargetStageId = targetStageId;
+            if (!finalTargetStageId) {
+              const { data: firstStage } = await supabase
+                .from('funnel_stages')
+                .select('id')
+                .eq('funnel_id', targetFunnelId)
+                .order('display_order', { ascending: true })
+                .limit(1)
+                .single();
+              finalTargetStageId = firstStage?.id;
+            }
+
+            if (!finalTargetStageId) {
+              results.push({ dealId: deal.id, success: false, error: 'Target funnel has no stages' });
+              break;
+            }
+
+            const { error: newDealError } = await supabase
+              .from('funnel_deals')
+              .insert({
+                funnel_id: targetFunnelId,
+                stage_id: finalTargetStageId,
+                contact_id: deal.contact_id,
+                user_id: deal.user_id,
+                title: deal.title,
+                value: deal.value,
+                custom_fields: deal.custom_fields,
+                conversation_id: deal.conversation_id,
+                entered_stage_at: new Date().toISOString()
+              });
+
+            if (newDealError) {
+              results.push({ dealId: deal.id, success: false, error: newDealError.message });
+            } else {
+              // Close original deal
+              const { data: lostStage } = await supabase
+                .from('funnel_stages')
+                .select('id')
+                .eq('funnel_id', deal.funnel_id)
+                .eq('is_final', true)
+                .limit(1)
+                .maybeSingle();
+
+              if (lostStage) {
+                await supabase
+                  .from('funnel_deals')
+                  .update({ 
+                    stage_id: lostStage.id,
+                    entered_stage_at: new Date().toISOString(),
+                    closed_at: new Date().toISOString()
+                  })
+                  .eq('id', deal.id);
+              }
+
+              console.log(`[EXISTING-DEALS-AUTOMATION] Moved deal ${deal.id} to funnel ${targetFunnelId}`);
+              results.push({ dealId: deal.id, success: true });
+            }
+            break;
+          }
+
           default:
             results.push({ dealId: deal.id, success: true });
         }
