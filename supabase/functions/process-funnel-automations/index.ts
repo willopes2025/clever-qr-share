@@ -189,6 +189,57 @@ Deno.serve(async (req: Request) => {
 
         console.log(`[FUNNEL-AUTOMATIONS] Executing automation: ${automation.name} (${automation.action_type})`);
 
+        // Evaluate conditions from trigger_config.conditions
+        const automationConditions = (triggerConfig.conditions as Array<{ field: string; operator: string; value: string }>) || [];
+        if (automationConditions.length > 0) {
+          let allConditionsMet = true;
+          for (const condition of automationConditions) {
+            let fieldValue: string | undefined;
+            
+            if (condition.field === 'contact_name') {
+              fieldValue = deal.contact?.name || '';
+            } else if (condition.field === 'contact_email') {
+              fieldValue = deal.contact?.email || '';
+            } else if (condition.field === 'deal_value') {
+              fieldValue = deal.value?.toString() || '';
+            } else if (condition.field === 'deal_title') {
+              fieldValue = deal.title || '';
+            } else if (condition.field.startsWith('custom:')) {
+              const key = condition.field.replace('custom:', '');
+              const customFields = (deal.custom_fields || {}) as Record<string, unknown>;
+              fieldValue = customFields[key]?.toString() || '';
+            } else if (condition.field.startsWith('contact_custom:')) {
+              const key = condition.field.replace('contact_custom:', '');
+              const contactCustomFields = (deal.contact?.custom_fields || {}) as Record<string, unknown>;
+              fieldValue = contactCustomFields[key]?.toString() || '';
+            }
+
+            let conditionMet = false;
+            const fv = (fieldValue || '').toLowerCase();
+            const cv = (condition.value || '').toLowerCase();
+            
+            switch (condition.operator) {
+              case 'equals': conditionMet = fv === cv; break;
+              case 'not_equals': conditionMet = fv !== cv; break;
+              case 'contains': conditionMet = fv.includes(cv); break;
+              case 'not_empty': conditionMet = fv.length > 0; break;
+              case 'empty': conditionMet = fv.length === 0; break;
+            }
+
+            if (!conditionMet) {
+              allConditionsMet = false;
+              console.log(`[FUNNEL-AUTOMATIONS] Condition not met: ${condition.field} ${condition.operator} ${condition.value} (actual: "${fieldValue}")`);
+              break;
+            }
+          }
+
+          if (!allConditionsMet) {
+            console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - conditions not met`);
+            continue;
+          }
+          console.log(`[FUNNEL-AUTOMATIONS] All ${automationConditions.length} conditions met`);
+        }
+
         const actionConfig = automation.action_config as Record<string, unknown> || {};
 
         switch (automation.action_type) {
