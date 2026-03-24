@@ -1036,6 +1036,80 @@ Não adicione explicações, apenas o número.`
             break;
           }
 
+          case 'move_to_funnel': {
+            const targetFunnelId = actionConfig.target_funnel_id as string;
+            const targetStageId = actionConfig.target_stage_id as string;
+
+            if (!targetFunnelId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot move to funnel - no target funnel`);
+              results.push({ automationId: automation.id, success: false, error: 'No target funnel' });
+              break;
+            }
+
+            // If no specific stage, get first stage of target funnel
+            let finalTargetStageId = targetStageId;
+            if (!finalTargetStageId) {
+              const { data: firstStage } = await supabase
+                .from('funnel_stages')
+                .select('id')
+                .eq('funnel_id', targetFunnelId)
+                .order('position', { ascending: true })
+                .limit(1)
+                .single();
+              finalTargetStageId = firstStage?.id;
+            }
+
+            if (!finalTargetStageId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot move to funnel - no stages in target funnel`);
+              results.push({ automationId: automation.id, success: false, error: 'Target funnel has no stages' });
+              break;
+            }
+
+            // Create new deal in target funnel
+            const { error: newDealError } = await supabase
+              .from('funnel_deals')
+              .insert({
+                funnel_id: targetFunnelId,
+                stage_id: finalTargetStageId,
+                contact_id: deal.contact_id,
+                user_id: deal.user_id,
+                title: deal.title,
+                value: deal.value,
+                custom_fields: deal.custom_fields,
+                conversation_id: deal.conversation_id,
+                entered_stage_at: new Date().toISOString()
+              });
+
+            if (newDealError) {
+              console.error(`[FUNNEL-AUTOMATIONS] Error creating deal in target funnel:`, newDealError);
+              results.push({ automationId: automation.id, success: false, error: newDealError.message });
+            } else {
+              // Close original deal
+              const { data: lostStage } = await supabase
+                .from('funnel_stages')
+                .select('id')
+                .eq('funnel_id', deal.funnel_id)
+                .eq('is_final', true)
+                .limit(1)
+                .maybeSingle();
+
+              if (lostStage) {
+                await supabase
+                  .from('funnel_deals')
+                  .update({ 
+                    stage_id: lostStage.id,
+                    entered_stage_at: new Date().toISOString(),
+                    closed_at: new Date().toISOString()
+                  })
+                  .eq('id', dealId);
+              }
+
+              console.log(`[FUNNEL-AUTOMATIONS] Moved deal to funnel ${targetFunnelId}, stage ${finalTargetStageId}`);
+              results.push({ automationId: automation.id, success: true });
+            }
+            break;
+          }
+
           default:
             console.log(`[FUNNEL-AUTOMATIONS] Unknown action type: ${automation.action_type}`);
             results.push({ automationId: automation.id, success: false, error: 'Unknown action type' });
