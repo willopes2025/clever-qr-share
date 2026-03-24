@@ -506,6 +506,10 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                     </p>
                   </div>
                 )}
+              </div>
+            </>
+          )}
+
           {/* Conditional Logic */}
           {!isLayoutField && (
             <>
