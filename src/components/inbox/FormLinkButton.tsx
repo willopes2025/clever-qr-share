@@ -25,12 +25,8 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
   const generateFormLink = (slug: string) => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const staticParams = JSON.stringify([
-      { key: 'contact_id', value: contactId },
-      { key: 'conversation_id', value: conversationId },
-    ]);
-    return `${supabaseUrl}/functions/v1/public-form?slug=${slug}&static_params=${encodeURIComponent(staticParams)}`;
+    const origin = window.location.origin;
+    return `${origin}/f/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
   };
 
   const handleSelectForm = (form: { slug: string; name: string }) => {
