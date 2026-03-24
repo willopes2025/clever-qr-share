@@ -64,6 +64,7 @@ type ActionType =
   | 'remove_tag' 
   | 'notify_user' 
   | 'move_stage' 
+  | 'move_to_funnel'
   | 'trigger_chatbot_flow'
   | 'set_custom_field'
   | 'set_deal_value'
@@ -74,6 +75,12 @@ type ActionType =
   | 'close_deal_won'
   | 'close_deal_lost'
   | 'ai_analyze_and_move';
+
+interface AutomationCondition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_empty' | 'empty';
+  value: string;
+}
 
 interface FormLinkParam {
   key: string;
@@ -181,6 +188,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const [showNewTagInput, setShowNewTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
+  const [conditions, setConditions] = useState<AutomationCondition[]>([]);
 
   const selectedFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = selectedFunnel?.stages || [];
@@ -210,7 +218,9 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setSelectedFunnelId(automation.funnel_id);
       setStageId(automation.stage_id || '');
       setTriggerType(automation.trigger_type as TriggerType);
-      setTriggerConfig((automation.trigger_config as Record<string, unknown>) || {});
+      const tc = (automation.trigger_config as Record<string, unknown>) || {};
+      setTriggerConfig(tc);
+      setConditions((tc.conditions as AutomationCondition[]) || []);
       setActionType(automation.action_type as ActionType);
       setActionConfig((automation.action_config as Record<string, unknown>) || {});
     } else {
@@ -219,6 +229,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setStageId(defaultStageId || '');
       setTriggerType('on_stage_enter');
       setTriggerConfig({});
+      setConditions([]);
       setActionType('send_message');
       setActionConfig({});
       setSelectedAgentId('');
@@ -269,12 +280,16 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    const finalTriggerConfig = conditions.length > 0 
+      ? { ...triggerConfig, conditions } 
+      : (() => { const { conditions: _, ...rest } = triggerConfig as Record<string, unknown> & { conditions?: unknown }; return rest; })();
+
     const data = {
       funnel_id: selectedFunnelId,
       stage_id: stageId || null,
       name,
       trigger_type: triggerType,
-      trigger_config: triggerConfig,
+      trigger_config: finalTriggerConfig,
       action_type: actionType,
       action_config: actionConfig,
       is_active: true
@@ -491,6 +506,107 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {/* Condições (opcional) */}
+          <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Condições (opcional)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setConditions([...conditions, { field: '', operator: 'equals', value: '' }])}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar
+              </Button>
+            </div>
+            {conditions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Sem condições — a automação será executada sempre que o gatilho disparar.
+              </p>
+            )}
+            {conditions.map((cond, index) => (
+              <div key={index} className="flex items-center gap-2 flex-wrap">
+                <Select
+                  value={cond.field}
+                  onValueChange={(v) => {
+                    const updated = [...conditions];
+                    updated[index] = { ...updated[index], field: v };
+                    setConditions(updated);
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] h-9 text-sm">
+                    <SelectValue placeholder="Campo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contact_name">Nome do contato</SelectItem>
+                    <SelectItem value="contact_email">Email</SelectItem>
+                    <SelectItem value="deal_value">Valor do deal</SelectItem>
+                    <SelectItem value="deal_title">Título do deal</SelectItem>
+                    {fieldDefinitions?.filter(f => f.entity_type === 'lead').map((field) => (
+                      <SelectItem key={field.id} value={`custom:${field.field_key}`}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                    {fieldDefinitions?.filter(f => f.entity_type === 'contact').map((field) => (
+                      <SelectItem key={field.id} value={`contact_custom:${field.field_key}`}>
+                        📇 {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={cond.operator}
+                  onValueChange={(v) => {
+                    const updated = [...conditions];
+                    updated[index] = { ...updated[index], operator: v as AutomationCondition['operator'] };
+                    setConditions(updated);
+                  }}
+                >
+                  <SelectTrigger className="w-[130px] h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="equals">Igual a</SelectItem>
+                    <SelectItem value="not_equals">Diferente de</SelectItem>
+                    <SelectItem value="contains">Contém</SelectItem>
+                    <SelectItem value="not_empty">Não está vazio</SelectItem>
+                    <SelectItem value="empty">Está vazio</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {(cond.operator === 'equals' || cond.operator === 'not_equals' || cond.operator === 'contains') && (
+                  <Input
+                    value={cond.value}
+                    onChange={(e) => {
+                      const updated = [...conditions];
+                      updated[index] = { ...updated[index], value: e.target.value };
+                      setConditions(updated);
+                    }}
+                    placeholder="Valor"
+                    className="w-[120px] h-9 text-sm"
+                  />
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                  onClick={() => setConditions(conditions.filter((_, i) => i !== index))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            {conditions.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                Todas as condições precisam ser verdadeiras (lógica "E")
+              </p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>Ação</Label>
             <Select value={actionType} onValueChange={(v) => setActionType(v as ActionType)}>
@@ -505,6 +621,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="remove_tag">Remover tag</SelectItem>
                 <SelectItem value="notify_user">Notificar usuário</SelectItem>
                 <SelectItem value="move_stage">Mover para etapa</SelectItem>
+                <SelectItem value="move_to_funnel">🔀 Mover para outro funil</SelectItem>
                 <SelectItem value="trigger_chatbot_flow">Acionar fluxo de chatbot</SelectItem>
                 <SelectItem value="set_custom_field">Definir campo personalizado</SelectItem>
                 <SelectItem value="set_deal_value">Definir valor do deal</SelectItem>
@@ -687,6 +804,61 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {actionType === 'move_to_funnel' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  🔀 Move o lead para outro funil, criando um novo deal no funil de destino.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Funil de destino</Label>
+                <Select 
+                  value={actionConfig.target_funnel_id as string || ''} 
+                  onValueChange={(v) => {
+                    const targetFunnel = funnels?.find(f => f.id === v);
+                    setActionConfig({ 
+                      ...actionConfig, 
+                      target_funnel_id: v, 
+                      target_stage_id: targetFunnel?.stages?.[0]?.id || '' 
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar funil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funnels?.filter(f => f.id !== selectedFunnelId).map((funnel) => (
+                      <SelectItem key={funnel.id} value={funnel.id}>
+                        {funnel.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {actionConfig.target_funnel_id && (
+                <div className="space-y-2">
+                  <Label>Etapa de destino</Label>
+                  <Select 
+                    value={actionConfig.target_stage_id as string || ''} 
+                    onValueChange={(v) => setActionConfig({ ...actionConfig, target_stage_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar etapa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {funnels?.find(f => f.id === actionConfig.target_funnel_id)?.stages?.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           )}
 

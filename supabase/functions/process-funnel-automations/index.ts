@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
       .from('funnel_deals')
       .select(`
         *,
-        contact:contacts(id, name, phone, email, label_id),
+        contact:contacts(id, name, phone, email, label_id, custom_fields),
         stage:funnel_stages(id, name, is_final, final_type),
         funnel:funnels(id, name)
       `)
@@ -188,6 +188,57 @@ Deno.serve(async (req: Request) => {
         }
 
         console.log(`[FUNNEL-AUTOMATIONS] Executing automation: ${automation.name} (${automation.action_type})`);
+
+        // Evaluate conditions from trigger_config.conditions
+        const automationConditions = (triggerConfig.conditions as Array<{ field: string; operator: string; value: string }>) || [];
+        if (automationConditions.length > 0) {
+          let allConditionsMet = true;
+          for (const condition of automationConditions) {
+            let fieldValue: string | undefined;
+            
+            if (condition.field === 'contact_name') {
+              fieldValue = deal.contact?.name || '';
+            } else if (condition.field === 'contact_email') {
+              fieldValue = deal.contact?.email || '';
+            } else if (condition.field === 'deal_value') {
+              fieldValue = deal.value?.toString() || '';
+            } else if (condition.field === 'deal_title') {
+              fieldValue = deal.title || '';
+            } else if (condition.field.startsWith('custom:')) {
+              const key = condition.field.replace('custom:', '');
+              const customFields = (deal.custom_fields || {}) as Record<string, unknown>;
+              fieldValue = customFields[key]?.toString() || '';
+            } else if (condition.field.startsWith('contact_custom:')) {
+              const key = condition.field.replace('contact_custom:', '');
+              const contactCustomFields = (deal.contact?.custom_fields || {}) as Record<string, unknown>;
+              fieldValue = contactCustomFields[key]?.toString() || '';
+            }
+
+            let conditionMet = false;
+            const fv = (fieldValue || '').toLowerCase();
+            const cv = (condition.value || '').toLowerCase();
+            
+            switch (condition.operator) {
+              case 'equals': conditionMet = fv === cv; break;
+              case 'not_equals': conditionMet = fv !== cv; break;
+              case 'contains': conditionMet = fv.includes(cv); break;
+              case 'not_empty': conditionMet = fv.length > 0; break;
+              case 'empty': conditionMet = fv.length === 0; break;
+            }
+
+            if (!conditionMet) {
+              allConditionsMet = false;
+              console.log(`[FUNNEL-AUTOMATIONS] Condition not met: ${condition.field} ${condition.operator} ${condition.value} (actual: "${fieldValue}")`);
+              break;
+            }
+          }
+
+          if (!allConditionsMet) {
+            console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - conditions not met`);
+            continue;
+          }
+          console.log(`[FUNNEL-AUTOMATIONS] All ${automationConditions.length} conditions met`);
+        }
 
         const actionConfig = automation.action_config as Record<string, unknown> || {};
 
@@ -981,6 +1032,80 @@ Não adicione explicações, apenas o número.`
             } catch (aiError) {
               console.error(`[FUNNEL-AUTOMATIONS] AI analysis error:`, aiError);
               results.push({ automationId: automation.id, success: false, error: 'AI analysis failed' });
+            }
+            break;
+          }
+
+          case 'move_to_funnel': {
+            const targetFunnelId = actionConfig.target_funnel_id as string;
+            const targetStageId = actionConfig.target_stage_id as string;
+
+            if (!targetFunnelId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot move to funnel - no target funnel`);
+              results.push({ automationId: automation.id, success: false, error: 'No target funnel' });
+              break;
+            }
+
+            // If no specific stage, get first stage of target funnel
+            let finalTargetStageId = targetStageId;
+            if (!finalTargetStageId) {
+              const { data: firstStage } = await supabase
+                .from('funnel_stages')
+                .select('id')
+                .eq('funnel_id', targetFunnelId)
+                .order('position', { ascending: true })
+                .limit(1)
+                .single();
+              finalTargetStageId = firstStage?.id;
+            }
+
+            if (!finalTargetStageId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot move to funnel - no stages in target funnel`);
+              results.push({ automationId: automation.id, success: false, error: 'Target funnel has no stages' });
+              break;
+            }
+
+            // Create new deal in target funnel
+            const { error: newDealError } = await supabase
+              .from('funnel_deals')
+              .insert({
+                funnel_id: targetFunnelId,
+                stage_id: finalTargetStageId,
+                contact_id: deal.contact_id,
+                user_id: deal.user_id,
+                title: deal.title,
+                value: deal.value,
+                custom_fields: deal.custom_fields,
+                conversation_id: deal.conversation_id,
+                entered_stage_at: new Date().toISOString()
+              });
+
+            if (newDealError) {
+              console.error(`[FUNNEL-AUTOMATIONS] Error creating deal in target funnel:`, newDealError);
+              results.push({ automationId: automation.id, success: false, error: newDealError.message });
+            } else {
+              // Close original deal
+              const { data: lostStage } = await supabase
+                .from('funnel_stages')
+                .select('id')
+                .eq('funnel_id', deal.funnel_id)
+                .eq('is_final', true)
+                .limit(1)
+                .maybeSingle();
+
+              if (lostStage) {
+                await supabase
+                  .from('funnel_deals')
+                  .update({ 
+                    stage_id: lostStage.id,
+                    entered_stage_at: new Date().toISOString(),
+                    closed_at: new Date().toISOString()
+                  })
+                  .eq('id', dealId);
+              }
+
+              console.log(`[FUNNEL-AUTOMATIONS] Moved deal to funnel ${targetFunnelId}, stage ${finalTargetStageId}`);
+              results.push({ automationId: automation.id, success: true });
             }
             break;
           }
