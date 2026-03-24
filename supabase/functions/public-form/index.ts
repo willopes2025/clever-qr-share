@@ -442,6 +442,64 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         });
       }
     });
+
+    // Conditional logic: show/hide fields based on other fields' values
+    document.querySelectorAll('[data-conditional-field]').forEach(function(el) {
+      var refFieldId = el.getAttribute('data-conditional-field');
+      var operator = el.getAttribute('data-conditional-operator');
+      var expectedValue = el.getAttribute('data-conditional-value');
+
+      function getRefValue() {
+        // Check radio buttons first
+        var radio = document.querySelector('input[name="' + refFieldId + '"]:checked');
+        if (radio) return radio.value;
+        // Check select/input
+        var input = document.querySelector('[name="' + refFieldId + '"]');
+        if (input) return input.value;
+        // Check checkboxes
+        var checked = document.querySelectorAll('[name="' + refFieldId + '[]"]:checked');
+        if (checked.length > 0) {
+          var vals = [];
+          checked.forEach(function(c) { vals.push(c.value); });
+          return vals.join(',');
+        }
+        return '';
+      }
+
+      function evaluate() {
+        var val = getRefValue();
+        var show = false;
+        switch (operator) {
+          case 'equals': show = val === expectedValue; break;
+          case 'not_equals': show = val !== expectedValue; break;
+          case 'contains': show = val.indexOf(expectedValue) !== -1; break;
+          case 'is_empty': show = val === ''; break;
+          case 'is_not_empty': show = val !== ''; break;
+          default: show = val === expectedValue;
+        }
+        el.style.display = show ? '' : 'none';
+        // Disable required on hidden fields
+        var inputs = el.querySelectorAll('input, select, textarea');
+        inputs.forEach(function(inp) {
+          if (!show) {
+            inp.removeAttribute('required');
+            inp.dataset.wasRequired = inp.dataset.wasRequired || inp.hasAttribute('required') ? 'true' : '';
+          } else if (inp.dataset.wasRequired === 'true') {
+            inp.setAttribute('required', '');
+          }
+        });
+      }
+
+      // Listen to changes on the reference field
+      var refInputs = document.querySelectorAll('[name="' + refFieldId + '"], [name="' + refFieldId + '[]"]');
+      refInputs.forEach(function(inp) {
+        inp.addEventListener('change', evaluate);
+        inp.addEventListener('input', evaluate);
+      });
+
+      // Initial evaluation
+      evaluate();
+    });
   </script>
 </body>
 </html>`;
