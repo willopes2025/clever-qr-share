@@ -26,7 +26,7 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
 
   const generateFormLink = (slug: string) => {
     const origin = window.location.origin;
-    return `${origin}/f/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
+    return `${origin}/form/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
   };
 
   const handleSelectForm = (form: { slug: string; name: string }) => {
