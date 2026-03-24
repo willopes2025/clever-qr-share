@@ -862,7 +862,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
-
+          {(actionType === 'add_tag' || actionType === 'remove_tag') && (
             <div className="space-y-3">
               <Label>Tag</Label>
               {!showNewTagInput ? (
