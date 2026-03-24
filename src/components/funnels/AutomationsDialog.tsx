@@ -166,6 +166,19 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="Executar em todos os leads do funil"
+                          disabled={runningId === automation.id}
+                          onClick={() => handleRunOnAll(automation.id)}
+                        >
+                          {runningId === automation.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => { setEditingAutomation(automation); setShowForm(true); }}
                         >
                           <Zap className="h-4 w-4" />
