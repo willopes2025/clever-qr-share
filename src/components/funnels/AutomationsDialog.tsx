@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Zap } from "lucide-react";
+import { Plus, Trash2, Zap, Play, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useFunnels, FunnelAutomation } from "@/hooks/useFunnels";
 import { AutomationFormDialog } from "./AutomationFormDialog";
+import { invokeFunctionWithAuth } from "@/lib/supabase-functions";
+import { toast } from "sonner";
 
 interface AutomationsDialogProps {
   open: boolean;
@@ -60,6 +62,26 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
   const { automations, updateAutomation, deleteAutomation, funnels } = useFunnels();
   const [showForm, setShowForm] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<FunnelAutomation | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
+
+  const handleRunOnAll = async (automationId: string) => {
+    setRunningId(automationId);
+    try {
+      const { data, error } = await invokeFunctionWithAuth('process-existing-deals-automation', {
+        body: { automationId }
+      });
+      if (error) {
+        toast.error('Erro ao executar: ' + error.message);
+      } else {
+        const result = data as { processed?: number; results?: { success: number; errors: number } };
+        toast.success(`Automação executada em ${result?.processed || 0} deals (${result?.results?.success || 0} ok, ${result?.results?.errors || 0} erros)`);
+      }
+    } catch (err) {
+      toast.error('Erro inesperado ao executar automação');
+    } finally {
+      setRunningId(null);
+    }
+  };
 
   const filteredAutomations = funnelId 
     ? automations?.filter(a => a.funnel_id === funnelId)
@@ -141,6 +163,19 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
                             updateAutomation.mutate({ id: automation.id, is_active: checked })
                           }
                         />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Executar em todos os leads do funil"
+                          disabled={runningId === automation.id}
+                          onClick={() => handleRunOnAll(automation.id)}
+                        >
+                          {runningId === automation.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
