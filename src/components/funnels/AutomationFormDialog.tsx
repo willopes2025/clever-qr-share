@@ -280,12 +280,16 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    const finalTriggerConfig = conditions.length > 0 
+      ? { ...triggerConfig, conditions } 
+      : (() => { const { conditions: _, ...rest } = triggerConfig as Record<string, unknown> & { conditions?: unknown }; return rest; })();
+
     const data = {
       funnel_id: selectedFunnelId,
       stage_id: stageId || null,
       name,
       trigger_type: triggerType,
-      trigger_config: triggerConfig,
+      trigger_config: finalTriggerConfig,
       action_type: actionType,
       action_config: actionConfig,
       is_active: true
