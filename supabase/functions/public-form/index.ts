@@ -570,7 +570,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'rating':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="rating">
           <input type="hidden" name="${field.id}" value="">
