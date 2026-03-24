@@ -549,7 +549,7 @@ function generateFieldHTML(field: any): string {
             <span>${escapeHtml(opt.label)}</span>
           </label>
         `).join('');
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="checkbox-group">${checkboxes}</div>
         ${helpText}
