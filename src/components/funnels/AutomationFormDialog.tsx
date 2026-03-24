@@ -218,7 +218,9 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setSelectedFunnelId(automation.funnel_id);
       setStageId(automation.stage_id || '');
       setTriggerType(automation.trigger_type as TriggerType);
-      setTriggerConfig((automation.trigger_config as Record<string, unknown>) || {});
+      const tc = (automation.trigger_config as Record<string, unknown>) || {};
+      setTriggerConfig(tc);
+      setConditions((tc.conditions as AutomationCondition[]) || []);
       setActionType(automation.action_type as ActionType);
       setActionConfig((automation.action_config as Record<string, unknown>) || {});
     } else {
@@ -227,6 +229,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setStageId(defaultStageId || '');
       setTriggerType('on_stage_enter');
       setTriggerConfig({});
+      setConditions([]);
       setActionType('send_message');
       setActionConfig({});
       setSelectedAgentId('');
