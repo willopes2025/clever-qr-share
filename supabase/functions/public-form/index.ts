@@ -757,7 +757,7 @@ function generateFieldHTML(field: any): string {
         render();
       })();`;
 
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <input type="hidden" id="sched-input-${field.id}" name="${field.id}" ${required}>
         <div id="sched-${field.id}" class="scheduling-container"></div>
