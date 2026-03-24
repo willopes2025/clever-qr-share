@@ -62,6 +62,26 @@ export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsD
   const { automations, updateAutomation, deleteAutomation, funnels } = useFunnels();
   const [showForm, setShowForm] = useState(false);
   const [editingAutomation, setEditingAutomation] = useState<FunnelAutomation | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
+
+  const handleRunOnAll = async (automationId: string) => {
+    setRunningId(automationId);
+    try {
+      const { data, error } = await invokeFunctionWithAuth('process-existing-deals-automation', {
+        body: { automationId }
+      });
+      if (error) {
+        toast.error('Erro ao executar: ' + error.message);
+      } else {
+        const result = data as { processed?: number; results?: { success: number; errors: number } };
+        toast.success(`Automação executada em ${result?.processed || 0} deals (${result?.results?.success || 0} ok, ${result?.results?.errors || 0} erros)`);
+      }
+    } catch (err) {
+      toast.error('Erro inesperado ao executar automação');
+    } finally {
+      setRunningId(null);
+    }
+  };
 
   const filteredAutomations = funnelId 
     ? automations?.filter(a => a.funnel_id === funnelId)
