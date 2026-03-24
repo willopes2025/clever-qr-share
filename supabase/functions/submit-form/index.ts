@@ -95,8 +95,33 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Helper to resolve option values to their display labels
+  const resolveOptionLabel = (field: any, value: any): any => {
+    if (!value || !field.options || !Array.isArray(field.options)) return value;
+    const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
+    if (!selectTypes.includes(field.field_type)) return value;
+
+    const optionMap = new Map(field.options.map((o: any) => [o.value, o.label]));
+
+    if (Array.isArray(value)) {
+      return value.map((v: string) => optionMap.get(v) || v);
+    }
+    if (typeof value === 'string' && value.startsWith('[')) {
+      try {
+        const arr = JSON.parse(value);
+        if (Array.isArray(arr)) {
+          return arr.map((v: string) => optionMap.get(v) || v);
+        }
+      } catch {}
+    }
+    return optionMap.get(value) || value;
+  };
+
   for (const field of formFields) {
-    const fieldValue = submissionData[field.id];
+    let fieldValue = submissionData[field.id];
+    
+    // Resolve option values to labels for select-type fields
+    fieldValue = resolveOptionLabel(field, fieldValue);
     
     // Check for composite field parts (name has _first/_last, phone has _country_code)
     const hasNameParts = submissionData[`${field.id}_first`] !== undefined;
