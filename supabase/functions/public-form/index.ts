@@ -481,7 +481,7 @@ function generateFieldHTML(field: any): string {
       </div>`;
 
     case 'phone':
-      return `<div class="field">
+      return `<div class="field"${conditionalAttrs}>
         <label>${escapeHtml(field.label)}${requiredStar}</label>
         <div class="phone-input-group">
           <select name="${field.id}_country_code" class="country-code-select">
