@@ -532,11 +532,23 @@ function generateFieldHTML(field: any): string {
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
 
-  // Conditional logic data attributes
+  // Conditional logic data attributes - supports multiple conditions
   const cl = field.conditional_logic;
-  const conditionalAttrs = cl?.enabled && cl?.field_id
-    ? ` data-conditional-field="${escapeHtml(cl.field_id)}" data-conditional-operator="${escapeHtml(cl.operator || 'equals')}" data-conditional-value="${escapeHtml(cl.value || '')}" style="display:none;"`
-    : '';
+  let conditionalAttrs = '';
+  if (cl?.enabled) {
+    // Build conditions array (backward compatible with single-condition format)
+    const conditions = Array.isArray(cl.conditions) && cl.conditions.length > 0
+      ? cl.conditions
+      : cl.field_id
+        ? [{ field_id: cl.field_id, operator: cl.operator || 'equals', value: cl.value || '' }]
+        : [];
+    
+    if (conditions.length > 0) {
+      const logicOp = cl.logic_operator || 'and';
+      const conditionsJson = JSON.stringify(conditions).replace(/"/g, '&quot;');
+      conditionalAttrs = ` data-conditional-rules="${conditionsJson}" data-conditional-logic="${logicOp}" style="display:none;"`;
+    }
+  }
 
   switch (field.field_type) {
     case 'short_text':
