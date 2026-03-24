@@ -64,6 +64,7 @@ type ActionType =
   | 'remove_tag' 
   | 'notify_user' 
   | 'move_stage' 
+  | 'move_to_funnel'
   | 'trigger_chatbot_flow'
   | 'set_custom_field'
   | 'set_deal_value'
@@ -74,6 +75,12 @@ type ActionType =
   | 'close_deal_won'
   | 'close_deal_lost'
   | 'ai_analyze_and_move';
+
+interface AutomationCondition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_empty' | 'empty';
+  value: string;
+}
 
 interface FormLinkParam {
   key: string;
