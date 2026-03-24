@@ -170,6 +170,7 @@ const FormBuilder = () => {
                 {/* Properties Panel */}
                 <FieldProperties 
                   field={selectedField}
+                  allFields={fields || []}
                   onUpdate={(updates) => {
                     if (selectedField) {
                       updateField.mutate({ id: selectedField.id, ...updates });
