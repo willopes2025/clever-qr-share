@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface FieldPropertiesProps {
   field: FormField | null;
+  allFields?: FormField[];
   onUpdate: (updates: UpdateFieldData) => void;
 }
 
