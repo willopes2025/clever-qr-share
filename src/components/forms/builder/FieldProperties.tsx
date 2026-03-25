@@ -401,6 +401,7 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                     <SelectItem value="new_custom_field">Criar novo campo de Contato</SelectItem>
                     <SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
                     <SelectItem value="deal_native_field">Campo nativo do Lead/Deal</SelectItem>
+                    <SelectItem value="additional_phone">Telefone adicional do contato</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -484,6 +485,19 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                         onCheckedChange={(checked) => handleChange('create_custom_field_on_submit', checked)}
                       />
                     </div>
+                  </div>
+                )}
+
+                {(localField.mapping_type as string) === 'additional_phone' && (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Rótulo do telefone (ex: Comercial, Pessoal)"
+                      value={localField.mapping_target || ''}
+                      onChange={(e) => handleChange('mapping_target', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Será salvo como telefone adicional no perfil do contato
+                    </p>
                   </div>
                 )}
 

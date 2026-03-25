@@ -85,6 +85,9 @@ Deno.serve(async (req: Request) => {
     
     // Native deal fields (e.g. value, title)
     let dealNativeFields: Record<string, any> = {};
+    
+    // Additional phones to save
+    let additionalPhones: Array<{ phone: string; label: string }> = [];
 
   // Check for lookup_by_display_id field first
   let lookupDisplayId: string | null = null;
@@ -191,6 +194,14 @@ Deno.serve(async (req: Request) => {
         dealNativeFields.title = String(fieldValue);
       }
       console.log(`Mapped deal native field ${field.mapping_target}:`, dealNativeFields[field.mapping_target]);
+    } else if ((field.mapping_type as string) === 'additional_phone' && field.mapping_target && fieldValue) {
+      const phoneDigits = String(fieldValue).replace(/\D/g, '');
+      const countryCode = submissionData[`${field.id}_country_code`] || '55';
+      if (phoneDigits && phoneDigits.length >= 10) {
+        const normalizedPhone = phoneDigits.startsWith(countryCode) ? phoneDigits : `${countryCode}${phoneDigits}`;
+        additionalPhones.push({ phone: normalizedPhone, label: field.mapping_target });
+        console.log(`Additional phone collected: ${normalizedPhone} (${field.mapping_target})`);
+      }
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
@@ -361,6 +372,37 @@ Deno.serve(async (req: Request) => {
         } else {
           contactId = newContact.id;
         }
+      }
+    }
+
+    // Merge additional phones into contact
+    if (contactId && additionalPhones.length > 0) {
+      try {
+        const { data: contactForPhones } = await supabase
+          .from('contacts')
+          .select('custom_fields')
+          .eq('id', contactId)
+          .single();
+
+        const existingCustomFields = (contactForPhones?.custom_fields || {}) as Record<string, any>;
+        const existingPhones: Array<{ phone: string; label: string; is_primary?: boolean }> = existingCustomFields.additional_phones || [];
+
+        // Merge avoiding duplicates by phone number
+        const existingNumbers = new Set(existingPhones.map((p: any) => p.phone));
+        const newPhones = additionalPhones.filter(p => !existingNumbers.has(p.phone));
+        
+        if (newPhones.length > 0) {
+          const mergedPhones = [...existingPhones, ...newPhones];
+          await supabase
+            .from('contacts')
+            .update({
+              custom_fields: { ...existingCustomFields, additional_phones: mergedPhones },
+            })
+            .eq('id', contactId);
+          console.log(`Added ${newPhones.length} additional phone(s) to contact ${contactId}`);
+        }
+      } catch (phoneError) {
+        console.error('Error saving additional phones:', phoneError);
       }
     }
 

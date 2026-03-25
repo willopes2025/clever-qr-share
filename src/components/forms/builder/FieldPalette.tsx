@@ -68,6 +68,9 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
   { type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' },
+  { type: 'phone_commercial', label: 'Tel. Comercial', icon: Phone, category: 'Especiais' },
+  { type: 'phone_mobile', label: 'Celular', icon: Phone, category: 'Especiais' },
+  { type: 'phone_personal', label: 'Tel. Pessoal', icon: Phone, category: 'Especiais' },
   
   // Layout
   { type: 'heading', label: 'Título/Seção', icon: Heading, category: 'Layout' },
@@ -101,6 +104,15 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     } else if (fieldType.type === 'deal_value') {
       autoMappingType = 'deal_native_field' as any;
       autoMappingTarget = 'value';
+    } else if (fieldType.type === 'phone_commercial') {
+      autoMappingType = 'additional_phone' as any;
+      autoMappingTarget = 'Comercial';
+    } else if (fieldType.type === 'phone_mobile') {
+      autoMappingType = 'additional_phone' as any;
+      autoMappingTarget = 'Celular';
+    } else if (fieldType.type === 'phone_personal') {
+      autoMappingType = 'additional_phone' as any;
+      autoMappingTarget = 'Pessoal';
     } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
@@ -128,7 +140,7 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     createField.mutate(
       {
         form_id: formId,
-        field_type: fieldType.type === 'lead_code' ? 'short_text' : fieldType.type === 'deal_value' ? 'number' : fieldType.type,
+        field_type: fieldType.type === 'lead_code' ? 'short_text' : fieldType.type === 'deal_value' ? 'number' : ['phone_commercial', 'phone_mobile', 'phone_personal'].includes(fieldType.type) ? 'phone' : fieldType.type,
         label: fieldType.label,
         placeholder: null,
         help_text: null,
