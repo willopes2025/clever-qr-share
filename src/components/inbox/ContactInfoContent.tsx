@@ -13,6 +13,7 @@ import { TagSelector } from "./TagSelector";
 import { CustomFieldsEditor } from "./CustomFieldsEditor";
 import { CustomFieldsManager } from "./CustomFieldsManager";
 import { formatForDisplay } from "@/lib/phone-utils";
+import { AdditionalPhonesManager } from "./AdditionalPhonesManager";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";

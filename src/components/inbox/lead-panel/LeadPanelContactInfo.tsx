@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Conversation } from "@/hooks/useConversations";
 import { formatForDisplay } from "@/lib/phone-utils";
+import { AdditionalPhonesManager } from "../AdditionalPhonesManager";
 import { toast } from "sonner";
 
 interface LeadPanelContactInfoProps {
@@ -20,7 +21,7 @@ export const LeadPanelContactInfo = ({ conversation }: LeadPanelContactInfoProps
 
   return (
     <div className="px-3 py-2 border-t border-border/30 space-y-2">
-      {/* Phone */}
+      {/* Main Phone */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
           <Phone className="h-3.5 w-3.5 text-muted-foreground" />
@@ -30,6 +31,13 @@ export const LeadPanelContactInfo = ({ conversation }: LeadPanelContactInfoProps
           <Copy className="h-3 w-3" />
         </Button>
       </div>
+
+      {/* Additional Phones */}
+      <AdditionalPhonesManager
+        contactId={conversation.contact_id}
+        mainPhone={contactPhone}
+        customFields={conversation.contact?.custom_fields || null}
+      />
 
       {/* First Conversation */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
