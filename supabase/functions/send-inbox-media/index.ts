@@ -75,20 +75,21 @@ Deno.serve(async (req) => {
     }
     
     // Format phone number - handle LID contacts (Click-to-WhatsApp Ads)
+    // Use targetPhone if provided (multi-phone support)
+    const rawPhone = targetPhone || contactData.phone;
     let phone: string;
-    const isLidContact = contactData.phone.startsWith('LID_');
+    const isLidContact = rawPhone.startsWith('LID_');
     
     if (isLidContact) {
-      // LID contacts must use the labelId@lid format
-      const labelId = contactData.phone.replace('LID_', '');
+      const labelId = rawPhone.replace('LID_', '');
       phone = `${labelId}@lid`;
       console.log(`[LID] Using LID format for contact: ${phone}`);
     } else {
-      phone = contactData.phone.replace(/\D/g, '');
+      phone = rawPhone.replace(/\D/g, '');
       
       // Validate phone
       if (phone.length > 13 || phone.length < 10) {
-        throw new Error(`Número de telefone inválido: ${contactData.phone}`);
+        throw new Error(`Número de telefone inválido: ${rawPhone}`);
       }
       
       // Add Brazil country code if missing

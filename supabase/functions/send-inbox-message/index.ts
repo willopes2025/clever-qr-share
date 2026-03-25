@@ -302,17 +302,18 @@ Deno.serve(async (req) => {
     if (instError || !instance) throw new Error('Failed to fetch instance');
     if (instance.status !== 'connected') throw new Error('Instance is not connected');
 
-    // Format phone number
-    let phone = contactData.phone.replace(/\D/g, '');
+    // Format phone number — use targetPhone if provided
+    const rawPhone = targetPhone || contactData.phone;
+    let phone = rawPhone.replace(/\D/g, '');
     let remoteJid: string;
     
-    const isLabelIdContact = contactData.phone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
+    const isLabelIdContact = rawPhone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
     
     if (isLabelIdContact) {
       const labelId = contactData.label_id || phone;
       remoteJid = `${labelId}@lid`;
     } else {
-      if (phone.length < 10) throw new Error(`Número inválido: ${contactData.phone}`);
+      if (phone.length < 10) throw new Error(`Número inválido: ${rawPhone}`);
       if (!phone.startsWith('55')) phone = '55' + phone;
       if (phone.length < 12 || phone.length > 13) throw new Error('Número inválido: formato incorreto');
       remoteJid = `${phone}@s.whatsapp.net`;
