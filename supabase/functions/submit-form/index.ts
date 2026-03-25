@@ -532,7 +532,11 @@ Deno.serve(async (req: Request) => {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
         } else {
-          // Update existing deal's custom fields if we have new lead data
+          // Update existing deal with native fields and custom fields
+          const dealUpdateData: Record<string, any> = {};
+          if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
+          if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
+          
           if (Object.keys(dealCustomFields).length > 0) {
             const { data: dealWithFields } = await supabase
               .from('funnel_deals')

@@ -487,6 +487,26 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                   </div>
                 )}
 
+                {localField.mapping_type === 'deal_native_field' && (
+                  <div className="space-y-2">
+                    <Select
+                      value={localField.mapping_target || ''}
+                      onValueChange={(value) => handleChange('mapping_target', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o campo do deal..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="value">Valor da Venda</SelectItem>
+                        <SelectItem value="title">Título do Deal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      O valor será salvo diretamente no campo do lead no funil
+                    </p>
+                  </div>
+                )}
+
                 {localField.mapping_type === 'new_lead_field' && (
                   <div className="space-y-2">
                     <Input
