@@ -101,6 +101,11 @@ export const CampaignFormDialog = ({
   const [aiEnabled, setAiEnabled] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
+  // Batch sending settings
+  const [batchEnabled, setBatchEnabled] = useState(false);
+  const [batchSize, setBatchSize] = useState(5);
+  const [batchPauseMinutes, setBatchPauseMinutes] = useState(30);
+
   // Tag on delivery settings
   const [enableTagOnDelivery, setEnableTagOnDelivery] = useState(false);
   const [tagOnDeliveryId, setTagOnDeliveryId] = useState<string | null>(null);
