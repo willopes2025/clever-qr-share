@@ -42,17 +42,34 @@ Deno.serve(async (req: Request) => {
 
     // Allow any trigger type - this function can be used to run any automation on existing deals
 
-    // Fetch all active deals in the funnel
+    // Fetch deals in the funnel
+    // Check if stage is a final stage (won/lost) - if so, include closed deals
+    let includeClosed = false;
+    if (automation.stage_id) {
+      const { data: stageInfo } = await supabase
+        .from('funnel_stages')
+        .select('is_final, final_type')
+        .eq('id', automation.stage_id)
+        .single();
+      if (stageInfo?.is_final) {
+        includeClosed = true;
+      }
+    }
+
     let query = supabase
       .from('funnel_deals')
       .select(`
         *,
-        contact:contacts(id, name, phone, email),
+        contact:contacts(id, name, phone, email, custom_fields),
         stage:funnel_stages(id, name, is_final, final_type),
         funnel:funnels(id, name)
       `)
-      .eq('funnel_id', automation.funnel_id)
-      .is('closed_at', null); // Only open deals
+      .eq('funnel_id', automation.funnel_id);
+
+    // Only filter by closed_at if stage is not final
+    if (!includeClosed) {
+      query = query.is('closed_at', null);
+    }
 
     // If automation is stage-specific, filter by stage
     if (automation.stage_id) {
