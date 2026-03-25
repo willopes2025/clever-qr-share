@@ -104,6 +104,15 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     } else if (fieldType.type === 'deal_value') {
       autoMappingType = 'deal_native_field' as any;
       autoMappingTarget = 'value';
+    } else if (fieldType.type === 'phone_commercial') {
+      autoMappingType = 'additional_phone' as any;
+      autoMappingTarget = 'Comercial';
+    } else if (fieldType.type === 'phone_mobile') {
+      autoMappingType = 'additional_phone' as any;
+      autoMappingTarget = 'Celular';
+    } else if (fieldType.type === 'phone_personal') {
+      autoMappingType = 'additional_phone' as any;
+      autoMappingTarget = 'Pessoal';
     } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
