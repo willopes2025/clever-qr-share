@@ -1,33 +1,36 @@
 
 
-## Adicionar campo "Valor da Venda" no construtor de formulários
+## Adicionar campos de telefone padrão (Comercial, Celular, Pessoal) no formulário
 
 ### Problema
-Não existe uma opção no construtor de formulários para capturar o valor da venda e mapeá-lo automaticamente para o campo `value` do deal no funil.
+O formulário só tem um campo "Telefone" genérico. O usuário quer opções de telefone categorizados (Comercial, Celular, Pessoal) que sejam salvos automaticamente como telefones adicionais do contato (`custom_fields.additional_phones`).
 
 ### Solução
-Adicionar um novo tipo de campo especial "Valor da Venda" na paleta de componentes e um novo `mapping_type` chamado `deal_native_field` que mapeia para campos nativos do deal (como `value`).
+Adicionar 3 novos botões na paleta do form builder, cada um pré-configurado com um novo `mapping_type` chamado `additional_phone` que salva o número no array `additional_phones` do contato com o label correspondente.
 
 ### Mudanças
 
-**1. FieldPalette.tsx — Novo botão "Valor da Venda"**
-- Adicionar na categoria "Especiais": `{ type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' }`
-- Auto-mapear com `mapping_type: 'deal_native_field'` e `mapping_target: 'value'`
-- O campo será criado como tipo `number` internamente
+**1. FieldPalette.tsx — 3 novos botões na categoria "Especiais"**
+- `{ type: 'phone_commercial', label: 'Tel. Comercial', icon: Phone }` 
+- `{ type: 'phone_mobile', label: 'Celular', icon: Phone }`
+- `{ type: 'phone_personal', label: 'Tel. Pessoal', icon: Phone }`
+- Cada um auto-mapeado com `mapping_type: 'additional_phone'` e `mapping_target` = `'Comercial'`, `'Celular'`, `'Pessoal'` respectivamente
+- `field_type` real será `phone` (reutiliza formatação/validação existente)
 
-**2. FieldProperties.tsx — Novo mapping type**
-- Adicionar opção `deal_native_field` → "Campo nativo do Lead/Deal" no select de mapeamento
-- Quando selecionado, exibir sub-select com opções: `value` (Valor da Venda), `title` (Título do Deal)
-- Exibir texto explicativo: "O valor será salvo diretamente no campo do lead no funil"
+**2. FieldProperties.tsx — Novo mapping type no select**
+- Adicionar opção `additional_phone` → "Telefone adicional do contato" no select de mapeamento
+- Quando selecionado, exibir input para o rótulo (label) do telefone (ex: "Comercial", "Pessoal")
+- Texto explicativo: "Será salvo como telefone adicional no perfil do contato"
 
-**3. submit-form/index.ts — Processar o novo mapping**
-- No loop de processamento de campos (linha ~120), adicionar tratamento para `mapping_type === 'deal_native_field'`
-- Acumular os valores em um novo objeto `dealNativeFields` (ex: `{ value: 1500 }`)
-- Na criação do deal (linha ~492), mesclar `dealNativeFields` no `dealInsertData` (ex: `dealInsertData.value = dealNativeFields.value`)
-- Na atualização de deal existente (linha ~520), também atualizar campos nativos com `update({ value: ... })`
+**3. submit-form/index.ts — Processar `additional_phone`**
+- No loop de campos, quando `mapping_type === 'additional_phone'`:
+  - Normalizar o número com DDI
+  - Acumular em um array `additionalPhones`
+- Após criar/atualizar o contato, fazer merge do array `additionalPhones` com o `custom_fields.additional_phones` existente (evitando duplicatas por número)
+- Atualizar o contato com o novo array
 
 ### Arquivos a editar
-- `src/components/forms/builder/FieldPalette.tsx` — novo botão + auto-mapping
-- `src/components/forms/builder/FieldProperties.tsx` — novo mapping type no select
-- `supabase/functions/submit-form/index.ts` — processar `deal_native_field` e salvar no deal
+- `src/components/forms/builder/FieldPalette.tsx` — 3 novos botões + auto-mapping
+- `src/components/forms/builder/FieldProperties.tsx` — novo mapping type
+- `supabase/functions/submit-form/index.ts` — processar e salvar additional_phones
 
