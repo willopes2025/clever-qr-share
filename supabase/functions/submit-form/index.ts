@@ -505,9 +505,14 @@ Deno.serve(async (req: Request) => {
             stage_id: stageId,
             contact_id: contactId,
             user_id: form.user_id,
-            title: contactData.name || 'Lead do Formulário',
+            title: dealNativeFields.title || contactData.name || 'Lead do Formulário',
             source: `Formulário: ${form.name}`,
           };
+          
+          // Include deal native fields (value, etc)
+          if (dealNativeFields.value !== undefined) {
+            dealInsertData.value = dealNativeFields.value;
+          }
           
           // Include lead custom fields if any were collected
           if (Object.keys(dealCustomFields).length > 0) {
