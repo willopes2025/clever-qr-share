@@ -25,6 +25,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const checkInFlightRef = useRef(false);
+  const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const checkSubscription = useCallback(async (isInitial = false) => {
@@ -34,7 +35,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
     checkInFlightRef.current = true;
     // Only show loading spinner on initial check, not on re-checks
-    if (isInitial || !subscription) {
+    if (!hasLoadedRef.current) {
       setLoading(true);
     }
 
@@ -100,6 +101,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         }
       } else {
         setSubscription(data);
+        hasLoadedRef.current = true;
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
@@ -118,6 +120,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     } else if (!user) {
       setSubscription(null);
       setLoading(false);
+      hasLoadedRef.current = false;
     }
   }, [user, session?.access_token, authLoading, checkSubscription]);
 
