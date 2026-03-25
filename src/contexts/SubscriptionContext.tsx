@@ -120,6 +120,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
     } else if (!user) {
       setSubscription(null);
       setLoading(false);
+      hasLoadedRef.current = false;
     }
   }, [user, session?.access_token, authLoading, checkSubscription]);
 
