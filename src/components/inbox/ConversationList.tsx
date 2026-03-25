@@ -535,6 +535,7 @@ export const ConversationList = ({
                             isPinned={conversation.is_pinned || false}
                             contactName={conversation.contact?.name || "Contato Desconhecido"}
                             contactPhone={conversation.contact?.phone || ""}
+                            status={conversation.status}
                           />
                         </div>
                       </div>
