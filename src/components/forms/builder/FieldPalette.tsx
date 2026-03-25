@@ -21,7 +21,8 @@ import {
   Text,
   MapPin,
   User,
-  EyeOff
+  EyeOff,
+  DollarSign
 } from "lucide-react";
 
 interface FieldPaletteProps {
