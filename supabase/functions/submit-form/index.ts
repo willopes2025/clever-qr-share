@@ -375,6 +375,37 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Merge additional phones into contact
+    if (contactId && additionalPhones.length > 0) {
+      try {
+        const { data: contactForPhones } = await supabase
+          .from('contacts')
+          .select('custom_fields')
+          .eq('id', contactId)
+          .single();
+
+        const existingCustomFields = (contactForPhones?.custom_fields || {}) as Record<string, any>;
+        const existingPhones: Array<{ phone: string; label: string; is_primary?: boolean }> = existingCustomFields.additional_phones || [];
+
+        // Merge avoiding duplicates by phone number
+        const existingNumbers = new Set(existingPhones.map((p: any) => p.phone));
+        const newPhones = additionalPhones.filter(p => !existingNumbers.has(p.phone));
+        
+        if (newPhones.length > 0) {
+          const mergedPhones = [...existingPhones, ...newPhones];
+          await supabase
+            .from('contacts')
+            .update({
+              custom_fields: { ...existingCustomFields, additional_phones: mergedPhones },
+            })
+            .eq('id', contactId);
+          console.log(`Added ${newPhones.length} additional phone(s) to contact ${contactId}`);
+        }
+      } catch (phoneError) {
+        console.error('Error saving additional phones:', phoneError);
+      }
+    }
+
     // Get metadata from request, including static params
     const metadata = {
       ip: req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || 'unknown',
