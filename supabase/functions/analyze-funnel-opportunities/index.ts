@@ -232,6 +232,14 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       (existingOpps || []).map((o: any) => [o.deal_id, o])
     );
 
+    // Remove stale opportunities not in current analysis
+    const currentDealIds = results.map((r: any) => r.deal_id);
+    await supabaseAdmin
+      .from("funnel_opportunities")
+      .delete()
+      .eq("funnel_id", funnel_id)
+      .not("deal_id", "in", `(${currentDealIds.join(",")})`);
+
     // Upsert results into funnel_opportunities using service role
     const upsertRows = results.map((r: any) => {
       const existing = existingMap[r.deal_id];
@@ -251,6 +259,7 @@ Retorne APENAS o JSON usando a tool fornecida.`,
         user_notes: existing?.user_notes || null,
         status: existing?.status || 'open',
         user_id: user.id,
+        analyzed_at: new Date().toISOString(),
       };
     });
 

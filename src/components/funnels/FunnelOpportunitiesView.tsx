@@ -79,7 +79,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
     }
   };
 
-  const analyze = async () => {
+  const analyze = async (forceRefresh = false) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-funnel-opportunities", {
@@ -93,14 +93,21 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
       }
 
       // Reload from DB to get persisted data with user_notes/status
-      await loadFromDB();
-      // If loadFromDB didn't find data, use API response
-      if (!opportunities.length) {
+      const { data: dbData } = await supabase
+        .from("funnel_opportunities")
+        .select("*")
+        .eq("funnel_id", funnel.id)
+        .order("score", { ascending: false });
+
+      if (dbData?.length) {
+        setOpportunities(dbData as Opportunity[]);
+      } else {
         const results = data?.opportunities || [];
         setOpportunities(results);
       }
       setHasLoaded(true);
       cacheRef.current[funnel.id] = true;
+      if (forceRefresh) toast.success("Oportunidades re-analisadas com sucesso!");
     } catch (err: any) {
       console.error(err);
       toast.error("Erro ao analisar oportunidades");
@@ -111,7 +118,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
 
   const reAnalyze = async () => {
     delete cacheRef.current[funnel.id];
-    await analyze();
+    await analyze(true);
   };
 
   const updateField = useCallback(async (dealId: string, field: string, value: string) => {
@@ -213,7 +220,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         <p className="text-muted-foreground mb-6 max-w-md">
           A IA analisará as conversas dos deals abertos deste funil e identificará as melhores oportunidades de fechamento.
         </p>
-        <Button onClick={analyze} size="lg">
+        <Button onClick={() => analyze()} size="lg">
           <Sparkles className="h-4 w-4 mr-2" />
           Analisar Oportunidades
         </Button>
