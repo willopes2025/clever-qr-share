@@ -1354,6 +1354,32 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
             }}
           />
           
+          {/* Phone selector when contact has multiple phones */}
+          {(() => {
+            const additionalPhones = (conversation.contact?.custom_fields as any)?.additional_phones as Array<{phone: string; label: string}> | undefined;
+            if (!additionalPhones || additionalPhones.length === 0) return null;
+            const mainPhone = conversation.contact?.phone || "";
+            const allPhones = [
+              { phone: mainPhone, label: "Principal" },
+              ...additionalPhones
+            ];
+            return (
+              <Select value={selectedTargetPhone || mainPhone} onValueChange={(v) => setSelectedTargetPhone(v === mainPhone ? "" : v)}>
+                <SelectTrigger className="w-auto h-8 text-xs gap-1 px-2 border-dashed">
+                  <Phone className="h-3 w-3 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allPhones.map((p, i) => (
+                    <SelectItem key={i} value={p.phone}>
+                      <span className="text-xs">{p.label}: {p.phone.replace(/^55/, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          })()}
+
           {/* Input container - pill style */}
           <div className="relative flex-1 flex items-center bg-white dark:bg-[#2a3942] rounded-full px-3 py-1">
             <Textarea
