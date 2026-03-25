@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, content, instanceId, messageType, metaTemplate } = await req.json();
+    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone } = await req.json();
 
     if (!conversationId || (!content && messageType !== 'meta_template')) {
       throw new Error('conversationId and content are required');
