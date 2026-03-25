@@ -41,6 +41,10 @@ export interface Campaign {
   skip_tag_id: string | null;
   // Tag on delivery
   tag_on_delivery_id: string | null;
+  // Batch sending settings
+  batch_enabled: boolean | null;
+  batch_size: number | null;
+  batch_pause_minutes: number | null;
   // AI Agent settings
   ai_enabled: boolean | null;
   ai_prompt: string | null;
