@@ -28,10 +28,10 @@ export const AdditionalPhonesManager = ({ contactId, mainPhone, customFields }: 
   const additionalPhones: AdditionalPhone[] = customFields?.additional_phones || [];
 
   const updateAdditionalPhones = async (phones: AdditionalPhone[]) => {
-    const updatedFields = { ...(customFields || {}), additional_phones: phones };
+    const updatedFields = { ...(customFields || {}), additional_phones: phones as any };
     const { error } = await supabase
       .from('contacts')
-      .update({ custom_fields: updatedFields })
+      .update({ custom_fields: updatedFields as any })
       .eq('id', contactId);
     
     if (error) throw error;
