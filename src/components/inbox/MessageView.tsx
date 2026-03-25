@@ -94,6 +94,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
+  const [selectedTargetPhone, setSelectedTargetPhone] = useState<string>("");
   const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""

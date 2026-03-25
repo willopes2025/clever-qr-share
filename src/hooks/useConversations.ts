@@ -357,13 +357,15 @@ export const useMessages = (conversationId: string | null) => {
       instanceId, 
       mediaUrl, 
       mediaType, 
-      caption 
+      caption,
+      targetPhone 
     }: { 
       conversationId: string; 
       instanceId: string; 
       mediaUrl: string; 
       mediaType: 'image' | 'document' | 'audio' | 'video';
       caption?: string;
+      targetPhone?: string;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-inbox-media', {
         body: {
@@ -372,6 +374,7 @@ export const useMessages = (conversationId: string | null) => {
           mediaUrl,
           mediaType,
           caption,
+          ...(targetPhone && { targetPhone }),
         },
       });
 
