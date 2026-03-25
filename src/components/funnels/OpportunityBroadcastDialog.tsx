@@ -449,6 +449,32 @@ export const OpportunityBroadcastDialog = ({
                   </div>
                 </div>
 
+                {/* Batch Sending */}
+                <div className="space-y-4 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium">Disparo em Lotes</Label>
+                      <p className="text-sm text-muted-foreground">Envia X mensagens, pausa por Y minutos e repete</p>
+                    </div>
+                    <Switch checked={batchEnabled} onCheckedChange={setBatchEnabled} />
+                  </div>
+                  {batchEnabled && (
+                    <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-muted">
+                      <div className="space-y-2">
+                        <Label>Mensagens por lote</Label>
+                        <Input type="number" min={1} value={batchSize} onChange={(e) => setBatchSize(parseInt(e.target.value) || 1)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Pausa entre lotes (min)</Label>
+                        <Input type="number" min={1} value={batchPauseMinutes} onChange={(e) => setBatchPauseMinutes(parseInt(e.target.value) || 1)} />
+                      </div>
+                      <p className="text-xs text-muted-foreground col-span-2">
+                        Exemplo: Envia {batchSize} mensagens, pausa {batchPauseMinutes} minutos, depois envia mais {batchSize}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Duplicate Control */}
                 <div className="space-y-4 border-t pt-4">
                   <div className="flex items-center justify-between">
