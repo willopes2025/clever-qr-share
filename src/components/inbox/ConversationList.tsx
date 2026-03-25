@@ -457,6 +457,9 @@ export const ConversationList = ({
                 conversationId={conversation.id}
                 isArchived={conversation.status === 'archived'}
                 isPinned={conversation.is_pinned || false}
+                isClosed={conversation.status === 'closed'}
+                contactName={conversation.contact?.name || "Contato Desconhecido"}
+                contactPhone={conversation.contact?.phone || ""}
               >
                 <div
                   className={cn(
