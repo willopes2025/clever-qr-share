@@ -253,6 +253,9 @@ export const CampaignFormDialog = ({
       ai_handoff_keywords: DEFAULT_HANDOFF_KEYWORDS,
       ai_active_hours_start: 8,
       ai_active_hours_end: 20,
+      batch_enabled: batchEnabled,
+      batch_size: batchSize,
+      batch_pause_minutes: batchPauseMinutes,
     });
 
     // For new campaigns with AI enabled: link selected agent to the new campaign
