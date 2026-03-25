@@ -410,6 +410,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
+        targetPhone: selectedTargetPhone || undefined,
       });
       // Media sent successfully - no toast needed as user sees it in chat
     } catch (error) {
