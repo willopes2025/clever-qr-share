@@ -87,12 +87,12 @@ export const AdditionalPhonesManager = ({ contactId, mainPhone, customFields }: 
       updated.unshift({ phone: mainPhone, label: "Anterior" });
       
       // Update additional phones and main phone
-      const updatedFields = { ...(customFields || {}), additional_phones: updated };
+      const updatedFields = { ...(customFields || {}), additional_phones: updated as any };
       const { error } = await supabase
         .from('contacts')
         .update({ 
           phone: selected.phone,
-          custom_fields: updatedFields 
+          custom_fields: updatedFields as any 
         })
         .eq('id', contactId);
       
