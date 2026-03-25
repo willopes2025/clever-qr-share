@@ -1,0 +1,1 @@
+ALTER TYPE public.funnel_action_type ADD VALUE IF NOT EXISTS 'move_to_funnel';
