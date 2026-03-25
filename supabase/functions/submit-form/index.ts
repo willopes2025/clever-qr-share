@@ -194,6 +194,14 @@ Deno.serve(async (req: Request) => {
         dealNativeFields.title = String(fieldValue);
       }
       console.log(`Mapped deal native field ${field.mapping_target}:`, dealNativeFields[field.mapping_target]);
+    } else if ((field.mapping_type as string) === 'additional_phone' && field.mapping_target && fieldValue) {
+      const phoneDigits = String(fieldValue).replace(/\D/g, '');
+      const countryCode = submissionData[`${field.id}_country_code`] || '55';
+      if (phoneDigits && phoneDigits.length >= 10) {
+        const normalizedPhone = phoneDigits.startsWith(countryCode) ? phoneDigits : `${countryCode}${phoneDigits}`;
+        additionalPhones.push({ phone: normalizedPhone, label: field.mapping_target });
+        console.log(`Additional phone collected: ${normalizedPhone} (${field.mapping_target})`);
+      }
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
