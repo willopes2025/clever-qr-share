@@ -67,6 +67,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'district', label: 'Distrito', icon: MapPin, category: 'Especiais' },
   { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
+  { type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' },
   
   // Layout
   { type: 'heading', label: 'Título/Seção', icon: Heading, category: 'Layout' },
