@@ -182,6 +182,9 @@ export const CampaignFormDialog = ({
       setSkipMode('same_template');
       setSkipDaysPeriod(30);
       setSkipTagId(null);
+      setBatchEnabled(false);
+      setBatchSize(5);
+      setBatchPauseMinutes(30);
       setAiEnabled(false);
       setSelectedAgentId(null);
       setEnableTagOnDelivery(false);
