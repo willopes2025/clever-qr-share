@@ -159,6 +159,9 @@ export const CampaignFormDialog = ({
       setSkipMode(campaign.skip_mode ?? 'same_template');
       setSkipDaysPeriod(campaign.skip_days_period ?? 30);
       setSkipTagId(campaign.skip_tag_id || null);
+      setBatchEnabled(campaign.batch_enabled ?? false);
+      setBatchSize(campaign.batch_size ?? 5);
+      setBatchPauseMinutes(campaign.batch_pause_minutes ?? 30);
       setAiEnabled(campaign.ai_enabled ?? false);
       setEnableTagOnDelivery(!!campaign.tag_on_delivery_id);
       setTagOnDeliveryId(campaign.tag_on_delivery_id || null);
