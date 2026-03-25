@@ -26,8 +26,11 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) throw new Error("Unauthorized");
 
-    const { funnel_id } = await req.json();
+    const { funnel_id, exclude_deal_ids } = await req.json();
     if (!funnel_id) throw new Error("funnel_id is required");
+    const excludedDealIds = Array.isArray(exclude_deal_ids)
+      ? exclude_deal_ids.filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
+      : [];
 
     const { data: funnel, error: funnelError } = await supabase
       .from("funnels")
@@ -53,15 +56,22 @@ serve(async (req) => {
 
     const stageMap = Object.fromEntries((stages || []).map((s: any) => [s.id, s.name]));
 
-    const { data: deals } = await supabase
+    let dealsQuery = supabase
       .from("funnel_deals")
       .select("id, title, value, stage_id, contact_id, conversation_id, created_at")
       .eq("funnel_id", funnel_id)
       .in("stage_id", openStageIds)
-      .limit(50);
+      .order("created_at", { ascending: true });
+
+    if (excludedDealIds.length) {
+      const excludedList = `(${excludedDealIds.map((id) => `"${id}"`).join(",")})`;
+      dealsQuery = dealsQuery.not("id", "in", excludedList);
+    }
+
+    const { data: deals } = await dealsQuery.limit(50);
 
     if (!deals?.length) {
-      return new Response(JSON.stringify({ opportunities: [] }), {
+      return new Response(JSON.stringify({ opportunities: [], exhausted: excludedDealIds.length > 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -234,11 +244,17 @@ Retorne APENAS o JSON usando a tool fornecida.`,
 
     // Remove stale opportunities not in current analysis
     const currentDealIds = results.map((r: any) => r.deal_id);
-    await supabaseAdmin
+    const staleDeleteQuery = supabaseAdmin
       .from("funnel_opportunities")
       .delete()
-      .eq("funnel_id", funnel_id)
-      .not("deal_id", "in", `(${currentDealIds.join(",")})`);
+      .eq("funnel_id", funnel_id);
+
+    if (currentDealIds.length) {
+      const currentDealIdsList = `(${currentDealIds.map((id) => `"${id}"`).join(",")})`;
+      await staleDeleteQuery.not("deal_id", "in", currentDealIdsList);
+    } else {
+      await staleDeleteQuery;
+    }
 
     // Upsert results into funnel_opportunities using service role
     const upsertRows = results.map((r: any) => {
@@ -264,9 +280,11 @@ Retorne APENAS o JSON usando a tool fornecida.`,
     });
 
     if (upsertRows.length) {
-      await supabaseAdmin
+      const { error: upsertError } = await supabaseAdmin
         .from("funnel_opportunities")
         .upsert(upsertRows, { onConflict: "funnel_id,deal_id" });
+
+      if (upsertError) throw upsertError;
     }
 
     return new Response(JSON.stringify({ opportunities: results }), {
