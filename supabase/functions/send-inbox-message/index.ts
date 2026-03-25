@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
         throw new Error('Phone Number ID não encontrado para envio Meta');
       }
 
-      const formattedPhone = contactData.phone.replace(/[^0-9]/g, '');
+      const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
 
       // ---- META TEMPLATE MESSAGE ----
       if (messageType === 'meta_template' && metaTemplate) {
