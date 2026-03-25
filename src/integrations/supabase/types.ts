@@ -1098,6 +1098,9 @@ export type Database = {
           allowed_days: string[] | null
           allowed_end_hour: number | null
           allowed_start_hour: number | null
+          batch_enabled: boolean | null
+          batch_pause_minutes: number | null
+          batch_size: number | null
           completed_at: string | null
           created_at: string
           daily_limit: number | null
@@ -1143,6 +1146,9 @@ export type Database = {
           allowed_days?: string[] | null
           allowed_end_hour?: number | null
           allowed_start_hour?: number | null
+          batch_enabled?: boolean | null
+          batch_pause_minutes?: number | null
+          batch_size?: number | null
           completed_at?: string | null
           created_at?: string
           daily_limit?: number | null
@@ -1188,6 +1194,9 @@ export type Database = {
           allowed_days?: string[] | null
           allowed_end_hour?: number | null
           allowed_start_hour?: number | null
+          batch_enabled?: boolean | null
+          batch_pause_minutes?: number | null
+          batch_size?: number | null
           completed_at?: string | null
           created_at?: string
           daily_limit?: number | null

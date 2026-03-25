@@ -47,6 +47,9 @@ const Campaigns = () => {
     skip_days_period?: number;
     skip_tag_id?: string | null;
     tag_on_delivery_id?: string | null;
+    batch_enabled?: boolean;
+    batch_size?: number;
+    batch_pause_minutes?: number;
     ai_enabled?: boolean;
     ai_prompt?: string;
     ai_knowledge_base?: string;
@@ -79,6 +82,9 @@ const Campaigns = () => {
     skip_days_period?: number;
     skip_tag_id?: string | null;
     tag_on_delivery_id?: string | null;
+    batch_enabled?: boolean;
+    batch_size?: number;
+    batch_pause_minutes?: number;
     ai_enabled?: boolean;
     ai_prompt?: string;
     ai_knowledge_base?: string;

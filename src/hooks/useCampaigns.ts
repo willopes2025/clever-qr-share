@@ -41,6 +41,10 @@ export interface Campaign {
   skip_tag_id: string | null;
   // Tag on delivery
   tag_on_delivery_id: string | null;
+  // Batch sending settings
+  batch_enabled: boolean | null;
+  batch_size: number | null;
+  batch_pause_minutes: number | null;
   // AI Agent settings
   ai_enabled: boolean | null;
   ai_prompt: string | null;
@@ -196,6 +200,10 @@ export const useCampaignMutations = () => {
       skip_tag_id?: string | null;
       // Tag on delivery
       tag_on_delivery_id?: string | null;
+      // Batch sending
+      batch_enabled?: boolean;
+      batch_size?: number;
+      batch_pause_minutes?: number;
       // AI settings
       ai_enabled?: boolean;
       ai_prompt?: string;
@@ -241,6 +249,9 @@ export const useCampaignMutations = () => {
           skip_days_period: data.skip_days_period,
           skip_tag_id: data.skip_tag_id,
           tag_on_delivery_id: data.tag_on_delivery_id,
+          batch_enabled: data.batch_enabled,
+          batch_size: data.batch_size,
+          batch_pause_minutes: data.batch_pause_minutes,
           ai_enabled: data.ai_enabled,
           ai_prompt: data.ai_prompt,
           ai_knowledge_base: data.ai_knowledge_base,
@@ -286,6 +297,9 @@ export const useCampaignMutations = () => {
       skip_days_period?: number;
       skip_tag_id?: string | null;
       tag_on_delivery_id?: string | null;
+      batch_enabled?: boolean;
+      batch_size?: number;
+      batch_pause_minutes?: number;
       ai_enabled?: boolean;
       ai_prompt?: string;
       ai_knowledge_base?: string;

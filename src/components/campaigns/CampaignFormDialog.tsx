@@ -48,6 +48,9 @@ interface CampaignFormDialogProps {
     ai_handoff_keywords: string[];
     ai_active_hours_start: number;
     ai_active_hours_end: number;
+    batch_enabled: boolean;
+    batch_size: number;
+    batch_pause_minutes: number;
   }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
@@ -97,6 +100,11 @@ export const CampaignFormDialog = ({
   // AI Agent settings - now just selecting an existing agent
   const [aiEnabled, setAiEnabled] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  // Batch sending settings
+  const [batchEnabled, setBatchEnabled] = useState(false);
+  const [batchSize, setBatchSize] = useState(5);
+  const [batchPauseMinutes, setBatchPauseMinutes] = useState(30);
 
   // Tag on delivery settings
   const [enableTagOnDelivery, setEnableTagOnDelivery] = useState(false);
@@ -151,6 +159,9 @@ export const CampaignFormDialog = ({
       setSkipMode(campaign.skip_mode ?? 'same_template');
       setSkipDaysPeriod(campaign.skip_days_period ?? 30);
       setSkipTagId(campaign.skip_tag_id || null);
+      setBatchEnabled(campaign.batch_enabled ?? false);
+      setBatchSize(campaign.batch_size ?? 5);
+      setBatchPauseMinutes(campaign.batch_pause_minutes ?? 30);
       setAiEnabled(campaign.ai_enabled ?? false);
       setEnableTagOnDelivery(!!campaign.tag_on_delivery_id);
       setTagOnDeliveryId(campaign.tag_on_delivery_id || null);
@@ -171,6 +182,9 @@ export const CampaignFormDialog = ({
       setSkipMode('same_template');
       setSkipDaysPeriod(30);
       setSkipTagId(null);
+      setBatchEnabled(false);
+      setBatchSize(5);
+      setBatchPauseMinutes(30);
       setAiEnabled(false);
       setSelectedAgentId(null);
       setEnableTagOnDelivery(false);
@@ -239,6 +253,9 @@ export const CampaignFormDialog = ({
       ai_handoff_keywords: DEFAULT_HANDOFF_KEYWORDS,
       ai_active_hours_start: 8,
       ai_active_hours_end: 20,
+      batch_enabled: batchEnabled,
+      batch_size: batchSize,
+      batch_pause_minutes: batchPauseMinutes,
     });
 
     // For new campaigns with AI enabled: link selected agent to the new campaign
@@ -434,6 +451,45 @@ export const CampaignFormDialog = ({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Batch Sending Section */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="font-medium">Disparo em Lotes</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Envia X mensagens, pausa por Y minutos e repete
+                    </p>
+                  </div>
+                  <Switch checked={batchEnabled} onCheckedChange={setBatchEnabled} />
+                </div>
+
+                {batchEnabled && (
+                  <div className="grid grid-cols-2 gap-4 pl-4 border-l-2 border-muted">
+                    <div className="space-y-2">
+                      <Label>Mensagens por lote</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={batchSize}
+                        onChange={(e) => setBatchSize(parseInt(e.target.value) || 1)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Pausa entre lotes (min)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={batchPauseMinutes}
+                        onChange={(e) => setBatchPauseMinutes(parseInt(e.target.value) || 1)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground col-span-2">
+                      Exemplo: Envia {batchSize} mensagens, pausa {batchPauseMinutes} minutos, depois envia mais {batchSize}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Duplicate Control Section */}
