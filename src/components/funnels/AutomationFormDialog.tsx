@@ -280,28 +280,35 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const finalTriggerConfig = conditions.length > 0 
-      ? { ...triggerConfig, conditions } 
-      : (() => { const { conditions: _, ...rest } = triggerConfig as Record<string, unknown> & { conditions?: unknown }; return rest; })();
+    try {
+      const finalTriggerConfig = conditions.length > 0 
+        ? { ...triggerConfig, conditions } 
+        : (() => { const { conditions: _, ...rest } = triggerConfig as Record<string, unknown> & { conditions?: unknown }; return rest; })();
 
-    const data = {
-      funnel_id: selectedFunnelId,
-      stage_id: stageId || null,
-      name,
-      trigger_type: triggerType,
-      trigger_config: finalTriggerConfig,
-      action_type: actionType,
-      action_config: actionConfig,
-      is_active: true
-    };
+      const data = {
+        funnel_id: selectedFunnelId,
+        stage_id: stageId || null,
+        name,
+        trigger_type: triggerType,
+        trigger_config: finalTriggerConfig,
+        action_type: actionType,
+        action_config: actionConfig,
+        is_active: true
+      };
 
-    if (automation) {
-      await updateAutomation.mutateAsync({ id: automation.id, ...data });
-    } else {
-      await createAutomation.mutateAsync(data);
+      console.log('Creating automation with data:', JSON.stringify(data));
+
+      if (automation) {
+        await updateAutomation.mutateAsync({ id: automation.id, ...data });
+      } else {
+        await createAutomation.mutateAsync(data);
+      }
+      
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error saving automation:', error);
+      toast.error('Erro ao salvar automação. Verifique os campos e tente novamente.');
     }
-    
-    onOpenChange(false);
   };
 
   const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage'].includes(triggerType);
