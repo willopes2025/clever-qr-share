@@ -195,6 +195,9 @@ export const OpportunityBroadcastDialog = ({
         ai_handoff_keywords: ['atendente', 'humano', 'pessoa', 'falar com alguém'],
         ai_active_hours_start: 8,
         ai_active_hours_end: 20,
+        batch_enabled: batchEnabled,
+        batch_size: batchSize,
+        batch_pause_minutes: batchPauseMinutes,
       });
 
       if (aiEnabled && selectedAgentId && campaign?.id) {
