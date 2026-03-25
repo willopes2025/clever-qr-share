@@ -487,7 +487,7 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                   </div>
                 )}
 
-                {localField.mapping_type === 'deal_native_field' && (
+                {(localField.mapping_type as string) === 'deal_native_field' && (
                   <div className="space-y-2">
                     <Select
                       value={localField.mapping_target || ''}
