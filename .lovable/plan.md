@@ -1,48 +1,33 @@
 
 
-## Múltiplos Telefones por Contato — Usando JSON no `custom_fields`
+## Adicionar campo "Valor da Venda" no construtor de formulários
 
 ### Problema
-Leads podem ter mais de um número de telefone, mas o sistema armazena apenas um no campo `phone` da tabela `contacts`. Não há como escolher para qual número enviar a mensagem.
+Não existe uma opção no construtor de formulários para capturar o valor da venda e mapeá-lo automaticamente para o campo `value` do deal no funil.
 
-### Abordagem
-Armazenar telefones adicionais como array JSON dentro do campo `custom_fields` do contato (ex: `custom_fields.additional_phones`), mantendo o campo `phone` como número principal. Na hora de enviar, o usuário poderá selecionar qual número usar.
+### Solução
+Adicionar um novo tipo de campo especial "Valor da Venda" na paleta de componentes e um novo `mapping_type` chamado `deal_native_field` que mapeia para campos nativos do deal (como `value`).
 
 ### Mudanças
 
-**1. Painel de Contato — Gerenciar múltiplos telefones**
-- Em `ContactInfoContent.tsx` e `LeadPanelContactInfo.tsx`: exibir o telefone principal + lista de telefones adicionais vindos de `custom_fields.additional_phones`
-- Botão "Adicionar telefone" para incluir novos números ao array
-- Cada telefone adicional terá rótulo opcional (ex: "Trabalho", "Pessoal") e botão de remover
-- Opção de "tornar principal" (troca o `phone` pelo selecionado e move o antigo para a lista)
+**1. FieldPalette.tsx — Novo botão "Valor da Venda"**
+- Adicionar na categoria "Especiais": `{ type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' }`
+- Auto-mapear com `mapping_type: 'deal_native_field'` e `mapping_target: 'value'`
+- O campo será criado como tipo `number` internamente
 
-**2. Seletor de telefone no MessageView**
-- Em `MessageView.tsx`: quando o contato tem telefones adicionais, exibir um dropdown/chip ao lado do campo de mensagem para escolher qual número receberá a mensagem
-- O número selecionado será enviado como parâmetro `targetPhone` na chamada do edge function `send-inbox-message`
-- Por padrão, usa o telefone principal (`contact.phone`)
+**2. FieldProperties.tsx — Novo mapping type**
+- Adicionar opção `deal_native_field` → "Campo nativo do Lead/Deal" no select de mapeamento
+- Quando selecionado, exibir sub-select com opções: `value` (Valor da Venda), `title` (Título do Deal)
+- Exibir texto explicativo: "O valor será salvo diretamente no campo do lead no funil"
 
-**3. Edge Function `send-inbox-message`**
-- Aceitar novo parâmetro opcional `targetPhone`
-- Se fornecido, usar esse número ao invés do `contact.phone` para construir o `remoteJid`
-- Mesma lógica para `send-inbox-media`
-
-**4. Estrutura do JSON**
-```json
-{
-  "additional_phones": [
-    { "phone": "5527999887766", "label": "Trabalho" },
-    { "phone": "5511988776655", "label": "Pessoal" }
-  ]
-}
-```
+**3. submit-form/index.ts — Processar o novo mapping**
+- No loop de processamento de campos (linha ~120), adicionar tratamento para `mapping_type === 'deal_native_field'`
+- Acumular os valores em um novo objeto `dealNativeFields` (ex: `{ value: 1500 }`)
+- Na criação do deal (linha ~492), mesclar `dealNativeFields` no `dealInsertData` (ex: `dealInsertData.value = dealNativeFields.value`)
+- Na atualização de deal existente (linha ~520), também atualizar campos nativos com `update({ value: ... })`
 
 ### Arquivos a editar
-- `src/components/inbox/ContactInfoContent.tsx` — UI de gerenciar telefones
-- `src/components/inbox/lead-panel/LeadPanelContactInfo.tsx` — exibir telefones
-- `src/components/inbox/MessageView.tsx` — seletor de telefone destino
-- `supabase/functions/send-inbox-message/index.ts` — aceitar `targetPhone`
-- `supabase/functions/send-inbox-media/index.ts` — aceitar `targetPhone`
-
-### Sem migrações necessárias
-O campo `custom_fields` (JSONB) já existe na tabela `contacts`, então não é preciso alterar o schema.
+- `src/components/forms/builder/FieldPalette.tsx` — novo botão + auto-mapping
+- `src/components/forms/builder/FieldProperties.tsx` — novo mapping type no select
+- `supabase/functions/submit-form/index.ts` — processar `deal_native_field` e salvar no deal
 
