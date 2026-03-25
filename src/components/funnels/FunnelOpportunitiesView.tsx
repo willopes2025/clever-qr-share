@@ -79,16 +79,21 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
     }
   };
 
-  const analyze = async (forceRefresh = false) => {
+  const analyze = async (forceRefresh = false, excludeDealIds: string[] = []) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-funnel-opportunities", {
-        body: { funnel_id: funnel.id },
+        body: { funnel_id: funnel.id, exclude_deal_ids: excludeDealIds },
       });
 
       if (error) throw error;
       if (data?.error) {
         toast.error(data.error);
+        return;
+      }
+
+      if (forceRefresh && data?.exhausted) {
+        toast.info("Não há novas oportunidades para analisar neste funil.");
         return;
       }
 
@@ -118,7 +123,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
 
   const reAnalyze = async () => {
     delete cacheRef.current[funnel.id];
-    await analyze(true);
+    await analyze(true, opportunities.map((opp) => opp.deal_id));
   };
 
   const updateField = useCallback(async (dealId: string, field: string, value: string) => {
