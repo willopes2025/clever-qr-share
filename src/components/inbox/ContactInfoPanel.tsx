@@ -137,7 +137,7 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
             </div>
           )}
           <Badge variant="secondary" className="mt-1">
-            {conversation.status === 'archived' ? 'Arquivada' : 'Ativa'}
+            {conversation.status === 'archived' ? 'Arquivada' : conversation.status === 'closed' ? 'Fechada' : 'Ativa'}
           </Badge>
         </div>
 

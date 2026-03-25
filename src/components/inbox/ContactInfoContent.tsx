@@ -126,7 +126,7 @@ export const ContactInfoContent = ({ conversation }: ContactInfoContentProps) =>
           <ContactIdBadge displayId={contactDisplayId} className="mt-1" />
         )}
         <Badge variant="secondary" className="mt-1 text-xs">
-          {conversation.status === 'archived' ? 'Arquivada' : 'Ativa'}
+          {conversation.status === 'archived' ? 'Arquivada' : conversation.status === 'closed' ? 'Fechada' : 'Ativa'}
         </Badge>
       </div>
 
