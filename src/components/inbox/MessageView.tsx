@@ -348,14 +348,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     textareaRef.current?.focus();
 
     // Send in background - no await blocking
+    const targetPhone = selectedTargetPhone || undefined;
     sendMessage.mutateAsync(isMetaConversation ? {
       content: messageContent,
       conversationId: conversation.id,
-      instanceId: selectedMetaNumberId, // meta uses phone_number_id as instanceId in send-inbox-message
+      instanceId: selectedMetaNumberId,
+      targetPhone,
     } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
+      targetPhone,
     }).catch((error) => {
       toast.error("Erro ao enviar mensagem");
       setOptimisticMessages(prev => 
