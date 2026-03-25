@@ -92,6 +92,11 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         return;
       }
 
+      if (forceRefresh && data?.exhausted) {
+        toast.info("Não há novas oportunidades para analisar neste funil.");
+        return;
+      }
+
       // Reload from DB to get persisted data with user_notes/status
       const { data: dbData } = await supabase
         .from("funnel_opportunities")
