@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, mediaUrl, mediaType, caption, instanceId } = await req.json();
+    const { conversationId, mediaUrl, mediaType, caption, instanceId, targetPhone } = await req.json();
 
     if (!conversationId || !mediaUrl || !mediaType || !instanceId) {
       throw new Error('conversationId, mediaUrl, mediaType and instanceId are required');
