@@ -68,6 +68,9 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
   { type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' },
+  { type: 'phone_commercial', label: 'Tel. Comercial', icon: Phone, category: 'Especiais' },
+  { type: 'phone_mobile', label: 'Celular', icon: Phone, category: 'Especiais' },
+  { type: 'phone_personal', label: 'Tel. Pessoal', icon: Phone, category: 'Especiais' },
   
   // Layout
   { type: 'heading', label: 'Título/Seção', icon: Heading, category: 'Layout' },
