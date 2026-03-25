@@ -549,12 +549,16 @@ Deno.serve(async (req: Request) => {
               ...dealCustomFields,
             };
             
+            dealUpdateData.custom_fields = mergedDealFields;
+          }
+          
+          if (Object.keys(dealUpdateData).length > 0) {
             await supabase
               .from('funnel_deals')
-              .update({ custom_fields: mergedDealFields })
+              .update(dealUpdateData)
               .eq('id', existingDeal.id);
             
-            console.log(`Updated deal ${existingDeal.id} custom fields with form data`);
+            console.log(`Updated deal ${existingDeal.id} with form data`);
           } else {
             console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
