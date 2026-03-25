@@ -82,6 +82,9 @@ Deno.serve(async (req: Request) => {
     
     // Separate storage for lead/deal custom fields
     let dealCustomFields: Record<string, any> = {};
+    
+    // Native deal fields (e.g. value, title)
+    let dealNativeFields: Record<string, any> = {};
 
   // Check for lookup_by_display_id field first
   let lookupDisplayId: string | null = null;
