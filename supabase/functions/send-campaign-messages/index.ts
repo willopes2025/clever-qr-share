@@ -1000,8 +1000,23 @@ Deno.serve(async (req: Request) => {
     const remaining = remainingCount || 0;
 
     if (remaining > 0) {
-      // Calculate random delay for next message
-      const delaySeconds = getRandomDelay(settings.message_interval_min, settings.message_interval_max);
+      const nextMessageIndex = messageIndex + 1;
+      
+      // Check batch pause: if batch_enabled and we just completed a batch
+      const batchEnabled = campaign.batch_enabled ?? false;
+      const batchSize = campaign.batch_size ?? 5;
+      const batchPauseMinutes = campaign.batch_pause_minutes ?? 30;
+      
+      let delaySeconds: number;
+      
+      if (batchEnabled && nextMessageIndex > 0 && nextMessageIndex % batchSize === 0) {
+        // Batch completed - use batch pause delay
+        delaySeconds = batchPauseMinutes * 60;
+        console.log(`Batch de ${batchSize} mensagens enviado. Pausando por ${batchPauseMinutes} minutos (${delaySeconds}s)...`);
+      } else {
+        // Normal interval delay
+        delaySeconds = getRandomDelay(settings.message_interval_min, settings.message_interval_max);
+      }
       
       console.log(`${remaining} messages remaining. Scheduling next message in ${delaySeconds} seconds...`);
 
@@ -1013,7 +1028,7 @@ Deno.serve(async (req: Request) => {
           campaignId,
           instances,
           sendingMode,
-          messageIndex + 1,
+          nextMessageIndex,
           delaySeconds
         )
       );
