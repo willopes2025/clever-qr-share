@@ -183,6 +183,14 @@ Deno.serve(async (req: Request) => {
       }
 
       contactData.custom_fields![fieldKey] = fieldValue;
+    } else if (field.mapping_type === 'deal_native_field' && field.mapping_target && fieldValue) {
+      // Map to native deal columns (value, title)
+      if (field.mapping_target === 'value') {
+        dealNativeFields.value = parseFloat(String(fieldValue).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+      } else if (field.mapping_target === 'title') {
+        dealNativeFields.title = String(fieldValue);
+      }
+      console.log(`Mapped deal native field ${field.mapping_target}:`, dealNativeFields[field.mapping_target]);
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
