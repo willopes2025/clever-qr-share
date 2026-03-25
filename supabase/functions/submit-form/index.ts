@@ -85,6 +85,9 @@ Deno.serve(async (req: Request) => {
     
     // Native deal fields (e.g. value, title)
     let dealNativeFields: Record<string, any> = {};
+    
+    // Additional phones to save
+    let additionalPhones: Array<{ phone: string; label: string }> = [];
 
   // Check for lookup_by_display_id field first
   let lookupDisplayId: string | null = null;
