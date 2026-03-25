@@ -386,7 +386,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      processed: deals?.length || 0,
+      processed: filteredDeals.length,
       results: {
         success: successCount,
         errors: errorCount
