@@ -325,7 +325,7 @@ export const useMessages = (conversationId: string | null) => {
   });
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, conversationId, instanceId, messageType, metaTemplate }: { content: string; conversationId: string; instanceId: string; messageType?: string; metaTemplate?: any }) => {
+    mutationFn: async ({ content, conversationId, instanceId, messageType, metaTemplate, targetPhone }: { content: string; conversationId: string; instanceId: string; messageType?: string; metaTemplate?: any; targetPhone?: string }) => {
       const { data, error } = await supabase.functions.invoke('send-inbox-message', {
         body: {
           conversationId,
@@ -333,6 +333,7 @@ export const useMessages = (conversationId: string | null) => {
           instanceId,
           ...(messageType && { messageType }),
           ...(metaTemplate && { metaTemplate }),
+          ...(targetPhone && { targetPhone }),
         },
       });
 
@@ -356,13 +357,15 @@ export const useMessages = (conversationId: string | null) => {
       instanceId, 
       mediaUrl, 
       mediaType, 
-      caption 
+      caption,
+      targetPhone 
     }: { 
       conversationId: string; 
       instanceId: string; 
       mediaUrl: string; 
       mediaType: 'image' | 'document' | 'audio' | 'video';
       caption?: string;
+      targetPhone?: string;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-inbox-media', {
         body: {
@@ -371,6 +374,7 @@ export const useMessages = (conversationId: string | null) => {
           mediaUrl,
           mediaType,
           caption,
+          ...(targetPhone && { targetPhone }),
         },
       });
 

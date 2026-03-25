@@ -13,6 +13,7 @@ import { TagSelector } from "./TagSelector";
 import { CustomFieldsEditor } from "./CustomFieldsEditor";
 import { CustomFieldsManager } from "./CustomFieldsManager";
 import { formatForDisplay } from "@/lib/phone-utils";
+import { AdditionalPhonesManager } from "./AdditionalPhonesManager";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -139,12 +140,19 @@ export const ContactInfoContent = ({ conversation }: ContactInfoContentProps) =>
             <Phone className="h-3.5 w-3.5 text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] text-muted-foreground">Telefone</p>
+            <p className="text-[10px] text-muted-foreground">Telefone principal</p>
             <p className="text-xs font-medium truncate">
               {formatForDisplay(contactPhone)}
             </p>
           </div>
         </div>
+        
+        {/* Additional Phones */}
+        <AdditionalPhonesManager
+          contactId={conversation.contact_id}
+          mainPhone={contactPhone}
+          customFields={conversation.contact?.custom_fields || null}
+        />
 
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">

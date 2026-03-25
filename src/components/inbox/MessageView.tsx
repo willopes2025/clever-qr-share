@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,6 +94,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [newMessage, setNewMessage] = useState("");
+  const [selectedTargetPhone, setSelectedTargetPhone] = useState<string>("");
   const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
     conversation.instance_id || ""
@@ -347,14 +348,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
     textareaRef.current?.focus();
 
     // Send in background - no await blocking
+    const targetPhone = selectedTargetPhone || undefined;
     sendMessage.mutateAsync(isMetaConversation ? {
       content: messageContent,
       conversationId: conversation.id,
-      instanceId: selectedMetaNumberId, // meta uses phone_number_id as instanceId in send-inbox-message
+      instanceId: selectedMetaNumberId,
+      targetPhone,
     } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
+      targetPhone,
     }).catch((error) => {
       toast.error("Erro ao enviar mensagem");
       setOptimisticMessages(prev => 
@@ -406,6 +410,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
+        targetPhone: selectedTargetPhone || undefined,
       });
       // Media sent successfully - no toast needed as user sees it in chat
     } catch (error) {
@@ -1349,6 +1354,32 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
             }}
           />
           
+          {/* Phone selector when contact has multiple phones */}
+          {(() => {
+            const additionalPhones = (conversation.contact?.custom_fields as any)?.additional_phones as Array<{phone: string; label: string}> | undefined;
+            if (!additionalPhones || additionalPhones.length === 0) return null;
+            const mainPhone = conversation.contact?.phone || "";
+            const allPhones = [
+              { phone: mainPhone, label: "Principal" },
+              ...additionalPhones
+            ];
+            return (
+              <Select value={selectedTargetPhone || mainPhone} onValueChange={(v) => setSelectedTargetPhone(v === mainPhone ? "" : v)}>
+                <SelectTrigger className="w-auto h-8 text-xs gap-1 px-2 border-dashed">
+                  <Phone className="h-3 w-3 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allPhones.map((p, i) => (
+                    <SelectItem key={i} value={p.phone}>
+                      <span className="text-xs">{p.label}: {p.phone.replace(/^55/, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          })()}
+
           {/* Input container - pill style */}
           <div className="relative flex-1 flex items-center bg-white dark:bg-[#2a3942] rounded-full px-3 py-1">
             <Textarea

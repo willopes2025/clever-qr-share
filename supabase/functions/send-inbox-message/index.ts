@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, content, instanceId, messageType, metaTemplate } = await req.json();
+    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone } = await req.json();
 
     if (!conversationId || (!content && messageType !== 'meta_template')) {
       throw new Error('conversationId and content are required');
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
         throw new Error('Phone Number ID não encontrado para envio Meta');
       }
 
-      const formattedPhone = contactData.phone.replace(/[^0-9]/g, '');
+      const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
 
       // ---- META TEMPLATE MESSAGE ----
       if (messageType === 'meta_template' && metaTemplate) {
@@ -302,17 +302,18 @@ Deno.serve(async (req) => {
     if (instError || !instance) throw new Error('Failed to fetch instance');
     if (instance.status !== 'connected') throw new Error('Instance is not connected');
 
-    // Format phone number
-    let phone = contactData.phone.replace(/\D/g, '');
+    // Format phone number — use targetPhone if provided
+    const rawPhone = targetPhone || contactData.phone;
+    let phone = rawPhone.replace(/\D/g, '');
     let remoteJid: string;
     
-    const isLabelIdContact = contactData.phone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
+    const isLabelIdContact = rawPhone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
     
     if (isLabelIdContact) {
       const labelId = contactData.label_id || phone;
       remoteJid = `${labelId}@lid`;
     } else {
-      if (phone.length < 10) throw new Error(`Número inválido: ${contactData.phone}`);
+      if (phone.length < 10) throw new Error(`Número inválido: ${rawPhone}`);
       if (!phone.startsWith('55')) phone = '55' + phone;
       if (phone.length < 12 || phone.length > 13) throw new Error('Número inválido: formato incorreto');
       remoteJid = `${phone}@s.whatsapp.net`;
