@@ -25,6 +25,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const checkInFlightRef = useRef(false);
+  const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const checkSubscription = useCallback(async (isInitial = false) => {
