@@ -70,6 +70,53 @@ Deno.serve(async (req: Request) => {
 
     const results: { dealId: string; success: boolean; error?: string }[] = [];
     const actionConfig = automation.action_config as Record<string, unknown> || {};
+    const triggerConfig = automation.trigger_config as Record<string, unknown> || {};
+    const automationConditions = (triggerConfig.conditions as Array<{ field: string; operator: string; value: string }>) || [];
+
+    // Helper function to evaluate conditions
+    const evaluateConditions = (deal: any): boolean => {
+      if (automationConditions.length === 0) return true;
+      
+      for (const condition of automationConditions) {
+        let fieldValue: string | undefined;
+        
+        if (condition.field === 'contact_name') {
+          fieldValue = deal.contact?.name || '';
+        } else if (condition.field === 'contact_email') {
+          fieldValue = deal.contact?.email || '';
+        } else if (condition.field === 'deal_value') {
+          fieldValue = deal.value?.toString() || '';
+        } else if (condition.field === 'deal_title') {
+          fieldValue = deal.title || '';
+        } else if (condition.field.startsWith('custom:')) {
+          const key = condition.field.replace('custom:', '');
+          const customFields = (deal.custom_fields || {}) as Record<string, unknown>;
+          fieldValue = customFields[key]?.toString() || '';
+        } else if (condition.field.startsWith('contact_custom:')) {
+          const key = condition.field.replace('contact_custom:', '');
+          const contactCustomFields = (deal.contact?.custom_fields || {}) as Record<string, unknown>;
+          fieldValue = contactCustomFields[key]?.toString() || '';
+        }
+
+        const fv = (fieldValue || '').toLowerCase();
+        const cv = (condition.value || '').toLowerCase();
+        let conditionMet = false;
+        
+        switch (condition.operator) {
+          case 'equals': conditionMet = fv === cv; break;
+          case 'not_equals': conditionMet = fv !== cv; break;
+          case 'contains': conditionMet = fv.includes(cv); break;
+          case 'not_empty': conditionMet = fv.length > 0; break;
+          case 'empty': conditionMet = fv.length === 0; break;
+        }
+
+        if (!conditionMet) {
+          console.log(`[EXISTING-DEALS-AUTOMATION] Condition not met for deal ${deal.id}: ${condition.field} ${condition.operator} ${condition.value} (actual: "${fieldValue}")`);
+          return false;
+        }
+      }
+      return true;
+    };
 
     // Helper function to replace variables
     const replaceVariables = (text: string, deal: typeof deals[0]): string => {
@@ -83,8 +130,12 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{titulo\}\}/g, deal.title || '');
     };
 
+    // Filter deals by conditions
+    const filteredDeals = (deals || []).filter(evaluateConditions);
+    console.log(`[EXISTING-DEALS-AUTOMATION] ${filteredDeals.length} deals match conditions`);
+
     // Process each deal
-    for (const deal of deals || []) {
+    for (const deal of filteredDeals) {
       try {
         switch (automation.action_type) {
           case 'add_tag': {
