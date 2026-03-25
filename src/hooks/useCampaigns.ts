@@ -200,6 +200,10 @@ export const useCampaignMutations = () => {
       skip_tag_id?: string | null;
       // Tag on delivery
       tag_on_delivery_id?: string | null;
+      // Batch sending
+      batch_enabled?: boolean;
+      batch_size?: number;
+      batch_pause_minutes?: number;
       // AI settings
       ai_enabled?: boolean;
       ai_prompt?: string;
