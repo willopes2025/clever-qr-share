@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreVertical, Pin, PinOff, Mail, Download, Trash2, ArrowRightLeft } from "lucide-react";
+import { MoreVertical, Pin, PinOff, Mail, Download, Trash2, ArrowRightLeft, XCircle, RotateCcw, Merge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,12 +10,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useConversationActions } from "@/hooks/useConversationActions";
 import { TransferConversationDialog } from "./TransferConversationDialog";
+import { MergeConversationsDialog } from "./MergeConversationsDialog";
 
 interface ConversationQuickActionsProps {
   conversationId: string;
   isPinned: boolean;
   contactName: string;
   contactPhone: string;
+  status?: string;
   onTransferred?: () => void;
 }
 
@@ -24,20 +26,26 @@ export const ConversationQuickActions = ({
   isPinned,
   contactName,
   contactPhone,
+  status = 'active',
   onTransferred,
 }: ConversationQuickActionsProps) => {
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
   const { 
     togglePinConversation, 
     markAsUnread, 
     deleteConversation,
-    exportConversation 
+    exportConversation,
+    closeConversation,
+    reopenConversation
   } = useConversationActions();
 
   const handleAction = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
     action();
   };
+
+  const isClosed = status === 'closed';
 
   return (
     <>
@@ -53,6 +61,23 @@ export const ConversationQuickActions = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48 bg-popover border border-border shadow-lg z-50">
+          {isClosed ? (
+            <DropdownMenuItem
+              onClick={(e) => handleAction(e, () => reopenConversation.mutate(conversationId))}
+              className="cursor-pointer"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reabrir conversa
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={(e) => handleAction(e, () => closeConversation.mutate(conversationId))}
+              className="cursor-pointer"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Fechar conversa
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={(e) => handleAction(e, () => togglePinConversation.mutate({ conversationId, isPinned }))}
             className="cursor-pointer"
@@ -84,6 +109,13 @@ export const ConversationQuickActions = ({
             Transferir conversa
           </DropdownMenuItem>
           <DropdownMenuItem
+            onClick={(e) => handleAction(e, () => setShowMergeDialog(true))}
+            className="cursor-pointer"
+          >
+            <Merge className="h-4 w-4 mr-2" />
+            Unificar conversas
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={(e) => handleAction(e, () => exportConversation(conversationId, contactName, contactPhone))}
             className="cursor-pointer"
           >
@@ -107,6 +139,14 @@ export const ConversationQuickActions = ({
         conversationId={conversationId}
         contactName={contactName}
         onTransferred={onTransferred}
+      />
+
+      <MergeConversationsDialog
+        open={showMergeDialog}
+        onOpenChange={setShowMergeDialog}
+        conversationId={conversationId}
+        contactName={contactName}
+        contactPhone={contactPhone}
       />
     </>
   );
