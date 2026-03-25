@@ -488,6 +488,19 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                   </div>
                 )}
 
+                {(localField.mapping_type as string) === 'additional_phone' && (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Rótulo do telefone (ex: Comercial, Pessoal)"
+                      value={localField.mapping_target || ''}
+                      onChange={(e) => handleChange('mapping_target', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Será salvo como telefone adicional no perfil do contato
+                    </p>
+                  </div>
+                )}
+
                 {(localField.mapping_type as string) === 'deal_native_field' && (
                   <div className="space-y-2">
                     <Select
