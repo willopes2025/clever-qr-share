@@ -35,7 +35,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
 
     checkInFlightRef.current = true;
     // Only show loading spinner on initial check, not on re-checks
-    if (isInitial || !subscription) {
+    if (!hasLoadedRef.current) {
       setLoading(true);
     }
 
