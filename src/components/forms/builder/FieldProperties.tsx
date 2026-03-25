@@ -401,6 +401,7 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                     <SelectItem value="new_custom_field">Criar novo campo de Contato</SelectItem>
                     <SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
                     <SelectItem value="deal_native_field">Campo nativo do Lead/Deal</SelectItem>
+                    <SelectItem value="additional_phone">Telefone adicional do contato</SelectItem>
                   </SelectContent>
                 </Select>
 
