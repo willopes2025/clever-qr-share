@@ -400,6 +400,7 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                     <SelectItem value="lead_field">Campo personalizado (Lead)</SelectItem>
                     <SelectItem value="new_custom_field">Criar novo campo de Contato</SelectItem>
                     <SelectItem value="new_lead_field">Criar novo campo de Lead</SelectItem>
+                    <SelectItem value="deal_native_field">Campo nativo do Lead/Deal</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -483,6 +484,26 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                         onCheckedChange={(checked) => handleChange('create_custom_field_on_submit', checked)}
                       />
                     </div>
+                  </div>
+                )}
+
+                {(localField.mapping_type as string) === 'deal_native_field' && (
+                  <div className="space-y-2">
+                    <Select
+                      value={localField.mapping_target || ''}
+                      onValueChange={(value) => handleChange('mapping_target', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o campo do deal..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="value">Valor da Venda</SelectItem>
+                        <SelectItem value="title">Título do Deal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      O valor será salvo diretamente no campo do lead no funil
+                    </p>
                   </div>
                 )}
 

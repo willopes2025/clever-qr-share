@@ -82,6 +82,9 @@ Deno.serve(async (req: Request) => {
     
     // Separate storage for lead/deal custom fields
     let dealCustomFields: Record<string, any> = {};
+    
+    // Native deal fields (e.g. value, title)
+    let dealNativeFields: Record<string, any> = {};
 
   // Check for lookup_by_display_id field first
   let lookupDisplayId: string | null = null;
@@ -180,6 +183,14 @@ Deno.serve(async (req: Request) => {
       }
 
       contactData.custom_fields![fieldKey] = fieldValue;
+    } else if (field.mapping_type === 'deal_native_field' && field.mapping_target && fieldValue) {
+      // Map to native deal columns (value, title)
+      if (field.mapping_target === 'value') {
+        dealNativeFields.value = parseFloat(String(fieldValue).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+      } else if (field.mapping_target === 'title') {
+        dealNativeFields.title = String(fieldValue);
+      }
+      console.log(`Mapped deal native field ${field.mapping_target}:`, dealNativeFields[field.mapping_target]);
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
@@ -494,9 +505,14 @@ Deno.serve(async (req: Request) => {
             stage_id: stageId,
             contact_id: contactId,
             user_id: form.user_id,
-            title: contactData.name || 'Lead do Formulário',
+            title: dealNativeFields.title || contactData.name || 'Lead do Formulário',
             source: `Formulário: ${form.name}`,
           };
+          
+          // Include deal native fields (value, etc)
+          if (dealNativeFields.value !== undefined) {
+            dealInsertData.value = dealNativeFields.value;
+          }
           
           // Include lead custom fields if any were collected
           if (Object.keys(dealCustomFields).length > 0) {
@@ -516,7 +532,11 @@ Deno.serve(async (req: Request) => {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
         } else {
-          // Update existing deal's custom fields if we have new lead data
+          // Update existing deal with native fields and custom fields
+          const dealUpdateData: Record<string, any> = {};
+          if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
+          if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
+          
           if (Object.keys(dealCustomFields).length > 0) {
             const { data: dealWithFields } = await supabase
               .from('funnel_deals')
@@ -529,12 +549,16 @@ Deno.serve(async (req: Request) => {
               ...dealCustomFields,
             };
             
+            dealUpdateData.custom_fields = mergedDealFields;
+          }
+          
+          if (Object.keys(dealUpdateData).length > 0) {
             await supabase
               .from('funnel_deals')
-              .update({ custom_fields: mergedDealFields })
+              .update(dealUpdateData)
               .eq('id', existingDeal.id);
             
-            console.log(`Updated deal ${existingDeal.id} custom fields with form data`);
+            console.log(`Updated deal ${existingDeal.id} with form data`);
           } else {
             console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }

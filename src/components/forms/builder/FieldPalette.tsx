@@ -21,7 +21,8 @@ import {
   Text,
   MapPin,
   User,
-  EyeOff
+  EyeOff,
+  DollarSign
 } from "lucide-react";
 
 interface FieldPaletteProps {
@@ -66,6 +67,7 @@ const fieldTypes: FieldTypeConfig[] = [
   { type: 'district', label: 'Distrito', icon: MapPin, category: 'Especiais' },
   { type: 'lead_code', label: 'Código do Lead', icon: Hash, category: 'Especiais' },
   { type: 'hidden', label: 'Campo Oculto', icon: EyeOff, category: 'Especiais' },
+  { type: 'deal_value', label: 'Valor da Venda', icon: DollarSign, category: 'Especiais' },
   
   // Layout
   { type: 'heading', label: 'Título/Seção', icon: Heading, category: 'Layout' },
@@ -96,6 +98,9 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     if (fieldType.type === 'lead_code') {
       autoMappingType = 'lookup_by_display_id';
       autoMappingTarget = 'contact_display_id';
+    } else if (fieldType.type === 'deal_value') {
+      autoMappingType = 'deal_native_field' as any;
+      autoMappingTarget = 'value';
     } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
@@ -123,7 +128,7 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     createField.mutate(
       {
         form_id: formId,
-        field_type: fieldType.type === 'lead_code' ? 'short_text' : fieldType.type,
+        field_type: fieldType.type === 'lead_code' ? 'short_text' : fieldType.type === 'deal_value' ? 'number' : fieldType.type,
         label: fieldType.label,
         placeholder: null,
         help_text: null,
