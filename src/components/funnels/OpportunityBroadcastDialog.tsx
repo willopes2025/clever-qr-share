@@ -86,6 +86,11 @@ export const OpportunityBroadcastDialog = ({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
+  // Batch sending
+  const [batchEnabled, setBatchEnabled] = useState(false);
+  const [batchSize, setBatchSize] = useState(5);
+  const [batchPauseMinutes, setBatchPauseMinutes] = useState(30);
+
   // AI Agent (only for template mode)
   const [aiEnabled, setAiEnabled] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
