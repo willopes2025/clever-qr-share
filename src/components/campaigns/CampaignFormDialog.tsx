@@ -48,6 +48,9 @@ interface CampaignFormDialogProps {
     ai_handoff_keywords: string[];
     ai_active_hours_start: number;
     ai_active_hours_end: number;
+    batch_enabled: boolean;
+    batch_size: number;
+    batch_pause_minutes: number;
   }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
