@@ -25,6 +25,42 @@ export const useConversationActions = () => {
     }
   });
 
+  const closeConversation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ status: 'closed' })
+        .eq('id', conversationId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      toast.success('Conversa fechada');
+    },
+    onError: () => {
+      toast.error('Erro ao fechar conversa');
+    }
+  });
+
+  const reopenConversation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ status: 'active' })
+        .eq('id', conversationId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      toast.success('Conversa reaberta');
+    },
+    onError: () => {
+      toast.error('Erro ao reabrir conversa');
+    }
+  });
+
   const unarchiveConversation = useMutation({
     mutationFn: async (conversationId: string) => {
       const { error } = await supabase
