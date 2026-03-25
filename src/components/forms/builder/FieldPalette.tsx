@@ -98,6 +98,9 @@ export const FieldPalette = ({ formId, onFieldAdded, fieldsCount }: FieldPalette
     if (fieldType.type === 'lead_code') {
       autoMappingType = 'lookup_by_display_id';
       autoMappingTarget = 'contact_display_id';
+    } else if (fieldType.type === 'deal_value') {
+      autoMappingType = 'deal_native_field' as any;
+      autoMappingTarget = 'value';
     } else if (['name', 'phone', 'email'].includes(fieldType.type)) {
       autoMappingType = 'contact_field';
       autoMappingTarget = fieldType.type;
