@@ -183,12 +183,86 @@ export const useConversationActions = () => {
     }
   };
 
+  const mergeConversations = useMutation({
+    mutationFn: async ({ keepConversationId, mergeConversationId }: { keepConversationId: string; mergeConversationId: string }) => {
+      // Move all messages from mergeConversation to keepConversation
+      const { error: msgError } = await supabase
+        .from('inbox_messages')
+        .update({ conversation_id: keepConversationId })
+        .eq('conversation_id', mergeConversationId);
+
+      if (msgError) throw msgError;
+
+      // Move notes
+      await supabase
+        .from('conversation_notes')
+        .update({ conversation_id: keepConversationId })
+        .eq('conversation_id', mergeConversationId);
+
+      // Move tasks
+      await supabase
+        .from('conversation_tasks')
+        .update({ conversation_id: keepConversationId })
+        .eq('conversation_id', mergeConversationId);
+
+      // Move tag assignments
+      const { data: existingTags } = await supabase
+        .from('conversation_tag_assignments')
+        .select('tag_id')
+        .eq('conversation_id', keepConversationId);
+
+      const existingTagIds = new Set((existingTags || []).map(t => t.tag_id));
+
+      const { data: mergeTags } = await supabase
+        .from('conversation_tag_assignments')
+        .select('tag_id')
+        .eq('conversation_id', mergeConversationId);
+
+      // Add non-duplicate tags
+      for (const tag of (mergeTags || [])) {
+        if (!existingTagIds.has(tag.tag_id)) {
+          await supabase
+            .from('conversation_tag_assignments')
+            .update({ conversation_id: keepConversationId })
+            .eq('conversation_id', mergeConversationId)
+            .eq('tag_id', tag.tag_id);
+        }
+      }
+
+      // Delete remaining tag assignments from merged conversation
+      await supabase
+        .from('conversation_tag_assignments')
+        .delete()
+        .eq('conversation_id', mergeConversationId);
+
+      // Delete the merged conversation
+      const { error: deleteError } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', mergeConversationId);
+
+      if (deleteError) throw deleteError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox-messages'] });
+      toast.success('Conversas unificadas com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Merge error:', error);
+      toast.error('Erro ao unificar conversas');
+    }
+  });
+
   return {
     archiveConversation,
     unarchiveConversation,
+    closeConversation,
+    reopenConversation,
     togglePinConversation,
     markAsUnread,
     deleteConversation,
-    exportConversation
+    exportConversation,
+    mergeConversations
   };
 };
