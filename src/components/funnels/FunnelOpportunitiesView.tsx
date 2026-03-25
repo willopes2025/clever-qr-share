@@ -220,7 +220,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         <p className="text-muted-foreground mb-6 max-w-md">
           A IA analisará as conversas dos deals abertos deste funil e identificará as melhores oportunidades de fechamento.
         </p>
-        <Button onClick={analyze} size="lg">
+        <Button onClick={() => analyze()} size="lg">
           <Sparkles className="h-4 w-4 mr-2" />
           Analisar Oportunidades
         </Button>
