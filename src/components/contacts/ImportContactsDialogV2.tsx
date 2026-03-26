@@ -97,6 +97,8 @@ const STANDARD_FIELDS = [
   { value: "email", label: "E-mail", icon: "✉️" },
   { value: "notes", label: "Notas", icon: "📝" },
   { value: "contact_display_id", label: "ID Externo", icon: "🔗" },
+  { value: "deal_value", label: "Valor da Venda", icon: "💰" },
+  { value: "deal_title", label: "Título do Lead", icon: "🏷️" },
 ];
 
 // Field type labels for display
