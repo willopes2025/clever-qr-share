@@ -579,6 +579,13 @@ Deno.serve(async (req: Request) => {
           if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
           if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
           
+          // Move deal to the form's target stage if it's different
+          if (existingDeal.stage_id !== stageId) {
+            dealUpdateData.stage_id = stageId;
+            dealUpdateData.entered_stage_at = new Date().toISOString();
+            console.log(`Moving deal ${existingDeal.id} from stage ${existingDeal.stage_id} to ${stageId}`);
+          }
+          
           if (Object.keys(dealCustomFields).length > 0) {
             const { data: dealWithFields } = await supabase
               .from('funnel_deals')
