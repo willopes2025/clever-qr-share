@@ -1,27 +1,26 @@
 
 
-## Auto-detectar tipo "Data" pelo nome do campo personalizado
+## Scroll horizontal com barra visível e drag-to-scroll na lista do funil
 
 ### Problema
-Quando o usuário cria um campo personalizado com nome contendo "data" (ex: "Data de nascimento", "Data da consulta"), o tipo padrão é "texto". O usuário precisa mudar manualmente para "data".
+A tabela da lista do funil usa `ScrollArea` do Radix, que esconde a scrollbar horizontal por padrão e não permite arrastar para rolar. O usuário quer:
+1. Barra de scroll horizontal **sempre visível**
+2. Cursor de "mãozinha" (grab) para arrastar a tabela horizontalmente
 
 ### Solução
-Adicionar uma função `inferFieldType(name)` que analisa o nome do campo e sugere automaticamente o tipo correto. Aplicar nos 3 componentes de criação de campos.
 
-**Regras de inferência:**
-- Nome contém "data" → tipo `date`
-- Nome contém "hora" ou "horário" → tipo `time`
-- Nome contém "email" ou "e-mail" → tipo `email`
-- Nome contém "telefone" ou "celular" ou "whatsapp" → tipo `phone`
-- Nome contém "url" ou "site" ou "link" → tipo `url`
-- Nome contém "valor" ou "preço" ou "custo" → tipo `number`
-- Caso contrário → mantém `text`
+**Arquivo: `src/components/funnels/FunnelListView.tsx`**
 
-**Arquivos a editar:**
+1. **Substituir o `ScrollArea`** por um `div` com overflow-x auto e estilos customizados para scrollbar sempre visível
+2. **Adicionar drag-to-scroll** com `onMouseDown/Move/Up` handlers que implementam o padrão "grab & drag":
+   - `cursor: grab` no estado normal
+   - `cursor: grabbing` enquanto arrasta
+   - No mousedown, salvar posição inicial; no mousemove, calcular delta e aplicar `scrollLeft`
 
-1. **`src/components/contacts/InlineFieldCreator.tsx`** — ao digitar o nome, chamar `inferFieldType` e atualizar `fieldType` automaticamente
-2. **`src/components/contacts/CreateFieldInlineDialog.tsx`** — mesma lógica no onChange do nome
-3. **`src/components/inbox/CustomFieldsManager.tsx`** — mesma lógica no onChange do nome
+### Detalhes técnicos
 
-O usuário ainda poderá alterar o tipo manualmente após a sugestão automática.
+- Criar um `useRef` para o container scrollable
+- Adicionar estado `isDragging` + `startX` + `scrollLeftStart`
+- CSS: usar classes Tailwind `overflow-x-auto cursor-grab active:cursor-grabbing` + CSS customizado para exibir a scrollbar (`::-webkit-scrollbar` com altura e cor visíveis)
+- Remover imports de `ScrollArea` e `ScrollBar` nesse componente
 
