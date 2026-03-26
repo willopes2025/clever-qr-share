@@ -1179,6 +1179,8 @@ Deno.serve(async (req: Request) => {
         .eq('id', campaignId);
     }
 
+    } // end of else (Evolution API) block
+
     // Check if there are more messages to send
     const { count: remainingCount, error: countError } = await supabase
       .from('campaign_messages')
