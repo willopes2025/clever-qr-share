@@ -347,6 +347,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         </div>
       </div>
 
+      {configPanel}
+
       {opportunities.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           Nenhum deal aberto encontrado neste funil.
