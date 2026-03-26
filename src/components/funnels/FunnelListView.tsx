@@ -410,7 +410,11 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       for (const [key, filterValue] of Object.entries(columnFilters)) {
         if (key.startsWith("custom_") && filterValue) {
           const fieldKey = key.replace("custom_", "");
-          const dealValue = deal.custom_fields?.[fieldKey];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          let dealValue = deal.custom_fields?.[fieldKey];
+          if ((dealValue === undefined || dealValue === null) && fieldDef?.entity_type === 'contact') {
+            dealValue = (deal.contact as any)?.custom_fields?.[fieldKey];
+          }
           if (dealValue === undefined || dealValue === null) return false;
           if (
             typeof dealValue === "string" &&
