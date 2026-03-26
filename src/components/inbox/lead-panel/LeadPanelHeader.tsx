@@ -18,6 +18,7 @@ interface LeadPanelHeaderProps {
   conversation: Conversation;
   onClose?: () => void;
   isMobile?: boolean;
+  dealTitle?: string | null;
 }
 
 export const LeadPanelHeader = ({ conversation, onClose, isMobile }: LeadPanelHeaderProps) => {
