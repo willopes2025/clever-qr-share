@@ -95,8 +95,9 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       } else if (filterColumn === "contact") {
         val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
       } else {
+        const field = visibleFields.find(f => f.id === filterColumn);
         const raw = sub.data[filterColumn] ?? "";
-        val = typeof raw === "object" ? JSON.stringify(raw) : String(raw);
+        val = field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
       }
       return val.toLowerCase().includes(filterValue.toLowerCase());
     });
