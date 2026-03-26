@@ -168,6 +168,14 @@ export const ImportContactsDialogV2 = ({
   const [showCreateField, setShowCreateField] = useState(false);
   const [creatingForColumn, setCreatingForColumn] = useState<string>("");
 
+  // Funnel selection state
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
+  const [selectedStageId, setSelectedStageId] = useState<string>("");
+
+  const selectedFunnel = funnels.find(f => f.id === selectedFunnelId);
+  const hasDealValueMapping = Object.values(columnMappings).some(m => m.targetField === 'deal_value');
+  const hasDealTitleMapping = Object.values(columnMappings).some(m => m.targetField === 'deal_title');
+
   const toggleTag = (tagId: string) => {
     setSelectedTagIds((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
