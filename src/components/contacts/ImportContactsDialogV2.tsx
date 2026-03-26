@@ -536,12 +536,22 @@ export const ImportContactsDialogV2 = ({
           default:
             if (mapping.targetField.startsWith("custom:")) {
               const fieldKey = mapping.targetField.replace("custom:", "");
-              contact.custom_fields[fieldKey] = value;
+              const isLeadField = mapping.entityType === 'lead';
+              if (isLeadField) {
+                contact.lead_custom_fields[fieldKey] = value;
+              } else {
+                contact.custom_fields[fieldKey] = value;
+              }
             } else if (mapping.targetField.startsWith("new:")) {
               const fieldIndex = parseInt(mapping.targetField.replace("new:", ""));
               const fieldConfig = newFields[fieldIndex];
               if (fieldConfig) {
-                contact.custom_fields[fieldConfig.field_key] = value;
+                const isLeadField = fieldConfig.entity_type === 'lead';
+                if (isLeadField) {
+                  contact.lead_custom_fields[fieldConfig.field_key] = value;
+                } else {
+                  contact.custom_fields[fieldConfig.field_key] = value;
+                }
               }
             }
             break;
