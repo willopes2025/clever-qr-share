@@ -602,10 +602,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       default:
         if (columnId.startsWith("custom_")) {
           const fieldKey = columnId.replace("custom_", "");
-          const val = deal.custom_fields?.[fieldKey];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          // Check deal custom_fields first, then contact custom_fields
+          let val = deal.custom_fields?.[fieldKey];
+          if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+            val = (deal.contact as any)?.custom_fields?.[fieldKey];
+          }
           if (val === undefined || val === null) return "-";
           if (typeof val === "boolean") return val ? "Sim" : "Não";
-          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
           if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
             return formatCustomFieldDate(val) || String(val);
           }
