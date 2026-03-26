@@ -178,6 +178,7 @@ export const DataSettings = () => {
 
       <TransferFieldDataDialog open={transferOpen} onOpenChange={setTransferOpen} />
 
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
