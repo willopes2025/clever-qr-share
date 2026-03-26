@@ -22,6 +22,7 @@ export const DataSettings = () => {
   const { contacts } = useContacts();
   const { data: campaigns } = useCampaigns();
   const [exporting, setExporting] = useState<string | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const exportContacts = async () => {
     if (!contacts || contacts.length === 0) {
