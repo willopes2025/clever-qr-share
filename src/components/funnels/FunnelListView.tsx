@@ -108,6 +108,36 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const [visibleColumns, setVisibleColumns] = useState<string[]>(defaultColumnIds);
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Load saved column config from DB
+  const { data: savedColumnConfig } = useQuery({
+    queryKey: ['funnel-column-config', funnel.id],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('funnel_column_configs')
+        .select('visible_columns, column_order')
+        .eq('user_id', user.id)
+        .eq('funnel_id', funnel.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  // Apply saved config when loaded
+  useEffect(() => {
+    if (savedColumnConfig) {
+      if (savedColumnConfig.visible_columns?.length > 0) {
+        setVisibleColumns(savedColumnConfig.visible_columns);
+      }
+      if (savedColumnConfig.column_order?.length > 0) {
+        setColumnOrder(savedColumnConfig.column_order);
+      }
+    }
+  }, [savedColumnConfig]);
 
   // Bulk edit
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
