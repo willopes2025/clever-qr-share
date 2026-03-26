@@ -234,6 +234,7 @@ export const useCampaignMutations = () => {
           user_id: user.id,
           name: data.name,
           template_id: data.template_id,
+          meta_template_id: data.meta_template_id || null,
           list_id: data.list_id,
           scheduled_at: data.scheduled_at,
           status: data.scheduled_at ? 'scheduled' : 'draft',
