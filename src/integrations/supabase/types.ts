@@ -1112,6 +1112,7 @@ export type Database = {
           list_id: string | null
           message_interval_max: number | null
           message_interval_min: number | null
+          meta_template_id: string | null
           name: string
           retry_at: string | null
           scheduled_at: string | null
@@ -1160,6 +1161,7 @@ export type Database = {
           list_id?: string | null
           message_interval_max?: number | null
           message_interval_min?: number | null
+          meta_template_id?: string | null
           name: string
           retry_at?: string | null
           scheduled_at?: string | null
@@ -1208,6 +1210,7 @@ export type Database = {
           list_id?: string | null
           message_interval_max?: number | null
           message_interval_min?: number | null
+          meta_template_id?: string | null
           name?: string
           retry_at?: string | null
           scheduled_at?: string | null
@@ -1242,6 +1245,13 @@ export type Database = {
             columns: ["list_id"]
             isOneToOne: false
             referencedRelation: "broadcast_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_meta_template_id_fkey"
+            columns: ["meta_template_id"]
+            isOneToOne: false
+            referencedRelation: "meta_templates"
             referencedColumns: ["id"]
           },
           {

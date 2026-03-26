@@ -1,0 +1,1 @@
+ALTER TABLE public.campaigns ADD COLUMN meta_template_id uuid REFERENCES public.meta_templates(id) ON DELETE SET NULL;
