@@ -640,6 +640,7 @@ export const useContacts = () => {
     onSuccess: (stats) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["custom-field-definitions"] });
+      queryClient.invalidateQueries({ queryKey: ["funnels"] });
       
       const messages: string[] = [];
       if (stats.new > 0) messages.push(`${stats.new} novo(s)`);
