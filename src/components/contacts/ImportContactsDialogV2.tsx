@@ -476,9 +476,10 @@ export const ImportContactsDialogV2 = ({
     }
 
     const contacts = contactsToImport.map((row) => {
-      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
+      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; lead_custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
         phone: "",
         custom_fields: { additional_phones: [] },
+        lead_custom_fields: {},
       };
 
       Object.entries(columnMappings).forEach(([column, mapping]) => {
