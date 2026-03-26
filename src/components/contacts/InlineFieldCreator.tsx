@@ -92,7 +92,11 @@ export const InlineFieldCreator = ({
         <Input
           placeholder="Nome do campo"
           value={fieldName}
-          onChange={(e) => setFieldName(e.target.value)}
+          onChange={(e) => {
+            const name = e.target.value;
+            setFieldName(name);
+            setFieldType(inferFieldType(name));
+          }}
           autoFocus
         />
         <Select
