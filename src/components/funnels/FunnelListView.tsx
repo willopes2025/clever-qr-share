@@ -1019,6 +1019,39 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
                         <DropdownMenuItem onClick={() => setEditingDeal(deal)}>
                           Editar
                         </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            Alterar Etapa
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {(funnel.stages || []).map((stage) => (
+                              <DropdownMenuItem
+                                key={stage.id}
+                                disabled={stage.id === deal.stage_id}
+                                onClick={() => {
+                                  updateDeal.mutate({
+                                    id: deal.id,
+                                    stage_id: stage.id,
+                                    entered_stage_at: new Date().toISOString(),
+                                  });
+                                }}
+                              >
+                                <div
+                                  className="w-2 h-2 rounded-full mr-2 shrink-0"
+                                  style={{ backgroundColor: stage.color || '#888' }}
+                                />
+                                {stage.name}
+                                {stage.id === deal.stage_id && (
+                                  <span className="ml-auto text-xs text-muted-foreground">atual</span>
+                                )}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuItem onClick={() => setEditingFieldDeal(deal)}>
+                          Alterar Campo
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         {!deal.isFinal && (
                           <DropdownMenuItem onClick={() => setClosingDeal(deal)}>
                             Fechar Deal
