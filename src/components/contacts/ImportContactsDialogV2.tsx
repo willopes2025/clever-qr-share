@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { CreateFieldInlineDialog, NewFieldConfig, FieldType, EntityType } from "./CreateFieldInlineDialog";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
+import { DollarSign, Target } from "lucide-react";
 
 export interface TagOption {
   id: string;
