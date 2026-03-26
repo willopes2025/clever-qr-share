@@ -2725,6 +2725,44 @@ export type Database = {
         }
         Relationships: []
       }
+      funnel_column_configs: {
+        Row: {
+          column_order: string[]
+          created_at: string
+          funnel_id: string
+          id: string
+          updated_at: string
+          user_id: string
+          visible_columns: string[]
+        }
+        Insert: {
+          column_order?: string[]
+          created_at?: string
+          funnel_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          visible_columns?: string[]
+        }
+        Update: {
+          column_order?: string[]
+          created_at?: string
+          funnel_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          visible_columns?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_column_configs_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnel_deal_history: {
         Row: {
           changed_at: string | null
