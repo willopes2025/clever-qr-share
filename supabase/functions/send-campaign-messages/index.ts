@@ -787,17 +787,22 @@ Deno.serve(async (req: Request) => {
         throw new Error('Meta WhatsApp integration not configured or no access token');
       }
 
-      // Get the phone number ID from meta_whatsapp_numbers
-      const { data: metaNumber } = await supabase
-        .from('meta_whatsapp_numbers')
-        .select('phone_number_id')
-        .eq('user_id', campaign.user_id)
-        .eq('status', 'connected')
-        .limit(1)
-        .single();
+      // Get the phone number ID - use campaign's meta_phone_number_id if set, otherwise fallback
+      let phoneNumberId = campaign.meta_phone_number_id;
+      
+      if (!phoneNumberId) {
+        const { data: metaNumber } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('phone_number_id')
+          .eq('user_id', campaign.user_id)
+          .eq('status', 'connected')
+          .limit(1)
+          .single();
 
-      if (!metaNumber?.phone_number_id) {
-        throw new Error('No connected Meta WhatsApp number found');
+        if (!metaNumber?.phone_number_id) {
+          throw new Error('No connected Meta WhatsApp number found');
+        }
+        phoneNumberId = metaNumber.phone_number_id;
       }
 
       // Build template components
