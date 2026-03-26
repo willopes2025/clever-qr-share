@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { FieldType } from "@/hooks/useCustomFields";
 import { X } from "lucide-react";
+import { inferFieldType } from "@/utils/inferFieldType";
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: "text", label: "Texto" },
@@ -91,7 +92,11 @@ export const InlineFieldCreator = ({
         <Input
           placeholder="Nome do campo"
           value={fieldName}
-          onChange={(e) => setFieldName(e.target.value)}
+          onChange={(e) => {
+            const name = e.target.value;
+            setFieldName(name);
+            setFieldType(inferFieldType(name));
+          }}
           autoFocus
         />
         <Select
