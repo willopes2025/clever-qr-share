@@ -31,7 +31,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { BulkEditFieldDialog } from "./BulkEditFieldDialog";
 import {
   Popover,
   PopoverContent,
@@ -133,6 +138,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
+  const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Drag-to-scroll state
@@ -1013,6 +1019,38 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
                         <DropdownMenuItem onClick={() => setEditingDeal(deal)}>
                           Editar
                         </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            Alterar Etapa
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {(funnel.stages || []).map((stage) => (
+                              <DropdownMenuItem
+                                key={stage.id}
+                                disabled={stage.id === deal.stage_id}
+                                onClick={() => {
+                                  updateDeal.mutate({
+                                    id: deal.id,
+                                    stage_id: stage.id,
+                                  });
+                                }}
+                              >
+                                <div
+                                  className="w-2 h-2 rounded-full mr-2 shrink-0"
+                                  style={{ backgroundColor: stage.color || '#888' }}
+                                />
+                                {stage.name}
+                                {stage.id === deal.stage_id && (
+                                  <span className="ml-auto text-xs text-muted-foreground">atual</span>
+                                )}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuItem onClick={() => setEditingFieldDeal(deal)}>
+                          Alterar Campo
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         {!deal.isFinal && (
                           <DropdownMenuItem onClick={() => setClosingDeal(deal)}>
                             Fechar Deal
@@ -1098,6 +1136,22 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         members={members || []}
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}
+      />
+
+      <BulkEditFieldDialog
+        open={!!editingFieldDeal}
+        onOpenChange={(open) => { if (!open) setEditingFieldDeal(null); }}
+        selectedCount={1}
+        fieldDefinitions={(fieldDefinitions || []).filter(f => f.entity_type === 'lead')}
+        onConfirm={async (fieldKey, value) => {
+          if (!editingFieldDeal) return;
+          const currentFields = (editingFieldDeal.custom_fields || {}) as Record<string, unknown>;
+          updateDeal.mutate({
+            id: editingFieldDeal.id,
+            custom_fields: { ...currentFields, [fieldKey]: value },
+          });
+          setEditingFieldDeal(null);
+        }}
       />
 
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
