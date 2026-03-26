@@ -204,9 +204,9 @@ export const TransferFieldDataDialog = ({ open, onOpenChange }: TransferFieldDat
 
           {/* Cross-entity warning */}
           {sourceField && targetField && sourceField.entity_type !== targetField.entity_type && (
-            <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+            <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+              <p className="text-xs text-destructive">
                 Transferência entre entidades diferentes ({entityLabel(sourceField.entity_type)} → {entityLabel(targetField.entity_type)}).
                 Os dados serão vinculados via contato associado ao deal.
               </p>

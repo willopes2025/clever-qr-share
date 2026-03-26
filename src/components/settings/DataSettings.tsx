@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useContacts } from "@/hooks/useContacts";
 import { useCampaigns } from "@/hooks/useCampaigns";
-import { Download, Trash2, Database, AlertTriangle } from "lucide-react";
+import { Download, Trash2, Database, AlertTriangle, ArrowLeftRight } from "lucide-react";
+import { TransferFieldDataDialog } from "./TransferFieldDataDialog";
 import { toast } from "sonner";
 import {
   AlertDialog,
