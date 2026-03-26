@@ -3058,6 +3058,8 @@ export type Database = {
           id: string
           is_default: boolean | null
           name: string
+          opportunity_message_days: number | null
+          opportunity_prompt: string | null
           updated_at: string | null
           user_id: string
         }
@@ -3069,6 +3071,8 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name: string
+          opportunity_message_days?: number | null
+          opportunity_prompt?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -3080,6 +3084,8 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name?: string
+          opportunity_message_days?: number | null
+          opportunity_prompt?: string | null
           updated_at?: string | null
           user_id?: string
         }

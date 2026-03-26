@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send } from "lucide-react";
+import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import {
   Table,
@@ -42,7 +46,7 @@ interface Opportunity {
 }
 
 interface Props {
-  funnel: { id: string; name: string };
+  funnel: { id: string; name: string; opportunity_prompt?: string | null; opportunity_message_days?: number | null };
 }
 
 const STATUS_OPTIONS = [
@@ -59,7 +63,35 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
   const [showBroadcast, setShowBroadcast] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [opportunityPrompt, setOpportunityPrompt] = useState(funnel.opportunity_prompt || "");
+  const [messageDays, setMessageDays] = useState(funnel.opportunity_message_days || 30);
+  const [savingConfig, setSavingConfig] = useState(false);
   const cacheRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setOpportunityPrompt(funnel.opportunity_prompt || "");
+    setMessageDays(funnel.opportunity_message_days || 30);
+  }, [funnel.id, funnel.opportunity_prompt, funnel.opportunity_message_days]);
+
+  const saveConfig = async () => {
+    setSavingConfig(true);
+    try {
+      const { error } = await supabase
+        .from("funnels")
+        .update({ 
+          opportunity_prompt: opportunityPrompt || null, 
+          opportunity_message_days: messageDays 
+        })
+        .eq("id", funnel.id);
+      if (error) throw error;
+      toast.success("Configurações salvas!");
+    } catch {
+      toast.error("Erro ao salvar configurações");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   // Load persisted opportunities from DB on mount
   useEffect(() => {
@@ -215,6 +247,48 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
     toast.success("Exportação concluída!");
   };
 
+  const configPanel = (
+    <Collapsible open={showConfig} onOpenChange={setShowConfig}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Settings2 className="h-4 w-4" />
+          Configurações
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-4 space-y-4 border rounded-lg p-4 bg-muted/30">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Prompt de oportunidade</Label>
+          <Textarea
+            placeholder="Ex: Busque leads que demonstraram interesse em pacotes premium, mencionaram datas específicas ou perguntaram sobre formas de pagamento..."
+            value={opportunityPrompt}
+            onChange={(e) => setOpportunityPrompt(e.target.value)}
+            className="min-h-[80px] resize-none text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Instrua a IA sobre o tipo de oportunidade que você quer encontrar. Deixe em branco para análise padrão.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Prazo das mensagens: {messageDays} dias</Label>
+          <Slider
+            value={[messageDays]}
+            onValueChange={([v]) => setMessageDays(v)}
+            min={7}
+            max={180}
+            step={1}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            A IA analisará apenas mensagens dos últimos {messageDays} dias de cada conversa.
+          </p>
+        </div>
+        <Button size="sm" onClick={saveConfig} disabled={savingConfig}>
+          {savingConfig ? "Salvando..." : "Salvar configurações"}
+        </Button>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   if (!hasLoaded && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -225,10 +299,13 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         <p className="text-muted-foreground mb-6 max-w-md">
           A IA analisará as conversas dos deals abertos deste funil e identificará as melhores oportunidades de fechamento.
         </p>
-        <Button onClick={() => analyze()} size="lg">
-          <Sparkles className="h-4 w-4 mr-2" />
-          Analisar Oportunidades
-        </Button>
+        <div className="flex flex-col items-center gap-4">
+          {configPanel}
+          <Button onClick={() => analyze()} size="lg">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Analisar Oportunidades
+          </Button>
+        </div>
       </div>
     );
   }
@@ -269,6 +346,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           </Button>
         </div>
       </div>
+
+      {configPanel}
 
       {opportunities.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">

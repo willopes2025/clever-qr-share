@@ -34,10 +34,12 @@ serve(async (req) => {
 
     const { data: funnel, error: funnelError } = await supabase
       .from("funnels")
-      .select("id, name")
+      .select("id, name, opportunity_prompt, opportunity_message_days")
       .eq("id", funnel_id)
       .single();
     if (funnelError || !funnel) throw new Error("Funnel not found or access denied");
+
+    const messageDaysLimit = funnel.opportunity_message_days || 30;
 
     const { data: stages } = await supabase
       .from("funnel_stages")
@@ -87,11 +89,13 @@ serve(async (req) => {
     const messagesMap: Record<string, any[]> = {};
 
     if (conversationIds.length) {
+      const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
       for (const convId of conversationIds.slice(0, 30)) {
         const { data: msgs } = await supabase
           .from("inbox_messages")
           .select("content, direction, created_at")
           .eq("conversation_id", convId)
+          .gte("created_at", sinceDate)
           .order("created_at", { ascending: false })
           .limit(30);
         if (msgs?.length) messagesMap[convId] = msgs.reverse();
@@ -121,6 +125,10 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const customPrompt = funnel.opportunity_prompt 
+      ? `\n\nINSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${funnel.opportunity_prompt}` 
+      : '';
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -138,12 +146,13 @@ Para cada deal, avalie:
 - Engajamento do cliente (frequência e qualidade das respostas)
 - Estágio no funil e tempo em aberto
 - Valor do deal
+${customPrompt}
 
 Retorne APENAS o JSON usando a tool fornecida.`,
           },
           {
             role: "user",
-            content: `Analise estes ${dealsContext.length} deals e ranqueie por probabilidade de fechamento:\n\n${JSON.stringify(dealsContext, null, 2)}`,
+            content: `Analise estes ${dealsContext.length} deals e ranqueie por probabilidade de fechamento (considerando mensagens dos últimos ${messageDaysLimit} dias):\n\n${JSON.stringify(dealsContext, null, 2)}`,
           },
         ],
         tools: [

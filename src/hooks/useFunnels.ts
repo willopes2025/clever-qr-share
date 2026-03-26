@@ -13,6 +13,8 @@ export interface Funnel {
   display_order: number;
   created_at: string;
   updated_at: string;
+  opportunity_prompt?: string | null;
+  opportunity_message_days?: number | null;
   stages?: FunnelStage[];
 }
 
