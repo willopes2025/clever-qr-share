@@ -854,7 +854,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
 
       {/* Table with horizontal scroll */}
         <div className="rounded-xl border bg-card">
-          <ScrollArea className="w-full whitespace-nowrap">
+          <div
+            ref={scrollContainerRef}
+            className={`w-full whitespace-nowrap overflow-x-auto funnel-list-scroll ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
             <div className="min-w-max">
               <Table>
           <TableHeader>
