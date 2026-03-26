@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,6 +108,36 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const [visibleColumns, setVisibleColumns] = useState<string[]>(defaultColumnIds);
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Load saved column config from DB
+  const { data: savedColumnConfig } = useQuery({
+    queryKey: ['funnel-column-config', funnel.id],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('funnel_column_configs')
+        .select('visible_columns, column_order')
+        .eq('user_id', user.id)
+        .eq('funnel_id', funnel.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  // Apply saved config when loaded
+  useEffect(() => {
+    if (savedColumnConfig) {
+      if (savedColumnConfig.visible_columns?.length > 0) {
+        setVisibleColumns(savedColumnConfig.visible_columns);
+      }
+      if (savedColumnConfig.column_order?.length > 0) {
+        setColumnOrder(savedColumnConfig.column_order);
+      }
+    }
+  }, [savedColumnConfig]);
 
   // Bulk edit
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
@@ -725,10 +755,45 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   };
 
   // Handle columns config save
-  const handleColumnsConfigSave = (newVisible: string[], newOrder: string[]) => {
+  const handleColumnsConfigSave = useCallback(async (newVisible: string[], newOrder: string[], applyToMemberIds?: string[]) => {
     setVisibleColumns(newVisible);
     setColumnOrder(newOrder);
-  };
+    setIsSavingColumns(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Save for current user
+      const userIds = [user.id, ...(applyToMemberIds || [])];
+      
+      for (const userId of userIds) {
+        await supabase
+          .from('funnel_column_configs')
+          .upsert({
+            user_id: userId,
+            funnel_id: funnel.id,
+            visible_columns: newVisible,
+            column_order: newOrder,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,funnel_id' });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['funnel-column-config', funnel.id] });
+      
+      const toast = (await import("sonner")).toast;
+      if (applyToMemberIds && applyToMemberIds.length > 0) {
+        toast.success(`Colunas salvas e aplicadas para ${applyToMemberIds.length} integrante(s)`);
+      } else {
+        toast.success("Configuração de colunas salva");
+      }
+    } catch (error) {
+      console.error("Error saving column config:", error);
+    } finally {
+      setIsSavingColumns(false);
+      setColumnsDialogOpen(false);
+    }
+  }, [funnel.id, queryClient]);
 
   // Get ordered visible columns
   const orderedVisibleColumns = columnOrder.filter((id) => visibleColumns.includes(id));
@@ -920,6 +985,8 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         visibleColumns={visibleColumns}
         columnOrder={columnOrder}
         onSave={handleColumnsConfigSave}
+        teamMembers={members}
+        isSaving={isSavingColumns}
       />
 
       <BulkEditDialog
