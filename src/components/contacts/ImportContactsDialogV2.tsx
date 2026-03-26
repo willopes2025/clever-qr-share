@@ -64,21 +64,34 @@ export interface ImportStats {
   invalid: number;
 }
 
+export interface FunnelConfig {
+  funnel_id: string;
+  stage_id?: string;
+}
+
+export interface FunnelOption {
+  id: string;
+  name: string;
+  stages: { id: string; name: string; order_index: number }[];
+}
+
 interface ImportContactsDialogV2Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[],
+    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[],
     tagIds?: string[],
     newFields?: NewFieldConfig[],
     deduplication?: DeduplicationConfig,
-    phoneNormalization?: PhoneNormalizationConfig
+    phoneNormalization?: PhoneNormalizationConfig,
+    funnelConfig?: FunnelConfig
   ) => Promise<ImportStats | void>;
   isLoading?: boolean;
   tags?: TagOption[];
   existingFields?: CustomFieldDefinition[];
   currentContactCount?: number;
   maxContacts?: number | null;
+  funnels?: FunnelOption[];
 }
 
 interface ColumnMapping {
