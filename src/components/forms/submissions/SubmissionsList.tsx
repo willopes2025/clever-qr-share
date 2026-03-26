@@ -108,7 +108,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       const contactName = sub.contacts?.name || sub.contacts?.phone || 'Anônimo';
       const fieldValues = visibleFields.map(f => {
         const value = sub.data[f.id] ?? sub.data[f.label] ?? '';
-        return typeof value === 'object' ? JSON.stringify(value) : String(value);
+        return resolveDisplayValue(f, value);
       });
       return [
         format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm'),
