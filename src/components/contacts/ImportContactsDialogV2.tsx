@@ -626,7 +626,7 @@ export const ImportContactsDialogV2 = ({
       <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
         <p className="font-medium">Como funciona:</p>
         <ol className="list-decimal list-inside space-y-1">
-          <li>Envie seu arquivo CSV com os dados</li>
+          <li>Envie seu arquivo CSV, XLSX ou TXT com os dados</li>
           <li>Mapeie cada coluna para um campo do sistema</li>
           <li>Crie novos campos personalizados se necessário</li>
           <li>Aplique tags (opcional) e importe</li>
