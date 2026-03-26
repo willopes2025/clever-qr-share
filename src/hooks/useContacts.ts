@@ -318,6 +318,7 @@ export const useContacts = () => {
           notes: c.notes || null,
           contact_display_id: c.contact_display_id || null,
           custom_fields: (c.custom_fields || {}) as Json,
+          _additional_phones: (c.custom_fields?.additional_phones as Array<{ phone: string; label: string }>) || [],
           user_id: user.id,
         };
       });
