@@ -318,6 +318,7 @@ export const useContacts = () => {
           notes: c.notes || null,
           contact_display_id: c.contact_display_id || null,
           custom_fields: (c.custom_fields || {}) as Json,
+          _additional_phones: (c.custom_fields?.additional_phones as Array<{ phone: string; label: string }>) || [],
           user_id: user.id,
         };
       });
@@ -483,6 +484,20 @@ export const useContacts = () => {
         }
       }
 
+      // Merge additional_phones into custom_fields and strip temp field
+      const prepareForDb = (contact: typeof contactsToInsert[0]) => {
+        const { _additional_phones, ...rest } = contact as any;
+        if (_additional_phones && _additional_phones.length > 0) {
+          const existingCf = (rest.custom_fields || {}) as Record<string, any>;
+          const existingPhones = Array.isArray(existingCf.additional_phones) ? existingCf.additional_phones : [];
+          // Merge avoiding duplicates by phone number
+          const existingSet = new Set(existingPhones.map((p: any) => p.phone));
+          const merged = [...existingPhones, ..._additional_phones.filter((p: any) => !existingSet.has(p.phone))];
+          rest.custom_fields = { ...existingCf, additional_phones: merged } as Json;
+        }
+        return rest;
+      };
+
       let insertedData: { id: string }[] = [];
       let updatedData: { id: string }[] = [];
 
@@ -497,9 +512,10 @@ export const useContacts = () => {
           // Renew session before each batch
           await ensureSession();
           
+          const dbBatch = batch.map(prepareForDb);
           const { data, error } = await supabase
             .from("contacts")
-            .upsert(batch, {
+            .upsert(dbBatch, {
               onConflict: "user_id,phone",
               ignoreDuplicates: false,
             })
@@ -524,7 +540,8 @@ export const useContacts = () => {
           await ensureSession();
           
           for (const contact of batch) {
-            const { id, ...updateData } = contact as typeof contact & { id: string };
+            const prepared = prepareForDb(contact);
+            const { id, ...updateData } = prepared as typeof prepared & { id: string };
             const { data, error } = await supabase
               .from("contacts")
               .update(updateData)

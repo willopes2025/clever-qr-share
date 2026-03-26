@@ -106,7 +106,10 @@ type ImportStep = "upload" | "mapping" | "deduplication" | "tags";
 
 const STANDARD_FIELDS = [
   { value: "ignore", label: "Ignorar coluna", icon: "🚫" },
-  { value: "phone", label: "Telefone", icon: "📱" },
+  { value: "phone", label: "Telefone (Principal)", icon: "📱" },
+  { value: "phone_comercial", label: "Telefone Comercial", icon: "📞" },
+  { value: "phone_pessoal", label: "Telefone Pessoal", icon: "🏠" },
+  { value: "phone_celular", label: "Celular", icon: "📲" },
   { value: "name", label: "Nome", icon: "👤" },
   { value: "email", label: "E-mail", icon: "✉️" },
   { value: "notes", label: "Notas", icon: "📝" },
@@ -233,7 +236,13 @@ export const ImportContactsDialogV2 = ({
       const headerLower = header.toLowerCase();
       let targetField = "ignore";
 
-      if (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("número") || headerLower.includes("numero")) {
+      if (headerLower.includes("comercial") && (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("fone"))) {
+        targetField = "phone_comercial";
+      } else if (headerLower.includes("pessoal") && (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("fone"))) {
+        targetField = "phone_pessoal";
+      } else if (headerLower === "celular" || (headerLower.includes("celular") && (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("fone")))) {
+        targetField = "phone_celular";
+      } else if (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("número") || headerLower.includes("numero")) {
         targetField = "phone";
       } else if (headerLower.includes("name") || headerLower.includes("nome")) {
         targetField = "name";
@@ -435,7 +444,7 @@ export const ImportContactsDialogV2 = ({
     const contacts = contactsToImport.map((row) => {
       const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
         phone: "",
-        custom_fields: {},
+        custom_fields: { additional_phones: [] },
       };
 
       Object.entries(columnMappings).forEach(([column, mapping]) => {
@@ -469,6 +478,24 @@ export const ImportContactsDialogV2 = ({
           case "deal_title":
             contact.deal_title = value;
             break;
+          case "phone_comercial":
+          case "phone_pessoal":
+          case "phone_celular": {
+            const cleanedPhone = value.replace(/\D/g, "");
+            if (cleanedPhone && cleanedPhone.length >= 10) {
+              const normalized = cleanedPhone.startsWith('55') ? cleanedPhone : '55' + cleanedPhone;
+              const labelMap: Record<string, string> = {
+                phone_comercial: "Comercial",
+                phone_pessoal: "Pessoal",
+                phone_celular: "Celular",
+              };
+              (contact.custom_fields.additional_phones as Array<{ phone: string; label: string }>).push({
+                phone: normalized,
+                label: labelMap[mapping.targetField],
+              });
+            }
+            break;
+          }
           case "ignore":
             break;
           default:
@@ -485,6 +512,12 @@ export const ImportContactsDialogV2 = ({
             break;
         }
       });
+
+      // Remove empty additional_phones array
+      const additionalPhones = contact.custom_fields.additional_phones as Array<{ phone: string; label: string }>;
+      if (!additionalPhones || additionalPhones.length === 0) {
+        delete contact.custom_fields.additional_phones;
+      }
 
       return contact;
     });
