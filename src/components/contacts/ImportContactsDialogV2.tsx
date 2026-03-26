@@ -236,7 +236,13 @@ export const ImportContactsDialogV2 = ({
       const headerLower = header.toLowerCase();
       let targetField = "ignore";
 
-      if (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("número") || headerLower.includes("numero")) {
+      if (headerLower.includes("comercial") && (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("fone"))) {
+        targetField = "phone_comercial";
+      } else if (headerLower.includes("pessoal") && (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("fone"))) {
+        targetField = "phone_pessoal";
+      } else if (headerLower === "celular" || (headerLower.includes("celular") && (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("fone")))) {
+        targetField = "phone_celular";
+      } else if (headerLower.includes("phone") || headerLower.includes("telefone") || headerLower.includes("número") || headerLower.includes("numero")) {
         targetField = "phone";
       } else if (headerLower.includes("name") || headerLower.includes("nome")) {
         targetField = "name";
