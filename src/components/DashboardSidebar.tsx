@@ -77,6 +77,7 @@ const navGroups: NavGroup[] = [
       { icon: FileEdit, label: "Formulários", path: "/forms", permission: "view_forms" },
       { icon: Bot, label: "Chatbots", path: "/chatbots", permission: "view_chatbots" },
       { icon: Sparkles, label: "Agentes IA", path: "/ai-agents", permission: "view_ai_agents" },
+      { icon: Webhook, label: "Webhooks", path: "/webhooks", permission: "manage_settings" },
     ],
   },
   {

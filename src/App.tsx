@@ -287,6 +287,15 @@ const App = () => (
                   <Route path="/f/:slug/*" element={<PublicFormPage />} />
                   <Route path="/form/:slug/*" element={<PublicFormPage />} />
                   <Route path="/ajuda" element={<Ajuda />} />
+                  <Route path="/webhooks" element={
+                    <ProtectedRoute>
+                      <NotificationProvider>
+                        <PermissionGate permission="manage_settings">
+                          <Webhooks />
+                        </PermissionGate>
+                      </NotificationProvider>
+                    </ProtectedRoute>
+                  } />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
