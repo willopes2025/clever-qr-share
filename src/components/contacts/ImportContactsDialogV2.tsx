@@ -277,13 +277,36 @@ export const ImportContactsDialogV2 = ({
     return mappings;
   }, [existingFields]);
 
+  const parseXLSX = useCallback((buffer: ArrayBuffer) => {
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
+    
+    if (jsonData.length === 0) return { headers: [], data: [], preview: [] };
+
+    const headers = (jsonData[0] as string[]).map((h) => String(h ?? "").trim());
+    const data: string[][] = [];
+    for (let i = 1; i < jsonData.length; i++) {
+      const row = (jsonData[i] as string[]).map((v) => String(v ?? "").trim());
+      if (row.some((v) => v)) {
+        data.push(row);
+      }
+    }
+
+    return { headers, data, preview: data.slice(0, 3) };
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
+    const isCSV = file.name.endsWith(".csv") || file.name.endsWith(".txt");
+    const isXLSX = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
+
+    if (!isCSV && !isXLSX) {
       toast.error("Formato inválido", {
-        description: "Por favor, envie um arquivo CSV ou TXT",
+        description: "Por favor, envie um arquivo CSV, TXT, XLSX ou XLS",
       });
       return;
     }
@@ -292,16 +315,26 @@ export const ImportContactsDialogV2 = ({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const { headers, data, preview } = parseCSV(text);
+      let result: { headers: string[]; data: string[][]; preview: string[][] };
       
-      setCsvHeaders(headers);
-      setCsvData(data);
-      setCsvPreview(preview);
-      setColumnMappings(autoDetectMappings(headers));
+      if (isXLSX) {
+        result = parseXLSX(event.target?.result as ArrayBuffer);
+      } else {
+        result = parseCSV(event.target?.result as string);
+      }
+      
+      setCsvHeaders(result.headers);
+      setCsvData(result.data);
+      setCsvPreview(result.preview);
+      setColumnMappings(autoDetectMappings(result.headers));
       setStep("mapping");
     };
-    reader.readAsText(file);
+
+    if (isXLSX) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
 
   const handleMappingChange = (column: string, value: string) => {
