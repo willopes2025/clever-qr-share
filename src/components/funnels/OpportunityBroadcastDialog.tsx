@@ -190,6 +190,7 @@ export const OpportunityBroadcastDialog = ({
         name: `Disparo Oportunidades - ${funnelName}`,
         template_id: isMetaMode ? null : templateId,
         meta_template_id: isMetaMode ? templateId : null,
+        meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId : null,
         list_id: list.id,
         scheduled_at: null,
         message_interval_min: intervalMin,
