@@ -247,6 +247,48 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
     toast.success("Exportação concluída!");
   };
 
+  const configPanel = (
+    <Collapsible open={showConfig} onOpenChange={setShowConfig}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Settings2 className="h-4 w-4" />
+          Configurações
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-4 space-y-4 border rounded-lg p-4 bg-muted/30">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Prompt de oportunidade</Label>
+          <Textarea
+            placeholder="Ex: Busque leads que demonstraram interesse em pacotes premium, mencionaram datas específicas ou perguntaram sobre formas de pagamento..."
+            value={opportunityPrompt}
+            onChange={(e) => setOpportunityPrompt(e.target.value)}
+            className="min-h-[80px] resize-none text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Instrua a IA sobre o tipo de oportunidade que você quer encontrar. Deixe em branco para análise padrão.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Prazo das mensagens: {messageDays} dias</Label>
+          <Slider
+            value={[messageDays]}
+            onValueChange={([v]) => setMessageDays(v)}
+            min={7}
+            max={180}
+            step={1}
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            A IA analisará apenas mensagens dos últimos {messageDays} dias de cada conversa.
+          </p>
+        </div>
+        <Button size="sm" onClick={saveConfig} disabled={savingConfig}>
+          {savingConfig ? "Salvando..." : "Salvar configurações"}
+        </Button>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   if (!hasLoaded && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -257,10 +299,13 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         <p className="text-muted-foreground mb-6 max-w-md">
           A IA analisará as conversas dos deals abertos deste funil e identificará as melhores oportunidades de fechamento.
         </p>
-        <Button onClick={() => analyze()} size="lg">
-          <Sparkles className="h-4 w-4 mr-2" />
-          Analisar Oportunidades
-        </Button>
+        <div className="flex flex-col items-center gap-4">
+          {configPanel}
+          <Button onClick={() => analyze()} size="lg">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Analisar Oportunidades
+          </Button>
+        </div>
       </div>
     );
   }
