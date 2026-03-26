@@ -97,6 +97,34 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // Drag-to-scroll state
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [scrollLeftStart, setScrollLeftStart] = useState(0);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    setIsDragging(true);
+    setDragStartX(e.pageX - container.offsetLeft);
+    setScrollLeftStart(container.scrollLeft);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - dragStartX) * 1.5;
+    container.scrollLeft = scrollLeftStart - walk;
+  }, [isDragging, dragStartX, scrollLeftStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
