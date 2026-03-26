@@ -116,6 +116,8 @@ export const OpportunityBroadcastDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
+  const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
+  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
 
   const toggleDay = (day: string) => {
     setAllowedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
