@@ -46,7 +46,7 @@ interface Opportunity {
 }
 
 interface Props {
-  funnel: { id: string; name: string };
+  funnel: { id: string; name: string; opportunity_prompt?: string | null; opportunity_message_days?: number | null };
 }
 
 const STATUS_OPTIONS = [
