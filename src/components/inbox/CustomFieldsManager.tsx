@@ -189,7 +189,6 @@ export const CustomFieldsManager = () => {
                   value={newField.field_name}
                   onChange={(e) => {
                     const name = e.target.value;
-                    const { inferFieldType } = require("@/utils/inferFieldType");
                     setNewField(prev => ({
                       ...prev,
                       field_name: name,
