@@ -89,11 +89,13 @@ serve(async (req) => {
     const messagesMap: Record<string, any[]> = {};
 
     if (conversationIds.length) {
+      const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
       for (const convId of conversationIds.slice(0, 30)) {
         const { data: msgs } = await supabase
           .from("inbox_messages")
           .select("content, direction, created_at")
           .eq("conversation_id", convId)
+          .gte("created_at", sinceDate)
           .order("created_at", { ascending: false })
           .limit(30);
         if (msgs?.length) messagesMap[convId] = msgs.reverse();
