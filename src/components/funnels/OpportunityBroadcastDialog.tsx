@@ -402,6 +402,37 @@ export const OpportunityBroadcastDialog = ({
                     <p className="text-muted-foreground line-clamp-3">{selectedMetaTemplate.body_text}</p>
                   </div>
                 )}
+
+                {/* Meta Phone Number Selection */}
+                <div className="space-y-2 mt-4">
+                  <Label className="flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Número Meta para envio *
+                  </Label>
+                  <Select value={selectedMetaPhoneNumberId} onValueChange={setSelectedMetaPhoneNumberId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o número Meta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeMetaNumbers.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          Nenhum número Meta conectado
+                        </div>
+                      ) : (
+                        activeMetaNumbers.map((number) => (
+                          <SelectItem key={number.id} value={number.phone_number_id}>
+                            <div className="flex items-center gap-2">
+                              <span>{number.display_name || number.phone_number || number.phone_number_id}</span>
+                              {number.phone_number && number.display_name && (
+                                <span className="text-xs text-muted-foreground">({number.phone_number})</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
