@@ -1,29 +1,27 @@
 
 
-## Adicionar opções de telefone adicional (Comercial, Pessoal, Celular) na importação
+## Auto-detectar tipo "Data" pelo nome do campo personalizado
 
 ### Problema
-Na tela de mapeamento de colunas da importação de contatos, só existe a opção "Telefone" (principal). Quando o CSV tem colunas como "Telefone comercial", "Celular", "Telefone residencial", não há como mapeá-las para `additional_phones`.
+Quando o usuário cria um campo personalizado com nome contendo "data" (ex: "Data de nascimento", "Data da consulta"), o tipo padrão é "texto". O usuário precisa mudar manualmente para "data".
 
 ### Solução
+Adicionar uma função `inferFieldType(name)` que analisa o nome do campo e sugere automaticamente o tipo correto. Aplicar nos 3 componentes de criação de campos.
 
-**Arquivo: `src/components/contacts/ImportContactsDialogV2.tsx`**
+**Regras de inferência:**
+- Nome contém "data" → tipo `date`
+- Nome contém "hora" ou "horário" → tipo `time`
+- Nome contém "email" ou "e-mail" → tipo `email`
+- Nome contém "telefone" ou "celular" ou "whatsapp" → tipo `phone`
+- Nome contém "url" ou "site" ou "link" → tipo `url`
+- Nome contém "valor" ou "preço" ou "custo" → tipo `number`
+- Caso contrário → mantém `text`
 
-1. **Adicionar 3 novos campos no `STANDARD_FIELDS`:**
-   - `phone_comercial` → "Telefone Comercial" 📞
-   - `phone_pessoal` → "Telefone Pessoal" 📱
-   - `phone_celular` → "Celular" 📲
+**Arquivos a editar:**
 
-2. **No switch de processamento do mapeamento**, tratar os novos cases (`phone_comercial`, `phone_pessoal`, `phone_celular`):
-   - Limpar o valor (remover não-dígitos)
-   - Acumular no array `additional_phones` dentro de `custom_fields`, no formato `{ phone: "55...", label: "Comercial" }` — mesmo formato já usado pelo sistema (`AdditionalPhonesManager`, `MessageView`)
+1. **`src/components/contacts/InlineFieldCreator.tsx`** — ao digitar o nome, chamar `inferFieldType` e atualizar `fieldType` automaticamente
+2. **`src/components/contacts/CreateFieldInlineDialog.tsx`** — mesma lógica no onChange do nome
+3. **`src/components/inbox/CustomFieldsManager.tsx`** — mesma lógica no onChange do nome
 
-3. **Na lógica de construção do contato**, garantir que `custom_fields.additional_phones` seja inicializado como array vazio e que cada campo de telefone extra faça `.push()` nele.
-
-**Arquivo: `src/hooks/useContacts.ts`**
-
-4. **Na mutação de importação**, ao fazer upsert do contato, fazer merge dos `additional_phones` importados com os já existentes no contato (evitar duplicatas).
-
-### Resultado
-O usuário poderá mapear múltiplas colunas de telefone do CSV para tipos específicos (Comercial, Pessoal, Celular), e todos serão salvos como telefones adicionais do contato, integrados ao seletor de telefone no Inbox.
+O usuário ainda poderá alterar o tipo manualmente após a sugestão automática.
 
