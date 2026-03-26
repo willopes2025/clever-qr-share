@@ -561,7 +561,11 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         deal.closed_at ? format(new Date(deal.closed_at), "dd/MM/yyyy HH:mm") : "",
         getCloseReasonName(deal.close_reason_id),
         ...Array.from(dealCustomFieldKeys).map((key) => {
-          const val = deal.custom_fields?.[key];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === key);
+          let val = deal.custom_fields?.[key];
+          if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+            val = (deal.contact as any)?.custom_fields?.[key];
+          }
           if (val === undefined || val === null) return "";
           if (typeof val === "boolean") return val ? "Sim" : "Não";
           return String(val).replace(/;/g, ",");
