@@ -12,6 +12,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud } from 'lucide-react';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useMetaTemplates } from '@/hooks/useMetaTemplates';
+import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
+import { Phone } from 'lucide-react';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
 import { useCampaignMutations, type SendingMode as CampaignSendingMode } from '@/hooks/useCampaigns';
