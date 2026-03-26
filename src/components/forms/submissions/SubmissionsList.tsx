@@ -25,6 +25,35 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
   const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
 
+  // Resolve option values (e.g. "option1") to their display labels
+  const resolveDisplayValue = (field: FormField, rawValue: any): string => {
+    if (rawValue === undefined || rawValue === null) return '-';
+    
+    const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
+    if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
+      const optionMap = new Map(field.options.map(o => [o.value, o.label]));
+      
+      if (Array.isArray(rawValue)) {
+        return rawValue.map(v => optionMap.get(v) || v).join(', ');
+      }
+      if (typeof rawValue === 'string') {
+        // Try parsing as JSON array
+        if (rawValue.startsWith('[')) {
+          try {
+            const arr = JSON.parse(rawValue);
+            if (Array.isArray(arr)) {
+              return arr.map((v: string) => optionMap.get(v) || v).join(', ');
+            }
+          } catch {}
+        }
+        return optionMap.get(rawValue) || rawValue;
+      }
+    }
+    
+    if (typeof rawValue === 'object') return JSON.stringify(rawValue);
+    return String(rawValue);
+  };
+
   // Build column options for filtering
   const columnOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
