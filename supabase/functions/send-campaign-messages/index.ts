@@ -851,7 +851,7 @@ Deno.serve(async (req: Request) => {
       console.log(`[META-CAMPAIGN] Sending template "${metaTemplate.name}" to ${formattedPhone}`);
 
       const META_API_URL = 'https://graph.facebook.com/v19.0';
-      const response = await fetch(`${META_API_URL}/${metaNumber.phone_number_id}/messages`, {
+      const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${(integration.credentials as any).access_token}`,
