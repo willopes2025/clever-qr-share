@@ -109,6 +109,9 @@ export const OpportunityBroadcastDialog = ({
   // For AI mode - we need instance selection before generating
   const [pendingAiInstanceConfig, setPendingAiInstanceConfig] = useState<{ instanceIds: string[]; sendingMode: string } | null>(null);
 
+  // Meta phone number selection
+  const [selectedMetaPhoneNumberId, setSelectedMetaPhoneNumberId] = useState('');
+
   const { data: tags } = useQuery({
     queryKey: ['tags', user?.id],
     queryFn: async () => {
