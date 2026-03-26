@@ -624,6 +624,12 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
           const val = deal.custom_fields?.[fieldKey];
           if (val === undefined || val === null) return <span className="text-muted-foreground">-</span>;
           if (typeof val === "boolean") return val ? "Sim" : "Não";
+          // Check if this is a date field and format accordingly
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
+            const formatted = formatCustomFieldDate(val);
+            if (formatted) return formatted;
+          }
           return String(val);
         }
         return "-";
