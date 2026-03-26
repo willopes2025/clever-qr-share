@@ -433,7 +433,7 @@ export const ImportContactsDialogV2 = ({
     }
 
     const contacts = contactsToImport.map((row) => {
-      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown> } = {
+      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
         phone: "",
         custom_fields: {},
       };
@@ -460,6 +460,15 @@ export const ImportContactsDialogV2 = ({
           case "contact_display_id":
             contact.contact_display_id = value;
             break;
+          case "deal_value": {
+            const cleaned = value.replace(/[R$\s.]/g, '').replace(',', '.');
+            const num = parseFloat(cleaned);
+            if (!isNaN(num)) contact.deal_value = num;
+            break;
+          }
+          case "deal_title":
+            contact.deal_title = value;
+            break;
           case "ignore":
             break;
           default:
@@ -480,13 +489,19 @@ export const ImportContactsDialogV2 = ({
       return contact;
     });
 
+    // Build funnel config if selected
+    const funnelConfig: FunnelConfig | undefined = selectedFunnelId
+      ? { funnel_id: selectedFunnelId, stage_id: selectedStageId || undefined }
+      : undefined;
+
     try {
       await onImport(
         contacts,
         selectedTagIds.length > 0 ? selectedTagIds : undefined,
         newFields.length > 0 ? newFields : undefined,
         deduplication.enabled ? deduplication : undefined,
-        phoneNormalization.mode !== 'none' ? phoneNormalization : undefined
+        phoneNormalization.mode !== 'none' ? phoneNormalization : undefined,
+        funnelConfig
       );
       
       // Reset state
@@ -498,6 +513,8 @@ export const ImportContactsDialogV2 = ({
       setColumnMappings({});
       setSelectedTagIds([]);
       setNewFields([]);
+      setSelectedFunnelId("");
+      setSelectedStageId("");
       setDeduplication({ enabled: true, field: 'phone', action: 'skip' });
       setPhoneNormalization({ mode: 'add_ddi', countryCode: '55' });
     } catch (error) {
