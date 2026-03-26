@@ -144,9 +144,11 @@ export const OpportunityBroadcastDialog = ({
       return;
     }
 
-    // Template mode - existing flow
+    // Template/Meta Template mode
     if (!templateId || !user?.id) return;
     setIsProcessing(true);
+
+    const isMetaMode = messageMode === 'meta_template';
 
     try {
       const { data: list, error: listError } = await supabase
@@ -175,7 +177,8 @@ export const OpportunityBroadcastDialog = ({
 
       const campaign = await createCampaign.mutateAsync({
         name: `Disparo Oportunidades - ${funnelName}`,
-        template_id: templateId,
+        template_id: isMetaMode ? null : templateId,
+        meta_template_id: isMetaMode ? templateId : null,
         list_id: list.id,
         scheduled_at: null,
         message_interval_min: intervalMin,
