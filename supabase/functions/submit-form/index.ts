@@ -534,7 +534,7 @@ Deno.serve(async (req: Request) => {
         // Check if there's already an open deal for this contact in this funnel
         const { data: existingDeal } = await supabase
           .from('funnel_deals')
-          .select('id')
+          .select('id, stage_id')
           .eq('contact_id', contactId)
           .eq('funnel_id', form.target_funnel_id)
           .is('closed_at', null)
@@ -578,6 +578,13 @@ Deno.serve(async (req: Request) => {
           const dealUpdateData: Record<string, any> = {};
           if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
           if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
+          
+          // Move deal to the form's target stage if it's different
+          if (existingDeal.stage_id !== stageId) {
+            dealUpdateData.stage_id = stageId;
+            dealUpdateData.entered_stage_at = new Date().toISOString();
+            console.log(`Moving deal ${existingDeal.id} from stage ${existingDeal.stage_id} to ${stageId}`);
+          }
           
           if (Object.keys(dealCustomFields).length > 0) {
             const { data: dealWithFields } = await supabase
