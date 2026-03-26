@@ -63,7 +63,35 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
   const [showBroadcast, setShowBroadcast] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [opportunityPrompt, setOpportunityPrompt] = useState(funnel.opportunity_prompt || "");
+  const [messageDays, setMessageDays] = useState(funnel.opportunity_message_days || 30);
+  const [savingConfig, setSavingConfig] = useState(false);
   const cacheRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setOpportunityPrompt(funnel.opportunity_prompt || "");
+    setMessageDays(funnel.opportunity_message_days || 30);
+  }, [funnel.id, funnel.opportunity_prompt, funnel.opportunity_message_days]);
+
+  const saveConfig = async () => {
+    setSavingConfig(true);
+    try {
+      const { error } = await supabase
+        .from("funnels")
+        .update({ 
+          opportunity_prompt: opportunityPrompt || null, 
+          opportunity_message_days: messageDays 
+        })
+        .eq("id", funnel.id);
+      if (error) throw error;
+      toast.success("Configurações salvas!");
+    } catch {
+      toast.error("Erro ao salvar configurações");
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   // Load persisted opportunities from DB on mount
   useEffect(() => {
