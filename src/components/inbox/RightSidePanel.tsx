@@ -49,6 +49,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
         conversation={conversation} 
         onClose={onClose}
         isMobile={isMobile}
+        dealTitle={activeDeal?.title}
       />
 
       <ScrollArea className="flex-1 min-w-0 overflow-hidden">

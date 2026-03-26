@@ -18,9 +18,10 @@ interface LeadPanelHeaderProps {
   conversation: Conversation;
   onClose?: () => void;
   isMobile?: boolean;
+  dealTitle?: string | null;
 }
 
-export const LeadPanelHeader = ({ conversation, onClose, isMobile }: LeadPanelHeaderProps) => {
+export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle }: LeadPanelHeaderProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState("");
   const queryClient = useQueryClient();
@@ -111,8 +112,12 @@ export const LeadPanelHeader = ({ conversation, onClose, isMobile }: LeadPanelHe
             </div>
           )}
           
-          {contactDisplayId && (
-            <ContactIdBadge displayId={contactDisplayId} className="mt-0.5" />
+          {dealTitle ? (
+            <span className="text-xs text-muted-foreground line-clamp-1">{dealTitle}</span>
+          ) : (
+            contactDisplayId && (
+              <ContactIdBadge displayId={contactDisplayId} className="mt-0.5" />
+            )
           )}
         </div>
 
