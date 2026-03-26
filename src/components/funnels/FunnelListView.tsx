@@ -410,7 +410,11 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       for (const [key, filterValue] of Object.entries(columnFilters)) {
         if (key.startsWith("custom_") && filterValue) {
           const fieldKey = key.replace("custom_", "");
-          const dealValue = deal.custom_fields?.[fieldKey];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          let dealValue = deal.custom_fields?.[fieldKey];
+          if ((dealValue === undefined || dealValue === null) && fieldDef?.entity_type === 'contact') {
+            dealValue = (deal.contact as any)?.custom_fields?.[fieldKey];
+          }
           if (dealValue === undefined || dealValue === null) return false;
           if (
             typeof dealValue === "string" &&
@@ -511,6 +515,9 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       if (deal.custom_fields) {
         Object.keys(deal.custom_fields).forEach((key) => dealCustomFieldKeys.add(key));
       }
+      if ((deal.contact as any)?.custom_fields) {
+        Object.keys((deal.contact as any).custom_fields).forEach((key) => dealCustomFieldKeys.add(key));
+      }
     });
 
     // Build complete headers
@@ -561,7 +568,11 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         deal.closed_at ? format(new Date(deal.closed_at), "dd/MM/yyyy HH:mm") : "",
         getCloseReasonName(deal.close_reason_id),
         ...Array.from(dealCustomFieldKeys).map((key) => {
-          const val = deal.custom_fields?.[key];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === key);
+          let val = deal.custom_fields?.[key];
+          if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+            val = (deal.contact as any)?.custom_fields?.[key];
+          }
           if (val === undefined || val === null) return "";
           if (typeof val === "boolean") return val ? "Sim" : "Não";
           return String(val).replace(/;/g, ",");
@@ -602,10 +613,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       default:
         if (columnId.startsWith("custom_")) {
           const fieldKey = columnId.replace("custom_", "");
-          const val = deal.custom_fields?.[fieldKey];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          // Check deal custom_fields first, then contact custom_fields
+          let val = deal.custom_fields?.[fieldKey];
+          if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+            val = (deal.contact as any)?.custom_fields?.[fieldKey];
+          }
           if (val === undefined || val === null) return "-";
           if (typeof val === "boolean") return val ? "Sim" : "Não";
-          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
           if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
             return formatCustomFieldDate(val) || String(val);
           }
@@ -663,11 +678,13 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       default:
         if (columnId.startsWith("custom_")) {
           const fieldKey = columnId.replace("custom_", "");
-          const val = deal.custom_fields?.[fieldKey];
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          let val = deal.custom_fields?.[fieldKey];
+          if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+            val = (deal.contact as any)?.custom_fields?.[fieldKey];
+          }
           if (val === undefined || val === null) return <span className="text-muted-foreground">-</span>;
           if (typeof val === "boolean") return val ? "Sim" : "Não";
-          // Check if this is a date field and format accordingly
-          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
           if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
             const formatted = formatCustomFieldDate(val);
             if (formatted) return formatted;
