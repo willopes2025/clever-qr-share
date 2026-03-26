@@ -100,7 +100,7 @@ export const useLoadMoreDeals = () => {
         .from('funnel_deals')
         .select(`
           *,
-          contact:contacts(id, name, phone, email),
+          contact:contacts(id, name, phone, email, custom_fields),
           close_reason:funnel_close_reasons(*)
         `)
         .eq('stage_id', stageId)
