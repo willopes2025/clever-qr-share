@@ -985,6 +985,8 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         visibleColumns={visibleColumns}
         columnOrder={columnOrder}
         onSave={handleColumnsConfigSave}
+        teamMembers={members}
+        isSaving={isSavingColumns}
       />
 
       <BulkEditDialog
