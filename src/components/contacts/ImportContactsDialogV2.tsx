@@ -513,6 +513,12 @@ export const ImportContactsDialogV2 = ({
         }
       });
 
+      // Remove empty additional_phones array
+      const additionalPhones = contact.custom_fields.additional_phones as Array<{ phone: string; label: string }>;
+      if (!additionalPhones || additionalPhones.length === 0) {
+        delete contact.custom_fields.additional_phones;
+      }
+
       return contact;
     });
 
