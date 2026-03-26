@@ -831,10 +831,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0"
+              className="h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 -ml-1"
               onClick={onBack}
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-6 w-6" />
             </Button>
           )}
           
