@@ -259,6 +259,26 @@
   }
 }
 
+/* Funnel list horizontal scroll - always visible scrollbar */
+.funnel-list-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+.funnel-list-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+}
+.funnel-list-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 5px;
+}
+.funnel-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+.funnel-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) hsl(var(--muted));
+}
+
   /* Gradient Neon Button - Primary action button */
   .bg-gradient-neon {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
