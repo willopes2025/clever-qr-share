@@ -316,11 +316,15 @@ export const OpportunityBroadcastDialog = ({
 
           <div className="space-y-6">
             {/* Mode Selection */}
-            <Tabs value={messageMode} onValueChange={(v) => setMessageMode(v as 'template' | 'ai')}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={messageMode} onValueChange={(v) => { setMessageMode(v as 'template' | 'meta_template' | 'ai'); setTemplateId(''); }}>
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="template" className="gap-2">
                   <Send className="h-4 w-4" />
                   Template
+                </TabsTrigger>
+                <TabsTrigger value="meta_template" className="gap-2">
+                  <Cloud className="h-4 w-4" />
+                  Template Meta
                 </TabsTrigger>
                 <TabsTrigger value="ai" className="gap-2">
                   <Sparkles className="h-4 w-4" />
@@ -348,6 +352,44 @@ export const OpportunityBroadcastDialog = ({
                 {selectedTemplate && (
                   <div className="p-3 bg-muted rounded-lg text-sm">
                     <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Meta Template Mode */}
+            {messageMode === 'meta_template' && (
+              <div className="space-y-2">
+                <Label>Template Meta (Aprovado) *</Label>
+                <Select value={templateId} onValueChange={setTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um template Meta aprovado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedMetaTemplates.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Nenhum template Meta aprovado encontrado
+                      </div>
+                    ) : (
+                      approvedMetaTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{template.name}</span>
+                            <span className="text-xs text-muted-foreground">({template.language})</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedMetaTemplate && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium">{selectedMetaTemplate.category}</span>
+                      <span>•</span>
+                      <span>{selectedMetaTemplate.language}</span>
+                    </div>
+                    <p className="text-muted-foreground line-clamp-3">{selectedMetaTemplate.body_text}</p>
                   </div>
                 )}
               </div>
