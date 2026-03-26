@@ -106,7 +106,10 @@ type ImportStep = "upload" | "mapping" | "deduplication" | "tags";
 
 const STANDARD_FIELDS = [
   { value: "ignore", label: "Ignorar coluna", icon: "🚫" },
-  { value: "phone", label: "Telefone", icon: "📱" },
+  { value: "phone", label: "Telefone (Principal)", icon: "📱" },
+  { value: "phone_comercial", label: "Telefone Comercial", icon: "📞" },
+  { value: "phone_pessoal", label: "Telefone Pessoal", icon: "🏠" },
+  { value: "phone_celular", label: "Celular", icon: "📲" },
   { value: "name", label: "Nome", icon: "👤" },
   { value: "email", label: "E-mail", icon: "✉️" },
   { value: "notes", label: "Notas", icon: "📝" },
