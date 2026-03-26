@@ -534,7 +534,7 @@ Deno.serve(async (req: Request) => {
         // Check if there's already an open deal for this contact in this funnel
         const { data: existingDeal } = await supabase
           .from('funnel_deals')
-          .select('id')
+          .select('id, stage_id')
           .eq('contact_id', contactId)
           .eq('funnel_id', form.target_funnel_id)
           .is('closed_at', null)
