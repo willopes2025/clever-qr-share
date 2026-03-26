@@ -248,12 +248,14 @@ export const useContacts = () => {
       newFields = [],
       deduplication,
       phoneNormalization,
+      funnelConfig,
     }: {
-      contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[];
+      contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[];
       tagIds?: string[];
       newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean; entity_type?: 'contact' | 'lead' }[];
       deduplication?: { enabled: boolean; field: string; action: 'skip' | 'update' };
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
+      funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
       const BATCH_SIZE = 20;
       
