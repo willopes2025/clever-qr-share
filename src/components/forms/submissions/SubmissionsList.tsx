@@ -25,6 +25,35 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
   const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
 
+  // Resolve option values (e.g. "option1") to their display labels
+  const resolveDisplayValue = (field: FormField, rawValue: any): string => {
+    if (rawValue === undefined || rawValue === null) return '-';
+    
+    const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
+    if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
+      const optionMap = new Map(field.options.map(o => [o.value, o.label]));
+      
+      if (Array.isArray(rawValue)) {
+        return rawValue.map(v => optionMap.get(v) || v).join(', ');
+      }
+      if (typeof rawValue === 'string') {
+        // Try parsing as JSON array
+        if (rawValue.startsWith('[')) {
+          try {
+            const arr = JSON.parse(rawValue);
+            if (Array.isArray(arr)) {
+              return arr.map((v: string) => optionMap.get(v) || v).join(', ');
+            }
+          } catch {}
+        }
+        return optionMap.get(rawValue) || rawValue;
+      }
+    }
+    
+    if (typeof rawValue === 'object') return JSON.stringify(rawValue);
+    return String(rawValue);
+  };
+
   // Build column options for filtering
   const columnOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
@@ -46,8 +75,9 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       } else if (filterColumn === "contact") {
         val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
       } else {
+        const field = visibleFields.find(f => f.id === filterColumn);
         const raw = sub.data[filterColumn] ?? "";
-        val = typeof raw === "object" ? JSON.stringify(raw) : String(raw);
+        val = field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
       }
       if (val && val !== "-") vals.add(val);
     });
@@ -65,8 +95,9 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       } else if (filterColumn === "contact") {
         val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
       } else {
+        const field = visibleFields.find(f => f.id === filterColumn);
         const raw = sub.data[filterColumn] ?? "";
-        val = typeof raw === "object" ? JSON.stringify(raw) : String(raw);
+        val = field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
       }
       return val.toLowerCase().includes(filterValue.toLowerCase());
     });
@@ -79,7 +110,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       const contactName = sub.contacts?.name || sub.contacts?.phone || 'Anônimo';
       const fieldValues = visibleFields.map(f => {
         const value = sub.data[f.id] ?? sub.data[f.label] ?? '';
-        return typeof value === 'object' ? JSON.stringify(value) : String(value);
+        return resolveDisplayValue(f, value);
       });
       return [
         format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm'),
@@ -216,10 +247,10 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                     )}
                   </TableCell>
                   {visibleFields.map((field) => {
-                    const value = submission.data[field.id] ?? submission.data[field.label] ?? '-';
+                    const rawValue = submission.data[field.id] ?? submission.data[field.label] ?? '-';
                     return (
                       <TableCell key={field.id} className="text-sm max-w-[200px] truncate">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        {resolveDisplayValue(field, rawValue)}
                       </TableCell>
                     );
                   })}
