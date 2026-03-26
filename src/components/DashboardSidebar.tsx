@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,7 @@ const navGroups: NavGroup[] = [
       { icon: FileEdit, label: "Formulários", path: "/forms", permission: "view_forms" },
       { icon: Bot, label: "Chatbots", path: "/chatbots", permission: "view_chatbots" },
       { icon: Sparkles, label: "Agentes IA", path: "/ai-agents", permission: "view_ai_agents" },
+      { icon: Webhook, label: "Webhooks", path: "/webhooks", permission: "manage_settings" },
     ],
   },
   {
