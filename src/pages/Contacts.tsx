@@ -828,8 +828,8 @@ const Contacts = () => {
       <ImportContactsDialogV2
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
-        onImport={async (contacts, tagIds, newFields, deduplication, phoneNormalization) => {
-          await importContacts.mutateAsync({ contacts, tagIds, newFields, deduplication, phoneNormalization });
+        onImport={async (contacts, tagIds, newFields, deduplication, phoneNormalization, funnelConfig) => {
+          await importContacts.mutateAsync({ contacts, tagIds, newFields, deduplication, phoneNormalization, funnelConfig });
           setShowImportDialog(false);
         }}
         isLoading={importContacts.isPending}
@@ -837,6 +837,11 @@ const Contacts = () => {
         existingFields={fieldDefinitions}
         currentContactCount={contacts.length}
         maxContacts={subscription?.max_contacts ?? null}
+        funnels={(funnels || []).map(f => ({
+          id: f.id,
+          name: f.name,
+          stages: (f.stages || []).map((s: any) => ({ id: s.id, name: s.name, order_index: s.display_order || s.order_index || 0 })),
+        }))}
       />
 
       <TagManager

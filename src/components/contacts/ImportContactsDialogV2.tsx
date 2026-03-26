@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { CreateFieldInlineDialog, NewFieldConfig, FieldType, EntityType } from "./CreateFieldInlineDialog";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
+import { DollarSign, Target } from "lucide-react";
 
 export interface TagOption {
   id: string;
@@ -63,21 +64,34 @@ export interface ImportStats {
   invalid: number;
 }
 
+export interface FunnelConfig {
+  funnel_id: string;
+  stage_id?: string;
+}
+
+export interface FunnelOption {
+  id: string;
+  name: string;
+  stages: { id: string; name: string; order_index: number }[];
+}
+
 interface ImportContactsDialogV2Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown> }[],
+    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[],
     tagIds?: string[],
     newFields?: NewFieldConfig[],
     deduplication?: DeduplicationConfig,
-    phoneNormalization?: PhoneNormalizationConfig
+    phoneNormalization?: PhoneNormalizationConfig,
+    funnelConfig?: FunnelConfig
   ) => Promise<ImportStats | void>;
   isLoading?: boolean;
   tags?: TagOption[];
   existingFields?: CustomFieldDefinition[];
   currentContactCount?: number;
   maxContacts?: number | null;
+  funnels?: FunnelOption[];
 }
 
 interface ColumnMapping {
@@ -97,6 +111,8 @@ const STANDARD_FIELDS = [
   { value: "email", label: "E-mail", icon: "✉️" },
   { value: "notes", label: "Notas", icon: "📝" },
   { value: "contact_display_id", label: "ID Externo", icon: "🔗" },
+  { value: "deal_value", label: "Valor da Venda", icon: "💰" },
+  { value: "deal_title", label: "Título do Lead", icon: "🏷️" },
 ];
 
 // Field type labels for display
@@ -124,6 +140,7 @@ export const ImportContactsDialogV2 = ({
   existingFields = [],
   currentContactCount = 0,
   maxContacts = null,
+  funnels = [],
 }: ImportContactsDialogV2Props) => {
   const [step, setStep] = useState<ImportStep>("upload");
   const [fileName, setFileName] = useState("");
@@ -150,6 +167,14 @@ export const ImportContactsDialogV2 = ({
   // Create field dialog state
   const [showCreateField, setShowCreateField] = useState(false);
   const [creatingForColumn, setCreatingForColumn] = useState<string>("");
+
+  // Funnel selection state
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
+  const [selectedStageId, setSelectedStageId] = useState<string>("");
+
+  const selectedFunnel = funnels.find(f => f.id === selectedFunnelId);
+  const hasDealValueMapping = Object.values(columnMappings).some(m => m.targetField === 'deal_value');
+  const hasDealTitleMapping = Object.values(columnMappings).some(m => m.targetField === 'deal_title');
 
   const toggleTag = (tagId: string) => {
     setSelectedTagIds((prev) =>
@@ -408,7 +433,7 @@ export const ImportContactsDialogV2 = ({
     }
 
     const contacts = contactsToImport.map((row) => {
-      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown> } = {
+      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
         phone: "",
         custom_fields: {},
       };
@@ -435,6 +460,15 @@ export const ImportContactsDialogV2 = ({
           case "contact_display_id":
             contact.contact_display_id = value;
             break;
+          case "deal_value": {
+            const cleaned = value.replace(/[R$\s.]/g, '').replace(',', '.');
+            const num = parseFloat(cleaned);
+            if (!isNaN(num)) contact.deal_value = num;
+            break;
+          }
+          case "deal_title":
+            contact.deal_title = value;
+            break;
           case "ignore":
             break;
           default:
@@ -455,13 +489,19 @@ export const ImportContactsDialogV2 = ({
       return contact;
     });
 
+    // Build funnel config if selected
+    const funnelConfig: FunnelConfig | undefined = selectedFunnelId
+      ? { funnel_id: selectedFunnelId, stage_id: selectedStageId || undefined }
+      : undefined;
+
     try {
       await onImport(
         contacts,
         selectedTagIds.length > 0 ? selectedTagIds : undefined,
         newFields.length > 0 ? newFields : undefined,
         deduplication.enabled ? deduplication : undefined,
-        phoneNormalization.mode !== 'none' ? phoneNormalization : undefined
+        phoneNormalization.mode !== 'none' ? phoneNormalization : undefined,
+        funnelConfig
       );
       
       // Reset state
@@ -473,6 +513,8 @@ export const ImportContactsDialogV2 = ({
       setColumnMappings({});
       setSelectedTagIds([]);
       setNewFields([]);
+      setSelectedFunnelId("");
+      setSelectedStageId("");
       setDeduplication({ enabled: true, field: 'phone', action: 'skip' });
       setPhoneNormalization({ mode: 'add_ddi', countryCode: '55' });
     } catch (error) {
@@ -974,6 +1016,95 @@ export const ImportContactsDialogV2 = ({
               </Badge>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Funnel selection - show when deal_value or deal_title is mapped */}
+      {(hasDealValueMapping || hasDealTitleMapping) && funnels.length > 0 && (
+        <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Direcionar para Funil (obrigatório para Valor da Venda)
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Selecione o funil e etapa onde os deals serão criados com o valor mapeado
+          </p>
+          <Select value={selectedFunnelId} onValueChange={(v) => { setSelectedFunnelId(v); setSelectedStageId(""); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o funil" />
+            </SelectTrigger>
+            <SelectContent>
+              {funnels.map(f => (
+                <SelectItem key={f.id} value={f.id}>
+                  <span className="mr-2">🎯</span>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedFunnel && selectedFunnel.stages.length > 0 && (
+            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Etapa inicial (opcional - usa a primeira)" />
+              </SelectTrigger>
+              <SelectContent>
+                {selectedFunnel.stages
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {hasDealValueMapping && !selectedFunnelId && (
+            <p className="text-xs text-destructive font-medium">
+              ⚠️ Selecione um funil para que o valor da venda seja aplicado aos deals
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Funnel selection for users who want to direct to funnel even without value mapping */}
+      {!hasDealValueMapping && !hasDealTitleMapping && funnels.length > 0 && (
+        <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Direcionar para Funil (opcional)
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Cria automaticamente deals para os contatos importados
+          </p>
+          <Select value={selectedFunnelId} onValueChange={(v) => { setSelectedFunnelId(v); setSelectedStageId(""); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Nenhum funil selecionado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nenhum</SelectItem>
+              {funnels.map(f => (
+                <SelectItem key={f.id} value={f.id}>
+                  <span className="mr-2">🎯</span>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedFunnel && selectedFunnel.stages.length > 0 && (
+            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Etapa inicial (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {selectedFunnel.stages
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
