@@ -940,8 +940,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
             </TableBody>
           </Table>
             </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          </div>
         </div>
 
       {/* Load More Button */}
