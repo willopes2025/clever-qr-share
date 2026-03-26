@@ -761,6 +761,199 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ===== META TEMPLATE SENDING =====
+    if (campaign.meta_template_id) {
+      // Fetch the meta template
+      const { data: metaTemplate } = await supabase
+        .from('meta_templates')
+        .select('name, language, header_type, header_content, body_text, body_examples, buttons')
+        .eq('id', campaign.meta_template_id)
+        .single();
+
+      if (!metaTemplate) {
+        throw new Error('Meta template not found');
+      }
+
+      // Get Meta integration credentials for this user
+      const { data: integration } = await supabase
+        .from('integrations')
+        .select('credentials')
+        .eq('user_id', campaign.user_id)
+        .eq('service_name', 'meta_whatsapp')
+        .eq('is_active', true)
+        .single();
+
+      if (!integration?.credentials?.access_token) {
+        throw new Error('Meta WhatsApp integration not configured or no access token');
+      }
+
+      // Get the phone number ID from meta_whatsapp_numbers
+      const { data: metaNumber } = await supabase
+        .from('meta_whatsapp_numbers')
+        .select('phone_number_id')
+        .eq('user_id', campaign.user_id)
+        .eq('status', 'connected')
+        .limit(1)
+        .single();
+
+      if (!metaNumber?.phone_number_id) {
+        throw new Error('No connected Meta WhatsApp number found');
+      }
+
+      // Build template components
+      const components: any[] = [];
+      
+      if (metaTemplate.header_type && metaTemplate.header_type !== 'NONE' && metaTemplate.header_type !== 'TEXT') {
+        if (metaTemplate.header_content) {
+          const mediaTypeMap: Record<string, string> = { IMAGE: 'image', VIDEO: 'video', DOCUMENT: 'document' };
+          const mediaType = mediaTypeMap[metaTemplate.header_type];
+          if (mediaType) {
+            components.push({
+              type: 'header',
+              parameters: [{ type: mediaType, [mediaType]: { link: metaTemplate.header_content } }],
+            });
+          }
+        }
+      }
+
+      // Auto-substitute body variables: {{1}} = contact name, {{2}} = phone
+      const bodyVarCount = (metaTemplate.body_text.match(/\{\{\d+\}\}/g) || []).length;
+      if (bodyVarCount > 0) {
+        const bodyParams: any[] = [];
+        for (let i = 0; i < bodyVarCount; i++) {
+          if (i === 0) bodyParams.push({ type: 'text', text: message.contact_name || 'Cliente' });
+          else if (i === 1) bodyParams.push({ type: 'text', text: message.phone });
+          else bodyParams.push({ type: 'text', text: '' });
+        }
+        components.push({ type: 'body', parameters: bodyParams });
+      }
+
+      const messagePayload: any = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: formattedPhone,
+        type: 'template',
+        template: {
+          name: metaTemplate.name,
+          language: { code: metaTemplate.language || 'pt_BR' },
+        },
+      };
+
+      if (components.length > 0) {
+        messagePayload.template.components = components;
+      }
+
+      console.log(`[META-CAMPAIGN] Sending template "${metaTemplate.name}" to ${formattedPhone}`);
+
+      const META_API_URL = 'https://graph.facebook.com/v19.0';
+      const response = await fetch(`${META_API_URL}/${metaNumber.phone_number_id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(integration.credentials as any).access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messagePayload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error(`[META-CAMPAIGN] Failed to send to ${formattedPhone}:`, result);
+        
+        await supabase.from('campaign_messages').update({
+          status: 'failed',
+          error_message: result?.error?.message || 'Meta API error',
+        }).eq('id', message.id);
+
+        await supabase.from('campaigns').update({
+          failed: (campaign.failed || 0) + 1,
+        }).eq('id', campaignId);
+
+        return;
+      }
+
+      console.log(`[META-CAMPAIGN] Template sent successfully to ${formattedPhone}`);
+
+      // Persist in conversations
+      let conversationId: string | null = null;
+      try {
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', message.contact_id)
+          .eq('user_id', campaign.user_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingConv) {
+          conversationId = existingConv.id;
+        } else {
+          const { data: newConv } = await supabase
+            .from('conversations')
+            .insert({
+              contact_id: message.contact_id,
+              user_id: campaign.user_id,
+              status: 'open',
+              campaign_id: campaignId,
+              provider: 'meta',
+            })
+            .select('id')
+            .single();
+          if (newConv) conversationId = newConv.id;
+        }
+
+        if (conversationId) {
+          const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.body_text || ''}`;
+          await supabase.from('inbox_messages').insert({
+            conversation_id: conversationId,
+            user_id: campaign.user_id,
+            direction: 'outbound',
+            content: displayContent,
+            message_type: 'text',
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            whatsapp_message_id: result?.messages?.[0]?.id || null,
+          });
+
+          await supabase.from('conversations').update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: `[Template: ${metaTemplate.name}]`,
+            last_message_direction: 'outbound',
+          }).eq('id', conversationId);
+        }
+      } catch (convError) {
+        console.error(`Error persisting Meta conversation for ${formattedPhone}:`, convError);
+      }
+
+      // Update message as sent
+      await supabase.from('campaign_messages').update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      }).eq('id', message.id);
+
+      // Increment campaign sent counter
+      await supabase.from('campaigns').update({
+        sent: (campaign.sent || 0) + 1,
+        delivered: (campaign.delivered || 0) + 1,
+      }).eq('id', campaignId);
+
+      // Apply tag on delivery if configured
+      if (campaign.tag_on_delivery_id && message.contact_id) {
+        try {
+          await supabase.from('contact_tags').upsert(
+            { contact_id: message.contact_id, tag_id: campaign.tag_on_delivery_id },
+            { onConflict: 'contact_id,tag_id' }
+          );
+        } catch (tagError) {
+          console.error(`Error applying tag for ${formattedPhone}:`, tagError);
+        }
+      }
+
+      // Continue to next message (skip the Evolution API block below)
+    } else {
+    // ===== EVOLUTION API SENDING =====
+
     // Encode instance name for URL
     const encodedInstanceName = encodeURIComponent(selectedInstance.instance_name);
 
