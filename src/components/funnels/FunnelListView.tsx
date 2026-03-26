@@ -567,6 +567,10 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
           const val = deal.custom_fields?.[fieldKey];
           if (val === undefined || val === null) return "-";
           if (typeof val === "boolean") return val ? "Sim" : "Não";
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
+            return formatCustomFieldDate(val) || String(val);
+          }
           return String(val);
         }
         return "-";
