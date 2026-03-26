@@ -511,6 +511,9 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       if (deal.custom_fields) {
         Object.keys(deal.custom_fields).forEach((key) => dealCustomFieldKeys.add(key));
       }
+      if ((deal.contact as any)?.custom_fields) {
+        Object.keys((deal.contact as any).custom_fields).forEach((key) => dealCustomFieldKeys.add(key));
+      }
     });
 
     // Build complete headers
