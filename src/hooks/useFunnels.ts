@@ -55,6 +55,7 @@ export interface FunnelDeal {
     name: string | null;
     phone: string;
     email: string | null;
+    custom_fields?: Record<string, unknown>;
   };
   close_reason?: CloseReason | null;
 }
