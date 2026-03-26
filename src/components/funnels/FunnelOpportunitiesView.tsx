@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send } from "lucide-react";
+import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import {
   Table,
