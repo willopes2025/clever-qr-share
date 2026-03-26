@@ -472,6 +472,24 @@ export const ImportContactsDialogV2 = ({
           case "deal_title":
             contact.deal_title = value;
             break;
+          case "phone_comercial":
+          case "phone_pessoal":
+          case "phone_celular": {
+            const cleanedPhone = value.replace(/\D/g, "");
+            if (cleanedPhone && cleanedPhone.length >= 10) {
+              const normalized = cleanedPhone.startsWith('55') ? cleanedPhone : '55' + cleanedPhone;
+              const labelMap: Record<string, string> = {
+                phone_comercial: "Comercial",
+                phone_pessoal: "Pessoal",
+                phone_celular: "Celular",
+              };
+              (contact.custom_fields.additional_phones as Array<{ phone: string; label: string }>).push({
+                phone: normalized,
+                label: labelMap[mapping.targetField],
+              });
+            }
+            break;
+          }
           case "ignore":
             break;
           default:
