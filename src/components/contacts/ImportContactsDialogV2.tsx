@@ -80,7 +80,7 @@ interface ImportContactsDialogV2Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[],
+    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; lead_custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[],
     tagIds?: string[],
     newFields?: NewFieldConfig[],
     deduplication?: DeduplicationConfig,
