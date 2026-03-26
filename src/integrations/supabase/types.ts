@@ -5526,6 +5526,95 @@ export type Database = {
           },
         ]
       }
+      webhook_connections: {
+        Row: {
+          created_at: string | null
+          direction: string
+          id: string
+          is_active: boolean | null
+          last_received_at: string | null
+          last_sent_at: string | null
+          name: string
+          target_url: string | null
+          updated_at: string | null
+          user_id: string
+          webhook_token: string
+        }
+        Insert: {
+          created_at?: string | null
+          direction?: string
+          id?: string
+          is_active?: boolean | null
+          last_received_at?: string | null
+          last_sent_at?: string | null
+          name: string
+          target_url?: string | null
+          updated_at?: string | null
+          user_id: string
+          webhook_token?: string
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string
+          id?: string
+          is_active?: boolean | null
+          last_received_at?: string | null
+          last_sent_at?: string | null
+          name?: string
+          target_url?: string | null
+          updated_at?: string | null
+          user_id?: string
+          webhook_token?: string
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          action: string | null
+          connection_id: string | null
+          created_at: string | null
+          direction: string
+          error_message: string | null
+          id: string
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          action?: string | null
+          connection_id?: string | null
+          created_at?: string | null
+          direction: string
+          error_message?: string | null
+          id?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string | null
+          connection_id?: string | null
+          created_at?: string | null
+          direction?: string
+          error_message?: string | null
+          id?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_logs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_instances: {
         Row: {
           chip_device: string | null
