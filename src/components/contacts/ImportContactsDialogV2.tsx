@@ -140,6 +140,7 @@ export const ImportContactsDialogV2 = ({
   existingFields = [],
   currentContactCount = 0,
   maxContacts = null,
+  funnels = [],
 }: ImportContactsDialogV2Props) => {
   const [step, setStep] = useState<ImportStep>("upload");
   const [fileName, setFileName] = useState("");
