@@ -48,7 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+
 import { Funnel, FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { useStageDealCounts, useLoadMoreDeals } from "@/hooks/useFunnelDeals";
 import { useCustomFields } from "@/hooks/useCustomFields";
