@@ -125,6 +125,10 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const customPrompt = funnel.opportunity_prompt 
+      ? `\n\nINSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${funnel.opportunity_prompt}` 
+      : '';
+
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -142,12 +146,13 @@ Para cada deal, avalie:
 - Engajamento do cliente (frequência e qualidade das respostas)
 - Estágio no funil e tempo em aberto
 - Valor do deal
+${customPrompt}
 
 Retorne APENAS o JSON usando a tool fornecida.`,
           },
           {
             role: "user",
-            content: `Analise estes ${dealsContext.length} deals e ranqueie por probabilidade de fechamento:\n\n${JSON.stringify(dealsContext, null, 2)}`,
+            content: `Analise estes ${dealsContext.length} deals e ranqueie por probabilidade de fechamento (considerando mensagens dos últimos ${messageDaysLimit} dias):\n\n${JSON.stringify(dealsContext, null, 2)}`,
           },
         ],
         tools: [
