@@ -31,7 +31,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { BulkEditFieldDialog } from "./BulkEditFieldDialog";
 import {
   Popover,
   PopoverContent,
