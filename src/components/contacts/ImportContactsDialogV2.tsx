@@ -602,12 +602,12 @@ export const ImportContactsDialogV2 = ({
           <p className="mb-1 text-sm text-muted-foreground">
             <span className="font-semibold">Clique para enviar</span> ou arraste
           </p>
-          <p className="text-xs text-muted-foreground">CSV ou TXT</p>
+          <p className="text-xs text-muted-foreground">CSV, TXT, XLSX ou XLS</p>
         </div>
         <input
           type="file"
           className="hidden"
-          accept=".csv,.txt"
+          accept=".csv,.txt,.xlsx,.xls"
           onChange={handleFileChange}
         />
       </label>
