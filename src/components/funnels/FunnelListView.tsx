@@ -138,6 +138,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
+  const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Drag-to-scroll state
