@@ -153,6 +153,33 @@ export const DataSettings = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <ArrowLeftRight className="h-5 w-5" />
+            Transferir Dados entre Campos
+          </CardTitle>
+          <CardDescription>
+            Copie ou mova valores de um campo personalizado para outro
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div>
+              <p className="font-medium">Transferência de dados</p>
+              <p className="text-sm text-muted-foreground">
+                Mova dados entre campos de contato e lead
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setTransferOpen(true)}>
+              <ArrowLeftRight className="h-4 w-4 mr-2" />
+              Transferir
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <TransferFieldDataDialog open={transferOpen} onOpenChange={setTransferOpen} />
+
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
             Armazenamento
           </CardTitle>
