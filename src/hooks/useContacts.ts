@@ -567,6 +567,69 @@ export const useContacts = () => {
         }
       }
 
+      // Create deals in funnel if configured
+      if (funnelConfig?.funnel_id && allContactIds.length > 0) {
+        await ensureSession();
+
+        // Determine target stage
+        let targetStageId = funnelConfig.stage_id;
+        if (!targetStageId) {
+          const { data: firstStage } = await supabase
+            .from("funnel_stages")
+            .select("id")
+            .eq("funnel_id", funnelConfig.funnel_id)
+            .order("order_index", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          targetStageId = firstStage?.id;
+        }
+
+        if (targetStageId) {
+          // Build a phone→deal data map from original contacts
+          const phoneToContactId = new Map<string, string>();
+          
+          // Map phones to contact IDs - we need to fetch by phone
+          const contactPhones = normalizedContacts.map(c => c.phone);
+          const { data: contactsWithIds } = await supabase
+            .from("contacts")
+            .select("id, phone")
+            .eq("user_id", user.id)
+            .in("phone", contactPhones);
+
+          const phoneToId = new Map<string, string>();
+          contactsWithIds?.forEach(c => phoneToId.set(c.phone, c.id));
+
+          // Build deal inserts
+          const dealInserts = contacts
+            .filter(c => {
+              const cId = phoneToId.get(c.phone.replace(/\D/g, ''));
+              return cId && allContactIds.includes(cId);
+            })
+            .map(c => {
+              const contactId = phoneToId.get(c.phone.replace(/\D/g, ''))!;
+              return {
+                funnel_id: funnelConfig.funnel_id,
+                stage_id: targetStageId!,
+                contact_id: contactId,
+                user_id: user.id,
+                title: c.deal_title || c.name || c.phone,
+                value: c.deal_value || 0,
+              };
+            });
+
+          // Insert deals in batches
+          const dealBatches: typeof dealInserts[] = [];
+          for (let i = 0; i < dealInserts.length; i += BATCH_SIZE) {
+            dealBatches.push(dealInserts.slice(i, i + BATCH_SIZE));
+          }
+
+          for (const batch of dealBatches) {
+            await ensureSession();
+            await supabase.from("funnel_deals").insert(batch);
+          }
+        }
+      }
+
       return {
         total: contacts.length,
         new: insertedData.length,
