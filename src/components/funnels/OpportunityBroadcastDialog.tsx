@@ -9,8 +9,9 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles } from 'lucide-react';
+import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud } from 'lucide-react';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
+import { useMetaTemplates } from '@/hooks/useMetaTemplates';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
 import { useCampaignMutations, type SendingMode as CampaignSendingMode } from '@/hooks/useCampaigns';
@@ -51,12 +52,13 @@ export const OpportunityBroadcastDialog = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { templates } = useMessageTemplates();
+  const { templates: metaTemplates } = useMetaTemplates();
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
 
   // Message mode
-  const [messageMode, setMessageMode] = useState<'template' | 'ai'>('template');
+  const [messageMode, setMessageMode] = useState<'template' | 'meta_template' | 'ai'>('template');
 
   // Template mode state
   const [templateId, setTemplateId] = useState('');
@@ -114,6 +116,8 @@ export const OpportunityBroadcastDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
+  const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
+  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
 
   const toggleDay = (day: string) => {
     setAllowedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
@@ -131,7 +135,7 @@ export const OpportunityBroadcastDialog = ({
     }
   };
 
-  const isSubmitDisabled = messageMode === 'template' ? !templateId : !aiPrompt.trim();
+  const isSubmitDisabled = (messageMode === 'template' || messageMode === 'meta_template') ? !templateId : !aiPrompt.trim();
 
   const handleSubmit = async () => {
     if (messageMode === 'ai') {
@@ -140,9 +144,11 @@ export const OpportunityBroadcastDialog = ({
       return;
     }
 
-    // Template mode - existing flow
+    // Template/Meta Template mode
     if (!templateId || !user?.id) return;
     setIsProcessing(true);
+
+    const isMetaMode = messageMode === 'meta_template';
 
     try {
       const { data: list, error: listError } = await supabase
@@ -171,7 +177,8 @@ export const OpportunityBroadcastDialog = ({
 
       const campaign = await createCampaign.mutateAsync({
         name: `Disparo Oportunidades - ${funnelName}`,
-        template_id: templateId,
+        template_id: isMetaMode ? null : templateId,
+        meta_template_id: isMetaMode ? templateId : null,
         list_id: list.id,
         scheduled_at: null,
         message_interval_min: intervalMin,
@@ -312,11 +319,15 @@ export const OpportunityBroadcastDialog = ({
 
           <div className="space-y-6">
             {/* Mode Selection */}
-            <Tabs value={messageMode} onValueChange={(v) => setMessageMode(v as 'template' | 'ai')}>
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs value={messageMode} onValueChange={(v) => { setMessageMode(v as 'template' | 'meta_template' | 'ai'); setTemplateId(''); }}>
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="template" className="gap-2">
                   <Send className="h-4 w-4" />
                   Template
+                </TabsTrigger>
+                <TabsTrigger value="meta_template" className="gap-2">
+                  <Cloud className="h-4 w-4" />
+                  Template Meta
                 </TabsTrigger>
                 <TabsTrigger value="ai" className="gap-2">
                   <Sparkles className="h-4 w-4" />
@@ -344,6 +355,44 @@ export const OpportunityBroadcastDialog = ({
                 {selectedTemplate && (
                   <div className="p-3 bg-muted rounded-lg text-sm">
                     <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Meta Template Mode */}
+            {messageMode === 'meta_template' && (
+              <div className="space-y-2">
+                <Label>Template Meta (Aprovado) *</Label>
+                <Select value={templateId} onValueChange={setTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um template Meta aprovado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedMetaTemplates.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Nenhum template Meta aprovado encontrado
+                      </div>
+                    ) : (
+                      approvedMetaTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{template.name}</span>
+                            <span className="text-xs text-muted-foreground">({template.language})</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedMetaTemplate && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium">{selectedMetaTemplate.category}</span>
+                      <span>•</span>
+                      <span>{selectedMetaTemplate.language}</span>
+                    </div>
+                    <p className="text-muted-foreground line-clamp-3">{selectedMetaTemplate.body_text}</p>
                   </div>
                 )}
               </div>
