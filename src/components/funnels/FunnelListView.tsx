@@ -70,6 +70,44 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
+/**
+ * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
+ * Also handles ISO date strings and other common date formats.
+ */
+function formatCustomFieldDate(val: any): string | null {
+  if (val === undefined || val === null || val === '') return null;
+
+  // If it's a number, treat as Excel serial date
+  if (typeof val === 'number' || (typeof val === 'string' && /^\d{4,5}(\.\d+)?$/.test(val.trim()))) {
+    const serial = typeof val === 'number' ? val : parseFloat(val);
+    if (serial > 25000 && serial < 100000) {
+      // Excel serial: days since 1899-12-30
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + serial * 86400000);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  // If it's a string that looks like a date (ISO or dd/MM/yyyy)
+  if (typeof val === 'string') {
+    // Already formatted
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
+    // ISO format
+    const parsed = new Date(val);
+    if (!isNaN(parsed.getTime())) {
+      const day = parsed.getDate().toString().padStart(2, '0');
+      const month = (parsed.getMonth() + 1).toString().padStart(2, '0');
+      const year = parsed.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  return null;
+}
+
 interface FunnelListViewProps {
   funnel: Funnel;
 }
