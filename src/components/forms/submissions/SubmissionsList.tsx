@@ -245,10 +245,10 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                     )}
                   </TableCell>
                   {visibleFields.map((field) => {
-                    const value = submission.data[field.id] ?? submission.data[field.label] ?? '-';
+                    const rawValue = submission.data[field.id] ?? submission.data[field.label] ?? '-';
                     return (
                       <TableCell key={field.id} className="text-sm max-w-[200px] truncate">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        {resolveDisplayValue(field, rawValue)}
                       </TableCell>
                     );
                   })}
