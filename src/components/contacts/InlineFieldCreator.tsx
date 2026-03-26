@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { FieldType } from "@/hooks/useCustomFields";
 import { X } from "lucide-react";
+import { inferFieldType } from "@/utils/inferFieldType";
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: "text", label: "Texto" },
