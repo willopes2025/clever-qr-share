@@ -250,7 +250,7 @@ export const useContacts = () => {
       phoneNormalization,
       funnelConfig,
     }: {
-      contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[];
+      contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; lead_custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[];
       tagIds?: string[];
       newFields?: { field_name: string; field_key: string; field_type: string; options?: string[]; is_required?: boolean; entity_type?: 'contact' | 'lead' }[];
       deduplication?: { enabled: boolean; field: string; action: 'skip' | 'update' };
@@ -624,6 +624,9 @@ export const useContacts = () => {
             })
             .map(c => {
               const contactId = phoneToId.get(c.phone.replace(/\D/g, ''))!;
+              const leadCf = c.lead_custom_fields && Object.keys(c.lead_custom_fields).length > 0
+                ? (c.lead_custom_fields as Json)
+                : undefined;
               return {
                 funnel_id: funnelConfig.funnel_id,
                 stage_id: targetStageId!,
@@ -631,6 +634,7 @@ export const useContacts = () => {
                 user_id: user.id,
                 title: c.deal_title || c.name || c.phone,
                 value: c.deal_value || 0,
+                ...(leadCf ? { custom_fields: leadCf } : {}),
               };
             });
 

@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogContent,
@@ -79,7 +80,7 @@ interface ImportContactsDialogV2Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (
-    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[],
+    contacts: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields?: Record<string, unknown>; lead_custom_fields?: Record<string, unknown>; deal_value?: number; deal_title?: string }[],
     tagIds?: string[],
     newFields?: NewFieldConfig[],
     deduplication?: DeduplicationConfig,
@@ -276,13 +277,36 @@ export const ImportContactsDialogV2 = ({
     return mappings;
   }, [existingFields]);
 
+  const parseXLSX = useCallback((buffer: ArrayBuffer) => {
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
+    
+    if (jsonData.length === 0) return { headers: [], data: [], preview: [] };
+
+    const headers = (jsonData[0] as string[]).map((h) => String(h ?? "").trim());
+    const data: string[][] = [];
+    for (let i = 1; i < jsonData.length; i++) {
+      const row = (jsonData[i] as string[]).map((v) => String(v ?? "").trim());
+      if (row.some((v) => v)) {
+        data.push(row);
+      }
+    }
+
+    return { headers, data, preview: data.slice(0, 3) };
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
+    const isCSV = file.name.endsWith(".csv") || file.name.endsWith(".txt");
+    const isXLSX = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
+
+    if (!isCSV && !isXLSX) {
       toast.error("Formato inválido", {
-        description: "Por favor, envie um arquivo CSV ou TXT",
+        description: "Por favor, envie um arquivo CSV, TXT, XLSX ou XLS",
       });
       return;
     }
@@ -291,16 +315,26 @@ export const ImportContactsDialogV2 = ({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const { headers, data, preview } = parseCSV(text);
+      let result: { headers: string[]; data: string[][]; preview: string[][] };
       
-      setCsvHeaders(headers);
-      setCsvData(data);
-      setCsvPreview(preview);
-      setColumnMappings(autoDetectMappings(headers));
+      if (isXLSX) {
+        result = parseXLSX(event.target?.result as ArrayBuffer);
+      } else {
+        result = parseCSV(event.target?.result as string);
+      }
+      
+      setCsvHeaders(result.headers);
+      setCsvData(result.data);
+      setCsvPreview(result.preview);
+      setColumnMappings(autoDetectMappings(result.headers));
       setStep("mapping");
     };
-    reader.readAsText(file);
+
+    if (isXLSX) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
 
   const handleMappingChange = (column: string, value: string) => {
@@ -442,9 +476,10 @@ export const ImportContactsDialogV2 = ({
     }
 
     const contacts = contactsToImport.map((row) => {
-      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
+      const contact: { phone: string; name?: string; email?: string; notes?: string; contact_display_id?: string; custom_fields: Record<string, unknown>; lead_custom_fields: Record<string, unknown>; deal_value?: number; deal_title?: string } = {
         phone: "",
         custom_fields: { additional_phones: [] },
+        lead_custom_fields: {},
       };
 
       Object.entries(columnMappings).forEach(([column, mapping]) => {
@@ -501,12 +536,22 @@ export const ImportContactsDialogV2 = ({
           default:
             if (mapping.targetField.startsWith("custom:")) {
               const fieldKey = mapping.targetField.replace("custom:", "");
-              contact.custom_fields[fieldKey] = value;
+              const isLeadField = mapping.entityType === 'lead';
+              if (isLeadField) {
+                contact.lead_custom_fields[fieldKey] = value;
+              } else {
+                contact.custom_fields[fieldKey] = value;
+              }
             } else if (mapping.targetField.startsWith("new:")) {
               const fieldIndex = parseInt(mapping.targetField.replace("new:", ""));
               const fieldConfig = newFields[fieldIndex];
               if (fieldConfig) {
-                contact.custom_fields[fieldConfig.field_key] = value;
+                const isLeadField = fieldConfig.entity_type === 'lead';
+                if (isLeadField) {
+                  contact.lead_custom_fields[fieldConfig.field_key] = value;
+                } else {
+                  contact.custom_fields[fieldConfig.field_key] = value;
+                }
               }
             }
             break;
@@ -568,12 +613,12 @@ export const ImportContactsDialogV2 = ({
           <p className="mb-1 text-sm text-muted-foreground">
             <span className="font-semibold">Clique para enviar</span> ou arraste
           </p>
-          <p className="text-xs text-muted-foreground">CSV ou TXT</p>
+          <p className="text-xs text-muted-foreground">CSV, TXT, XLSX ou XLS</p>
         </div>
         <input
           type="file"
           className="hidden"
-          accept=".csv,.txt"
+          accept=".csv,.txt,.xlsx,.xls"
           onChange={handleFileChange}
         />
       </label>
@@ -581,7 +626,7 @@ export const ImportContactsDialogV2 = ({
       <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
         <p className="font-medium">Como funciona:</p>
         <ol className="list-decimal list-inside space-y-1">
-          <li>Envie seu arquivo CSV com os dados</li>
+          <li>Envie seu arquivo CSV, XLSX ou TXT com os dados</li>
           <li>Mapeie cada coluna para um campo do sistema</li>
           <li>Crie novos campos personalizados se necessário</li>
           <li>Aplique tags (opcional) e importe</li>
