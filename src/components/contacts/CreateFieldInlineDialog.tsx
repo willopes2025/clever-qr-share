@@ -20,6 +20,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, User, Target } from "lucide-react";
+import { inferFieldType } from "@/utils/inferFieldType";
 
 export type FieldType =
   | "text"
