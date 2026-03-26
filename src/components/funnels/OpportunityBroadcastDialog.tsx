@@ -55,6 +55,8 @@ export const OpportunityBroadcastDialog = ({
   const queryClient = useQueryClient();
   const { templates } = useMessageTemplates();
   const { templates: metaTemplates } = useMetaTemplates();
+  const { metaNumbers } = useMetaWhatsAppNumbers();
+  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
