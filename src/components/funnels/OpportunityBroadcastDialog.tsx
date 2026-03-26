@@ -52,12 +52,13 @@ export const OpportunityBroadcastDialog = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { templates } = useMessageTemplates();
+  const { templates: metaTemplates } = useMetaTemplates();
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
 
   // Message mode
-  const [messageMode, setMessageMode] = useState<'template' | 'ai'>('template');
+  const [messageMode, setMessageMode] = useState<'template' | 'meta_template' | 'ai'>('template');
 
   // Template mode state
   const [templateId, setTemplateId] = useState('');
