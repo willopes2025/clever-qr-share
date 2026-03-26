@@ -21,7 +21,7 @@ interface LeadPanelHeaderProps {
   dealTitle?: string | null;
 }
 
-export const LeadPanelHeader = ({ conversation, onClose, isMobile }: LeadPanelHeaderProps) => {
+export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle }: LeadPanelHeaderProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState("");
   const queryClient = useQueryClient();
