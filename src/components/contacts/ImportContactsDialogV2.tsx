@@ -1019,6 +1019,95 @@ export const ImportContactsDialogV2 = ({
         </div>
       )}
 
+      {/* Funnel selection - show when deal_value or deal_title is mapped */}
+      {(hasDealValueMapping || hasDealTitleMapping) && funnels.length > 0 && (
+        <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Direcionar para Funil (obrigatório para Valor da Venda)
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Selecione o funil e etapa onde os deals serão criados com o valor mapeado
+          </p>
+          <Select value={selectedFunnelId} onValueChange={(v) => { setSelectedFunnelId(v); setSelectedStageId(""); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o funil" />
+            </SelectTrigger>
+            <SelectContent>
+              {funnels.map(f => (
+                <SelectItem key={f.id} value={f.id}>
+                  <span className="mr-2">🎯</span>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedFunnel && selectedFunnel.stages.length > 0 && (
+            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Etapa inicial (opcional - usa a primeira)" />
+              </SelectTrigger>
+              <SelectContent>
+                {selectedFunnel.stages
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {hasDealValueMapping && !selectedFunnelId && (
+            <p className="text-xs text-destructive font-medium">
+              ⚠️ Selecione um funil para que o valor da venda seja aplicado aos deals
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Funnel selection for users who want to direct to funnel even without value mapping */}
+      {!hasDealValueMapping && !hasDealTitleMapping && funnels.length > 0 && (
+        <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Direcionar para Funil (opcional)
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Cria automaticamente deals para os contatos importados
+          </p>
+          <Select value={selectedFunnelId} onValueChange={(v) => { setSelectedFunnelId(v); setSelectedStageId(""); }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Nenhum funil selecionado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nenhum</SelectItem>
+              {funnels.map(f => (
+                <SelectItem key={f.id} value={f.id}>
+                  <span className="mr-2">🎯</span>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {selectedFunnel && selectedFunnel.stages.length > 0 && (
+            <Select value={selectedStageId} onValueChange={setSelectedStageId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Etapa inicial (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {selectedFunnel.stages
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
     </div>
   );
 
