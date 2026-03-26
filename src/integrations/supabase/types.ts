@@ -1112,6 +1112,7 @@ export type Database = {
           list_id: string | null
           message_interval_max: number | null
           message_interval_min: number | null
+          meta_phone_number_id: string | null
           meta_template_id: string | null
           name: string
           retry_at: string | null
@@ -1161,6 +1162,7 @@ export type Database = {
           list_id?: string | null
           message_interval_max?: number | null
           message_interval_min?: number | null
+          meta_phone_number_id?: string | null
           meta_template_id?: string | null
           name: string
           retry_at?: string | null
@@ -1210,6 +1212,7 @@ export type Database = {
           list_id?: string | null
           message_interval_max?: number | null
           message_interval_min?: number | null
+          meta_phone_number_id?: string | null
           meta_template_id?: string | null
           name?: string
           retry_at?: string | null

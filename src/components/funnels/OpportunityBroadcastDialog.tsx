@@ -9,9 +9,10 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud } from 'lucide-react';
+import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud, Phone } from 'lucide-react';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useMetaTemplates } from '@/hooks/useMetaTemplates';
+import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
 import { useCampaignMutations, type SendingMode as CampaignSendingMode } from '@/hooks/useCampaigns';
@@ -53,6 +54,8 @@ export const OpportunityBroadcastDialog = ({
   const queryClient = useQueryClient();
   const { templates } = useMessageTemplates();
   const { templates: metaTemplates } = useMetaTemplates();
+  const { metaNumbers } = useMetaWhatsAppNumbers();
+  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
@@ -105,6 +108,9 @@ export const OpportunityBroadcastDialog = ({
   // For AI mode - we need instance selection before generating
   const [pendingAiInstanceConfig, setPendingAiInstanceConfig] = useState<{ instanceIds: string[]; sendingMode: string } | null>(null);
 
+  // Meta phone number selection
+  const [selectedMetaPhoneNumberId, setSelectedMetaPhoneNumberId] = useState('');
+
   const { data: tags } = useQuery({
     queryKey: ['tags', user?.id],
     queryFn: async () => {
@@ -135,7 +141,11 @@ export const OpportunityBroadcastDialog = ({
     }
   };
 
-  const isSubmitDisabled = (messageMode === 'template' || messageMode === 'meta_template') ? !templateId : !aiPrompt.trim();
+  const isSubmitDisabled = messageMode === 'meta_template' 
+    ? (!templateId || !selectedMetaPhoneNumberId) 
+    : messageMode === 'template' 
+      ? !templateId 
+      : !aiPrompt.trim();
 
   const handleSubmit = async () => {
     if (messageMode === 'ai') {
@@ -179,6 +189,7 @@ export const OpportunityBroadcastDialog = ({
         name: `Disparo Oportunidades - ${funnelName}`,
         template_id: isMetaMode ? null : templateId,
         meta_template_id: isMetaMode ? templateId : null,
+        meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId : null,
         list_id: list.id,
         scheduled_at: null,
         message_interval_min: intervalMin,
@@ -395,6 +406,37 @@ export const OpportunityBroadcastDialog = ({
                     <p className="text-muted-foreground line-clamp-3">{selectedMetaTemplate.body_text}</p>
                   </div>
                 )}
+
+                {/* Meta Phone Number Selection */}
+                <div className="space-y-2 mt-4">
+                  <Label className="flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Número Meta para envio *
+                  </Label>
+                  <Select value={selectedMetaPhoneNumberId} onValueChange={setSelectedMetaPhoneNumberId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o número Meta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeMetaNumbers.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          Nenhum número Meta conectado
+                        </div>
+                      ) : (
+                        activeMetaNumbers.map((number) => (
+                          <SelectItem key={number.id} value={number.phone_number_id}>
+                            <div className="flex items-center gap-2">
+                              <span>{number.display_name || number.phone_number || number.phone_number_id}</span>
+                              {number.phone_number && number.display_name && (
+                                <span className="text-xs text-muted-foreground">({number.phone_number})</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
