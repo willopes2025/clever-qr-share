@@ -1138,6 +1138,22 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
         isLoading={isBulkEditing}
       />
 
+      <BulkEditFieldDialog
+        open={!!editingFieldDeal}
+        onOpenChange={(open) => { if (!open) setEditingFieldDeal(null); }}
+        selectedCount={1}
+        fieldDefinitions={(fieldDefinitions || []).filter(f => f.entity_type === 'lead')}
+        onConfirm={async (fieldKey, value) => {
+          if (!editingFieldDeal) return;
+          const currentFields = (editingFieldDeal.custom_fields || {}) as Record<string, unknown>;
+          updateDeal.mutate({
+            id: editingFieldDeal.id,
+            custom_fields: { ...currentFields, [fieldKey]: value },
+          });
+          setEditingFieldDeal(null);
+        }}
+      />
+
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
