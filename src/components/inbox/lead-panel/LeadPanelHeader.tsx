@@ -112,8 +112,12 @@ export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle }: 
             </div>
           )}
           
-          {contactDisplayId && (
-            <ContactIdBadge displayId={contactDisplayId} className="mt-0.5" />
+          {dealTitle ? (
+            <span className="text-xs text-muted-foreground line-clamp-1">{dealTitle}</span>
+          ) : (
+            contactDisplayId && (
+              <ContactIdBadge displayId={contactDisplayId} className="mt-0.5" />
+            )
           )}
         </div>
 
