@@ -540,7 +540,8 @@ export const useContacts = () => {
           await ensureSession();
           
           for (const contact of batch) {
-            const { id, ...updateData } = contact as typeof contact & { id: string };
+            const prepared = prepareForDb(contact);
+            const { id, ...updateData } = prepared as typeof prepared & { id: string };
             const { data, error } = await supabase
               .from("contacts")
               .update(updateData)
