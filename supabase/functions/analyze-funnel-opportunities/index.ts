@@ -34,10 +34,12 @@ serve(async (req) => {
 
     const { data: funnel, error: funnelError } = await supabase
       .from("funnels")
-      .select("id, name")
+      .select("id, name, opportunity_prompt, opportunity_message_days")
       .eq("id", funnel_id)
       .single();
     if (funnelError || !funnel) throw new Error("Funnel not found or access denied");
+
+    const messageDaysLimit = funnel.opportunity_message_days || 30;
 
     const { data: stages } = await supabase
       .from("funnel_stages")
