@@ -625,7 +625,7 @@ export const useContacts = () => {
             .map(c => {
               const contactId = phoneToId.get(c.phone.replace(/\D/g, ''))!;
               const leadCf = c.lead_custom_fields && Object.keys(c.lead_custom_fields).length > 0
-                ? c.lead_custom_fields
+                ? (c.lead_custom_fields as Json)
                 : undefined;
               return {
                 funnel_id: funnelConfig.funnel_id,
