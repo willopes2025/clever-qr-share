@@ -1032,7 +1032,6 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
                                   updateDeal.mutate({
                                     id: deal.id,
                                     stage_id: stage.id,
-                                    entered_stage_at: new Date().toISOString(),
                                   });
                                 }}
                               >
