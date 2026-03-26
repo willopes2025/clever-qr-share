@@ -135,7 +135,7 @@ export const OpportunityBroadcastDialog = ({
     }
   };
 
-  const isSubmitDisabled = messageMode === 'template' ? !templateId : !aiPrompt.trim();
+  const isSubmitDisabled = (messageMode === 'template' || messageMode === 'meta_template') ? !templateId : !aiPrompt.trim();
 
   const handleSubmit = async () => {
     if (messageMode === 'ai') {
