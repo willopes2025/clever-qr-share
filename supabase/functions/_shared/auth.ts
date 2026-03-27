@@ -25,9 +25,7 @@ type AuthResult = AuthSuccess | AuthFailure;
  * @param req - The incoming request
  * @returns Object with userId and email on success, or error Response on failure
  */
-export async function requireUser(req: Request, maxRetries = 2): Promise<AuthResult> {
-  // Some runtimes forward headers in lower-case; Headers.get() should be case-insensitive,
-  // but we keep a safe fallback.
+export async function requireUser(req: Request): Promise<AuthResult> {
   const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -46,43 +44,41 @@ export async function requireUser(req: Request, maxRetries = 2): Promise<AuthRes
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-  let lastError: Error | null = null;
+  try {
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: authHeader } },
-        auth: { persistSession: false },
-      });
+    // Use getClaims for local JWT validation (no DB round-trip)
+    const { data, error } = await supabaseClient.auth.getClaims(token);
 
-      // Primary: use getUser(token) which is the most reliable method
-      const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-      
-      if (!userError && userData?.user?.id) {
-        if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
-        return { success: true, userId: userData.user.id, email: userData.user.email };
-      }
-
-      lastError = userError ?? new Error("No user returned");
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
+    if (error || !data?.claims?.sub) {
+      console.error("[auth] getClaims failed:", error?.message ?? "No claims returned");
+      return {
+        success: false,
+        error: new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      };
     }
 
-    console.warn(`[auth] Attempt ${attempt}/${maxRetries} failed: ${lastError?.message}`);
+    const userId = data.claims.sub as string;
+    const email = (data.claims.email as string) ?? undefined;
 
-    if (attempt < maxRetries) {
-      await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
-    }
+    return { success: true, userId, email };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth] Exception:", message);
+    return {
+      success: false,
+      error: new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    };
   }
-
-  console.error("[auth] All attempts failed:", lastError?.message);
-  return {
-    success: false,
-    error: new Response(
-      JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    )
-  };
 }
 
 /**
