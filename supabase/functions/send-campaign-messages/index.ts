@@ -717,23 +717,27 @@ Deno.serve(async (req: Request) => {
       return instances[0];
     };
 
-    // Select instance based on sending mode
-    let selectedInstance: Instance;
+    // Select instance based on sending mode (only for Evolution API campaigns)
+    let selectedInstance: Instance | null = null;
     
-    switch (sendingMode) {
-      case 'warming':
-        selectedInstance = getInstanceByWarming();
-        break;
-      case 'random':
-        selectedInstance = instances[Math.floor(Math.random() * instances.length)];
-        break;
-      case 'sequential':
-      default:
-        selectedInstance = instances[messageIndex % instances.length];
-        break;
-    }
+    if (instances.length > 0) {
+      switch (sendingMode) {
+        case 'warming':
+          selectedInstance = getInstanceByWarming();
+          break;
+        case 'random':
+          selectedInstance = instances[Math.floor(Math.random() * instances.length)];
+          break;
+        case 'sequential':
+        default:
+          selectedInstance = instances[messageIndex % instances.length];
+          break;
+      }
 
-    console.log(`Selected instance: ${selectedInstance.instance_name} (warming level: ${selectedInstance.warming_level})`);
+      console.log(`Selected instance: ${selectedInstance.instance_name} (warming level: ${selectedInstance.warming_level})`);
+    } else {
+      console.log('No Evolution instances - using Meta template sending');
+    }
 
     // Update message status to 'sending'
     await supabase
