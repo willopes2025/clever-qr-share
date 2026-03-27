@@ -43,10 +43,10 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { campaignId, instanceIds, sendingMode = 'sequential' } = await req.json();
+    const { campaignId, instanceIds = [], sendingMode = 'sequential' } = await req.json();
 
-    if (!campaignId || !instanceIds || !Array.isArray(instanceIds) || instanceIds.length === 0) {
-      throw new Error('Campaign ID and at least one Instance ID are required');
+    if (!campaignId) {
+      throw new Error('Campaign ID is required');
     }
 
     console.log(`Starting campaign ${campaignId} with ${instanceIds.length} instances in ${sendingMode} mode`);
@@ -72,54 +72,66 @@ Deno.serve(async (req) => {
       throw new Error(`Campaign is already ${campaign.status}`);
     }
 
-    // Check if user is a system admin (has 'admin' role in user_roles)
-    const { data: isAdmin } = await supabase
-      .rpc('has_role', { _user_id: user.id, _role: 'admin' });
+    const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
 
-    let instances;
-    let instancesError;
-
-    if (isAdmin) {
-      // System admins have access to ALL instances
-      console.log('User is system admin - accessing all instances');
-      const result = await supabase
-        .from('whatsapp_instances')
-        .select('id, instance_name, status, warming_level')
-        .in('id', instanceIds);
-      instances = result.data;
-      instancesError = result.error;
-    } else {
-      // Regular users: check organization member IDs
-      const { data: orgMemberIds } = await supabase
-        .rpc('get_organization_member_ids', { _user_id: user.id });
-      
-      const allowedUserIds = orgMemberIds && orgMemberIds.length > 0 
-        ? orgMemberIds 
-        : [user.id];
-
-      const result = await supabase
-        .from('whatsapp_instances')
-        .select('id, instance_name, status, warming_level')
-        .in('id', instanceIds)
-        .in('user_id', allowedUserIds);
-      instances = result.data;
-      instancesError = result.error;
+    // For non-Meta campaigns, instance IDs are required
+    if (!isMetaTemplateCampaign && (!instanceIds || instanceIds.length === 0)) {
+      throw new Error('Campaign ID and at least one Instance ID are required');
     }
 
-    if (instancesError) {
-      console.error('Instances fetch error:', instancesError);
-      throw new Error('Failed to fetch WhatsApp instances');
-    }
+    let instances: Instance[] = [];
 
-    if (!instances || instances.length !== instanceIds.length) {
-      console.error(`Expected ${instanceIds.length} instances, found ${instances?.length || 0}`);
-      throw new Error('One or more WhatsApp instances not found');
-    }
+    if (instanceIds.length > 0) {
+      // Check if user is a system admin (has 'admin' role in user_roles)
+      const { data: isAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'admin' });
 
-    const disconnectedInstances = instances.filter(i => i.status !== 'connected');
-    if (disconnectedInstances.length > 0) {
-      throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
-    }
+      let instancesError;
+
+      if (isAdmin) {
+        // System admins have access to ALL instances
+        console.log('User is system admin - accessing all instances');
+        const result = await supabase
+          .from('whatsapp_instances')
+          .select('id, instance_name, status, warming_level')
+          .in('id', instanceIds);
+        instances = result.data || [];
+        instancesError = result.error;
+      } else {
+        // Regular users: check organization member IDs
+        const { data: orgMemberIds } = await supabase
+          .rpc('get_organization_member_ids', { _user_id: user.id });
+        
+        const allowedUserIds = orgMemberIds && orgMemberIds.length > 0 
+          ? orgMemberIds 
+          : [user.id];
+
+        const result = await supabase
+          .from('whatsapp_instances')
+          .select('id, instance_name, status, warming_level')
+          .in('id', instanceIds)
+          .in('user_id', allowedUserIds);
+        instances = result.data || [];
+        instancesError = result.error;
+      }
+
+      if (instancesError) {
+        console.error('Instances fetch error:', instancesError);
+        throw new Error('Failed to fetch WhatsApp instances');
+      }
+
+      if (instances.length !== instanceIds.length) {
+        console.error(`Expected ${instanceIds.length} instances, found ${instances.length}`);
+        throw new Error('One or more WhatsApp instances not found');
+      }
+
+      const disconnectedInstances = instances.filter(i => i.status !== 'connected');
+      if (disconnectedInstances.length > 0) {
+        throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
+      }
+
+      console.log(`Validated ${instances.length} connected instances`);
+    } // end instanceIds.length > 0
 
     // Create instances array with id, name, and warming_level
     const validInstances: Instance[] = instances.map(i => ({
@@ -128,7 +140,7 @@ Deno.serve(async (req) => {
       warming_level: i.warming_level || 1
     }));
 
-    console.log(`Validated ${validInstances.length} connected instances`);
+    console.log(`Using ${validInstances.length} instances${isMetaTemplateCampaign ? ' (Meta template campaign)' : ''}`);
 
     // Fetch contacts based on list type
     let contacts: Contact[] = [];
