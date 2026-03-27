@@ -213,6 +213,16 @@ export const useBroadcastLists = () => {
       queryKey: ["broadcast-list-contacts", listId, listType, JSON.stringify(filterCriteria ?? {})],
       queryFn: async () => {
         if (listType === "dynamic") {
+          // If Asaas payment status filter is active, trigger sync first
+          if (filterCriteria?.asaasPaymentStatus) {
+            try {
+              console.log('[BroadcastList] Triggering Asaas contact sync before loading list...');
+              await supabase.functions.invoke('sync-asaas-contacts');
+              console.log('[BroadcastList] Asaas sync completed');
+            } catch (syncError) {
+              console.error('[BroadcastList] Asaas sync failed, loading with existing data:', syncError);
+            }
+          }
           // Se fonte é funil, buscar contatos via funnel_deals
           if (filterCriteria?.source === 'funnel' && filterCriteria?.funnelId) {
             let query = supabase
