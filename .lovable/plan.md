@@ -1,44 +1,30 @@
 
 
-## Diagnóstico: Sistema vazio após login
+## Corrigir tipos de campos personalizados no diálogo de edição do lead
 
-### Causa Raiz Identificada
+### Problema
 
-Os logs de autenticação revelam o problema principal: **o banco de dados está extremamente lento**, com requisições `/user` levando de **5 a 8 segundos** e muitas falhando com `timeout: context canceled` e status 500.
+Quando você clica para editar o cartão do lead (via `DealFormDialog`), o componente `DealCustomFieldsEditor` só renderiza 5 tipos de campo: `text`, `number`, `date`, `select` e `boolean`. Os tipos `time`, `datetime`, `switch`, `multi_select`, `url`, `phone` e `email` estão faltando — todos aparecem como campos vazios/não renderizados.
 
-A função `_shared/auth.ts` usa `getUser(token)` que faz uma chamada de rede ao servidor de autenticação a cada invocação de Edge Function. Com o banco lento, essa chamada frequentemente dá timeout, causando:
-1. Edge Functions retornam 401 ou timeout
-2. O frontend não consegue carregar dados de assinatura, instâncias, equipe, etc.
-3. O sistema aparece "zerado"
-
-Os logs do `check-subscription` confirmam: `"connection closed before message completed"` - o cliente desiste antes da resposta chegar.
+Os painéis laterais do inbox (`LeadFieldsSection` e `ContactFieldsSection`) já suportam todos os tipos corretamente. O problema é exclusivamente no `DealCustomFieldsEditor.tsx`.
 
 ### Solução
 
-**1. Trocar `getUser()` por `getClaims()` no `_shared/auth.ts`**
+**Arquivo:** `src/components/funnels/DealCustomFieldsEditor.tsx`
 
-`getClaims(token)` valida o JWT **localmente** usando chaves de assinatura, sem depender do banco de dados. Isso elimina a dependência do banco para autenticação em Edge Functions.
+Adicionar suporte aos tipos que faltam:
 
-```
-getUser(token)   → chamada de rede ao DB (5-8s quando lento)
-getClaims(token) → validação local do JWT (~1ms)
-```
+- **`switch`** → renderizar como `Switch` (igual ao `boolean`)
+- **`time`** → renderizar como `<Input type="time" />`
+- **`datetime`** → renderizar como combinação de `Calendar` (Popover) + `<Input type="time" />`
+- **`multi_select`** → renderizar como `Select` com as opções (mesmo tratamento do `select` por enquanto)
+- **`url`** → renderizar como `<Input type="url" />`
+- **`phone`** → renderizar como `<Input type="tel" />`
+- **`email`** → renderizar como `<Input type="email" />`
 
-**2. Arquivo a modificar:** `supabase/functions/_shared/auth.ts`
+A implementação seguirá o mesmo padrão visual já usado em `LeadFieldsSection.tsx`, mantendo consistência entre os componentes.
 
-Substituir o bloco `getUser` por `getClaims`:
-- `getClaims(token)` retorna `{ claims: { sub, email, ... } }`
-- `userId = claims.sub`
-- `email = claims.email`
-- Remover o retry loop (não necessário com validação local)
+### Resultado
 
-**3. Reimplantar as Edge Functions afetadas**
-
-Todas as que importam `requireUser` de `_shared/auth.ts` serão automaticamente atualizadas no próximo deploy.
-
-### Resultado Esperado
-
-- Autenticação nas Edge Functions passa de ~5-8s para ~1ms
-- Dados carregam normalmente mesmo com banco sob carga
-- Sistema deixa de aparecer "zerado" após login
+Todos os campos personalizados do lead exibirão o controle correto (calendário, switch, seleção, etc.) ao editar o cartão tanto pelo inbox quanto pelo funil.
 
