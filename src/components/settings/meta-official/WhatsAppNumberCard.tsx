@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +14,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Phone, Building2, Signal, Gauge, Trash2, Loader2 } from "lucide-react";
+import { Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2 } from "lucide-react";
 import type { MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
+import { MetaNumberConfigDialog } from "./MetaNumberConfigDialog";
 
 interface WhatsAppNumberCardProps {
   number: MetaWhatsAppNumber;
