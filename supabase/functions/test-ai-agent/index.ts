@@ -910,7 +910,7 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "LOVABLE_API_KEY não configurada" }),
+        JSON.stringify({ error: "OPENAI_API_KEY não configurada" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
