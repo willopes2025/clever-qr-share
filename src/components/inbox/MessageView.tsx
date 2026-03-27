@@ -74,7 +74,7 @@ interface OptimisticMessage extends InboxMessage {
   isOptimistic: true;
 }
 
-export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageViewProps) => {
+export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRead }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
   const { metaNumbers, getLabel: getMetaLabel } = useMetaNumbersMap();

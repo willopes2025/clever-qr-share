@@ -253,9 +253,10 @@ const Inbox = () => {
             {/* Chat Area */}
             <div className="flex-1 min-w-0">
               {selectedConversation ? (
-                <MessageView 
+              <MessageView 
                   conversation={selectedConversation}
                   onOpenRightPanel={handleOpenRightPanel}
+                  onMarkAsRead={() => markAsRead.mutate(selectedConversation.id)}
                 />
               ) : (
                 <EmptyInbox />
