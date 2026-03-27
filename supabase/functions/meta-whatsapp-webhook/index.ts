@@ -526,6 +526,70 @@ Deno.serve(async (req) => {
                   content = `[${message.type}]`;
               }
 
+              // Download media from Meta Graph API and persist to Supabase Storage
+              let persistedMediaUrl: string | null = null;
+              if (mediaUrl && messageType !== 'text' && messageType !== 'location' && messageType !== 'contacts') {
+                try {
+                  const metaAccessToken = integration.credentials?.access_token || Deno.env.get('META_WHATSAPP_ACCESS_TOKEN');
+                  if (metaAccessToken) {
+                    console.log(`[META-WEBHOOK] Downloading media ${mediaUrl} from Meta Graph API...`);
+                    
+                    // Step 1: Get media download URL from Meta
+                    const mediaInfoRes = await fetch(`https://graph.facebook.com/v21.0/${mediaUrl}`, {
+                      headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+                    });
+                    
+                    if (mediaInfoRes.ok) {
+                      const mediaInfo = await mediaInfoRes.json();
+                      const downloadUrl = mediaInfo.url;
+                      const mimeType = mediaInfo.mime_type || 'application/octet-stream';
+                      
+                      // Step 2: Download the actual file
+                      const mediaRes = await fetch(downloadUrl, {
+                        headers: { 'Authorization': `Bearer ${metaAccessToken}` },
+                      });
+                      
+                      if (mediaRes.ok) {
+                        const mediaBuffer = await mediaRes.arrayBuffer();
+                        const extMap: Record<string, string> = {
+                          'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'mp4', 'audio/aac': 'aac',
+                          'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+                          'video/mp4': 'mp4', 'video/3gpp': '3gp',
+                          'application/pdf': 'pdf',
+                        };
+                        const ext = extMap[mimeType] || mimeType.split('/')[1] || 'bin';
+                        const filePath = `meta/${userId}/${Date.now()}_${mediaUrl}.${ext}`;
+                        
+                        // Step 3: Upload to Supabase Storage
+                        const { error: uploadError } = await supabase.storage
+                          .from('inbox-media')
+                          .upload(filePath, mediaBuffer, { contentType: mimeType, upsert: false });
+                        
+                        if (!uploadError) {
+                          const { data: publicUrlData } = supabase.storage
+                            .from('inbox-media')
+                            .getPublicUrl(filePath);
+                          persistedMediaUrl = publicUrlData.publicUrl;
+                          console.log('[META-WEBHOOK] Media saved to storage:', persistedMediaUrl);
+                        } else {
+                          console.error('[META-WEBHOOK] Storage upload error:', uploadError);
+                        }
+                      } else {
+                        console.error('[META-WEBHOOK] Failed to download media file:', mediaRes.status);
+                      }
+                    } else {
+                      console.error('[META-WEBHOOK] Failed to get media info:', mediaInfoRes.status);
+                    }
+                  } else {
+                    console.log('[META-WEBHOOK] No access token available for media download');
+                  }
+                } catch (mediaError) {
+                  console.error('[META-WEBHOOK] Error downloading media:', mediaError);
+                }
+              }
+
+              const finalMediaUrl = persistedMediaUrl || (mediaUrl && mediaUrl.startsWith('http') ? mediaUrl : null);
+
               // Check if message already exists (avoid duplicates)
               const { data: existingMessage } = await supabase
                 .from('inbox_messages')
@@ -548,7 +612,7 @@ Deno.serve(async (req) => {
                   direction: 'inbound',
                   status: 'received',
                   whatsapp_message_id: messageId,
-                  media_url: mediaUrl || null,
+                  media_url: finalMediaUrl,
                   message_type: messageType,
                   created_at: timestamp
                 });

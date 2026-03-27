@@ -71,6 +71,12 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription, 
   const handleTranscribe = async () => {
     if (!messageId) return;
     
+    // Validate that mediaUrl is a real URL, not a Meta media ID
+    if (!mediaUrl.startsWith('http')) {
+      toast.error("URL de mídia inválida. Tente recarregar a conversa.");
+      return;
+    }
+    
     setIsTranscribing(true);
     try {
       const { data, error } = await supabase.functions.invoke('transcribe-audio', {

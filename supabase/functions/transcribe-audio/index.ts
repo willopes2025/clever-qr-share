@@ -66,6 +66,11 @@ Deno.serve(async (req: Request) => {
       throw new Error('messageId and audioUrl are required');
     }
 
+    // Validate that audioUrl is a proper URL
+    if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
+      throw new Error(`Invalid URL: '${audioUrl}' - expected a valid HTTP URL, not a media ID`);
+    }
+
     console.log(`[TRANSCRIBE] Starting transcription for message ${messageId}`);
     console.log(`[TRANSCRIBE] Audio URL: ${audioUrl}`);
 
