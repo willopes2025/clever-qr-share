@@ -27,7 +27,7 @@ interface Funnel {
 interface FunnelStage {
   id: string;
   name: string;
-  order_index: number;
+  display_order: number;
 }
 
 interface TeamMember {
