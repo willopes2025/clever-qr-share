@@ -65,6 +65,16 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       if (error) {
         const message = (error as any)?.message ?? '';
         const status = (error as any)?.status ?? (error as any)?.context?.status;
+        
+        // Check if it's a network/timeout error (NOT an auth error)
+        const isNetworkError = /timeout|network|fetch|500|502|503|504|ECONNREFUSED|context canceled/i.test(message);
+        
+        if (isNetworkError) {
+          console.warn('[SubscriptionContext] Network/timeout error, keeping current state:', message);
+          // Don't logout or clear subscription on network errors
+          return;
+        }
+        
         const isAuthError = status === 401 || /auth|session|jwt|unauthorized|401/i.test(message);
 
         if (isAuthError) {
@@ -72,6 +82,12 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
           
           if (refreshError) {
+            // Check if refresh error is also a network error
+            const refreshMsg = refreshError.message ?? '';
+            if (/timeout|network|fetch|500|502|503|504/i.test(refreshMsg)) {
+              console.warn('[SubscriptionContext] Refresh failed due to network, keeping state:', refreshMsg);
+              return;
+            }
             // Refresh failed - session is completely invalid, force logout
             console.warn('Session refresh failed, forcing logout:', refreshError.message);
             await supabase.auth.signOut();
@@ -92,7 +108,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
             }
           }
           
-          // If we get here, both attempts failed - force logout
+          // If we get here, both attempts failed - but only logout if it's truly an auth error
           console.warn('Subscription check auth error after refresh attempt, forcing logout');
           await supabase.auth.signOut();
           setSubscription(null);

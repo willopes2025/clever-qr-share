@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -6,13 +6,15 @@ export const useAdmin = () => {
   const { user, loading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
   useEffect(() => {
+    let cancelled = false;
+    retryCountRef.current = 0;
+
     const checkAdmin = async () => {
-      // Wait for auth to finish loading
-      if (authLoading) {
-        return;
-      }
+      if (authLoading) return;
 
       if (!user) {
         setIsAdmin(false);
@@ -20,28 +22,46 @@ export const useAdmin = () => {
         return;
       }
 
-      try {
-        const { data, error } = await supabase
-          .rpc('has_role', {
-            _user_id: user.id,
-            _role: 'admin'
-          });
+      while (retryCountRef.current < maxRetries && !cancelled) {
+        try {
+          const { data, error } = await supabase
+            .rpc('has_role', {
+              _user_id: user.id,
+              _role: 'admin'
+            });
 
-        if (error) {
-          console.error('Error checking admin status:', error);
+          if (cancelled) return;
+
+          if (error) {
+            console.warn(`[useAdmin] Attempt ${retryCountRef.current + 1} failed:`, error.message);
+            retryCountRef.current++;
+            if (retryCountRef.current < maxRetries) {
+              await new Promise(r => setTimeout(r, 1000 * retryCountRef.current));
+              continue;
+            }
+            setIsAdmin(false);
+          } else {
+            setIsAdmin(data === true);
+          }
+          break;
+        } catch (err) {
+          console.error(`[useAdmin] Attempt ${retryCountRef.current + 1} error:`, err);
+          retryCountRef.current++;
+          if (retryCountRef.current < maxRetries) {
+            await new Promise(r => setTimeout(r, 1000 * retryCountRef.current));
+            continue;
+          }
           setIsAdmin(false);
-        } else {
-          setIsAdmin(data === true);
+          break;
         }
-      } catch (err) {
-        console.error('Error in admin check:', err);
-        setIsAdmin(false);
-      } finally {
-        setLoading(false);
       }
+
+      if (!cancelled) setLoading(false);
     };
 
     checkAdmin();
+
+    return () => { cancelled = true; };
   }, [user, authLoading]);
 
   return { isAdmin, loading };
