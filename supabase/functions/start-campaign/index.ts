@@ -393,11 +393,11 @@ Deno.serve(async (req) => {
 
         // If tags filter exists, filter contacts that have those tags
         if (filterCriteria.tags && filterCriteria.tags.length > 0) {
-          // Batch contact IDs in chunks of 500 to avoid .in() limit
+          // Batch contact IDs in chunks of 50 to avoid URL length limit
           const contactIds = allContacts.map(c => c.id);
           const contactIdChunks: string[][] = [];
-          for (let i = 0; i < contactIds.length; i += 500) {
-            contactIdChunks.push(contactIds.slice(i, i + 500));
+          for (let i = 0; i < contactIds.length; i += 50) {
+            contactIdChunks.push(contactIds.slice(i, i + 50));
           }
 
           let taggedContactIds: string[] = [];
