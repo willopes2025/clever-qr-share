@@ -50,6 +50,7 @@ import {
   CheckSquare,
   Edit,
 } from "lucide-react";
+import { GitBranch } from "lucide-react";
 import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,7 @@ import { ContactsColumnsConfig } from "@/components/contacts/ContactsColumnsConf
 import { BulkTagDialog } from "@/components/contacts/BulkTagDialog";
 import { BulkRemoveTagDialog } from "@/components/contacts/BulkRemoveTagDialog";
 import { BulkEditDialog, BulkEditUpdates } from "@/components/shared/BulkEditDialog";
+import { BulkSendToFunnelDialog } from "@/components/contacts/BulkSendToFunnelDialog";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useSubscription } from "@/hooks/useSubscription";
 
@@ -100,6 +102,7 @@ const Contacts = () => {
   const [showBulkOptOutConfirm, setShowBulkOptOutConfirm] = useState(false);
   const [showColumnsConfig, setShowColumnsConfig] = useState(false);
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+  const [showBulkFunnelDialog, setShowBulkFunnelDialog] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactWithDeals | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -639,6 +642,10 @@ const Contacts = () => {
               <Edit className="h-4 w-4 mr-1" />
               Editar Campos
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowBulkFunnelDialog(true)} className="neon-border">
+              <GitBranch className="h-4 w-4 mr-1" />
+              Enviar ao Funil
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowBulkOptOutConfirm(true)} className="neon-border">
               <UserX className="h-4 w-4 mr-1" />
               Marcar Saída
@@ -909,6 +916,13 @@ const Contacts = () => {
         funnels={funnels || []}
         onConfirm={handleBulkEditContacts}
         isLoading={isBulkEditing}
+      />
+
+      <BulkSendToFunnelDialog
+        open={showBulkFunnelDialog}
+        onOpenChange={setShowBulkFunnelDialog}
+        contactIds={selectedIds}
+        onSuccess={() => setSelectedIds([])}
       />
 
       {/* Delete confirmation */}
