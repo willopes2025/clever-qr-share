@@ -213,6 +213,7 @@ const Inbox = () => {
               conversation={selectedConversation} 
               onBack={handleBackToList}
               onOpenRightPanel={handleOpenRightPanel}
+              onMarkAsRead={() => markAsRead.mutate(selectedConversation.id)}
             />
           ) : (
             <div className="flex-1 flex flex-col">
