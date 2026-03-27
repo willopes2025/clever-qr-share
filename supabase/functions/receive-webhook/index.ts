@@ -809,7 +809,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       
       const { data: contactByPhone } = await supabase
         .from('contacts')
-        .select('id, label_id, phone')
+        .select('id, label_id, phone, name')
         .eq('user_id', userId)
         .or(`phone.eq.${phone},phone.eq.${phoneWithoutCountry}`)
         .limit(1)
@@ -821,7 +821,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       if (!contact && labelId) {
         const { data: contactByLabel } = await supabase
           .from('contacts')
-          .select('id, phone, label_id')
+          .select('id, phone, label_id, name')
           .eq('user_id', userId)
           .eq('label_id', labelId)
           .single();
