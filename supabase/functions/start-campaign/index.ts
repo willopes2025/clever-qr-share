@@ -265,10 +265,10 @@ Deno.serve(async (req) => {
           let tagOffset = 0;
           let hasMoreTags = true;
 
-         // Batch contact IDs in chunks of 500 to avoid .in() limit
+         // Batch contact IDs in chunks of 50 to avoid URL length limit
          const contactIdChunks: string[][] = [];
-         for (let i = 0; i < contactIds.length; i += 500) {
-           contactIdChunks.push(contactIds.slice(i, i + 500));
+         for (let i = 0; i < contactIds.length; i += 50) {
+           contactIdChunks.push(contactIds.slice(i, i + 50));
          }
 
          for (const chunk of contactIdChunks) {
