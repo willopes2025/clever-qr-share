@@ -177,6 +177,12 @@ export const WhatsAppNumberCard = ({
           </div>
         </div>
       </CardContent>
+
+      <MetaNumberConfigDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        number={number}
+      />
     </Card>
   );
 };
