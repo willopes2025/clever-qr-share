@@ -265,25 +265,35 @@ Deno.serve(async (req) => {
           let tagOffset = 0;
           let hasMoreTags = true;
 
-          while (hasMoreTags) {
-            const { data: tagBatch, error: tagsError } = await supabase
-              .from('contact_tags')
-              .select('contact_id')
-              .in('tag_id', filterCriteria.tags)
-              .in('contact_id', contactIds)
-              .range(tagOffset, tagOffset + pageSize - 1);
+         // Batch contact IDs in chunks of 500 to avoid .in() limit
+         const contactIdChunks: string[][] = [];
+         for (let i = 0; i < contactIds.length; i += 500) {
+           contactIdChunks.push(contactIds.slice(i, i + 500));
+         }
 
-            if (tagsError) {
-              console.error('Tags fetch error:', tagsError);
-              throw new Error('Failed to fetch contact tags');
-            }
+         for (const chunk of contactIdChunks) {
+           tagOffset = 0;
+           hasMoreTags = true;
+           while (hasMoreTags) {
+             const { data: tagBatch, error: tagsError } = await supabase
+               .from('contact_tags')
+               .select('contact_id')
+               .in('tag_id', filterCriteria.tags)
+               .in('contact_id', chunk)
+               .range(tagOffset, tagOffset + pageSize - 1);
 
-            if (tagBatch && tagBatch.length > 0) {
-              taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
-              tagOffset += pageSize;
-              hasMoreTags = tagBatch.length === pageSize;
-            } else {
-              hasMoreTags = false;
+             if (tagsError) {
+               console.error('Tags fetch error:', tagsError);
+               throw new Error('Failed to fetch contact tags');
+             }
+
+             if (tagBatch && tagBatch.length > 0) {
+               taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+               tagOffset += pageSize;
+               hasMoreTags = tagBatch.length === pageSize;
+             } else {
+               hasMoreTags = false;
+             }
             }
           }
 
