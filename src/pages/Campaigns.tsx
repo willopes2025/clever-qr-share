@@ -143,6 +143,23 @@ const Campaigns = () => {
     await cancelCampaign.mutateAsync(campaign.id);
   };
 
+  const handleResume = (campaign: Campaign) => {
+    if (campaign.meta_template_id && campaign.meta_phone_number_id) {
+      handleResumeMetaCampaign(campaign);
+    } else {
+      setResumingCampaign(campaign);
+    }
+  };
+
+  const handleResumeMetaCampaign = async (campaign: Campaign) => {
+    await resumeCampaign.mutateAsync({ 
+      campaignId: campaign.id, 
+      instanceIds: [],
+      sendingMode: 'sequential'
+    });
+    setTrackingCampaign({ ...campaign, status: 'sending' });
+  };
+
   const handleResumeWithInstances = async (data: { instanceIds: string[]; sendingMode: SendingMode }) => {
     if (!resumingCampaign) return;
     await resumeCampaign.mutateAsync({ 
@@ -151,25 +168,8 @@ const Campaigns = () => {
       sendingMode: data.sendingMode
     });
     setResumingCampaign(null);
-    // Open tracker to show progress
     setTrackingCampaign({ ...resumingCampaign, status: 'sending' });
   };
-
-  return (
-    <AppLayout pageTitle="Campanhas" className="p-4 md:p-8 cyber-grid">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Campanhas de Disparo</h1>
-          <p className="text-muted-foreground">
-            Crie e gerencie suas campanhas de mensagens em massa
-          </p>
-        </div>
-
-        <Button size="lg" onClick={() => setIsFormOpen(true)} className="bg-gradient-neon hover:opacity-90">
-          <Plus className="h-5 w-5 mr-2" />
-          Nova Campanha
-        </Button>
-      </div>
 
       {/* Filters */}
       <div className="flex items-center gap-4 mb-6">
