@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone } from "lucide-react";
+import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,13 +67,14 @@ interface MessageViewProps {
   conversation: ConversationWithAI;
   onBack?: () => void;
   onOpenRightPanel?: () => void;
+  onMarkAsRead?: () => void;
 }
 
 interface OptimisticMessage extends InboxMessage {
   isOptimistic: true;
 }
 
-export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageViewProps) => {
+export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRead }: MessageViewProps) => {
   const { messages, isLoading, sendMessage, sendMediaMessage, refetch } = useMessages(conversation.id);
   const { instances } = useWhatsAppInstances();
   const { metaNumbers, getLabel: getMetaLabel } = useMetaNumbersMap();
@@ -359,6 +360,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
       targetPhone,
+    }).then(() => {
+      // Mark as read when user replies
+      if (conversation.unread_count > 0 && onMarkAsRead) {
+        onMarkAsRead();
+      }
     }).catch((error) => {
       toast.error("Erro ao enviar mensagem");
       setOptimisticMessages(prev => 
@@ -915,6 +921,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel }: MessageV
         </div>
         
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
+          {/* Mark as Read Button */}
+          {conversation.unread_count > 0 && onMarkAsRead && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={onMarkAsRead}
+                >
+                  <MailCheck className="h-4 w-4" />
+                  <span className="hidden md:inline">Marcar como lida</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Marcar como lida</TooltipContent>
+            </Tooltip>
+          )}
           {/* AI Status Badge - Desktop only (compact) */}
           {!isMobile && conversation.ai_handled && (
             <Tooltip>

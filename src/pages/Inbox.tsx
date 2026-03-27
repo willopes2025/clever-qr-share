@@ -92,9 +92,7 @@ const Inbox = () => {
     if (isMobile) {
       setMobileShowMessages(true);
     }
-    if (conversation.unread_count > 0) {
-      markAsRead.mutate(conversation.id);
-    }
+    // Read status is now managed manually (button or reply) - not on open
   };
 
   const handleBackToList = () => {
@@ -215,6 +213,7 @@ const Inbox = () => {
               conversation={selectedConversation} 
               onBack={handleBackToList}
               onOpenRightPanel={handleOpenRightPanel}
+              onMarkAsRead={() => markAsRead.mutate(selectedConversation.id)}
             />
           ) : (
             <div className="flex-1 flex flex-col">
@@ -254,9 +253,10 @@ const Inbox = () => {
             {/* Chat Area */}
             <div className="flex-1 min-w-0">
               {selectedConversation ? (
-                <MessageView 
+              <MessageView 
                   conversation={selectedConversation}
                   onOpenRightPanel={handleOpenRightPanel}
+                  onMarkAsRead={() => markAsRead.mutate(selectedConversation.id)}
                 />
               ) : (
                 <EmptyInbox />
