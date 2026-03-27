@@ -409,17 +409,17 @@ Deno.serve(async (req) => {
                         .from('funnel_deals')
                         .select('id')
                         .eq('contact_id', contact.id)
-                        .eq('funnel_id', userSettings.auto_lead_funnel_id)
+                        .eq('funnel_id', autoFunnelId)
                         .limit(1)
                         .maybeSingle();
 
                       if (!existingDeal) {
-                        let dealStageId = userSettings.auto_lead_stage_id;
+                        let dealStageId = autoStageId;
                         if (!dealStageId) {
                           const { data: firstStage } = await supabase
                             .from('funnel_stages')
                             .select('id')
-                            .eq('funnel_id', userSettings.auto_lead_funnel_id)
+                            .eq('funnel_id', autoFunnelId)
                             .order('display_order', { ascending: true })
                             .limit(1)
                             .single();
@@ -431,7 +431,7 @@ Deno.serve(async (req) => {
                             .from('funnel_deals')
                             .insert({
                               user_id: userId,
-                              funnel_id: userSettings.auto_lead_funnel_id,
+                              funnel_id: autoFunnelId,
                               stage_id: dealStageId,
                               contact_id: contact.id,
                               conversation_id: conversation.id,
