@@ -313,6 +313,9 @@ export const useBroadcastLists = () => {
             if (filterCriteria?.optedOut !== undefined) {
               query = query.eq("opted_out", filterCriteria.optedOut);
             }
+            if (filterCriteria?.asaasPaymentStatus) {
+              query = query.eq("asaas_payment_status", filterCriteria.asaasPaymentStatus);
+            }
             
             // Filtros de campos dinâmicos
             if (filterCriteria.customFields) {
@@ -321,15 +324,27 @@ export const useBroadcastLists = () => {
                   query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
                 } else if (filter.operator === 'contains' && filter.value) {
                   query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-                } else if (filter.operator === 'not_empty') {
-                  query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
                 } else if (filter.operator === 'empty') {
                   query = query.is(`custom_fields->>${fieldKey}`, null);
+                } else if (filter.operator === 'not_empty') {
+                  query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
                 }
               });
             }
 
-            const { data, error } = await query.limit(1000);
+            // Paginate to get all results
+            let allTagContacts: any[] = [];
+            let tagPage = 0;
+            const tagPageSize = 1000;
+            
+            while (true) {
+              const { data, error } = await query.range(tagPage * tagPageSize, (tagPage + 1) * tagPageSize - 1);
+              if (error) throw error;
+              if (!data || data.length === 0) break;
+              allTagContacts.push(...data);
+              if (data.length < tagPageSize) break;
+              tagPage++;
+            }
             if (error) throw error;
 
             // Remove duplicates (contact may have multiple matching tags)
