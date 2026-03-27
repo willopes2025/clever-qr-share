@@ -21,10 +21,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -62,7 +62,7 @@ Categorias válidas: curiosity, greeting, tip, motivation, casual, question, new
 
     console.log('[WARMING-NEWS] Calling AI to generate content...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -159,7 +159,7 @@ Categorias válidas: curiosity, greeting, tip, motivation, casual, question, new
       try {
         console.log(`[WARMING-NEWS] Generating image for: ${content.imagePrompt}`);
 
-        const imageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const imageResponse = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${LOVABLE_API_KEY}`,

@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+  const lovableApiKey = Deno.env.get('OPENAI_API_KEY')!;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
     console.log('Calling Lovable AI for analysis with tool calling...');
 
     // Call AI with tool calling for structured output
-    const analysisResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${lovableApiKey}`,
@@ -542,7 +542,7 @@ INSTRUÇÃO FINAL: Use a função analyze_conversations para retornar sua análi
         return `--- ${conv.contact.name || conv.contact.phone} ---\n${messagesText}`;
       }).join('\n\n');
 
-      const retryResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${lovableApiKey}`,

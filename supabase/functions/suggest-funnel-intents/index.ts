@@ -61,9 +61,9 @@ Mensagem de Saudação: ${agentConfig.greeting_message || 'Não definida'}
     const stagesDescription = stages.map((s: { id: string; name: string }) => `- ${s.name} (ID: ${s.id})`).join('\n');
 
     // Call Lovable AI Gateway
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const systemPrompt = `Você é um especialista em vendas e funis de conversão. Sua tarefa é analisar o contexto de um agente de IA de atendimento e sugerir intenções de cliente que podem ser detectadas nas mensagens, mapeando cada intenção para uma etapa do funil.
@@ -86,7 +86,7 @@ INSTRUÇÕES:
 
 Você DEVE responder chamando a função suggest_intents com as intenções sugeridas.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
