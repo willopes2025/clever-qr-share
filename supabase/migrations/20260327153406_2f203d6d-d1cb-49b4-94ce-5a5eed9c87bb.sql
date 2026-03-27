@@ -1,0 +1,1 @@
+ALTER TABLE public.inbox_messages ADD COLUMN error_message TEXT;

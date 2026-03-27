@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone } from "lucide-react";
@@ -5,6 +6,12 @@ import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
 const formatMessageTime = (message: InboxMessage) => {
   const date = new Date(message.created_at);
   if (isToday(date)) {
@@ -23,13 +30,36 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: MessageBubbleProps) => {
   const isOutbound = message.direction === "outbound";
+  const isFailed = message.status === "failed";
   
   const getStatusIcon = () => {
     if (isOptimistic || message.status === "sending") {
       return <Loader2 className="h-3 w-3 animate-spin text-[#667781]" />;
     }
-    if (message.status === "failed") {
-      return <AlertCircle className="h-3 w-3 text-red-500" />;
+    if (isFailed) {
+      return (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="inline-flex items-center hover:scale-125 transition-transform cursor-pointer" title="Ver detalhes do erro">
+              <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="end" className="w-72 p-0">
+            <div className="p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+                <span className="text-sm font-medium text-red-600 dark:text-red-400">Falha no envio</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {message.error_message || 'Não foi possível enviar esta mensagem. O servidor retornou um erro desconhecido.'}
+              </p>
+              <p className="text-[10px] text-muted-foreground/70">
+                {format(new Date(message.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      );
     }
     if (message.read_at) {
       return <CheckCheck className="h-3 w-3 text-[#53bdeb]" />;
@@ -118,7 +148,8 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: Me
             isOutbound
               ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef]"
               : "bg-white dark:bg-[#202c33] text-[#111b21] dark:text-[#e9edef]",
-            isOptimistic && "opacity-70"
+            isOptimistic && "opacity-70",
+            isFailed && "border border-red-500/30"
           )}
         >
           {message.media_url && (
