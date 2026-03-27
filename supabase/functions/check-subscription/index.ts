@@ -198,7 +198,7 @@ Deno.serve(async (req: Request) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
 
-    const authResult = await requireUser(req, 3);
+    const authResult = await requireUser(req);
     if (!authResult.success) {
       logStep("AUTH_ERROR", { message: "Unauthorized" });
       return authResult.error;
@@ -278,11 +278,24 @@ Deno.serve(async (req: Request) => {
     logStep("Checking direct subscription for user");
 
     // PRIMEIRO: Verificar se existe assinatura manual válida
-    const { data: existingSub } = await supabaseClient
+    const { data: existingSub, error: existingSubError } = await supabaseClient
       .from("subscriptions")
       .select("*")
       .eq("user_id", userId)
       .single();
+
+    // Se a consulta falhou (timeout, etc), não arriscar sobrescrever dados
+    if (existingSubError && existingSubError.code !== 'PGRST116') {
+      logStep("WARNING: Failed to fetch existing subscription, returning safe response", { 
+        error: existingSubError.message 
+      });
+      return new Response(JSON.stringify({ 
+        error: "Database temporarily unavailable, please retry" 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 503,
+      });
+    }
 
     // Se existe assinatura manual ativa, usar ela e NÃO sobrescrever com Stripe
     if (existingSub?.manual_override && existingSub?.status === 'active') {
