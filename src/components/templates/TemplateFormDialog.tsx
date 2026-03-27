@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Sparkles, Loader2, ChevronDown, ChevronUp, ChevronRight, User, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -62,17 +63,29 @@ export const TemplateFormDialog = ({
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const { contactFieldDefinitions } = useCustomFields();
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
-  // Build available variables list
-  const availableVariables = [
+  const staticVariables = [
     { key: 'nome', label: 'Nome do contato' },
     { key: 'telefone', label: 'Telefone do contato' },
     { key: 'email', label: 'Email do contato' },
-    ...(contactFieldDefinitions?.map(f => ({
-      key: f.field_key,
-      label: f.field_name,
-    })) || []),
+  ];
+
+  const contactCustomVariables = contactFieldDefinitions?.map(f => ({
+    key: f.field_key,
+    label: f.field_name,
+  })) || [];
+
+  const leadCustomVariables = leadFieldDefinitions?.map(f => ({
+    key: f.field_key,
+    label: f.field_name,
+  })) || [];
+
+  // All variables combined for AI generation
+  const availableVariables = [
+    ...staticVariables,
+    ...contactCustomVariables,
+    ...leadCustomVariables,
   ];
 
   useEffect(() => {
@@ -253,23 +266,80 @@ export const TemplateFormDialog = ({
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label className="text-xs">Variáveis disponíveis</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {availableVariables.map((v) => (
-                      <Badge
-                        key={v.key}
-                        variant="secondary"
-                        className="bg-primary/15 text-primary border-primary/25 text-xs cursor-pointer hover:bg-primary/25"
-                        onClick={() => {
-                          setAiPrompt(prev => prev + ` {{${v.key}}}`);
-                        }}
-                      >
-                        {`{{${v.key}}}`}
-                        <span className="ml-1 text-muted-foreground">({v.label})</span>
-                      </Badge>
-                    ))}
+                  
+                  {/* Static contact fields - always visible */}
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                      <User className="h-3 w-3" /> Dados do Contato
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {staticVariables.map((v) => (
+                        <Badge
+                          key={v.key}
+                          variant="secondary"
+                          className="bg-primary/15 text-primary border-primary/25 text-[10px] cursor-pointer hover:bg-primary/25 px-1.5 py-0"
+                          title={v.label}
+                          onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
+                        >
+                          {`{{${v.key}}}`}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Contact custom fields - collapsible */}
+                  {contactCustomVariables.length > 0 && (
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
+                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                        <FileText className="h-3 w-3" />
+                        Campos de Contato ({contactCustomVariables.length})
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-1">
+                        <div className="flex flex-wrap gap-1">
+                          {contactCustomVariables.map((v) => (
+                            <Badge
+                              key={v.key}
+                              variant="secondary"
+                              className="bg-secondary/60 text-secondary-foreground border-border text-[10px] cursor-pointer hover:bg-secondary px-1.5 py-0"
+                              title={v.label}
+                              onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
+                            >
+                              {`{{${v.key}}}`}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+
+                  {/* Lead custom fields - collapsible */}
+                  {leadCustomVariables.length > 0 && (
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
+                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                        <FileText className="h-3 w-3" />
+                        Campos de Lead ({leadCustomVariables.length})
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-1">
+                        <div className="flex flex-wrap gap-1">
+                          {leadCustomVariables.map((v) => (
+                            <Badge
+                              key={v.key}
+                              variant="secondary"
+                              className="bg-accent/60 text-accent-foreground border-border text-[10px] cursor-pointer hover:bg-accent px-1.5 py-0"
+                              title={v.label}
+                              onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
+                            >
+                              {`{{${v.key}}}`}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
                 </div>
 
                 <Button
