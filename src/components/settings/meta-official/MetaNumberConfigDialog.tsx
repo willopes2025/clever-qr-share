@@ -96,9 +96,9 @@ export const MetaNumberConfigDialog = ({ open, onOpenChange, number }: MetaNumbe
     queryFn: async () => {
       const { data, error } = await supabase
         .from('funnel_stages')
-        .select('id, name, order_index')
+        .select('id, name, display_order')
         .eq('funnel_id', selectedFunnelId!)
-        .order('order_index');
+        .order('display_order');
       if (error) throw error;
       return data as FunnelStage[];
     },

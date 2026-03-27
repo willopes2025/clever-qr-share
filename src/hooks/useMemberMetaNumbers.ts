@@ -21,10 +21,10 @@ export const useMemberMetaNumbers = (teamMemberId?: string) => {
       const { data, error } = await supabase
         .from('team_member_meta_numbers' as any)
         .select('*')
-        .eq('team_member_id', teamMemberId!);
+        .eq('team_member_id', teamMemberId!) as any;
       
       if (error) throw error;
-      return data as MemberMetaNumber[];
+      return (data || []) as MemberMetaNumber[];
     },
     enabled: !!teamMemberId,
   });
