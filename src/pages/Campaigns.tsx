@@ -171,6 +171,22 @@ const Campaigns = () => {
     setTrackingCampaign({ ...resumingCampaign, status: 'sending' });
   };
 
+  return (
+    <AppLayout pageTitle="Campanhas" className="p-4 md:p-8 cyber-grid">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-display font-bold mb-2 text-glow-cyan">Campanhas de Disparo</h1>
+          <p className="text-muted-foreground">
+            Crie e gerencie suas campanhas de mensagens em massa
+          </p>
+        </div>
+
+        <Button size="lg" onClick={() => setIsFormOpen(true)} className="bg-gradient-neon hover:opacity-90">
+          <Plus className="h-5 w-5 mr-2" />
+          Nova Campanha
+        </Button>
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-sm">
