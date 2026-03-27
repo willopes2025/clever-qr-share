@@ -314,20 +314,49 @@ Deno.serve(async (req) => {
                 messageId 
               });
 
-              // Find or create contact
+              // Find or create contact - normalize phone for flexible matching
+              const rawPhone = contactPhone.replace(/\D/g, '');
+              // Build phone variations: exact, with 55, without 55, with +
+              const phoneVariations: string[] = [rawPhone];
+              if (rawPhone.startsWith('55') && rawPhone.length > 11) {
+                phoneVariations.push(rawPhone.slice(2)); // without country code
+              } else if (rawPhone.length >= 10 && rawPhone.length <= 11) {
+                phoneVariations.push('55' + rawPhone); // with country code
+              }
+              phoneVariations.push('+' + rawPhone);
+              if (!rawPhone.startsWith('55')) {
+                phoneVariations.push('+55' + rawPhone);
+              }
+
+              console.log('[META-WEBHOOK] Searching contact with phone variations:', phoneVariations);
+
               let { data: contact } = await supabase
                 .from('contacts')
                 .select('*')
                 .eq('user_id', userId)
-                .eq('phone', contactPhone)
-                .single();
+                .in('phone', phoneVariations)
+                .limit(1)
+                .maybeSingle();
+
+              if (!contact) {
+                // Also try matching stored phones that may have formatting
+                const { data: formattedContact } = await supabase
+                  .from('contacts')
+                  .select('*')
+                  .eq('user_id', userId)
+                  .or(phoneVariations.map(p => `phone.ilike.%${p.slice(-10)}%`).slice(0, 1).join(','))
+                  .limit(1)
+                  .maybeSingle();
+                
+                contact = formattedContact;
+              }
 
               if (!contact) {
                 const { data: newContact, error: contactError } = await supabase
                   .from('contacts')
                   .insert({
                     user_id: userId,
-                    phone: contactPhone,
+                    phone: rawPhone,
                     name: contactName,
                     status: 'active'
                   })
@@ -340,6 +369,8 @@ Deno.serve(async (req) => {
                 }
                 contact = newContact;
                 console.log('[META-WEBHOOK] Created new contact:', contact?.id);
+              } else {
+                console.log('[META-WEBHOOK] Found existing contact:', contact.id, 'with phone:', contact.phone);
               }
 
               if (!contact) {
