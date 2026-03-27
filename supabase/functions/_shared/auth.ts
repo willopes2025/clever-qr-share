@@ -39,8 +39,6 @@ export async function requireUser(req: Request): Promise<AuthResult> {
     };
   }
 
-  const token = authHeader.replace("Bearer ", "");
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
@@ -50,11 +48,10 @@ export async function requireUser(req: Request): Promise<AuthResult> {
       auth: { persistSession: false },
     });
 
-    // Use getClaims for local JWT validation (no DB round-trip)
-    const { data, error } = await supabaseClient.auth.getClaims(token);
+    const { data: { user }, error } = await supabaseClient.auth.getUser();
 
-    if (error || !data?.claims?.sub) {
-      console.error("[auth] getClaims failed:", error?.message ?? "No claims returned");
+    if (error || !user) {
+      console.error("[auth] getUser failed:", error?.message ?? "No user returned");
       return {
         success: false,
         error: new Response(
@@ -64,8 +61,8 @@ export async function requireUser(req: Request): Promise<AuthResult> {
       };
     }
 
-    const userId = data.claims.sub as string;
-    const email = (data.claims.email as string) ?? undefined;
+    const userId = user.id;
+    const email = user.email ?? undefined;
 
     return { success: true, userId, email };
   } catch (err) {
