@@ -942,22 +942,22 @@ Deno.serve(async (req: Request) => {
               const intentsDescription = intentMappings.map(m => m.intent).join(', ');
               
               // Call Lovable AI to analyze intent
-              const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+              const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
               
-              if (!LOVABLE_API_KEY) {
-                console.error(`[FUNNEL-AUTOMATIONS] LOVABLE_API_KEY not configured`);
+              if (!OPENAI_API_KEY) {
+                console.error(`[FUNNEL-AUTOMATIONS] OPENAI_API_KEY not configured`);
                 results.push({ automationId: automation.id, success: false, error: 'AI not configured' });
                 break;
               }
 
-              const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                  "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+                  "Authorization": `Bearer ${OPENAI_API_KEY}`,
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  model: "google/gemini-2.5-flash",
+                  model: "gpt-4.1-nano",
                   messages: [
                     {
                       role: "system",

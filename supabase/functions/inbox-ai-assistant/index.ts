@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -64,8 +64,8 @@ Deno.serve(async (req) => {
     const isValidContactName = (name: string | undefined | null): boolean => {
       if (!name || name.trim().length < 2) return false;
       if (name.startsWith('LID_')) return false;
-      if (/^\d+$/.test(name)) return false; // Only numbers
-      if (/^55\d{10,11}$/.test(name)) return false; // BR phone number
+      if (/^\d+$/.test(name)) return false;
+      if (/^55\d{10,11}$/.test(name)) return false;
       return true;
     };
     
@@ -156,15 +156,15 @@ Retorne APENAS a mensagem reescrita, sem explicações, comentários ou aspas.`;
         throw new Error(`Unknown action: ${action}`);
     }
 
-    // Call Lovable AI
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Call OpenAI API
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4.1-nano',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -174,7 +174,7 @@ Retorne APENAS a mensagem reescrita, sem explicações, comentários ou aspas.`;
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('AI error:', aiResponse.status, errorText);
+      console.error('OpenAI API error:', aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
         throw new Error('Limite de requisições excedido. Tente novamente em alguns segundos.');
