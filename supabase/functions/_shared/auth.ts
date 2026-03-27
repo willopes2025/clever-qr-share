@@ -55,50 +55,23 @@ export async function requireUser(req: Request, maxRetries = 2): Promise<AuthRes
         auth: { persistSession: false },
       });
 
-      // Preferred: validates JWT using signing keys (when available).
-      const { data, error } = await supabaseClient.auth.getClaims(token);
-
-      if (!error && data?.claims?.sub) {
-        const userId = data.claims.sub;
-        const email = (data.claims as Record<string, unknown>)?.email as string | undefined;
-
-        if (email !== undefined) {
-          if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
-          return { success: true, userId, email };
-        }
-
-        // Fallback: email may not be present in some identities' JWT claims.
-        const serviceClient = createServiceClient();
-        const { data: userData, error: adminError } = await serviceClient.auth.admin.getUserById(userId);
-
-        if (!adminError) {
-          if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
-          return { success: true, userId, email: userData.user?.email };
-        }
-
-        lastError = adminError;
-      } else {
-        // Fallback: Some auth-js versions/environments may throw AuthSessionMissingError
-        // even when a JWT is provided. In that case, try getUser(jwt) explicitly.
-        if (error && String(error.message || "").includes("Auth session missing")) {
-          const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-          if (!userError && userData?.user?.id) {
-            if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt} (getUser fallback)`);
-            return { success: true, userId: userData.user.id, email: userData.user.email };
-          }
-          lastError = userError ?? error;
-        } else {
-          lastError = error ?? new Error("No claims returned");
-        }
+      // Primary: use getUser(token) which is the most reliable method
+      const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+      
+      if (!userError && userData?.user?.id) {
+        if (attempt > 1) console.log(`[auth] Succeeded on attempt ${attempt}`);
+        return { success: true, userId: userData.user.id, email: userData.user.email };
       }
+
+      lastError = userError ?? new Error("No user returned");
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
     }
 
-    console.warn(`[auth] Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
+    console.warn(`[auth] Attempt ${attempt}/${maxRetries} failed: ${lastError?.message}`);
 
     if (attempt < maxRetries) {
-      await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+      await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
     }
   }
 
