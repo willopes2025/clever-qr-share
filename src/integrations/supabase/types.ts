@@ -5868,6 +5868,10 @@ export type Database = {
         }[]
       }
       get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
+      get_member_meta_number_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       get_organization_member_ids: {
         Args: { _user_id: string }
         Returns: string[]
@@ -5897,6 +5901,10 @@ export type Database = {
         Returns: boolean
       }
       member_has_instance_restriction: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      member_has_meta_restriction: {
         Args: { _user_id: string }
         Returns: boolean
       }

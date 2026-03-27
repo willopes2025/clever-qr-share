@@ -24,8 +24,31 @@ export const useMetaWhatsAppNumbers = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Check if current user has meta number restriction
+  const { data: myMetaNumberIds } = useQuery({
+    queryKey: ['my-meta-number-ids', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc('get_member_meta_number_ids', { _user_id: user!.id });
+      if (error) throw error;
+      return data as string[];
+    },
+    enabled: !!user,
+  });
+
+  const { data: hasMetaRestriction } = useQuery({
+    queryKey: ['has-meta-restriction', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc('member_has_meta_restriction', { _user_id: user!.id });
+      if (error) throw error;
+      return data as boolean;
+    },
+    enabled: !!user,
+  });
+
   const { data: metaNumbers, isLoading, refetch } = useQuery({
-    queryKey: ['meta-whatsapp-numbers', user?.id],
+    queryKey: ['meta-whatsapp-numbers', user?.id, myMetaNumberIds, hasMetaRestriction],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
@@ -33,9 +56,17 @@ export const useMetaWhatsAppNumbers = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as MetaWhatsAppNumber[];
+      
+      let numbers = data as MetaWhatsAppNumber[];
+      
+      // If user has meta restriction, filter to only allowed numbers
+      if (hasMetaRestriction && myMetaNumberIds && myMetaNumberIds.length > 0) {
+        numbers = numbers.filter(n => myMetaNumberIds.includes(n.id));
+      }
+      
+      return numbers;
     },
-    enabled: !!user,
+    enabled: !!user && hasMetaRestriction !== undefined,
   });
 
   const addNumber = useMutation({
