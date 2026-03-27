@@ -59,6 +59,7 @@ export const WhatsAppNumberCard = ({
   isUpdating,
   isDeleting,
 }: WhatsAppNumberCardProps) => {
+  const [configOpen, setConfigOpen] = useState(false);
   const statusConfig = getStatusConfig(number.status);
   const qualityConfig = getQualityConfig(number.quality_rating);
 
