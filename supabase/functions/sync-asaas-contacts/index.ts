@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const ASAAS_API_URL = 'https://api.asaas.com/v3';
-const ASAAS_SANDBOX_URL = 'https://sandbox.asaas.com/api/v3';
+const ASAAS_SANDBOX_URL = 'https://api-sandbox.asaas.com/v3';
 
 interface AsaasPayment {
   id: string;
@@ -176,9 +176,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const settings = integration.settings as { apiKey?: string; environment?: string } || {};
-    const apiKey = settings.apiKey;
-    const environment = settings.environment || 'production';
+    const credentials = (integration.credentials ?? {}) as { access_token?: string; environment?: string };
+    const settings = (integration.settings ?? {}) as { apiKey?: string; environment?: string };
+    const apiKey = credentials.access_token ?? settings.apiKey;
+    const environment = credentials.environment ?? settings.environment ?? 'production';
 
     if (!apiKey) {
       return new Response(
@@ -200,14 +201,14 @@ Deno.serve(async (req: Request) => {
     console.log(`[sync-asaas] Found ${overduePayments.length} overdue, ${pendingPayments.length} pending payments`);
 
     // STEP 2: Build customer status map (overdue takes priority)
-    const customerStatusMap = new Map<string, 'OVERDUE' | 'PENDING'>();
+    const customerStatusMap = new Map<string, 'overdue' | 'pending'>();
     
     for (const payment of overduePayments) {
-      customerStatusMap.set(payment.customer, 'OVERDUE');
+      customerStatusMap.set(payment.customer, 'overdue');
     }
     for (const payment of pendingPayments) {
       if (!customerStatusMap.has(payment.customer)) {
-        customerStatusMap.set(payment.customer, 'PENDING');
+        customerStatusMap.set(payment.customer, 'pending');
       }
     }
 
@@ -261,7 +262,7 @@ Deno.serve(async (req: Request) => {
 
     // STEP 5: Match customers to contacts
     // First, try matching by asaas_customer_id (fast, no API call needed)
-    const matchedUpdates: { id: string; asaas_customer_id: string; asaas_payment_status: string }[] = [];
+    const matchedUpdates: { id: string; asaas_customer_id: string; asaas_payment_status: 'overdue' | 'pending' }[] = [];
     const unmatchedCustomerIds: string[] = [];
 
     for (const customerId of uniqueCustomerIds) {
@@ -279,43 +280,30 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[sync-asaas] Matched ${matchedUpdates.length} by asaas_customer_id, ${unmatchedCustomerIds.length} need phone lookup`);
 
-    // STEP 6: For unmatched, fetch customer details from Asaas and match by phone
-    // Process in parallel batches of 20
-    const phoneBatchSize = 20;
-    for (let i = 0; i < unmatchedCustomerIds.length; i += phoneBatchSize) {
-      const batch = unmatchedCustomerIds.slice(i, i + phoneBatchSize);
-      const customers = await Promise.all(
-        batch.map(id => fetchCustomerById(baseUrl, id, apiKey))
-      );
+    // STEP 6: For unmatched, fetch customers in bulk and match by phone
+    const asaasCustomers = await fetchAllPaginated<AsaasCustomer>(baseUrl, 'customers', apiKey, 10000);
+    const unmatchedCustomerIdSet = new Set(unmatchedCustomerIds);
 
-      for (let j = 0; j < customers.length; j++) {
-        const customer = customers[j];
-        if (!customer) continue;
+    for (const customer of asaasCustomers) {
+      if (!unmatchedCustomerIdSet.has(customer.id)) continue;
 
-        const customerId = batch[j];
-        // Try all phone variants
-        const phonesToTry = [
-          ...phoneVariants(customer.mobilePhone),
-          ...phoneVariants(customer.phone),
-        ];
+      const phonesToTry = [
+        ...phoneVariants(customer.mobilePhone),
+        ...phoneVariants(customer.phone),
+      ];
 
-        let contactId: string | undefined;
-        for (const phone of phonesToTry) {
-          contactId = phoneToContactId.get(phone);
-          if (contactId) break;
-        }
-
-        if (contactId) {
-          matchedUpdates.push({
-            id: contactId,
-            asaas_customer_id: customerId,
-            asaas_payment_status: customerStatusMap.get(customerId)!,
-          });
-        }
+      let contactId: string | undefined;
+      for (const phone of phonesToTry) {
+        contactId = phoneToContactId.get(phone);
+        if (contactId) break;
       }
 
-      if (i % 100 === 0 && i > 0) {
-        console.log(`[sync-asaas] Phone lookup progress: ${i}/${unmatchedCustomerIds.length}`);
+      if (contactId) {
+        matchedUpdates.push({
+          id: contactId,
+          asaas_customer_id: customer.id,
+          asaas_payment_status: customerStatusMap.get(customer.id)!,
+        });
       }
     }
 
