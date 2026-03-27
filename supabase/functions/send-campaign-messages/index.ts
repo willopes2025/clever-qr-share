@@ -961,7 +961,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Continue to next message (skip the Evolution API block below)
-    } else {
+    } else if (selectedInstance) {
     // ===== EVOLUTION API SENDING =====
 
     // Encode instance name for URL
