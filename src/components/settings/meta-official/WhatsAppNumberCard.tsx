@@ -117,7 +117,17 @@ export const WhatsAppNumberCard = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={() => setConfigOpen(true)}
+              title="Configurar número"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
                 {number.is_active ? "Ativo" : "Inativo"}
