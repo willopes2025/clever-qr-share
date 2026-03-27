@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const ASAAS_API_URL = 'https://api.asaas.com/v3';
-const ASAAS_SANDBOX_URL = 'https://sandbox.asaas.com/api/v3';
+const ASAAS_SANDBOX_URL = 'https://api-sandbox.asaas.com/v3';
 
 interface AsaasPayment {
   id: string;
@@ -176,9 +176,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const settings = integration.settings as { apiKey?: string; environment?: string } || {};
-    const apiKey = settings.apiKey;
-    const environment = settings.environment || 'production';
+    const credentials = (integration.credentials ?? {}) as { access_token?: string; environment?: string };
+    const settings = (integration.settings ?? {}) as { apiKey?: string; environment?: string };
+    const apiKey = credentials.access_token ?? settings.apiKey;
+    const environment = credentials.environment ?? settings.environment ?? 'production';
 
     if (!apiKey) {
       return new Response(
@@ -200,14 +201,14 @@ Deno.serve(async (req: Request) => {
     console.log(`[sync-asaas] Found ${overduePayments.length} overdue, ${pendingPayments.length} pending payments`);
 
     // STEP 2: Build customer status map (overdue takes priority)
-    const customerStatusMap = new Map<string, 'OVERDUE' | 'PENDING'>();
+    const customerStatusMap = new Map<string, 'overdue' | 'pending'>();
     
     for (const payment of overduePayments) {
-      customerStatusMap.set(payment.customer, 'OVERDUE');
+      customerStatusMap.set(payment.customer, 'overdue');
     }
     for (const payment of pendingPayments) {
       if (!customerStatusMap.has(payment.customer)) {
-        customerStatusMap.set(payment.customer, 'PENDING');
+        customerStatusMap.set(payment.customer, 'pending');
       }
     }
 
@@ -261,7 +262,7 @@ Deno.serve(async (req: Request) => {
 
     // STEP 5: Match customers to contacts
     // First, try matching by asaas_customer_id (fast, no API call needed)
-    const matchedUpdates: { id: string; asaas_customer_id: string; asaas_payment_status: string }[] = [];
+    const matchedUpdates: { id: string; asaas_customer_id: string; asaas_payment_status: 'overdue' | 'pending' }[] = [];
     const unmatchedCustomerIds: string[] = [];
 
     for (const customerId of uniqueCustomerIds) {
