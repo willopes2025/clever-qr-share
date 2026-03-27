@@ -393,29 +393,38 @@ Deno.serve(async (req) => {
 
         // If tags filter exists, filter contacts that have those tags
         if (filterCriteria.tags && filterCriteria.tags.length > 0) {
-          // PAGINATED TAG FETCH: Buscar todas as tags com paginação
+          // Batch contact IDs in chunks of 500 to avoid .in() limit
+          const contactIds = allContacts.map(c => c.id);
+          const contactIdChunks: string[][] = [];
+          for (let i = 0; i < contactIds.length; i += 500) {
+            contactIdChunks.push(contactIds.slice(i, i + 500));
+          }
+
           let taggedContactIds: string[] = [];
-          let tagOffset = 0;
-          let hasMoreTags = true;
 
-          while (hasMoreTags) {
-            const { data: tagBatch, error: tagsError } = await supabase
-              .from('contact_tags')
-              .select('contact_id')
-              .in('tag_id', filterCriteria.tags)
-              .range(tagOffset, tagOffset + pageSize - 1);
+          for (const chunk of contactIdChunks) {
+            let tagOffset = 0;
+            let hasMoreTags = true;
+            while (hasMoreTags) {
+              const { data: tagBatch, error: tagsError } = await supabase
+                .from('contact_tags')
+                .select('contact_id')
+                .in('tag_id', filterCriteria.tags)
+                .in('contact_id', chunk)
+                .range(tagOffset, tagOffset + pageSize - 1);
 
-            if (tagsError) {
-              console.error('Tags fetch error:', tagsError);
-              throw new Error('Failed to fetch contact tags');
-            }
+              if (tagsError) {
+                console.error('Tags fetch error:', tagsError);
+                throw new Error('Failed to fetch contact tags');
+              }
 
-            if (tagBatch && tagBatch.length > 0) {
-              taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
-              tagOffset += pageSize;
-              hasMoreTags = tagBatch.length === pageSize;
-            } else {
-              hasMoreTags = false;
+              if (tagBatch && tagBatch.length > 0) {
+                taggedContactIds.push(...tagBatch.map(tc => tc.contact_id));
+                tagOffset += pageSize;
+                hasMoreTags = tagBatch.length === pageSize;
+              } else {
+                hasMoreTags = false;
+              }
             }
           }
 
