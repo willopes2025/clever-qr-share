@@ -916,6 +916,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         </div>
         
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
+          {/* Mark as Read Button */}
+          {conversation.unread_count > 0 && onMarkAsRead && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={onMarkAsRead}
+                >
+                  <MailCheck className="h-4 w-4" />
+                  <span className="hidden md:inline">Marcar como lida</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Marcar como lida</TooltipContent>
+            </Tooltip>
+          )}
           {/* AI Status Badge - Desktop only (compact) */}
           {!isMobile && conversation.ai_handled && (
             <Tooltip>
