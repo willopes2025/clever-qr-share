@@ -1,30 +1,44 @@
 
 
-## Modificação: Marcar como Lido apenas por ação do usuário
+## Diagnóstico: Sistema vazio após login
 
-### Problema Atual
-Ao clicar em uma conversa no Inbox, o sistema automaticamente marca como lida (`unread_count = 0`). Isso acontece na função `handleSelectConversation` em `src/pages/Inbox.tsx` (linha 95-97).
+### Causa Raiz Identificada
 
-### Solução Proposta
-Remover a marcação automática ao abrir a conversa e adicionar duas formas de marcar como lida:
+Os logs de autenticação revelam o problema principal: **o banco de dados está extremamente lento**, com requisições `/user` levando de **5 a 8 segundos** e muitas falhando com `timeout: context canceled` e status 500.
 
-1. **Botão "Marcar como lida"** — visível no cabeçalho do chat quando a conversa tem mensagens não lidas
-2. **Ao responder** — quando o usuário envia uma mensagem, a conversa é automaticamente marcada como lida
+A função `_shared/auth.ts` usa `getUser(token)` que faz uma chamada de rede ao servidor de autenticação a cada invocação de Edge Function. Com o banco lento, essa chamada frequentemente dá timeout, causando:
+1. Edge Functions retornam 401 ou timeout
+2. O frontend não consegue carregar dados de assinatura, instâncias, equipe, etc.
+3. O sistema aparece "zerado"
 
-### Arquivos a Alterar
+Os logs do `check-subscription` confirmam: `"connection closed before message completed"` - o cliente desiste antes da resposta chegar.
 
-**1. `src/pages/Inbox.tsx`**
-- Remover a chamada `markAsRead.mutate()` de dentro de `handleSelectConversation`
+### Solução
 
-**2. `src/components/inbox/ChatHeader.tsx` (ou componente equivalente do cabeçalho do chat)**
-- Adicionar um botão "Marcar como lida" que aparece condicionalmente quando `unread_count > 0`
-- Ao clicar, chama `markAsRead.mutate(conversationId)`
+**1. Trocar `getUser()` por `getClaims()` no `_shared/auth.ts`**
 
-**3. Hook/componente de envio de mensagem**
-- Após enviar uma mensagem com sucesso, chamar `markAsRead` para zerar o `unread_count` da conversa atual
+`getClaims(token)` valida o JWT **localmente** usando chaves de assinatura, sem depender do banco de dados. Isso elimina a dependência do banco para autenticação em Edge Functions.
 
-### Detalhes Técnicos
-- A mutation `markAsRead` já existe em `useConversations.ts` — só precisa ser chamada nos novos pontos
-- O badge de não lidas na lista de conversas continuará funcionando normalmente
-- A opção "Marcar como não lida" no menu de contexto permanece inalterada
+```
+getUser(token)   → chamada de rede ao DB (5-8s quando lento)
+getClaims(token) → validação local do JWT (~1ms)
+```
+
+**2. Arquivo a modificar:** `supabase/functions/_shared/auth.ts`
+
+Substituir o bloco `getUser` por `getClaims`:
+- `getClaims(token)` retorna `{ claims: { sub, email, ... } }`
+- `userId = claims.sub`
+- `email = claims.email`
+- Remover o retry loop (não necessário com validação local)
+
+**3. Reimplantar as Edge Functions afetadas**
+
+Todas as que importam `requireUser` de `_shared/auth.ts` serão automaticamente atualizadas no próximo deploy.
+
+### Resultado Esperado
+
+- Autenticação nas Edge Functions passa de ~5-8s para ~1ms
+- Dados carregam normalmente mesmo com banco sob carga
+- Sistema deixa de aparecer "zerado" após login
 
