@@ -901,6 +901,7 @@ Deno.serve(async (req: Request) => {
                 status: 'open',
                 campaign_id: campaignId,
                 provider: 'meta',
+                meta_phone_number_id: phoneNumberId,
               })
               .select('id')
               .single();
