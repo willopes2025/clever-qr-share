@@ -475,7 +475,7 @@ Deno.serve(async (req: Request) => {
     let campaignId: string;
     let messageIndex: number = body.messageIndex || 0;
 
-    if (body.instances && Array.isArray(body.instances)) {
+    if (body.instances && Array.isArray(body.instances) && body.instances.length > 0) {
       // New format with multiple instances
       campaignId = body.campaignId;
       instances = body.instances.map((i: any) => ({
@@ -489,11 +489,12 @@ Deno.serve(async (req: Request) => {
       campaignId = body.campaignId;
       instances = [{ id: 'legacy', instance_name: body.instanceName, warming_level: 1 }];
     } else {
-      throw new Error('Campaign ID and instances are required');
+      // Meta template campaigns may have no instances
+      campaignId = body.campaignId;
     }
 
-    if (!campaignId || instances.length === 0) {
-      throw new Error('Campaign ID and at least one instance are required');
+    if (!campaignId) {
+      throw new Error('Campaign ID is required');
     }
 
     console.log(`Processing campaign ${campaignId}, message index ${messageIndex}, with ${instances.length} instance(s) in ${sendingMode} mode`);
