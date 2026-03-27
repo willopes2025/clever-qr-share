@@ -1004,6 +1004,8 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      } // end of else (success) block
+
       // Continue to next message (skip the Evolution API block below)
     } else if (selectedInstance) {
     // ===== EVOLUTION API SENDING =====
