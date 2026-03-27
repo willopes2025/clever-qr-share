@@ -1,0 +1,1 @@
+ALTER TABLE public.funnel_opportunities ADD COLUMN IF NOT EXISTS analyzed_at TIMESTAMPTZ DEFAULT now();

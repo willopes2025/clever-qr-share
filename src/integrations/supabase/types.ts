@@ -2935,6 +2935,7 @@ export type Database = {
       }
       funnel_opportunities: {
         Row: {
+          analyzed_at: string | null
           contact_display_id: string | null
           contact_email: string | null
           contact_id: string | null
@@ -2955,6 +2956,7 @@ export type Database = {
           value: number | null
         }
         Insert: {
+          analyzed_at?: string | null
           contact_display_id?: string | null
           contact_email?: string | null
           contact_id?: string | null
@@ -2975,6 +2977,7 @@ export type Database = {
           value?: number | null
         }
         Update: {
+          analyzed_at?: string | null
           contact_display_id?: string | null
           contact_email?: string | null
           contact_id?: string | null
