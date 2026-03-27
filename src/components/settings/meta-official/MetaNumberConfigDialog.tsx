@@ -111,11 +111,28 @@ export const MetaNumberConfigDialog = ({ open, onOpenChange, number }: MetaNumbe
     queryFn: async () => {
       const { data, error } = await supabase
         .from('team_members')
-        .select('id, user_id, email, role, profiles:user_id(full_name)')
+        .select('id, user_id, email, role')
         .eq('status', 'active')
-        .order('email');
+        .order('email') as any;
       if (error) throw error;
-      return data as TeamMember[];
+      
+      // Fetch profiles separately
+      const memberData = (data || []) as any[];
+      const userIds = memberData.map((m: any) => m.user_id).filter(Boolean);
+      
+      let profilesMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+        profiles?.forEach((p: any) => { profilesMap[p.id] = p.full_name; });
+      }
+      
+      return memberData.map((m: any) => ({
+        ...m,
+        profiles: { full_name: profilesMap[m.user_id] || null }
+      })) as TeamMember[];
     },
     enabled: open,
   });
