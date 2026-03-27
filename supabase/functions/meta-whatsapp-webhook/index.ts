@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
         // Check meta_whatsapp_numbers first (supports multiple numbers per user)
         const { data: metaNumber } = await supabase
           .from('meta_whatsapp_numbers')
-          .select('user_id')
+          .select('user_id, default_funnel_id, default_stage_id')
           .eq('phone_number_id', webhookPhoneNumberId)
           .eq('is_active', true)
           .maybeSingle();
@@ -376,33 +376,50 @@ Deno.serve(async (req) => {
                 conversation = newConversation;
                 console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
 
-                // Auto-create lead for new conversations based on user_settings
+                // Auto-create lead for new conversations
+                // Priority: 1) Meta number's default funnel, 2) User settings auto-lead funnel
                 if (conversation && userId) {
                   try {
-                    const { data: userSettings } = await supabase
-                      .from('user_settings')
-                      .select('auto_create_leads, auto_lead_funnel_id, auto_lead_stage_id')
-                      .eq('user_id', userId)
-                      .maybeSingle();
+                    // Check Meta number's default funnel first
+                    let autoFunnelId: string | null = null;
+                    let autoStageId: string | null = null;
 
-                    if (userSettings?.auto_create_leads && userSettings?.auto_lead_funnel_id) {
-                      console.log('[META-WEBHOOK] Auto-creating lead for new contact in funnel:', userSettings.auto_lead_funnel_id);
+                    if (metaNumber?.default_funnel_id) {
+                      autoFunnelId = metaNumber.default_funnel_id;
+                      autoStageId = metaNumber.default_stage_id || null;
+                      console.log('[META-WEBHOOK] Using Meta number default funnel:', autoFunnelId);
+                    } else {
+                      // Fallback to user_settings
+                      const { data: userSettings } = await supabase
+                        .from('user_settings')
+                        .select('auto_create_leads, auto_lead_funnel_id, auto_lead_stage_id')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+
+                      if (userSettings?.auto_create_leads && userSettings?.auto_lead_funnel_id) {
+                        autoFunnelId = userSettings.auto_lead_funnel_id;
+                        autoStageId = userSettings.auto_lead_stage_id || null;
+                      }
+                    }
+
+                    if (autoFunnelId) {
+                      console.log('[META-WEBHOOK] Auto-creating lead in funnel:', autoFunnelId);
                       
                       const { data: existingDeal } = await supabase
                         .from('funnel_deals')
                         .select('id')
                         .eq('contact_id', contact.id)
-                        .eq('funnel_id', userSettings.auto_lead_funnel_id)
+                        .eq('funnel_id', autoFunnelId)
                         .limit(1)
                         .maybeSingle();
 
                       if (!existingDeal) {
-                        let dealStageId = userSettings.auto_lead_stage_id;
+                        let dealStageId = autoStageId;
                         if (!dealStageId) {
                           const { data: firstStage } = await supabase
                             .from('funnel_stages')
                             .select('id')
-                            .eq('funnel_id', userSettings.auto_lead_funnel_id)
+                            .eq('funnel_id', autoFunnelId)
                             .order('display_order', { ascending: true })
                             .limit(1)
                             .single();
@@ -414,7 +431,7 @@ Deno.serve(async (req) => {
                             .from('funnel_deals')
                             .insert({
                               user_id: userId,
-                              funnel_id: userSettings.auto_lead_funnel_id,
+                              funnel_id: autoFunnelId,
                               stage_id: dealStageId,
                               contact_id: contact.id,
                               conversation_id: conversation.id,

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +14,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Phone, Building2, Signal, Gauge, Trash2, Loader2 } from "lucide-react";
+import { Phone, Building2, Signal, Gauge, Trash2, Loader2, Settings2 } from "lucide-react";
 import type { MetaWhatsAppNumber } from "@/hooks/useMetaWhatsAppNumbers";
+import { MetaNumberConfigDialog } from "./MetaNumberConfigDialog";
 
 interface WhatsAppNumberCardProps {
   number: MetaWhatsAppNumber;
@@ -57,6 +59,7 @@ export const WhatsAppNumberCard = ({
   isUpdating,
   isDeleting,
 }: WhatsAppNumberCardProps) => {
+  const [configOpen, setConfigOpen] = useState(false);
   const statusConfig = getStatusConfig(number.status);
   const qualityConfig = getQualityConfig(number.quality_rating);
 
@@ -114,7 +117,17 @@ export const WhatsAppNumberCard = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={() => setConfigOpen(true)}
+              title="Configurar número"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
+
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
                 {number.is_active ? "Ativo" : "Inativo"}
@@ -164,6 +177,12 @@ export const WhatsAppNumberCard = ({
           </div>
         </div>
       </CardContent>
+
+      <MetaNumberConfigDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        number={number}
+      />
     </Card>
   );
 };

@@ -3905,6 +3905,8 @@ export type Database = {
           business_account_id: string | null
           connected_at: string | null
           created_at: string | null
+          default_funnel_id: string | null
+          default_stage_id: string | null
           display_name: string | null
           id: string
           is_active: boolean | null
@@ -3921,6 +3923,8 @@ export type Database = {
           business_account_id?: string | null
           connected_at?: string | null
           created_at?: string | null
+          default_funnel_id?: string | null
+          default_stage_id?: string | null
           display_name?: string | null
           id?: string
           is_active?: boolean | null
@@ -3937,6 +3941,8 @@ export type Database = {
           business_account_id?: string | null
           connected_at?: string | null
           created_at?: string | null
+          default_funnel_id?: string | null
+          default_stage_id?: string | null
           display_name?: string | null
           id?: string
           is_active?: boolean | null
@@ -3949,7 +3955,22 @@ export type Database = {
           user_id?: string
           waba_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "meta_whatsapp_numbers_default_funnel_id_fkey"
+            columns: ["default_funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_whatsapp_numbers_default_stage_id_fkey"
+            columns: ["default_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_log: {
         Row: {
@@ -4593,6 +4614,42 @@ export type Database = {
           },
           {
             foreignKeyName: "team_member_instances_team_member_id_fkey"
+            columns: ["team_member_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_member_meta_numbers: {
+        Row: {
+          created_at: string | null
+          id: string
+          meta_number_id: string
+          team_member_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          meta_number_id: string
+          team_member_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          meta_number_id?: string
+          team_member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_member_meta_numbers_meta_number_id_fkey"
+            columns: ["meta_number_id"]
+            isOneToOne: false
+            referencedRelation: "meta_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_member_meta_numbers_team_member_id_fkey"
             columns: ["team_member_id"]
             isOneToOne: false
             referencedRelation: "team_members"
