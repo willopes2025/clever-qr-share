@@ -63,17 +63,29 @@ export const TemplateFormDialog = ({
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const { contactFieldDefinitions } = useCustomFields();
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
-  // Build available variables list
-  const availableVariables = [
+  const staticVariables = [
     { key: 'nome', label: 'Nome do contato' },
     { key: 'telefone', label: 'Telefone do contato' },
     { key: 'email', label: 'Email do contato' },
-    ...(contactFieldDefinitions?.map(f => ({
-      key: f.field_key,
-      label: f.field_name,
-    })) || []),
+  ];
+
+  const contactCustomVariables = contactFieldDefinitions?.map(f => ({
+    key: f.field_key,
+    label: f.field_name,
+  })) || [];
+
+  const leadCustomVariables = leadFieldDefinitions?.map(f => ({
+    key: f.field_key,
+    label: f.field_name,
+  })) || [];
+
+  // All variables combined for AI generation
+  const availableVariables = [
+    ...staticVariables,
+    ...contactCustomVariables,
+    ...leadCustomVariables,
   ];
 
   useEffect(() => {
