@@ -92,9 +92,7 @@ const Inbox = () => {
     if (isMobile) {
       setMobileShowMessages(true);
     }
-    if (conversation.unread_count > 0) {
-      markAsRead.mutate(conversation.id);
-    }
+    // Read status is now managed manually (button or reply) - not on open
   };
 
   const handleBackToList = () => {
