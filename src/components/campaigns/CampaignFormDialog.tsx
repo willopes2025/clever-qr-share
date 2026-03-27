@@ -121,11 +121,18 @@ export const CampaignFormDialog = ({
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
   const { templates } = useMessageTemplates();
-  const { templates: metaTemplates } = useMetaTemplates();
   const { metaNumbers } = useMetaWhatsAppNumbers();
   const { lists } = useBroadcastLists();
   const { user } = useAuth();
   const { createTag } = useContacts();
+
+  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
+  
+  // Get the selected number's waba_id to filter templates
+  const selectedMetaNumber = activeMetaNumbers.find(n => n.id === selectedMetaPhoneNumberId);
+  const selectedWabaId = selectedMetaNumber?.waba_id || null;
+  
+  const { templates: metaTemplates } = useMetaTemplates(messageMode === 'meta_template' ? selectedWabaId : undefined);
   
   // Fetch tags for selection
   const { data: tags } = useQuery({
@@ -143,7 +150,6 @@ export const CampaignFormDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
-  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
 
   useEffect(() => {
     if (campaign) {
