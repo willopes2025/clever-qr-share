@@ -6,6 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   MessageTemplate, 
   CreateTemplateData, 
@@ -14,6 +18,7 @@ import {
   extractVariables,
   MediaType
 } from '@/hooks/useMessageTemplates';
+import { useCustomFields } from '@/hooks/useCustomFields';
 import { VariableAutocomplete } from './VariableAutocomplete';
 import { TemplateMediaUpload } from './TemplateMediaUpload';
 
@@ -24,6 +29,15 @@ interface TemplateFormDialogProps {
   onSubmit: (data: CreateTemplateData) => void;
   isLoading?: boolean;
 }
+
+const CATEGORY_PROMPTS: Record<TemplateCategory, string> = {
+  promotional: 'Crie uma mensagem promocional oferecendo um desconto especial. Use o nome do cliente para personalizar e inclua um call-to-action.',
+  welcome: 'Crie uma mensagem de boas-vindas calorosa para um novo cliente. Seja acolhedor e apresente brevemente os serviços.',
+  reminder: 'Crie um lembrete amigável sobre um compromisso ou pagamento pendente. Seja educado e objetivo.',
+  transactional: 'Crie uma confirmação de pedido ou transação com detalhes relevantes. Seja claro e profissional.',
+  notification: 'Crie uma notificação informativa sobre uma atualização importante. Seja direto e informativo.',
+  other: 'Crie uma mensagem personalizada para o contato. Seja natural e profissional.',
+};
 
 export const TemplateFormDialog = ({
   open,
@@ -43,6 +57,24 @@ export const TemplateFormDialog = ({
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaFilename, setMediaFilename] = useState<string | null>(null);
 
+  // AI generation state
+  const [showAiSection, setShowAiSection] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const { contactFieldDefinitions } = useCustomFields();
+
+  // Build available variables list
+  const availableVariables = [
+    { key: 'nome', label: 'Nome do contato' },
+    { key: 'telefone', label: 'Telefone do contato' },
+    { key: 'email', label: 'Email do contato' },
+    ...(contactFieldDefinitions?.map(f => ({
+      key: f.field_key,
+      label: f.field_name,
+    })) || []),
+  ];
+
   useEffect(() => {
     if (template) {
       setName(template.name);
@@ -61,11 +93,65 @@ export const TemplateFormDialog = ({
       setMediaUrl(null);
       setMediaFilename(null);
     }
+    setShowAiSection(false);
+    setAiPrompt('');
   }, [template, open]);
 
   useEffect(() => {
     setDetectedVariables(extractVariables(content));
   }, [content]);
+
+  // Update AI prompt suggestion when category changes
+  useEffect(() => {
+    if (showAiSection && !aiPrompt) {
+      setAiPrompt(CATEGORY_PROMPTS[category] || CATEGORY_PROMPTS.other);
+    }
+  }, [category, showAiSection]);
+
+  const handleToggleAiSection = () => {
+    const next = !showAiSection;
+    setShowAiSection(next);
+    if (next && !aiPrompt) {
+      setAiPrompt(CATEGORY_PROMPTS[category] || CATEGORY_PROMPTS.other);
+    }
+  };
+
+  const handleGenerateWithAI = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error('Digite uma instrução para a IA');
+      return;
+    }
+
+    if (content.trim()) {
+      const confirmed = window.confirm('O conteúdo atual será substituído pelo gerado pela IA. Deseja continuar?');
+      if (!confirmed) return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-template-content', {
+        body: {
+          prompt: aiPrompt,
+          category,
+          variables: availableVariables,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.content) {
+        setContent(data.content);
+        toast.success('Mensagem gerada com sucesso!');
+        setShowAiSection(false);
+      }
+    } catch (err: any) {
+      console.error('AI generation error:', err);
+      toast.error(err.message || 'Erro ao gerar mensagem com IA');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleMediaChange = (type: MediaType, url: string | null, filename: string | null) => {
     setMediaType(type);
@@ -137,6 +223,77 @@ export const TemplateFormDialog = ({
             onMediaChange={handleMediaChange}
             templateContent={content}
           />
+
+          {/* AI Generation Section */}
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleToggleAiSection}
+              className="w-full justify-between border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Gerar com IA
+              </span>
+              {showAiSection ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+
+            {showAiSection && (
+              <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Instrução para a IA</Label>
+                  <Textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="Descreva o tipo de mensagem que deseja gerar..."
+                    rows={3}
+                    className="bg-background border-border text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Variáveis disponíveis</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableVariables.map((v) => (
+                      <Badge
+                        key={v.key}
+                        variant="secondary"
+                        className="bg-primary/15 text-primary border-primary/25 text-xs cursor-pointer hover:bg-primary/25"
+                        onClick={() => {
+                          setAiPrompt(prev => prev + ` {{${v.key}}}`);
+                        }}
+                      >
+                        {`{{${v.key}}}`}
+                        <span className="ml-1 text-muted-foreground">({v.label})</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleGenerateWithAI}
+                  disabled={isGenerating || !aiPrompt.trim()}
+                  className="w-full"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Gerar Mensagem
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="content">Conteúdo da Mensagem</Label>
