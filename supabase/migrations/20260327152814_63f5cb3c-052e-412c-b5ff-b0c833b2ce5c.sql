@@ -1,0 +1,1 @@
+UPDATE public.campaigns SET status = 'draft', retry_at = NULL WHERE status = 'sending' AND meta_template_id IS NOT NULL;

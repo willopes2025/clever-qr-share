@@ -506,7 +506,7 @@ Deno.serve(async (req: Request) => {
         user_id, status, sent, delivered, failed, total_contacts,
         message_interval_min, message_interval_max, daily_limit,
         allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at,
-        tag_on_delivery_id, template_id, meta_template_id,
+        tag_on_delivery_id, template_id, meta_template_id, meta_phone_number_id,
         batch_enabled, batch_size, batch_pause_minutes
       `)
       .eq('id', campaignId)
@@ -717,23 +717,27 @@ Deno.serve(async (req: Request) => {
       return instances[0];
     };
 
-    // Select instance based on sending mode
-    let selectedInstance: Instance;
+    // Select instance based on sending mode (only for Evolution API campaigns)
+    let selectedInstance: Instance | null = null;
     
-    switch (sendingMode) {
-      case 'warming':
-        selectedInstance = getInstanceByWarming();
-        break;
-      case 'random':
-        selectedInstance = instances[Math.floor(Math.random() * instances.length)];
-        break;
-      case 'sequential':
-      default:
-        selectedInstance = instances[messageIndex % instances.length];
-        break;
-    }
+    if (instances.length > 0) {
+      switch (sendingMode) {
+        case 'warming':
+          selectedInstance = getInstanceByWarming();
+          break;
+        case 'random':
+          selectedInstance = instances[Math.floor(Math.random() * instances.length)];
+          break;
+        case 'sequential':
+        default:
+          selectedInstance = instances[messageIndex % instances.length];
+          break;
+      }
 
-    console.log(`Selected instance: ${selectedInstance.instance_name} (warming level: ${selectedInstance.warming_level})`);
+      console.log(`Selected instance: ${selectedInstance.instance_name} (warming level: ${selectedInstance.warming_level})`);
+    } else {
+      console.log('No Evolution instances - using Meta template sending');
+    }
 
     // Update message status to 'sending'
     await supabase
@@ -780,7 +784,7 @@ Deno.serve(async (req: Request) => {
         .from('integrations')
         .select('credentials')
         .eq('user_id', campaign.user_id)
-        .eq('service_name', 'meta_whatsapp')
+        .eq('provider', 'meta_whatsapp')
         .eq('is_active', true)
         .single();
 
@@ -957,7 +961,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Continue to next message (skip the Evolution API block below)
-    } else {
+    } else if (selectedInstance) {
     // ===== EVOLUTION API SENDING =====
 
     // Encode instance name for URL
@@ -1185,7 +1189,18 @@ Deno.serve(async (req: Request) => {
         .eq('id', campaignId);
     }
 
-    } // end of else (Evolution API) block
+    } else {
+      // No instances and no meta template - fail the message
+      console.error('No sending method available: no instances and no meta template');
+      await supabase.from('campaign_messages').update({
+        status: 'failed',
+        error_message: 'Nenhum método de envio configurado'
+      }).eq('id', message.id);
+      
+      await supabase.from('campaigns').update({
+        failed: (campaign.failed || 0) + 1
+      }).eq('id', campaignId);
+    } // end of sending block
 
     // Check if there are more messages to send
     const { count: remainingCount, error: countError } = await supabase
