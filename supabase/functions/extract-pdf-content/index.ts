@@ -52,7 +52,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const pdfBuffer = await pdfResponse.arrayBuffer();
-    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
+    const uint8Array = new Uint8Array(pdfBuffer);
+    
+    // Convert to base64 in chunks to avoid stack overflow
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      binary += String.fromCharCode(...chunk);
+    }
+    const base64Pdf = btoa(binary);
     
     console.log('[EXTRACT-PDF] PDF downloaded, size:', pdfBuffer.byteLength, 'bytes');
 
