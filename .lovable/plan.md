@@ -1,30 +1,24 @@
 
 
-## Corrigir tipos de campos personalizados no diálogo de edição do lead
+## Corrigir sobrescrita de nome de contatos importados pelo pushName do WhatsApp
 
-### Problema
+### Causa Raiz
 
-Quando você clica para editar o cartão do lead (via `DealFormDialog`), o componente `DealCustomFieldsEditor` só renderiza 5 tipos de campo: `text`, `number`, `date`, `select` e `boolean`. Os tipos `time`, `datetime`, `switch`, `multi_select`, `url`, `phone` e `email` estão faltando — todos aparecem como campos vazios/não renderizados.
+No webhook `receive-webhook`, quando um contato é encontrado por telefone (linha 810-816), a query SELECT busca apenas `id, label_id, phone` — **não inclui `name`**. Isso faz com que `contact.name` seja `undefined`, que é tratado como string vazia na lógica de pushName (linha 940), fazendo o sistema considerar o nome como "genérico" e sobrescrevê-lo com o pushName do WhatsApp.
 
-Os painéis laterais do inbox (`LeadFieldsSection` e `ContactFieldsSection`) já suportam todos os tipos corretamente. O problema é exclusivamente no `DealCustomFieldsEditor.tsx`.
+Contatos importados com nomes corretos (ex: "Wanderlon Silva") perdem o nome porque o sistema acha que o nome está vazio.
 
 ### Solução
 
-**Arquivo:** `src/components/funnels/DealCustomFieldsEditor.tsx`
+**Arquivo:** `supabase/functions/receive-webhook/index.ts`
 
-Adicionar suporte aos tipos que faltam:
+1. **Linha 812** — Adicionar `name` ao SELECT da busca por telefone:
+   - De: `.select('id, label_id, phone')`
+   - Para: `.select('id, label_id, phone, name')`
 
-- **`switch`** → renderizar como `Switch` (igual ao `boolean`)
-- **`time`** → renderizar como `<Input type="time" />`
-- **`datetime`** → renderizar como combinação de `Calendar` (Popover) + `<Input type="time" />`
-- **`multi_select`** → renderizar como `Select` com as opções (mesmo tratamento do `select` por enquanto)
-- **`url`** → renderizar como `<Input type="url" />`
-- **`phone`** → renderizar como `<Input type="tel" />`
-- **`email`** → renderizar como `<Input type="email" />`
-
-A implementação seguirá o mesmo padrão visual já usado em `LeadFieldsSection.tsx`, mantendo consistência entre os componentes.
+Isso é tudo. Com `contact.name` corretamente carregado, a lógica existente de `isGenericName` funcionará como esperado — nomes reais como "Wanderlon Silva" não serão considerados genéricos e não serão sobrescritos pelo pushName.
 
 ### Resultado
 
-Todos os campos personalizados do lead exibirão o controle correto (calendário, switch, seleção, etc.) ao editar o cartão tanto pelo inbox quanto pelo funil.
+Contatos importados com nomes corretos manterão seus nomes mesmo quando responderem mensagens no WhatsApp. A atualização por pushName continuará funcionando apenas para contatos sem nome ou com nomes genéricos (números de telefone, "Cliente", etc.).
 
