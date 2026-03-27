@@ -16,13 +16,13 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { campaignId, instanceIds, sendingMode } = await req.json();
+    const { campaignId, instanceIds = [], sendingMode = 'sequential' } = await req.json();
 
      // IMPORTANT: Exclusion must work across duplicate contact records, so we exclude by PHONE.
      const normalizePhone = (p: string) => String(p || '').replace(/\D/g, '');
 
-    if (!campaignId || !instanceIds || instanceIds.length === 0) {
-      throw new Error('Campaign ID and instance IDs are required');
+    if (!campaignId) {
+      throw new Error('Campaign ID is required');
     }
 
     console.log(`Resuming campaign ${campaignId} with ${instanceIds.length} instances in ${sendingMode} mode`);
@@ -36,6 +36,12 @@ Deno.serve(async (req) => {
 
     if (campaignError || !campaign) {
       throw new Error('Campaign not found');
+    }
+
+    const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
+
+    if (!isMetaTemplateCampaign && instanceIds.length === 0) {
+      throw new Error('Campaign ID and instance IDs are required');
     }
 
     // Check if campaign can be resumed
@@ -193,14 +199,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch instances
-    const { data: instances, error: instancesError } = await supabase
-      .from('whatsapp_instances')
-      .select('id, instance_name, warming_level')
-      .in('id', instanceIds);
+    let instances: Array<{ id: string; instance_name: string; warming_level: number | null }> = [];
 
-    if (instancesError || !instances || instances.length === 0) {
-      throw new Error('No valid instances found');
+    if (!isMetaTemplateCampaign) {
+      const { data: fetchedInstances, error: instancesError } = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, warming_level')
+        .in('id', instanceIds);
+
+      if (instancesError || !fetchedInstances || fetchedInstances.length === 0) {
+        throw new Error('No valid instances found');
+      }
+
+      instances = fetchedInstances;
     }
 
     // Update campaign status to sending
@@ -210,7 +221,7 @@ Deno.serve(async (req) => {
         status: 'sending',
         started_at: campaign.started_at || new Date().toISOString(),
         completed_at: null,
-        instance_ids: instanceIds,
+        instance_ids: isMetaTemplateCampaign ? [] : instanceIds,
         sending_mode: sendingMode
       })
       .eq('id', campaignId);
