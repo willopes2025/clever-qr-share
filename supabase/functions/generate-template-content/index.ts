@@ -75,7 +75,7 @@ Responda APENAS com o conteúdo da mensagem, sem explicações adicionais.`;
         });
       }
       const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
+      console.error("OpenAI API error:", response.status, text);
       throw new Error("Erro ao gerar conteúdo com IA");
     }
 

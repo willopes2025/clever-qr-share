@@ -65,7 +65,7 @@ Retorne APENAS as mensagens, uma por linha, sem numeração, sem aspas, sem expl
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
+      console.error('OpenAI API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -73,20 +73,13 @@ Retorne APENAS as mensagens, uma por linha, sem numeração, sem aspas, sem expl
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Payment required. Please add credits.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
 
-    // Parse the response - split by newlines and filter empty lines
     const messages = content
       .split('\n')
       .map((line: string) => line.trim())
