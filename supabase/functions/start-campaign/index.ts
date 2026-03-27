@@ -631,52 +631,88 @@ Deno.serve(async (req) => {
       throw new Error('Failed to update campaign status');
     }
 
-    // Fetch template variations if any
-    const { data: variations } = await supabase
-      .from('template_variations')
-      .select('content')
-      .eq('template_id', campaign.template_id);
+    // Build message records
+    let messageRecords;
 
-    // Build array of message options (original + variations)
-    const messageOptions: string[] = [campaign.template.content];
-    if (variations && variations.length > 0) {
-      messageOptions.push(...variations.map(v => v.content));
-    }
+    if (isMetaTemplateCampaign) {
+      // For Meta template campaigns, fetch the meta template body as placeholder content
+      const { data: metaTemplate } = await supabase
+        .from('meta_templates')
+        .select('body_text, name')
+        .eq('id', campaign.meta_template_id)
+        .single();
 
-    console.log(`Using ${messageOptions.length} message variations (1 original + ${variations?.length || 0} variations)`);
+      const templateBody = metaTemplate?.body_text || `[Meta Template: ${metaTemplate?.name || campaign.meta_template_id}]`;
 
-    // Create campaign_messages records
-    const messageRecords = filteredContacts.map((contact: Contact, index: number) => {
-      // Select a random message option for this contact
-      const randomIndex = Math.floor(Math.random() * messageOptions.length);
-      let messageContent = messageOptions[randomIndex];
-      
-      // Replace standard variables
-      messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
-      messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
-      messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
-      messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
-      messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
-      
-      // Replace custom_fields variables dynamically
-      const customFields = contact.custom_fields || {};
-      for (const [key, value] of Object.entries(customFields)) {
-        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
-        messageContent = messageContent.replace(regex, value || '');
+      messageRecords = filteredContacts.map((contact: Contact) => {
+        let messageContent = templateBody;
+        // Replace variables for display purposes
+        messageContent = messageContent.replace(/\{\{1\}\}/g, contact.name || '');
+        messageContent = messageContent.replace(/\{\{2\}\}/g, contact.phone || '');
+        messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
+        messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
+        messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
+        messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
+        messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
+        
+        const customFields = contact.custom_fields || {};
+        for (const [key, value] of Object.entries(customFields)) {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+          messageContent = messageContent.replace(regex, value || '');
+        }
+        messageContent = messageContent.replace(/\{\{[^}]+\}\}/g, '');
+
+        return {
+          campaign_id: campaignId,
+          contact_id: contact.id,
+          phone: normalizePhone(contact.phone),
+          contact_name: contact.name,
+          message_content: messageContent,
+          status: 'queued'
+        };
+      });
+    } else {
+      // Fetch template variations if any
+      const { data: variations } = await supabase
+        .from('template_variations')
+        .select('content')
+        .eq('template_id', campaign.template_id);
+
+      // Build array of message options (original + variations)
+      const messageOptions: string[] = [campaign.template.content];
+      if (variations && variations.length > 0) {
+        messageOptions.push(...variations.map(v => v.content));
       }
-      
-      // Clean up any remaining unreplaced variables
-      messageContent = messageContent.replace(/\{\{[^}]+\}\}/g, '');
 
-      return {
-        campaign_id: campaignId,
-        contact_id: contact.id,
-        phone: normalizePhone(contact.phone), // Normalize for consistent exclusion matching
-        contact_name: contact.name,
-        message_content: messageContent,
-        status: 'queued'
-      };
-    });
+      console.log(`Using ${messageOptions.length} message variations (1 original + ${variations?.length || 0} variations)`);
+
+      messageRecords = filteredContacts.map((contact: Contact) => {
+        const randomIndex = Math.floor(Math.random() * messageOptions.length);
+        let messageContent = messageOptions[randomIndex];
+        
+        messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
+        messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
+        messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
+        messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
+        messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
+        
+        const customFields = contact.custom_fields || {};
+        for (const [key, value] of Object.entries(customFields)) {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+          messageContent = messageContent.replace(regex, value || '');
+        }
+        messageContent = messageContent.replace(/\{\{[^}]+\}\}/g, '');
+
+        return {
+          campaign_id: campaignId,
+          contact_id: contact.id,
+          phone: normalizePhone(contact.phone),
+          contact_name: contact.name,
+          message_content: messageContent,
+          status: 'queued'
+        };
+      });
+    }
 
     const { error: insertError } = await supabase
       .from('campaign_messages')

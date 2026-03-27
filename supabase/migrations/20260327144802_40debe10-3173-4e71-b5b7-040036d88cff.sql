@@ -1,0 +1,1 @@
+UPDATE campaigns SET status = 'draft', started_at = NULL WHERE status = 'sending' AND meta_template_id IS NOT NULL;
