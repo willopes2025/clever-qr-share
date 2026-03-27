@@ -373,10 +373,21 @@ export const useBroadcastLists = () => {
             });
           }
 
-          const { data, error } = await query.limit(1000);
-          if (error) throw error;
+          // Fetch all contacts without 1000 limit - paginate
+          let allFilteredContacts: any[] = [];
+          let page = 0;
+          const pageSize = 1000;
+          
+          while (true) {
+            const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allFilteredContacts.push(...data);
+            if (data.length < pageSize) break;
+            page++;
+          }
 
-          return (data || []).map((contact) => ({
+          return allFilteredContacts.map((contact) => ({
             id: contact.id,
             contact_id: contact.id,
             added_at: new Date().toISOString(),
