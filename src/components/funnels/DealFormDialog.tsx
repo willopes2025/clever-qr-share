@@ -294,12 +294,12 @@ export const DealFormDialog = ({
             {/* Custom Fields */}
             <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
 
-            {/* Próxima Ação - Obrigatória para novos deals */}
+            {/* Próxima Ação - Opcional */}
             {!deal && (
               <NextActionForm
                 value={nextAction}
                 onChange={setNextAction}
-                required={true}
+                required={false}
               />
             )}
 
