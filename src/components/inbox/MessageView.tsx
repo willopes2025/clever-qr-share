@@ -360,6 +360,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
       targetPhone,
+    }).then(() => {
+      // Mark as read when user replies
+      if (conversation.unread_count > 0 && onMarkAsRead) {
+        onMarkAsRead();
+      }
     }).catch((error) => {
       toast.error("Erro ao enviar mensagem");
       setOptimisticMessages(prev => 
