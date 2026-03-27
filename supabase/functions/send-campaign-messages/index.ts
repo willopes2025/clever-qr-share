@@ -908,13 +908,13 @@ Deno.serve(async (req: Request) => {
           }
 
           if (failConvId) {
-            const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.body_text || ''}`;
+            const displayContent = metaTemplate.body_text || '';
             await supabase.from('inbox_messages').insert({
               conversation_id: failConvId,
               user_id: campaign.user_id,
               direction: 'outbound',
               content: displayContent,
-              message_type: 'text',
+              message_type: 'template',
               status: 'failed',
               error_message: errorMsg,
             });
@@ -958,13 +958,13 @@ Deno.serve(async (req: Request) => {
         }
 
         if (conversationId) {
-          const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.body_text || ''}`;
+          const displayContent = metaTemplate.body_text || '';
           await supabase.from('inbox_messages').insert({
             conversation_id: conversationId,
             user_id: campaign.user_id,
             direction: 'outbound',
             content: displayContent,
-            message_type: 'text',
+            message_type: 'template',
             status: 'sent',
             sent_at: new Date().toISOString(),
             whatsapp_message_id: result?.messages?.[0]?.id || null,
@@ -972,7 +972,7 @@ Deno.serve(async (req: Request) => {
 
           await supabase.from('conversations').update({
             last_message_at: new Date().toISOString(),
-            last_message_preview: `[Template: ${metaTemplate.name}]`,
+            last_message_preview: displayContent.substring(0, 100),
             last_message_direction: 'outbound',
           }).eq('id', conversationId);
         }

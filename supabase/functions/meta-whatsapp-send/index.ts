@@ -234,7 +234,7 @@ Deno.serve(async (req: Request) => {
     // Save message to database if conversationId provided
     if (body.conversationId && messageId) {
       const content = body.type === 'text' ? body.text?.body :
-                     body.type === 'template' ? `[Template: ${body.template?.name}]` :
+                     body.type === 'template' ? (body.text?.body || body.template?.name || '[Template]') :
                      body.type === 'image' ? body.image?.caption || '[Imagem]' :
                      body.type === 'video' ? body.video?.caption || '[Vídeo]' :
                      body.type === 'audio' ? '[Áudio]' :
