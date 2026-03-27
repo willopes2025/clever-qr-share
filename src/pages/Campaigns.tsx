@@ -246,10 +246,10 @@ const Campaigns = () => {
               campaign={campaign}
               onEdit={() => setEditingCampaign(campaign)}
               onDelete={() => setDeletingCampaign(campaign)}
-              onStart={() => setStartingCampaign(campaign)}
+              onStart={() => handleStart(campaign)}
               onCancel={() => handleCancel(campaign)}
               onTrack={() => setTrackingCampaign(campaign)}
-              onResume={() => setResumingCampaign(campaign)}
+              onResume={() => handleResume(campaign)}
             />
           ))}
         </div>
