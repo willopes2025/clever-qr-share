@@ -110,6 +110,24 @@ const Campaigns = () => {
     setDeletingCampaign(null);
   };
 
+  const handleStart = (campaign: Campaign) => {
+    // Meta template campaigns don't need instance selection - they use meta_phone_number_id
+    if (campaign.meta_template_id && campaign.meta_phone_number_id) {
+      handleStartMetaCampaign(campaign);
+    } else {
+      setStartingCampaign(campaign);
+    }
+  };
+
+  const handleStartMetaCampaign = async (campaign: Campaign) => {
+    await startCampaign.mutateAsync({ 
+      campaignId: campaign.id, 
+      instanceIds: [],
+      sendingMode: 'sequential'
+    });
+    setTrackingCampaign({ ...campaign, status: 'sending' });
+  };
+
   const handleStartWithInstances = async (data: { instanceIds: string[]; sendingMode: SendingMode }) => {
     if (!startingCampaign) return;
     await startCampaign.mutateAsync({ 
@@ -118,12 +136,28 @@ const Campaigns = () => {
       sendingMode: data.sendingMode
     });
     setStartingCampaign(null);
-    // Open tracker to show progress
     setTrackingCampaign({ ...startingCampaign, status: 'sending' });
   };
 
   const handleCancel = async (campaign: Campaign) => {
     await cancelCampaign.mutateAsync(campaign.id);
+  };
+
+  const handleResume = (campaign: Campaign) => {
+    if (campaign.meta_template_id && campaign.meta_phone_number_id) {
+      handleResumeMetaCampaign(campaign);
+    } else {
+      setResumingCampaign(campaign);
+    }
+  };
+
+  const handleResumeMetaCampaign = async (campaign: Campaign) => {
+    await resumeCampaign.mutateAsync({ 
+      campaignId: campaign.id, 
+      instanceIds: [],
+      sendingMode: 'sequential'
+    });
+    setTrackingCampaign({ ...campaign, status: 'sending' });
   };
 
   const handleResumeWithInstances = async (data: { instanceIds: string[]; sendingMode: SendingMode }) => {
@@ -134,7 +168,6 @@ const Campaigns = () => {
       sendingMode: data.sendingMode
     });
     setResumingCampaign(null);
-    // Open tracker to show progress
     setTrackingCampaign({ ...resumingCampaign, status: 'sending' });
   };
 
@@ -213,10 +246,10 @@ const Campaigns = () => {
               campaign={campaign}
               onEdit={() => setEditingCampaign(campaign)}
               onDelete={() => setDeletingCampaign(campaign)}
-              onStart={() => setStartingCampaign(campaign)}
+              onStart={() => handleStart(campaign)}
               onCancel={() => handleCancel(campaign)}
               onTrack={() => setTrackingCampaign(campaign)}
-              onResume={() => setResumingCampaign(campaign)}
+              onResume={() => handleResume(campaign)}
             />
           ))}
         </div>
