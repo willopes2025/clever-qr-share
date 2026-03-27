@@ -129,7 +129,7 @@ export const CampaignFormDialog = ({
   const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   
   // Get the selected number's waba_id to filter templates
-  const selectedMetaNumber = activeMetaNumbers.find(n => n.id === selectedMetaPhoneNumberId);
+  const selectedMetaNumber = activeMetaNumbers.find(n => n.phone_number_id === selectedMetaPhoneNumberId);
   const selectedWabaId = selectedMetaNumber?.waba_id || null;
   
   const { templates: metaTemplates } = useMetaTemplates(messageMode === 'meta_template' ? selectedWabaId : undefined);
