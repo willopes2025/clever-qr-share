@@ -784,7 +784,7 @@ Deno.serve(async (req: Request) => {
         .from('integrations')
         .select('credentials')
         .eq('user_id', campaign.user_id)
-        .eq('service_name', 'meta_whatsapp')
+        .eq('provider', 'meta_whatsapp')
         .eq('is_active', true)
         .single();
 
