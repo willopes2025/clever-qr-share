@@ -43,10 +43,10 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { campaignId, instanceIds, sendingMode = 'sequential' } = await req.json();
+    const { campaignId, instanceIds = [], sendingMode = 'sequential' } = await req.json();
 
-    if (!campaignId || !instanceIds || !Array.isArray(instanceIds) || instanceIds.length === 0) {
-      throw new Error('Campaign ID and at least one Instance ID are required');
+    if (!campaignId) {
+      throw new Error('Campaign ID is required');
     }
 
     console.log(`Starting campaign ${campaignId} with ${instanceIds.length} instances in ${sendingMode} mode`);
