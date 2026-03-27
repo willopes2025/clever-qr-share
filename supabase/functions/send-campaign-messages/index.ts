@@ -868,19 +868,63 @@ Deno.serve(async (req: Request) => {
       const result = await response.json();
 
       if (!response.ok) {
+        const errorMsg = result?.error?.message || 'Meta API error';
         console.error(`[META-CAMPAIGN] Failed to send to ${formattedPhone}:`, result);
         
         await supabase.from('campaign_messages').update({
           status: 'failed',
-          error_message: result?.error?.message || 'Meta API error',
+          error_message: errorMsg,
         }).eq('id', message.id);
 
         await supabase.from('campaigns').update({
           failed: (campaign.failed || 0) + 1,
         }).eq('id', campaignId);
 
-        return;
-      }
+        // Also persist failed message in inbox for visibility
+        try {
+          const { data: existingConv } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('contact_id', message.contact_id)
+            .eq('user_id', campaign.user_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          let failConvId = existingConv?.id;
+          if (!failConvId) {
+            const { data: newConv } = await supabase
+              .from('conversations')
+              .insert({
+                contact_id: message.contact_id,
+                user_id: campaign.user_id,
+                status: 'open',
+                campaign_id: campaignId,
+                provider: 'meta',
+              })
+              .select('id')
+              .single();
+            failConvId = newConv?.id;
+          }
+
+          if (failConvId) {
+            const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.body_text || ''}`;
+            await supabase.from('inbox_messages').insert({
+              conversation_id: failConvId,
+              user_id: campaign.user_id,
+              direction: 'outbound',
+              content: displayContent,
+              message_type: 'text',
+              status: 'failed',
+              error_message: errorMsg,
+            });
+          }
+        } catch (failPersistError) {
+          console.error('Error persisting failed message to inbox:', failPersistError);
+        }
+
+        // Don't return - continue to schedule next message
+      } else {
 
       console.log(`[META-CAMPAIGN] Template sent successfully to ${formattedPhone}`);
 
