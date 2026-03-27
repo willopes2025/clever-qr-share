@@ -345,14 +345,13 @@ export const useBroadcastLists = () => {
               if (data.length < tagPageSize) break;
               tagPage++;
             }
-            if (error) throw error;
 
             // Remove duplicates (contact may have multiple matching tags)
             const uniqueContacts = Array.from(
-              new Map((data || []).map(c => [c.id, c])).values()
+              new Map(allTagContacts.map((c: any) => [c.id, c])).values()
             );
 
-            return uniqueContacts.map((contact) => ({
+            return uniqueContacts.map((contact: any) => ({
               id: contact.id,
               contact_id: contact.id,
               added_at: new Date().toISOString(),
