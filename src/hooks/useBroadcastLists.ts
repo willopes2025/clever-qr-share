@@ -313,6 +313,9 @@ export const useBroadcastLists = () => {
             if (filterCriteria?.optedOut !== undefined) {
               query = query.eq("opted_out", filterCriteria.optedOut);
             }
+            if (filterCriteria?.asaasPaymentStatus) {
+              query = query.eq("asaas_payment_status", filterCriteria.asaasPaymentStatus);
+            }
             
             // Filtros de campos dinâmicos
             if (filterCriteria.customFields) {
@@ -321,23 +324,34 @@ export const useBroadcastLists = () => {
                   query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
                 } else if (filter.operator === 'contains' && filter.value) {
                   query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-                } else if (filter.operator === 'not_empty') {
-                  query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
                 } else if (filter.operator === 'empty') {
                   query = query.is(`custom_fields->>${fieldKey}`, null);
+                } else if (filter.operator === 'not_empty') {
+                  query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
                 }
               });
             }
 
-            const { data, error } = await query.limit(1000);
-            if (error) throw error;
+            // Paginate to get all results
+            let allTagContacts: any[] = [];
+            let tagPage = 0;
+            const tagPageSize = 1000;
+            
+            while (true) {
+              const { data, error } = await query.range(tagPage * tagPageSize, (tagPage + 1) * tagPageSize - 1);
+              if (error) throw error;
+              if (!data || data.length === 0) break;
+              allTagContacts.push(...data);
+              if (data.length < tagPageSize) break;
+              tagPage++;
+            }
 
             // Remove duplicates (contact may have multiple matching tags)
             const uniqueContacts = Array.from(
-              new Map((data || []).map(c => [c.id, c])).values()
+              new Map(allTagContacts.map((c: any) => [c.id, c])).values()
             );
 
-            return uniqueContacts.map((contact) => ({
+            return uniqueContacts.map((contact: any) => ({
               id: contact.id,
               contact_id: contact.id,
               added_at: new Date().toISOString(),
