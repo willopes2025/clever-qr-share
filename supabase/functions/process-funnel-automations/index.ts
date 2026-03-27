@@ -942,10 +942,10 @@ Deno.serve(async (req: Request) => {
               const intentsDescription = intentMappings.map(m => m.intent).join(', ');
               
               // Call Lovable AI to analyze intent
-              const LOVABLE_API_KEY = Deno.env.get("OPENAI_API_KEY");
+              const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
               
-              if (!LOVABLE_API_KEY) {
-                console.error(`[FUNNEL-AUTOMATIONS] LOVABLE_API_KEY not configured`);
+              if (!OPENAI_API_KEY) {
+                console.error(`[FUNNEL-AUTOMATIONS] OPENAI_API_KEY not configured`);
                 results.push({ automationId: automation.id, success: false, error: 'AI not configured' });
                 break;
               }
@@ -953,7 +953,7 @@ Deno.serve(async (req: Request) => {
               const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                  "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+                  "Authorization": `Bearer ${OPENAI_API_KEY}`,
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({

@@ -61,8 +61,8 @@ Mensagem de Saudação: ${agentConfig.greeting_message || 'Não definida'}
     const stagesDescription = stages.map((s: { id: string; name: string }) => `- ${s.name} (ID: ${s.id})`).join('\n');
 
     // Call Lovable AI Gateway
-    const LOVABLE_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!LOVABLE_API_KEY) {
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is not configured');
     }
 
@@ -89,7 +89,7 @@ Você DEVE responder chamando a função suggest_intents com as intenções suge
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
