@@ -125,10 +125,13 @@ Deno.serve(async (req) => {
         throw new Error('One or more WhatsApp instances not found');
       }
 
-    const disconnectedInstances = instances.filter(i => i.status !== 'connected');
-    if (disconnectedInstances.length > 0) {
-      throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
-    }
+      const disconnectedInstances = instances.filter(i => i.status !== 'connected');
+      if (disconnectedInstances.length > 0) {
+        throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
+      }
+
+      console.log(`Validated ${instances.length} connected instances`);
+    } // end instanceIds.length > 0
 
     // Create instances array with id, name, and warming_level
     const validInstances: Instance[] = instances.map(i => ({
@@ -137,7 +140,7 @@ Deno.serve(async (req) => {
       warming_level: i.warming_level || 1
     }));
 
-    console.log(`Validated ${validInstances.length} connected instances`);
+    console.log(`Using ${validInstances.length} instances${isMetaTemplateCampaign ? ' (Meta template campaign)' : ''}`);
 
     // Fetch contacts based on list type
     let contacts: Contact[] = [];
