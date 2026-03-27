@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
         // Check meta_whatsapp_numbers first (supports multiple numbers per user)
         const { data: metaNumber } = await supabase
           .from('meta_whatsapp_numbers')
-          .select('user_id')
+          .select('user_id, default_funnel_id, default_stage_id')
           .eq('phone_number_id', webhookPhoneNumberId)
           .eq('is_active', true)
           .maybeSingle();
