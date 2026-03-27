@@ -109,11 +109,7 @@ export const DealFormDialog = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate next action for new deals
-    if (!deal && !isNextActionValid) {
-      toast.error('Preencha a próxima ação obrigatória');
-      return;
-    }
+    // Next action is optional now
     
     if (deal) {
       await updateDeal.mutateAsync({ 
@@ -298,12 +294,12 @@ export const DealFormDialog = ({
             {/* Custom Fields */}
             <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
 
-            {/* Próxima Ação - Obrigatória para novos deals */}
+            {/* Próxima Ação - Opcional */}
             {!deal && (
               <NextActionForm
                 value={nextAction}
                 onChange={setNextAction}
-                required={true}
+                required={false}
               />
             )}
 
