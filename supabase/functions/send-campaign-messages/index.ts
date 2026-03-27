@@ -908,13 +908,13 @@ Deno.serve(async (req: Request) => {
           }
 
           if (failConvId) {
-            const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.body_text || ''}`;
+            const displayContent = metaTemplate.body_text || '';
             await supabase.from('inbox_messages').insert({
               conversation_id: failConvId,
               user_id: campaign.user_id,
               direction: 'outbound',
               content: displayContent,
-              message_type: 'text',
+              message_type: 'template',
               status: 'failed',
               error_message: errorMsg,
             });

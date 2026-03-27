@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
         }
 
         // Create message record
-        const displayContent = `[Template: ${metaTemplate.name}] ${metaTemplate.bodyText || ''}`;
+        const displayContent = metaTemplate.bodyText || '';
         const { data: message, error: msgError } = await supabase
           .from('inbox_messages')
           .insert({
