@@ -8,6 +8,14 @@ const corsHeaders = {
 const ASAAS_API_URL = 'https://api.asaas.com/v3';
 const ASAAS_SANDBOX_URL = 'https://sandbox.asaas.com/api/v3';
 
+interface AsaasPayment {
+  id: string;
+  customer: string;
+  status: string;
+  dueDate: string;
+  value: number;
+}
+
 interface AsaasCustomer {
   id: string;
   name: string;
@@ -17,24 +25,33 @@ interface AsaasCustomer {
   cpfCnpj?: string;
 }
 
-interface AsaasPayment {
-  id: string;
-  customer: string;
-  status: string;
-  dueDate: string;
-  value: number;
-}
-
 function normalizePhone(phone: string | undefined | null): string {
   if (!phone) return '';
   const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('55') && digits.length > 11) {
+  // Remove country code 55
+  if (digits.startsWith('55') && digits.length >= 12) {
     return digits.slice(2);
   }
   return digits;
 }
 
-async function fetchAllPaginated<T>(baseUrl: string, endpoint: string, apiKey: string, maxRecords = 5000): Promise<T[]> {
+// Also try without the 9th digit (some contacts may have 8-digit mobile)
+function phoneVariants(phone: string): string[] {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return [];
+  const variants = [normalized];
+  // If has 11 digits (DDD + 9 + 8 digits), also try without the 9
+  if (normalized.length === 11 && normalized[2] === '9') {
+    variants.push(normalized.slice(0, 2) + normalized.slice(3));
+  }
+  // If has 10 digits, also try with 9 added
+  if (normalized.length === 10) {
+    variants.push(normalized.slice(0, 2) + '9' + normalized.slice(2));
+  }
+  return variants;
+}
+
+async function fetchAllPaginated<T>(baseUrl: string, endpoint: string, apiKey: string, maxRecords = 10000): Promise<T[]> {
   const results: T[] = [];
   let offset = 0;
   const limit = 100;
@@ -52,13 +69,35 @@ async function fetchAllPaginated<T>(baseUrl: string, endpoint: string, apiKey: s
     }
 
     const data = await response.json();
-    results.push(...(data.data || []));
+    const items = data.data || [];
+    results.push(...items);
 
-    if (!data.hasMore || (data.data || []).length === 0) break;
+    console.log(`Fetched ${results.length} records from /${endpoint.split('?')[0]}...`);
+
+    if (!data.hasMore || items.length === 0) {
+      console.log(`Finished fetching ${results.length} total records from /${endpoint.split('?')[0]}`);
+      break;
+    }
     offset += limit;
   }
 
+  if (results.length >= maxRecords) {
+    console.log(`Reached safety limit of ${maxRecords} records for /${endpoint.split('?')[0]}`);
+  }
+
   return results;
+}
+
+async function fetchCustomerById(baseUrl: string, customerId: string, apiKey: string): Promise<AsaasCustomer | null> {
+  try {
+    const response = await fetch(`${baseUrl}/customers/${customerId}`, {
+      headers: { 'access_token': apiKey }
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -91,11 +130,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Determine which users to sync
-    let usersToSync: string[] = [];
+    // Determine which user's integration to use
+    let syncUserId: string | null = null;
     
     if (userId) {
-      // Check if user is part of an org - use the org owner's integration
       const { data: teamMember } = await supabase
         .from('team_members')
         .select('organization_id')
@@ -109,180 +147,227 @@ Deno.serve(async (req: Request) => {
           .select('owner_id')
           .eq('id', teamMember.organization_id)
           .single();
-        if (org?.owner_id) {
-          usersToSync = [org.owner_id];
-        }
+        syncUserId = org?.owner_id || userId;
       } else {
-        usersToSync = [userId];
+        syncUserId = userId;
       }
-    } else {
-      const { data: integrations } = await supabase
-        .from('integrations')
-        .select('user_id')
-        .eq('provider', 'asaas')
-        .eq('is_active', true);
-      usersToSync = integrations?.map(i => i.user_id) || [];
     }
 
-    console.log(`[sync-asaas] Syncing for ${usersToSync.length} users`);
+    if (!syncUserId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No user ID' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    const results = [];
+    // Get integration
+    const { data: integration } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('user_id', syncUserId)
+      .eq('provider', 'asaas')
+      .eq('is_active', true)
+      .single();
 
-    for (const syncUserId of usersToSync) {
-      try {
-        const { data: integration, error: integrationError } = await supabase
-          .from('integrations')
-          .select('*')
-          .eq('user_id', syncUserId)
-          .eq('provider', 'asaas')
-          .eq('is_active', true)
-          .single();
+    if (!integration) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No active Asaas integration' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-        if (integrationError || !integration) {
-          console.log(`[sync-asaas] No active Asaas integration for user ${syncUserId}`);
-          results.push({ userId: syncUserId, status: 'skipped', reason: 'no_integration' });
-          continue;
+    const settings = integration.settings as { apiKey?: string; environment?: string } || {};
+    const apiKey = settings.apiKey;
+    const environment = settings.environment || 'production';
+
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No API key configured' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const baseUrl = environment === 'sandbox' ? ASAAS_SANDBOX_URL : ASAAS_API_URL;
+
+    // STEP 1: Fetch only OVERDUE and PENDING payments (much fewer than all customers)
+    console.log(`[sync-asaas] Fetching overdue and pending payments...`);
+    
+    const [overduePayments, pendingPayments] = await Promise.all([
+      fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=OVERDUE', apiKey),
+      fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=PENDING', apiKey),
+    ]);
+
+    console.log(`[sync-asaas] Found ${overduePayments.length} overdue, ${pendingPayments.length} pending payments`);
+
+    // STEP 2: Build customer status map (overdue takes priority)
+    const customerStatusMap = new Map<string, 'OVERDUE' | 'PENDING'>();
+    
+    for (const payment of overduePayments) {
+      customerStatusMap.set(payment.customer, 'OVERDUE');
+    }
+    for (const payment of pendingPayments) {
+      if (!customerStatusMap.has(payment.customer)) {
+        customerStatusMap.set(payment.customer, 'PENDING');
+      }
+    }
+
+    const uniqueCustomerIds = Array.from(customerStatusMap.keys());
+    console.log(`[sync-asaas] ${uniqueCustomerIds.length} unique customers with overdue/pending payments`);
+
+    // STEP 3: Get all contacts for this org
+    const { data: orgMembers } = await supabase.rpc('get_organization_member_ids', { _user_id: syncUserId });
+    const memberIds = orgMembers || [syncUserId];
+
+    // Fetch ALL contacts (no limit - use service role)
+    let allContacts: any[] = [];
+    let contactOffset = 0;
+    const contactBatchSize = 1000;
+    
+    while (true) {
+      const { data: batch } = await supabase
+        .from('contacts')
+        .select('id, phone, asaas_customer_id')
+        .in('user_id', memberIds)
+        .range(contactOffset, contactOffset + contactBatchSize - 1);
+      
+      if (!batch || batch.length === 0) break;
+      allContacts.push(...batch);
+      if (batch.length < contactBatchSize) break;
+      contactOffset += contactBatchSize;
+    }
+
+    console.log(`[sync-asaas] Loaded ${allContacts.length} contacts from database`);
+
+    if (allContacts.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, message: 'No contacts found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // STEP 4: Build phone lookup maps for contacts
+    const phoneToContactId = new Map<string, string>();
+    const asaasIdToContactId = new Map<string, string>();
+    
+    for (const contact of allContacts) {
+      if (contact.asaas_customer_id) {
+        asaasIdToContactId.set(contact.asaas_customer_id, contact.id);
+      }
+      const variants = phoneVariants(contact.phone);
+      for (const v of variants) {
+        phoneToContactId.set(v, contact.id);
+      }
+    }
+
+    // STEP 5: Match customers to contacts
+    // First, try matching by asaas_customer_id (fast, no API call needed)
+    const matchedUpdates: { id: string; asaas_customer_id: string; asaas_payment_status: string }[] = [];
+    const unmatchedCustomerIds: string[] = [];
+
+    for (const customerId of uniqueCustomerIds) {
+      const contactId = asaasIdToContactId.get(customerId);
+      if (contactId) {
+        matchedUpdates.push({
+          id: contactId,
+          asaas_customer_id: customerId,
+          asaas_payment_status: customerStatusMap.get(customerId)!,
+        });
+      } else {
+        unmatchedCustomerIds.push(customerId);
+      }
+    }
+
+    console.log(`[sync-asaas] Matched ${matchedUpdates.length} by asaas_customer_id, ${unmatchedCustomerIds.length} need phone lookup`);
+
+    // STEP 6: For unmatched, fetch customer details from Asaas and match by phone
+    // Process in parallel batches of 20
+    const phoneBatchSize = 20;
+    for (let i = 0; i < unmatchedCustomerIds.length; i += phoneBatchSize) {
+      const batch = unmatchedCustomerIds.slice(i, i + phoneBatchSize);
+      const customers = await Promise.all(
+        batch.map(id => fetchCustomerById(baseUrl, id, apiKey))
+      );
+
+      for (let j = 0; j < customers.length; j++) {
+        const customer = customers[j];
+        if (!customer) continue;
+
+        const customerId = batch[j];
+        // Try all phone variants
+        const phonesToTry = [
+          ...phoneVariants(customer.mobilePhone),
+          ...phoneVariants(customer.phone),
+        ];
+
+        let contactId: string | undefined;
+        for (const phone of phonesToTry) {
+          contactId = phoneToContactId.get(phone);
+          if (contactId) break;
         }
 
-        const settings = integration.settings as { apiKey?: string; environment?: string } || {};
-        const apiKey = settings.apiKey;
-        const environment = settings.environment || 'production';
-
-        if (!apiKey) {
-          results.push({ userId: syncUserId, status: 'skipped', reason: 'no_api_key' });
-          continue;
+        if (contactId) {
+          matchedUpdates.push({
+            id: contactId,
+            asaas_customer_id: customerId,
+            asaas_payment_status: customerStatusMap.get(customerId)!,
+          });
         }
+      }
 
-        const baseUrl = environment === 'sandbox' ? ASAAS_SANDBOX_URL : ASAAS_API_URL;
+      if (i % 100 === 0 && i > 0) {
+        console.log(`[sync-asaas] Phone lookup progress: ${i}/${unmatchedCustomerIds.length}`);
+      }
+    }
 
-        // Fetch customers and overdue/pending payments in parallel (batch approach)
-        console.log(`[sync-asaas] Fetching customers and payments for user ${syncUserId}...`);
-        
-        const [customers, overduePayments, pendingPayments] = await Promise.all([
-          fetchAllPaginated<AsaasCustomer>(baseUrl, 'customers', apiKey),
-          fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=OVERDUE', apiKey),
-          fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=PENDING', apiKey),
-        ]);
+    console.log(`[sync-asaas] Total matched: ${matchedUpdates.length}`);
 
-        console.log(`[sync-asaas] Found ${customers.length} customers, ${overduePayments.length} overdue, ${pendingPayments.length} pending`);
+    // STEP 7: First, reset all contacts to 'current' that were previously marked
+    // This ensures contacts that are no longer overdue get cleared
+    await supabase
+      .from('contacts')
+      .update({ asaas_payment_status: null })
+      .in('user_id', memberIds)
+      .not('asaas_payment_status', 'is', null);
 
-        // Build customer payment status map
-        const customerStatusMap = new Map<string, 'overdue' | 'pending' | 'current'>();
-        
-        // Mark overdue customers first (highest priority)
-        for (const payment of overduePayments) {
-          customerStatusMap.set(payment.customer, 'overdue');
-        }
-        
-        // Mark pending customers (only if not already overdue)
-        for (const payment of pendingPayments) {
-          if (!customerStatusMap.has(payment.customer)) {
-            customerStatusMap.set(payment.customer, 'pending');
-          }
-        }
-
-        // Get all org member user IDs to match contacts
-        const { data: orgMembers } = await supabase.rpc('get_organization_member_ids', { _user_id: syncUserId });
-        const memberIds = orgMembers || [syncUserId];
-
-        // Fetch contacts for this user/org
-        const { data: contacts } = await supabase
+    // STEP 8: Apply updates in batches
+    let updatedCount = 0;
+    const updateBatchSize = 50;
+    
+    for (let i = 0; i < matchedUpdates.length; i += updateBatchSize) {
+      const batch = matchedUpdates.slice(i, i + updateBatchSize);
+      const promises = batch.map(update =>
+        supabase
           .from('contacts')
-          .select('id, phone, asaas_customer_id')
-          .in('user_id', memberIds);
-
-        if (!contacts || contacts.length === 0) {
-          results.push({ userId: syncUserId, status: 'skipped', reason: 'no_contacts' });
-          continue;
-        }
-
-        // Create phone lookup map for contacts
-        const phoneToContact = new Map<string, { id: string; asaas_customer_id: string | null }>();
-        const asaasIdToContact = new Map<string, string>();
-        
-        for (const contact of contacts) {
-          const normalizedPhone = normalizePhone(contact.phone);
-          if (normalizedPhone) {
-            phoneToContact.set(normalizedPhone, { id: contact.id, asaas_customer_id: contact.asaas_customer_id });
-          }
-          if (contact.asaas_customer_id) {
-            asaasIdToContact.set(contact.asaas_customer_id, contact.id);
-          }
-        }
-
-        // Batch updates
-        const updates: { id: string; asaas_customer_id: string; asaas_payment_status: string }[] = [];
-
-        for (const customer of customers) {
-          // Try matching by existing asaas_customer_id first, then by phone
-          let contactId = asaasIdToContact.get(customer.id);
-          
-          if (!contactId) {
-            const phoneToCheck = normalizePhone(customer.mobilePhone) || normalizePhone(customer.phone);
-            if (phoneToCheck) {
-              const matched = phoneToContact.get(phoneToCheck);
-              if (matched) {
-                contactId = matched.id;
-              }
-            }
-          }
-
-          if (contactId) {
-            const paymentStatus = customerStatusMap.get(customer.id) || 'current';
-            updates.push({
-              id: contactId,
-              asaas_customer_id: customer.id,
-              asaas_payment_status: paymentStatus,
-            });
-          }
-        }
-
-        // Execute updates in batches of 50
-        let updatedCount = 0;
-        const batchSize = 50;
-        
-        for (let i = 0; i < updates.length; i += batchSize) {
-          const batch = updates.slice(i, i + batchSize);
-          const promises = batch.map(update =>
-            supabase
-              .from('contacts')
-              .update({
-                asaas_customer_id: update.asaas_customer_id,
-                asaas_payment_status: update.asaas_payment_status,
-              })
-              .eq('id', update.id)
-          );
-          
-          const results = await Promise.all(promises);
-          updatedCount += results.filter(r => !r.error).length;
-        }
-
-        // Update last_sync_at
-        await supabase
-          .from('integrations')
-          .update({ last_sync_at: new Date().toISOString() })
-          .eq('id', integration.id);
-
-        console.log(`[sync-asaas] User ${syncUserId}: updated ${updatedCount}/${updates.length} contacts`);
-        results.push({
-          userId: syncUserId,
-          status: 'success',
-          customersFound: customers.length,
-          updatedCount,
-        });
-
-      } catch (error) {
-        console.error(`[sync-asaas] Error syncing user ${syncUserId}:`, error);
-        results.push({
-          userId: syncUserId,
-          status: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
+          .update({
+            asaas_customer_id: update.asaas_customer_id,
+            asaas_payment_status: update.asaas_payment_status,
+          })
+          .eq('id', update.id)
+      );
+      
+      const results = await Promise.all(promises);
+      updatedCount += results.filter(r => !r.error).length;
     }
+
+    // Update last_sync_at
+    await supabase
+      .from('integrations')
+      .update({ last_sync_at: new Date().toISOString() })
+      .eq('id', integration.id);
+
+    console.log(`[sync-asaas] Completed: updated ${updatedCount}/${matchedUpdates.length} contacts`);
 
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ 
+        success: true, 
+        overduePayments: overduePayments.length,
+        pendingPayments: pendingPayments.length,
+        uniqueCustomers: uniqueCustomerIds.length,
+        totalContacts: allContacts.length,
+        matchedByAsaasId: matchedUpdates.length - unmatchedCustomerIds.length + (unmatchedCustomerIds.length - unmatchedCustomerIds.length),
+        totalMatched: matchedUpdates.length,
+        updatedCount,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
