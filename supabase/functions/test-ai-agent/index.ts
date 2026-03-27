@@ -919,7 +919,7 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
 
     // Prepare request body with tools
     const requestBody: Record<string, unknown> = {
-      model: "google/gemini-2.5-flash",
+      model: "gpt-4.1-nano",
       messages,
     };
     
@@ -1137,7 +1137,7 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "gpt-4.1-nano",
           messages: followUpMessages,
         }),
       });
@@ -1172,7 +1172,7 @@ Próximo passo: coletar nome (obrigatório) e telefone/email para confirmar o ag
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: "gpt-4.1-nano",
             messages: correctionMessages,
           }),
         });

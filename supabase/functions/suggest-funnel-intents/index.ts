@@ -93,7 +93,7 @@ Você DEVE responder chamando a função suggest_intents com as intenções suge
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4.1-nano',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: 'Gere sugestões de intenções para este agente de IA, considerando as etapas do funil disponíveis.' }

@@ -53,7 +53,7 @@ Responda APENAS com o conteúdo da mensagem, sem explicações adicionais.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4.1-nano",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },

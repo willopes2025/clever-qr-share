@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'gpt-4.1-nano',
         messages: [
           {
             role: 'system',
@@ -549,7 +549,7 @@ INSTRUÇÃO FINAL: Use a função analyze_conversations para retornar sua análi
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-pro',
+          model: 'gpt-4.1-nano',
           messages: [
             {
               role: 'system',

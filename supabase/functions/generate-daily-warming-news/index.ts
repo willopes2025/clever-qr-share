@@ -69,7 +69,7 @@ Categorias válidas: curiosity, greeting, tip, motivation, casual, question, new
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4.1-nano',
         messages: [
           { 
             role: 'system', 
@@ -166,7 +166,7 @@ Categorias válidas: curiosity, greeting, tip, motivation, casual, question, new
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash-image-preview',
+            model: 'gpt-4.1-nano',
             messages: [
               { 
                 role: 'user', 

@@ -655,7 +655,7 @@ const extractFieldsFromMessage = async (
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'gpt-4.1-nano',
       messages: [
         {
           role: 'system',
@@ -1676,7 +1676,7 @@ ${templatesList}
     // Build AI request
     // deno-lint-ignore no-explicit-any
     const aiRequestBody: Record<string, any> = {
-      model: 'google/gemini-2.5-flash',
+      model: 'gpt-4.1-nano',
       messages: [
         { role: 'system', content: systemPrompt },
         ...conversationHistory,
@@ -2099,7 +2099,7 @@ ${mapeamento}
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'gpt-4.1-nano',
             messages: [
               { role: 'system', content: systemPrompt },
               ...conversationHistory,

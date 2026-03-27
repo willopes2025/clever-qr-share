@@ -54,7 +54,7 @@ Retorne APENAS as mensagens, uma por linha, sem numeração, sem aspas, sem expl
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4.1-nano',
         messages: [
           { role: 'system', content: 'Você é um assistente que gera mensagens curtas e naturais para conversas de WhatsApp. Responda apenas com as mensagens, uma por linha.' },
           { role: 'user', content: prompt }

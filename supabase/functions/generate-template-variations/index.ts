@@ -152,7 +152,7 @@ Sem explicações, sem markdown, apenas o JSON.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4.1-nano',
         messages: [
           { role: 'user', content: prompt }
         ],
