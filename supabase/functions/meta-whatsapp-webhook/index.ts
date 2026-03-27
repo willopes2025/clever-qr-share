@@ -376,17 +376,34 @@ Deno.serve(async (req) => {
                 conversation = newConversation;
                 console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
 
-                // Auto-create lead for new conversations based on user_settings
+                // Auto-create lead for new conversations
+                // Priority: 1) Meta number's default funnel, 2) User settings auto-lead funnel
                 if (conversation && userId) {
                   try {
-                    const { data: userSettings } = await supabase
-                      .from('user_settings')
-                      .select('auto_create_leads, auto_lead_funnel_id, auto_lead_stage_id')
-                      .eq('user_id', userId)
-                      .maybeSingle();
+                    // Check Meta number's default funnel first
+                    let autoFunnelId: string | null = null;
+                    let autoStageId: string | null = null;
 
-                    if (userSettings?.auto_create_leads && userSettings?.auto_lead_funnel_id) {
-                      console.log('[META-WEBHOOK] Auto-creating lead for new contact in funnel:', userSettings.auto_lead_funnel_id);
+                    if (metaNumber?.default_funnel_id) {
+                      autoFunnelId = metaNumber.default_funnel_id;
+                      autoStageId = metaNumber.default_stage_id || null;
+                      console.log('[META-WEBHOOK] Using Meta number default funnel:', autoFunnelId);
+                    } else {
+                      // Fallback to user_settings
+                      const { data: userSettings } = await supabase
+                        .from('user_settings')
+                        .select('auto_create_leads, auto_lead_funnel_id, auto_lead_stage_id')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+
+                      if (userSettings?.auto_create_leads && userSettings?.auto_lead_funnel_id) {
+                        autoFunnelId = userSettings.auto_lead_funnel_id;
+                        autoStageId = userSettings.auto_lead_stage_id || null;
+                      }
+                    }
+
+                    if (autoFunnelId) {
+                      console.log('[META-WEBHOOK] Auto-creating lead in funnel:', autoFunnelId);
                       
                       const { data: existingDeal } = await supabase
                         .from('funnel_deals')
