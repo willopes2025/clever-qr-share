@@ -11,6 +11,8 @@ export interface Campaign {
   user_id: string;
   name: string;
   template_id: string | null;
+  meta_template_id: string | null;
+  meta_phone_number_id: string | null;
   list_id: string | null;
   instance_id: string | null;
   instance_ids: string[] | null;
@@ -286,6 +288,8 @@ export const useCampaignMutations = () => {
       id: string;
       name?: string;
       template_id?: string | null;
+      meta_template_id?: string | null;
+      meta_phone_number_id?: string | null;
       list_id?: string | null;
       scheduled_at?: string | null;
       status?: string;

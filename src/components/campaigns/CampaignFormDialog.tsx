@@ -6,12 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
+import { useMetaTemplates } from '@/hooks/useMetaTemplates';
+import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { useContacts } from '@/hooks/useContacts';
 import { Campaign } from '@/hooks/useCampaigns';
 import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +28,8 @@ interface CampaignFormDialogProps {
   onSubmit: (data: {
     name: string;
     template_id: string | null;
+    meta_template_id?: string | null;
+    meta_phone_number_id?: string | null;
     list_id: string | null;
     scheduled_at: string | null;
     message_interval_min: number;
@@ -76,7 +81,9 @@ export const CampaignFormDialog = ({
 }: CampaignFormDialogProps) => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
+  const [messageMode, setMessageMode] = useState<'template' | 'meta_template'>('template');
   const [templateId, setTemplateId] = useState<string>('');
+  const [selectedMetaPhoneNumberId, setSelectedMetaPhoneNumberId] = useState('');
   const [listId, setListId] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
@@ -114,6 +121,8 @@ export const CampaignFormDialog = ({
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
   const { templates } = useMessageTemplates();
+  const { templates: metaTemplates } = useMetaTemplates();
+  const { metaNumbers } = useMetaWhatsAppNumbers();
   const { lists } = useBroadcastLists();
   const { user } = useAuth();
   const { createTag } = useContacts();
@@ -133,11 +142,16 @@ export const CampaignFormDialog = ({
   const { linkConfigToCampaign } = useAgentConfigMutations();
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
+  const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
+  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
 
   useEffect(() => {
     if (campaign) {
+      const isMetaCampaign = !!campaign.meta_template_id;
       setName(campaign.name);
-      setTemplateId(campaign.template_id || '');
+      setMessageMode(isMetaCampaign ? 'meta_template' : 'template');
+      setTemplateId(campaign.meta_template_id || campaign.template_id || '');
+      setSelectedMetaPhoneNumberId(campaign.meta_phone_number_id || '');
       setListId(campaign.list_id || '');
       if (campaign.scheduled_at) {
         setIsScheduled(true);
@@ -167,7 +181,9 @@ export const CampaignFormDialog = ({
       setTagOnDeliveryId(campaign.tag_on_delivery_id || null);
     } else {
       setName('');
+      setMessageMode('template');
       setTemplateId('');
+      setSelectedMetaPhoneNumberId('');
       setListId('');
       setIsScheduled(false);
       setScheduledDate('');
@@ -221,6 +237,7 @@ export const CampaignFormDialog = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const isMetaMode = messageMode === 'meta_template';
     
     let scheduledAt: string | null = null;
     if (isScheduled && scheduledDate && scheduledTime) {
@@ -229,7 +246,9 @@ export const CampaignFormDialog = ({
 
     const result = await onSubmit({
       name,
-      template_id: templateId || null,
+      template_id: isMetaMode ? null : templateId || null,
+      meta_template_id: isMetaMode ? templateId || null : null,
+      meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId || null : null,
       list_id: listId || null,
       scheduled_at: scheduledAt,
       message_interval_min: intervalMin,
@@ -281,7 +300,9 @@ export const CampaignFormDialog = ({
   };
 
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
+  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
   const selectedList = lists?.find(l => l.id === listId);
+  const isMetaMode = messageMode === 'meta_template';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -307,26 +328,117 @@ export const CampaignFormDialog = ({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Template de Mensagem</Label>
-            <Select value={templateId} onValueChange={setTemplateId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um template" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeTemplates.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    {template.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTemplate && (
-              <div className="p-3 bg-muted rounded-lg text-sm">
-                <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
-              </div>
-            )}
+          <div className="space-y-4">
+            <Tabs
+              value={messageMode}
+              onValueChange={(value) => {
+                const nextMode = value as 'template' | 'meta_template';
+                setMessageMode(nextMode);
+                setTemplateId('');
+                if (nextMode !== 'meta_template') {
+                  setSelectedMetaPhoneNumberId('');
+                }
+              }}
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="template">Template Interno</TabsTrigger>
+                <TabsTrigger value="meta_template" className="gap-2">
+                  <Cloud className="h-4 w-4" />
+                  Template Meta
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
+
+          {messageMode === 'template' ? (
+            <div className="space-y-2">
+              <Label>Template de Mensagem</Label>
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTemplate && (
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  <p className="text-muted-foreground line-clamp-3">{selectedTemplate.content}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Template Meta (Aprovado) *</Label>
+                <Select value={templateId} onValueChange={setTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um template Meta aprovado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedMetaTemplates.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Nenhum template Meta aprovado encontrado
+                      </div>
+                    ) : (
+                      approvedMetaTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{template.name}</span>
+                            <span className="text-xs text-muted-foreground">({template.language})</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedMetaTemplate && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium">{selectedMetaTemplate.category}</span>
+                      <span>•</span>
+                      <span>{selectedMetaTemplate.language}</span>
+                    </div>
+                    <p className="text-muted-foreground line-clamp-3">{selectedMetaTemplate.body_text}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Número Meta para envio *
+                </Label>
+                <Select value={selectedMetaPhoneNumberId} onValueChange={setSelectedMetaPhoneNumberId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o número Meta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeMetaNumbers.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        Nenhum número Meta conectado
+                      </div>
+                    ) : (
+                      activeMetaNumbers.map((number) => (
+                        <SelectItem key={number.id} value={number.phone_number_id}>
+                          <div className="flex items-center gap-2">
+                            <span>{number.display_name || number.phone_number || number.phone_number_id}</span>
+                            {number.phone_number && number.display_name && (
+                              <span className="text-xs text-muted-foreground">({number.phone_number})</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Lista de Transmissão</Label>
@@ -769,7 +881,7 @@ export const CampaignFormDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading || !name}>
+            <Button type="submit" disabled={isLoading || !name || (isMetaMode && (!templateId || !selectedMetaPhoneNumberId))}>
               {campaign ? 'Salvar' : 'Criar Campanha'}
             </Button>
           </div>
