@@ -1189,7 +1189,18 @@ Deno.serve(async (req: Request) => {
         .eq('id', campaignId);
     }
 
-    } // end of else (Evolution API) block
+    } else {
+      // No instances and no meta template - fail the message
+      console.error('No sending method available: no instances and no meta template');
+      await supabase.from('campaign_messages').update({
+        status: 'failed',
+        error_message: 'Nenhum método de envio configurado'
+      }).eq('id', message.id);
+      
+      await supabase.from('campaigns').update({
+        failed: (campaign.failed || 0) + 1
+      }).eq('id', campaignId);
+    } // end of sending block
 
     // Check if there are more messages to send
     const { count: remainingCount, error: countError } = await supabase
