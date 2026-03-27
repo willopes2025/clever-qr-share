@@ -280,43 +280,30 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[sync-asaas] Matched ${matchedUpdates.length} by asaas_customer_id, ${unmatchedCustomerIds.length} need phone lookup`);
 
-    // STEP 6: For unmatched, fetch customer details from Asaas and match by phone
-    // Process in parallel batches of 20
-    const phoneBatchSize = 20;
-    for (let i = 0; i < unmatchedCustomerIds.length; i += phoneBatchSize) {
-      const batch = unmatchedCustomerIds.slice(i, i + phoneBatchSize);
-      const customers = await Promise.all(
-        batch.map(id => fetchCustomerById(baseUrl, id, apiKey))
-      );
+    // STEP 6: For unmatched, fetch customers in bulk and match by phone
+    const asaasCustomers = await fetchAllPaginated<AsaasCustomer>(baseUrl, 'customers', apiKey, 10000);
+    const unmatchedCustomerIdSet = new Set(unmatchedCustomerIds);
 
-      for (let j = 0; j < customers.length; j++) {
-        const customer = customers[j];
-        if (!customer) continue;
+    for (const customer of asaasCustomers) {
+      if (!unmatchedCustomerIdSet.has(customer.id)) continue;
 
-        const customerId = batch[j];
-        // Try all phone variants
-        const phonesToTry = [
-          ...phoneVariants(customer.mobilePhone),
-          ...phoneVariants(customer.phone),
-        ];
+      const phonesToTry = [
+        ...phoneVariants(customer.mobilePhone),
+        ...phoneVariants(customer.phone),
+      ];
 
-        let contactId: string | undefined;
-        for (const phone of phonesToTry) {
-          contactId = phoneToContactId.get(phone);
-          if (contactId) break;
-        }
-
-        if (contactId) {
-          matchedUpdates.push({
-            id: contactId,
-            asaas_customer_id: customerId,
-            asaas_payment_status: customerStatusMap.get(customerId)!,
-          });
-        }
+      let contactId: string | undefined;
+      for (const phone of phonesToTry) {
+        contactId = phoneToContactId.get(phone);
+        if (contactId) break;
       }
 
-      if (i % 100 === 0 && i > 0) {
-        console.log(`[sync-asaas] Phone lookup progress: ${i}/${unmatchedCustomerIds.length}`);
+      if (contactId) {
+        matchedUpdates.push({
+          id: contactId,
+          asaas_customer_id: customer.id,
+          asaas_payment_status: customerStatusMap.get(customer.id)!,
+        });
       }
     }
 
