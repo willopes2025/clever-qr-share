@@ -61,8 +61,12 @@ export const useSsotica = () => {
   const { hasSsotica } = useIntegrationStatus();
 
   const callSsoticaApi = async (action: string, params?: Record<string, unknown>) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
     const { data, error } = await supabase.functions.invoke('ssotica-api', {
-      body: { action, params }
+      body: { action, params },
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
 
     if (error) throw error;
