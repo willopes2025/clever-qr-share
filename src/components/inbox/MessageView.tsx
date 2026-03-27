@@ -67,6 +67,7 @@ interface MessageViewProps {
   conversation: ConversationWithAI;
   onBack?: () => void;
   onOpenRightPanel?: () => void;
+  onMarkAsRead?: () => void;
 }
 
 interface OptimisticMessage extends InboxMessage {
