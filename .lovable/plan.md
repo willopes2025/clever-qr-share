@@ -1,58 +1,30 @@
 
 
-## Problema Identificado
+## Modificação: Marcar como Lido apenas por ação do usuário
 
-Quando uma campanha Meta envia uma mensagem, ela persiste a conversa buscando por `contact_id + user_id`. Porém, quando o cliente responde via WhatsApp, o webhook da Meta recebe o telefone no formato internacional (ex: `5573996710XX`) e busca o contato por `phone = contactPhone` com correspondência exata.
+### Problema Atual
+Ao clicar em uma conversa no Inbox, o sistema automaticamente marca como lida (`unread_count = 0`). Isso acontece na função `handleSelectConversation` em `src/pages/Inbox.tsx` (linha 95-97).
 
-Se o telefone salvo no contato estiver em formato diferente (ex: `73996710XX`, `(73) 99671-0XX`, ou `+5573996710XX`), o webhook **não encontra o contato existente**, cria um novo contato e uma nova conversa — resultando na mensagem de resposta aparecendo em uma conversa separada.
+### Solução Proposta
+Remover a marcação automática ao abrir a conversa e adicionar duas formas de marcar como lida:
 
-Além disso, a campanha cria conversas sem definir o campo `meta_phone_number_id`, o que pode causar problemas adicionais de roteamento.
+1. **Botão "Marcar como lida"** — visível no cabeçalho do chat quando a conversa tem mensagens não lidas
+2. **Ao responder** — quando o usuário envia uma mensagem, a conversa é automaticamente marcada como lida
 
-## Plano de Correção
+### Arquivos a Alterar
 
-### 1. Normalizar busca de telefone no webhook Meta
-**Arquivo:** `supabase/functions/meta-whatsapp-webhook/index.ts`
+**1. `src/pages/Inbox.tsx`**
+- Remover a chamada `markAsRead.mutate()` de dentro de `handleSelectConversation`
 
-- Ao receber uma mensagem, o telefone vem no formato `55XXXXXXXXXXX` (sem `+`)
-- Antes de buscar o contato, normalizar o telefone removendo caracteres especiais
-- Implementar busca flexível: tentar match exato primeiro, depois tentar variações (com/sem código de país `55`, com/sem `+`)
-- Usar busca SQL com `LIKE` ou múltiplas condições para cobrir formatos diferentes
+**2. `src/components/inbox/ChatHeader.tsx` (ou componente equivalente do cabeçalho do chat)**
+- Adicionar um botão "Marcar como lida" que aparece condicionalmente quando `unread_count > 0`
+- Ao clicar, chama `markAsRead.mutate(conversationId)`
 
-### 2. Normalizar telefone ao criar contatos na campanha
-**Arquivo:** `supabase/functions/send-campaign-messages/index.ts`
+**3. Hook/componente de envio de mensagem**
+- Após enviar uma mensagem com sucesso, chamar `markAsRead` para zerar o `unread_count` da conversa atual
 
-- Garantir que o telefone do contato seja salvo no mesmo formato que a Meta usa (`55XXXXXXXXXXX`) quando criado via campanha
-- Ao persistir conversa na campanha, definir `meta_phone_number_id` na conversa criada
-
-### 3. Adicionar `meta_phone_number_id` nas conversas de campanha
-**Arquivo:** `supabase/functions/send-campaign-messages/index.ts`
-
-- Ao criar nova conversa durante o envio de campanha Meta, incluir o `meta_phone_number_id` do número remetente
-- Isso garante que respostas sejam corretamente associadas
-
-## Detalhes Técnicos
-
-No webhook (`meta-whatsapp-webhook/index.ts`), a busca atual é:
-```typescript
-// Busca EXATA - falha se formato diferir
-.eq('phone', contactPhone)
-```
-
-Será alterada para busca normalizada:
-```typescript
-// Normalizar phone: remover +, espaços, traços, parênteses
-// Tentar match com variações: 
-//   contactPhone (ex: 5573996710XX)
-//   sem código país (ex: 73996710XX)  
-//   com + (ex: +5573996710XX)
-```
-
-No envio de campanha (`send-campaign-messages/index.ts`), ao criar conversa:
-```typescript
-// ANTES: sem meta_phone_number_id
-.insert({ contact_id, user_id, status: 'open', provider: 'meta' })
-
-// DEPOIS: com meta_phone_number_id
-.insert({ contact_id, user_id, status: 'open', provider: 'meta', meta_phone_number_id: phoneNumberId })
-```
+### Detalhes Técnicos
+- A mutation `markAsRead` já existe em `useConversations.ts` — só precisa ser chamada nos novos pontos
+- O badge de não lidas na lista de conversas continuará funcionando normalmente
+- A opção "Marcar como não lida" no menu de contexto permanece inalterada
 
