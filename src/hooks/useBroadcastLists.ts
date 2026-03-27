@@ -99,7 +99,7 @@ export const useBroadcastLists = () => {
     if (criteria.tags && criteria.tags.length > 0) {
       let query = supabase
         .from("contacts")
-        .select("id, contact_tags!inner(tag_id)", { count: "exact", head: true })
+        .select("id, contact_tags!inner(tag_id)")
         .in("contact_tags.tag_id", criteria.tags);
 
       if (criteria.status) {
@@ -107,6 +107,9 @@ export const useBroadcastLists = () => {
       }
       if (criteria.optedOut !== undefined) {
         query = query.eq("opted_out", criteria.optedOut);
+      }
+      if (criteria.asaasPaymentStatus) {
+        query = query.eq("asaas_payment_status", criteria.asaasPaymentStatus);
       }
       
       // Filtros de campos dinâmicos para contatos
@@ -124,8 +127,22 @@ export const useBroadcastLists = () => {
         });
       }
 
-      const { count } = await query;
-      return count || 0;
+      const uniqueContactIds = new Set<string>();
+      let page = 0;
+      const pageSize = 1000;
+
+      while (true) {
+        const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        data.forEach((contact) => uniqueContactIds.add(contact.id));
+
+        if (data.length < pageSize) break;
+        page++;
+      }
+
+      return uniqueContactIds.size;
     }
     
     // Sem tags - usar query padrão

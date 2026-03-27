@@ -100,6 +100,22 @@ async function fetchCustomerById(baseUrl: string, customerId: string, apiKey: st
   }
 }
 
+async function fetchCustomersByIds(baseUrl: string, customerIds: string[], apiKey: string, concurrency = 25): Promise<AsaasCustomer[]> {
+  const customers: AsaasCustomer[] = [];
+
+  for (let i = 0; i < customerIds.length; i += concurrency) {
+    const batchIds = customerIds.slice(i, i + concurrency);
+    const batchCustomers = await Promise.all(
+      batchIds.map((customerId) => fetchCustomerById(baseUrl, customerId, apiKey))
+    );
+
+    customers.push(...batchCustomers.filter((customer): customer is AsaasCustomer => customer !== null));
+    console.log(`[sync-asaas] Fetched ${Math.min(i + batchIds.length, customerIds.length)}/${customerIds.length} unmatched customers by ID`);
+  }
+
+  return customers;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -278,32 +294,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`[sync-asaas] Matched ${matchedUpdates.length} by asaas_customer_id, ${unmatchedCustomerIds.length} need phone lookup`);
+    const matchedByAsaasIdCount = matchedUpdates.length;
+    console.log(`[sync-asaas] Matched ${matchedByAsaasIdCount} by asaas_customer_id, ${unmatchedCustomerIds.length} need phone lookup`);
 
     // STEP 6: For unmatched, fetch customers in bulk and match by phone
-    const asaasCustomers = await fetchAllPaginated<AsaasCustomer>(baseUrl, 'customers', apiKey, 10000);
-    const unmatchedCustomerIdSet = new Set(unmatchedCustomerIds);
+    if (unmatchedCustomerIds.length > 0) {
+      const asaasCustomers = await fetchCustomersByIds(baseUrl, unmatchedCustomerIds, apiKey);
 
-    for (const customer of asaasCustomers) {
-      if (!unmatchedCustomerIdSet.has(customer.id)) continue;
+      for (const customer of asaasCustomers) {
+        const phonesToTry = [
+          ...phoneVariants(customer.mobilePhone),
+          ...phoneVariants(customer.phone),
+        ];
 
-      const phonesToTry = [
-        ...phoneVariants(customer.mobilePhone),
-        ...phoneVariants(customer.phone),
-      ];
+        let contactId: string | undefined;
+        for (const phone of phonesToTry) {
+          contactId = phoneToContactId.get(phone);
+          if (contactId) break;
+        }
 
-      let contactId: string | undefined;
-      for (const phone of phonesToTry) {
-        contactId = phoneToContactId.get(phone);
-        if (contactId) break;
-      }
-
-      if (contactId) {
-        matchedUpdates.push({
-          id: contactId,
-          asaas_customer_id: customer.id,
-          asaas_payment_status: customerStatusMap.get(customer.id)!,
-        });
+        if (contactId) {
+          matchedUpdates.push({
+            id: contactId,
+            asaas_customer_id: customer.id,
+            asaas_payment_status: customerStatusMap.get(customer.id)!,
+          });
+        }
       }
     }
 
@@ -352,7 +368,7 @@ Deno.serve(async (req: Request) => {
         pendingPayments: pendingPayments.length,
         uniqueCustomers: uniqueCustomerIds.length,
         totalContacts: allContacts.length,
-        matchedByAsaasId: matchedUpdates.length - unmatchedCustomerIds.length + (unmatchedCustomerIds.length - unmatchedCustomerIds.length),
+        matchedByAsaasId: matchedByAsaasIdCount,
         totalMatched: matchedUpdates.length,
         updatedCount,
       }),
