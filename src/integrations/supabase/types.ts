@@ -3215,6 +3215,7 @@ export type Database = {
           created_at: string
           delivered_at: string | null
           direction: string
+          error_message: string | null
           extracted_content: string | null
           id: string
           is_ai_generated: boolean | null
@@ -3235,6 +3236,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction: string
+          error_message?: string | null
           extracted_content?: string | null
           id?: string
           is_ai_generated?: boolean | null
@@ -3255,6 +3257,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction?: string
+          error_message?: string | null
           extracted_content?: string | null
           id?: string
           is_ai_generated?: boolean | null
