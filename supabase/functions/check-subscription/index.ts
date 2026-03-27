@@ -198,7 +198,7 @@ Deno.serve(async (req: Request) => {
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
 
-    const authResult = await requireUser(req, 3);
+    const authResult = await requireUser(req);
     if (!authResult.success) {
       logStep("AUTH_ERROR", { message: "Unauthorized" });
       return authResult.error;
