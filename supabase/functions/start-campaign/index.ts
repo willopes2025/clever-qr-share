@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
         throw new Error('One or more WhatsApp instances not found');
       }
 
-      const disconnectedInstances = instances.filter(i => i.status !== 'connected');
+      const disconnectedInstances = instances.filter((i: Instance & { status?: string }) => i.status !== 'connected');
       if (disconnectedInstances.length > 0) {
         throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
       }
