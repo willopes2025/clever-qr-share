@@ -385,9 +385,9 @@ export const useCampaignMutations = () => {
       
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success('Campanha iniciada! Acompanhe o progresso em tempo real.');
+      toast.success(data?.message || 'Campanha iniciada! Acompanhe o progresso em tempo real.');
     },
     onError: (error) => {
       toast.error('Erro ao iniciar campanha: ' + error.message);

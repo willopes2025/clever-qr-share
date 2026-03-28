@@ -1,5 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const waitUntil = (promise: Promise<unknown>) => {
+  const runtime = (globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(promise);
+  } else {
+    promise.catch((error) => console.error('Background task error:', error));
+  }
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,6 +29,7 @@ interface Instance {
   id: string;
   instance_name: string;
   warming_level: number;
+  status?: string;
 }
 
 Deno.serve(async (req) => {
@@ -68,8 +81,21 @@ Deno.serve(async (req) => {
       throw new Error('Campaign not found');
     }
 
-    if (campaign.status === 'sending' || campaign.status === 'completed') {
+    if (campaign.status === 'completed') {
       throw new Error(`Campaign is already ${campaign.status}`);
+    }
+
+    if (campaign.status === 'sending') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          alreadyInProgress: true,
+          message: 'Campanha já está em andamento.',
+          totalContacts: campaign.total_contacts,
+          sendingMode,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
@@ -125,7 +151,7 @@ Deno.serve(async (req) => {
         throw new Error('One or more WhatsApp instances not found');
       }
 
-      const disconnectedInstances = instances.filter(i => i.status !== 'connected');
+      const disconnectedInstances = instances.filter((i: Instance & { status?: string }) => i.status !== 'connected');
       if (disconnectedInstances.length > 0) {
         throw new Error(`Instance(s) not connected: ${disconnectedInstances.map(i => i.instance_name).join(', ')}`);
       }
@@ -631,11 +657,228 @@ Deno.serve(async (req) => {
       throw new Error('Failed to update campaign status');
     }
 
+    const enqueueSendCampaignMessages = () => {
+      const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
+
+      waitUntil((async () => {
+        const response = await fetch(sendUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({
+            campaignId,
+            instances: validInstances,
+            sendingMode
+          })
+        });
+
+        const responseText = await response.text();
+        if (!response.ok) {
+          console.error('Background send error:', response.status, responseText);
+        }
+      })().catch(err => console.error('Background send error:', err)));
+    };
+
+    const processDynamicAiCampaign = async () => {
+      try {
+        console.log('Dynamic AI mode detected, generating unique messages per contact');
+        const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+        if (!openaiApiKey) {
+          throw new Error('OPENAI_API_KEY not configured');
+        }
+
+        const aiPrompt = campaign.template?.ai_prompt;
+        if (!aiPrompt) {
+          throw new Error('AI prompt not configured');
+        }
+
+        const BATCH_SIZE = 10;
+        const dynamicMessageRecords: Array<{
+          campaign_id: string;
+          contact_id: string;
+          phone: string;
+          contact_name: string | null;
+          message_content: string;
+          status: 'queued';
+        }> = [];
+
+        for (let i = 0; i < filteredContacts.length; i += BATCH_SIZE) {
+          const batch = filteredContacts.slice(i, i + BATCH_SIZE);
+          const contactIds = batch.map((c: Contact) => c.id);
+
+          const { data: deals } = await supabase
+            .from('funnel_deals')
+            .select('contact_id, value, custom_fields, stage:funnel_stages(name)')
+            .in('contact_id', contactIds);
+
+          const { data: conversations } = await supabase
+            .from('conversations')
+            .select('contact_id, id')
+            .in('contact_id', contactIds)
+            .eq('user_id', user.id);
+
+          const convMap: Record<string, any[]> = {};
+          if (conversations && conversations.length > 0) {
+            const convIds = conversations.map(c => c.id);
+            const { data: messages } = await supabase
+              .from('messages')
+              .select('conversation_id, content, direction, created_at')
+              .in('conversation_id', convIds)
+              .order('created_at', { ascending: false })
+              .limit(20 * convIds.length);
+
+            if (messages) {
+              for (const msg of messages) {
+                if (!convMap[msg.conversation_id]) convMap[msg.conversation_id] = [];
+                if (convMap[msg.conversation_id].length < 20) {
+                  convMap[msg.conversation_id].push(msg);
+                }
+              }
+            }
+          }
+
+          const contactContexts = batch.map((contact: Contact) => {
+            const deal = deals?.find(d => d.contact_id === contact.id);
+            const conv = conversations?.find(c => c.contact_id === contact.id);
+            const msgs = conv ? (convMap[conv.id] || []).reverse() : [];
+
+            let context = `Contato: ${contact.name || 'Sem nome'}\nTelefone: ${contact.phone}\n`;
+            if (contact.email) context += `Email: ${contact.email}\n`;
+            if (contact.custom_fields) {
+              context += `Campos personalizados: ${JSON.stringify(contact.custom_fields)}\n`;
+            }
+            if (deal) {
+              context += `Etapa do funil: ${(deal.stage as any)?.name || 'N/A'}\n`;
+              if (deal.value) context += `Valor: R$ ${deal.value}\n`;
+              if (deal.custom_fields) {
+                context += `Campos do lead: ${JSON.stringify(deal.custom_fields)}\n`;
+              }
+            }
+            if (msgs.length > 0) {
+              context += `\nÚltimas mensagens:\n`;
+              msgs.forEach((m: any) => {
+                const dir = m.direction === 'outgoing' ? 'Você' : contact.name || 'Contato';
+                context += `${dir}: ${m.content || '[mídia]'}\n`;
+              });
+            }
+            return { contact, context };
+          });
+
+          const systemPrompt = `Você é um assistente que gera mensagens de WhatsApp personalizadas. Para cada contato, gere UMA mensagem única e personalizada seguindo as instruções do usuário. A mensagem deve ser natural, direta e pronta para envio (sem saudação genérica duplicada). Responda APENAS com um JSON array de objetos com "contact_id" e "message".`;
+          const userMessage = `Instrução do template: ${aiPrompt}\n\nGere uma mensagem para cada contato abaixo:\n\n${contactContexts.map((cc, idx) => `--- Contato ${idx + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
+
+          try {
+            const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4.1-nano',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userMessage }
+                ],
+                temperature: 0.8,
+                response_format: { type: 'json_object' }
+              })
+            });
+
+            const aiData = await aiResponse.json();
+            const aiContent = aiData.choices?.[0]?.message?.content;
+
+            if (aiContent) {
+              const parsed = JSON.parse(aiContent);
+              const generatedMessages: Array<{ contact_id: string; message: string }> =
+                Array.isArray(parsed) ? parsed : (parsed.messages || parsed.results || []);
+
+              for (const cc of contactContexts) {
+                const generated = generatedMessages.find(g => g.contact_id === cc.contact.id);
+                dynamicMessageRecords.push({
+                  campaign_id: campaignId,
+                  contact_id: cc.contact.id,
+                  phone: normalizePhone(cc.contact.phone),
+                  contact_name: cc.contact.name,
+                  message_content: generated?.message || `Olá ${cc.contact.name || ''}!`,
+                  status: 'queued'
+                });
+              }
+            } else {
+              for (const cc of contactContexts) {
+                dynamicMessageRecords.push({
+                  campaign_id: campaignId,
+                  contact_id: cc.contact.id,
+                  phone: normalizePhone(cc.contact.phone),
+                  contact_name: cc.contact.name,
+                  message_content: `Olá ${cc.contact.name || ''}!`,
+                  status: 'queued'
+                });
+              }
+            }
+          } catch (aiError) {
+            console.error('AI generation error for batch:', aiError);
+            for (const cc of contactContexts) {
+              dynamicMessageRecords.push({
+                campaign_id: campaignId,
+                contact_id: cc.contact.id,
+                phone: normalizePhone(cc.contact.phone),
+                contact_name: cc.contact.name,
+                message_content: `Olá ${cc.contact.name || ''}!`,
+                status: 'queued'
+              });
+            }
+          }
+
+          console.log(`AI generated messages for batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(filteredContacts.length / BATCH_SIZE)}`);
+        }
+
+        const { error: insertError } = await supabase
+          .from('campaign_messages')
+          .insert(dynamicMessageRecords);
+
+        if (insertError) {
+          console.error('Message records insert error:', insertError);
+          throw new Error('Failed to create message records');
+        }
+
+        console.log(`Created ${dynamicMessageRecords.length} message records`);
+        enqueueSendCampaignMessages();
+      } catch (backgroundError) {
+        console.error('Dynamic AI campaign setup error:', backgroundError);
+        await supabase
+          .from('campaigns')
+          .update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', campaignId);
+      }
+    };
+
+    if (campaign.template?.ai_prompt && !isMetaTemplateCampaign) {
+      waitUntil(processDynamicAiCampaign());
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Campanha iniciada! A IA está preparando as mensagens em segundo plano.',
+          totalContacts: filteredContacts.length,
+          skippedContacts: skippedCount,
+          instanceCount: validInstances.length,
+          sendingMode,
+          backgroundProcessing: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Build message records
     let messageRecords;
 
     if (isMetaTemplateCampaign) {
-      // For Meta template campaigns, fetch the meta template body as placeholder content
       const { data: metaTemplate } = await supabase
         .from('meta_templates')
         .select('body_text, name')
@@ -646,7 +889,6 @@ Deno.serve(async (req) => {
 
       messageRecords = filteredContacts.map((contact: Contact) => {
         let messageContent = templateBody;
-        // Replace variables for display purposes
         messageContent = messageContent.replace(/\{\{1\}\}/g, contact.name || '');
         messageContent = messageContent.replace(/\{\{2\}\}/g, contact.phone || '');
         messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
@@ -654,7 +896,7 @@ Deno.serve(async (req) => {
         messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
         messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
         messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
-        
+
         const customFields = contact.custom_fields || {};
         for (const [key, value] of Object.entries(customFields)) {
           const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
@@ -671,164 +913,12 @@ Deno.serve(async (req) => {
           status: 'queued'
         };
       });
-    } else if (campaign.template?.ai_prompt) {
-      // Dynamic AI mode: generate unique messages per contact
-      console.log('Dynamic AI mode detected, generating unique messages per contact');
-      const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-      if (!openaiApiKey) {
-        throw new Error('OPENAI_API_KEY not configured');
-      }
-
-      const aiPrompt = campaign.template.ai_prompt;
-      const BATCH_SIZE = 10;
-      messageRecords = [];
-
-      for (let i = 0; i < filteredContacts.length; i += BATCH_SIZE) {
-        const batch = filteredContacts.slice(i, i + BATCH_SIZE);
-        
-        // Fetch deals and conversations for this batch
-        const contactIds = batch.map((c: Contact) => c.id);
-        
-        const { data: deals } = await supabase
-          .from('funnel_deals')
-          .select('contact_id, value, custom_fields, stage:funnel_stages(name)')
-          .in('contact_id', contactIds);
-
-        const { data: conversations } = await supabase
-          .from('conversations')
-          .select('contact_id, id')
-          .in('contact_id', contactIds)
-          .eq('user_id', user.id);
-
-        // Fetch last 20 messages per conversation
-        const convMap: Record<string, any[]> = {};
-        if (conversations && conversations.length > 0) {
-          const convIds = conversations.map(c => c.id);
-          const { data: messages } = await supabase
-            .from('messages')
-            .select('conversation_id, content, direction, created_at')
-            .in('conversation_id', convIds)
-            .order('created_at', { ascending: false })
-            .limit(20 * convIds.length);
-          
-          if (messages) {
-            for (const msg of messages) {
-              if (!convMap[msg.conversation_id]) convMap[msg.conversation_id] = [];
-              if (convMap[msg.conversation_id].length < 20) {
-                convMap[msg.conversation_id].push(msg);
-              }
-            }
-          }
-        }
-
-        // Build context per contact and generate messages
-        const contactContexts = batch.map((contact: Contact) => {
-          const deal = deals?.find(d => d.contact_id === contact.id);
-          const conv = conversations?.find(c => c.contact_id === contact.id);
-          const msgs = conv ? (convMap[conv.id] || []).reverse() : [];
-          
-          let context = `Contato: ${contact.name || 'Sem nome'}\nTelefone: ${contact.phone}\n`;
-          if (contact.email) context += `Email: ${contact.email}\n`;
-          if (contact.custom_fields) {
-            context += `Campos personalizados: ${JSON.stringify(contact.custom_fields)}\n`;
-          }
-          if (deal) {
-            context += `Etapa do funil: ${(deal.stage as any)?.name || 'N/A'}\n`;
-            if (deal.value) context += `Valor: R$ ${deal.value}\n`;
-            if (deal.custom_fields) {
-              context += `Campos do lead: ${JSON.stringify(deal.custom_fields)}\n`;
-            }
-          }
-          if (msgs.length > 0) {
-            context += `\nÚltimas mensagens:\n`;
-            msgs.forEach((m: any) => {
-              const dir = m.direction === 'outgoing' ? 'Você' : contact.name || 'Contato';
-              context += `${dir}: ${m.content || '[mídia]'}\n`;
-            });
-          }
-          return { contact, context };
-        });
-
-        // Call OpenAI for the batch
-        const systemPrompt = `Você é um assistente que gera mensagens de WhatsApp personalizadas. Para cada contato, gere UMA mensagem única e personalizada seguindo as instruções do usuário. A mensagem deve ser natural, direta e pronta para envio (sem saudação genérica duplicada). Responda APENAS com um JSON array de objetos com "contact_id" e "message".`;
-
-        const userMessage = `Instrução do template: ${aiPrompt}\n\nGere uma mensagem para cada contato abaixo:\n\n${contactContexts.map((cc, idx) => `--- Contato ${idx + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
-
-        try {
-          const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'gpt-4.1-nano',
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userMessage }
-              ],
-              temperature: 0.8,
-              response_format: { type: 'json_object' }
-            })
-          });
-
-          const aiData = await aiResponse.json();
-          const aiContent = aiData.choices?.[0]?.message?.content;
-          
-          if (aiContent) {
-            const parsed = JSON.parse(aiContent);
-            const generatedMessages: Array<{ contact_id: string; message: string }> = 
-              Array.isArray(parsed) ? parsed : (parsed.messages || parsed.results || []);
-
-            for (const cc of contactContexts) {
-              const generated = generatedMessages.find(g => g.contact_id === cc.contact.id);
-              messageRecords.push({
-                campaign_id: campaignId,
-                contact_id: cc.contact.id,
-                phone: normalizePhone(cc.contact.phone),
-                contact_name: cc.contact.name,
-                message_content: generated?.message || `Olá ${cc.contact.name || ''}!`,
-                status: 'queued'
-              });
-            }
-          } else {
-            // Fallback if AI fails
-            for (const cc of contactContexts) {
-              messageRecords.push({
-                campaign_id: campaignId,
-                contact_id: cc.contact.id,
-                phone: normalizePhone(cc.contact.phone),
-                contact_name: cc.contact.name,
-                message_content: `Olá ${cc.contact.name || ''}!`,
-                status: 'queued'
-              });
-            }
-          }
-        } catch (aiError) {
-          console.error('AI generation error for batch:', aiError);
-          // Fallback for this batch
-          for (const cc of contactContexts) {
-            messageRecords.push({
-              campaign_id: campaignId,
-              contact_id: cc.contact.id,
-              phone: normalizePhone(cc.contact.phone),
-              contact_name: cc.contact.name,
-              message_content: `Olá ${cc.contact.name || ''}!`,
-              status: 'queued'
-            });
-          }
-        }
-
-        console.log(`AI generated messages for batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(filteredContacts.length/BATCH_SIZE)}`);
-      }
     } else {
-      // Fetch template variations if any
       const { data: variations } = await supabase
         .from('template_variations')
         .select('content')
         .eq('template_id', campaign.template_id);
 
-      // Build array of message options (original + variations)
       const messageOptions: string[] = [campaign.template.content];
       if (variations && variations.length > 0) {
         messageOptions.push(...variations.map(v => v.content));
@@ -839,13 +929,13 @@ Deno.serve(async (req) => {
       messageRecords = filteredContacts.map((contact: Contact) => {
         const randomIndex = Math.floor(Math.random() * messageOptions.length);
         let messageContent = messageOptions[randomIndex];
-        
+
         messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
         messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
         messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
         messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
         messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
-        
+
         const customFields = contact.custom_fields || {};
         for (const [key, value] of Object.entries(customFields)) {
           const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
@@ -874,27 +964,11 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Created ${messageRecords.length} message records`);
-
-    // Call send-campaign-messages function in background with multiple instances
-    const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
-    
-    // Fire and forget - don't await
-    fetch(sendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseServiceKey}`
-      },
-      body: JSON.stringify({
-        campaignId,
-        instances: validInstances,
-        sendingMode
-      })
-    }).catch(err => console.error('Background send error:', err));
+    enqueueSendCampaignMessages();
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: 'Campaign started',
         totalContacts: filteredContacts.length,
         skippedContacts: skippedCount,
