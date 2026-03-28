@@ -859,7 +859,7 @@ Deno.serve(async (req) => {
     };
 
     if (campaign.template?.ai_prompt && !isMetaTemplateCampaign) {
-      EdgeRuntime.waitUntil(processDynamicAiCampaign());
+      waitUntil(processDynamicAiCampaign());
 
       return new Response(
         JSON.stringify({
