@@ -94,7 +94,8 @@ export const useMessageTemplates = () => {
         variables: (template.variables as string[]) || [],
         media_type: template.media_type as MediaType,
         media_url: template.media_url,
-        media_filename: template.media_filename
+        media_filename: template.media_filename,
+        ai_prompt: (template as any).ai_prompt || null
       })) as MessageTemplate[];
     },
     enabled: !!user?.id
