@@ -101,6 +101,8 @@ export const TemplateFormDialog = ({
       setMediaType(template.media_type || null);
       setMediaUrl(template.media_url || null);
       setMediaFilename(template.media_filename || null);
+      setIsDynamicAi(!!template.ai_prompt);
+      setDynamicAiPrompt(template.ai_prompt || '');
     } else {
       setName('');
       setContent('');
@@ -109,6 +111,8 @@ export const TemplateFormDialog = ({
       setMediaType(null);
       setMediaUrl(null);
       setMediaFilename(null);
+      setIsDynamicAi(false);
+      setDynamicAiPrompt('');
     }
     setShowAiSection(false);
     setAiPrompt('');
