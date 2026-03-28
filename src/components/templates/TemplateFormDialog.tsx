@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Sparkles, Loader2, ChevronDown, ChevronUp, ChevronRight, User, FileText } from 'lucide-react';
+import { Sparkles, Loader2, ChevronDown, ChevronUp, ChevronRight, User, FileText, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -58,10 +58,14 @@ export const TemplateFormDialog = ({
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaFilename, setMediaFilename] = useState<string | null>(null);
 
-  // AI generation state
+  // AI generation state (static one-shot)
   const [showAiSection, setShowAiSection] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Dynamic AI mode
+  const [isDynamicAi, setIsDynamicAi] = useState(false);
+  const [dynamicAiPrompt, setDynamicAiPrompt] = useState('');
 
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
@@ -97,6 +101,8 @@ export const TemplateFormDialog = ({
       setMediaType(template.media_type || null);
       setMediaUrl(template.media_url || null);
       setMediaFilename(template.media_filename || null);
+      setIsDynamicAi(!!template.ai_prompt);
+      setDynamicAiPrompt(template.ai_prompt || '');
     } else {
       setName('');
       setContent('');
@@ -105,6 +111,8 @@ export const TemplateFormDialog = ({
       setMediaType(null);
       setMediaUrl(null);
       setMediaFilename(null);
+      setIsDynamicAi(false);
+      setDynamicAiPrompt('');
     }
     setShowAiSection(false);
     setAiPrompt('');
@@ -176,13 +184,14 @@ export const TemplateFormDialog = ({
     e.preventDefault();
     onSubmit({
       name,
-      content,
+      content: isDynamicAi ? '[Mensagem gerada por IA dinâmica]' : content,
       category,
-      variables: detectedVariables,
+      variables: isDynamicAi ? [] : detectedVariables,
       is_active: isActive,
       media_type: mediaType,
       media_url: mediaUrl,
-      media_filename: mediaFilename
+      media_filename: mediaFilename,
+      ai_prompt: isDynamicAi ? dynamicAiPrompt : null
     });
     onOpenChange(false);
   };
@@ -237,159 +246,223 @@ export const TemplateFormDialog = ({
             templateContent={content}
           />
 
-          {/* AI Generation Section */}
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleToggleAiSection}
-              className="w-full justify-between border-primary/30 text-primary hover:bg-primary/10"
-            >
-              <span className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                Gerar com IA
-              </span>
-              {showAiSection ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-
-            {showAiSection && (
-              <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Instrução para a IA</Label>
-                  <Textarea
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder="Descreva o tipo de mensagem que deseja gerar..."
-                    rows={3}
-                    className="bg-background border-border text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs">Variáveis disponíveis</Label>
-                  
-                  {/* Static contact fields - always visible */}
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
-                      <User className="h-3 w-3" /> Dados do Contato
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {staticVariables.map((v) => (
-                        <Badge
-                          key={v.key}
-                          variant="secondary"
-                          className="bg-primary/15 text-primary border-primary/25 text-[10px] cursor-pointer hover:bg-primary/25 px-1.5 py-0"
-                          title={v.label}
-                          onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
-                        >
-                          {`{{${v.key}}}`}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Contact custom fields - collapsible */}
-                  {contactCustomVariables.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
-                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                        <FileText className="h-3 w-3" />
-                        Campos de Contato ({contactCustomVariables.length})
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="pt-1">
-                        <div className="flex flex-wrap gap-1">
-                          {contactCustomVariables.map((v) => (
-                            <Badge
-                              key={v.key}
-                              variant="secondary"
-                              className="bg-secondary/60 text-secondary-foreground border-border text-[10px] cursor-pointer hover:bg-secondary px-1.5 py-0"
-                              title={v.label}
-                              onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
-                            >
-                              {`{{${v.key}}}`}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-
-                  {/* Lead custom fields - collapsible */}
-                  {leadCustomVariables.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
-                        <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
-                        <FileText className="h-3 w-3" />
-                        Campos de Lead ({leadCustomVariables.length})
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="pt-1">
-                        <div className="flex flex-wrap gap-1">
-                          {leadCustomVariables.map((v) => (
-                            <Badge
-                              key={v.key}
-                              variant="secondary"
-                              className="bg-accent/60 text-accent-foreground border-border text-[10px] cursor-pointer hover:bg-accent px-1.5 py-0"
-                              title={v.label}
-                              onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
-                            >
-                              {`{{${v.key}}}`}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  )}
-                </div>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleGenerateWithAI}
-                  disabled={isGenerating || !aiPrompt.trim()}
-                  className="w-full"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Gerando...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Gerar Mensagem
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="content">Conteúdo da Mensagem</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável
-            </p>
-            <VariableAutocomplete
-              value={content}
-              onChange={setContent}
-              placeholder="Digite o conteúdo do template. Use {{ para inserir variáveis dinâmicas."
-              rows={6}
-              className="bg-background border-border font-mono text-sm"
+          {/* Dynamic AI Mode Switch */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+            <div className="space-y-0.5">
+              <Label htmlFor="dynamic-ai" className="flex items-center gap-2 text-sm">
+                <Bot className="h-4 w-4 text-emerald-400" />
+                Modo IA Dinâmico
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                A IA gera mensagens únicas para cada contato no momento do disparo
+              </p>
+            </div>
+            <Switch
+              id="dynamic-ai"
+              checked={isDynamicAi}
+              onCheckedChange={(checked) => {
+                setIsDynamicAi(checked);
+                if (checked && !dynamicAiPrompt) {
+                  setDynamicAiPrompt(CATEGORY_PROMPTS[category] || CATEGORY_PROMPTS.other);
+                }
+              }}
             />
           </div>
 
-          {detectedVariables.length > 0 && (
-            <div className="space-y-2">
-              <Label>Variáveis Detectadas</Label>
-              <div className="flex flex-wrap gap-2">
-                {detectedVariables.map((v) => (
-                  <Badge key={v} variant="secondary" className="bg-primary/20 text-primary border-primary/30">
-                    {`{{${v}}}`}
-                  </Badge>
-                ))}
+          {isDynamicAi ? (
+            /* Dynamic AI prompt section */
+            <div className="space-y-3 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5">
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1.5">
+                  <Bot className="h-3.5 w-3.5 text-emerald-400" />
+                  Prompt de instrução da IA
+                </Label>
+                <p className="text-[10px] text-muted-foreground">
+                  Descreva como a IA deve gerar cada mensagem. Ela terá acesso aos dados do contato, campos personalizados, etapa do funil e histórico de conversa.
+                </p>
+                <Textarea
+                  value={dynamicAiPrompt}
+                  onChange={(e) => setDynamicAiPrompt(e.target.value)}
+                  placeholder="Ex: Gere uma mensagem de follow-up personalizada considerando o histórico de conversa e a etapa do funil do lead..."
+                  rows={5}
+                  className="bg-background border-border text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground">Dados disponíveis para a IA no momento do disparo:</Label>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    'Nome do contato',
+                    'Telefone',
+                    'Email',
+                    'Campos personalizados',
+                    'Etapa do funil',
+                    'Valor do deal',
+                    'Campos do lead',
+                    'Últimas 20 mensagens'
+                  ].map((item) => (
+                    <Badge key={item} variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-500/30 text-emerald-400">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             </div>
+          ) : (
+            <>
+              {/* AI Generation Section (one-shot) */}
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleToggleAiSection}
+                  className="w-full justify-between border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Gerar com IA
+                  </span>
+                  {showAiSection ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+
+                {showAiSection && (
+                  <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Instrução para a IA</Label>
+                      <Textarea
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="Descreva o tipo de mensagem que deseja gerar..."
+                        rows={3}
+                        className="bg-background border-border text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs">Variáveis disponíveis</Label>
+                      
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                          <User className="h-3 w-3" /> Dados do Contato
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {staticVariables.map((v) => (
+                            <Badge
+                              key={v.key}
+                              variant="secondary"
+                              className="bg-primary/15 text-primary border-primary/25 text-[10px] cursor-pointer hover:bg-primary/25 px-1.5 py-0"
+                              title={v.label}
+                              onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
+                            >
+                              {`{{${v.key}}}`}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+
+                      {contactCustomVariables.length > 0 && (
+                        <Collapsible>
+                          <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
+                            <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                            <FileText className="h-3 w-3" />
+                            Campos de Contato ({contactCustomVariables.length})
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-1">
+                            <div className="flex flex-wrap gap-1">
+                              {contactCustomVariables.map((v) => (
+                                <Badge
+                                  key={v.key}
+                                  variant="secondary"
+                                  className="bg-secondary/60 text-secondary-foreground border-border text-[10px] cursor-pointer hover:bg-secondary px-1.5 py-0"
+                                  title={v.label}
+                                  onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
+                                >
+                                  {`{{${v.key}}}`}
+                                </Badge>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
+
+                      {leadCustomVariables.length > 0 && (
+                        <Collapsible>
+                          <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
+                            <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                            <FileText className="h-3 w-3" />
+                            Campos de Lead ({leadCustomVariables.length})
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-1">
+                            <div className="flex flex-wrap gap-1">
+                              {leadCustomVariables.map((v) => (
+                                <Badge
+                                  key={v.key}
+                                  variant="secondary"
+                                  className="bg-accent/60 text-accent-foreground border-border text-[10px] cursor-pointer hover:bg-accent px-1.5 py-0"
+                                  title={v.label}
+                                  onClick={() => setAiPrompt(prev => prev + ` {{${v.key}}}`)}
+                                >
+                                  {`{{${v.key}}}`}
+                                </Badge>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleGenerateWithAI}
+                      disabled={isGenerating || !aiPrompt.trim()}
+                      className="w-full"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Gerar Mensagem
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="content">Conteúdo da Mensagem</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável
+                </p>
+                <VariableAutocomplete
+                  value={content}
+                  onChange={setContent}
+                  placeholder="Digite o conteúdo do template. Use {{ para inserir variáveis dinâmicas."
+                  rows={6}
+                  className="bg-background border-border font-mono text-sm"
+                />
+              </div>
+
+              {detectedVariables.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Variáveis Detectadas</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {detectedVariables.map((v) => (
+                      <Badge key={v} variant="secondary" className="bg-primary/20 text-primary border-primary/30">
+                        {`{{${v}}}`}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">

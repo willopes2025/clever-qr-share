@@ -3746,6 +3746,7 @@ export type Database = {
       }
       message_templates: {
         Row: {
+          ai_prompt: string | null
           category: Database["public"]["Enums"]["template_category"]
           content: string
           created_at: string
@@ -3760,6 +3761,7 @@ export type Database = {
           variables: Json | null
         }
         Insert: {
+          ai_prompt?: string | null
           category?: Database["public"]["Enums"]["template_category"]
           content: string
           created_at?: string
@@ -3774,6 +3776,7 @@ export type Database = {
           variables?: Json | null
         }
         Update: {
+          ai_prompt?: string | null
           category?: Database["public"]["Enums"]["template_category"]
           content?: string
           created_at?: string

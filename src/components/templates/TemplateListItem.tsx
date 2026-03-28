@@ -8,7 +8,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles, Image, Video, Mic } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles, Image, Video, Mic, Bot } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -54,6 +54,13 @@ export const TemplateListItem = ({
           >
             {CATEGORY_LABELS[template.category]}
           </Badge>
+          
+          {template.ai_prompt && (
+            <Badge variant="outline" className="text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+              <Bot className="h-3 w-3 mr-1" />
+              IA Dinâmica
+            </Badge>
+          )}
           
           {template.media_type && (
             <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-400 border-blue-500/30">
