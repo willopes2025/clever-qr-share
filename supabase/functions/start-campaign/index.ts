@@ -766,10 +766,19 @@ Deno.serve(async (req) => {
             return { contact, context };
           });
 
-          const systemPrompt = `Você é um assistente que gera mensagens de WhatsApp personalizadas. Para cada contato, gere UMA mensagem única e personalizada seguindo as instruções do usuário. A mensagem deve ser natural, direta e pronta para envio (sem saudação genérica duplicada). Responda APENAS com um JSON array de objetos com "contact_id" e "message".`;
-          const userMessage = `Instrução do template: ${aiPrompt}\n\nGere uma mensagem para cada contato abaixo:\n\n${contactContexts.map((cc, idx) => `--- Contato ${idx + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
+          const systemPrompt = `Você é um assistente que gera mensagens de WhatsApp personalizadas.
+Para cada contato, gere UMA mensagem única e personalizada seguindo as instruções do usuário.
+A mensagem deve ser natural, direta e pronta para envio (sem saudação genérica duplicada).
+USE os dados fornecidos no contexto de cada contato (nome, campos personalizados, campos do lead, valor, etapa do funil, histórico de conversa) para personalizar a mensagem.
+Se o usuário mencionar variáveis como "nome do contato", "valor da venda", "data de vencimento", etc., interprete como referência aos dados do contexto fornecido.
+Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "message": "mensagem_aqui"}]}`;
+          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis:\n\n${contactContexts.map((cc, idx) => `--- Contato ${idx + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
 
           try {
+            console.log(`[AI] Sending batch to OpenAI with ${contactContexts.length} contacts`);
+            console.log(`[AI] User prompt: ${aiPrompt.substring(0, 200)}`);
+            console.log(`[AI] Sample context: ${contactContexts[0]?.context.substring(0, 300)}`);
+
             const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -787,46 +796,75 @@ Deno.serve(async (req) => {
               })
             });
 
+            if (!aiResponse.ok) {
+              const errText = await aiResponse.text();
+              console.error(`[AI] OpenAI API error ${aiResponse.status}: ${errText}`);
+              throw new Error(`OpenAI API error: ${aiResponse.status}`);
+            }
+
             const aiData = await aiResponse.json();
             const aiContent = aiData.choices?.[0]?.message?.content;
+            console.log(`[AI] Response received, length: ${aiContent?.length || 0}`);
+            if (aiContent) {
+              console.log(`[AI] Response preview: ${aiContent.substring(0, 500)}`);
+            }
 
             if (aiContent) {
               const parsed = JSON.parse(aiContent);
-              const generatedMessages: Array<{ contact_id: string; message: string }> =
-                Array.isArray(parsed) ? parsed : (parsed.messages || parsed.results || []);
+              
+              // Robustly find the array of messages regardless of wrapper key
+              let generatedMessages: Array<{ contact_id: string; message: string }> = [];
+              if (Array.isArray(parsed)) {
+                generatedMessages = parsed;
+              } else {
+                // Find the first array value in the object
+                for (const key of Object.keys(parsed)) {
+                  if (Array.isArray(parsed[key])) {
+                    generatedMessages = parsed[key];
+                    console.log(`[AI] Found messages array under key: "${key}" with ${generatedMessages.length} items`);
+                    break;
+                  }
+                }
+              }
+
+              console.log(`[AI] Parsed ${generatedMessages.length} messages from response`);
 
               for (const cc of contactContexts) {
                 const generated = generatedMessages.find(g => g.contact_id === cc.contact.id);
+                if (!generated?.message) {
+                  console.warn(`[AI] No message generated for contact ${cc.contact.id} (${cc.contact.name})`);
+                }
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
                   phone: normalizePhone(cc.contact.phone),
                   contact_name: cc.contact.name,
-                  message_content: generated?.message || `Olá ${cc.contact.name || ''}!`,
+                  message_content: generated?.message || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
                   status: 'queued'
                 });
               }
             } else {
+              console.error('[AI] No content in AI response:', JSON.stringify(aiData));
               for (const cc of contactContexts) {
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
                   phone: normalizePhone(cc.contact.phone),
                   contact_name: cc.contact.name,
-                  message_content: `Olá ${cc.contact.name || ''}!`,
+                  message_content: `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
                   status: 'queued'
                 });
               }
             }
           } catch (aiError) {
-            console.error('AI generation error for batch:', aiError);
+            console.error('[AI] Generation error for batch:', aiError);
             for (const cc of contactContexts) {
               dynamicMessageRecords.push({
                 campaign_id: campaignId,
                 contact_id: cc.contact.id,
                 phone: normalizePhone(cc.contact.phone),
                 contact_name: cc.contact.name,
-                message_content: `Olá ${cc.contact.name || ''}!`,
+                message_content: `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
                 status: 'queued'
               });
             }
