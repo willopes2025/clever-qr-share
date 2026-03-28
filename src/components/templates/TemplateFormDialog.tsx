@@ -58,10 +58,14 @@ export const TemplateFormDialog = ({
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaFilename, setMediaFilename] = useState<string | null>(null);
 
-  // AI generation state
+  // AI generation state (static one-shot)
   const [showAiSection, setShowAiSection] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Dynamic AI mode
+  const [isDynamicAi, setIsDynamicAi] = useState(false);
+  const [dynamicAiPrompt, setDynamicAiPrompt] = useState('');
 
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
