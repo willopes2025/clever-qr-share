@@ -684,15 +684,63 @@ Deno.serve(async (req) => {
     const processDynamicAiCampaign = async () => {
       try {
         console.log('Dynamic AI mode detected, generating unique messages per contact');
-        const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-        if (!openaiApiKey) {
-          throw new Error('OPENAI_API_KEY not configured');
+        const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+        if (!lovableApiKey) {
+          throw new Error('LOVABLE_API_KEY not configured');
         }
 
         const aiPrompt = campaign.template?.ai_prompt;
         if (!aiPrompt) {
           throw new Error('AI prompt not configured');
         }
+
+        const { data: customFieldDefinitions, error: customFieldDefinitionsError } = await supabase
+          .from('custom_field_definitions')
+          .select('field_key, field_name, entity_type')
+          .eq('user_id', user.id)
+          .order('display_order', { ascending: true });
+
+        if (customFieldDefinitionsError) {
+          console.error('Custom field definitions fetch error:', customFieldDefinitionsError);
+          throw new Error('Failed to fetch custom field definitions');
+        }
+
+        const contactFieldDefinitions = (customFieldDefinitions || []).filter((field) => field.entity_type === 'contact');
+        const leadFieldDefinitions = (customFieldDefinitions || []).filter((field) => field.entity_type === 'lead');
+
+        const formatFieldValue = (value: unknown): string => {
+          if (value === null || value === undefined || value === '') return '';
+          if (Array.isArray(value)) return value.join(', ');
+          if (typeof value === 'object') return JSON.stringify(value);
+          return String(value);
+        };
+
+        const formatFieldContext = (
+          fieldValues: Record<string, unknown> | null | undefined,
+          definitions: Array<{ field_key: string; field_name: string }>,
+          sectionTitle: string
+        ): string => {
+          if (!fieldValues) return '';
+
+          const definitionMap = new Map(definitions.map((field) => [field.field_key, field.field_name]));
+          const lines = Object.entries(fieldValues)
+            .filter(([, value]) => formatFieldValue(value) !== '')
+            .map(([key, value]) => {
+              const label = definitionMap.get(key) || key;
+              return `- ${label} ({{${key}}}): ${formatFieldValue(value)}`;
+            });
+
+          if (lines.length === 0) return '';
+          return `${sectionTitle}:\n${lines.join('\n')}\n`;
+        };
+
+        const availableVariables = [
+          '- Nome do contato ({{nome}})',
+          '- Telefone do contato ({{telefone}})',
+          '- Email do contato ({{email}})',
+          ...contactFieldDefinitions.map((field) => `- ${field.field_name} ({{${field.field_key}}}) [contato]`),
+          ...leadFieldDefinitions.map((field) => `- ${field.field_name} ({{${field.field_key}}}) [lead]`),
+        ].join('\n');
 
         const BATCH_SIZE = 10;
         const dynamicMessageRecords: Array<{
@@ -708,10 +756,17 @@ Deno.serve(async (req) => {
           const batch = filteredContacts.slice(i, i + BATCH_SIZE);
           const contactIds = batch.map((c: Contact) => c.id);
 
-          const { data: deals } = await supabase
+          let dealsQuery = supabase
             .from('funnel_deals')
-            .select('contact_id, value, custom_fields, stage:funnel_stages(name)')
-            .in('contact_id', contactIds);
+            .select('contact_id, value, custom_fields, created_at, stage_id, stage:funnel_stages(name)')
+            .in('contact_id', contactIds)
+            .order('created_at', { ascending: false });
+
+          if (targetFunnelId) {
+            dealsQuery = dealsQuery.eq('funnel_id', targetFunnelId);
+          }
+
+          const { data: deals } = await dealsQuery;
 
           const { data: conversations } = await supabase
             .from('conversations')
@@ -746,15 +801,11 @@ Deno.serve(async (req) => {
 
             let context = `Contato: ${contact.name || 'Sem nome'}\nTelefone: ${contact.phone}\n`;
             if (contact.email) context += `Email: ${contact.email}\n`;
-            if (contact.custom_fields) {
-              context += `Campos personalizados: ${JSON.stringify(contact.custom_fields)}\n`;
-            }
+            context += formatFieldContext(contact.custom_fields, contactFieldDefinitions, 'Campos personalizados do contato');
             if (deal) {
               context += `Etapa do funil: ${(deal.stage as any)?.name || 'N/A'}\n`;
               if (deal.value) context += `Valor: R$ ${deal.value}\n`;
-              if (deal.custom_fields) {
-                context += `Campos do lead: ${JSON.stringify(deal.custom_fields)}\n`;
-              }
+              context += formatFieldContext(deal.custom_fields, leadFieldDefinitions, 'Campos personalizados do lead');
             }
             if (msgs.length > 0) {
               context += `\nÚltimas mensagens:\n`;
@@ -770,23 +821,27 @@ Deno.serve(async (req) => {
 Para cada contato, gere UMA mensagem única e personalizada seguindo as instruções do usuário.
 A mensagem deve ser natural, direta e pronta para envio (sem saudação genérica duplicada).
 USE os dados fornecidos no contexto de cada contato (nome, campos personalizados, campos do lead, valor, etapa do funil, histórico de conversa) para personalizar a mensagem.
-Se o usuário mencionar variáveis como "nome do contato", "valor da venda", "data de vencimento", etc., interprete como referência aos dados do contexto fornecido.
+Quando o usuário mencionar o nome amigável de um campo, como "Data de Vencimento Boleto", use o valor correspondente do contexto.
+Considere sempre tanto o NOME amigável quanto a CHAVE da variável entre chaves, por exemplo: "Data de Vencimento Boleto" = {{data_de_vencimento_boleto}}.
+Se um dado não existir no contexto do contato, não invente e não mencione esse dado.
+Variáveis disponíveis neste workspace:
+${availableVariables}
 Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "message": "mensagem_aqui"}]}`;
           const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis:\n\n${contactContexts.map((cc, idx) => `--- Contato ${idx + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
 
           try {
-            console.log(`[AI] Sending batch to OpenAI with ${contactContexts.length} contacts`);
+            console.log(`[AI] Sending batch to Lovable AI with ${contactContexts.length} contacts`);
             console.log(`[AI] User prompt: ${aiPrompt.substring(0, 200)}`);
             console.log(`[AI] Sample context: ${contactContexts[0]?.context.substring(0, 300)}`);
 
-            const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${openaiApiKey}`,
+                'Authorization': `Bearer ${lovableApiKey}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'gpt-4.1-nano',
+                model: 'google/gemini-3-flash-preview',
                 messages: [
                   { role: 'system', content: systemPrompt },
                   { role: 'user', content: userMessage }
@@ -798,8 +853,8 @@ Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "
 
             if (!aiResponse.ok) {
               const errText = await aiResponse.text();
-              console.error(`[AI] OpenAI API error ${aiResponse.status}: ${errText}`);
-              throw new Error(`OpenAI API error: ${aiResponse.status}`);
+              console.error(`[AI] Lovable AI error ${aiResponse.status}: ${errText}`);
+              throw new Error(`Lovable AI error: ${aiResponse.status}`);
             }
 
             const aiData = await aiResponse.json();
