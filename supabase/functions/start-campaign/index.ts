@@ -1,7 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-declare const EdgeRuntime: {
-  waitUntil: (promise: Promise<unknown>) => void;
+const waitUntil = (promise: Promise<unknown>) => {
+  const runtime = (globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(promise);
+  } else {
+    promise.catch((error) => console.error('Background task error:', error));
+  }
 };
 
 const corsHeaders = {
