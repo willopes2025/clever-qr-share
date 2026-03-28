@@ -8,7 +8,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles, Image, Video, Mic } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Variable, FileText, Sparkles, Image, Video, Mic, Bot } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
