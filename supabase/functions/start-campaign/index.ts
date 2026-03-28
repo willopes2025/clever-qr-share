@@ -68,8 +68,21 @@ Deno.serve(async (req) => {
       throw new Error('Campaign not found');
     }
 
-    if (campaign.status === 'sending' || campaign.status === 'completed') {
+    if (campaign.status === 'completed') {
       throw new Error(`Campaign is already ${campaign.status}`);
+    }
+
+    if (campaign.status === 'sending') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          alreadyInProgress: true,
+          message: 'Campanha já está em andamento.',
+          totalContacts: campaign.total_contacts,
+          sendingMode,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
