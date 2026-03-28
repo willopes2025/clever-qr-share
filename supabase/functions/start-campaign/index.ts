@@ -660,7 +660,7 @@ Deno.serve(async (req) => {
     const enqueueSendCampaignMessages = () => {
       const sendUrl = `${supabaseUrl}/functions/v1/send-campaign-messages`;
 
-      EdgeRuntime.waitUntil((async () => {
+      waitUntil((async () => {
         const response = await fetch(sendUrl, {
           method: 'POST',
           headers: {
