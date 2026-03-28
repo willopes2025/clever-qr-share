@@ -55,6 +55,13 @@ export const TemplateListItem = ({
             {CATEGORY_LABELS[template.category]}
           </Badge>
           
+          {template.ai_prompt && (
+            <Badge variant="outline" className="text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+              <Bot className="h-3 w-3 mr-1" />
+              IA Dinâmica
+            </Badge>
+          )}
+          
           {template.media_type && (
             <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-400 border-blue-500/30">
               {template.media_type === 'image' && <Image className="h-3 w-3 mr-1" />}

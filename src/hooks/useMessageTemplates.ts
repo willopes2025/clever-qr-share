@@ -116,7 +116,8 @@ export const useMessageTemplates = () => {
           is_active: data.is_active ?? true,
           media_type: data.media_type || null,
           media_url: data.media_url || null,
-          media_filename: data.media_filename || null
+          media_filename: data.media_filename || null,
+          ai_prompt: data.ai_prompt || null
         });
 
       if (error) throw error;
