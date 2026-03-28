@@ -794,7 +794,7 @@ Deno.serve(async (req) => {
             }
           }
 
-          const contactContexts = batch.map((contact: Contact) => {
+          const contactContexts = batch.map((contact: Contact, index: number) => {
             const deal = deals?.find(d => d.contact_id === contact.id);
             const conv = conversations?.find(c => c.contact_id === contact.id);
             const msgs = conv ? (convMap[conv.id] || []).reverse() : [];
@@ -814,20 +814,18 @@ Deno.serve(async (req) => {
                 context += `${dir}: ${m.content || '[mídia]'}\n`;
               });
             }
-            return { contact, context };
+            return { contact, context, index };
           });
 
           const systemPrompt = `Você é um assistente que gera mensagens de WhatsApp personalizadas.
 Para cada contato, gere UMA mensagem única e personalizada seguindo as instruções do usuário.
-A mensagem deve ser natural, direta e pronta para envio (sem saudação genérica duplicada).
-USE os dados fornecidos no contexto de cada contato (nome, campos personalizados, campos do lead, valor, etapa do funil, histórico de conversa) para personalizar a mensagem.
-Quando o usuário mencionar o nome amigável de um campo, como "Data de Vencimento Boleto", use o valor correspondente do contexto.
-Considere sempre tanto o NOME amigável quanto a CHAVE da variável entre chaves, por exemplo: "Data de Vencimento Boleto" = {{data_de_vencimento_boleto}}.
+A mensagem deve ser natural, direta e pronta para envio.
+Use SOMENTE os dados realmente presentes no contexto do contato.
+Quando o usuário mencionar nomes amigáveis como "nome do contato", "valor da venda" ou "data de vencimento do boleto", relacione isso aos dados disponíveis no contexto, inclusive quando aparecerem com a chave técnica entre chaves.
 Se um dado não existir no contexto do contato, não invente e não mencione esse dado.
 Variáveis disponíveis neste workspace:
-${availableVariables}
-Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "message": "mensagem_aqui"}]}`;
-          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis:\n\n${contactContexts.map((cc, idx) => `--- Contato ${idx + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
+${availableVariables}`;
+          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis:\n\n${contactContexts.map((cc) => `--- Contato ${cc.index + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
 
           try {
             console.log(`[AI] Sending batch to Lovable AI with ${contactContexts.length} contacts`);
@@ -847,7 +845,46 @@ Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "
                   { role: 'user', content: userMessage }
                 ],
                 temperature: 0.8,
-                response_format: { type: 'json_object' }
+                tools: [{
+                  type: 'function',
+                  function: {
+                    name: 'generate_campaign_messages',
+                    description: 'Retorna uma mensagem personalizada para cada contato do lote',
+                    parameters: {
+                      type: 'object',
+                      properties: {
+                        results: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              contact_id: {
+                                type: 'string',
+                                description: 'ID exato do contato informado no contexto'
+                              },
+                              contact_index: {
+                                type: 'number',
+                                description: 'Índice do contato mostrado no contexto (baseado em 1 na exibição, mas pode retornar 0-based ou 1-based)'
+                              },
+                              message: {
+                                type: 'string',
+                                description: 'Mensagem final pronta para envio'
+                              }
+                            },
+                            required: ['message'],
+                            additionalProperties: false
+                          }
+                        }
+                      },
+                      required: ['results'],
+                      additionalProperties: false
+                    }
+                  }
+                }],
+                tool_choice: {
+                  type: 'function',
+                  function: { name: 'generate_campaign_messages' }
+                }
               })
             });
 
@@ -858,21 +895,26 @@ Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "
             }
 
             const aiData = await aiResponse.json();
+            const toolArguments = aiData.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
             const aiContent = aiData.choices?.[0]?.message?.content;
-            console.log(`[AI] Response received, length: ${aiContent?.length || 0}`);
-            if (aiContent) {
-              console.log(`[AI] Response preview: ${aiContent.substring(0, 500)}`);
+            console.log(`[AI] Tool arguments received: ${toolArguments ? toolArguments.length : 0} chars`);
+            if (!toolArguments && aiContent) {
+              console.log(`[AI] Fallback content preview: ${aiContent.substring(0, 500)}`);
             }
 
-            if (aiContent) {
-              const parsed = JSON.parse(aiContent);
-              
-              // Robustly find the array of messages regardless of wrapper key
-              let generatedMessages: Array<{ contact_id: string; message: string }> = [];
+            const rawPayload = toolArguments || aiContent;
+
+            if (rawPayload) {
+              const parsed = JSON.parse(rawPayload);
+              let generatedMessages: Array<{ contact_id?: string; contact_index?: number; message: string }> = [];
+
               if (Array.isArray(parsed)) {
                 generatedMessages = parsed;
+              } else if (Array.isArray(parsed.results)) {
+                generatedMessages = parsed.results;
+              } else if (Array.isArray(parsed.messages)) {
+                generatedMessages = parsed.messages;
               } else {
-                // Find the first array value in the object
                 for (const key of Object.keys(parsed)) {
                   if (Array.isArray(parsed[key])) {
                     generatedMessages = parsed[key];
@@ -885,21 +927,28 @@ Responda APENAS com um JSON no formato: {"results": [{"contact_id": "id_aqui", "
               console.log(`[AI] Parsed ${generatedMessages.length} messages from response`);
 
               for (const cc of contactContexts) {
-                const generated = generatedMessages.find(g => g.contact_id === cc.contact.id);
+                const generated = generatedMessages.find((g) => {
+                  const matchesId = typeof g.contact_id === 'string' && g.contact_id === cc.contact.id;
+                  const matchesZeroBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index;
+                  const matchesOneBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index + 1;
+                  return matchesId || matchesZeroBasedIndex || matchesOneBasedIndex;
+                });
+
                 if (!generated?.message) {
                   console.warn(`[AI] No message generated for contact ${cc.contact.id} (${cc.contact.name})`);
                 }
+
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
                   phone: normalizePhone(cc.contact.phone),
                   contact_name: cc.contact.name,
-                  message_content: generated?.message || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
+                  message_content: generated?.message?.trim() || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
                   status: 'queued'
                 });
               }
             } else {
-              console.error('[AI] No content in AI response:', JSON.stringify(aiData));
+              console.error('[AI] No structured output in AI response:', JSON.stringify(aiData));
               for (const cc of contactContexts) {
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
