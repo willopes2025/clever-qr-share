@@ -1,0 +1,1 @@
+ALTER TABLE public.message_templates ADD COLUMN ai_prompt TEXT NULL;
