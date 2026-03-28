@@ -184,13 +184,14 @@ export const TemplateFormDialog = ({
     e.preventDefault();
     onSubmit({
       name,
-      content,
+      content: isDynamicAi ? '[Mensagem gerada por IA dinâmica]' : content,
       category,
-      variables: detectedVariables,
+      variables: isDynamicAi ? [] : detectedVariables,
       is_active: isActive,
       media_type: mediaType,
       media_url: mediaUrl,
-      media_filename: mediaFilename
+      media_filename: mediaFilename,
+      ai_prompt: isDynamicAi ? dynamicAiPrompt : null
     });
     onOpenChange(false);
   };
