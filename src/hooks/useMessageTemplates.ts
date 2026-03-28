@@ -31,6 +31,7 @@ export interface CreateTemplateData {
   media_type?: MediaType;
   media_url?: string | null;
   media_filename?: string | null;
+  ai_prompt?: string | null;
 }
 
 export interface UpdateTemplateData extends Partial<CreateTemplateData> {
