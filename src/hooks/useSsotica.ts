@@ -52,7 +52,7 @@ export interface SsoticaParcela {
 }
 
 export const useSsotica = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -61,22 +61,40 @@ export const useSsotica = () => {
   const { hasSsotica } = useIntegrationStatus();
 
   const callSsoticaApi = async (action: string, params?: Record<string, unknown>) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-    const { data, error } = await supabase.functions.invoke('ssotica-api', {
-      body: { action, params },
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) {
+      throw new Error("Sessão expirada. Faça login novamente.");
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ssotica-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action, params }),
     });
 
-    if (error) throw error;
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || `Erro ao consultar ssOtica (${response.status})`);
+    }
+
     if (data?.error) throw new Error(data.error);
     return data;
   };
 
   // Dashboard stats - summary data
   const { data: dashboardData, isLoading: isLoadingDashboard, refetch: refetchDashboard } = useQuery({
-    queryKey: ['ssotica', 'dashboard'],
+    queryKey: ['ssotica', 'dashboard', user?.id],
     queryFn: async () => {
       // Fetch all data in parallel using correct actions
       const [osResult, vendasResult, parcelasResult] = await Promise.all([
@@ -148,7 +166,7 @@ export const useSsotica = () => {
         }
       };
     },
-    enabled: hasSsotica,
+    enabled: hasSsotica && !!user && !authLoading,
     staleTime: 5 * 60 * 1000, // Cache por 5 minutos
     gcTime: 10 * 60 * 1000,
   });
