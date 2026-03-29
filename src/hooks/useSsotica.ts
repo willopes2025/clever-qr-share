@@ -52,7 +52,7 @@ export interface SsoticaParcela {
 }
 
 export const useSsotica = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -94,7 +94,7 @@ export const useSsotica = () => {
 
   // Dashboard stats - summary data
   const { data: dashboardData, isLoading: isLoadingDashboard, refetch: refetchDashboard } = useQuery({
-    queryKey: ['ssotica', 'dashboard'],
+    queryKey: ['ssotica', 'dashboard', user?.id],
     queryFn: async () => {
       // Fetch all data in parallel using correct actions
       const [osResult, vendasResult, parcelasResult] = await Promise.all([
@@ -166,7 +166,7 @@ export const useSsotica = () => {
         }
       };
     },
-    enabled: hasSsotica,
+    enabled: hasSsotica && !!user && !authLoading,
     staleTime: 5 * 60 * 1000, // Cache por 5 minutos
     gcTime: 10 * 60 * 1000,
   });
