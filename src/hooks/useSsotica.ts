@@ -61,15 +61,33 @@ export const useSsotica = () => {
   const { hasSsotica } = useIntegrationStatus();
 
   const callSsoticaApi = async (action: string, params?: Record<string, unknown>) => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-    const { data, error } = await supabase.functions.invoke('ssotica-api', {
-      body: { action, params },
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) {
+      throw new Error("Sessão expirada. Faça login novamente.");
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ssotica-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ action, params }),
     });
 
-    if (error) throw error;
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.error || data?.message || `Erro ao consultar ssOtica (${response.status})`);
+    }
+
     if (data?.error) throw new Error(data.error);
     return data;
   };
