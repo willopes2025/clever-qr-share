@@ -360,7 +360,6 @@ export const CampaignFormDialog = ({
 
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
   const selectedList = lists?.find(l => l.id === listId);
-  const selectedList = lists?.find(l => l.id === listId);
   const isMetaMode = messageMode === 'meta_template';
 
   return (
