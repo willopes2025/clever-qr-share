@@ -306,14 +306,159 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
                   <Label htmlFor="body">Corpo da Mensagem *</Label>
                   <Textarea
                     id="body"
+                    ref={bodyRef}
                     placeholder="Olá {{1}}, sua compra {{2}} foi confirmada!"
                     value={formData.body_text}
                     onChange={(e) => handleChange("body_text", e.target.value)}
                     rows={4}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Use {"{{1}}"}, {"{{2}}"}, etc. para variáveis
+                    Use {"{{1}}"}, {"{{2}}"}, etc. para variáveis. Clique nos campos abaixo para inserir.
                   </p>
+
+                  <Collapsible defaultOpen>
+                    <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                      <ChevronDown className="h-3 w-3" />
+                      Variáveis disponíveis
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2 space-y-2">
+                      <TooltipProvider delayDuration={200}>
+                        {/* Standard contact fields */}
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1 flex items-center gap-1">
+                            <User className="h-3 w-3" /> Dados do Contato
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {[
+                              { label: "Nome", key: "name" },
+                              { label: "Telefone", key: "phone" },
+                              { label: "E-mail", key: "email" },
+                            ].map((field) => (
+                              <Tooltip key={field.key}>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center rounded-md border bg-background px-2 py-0.5 text-[11px] hover:bg-accent transition-colors cursor-pointer"
+                                    onClick={() => {
+                                      const currentVars = (formData.body_text.match(/\{\{\d+\}\}/g) || []);
+                                      const nextNum = currentVars.length + 1;
+                                      const ta = bodyRef.current;
+                                      const insertion = `{{${nextNum}}}`;
+                                      if (ta) {
+                                        const start = ta.selectionStart;
+                                        const end = ta.selectionEnd;
+                                        const newText = formData.body_text.substring(0, start) + insertion + formData.body_text.substring(end);
+                                        handleChange("body_text", newText);
+                                        setTimeout(() => {
+                                          ta.focus();
+                                          ta.setSelectionRange(start + insertion.length, start + insertion.length);
+                                        }, 0);
+                                      } else {
+                                        handleChange("body_text", formData.body_text + insertion);
+                                      }
+                                    }}
+                                  >
+                                    {field.label}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <p className="text-xs">Insere a próxima variável numérica para <strong>{field.label}</strong></p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Custom contact fields */}
+                        {contactFieldDefinitions.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1 flex items-center gap-1">
+                              <User className="h-3 w-3" /> Campos Personalizados (Contato)
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {contactFieldDefinitions.map((field) => (
+                                <Tooltip key={field.id}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center rounded-md border bg-background px-2 py-0.5 text-[11px] hover:bg-accent transition-colors cursor-pointer"
+                                      onClick={() => {
+                                        const currentVars = (formData.body_text.match(/\{\{\d+\}\}/g) || []);
+                                        const nextNum = currentVars.length + 1;
+                                        const ta = bodyRef.current;
+                                        const insertion = `{{${nextNum}}}`;
+                                        if (ta) {
+                                          const start = ta.selectionStart;
+                                          const end = ta.selectionEnd;
+                                          const newText = formData.body_text.substring(0, start) + insertion + formData.body_text.substring(end);
+                                          handleChange("body_text", newText);
+                                          setTimeout(() => {
+                                            ta.focus();
+                                            ta.setSelectionRange(start + insertion.length, start + insertion.length);
+                                          }, 0);
+                                        } else {
+                                          handleChange("body_text", formData.body_text + insertion);
+                                        }
+                                      }}
+                                    >
+                                      {field.field_name}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="text-xs">Campo: <strong>{field.field_name}</strong> ({field.field_type})</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Custom lead fields */}
+                        {leadFieldDefinitions.length > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1 flex items-center gap-1">
+                              <FileText className="h-3 w-3" /> Campos Personalizados (Lead)
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {leadFieldDefinitions.map((field) => (
+                                <Tooltip key={field.id}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center rounded-md border bg-background px-2 py-0.5 text-[11px] hover:bg-accent transition-colors cursor-pointer"
+                                      onClick={() => {
+                                        const currentVars = (formData.body_text.match(/\{\{\d+\}\}/g) || []);
+                                        const nextNum = currentVars.length + 1;
+                                        const ta = bodyRef.current;
+                                        const insertion = `{{${nextNum}}}`;
+                                        if (ta) {
+                                          const start = ta.selectionStart;
+                                          const end = ta.selectionEnd;
+                                          const newText = formData.body_text.substring(0, start) + insertion + formData.body_text.substring(end);
+                                          handleChange("body_text", newText);
+                                          setTimeout(() => {
+                                            ta.focus();
+                                            ta.setSelectionRange(start + insertion.length, start + insertion.length);
+                                          }, 0);
+                                        } else {
+                                          handleChange("body_text", formData.body_text + insertion);
+                                        }
+                                      }}
+                                    >
+                                      {field.field_name}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="text-xs">Campo: <strong>{field.field_name}</strong> ({field.field_type})</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </TooltipProvider>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
 
                 {variables.length > 0 && (
