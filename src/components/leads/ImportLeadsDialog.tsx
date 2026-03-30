@@ -50,6 +50,10 @@ const SOURCE_FIELDS: SourceField[] = [
     if (!c.endereco?.logradouro) return null;
     return `${c.endereco.logradouro}, ${c.endereco.numero || 'S/N'} - ${c.endereco.bairro || ''}, ${c.endereco.cep || ''}`.trim();
   }, suggestedType: "text" },
+  { key: "socios", label: "Sócio(s)", icon: "👤", getValue: (c) => {
+    if (!c.socios || c.socios.length === 0) return null;
+    return c.socios.map(s => s.nome).filter(Boolean).join(', ');
+  }, suggestedType: "text" },
 ];
 
 // Standard fields that are handled automatically
