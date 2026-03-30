@@ -396,8 +396,8 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
           return val !== undefined && val !== null && val !== '';
         };
 
-        const filledFields = filteredLeadFields.filter(f => isFieldFilled(f) || manuallyAdded.has(f.field_key));
-        const emptyFields = filteredLeadFields.filter(f => !isFieldFilled(f) && !manuallyAdded.has(f.field_key));
+        const filledFields = allVisibleFields.filter(f => isFieldFilled(f) || manuallyAdded.has(f.field_key));
+        const emptyFields = allVisibleFields.filter(f => !isFieldFilled(f) && !manuallyAdded.has(f.field_key));
 
         return (
           <>
