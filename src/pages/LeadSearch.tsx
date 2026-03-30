@@ -119,9 +119,9 @@ export const initialFilters: SearchFilters = {
   
   // Contato
   com_email: false,
-  com_telefone: true,
+  com_telefone: false,
   somente_fixo: false,
-  somente_celular: true,
+  somente_celular: false,
   telefone: [],
   excluir_email_contab: false,
   
