@@ -103,6 +103,22 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     setEditingField(null);
   };
 
+  // Helper to parse date values (handles Excel serial numbers and ISO strings)
+  const parseDateValue = (value: any): Date | undefined => {
+    if (!value) return undefined;
+    // Excel serial date: a number like 45926
+    if (typeof value === 'number' || (typeof value === 'string' && /^\d{4,5}$/.test(value))) {
+      const serial = typeof value === 'number' ? value : parseInt(value, 10);
+      if (serial > 25000 && serial < 100000) {
+        // Excel epoch: Jan 1, 1900 (with the off-by-one bug)
+        const excelEpoch = new Date(1899, 11, 30);
+        return new Date(excelEpoch.getTime() + serial * 86400000);
+      }
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? undefined : d;
+  };
+
   const renderFieldValue = (definition: CustomFieldDefinition) => {
     const value = localFields[definition.field_key];
     const isEditing = editingField === definition.field_key;
@@ -117,18 +133,19 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
           />
         );
 
-      case 'date':
+      case 'date': {
+        const parsedDate = parseDateValue(value);
         return (
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar</span>}
+                {parsedDate ? format(parsedDate, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
               <Calendar
                 mode="single"
-                selected={value ? new Date(value) : undefined}
+                selected={parsedDate}
                 onSelect={(date) => handleSave(definition.field_key, date?.toISOString())}
                 locale={ptBR}
                 className="pointer-events-auto"
@@ -136,6 +153,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             </PopoverContent>
           </Popover>
         );
+      }
 
       case 'time':
         return (
@@ -147,22 +165,23 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
           />
         );
 
-      case 'datetime':
+      case 'datetime': {
+        const parsedDt = parseDateValue(value);
         return (
           <div className="flex items-center gap-1.5">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                  {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
+                  {parsedDt ? format(parsedDt, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar
                   mode="single"
-                  selected={value ? new Date(value) : undefined}
+                  selected={parsedDt}
                   onSelect={(date) => {
                     if (!date) return handleSave(definition.field_key, null);
-                    const existing = value ? new Date(value) : new Date();
+                    const existing = parsedDt || new Date();
                     date.setHours(existing.getHours(), existing.getMinutes());
                     handleSave(definition.field_key, date.toISOString());
                   }}
@@ -173,10 +192,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             </Popover>
             <Input
               type="time"
-              value={value ? format(new Date(value), "HH:mm") : ''}
+              value={parsedDt ? format(parsedDt, "HH:mm") : ''}
               onChange={(e) => {
                 const [hours, minutes] = e.target.value.split(':').map(Number);
-                const d = value ? new Date(value) : new Date();
+                const d = parsedDt || new Date();
                 d.setHours(hours, minutes);
                 handleSave(definition.field_key, d.toISOString());
               }}
@@ -184,6 +203,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             />
           </div>
         );
+      }
 
       case 'select':
         return (
