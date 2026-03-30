@@ -106,17 +106,30 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   // Helper to parse date values (handles Excel serial numbers and ISO strings)
   const parseDateValue = (value: any): Date | undefined => {
     if (!value) return undefined;
-    // Excel serial date: a number like 45926
     if (typeof value === 'number' || (typeof value === 'string' && /^\d{4,5}$/.test(value))) {
       const serial = typeof value === 'number' ? value : parseInt(value, 10);
       if (serial > 25000 && serial < 100000) {
-        // Excel epoch: Jan 1, 1900 (with the off-by-one bug)
         const excelEpoch = new Date(1899, 11, 30);
         return new Date(excelEpoch.getTime() + serial * 86400000);
       }
     }
     const d = new Date(value);
     return isNaN(d.getTime()) ? undefined : d;
+  };
+
+  // Check if a field name suggests it's a date field
+  const isDateLikeField = (fieldName: string) => {
+    return /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldName);
+  };
+
+  // Format a display value, auto-detecting Excel serial dates
+  const formatDisplayValue = (value: any, fieldName: string): string => {
+    if (value === null || value === undefined || value === '') return '';
+    if (isDateLikeField(fieldName)) {
+      const parsed = parseDateValue(value);
+      if (parsed) return format(parsed, "dd/MM/yyyy", { locale: ptBR });
+    }
+    return String(value);
   };
 
   const renderFieldValue = (definition: CustomFieldDefinition) => {
