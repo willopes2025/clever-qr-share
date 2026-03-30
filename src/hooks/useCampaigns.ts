@@ -277,6 +277,7 @@ export const useCampaignMutations = () => {
           ai_handoff_keywords: data.ai_handoff_keywords,
           ai_active_hours_start: data.ai_active_hours_start,
           ai_active_hours_end: data.ai_active_hours_end,
+          meta_variable_mappings: data.meta_variable_mappings || null,
         })
         .select()
         .single();
