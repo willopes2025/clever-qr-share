@@ -538,6 +538,94 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {triggerType === 'on_scheduled_before_date_field' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Campo de Data</Label>
+                <Select
+                  value={triggerConfig.date_field_key as string || ''}
+                  onValueChange={(v) => setTriggerConfig({ ...triggerConfig, date_field_key: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar campo de data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="expected_close_date">Data prevista de fechamento</SelectItem>
+                    {dateFieldDefinitions.map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Horas antes</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={triggerConfig.hours_before as number || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, hours_before: Number(e.target.value) })}
+                  placeholder="Ex: 24 (= 1 dia antes)"
+                />
+              </div>
+            </div>
+          )}
+
+          {triggerType === 'on_scheduled_exact_time' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Input
+                  type="date"
+                  value={triggerConfig.scheduled_date as string || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, scheduled_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Hora</Label>
+                <Input
+                  type="time"
+                  value={triggerConfig.scheduled_time as string || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, scheduled_time: e.target.value })}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A automação será executada uma única vez na data e hora exata configurada
+              </p>
+            </div>
+          )}
+
+          {triggerType === 'on_scheduled_daily' && (
+            <div className="space-y-2">
+              <Label>Hora de execução diária</Label>
+              <Input
+                type="time"
+                value={triggerConfig.daily_time as string || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, daily_time: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                A automação será executada todos os dias neste horário para todos os deals do funil/etapa
+              </p>
+            </div>
+          )}
+
+          {triggerType === 'on_hours_after_last_message' && (
+            <div className="space-y-2">
+              <Label>Horas após última mensagem recebida</Label>
+              <Input
+                type="number"
+                min={1}
+                value={triggerConfig.hours as number || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, hours: Number(e.target.value) })}
+                placeholder="Ex: 2"
+              />
+              <p className="text-xs text-muted-foreground">
+                A automação será acionada X horas após a última mensagem recebida do contato
+              </p>
+            </div>
+          )}
+
           {/* Condições (opcional) */}
           <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
             <div className="flex items-center justify-between">
