@@ -36,6 +36,23 @@ export const useGlobalRealtime = () => {
           queryClient.invalidateQueries({ queryKey: ['unread-count'] });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'contacts' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['contacts'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'funnel_deals' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+          queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+          queryClient.invalidateQueries({ queryKey: ['funnels'] });
+        }
+      )
       .subscribe();
 
     return () => {
