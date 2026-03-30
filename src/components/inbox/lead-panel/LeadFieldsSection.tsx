@@ -58,6 +58,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [manuallyAdded, setManuallyAdded] = useState<Set<string>>(new Set());
   
   // Estado para edição do título do lead
   const [isEditingTitle, setIsEditingTitle] = useState(false);
