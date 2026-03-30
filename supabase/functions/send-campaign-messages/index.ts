@@ -826,14 +826,62 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Auto-substitute body variables: {{1}} = contact name, {{2}} = phone
+      // Resolve body variables using variable mappings or default behavior
       const bodyVarCount = (metaTemplate.body_text.match(/\{\{\d+\}\}/g) || []).length;
       if (bodyVarCount > 0) {
+        const mappings = campaign.meta_variable_mappings as any[] | null;
         const bodyParams: any[] = [];
+        
+        // Fetch contact data if we have custom field mappings
+        let contactData: any = null;
+        let dealData: any = null;
+        const needsContactData = mappings?.some(m => m.source === 'contact_custom_field' || m.source === 'contact_email');
+        const needsDealData = mappings?.some(m => m.source === 'lead_custom_field');
+        
+        if (needsContactData) {
+          const { data } = await supabase.from('contacts').select('email, custom_fields').eq('id', message.contact_id).single();
+          contactData = data;
+        }
+        if (needsDealData) {
+          const { data } = await supabase.from('funnel_deals').select('custom_fields').eq('contact_id', message.contact_id).order('created_at', { ascending: false }).limit(1).single();
+          dealData = data;
+        }
+
         for (let i = 0; i < bodyVarCount; i++) {
-          if (i === 0) bodyParams.push({ type: 'text', text: message.contact_name || 'Cliente' });
-          else if (i === 1) bodyParams.push({ type: 'text', text: message.phone });
-          else bodyParams.push({ type: 'text', text: '' });
+          const varIndex = i + 1;
+          const mapping = mappings?.find((m: any) => m.variable_index === varIndex);
+          
+          if (mapping) {
+            let value = '';
+            switch (mapping.source) {
+              case 'contact_name':
+                value = message.contact_name || 'Cliente';
+                break;
+              case 'contact_phone':
+                value = message.phone;
+                break;
+              case 'contact_email':
+                value = contactData?.email || '';
+                break;
+              case 'contact_custom_field':
+                value = contactData?.custom_fields?.[mapping.field_key] || '';
+                break;
+              case 'lead_custom_field':
+                value = dealData?.custom_fields?.[mapping.field_key] || '';
+                break;
+              case 'fixed_text':
+                value = mapping.fixed_value || '';
+                break;
+              default:
+                value = '';
+            }
+            bodyParams.push({ type: 'text', text: String(value) || ' ' });
+          } else {
+            // Fallback: {{1}} = name, {{2}} = phone
+            if (i === 0) bodyParams.push({ type: 'text', text: message.contact_name || 'Cliente' });
+            else if (i === 1) bodyParams.push({ type: 'text', text: message.phone });
+            else bodyParams.push({ type: 'text', text: '' });
+          }
         }
         components.push({ type: 'body', parameters: bodyParams });
       }
