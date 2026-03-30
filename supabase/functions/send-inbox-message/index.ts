@@ -252,7 +252,13 @@ Deno.serve(async (req) => {
         body: JSON.stringify(messagePayload),
       });
 
-      const result = await response.json();
+      let result: any;
+      try {
+        result = await response.json();
+      } catch {
+        const text = await response.text().catch(() => `HTTP ${response.status}`);
+        result = { error: { message: text || `HTTP ${response.status}` } };
+      }
       console.log('[SEND-META] API response:', JSON.stringify(result));
 
       if (!response.ok) {
