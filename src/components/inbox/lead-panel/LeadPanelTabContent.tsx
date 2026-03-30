@@ -223,7 +223,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         return (
           <button 
             onClick={() => setEditingField(definition.field_key)}
-            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] max-w-[180px]"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden"
           >
             <span className="truncate">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
@@ -233,7 +233,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
   };
 
   return (
-    <div className="p-4 space-y-2">
+    <div className="p-4 space-y-2 min-w-0 overflow-hidden">
       {/* Header with fields manager */}
       <div className="flex items-center justify-between pb-3 mb-2">
         <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg">
@@ -267,9 +267,9 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         </p>
       ) : (
         fieldsToShow.map((field) => (
-          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-            <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
-            <div className="flex-1 flex justify-end items-center">
+          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2 overflow-hidden">
+            <span className="text-xs font-medium text-foreground/70 shrink-0 max-w-[40%] truncate">{field.field_name}</span>
+            <div className="flex justify-end items-center min-w-0 overflow-hidden max-w-[60%]">
               {renderFieldValue(field)}
             </div>
           </div>
