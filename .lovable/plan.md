@@ -1,33 +1,129 @@
 
 
-## Diagnóstico: Dados do formulário de pré-venda no card do lead (Inbox)
+## Plano: Expandir Chatbot Builder com funcionalidades do Kommo
 
-### Investigação Realizada
+### Análise Comparativa
 
-Verifiquei o banco de dados em detalhe:
+**O que já temos:**
+- Enviar mensagem ✅, Pergunta ✅, Pausar/Delay ✅, Condição ✅, IA ✅, Início/Fim ✅
+- Ações: Adicionar/Remover Tag ✅, Mover no Funil ✅, Definir Variável ✅, Transferir ✅, HTTP Request (webhook) ✅
 
-1. **Os dados DO formulário ESTÃO sendo salvos corretamente** — tanto nos campos personalizados do contato (`contacts.custom_fields`) quanto nos campos do deal (`funnel_deals.custom_fields`). Ex: CPF, Data de Nascimento, Município, Consultor, Modelo da Lente, Valor da Venda, etc.
+**O que falta (relevante para o sistema):**
 
-2. **As definições de campos existem** — todos os `field_key` gravados nos custom_fields possuem definições correspondentes em `custom_field_definitions` com os `entity_type` corretos (contact/lead).
+| Recurso Kommo | Prioridade | Tipo |
+|---|---|---|
+| Definir campo personalizado | Alta | Nova ação |
+| Criar lead no funil | Alta | Nova ação |
+| Mudar status do lead | Alta | Nova ação |
+| Adicionar nota à conversa | Alta | Nova ação |
+| Adicionar tarefa | Média | Nova ação |
+| Alterar status da conversa | Média | Nova ação |
+| Completar tarefas | Média | Nova ação |
+| Mudar usuário responsável | Média | Nova ação |
+| List Message (WhatsApp) | Alta | Novo nó |
+| Validação de input | Média | Novo nó |
+| Iniciar outro fluxo | Média | Novo nó |
+| Round Robin (distribuir) | Baixa | Novo nó |
 
-3. **Problema identificado**: Os 5 contatos mais recentes do formulário "Cadastro Pré-Venda" **não possuem conversas no WhatsApp** (`conversation_id = null`). O inbox exibe apenas contatos que têm conversas ativas. Sem conversa, não há card do lead para exibir os dados.
+### Solução — Fase 1 (prioridade alta)
 
-4. **Problema secundário**: Quando um contato JÁ possui conversa e o formulário é preenchido, os dados são salvos mas **a tela do inbox não atualiza automaticamente** porque o sistema de realtime (`useGlobalRealtime`) só monitora as tabelas `conversations` e `inbox_messages`, não `contacts` nem `funnel_deals`.
+Implementar em 3 blocos: novos tipos de ação, novo nó List Message e novo nó Validação.
 
-### Solução
+---
 
-**Arquivo: `src/hooks/useGlobalRealtime.ts`**
-- Adicionar assinaturas realtime para as tabelas `contacts` e `funnel_deals`
-- Quando dados dessas tabelas forem alterados, invalidar as queries relevantes (`conversations`, `contact-deal`, `contacts`)
+#### 1. Novos tipos de Ação (ActionNode)
 
-Isso garante que, ao preencher o formulário para um contato que já tem conversa no inbox, os dados atualizem automaticamente no card do lead sem necessidade de recarregar a página.
+Adicionar 8 novos subtipos ao nó de Ação existente:
 
-### Observação importante
-Os contatos recentes de Linhares (José Silva Vilabôa, Maria Aparecida, etc.) não aparecem no inbox porque nunca tiveram uma conversa WhatsApp. Eles estão visíveis no funil de vendas. Para aparecerem no inbox, é necessário que uma conversa WhatsApp seja iniciada com eles.
+**`src/components/chatbot-builder/ChatbotNodeConfig.tsx`**
+- Adicionar opções no Select de `actionType`: `set_field`, `create_lead`, `change_lead_status`, `add_note`, `add_task`, `change_conversation_status`, `complete_tasks`, `change_responsible`
+- Criar configuração de formulário para cada tipo:
+  - **Definir campo**: Selector de campo personalizado + valor
+  - **Criar lead**: Selector de funil + etapa destino
+  - **Mudar status do lead**: Selector de funil + nova etapa
+  - **Adicionar nota**: Textarea para conteúdo da nota
+  - **Adicionar tarefa**: Título + descrição + prazo
+  - **Alterar status da conversa**: Selector (aberta/pendente/resolvida)
+  - **Completar tarefas**: Toggle para completar todas as tarefas pendentes
+  - **Mudar usuário responsável**: Selector de membros da organização
 
-### Detalhes Técnicos
-- Tabelas a monitorar via realtime: `contacts` (UPDATE) e `funnel_deals` (INSERT, UPDATE)
-- Queries a invalidar: `conversations`, `contact-deal`, `contacts`, `funnel-deals`
-- Nenhuma alteração de banco de dados (apenas precisa habilitar realtime para `contacts` e `funnel_deals` via migration `ALTER PUBLICATION`)
-- 1 arquivo frontend modificado + 1 migration SQL
+**`src/components/chatbot-builder/nodes/ActionNode.tsx`**
+- Adicionar ícones e labels para os novos tipos
+
+**`src/components/chatbot-builder/ChatbotFlowSidebar.tsx`**
+- Sem alteração (o nó "Ação" já existe, os subtipos são selecionados na configuração)
+
+---
+
+#### 2. Novo nó: List Message (WhatsApp)
+
+Mensagem interativa com lista de opções (botão que abre um menu de seleção no WhatsApp).
+
+**Novo arquivo: `src/components/chatbot-builder/nodes/ListMessageNode.tsx`**
+- Visual com ícone do WhatsApp e preview das opções
+
+**`src/components/chatbot-builder/ChatbotNodeConfig.tsx`**
+- Configuração: título, descrição, texto do botão, e lista de seções com itens (título + descrição)
+- Cada item gera uma saída (handle) para roteamento condicional
+
+**`src/components/chatbot-builder/ChatbotFlowSidebar.tsx`**
+- Adicionar na categoria "Mensagens"
+
+**`src/components/chatbot-builder/ChatbotFlowEditor.tsx`**
+- Registrar novo nodeType
+
+---
+
+#### 3. Novo nó: Validação
+
+Valida a resposta do usuário (formato de email, telefone, CPF, número, texto não vazio) antes de prosseguir.
+
+**Novo arquivo: `src/components/chatbot-builder/nodes/ValidationNode.tsx`**
+- Visual verde com ícone de check
+
+**`src/components/chatbot-builder/ChatbotNodeConfig.tsx`**
+- Configuração: variável a validar, tipo de validação (email, telefone, CPF, número, não vazio, regex customizado), mensagem de erro
+- Duas saídas: "Válido" e "Inválido"
+
+---
+
+#### 4. Novo nó: Iniciar outro Fluxo
+
+Permite encadear fluxos, disparando outro chatbot a partir do atual.
+
+**Novo arquivo: `src/components/chatbot-builder/nodes/SubFlowNode.tsx`**
+- Selector do fluxo a ser disparado
+
+---
+
+#### 5. Novo nó: Round Robin
+
+Distribui a conversa entre membros da equipe de forma rotativa.
+
+**Novo arquivo: `src/components/chatbot-builder/nodes/RoundRobinNode.tsx`**
+- Configuração: lista de usuários participantes do rodízio
+
+---
+
+### Arquivos modificados
+
+| Arquivo | Alteração |
+|---|---|
+| `ChatbotNodeConfig.tsx` | Adicionar configs para 8 novas ações + 3 novos nós |
+| `ActionNode.tsx` | Novos ícones e labels |
+| `ChatbotFlowSidebar.tsx` | 4 novos nós na sidebar |
+| `ChatbotFlowEditor.tsx` | Registrar 4 novos nodeTypes |
+| `nodes/ListMessageNode.tsx` | **Novo** |
+| `nodes/ValidationNode.tsx` | **Novo** |
+| `nodes/SubFlowNode.tsx` | **Novo** |
+| `nodes/RoundRobinNode.tsx` | **Novo** |
+
+### Observação
+
+Esta fase cobre apenas o **frontend** (editor visual). A execução real dos novos nós no motor (`execute-chatbot-flow`) será implementada em uma fase posterior, pois cada novo tipo precisa de lógica de backend específica. O editor já ficará completo para o usuário montar fluxos com todos os recursos.
+
+### Impacto
+- Nenhuma alteração de banco de dados nesta fase
+- 4 novos arquivos + 4 arquivos modificados
+- Paridade funcional com o Kommo no editor visual
 
