@@ -940,7 +940,13 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
 
           let failConvId = existingConv?.id;
-          if (!failConvId) {
+          if (failConvId) {
+            // Update provider to meta so replies route correctly
+            await supabase.from('conversations').update({
+              provider: 'meta',
+              meta_phone_number_id: phoneNumberId,
+            }).eq('id', failConvId);
+          } else {
             const { data: newConv } = await supabase
               .from('conversations')
               .insert({
