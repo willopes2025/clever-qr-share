@@ -157,6 +157,52 @@ export const CampaignFormDialog = ({
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
 
+  // Detect variables in selected Meta template
+  const detectedVariables = useMemo(() => {
+    if (!selectedMetaTemplate) return [];
+    const matches = selectedMetaTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].map(m => parseInt(m.replace(/[{}]/g, ''))).sort((a, b) => a - b);
+  }, [selectedMetaTemplate]);
+
+  // Auto-initialize variable mappings when template changes
+  useEffect(() => {
+    if (detectedVariables.length > 0) {
+      // Check if campaign has existing mappings
+      const existingMappings = campaign?.meta_variable_mappings as MetaVariableMapping[] | null;
+      if (existingMappings && existingMappings.length > 0) {
+        setVariableMappings(existingMappings);
+      } else {
+        // Default: {{1}} = name, {{2}} = phone, rest empty
+        setVariableMappings(detectedVariables.map(idx => ({
+          variable_index: idx,
+          source: idx === 1 ? 'contact_name' : idx === 2 ? 'contact_phone' : 'fixed_text' as MetaVariableMapping['source'],
+          label: idx === 1 ? 'Nome' : idx === 2 ? 'Telefone' : `Variável ${idx}`,
+        })));
+      }
+    } else {
+      setVariableMappings([]);
+    }
+  }, [detectedVariables.join(','), campaign?.meta_variable_mappings]);
+
+  // Available variable source options
+  const variableSourceOptions = useMemo(() => {
+    const options: { value: string; label: string; source: MetaVariableMapping['source']; field_key?: string }[] = [
+      { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
+      { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
+      { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+    ];
+    // Add contact custom fields
+    contactFieldDefinitions.forEach(f => {
+      options.push({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field', field_key: f.field_key });
+    });
+    // Add lead custom fields
+    leadFieldDefinitions.forEach(f => {
+      options.push({ value: `lead_cf_${f.field_key}`, label: `🎯 ${f.field_name}`, source: 'lead_custom_field', field_key: f.field_key });
+    });
+    options.push({ value: 'fixed_text', label: 'Texto Fixo', source: 'fixed_text' });
+    return options;
+  }, [contactFieldDefinitions, leadFieldDefinitions]);
+
   useEffect(() => {
     if (campaign) {
       const isMetaCampaign = !!campaign.meta_template_id;
