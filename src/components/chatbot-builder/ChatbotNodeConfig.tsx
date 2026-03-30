@@ -878,6 +878,14 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
             </p>
           </div>
         );
+
+      default:
+        return null;
+    }
+  };
+
+  const renderActionConfig = () => {
+    const actionType = data?.actionType || "add_tag";
     const config = data?.config || {};
     
     switch (actionType) {
