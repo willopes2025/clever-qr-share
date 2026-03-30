@@ -64,6 +64,19 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
     setEditingField(null);
   };
 
+  const parseDateValue = (value: any): Date | undefined => {
+    if (!value) return undefined;
+    if (typeof value === 'number' || (typeof value === 'string' && /^\d{4,5}$/.test(value))) {
+      const serial = typeof value === 'number' ? value : parseInt(value, 10);
+      if (serial > 25000 && serial < 100000) {
+        const excelEpoch = new Date(1899, 11, 30);
+        return new Date(excelEpoch.getTime() + serial * 86400000);
+      }
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? undefined : d;
+  };
+
   const renderFieldValue = (definition: CustomFieldDefinition) => {
     const value = localFields[definition.field_key];
     const isEditing = editingField === definition.field_key;
@@ -78,18 +91,19 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
           />
         );
 
-      case 'date':
+      case 'date': {
+        const parsedDate = parseDateValue(value);
         return (
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar data</span>}
+                {parsedDate ? format(parsedDate, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar data</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
               <Calendar
                 mode="single"
-                selected={value ? new Date(value) : undefined}
+                selected={parsedDate}
                 onSelect={(date) => handleSave(definition.field_key, date?.toISOString())}
                 locale={ptBR}
                 className="pointer-events-auto"
@@ -97,6 +111,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
             </PopoverContent>
           </Popover>
         );
+      }
 
       case 'time':
         return (
@@ -108,22 +123,23 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
           />
         );
 
-      case 'datetime':
+      case 'datetime': {
+        const parsedDt = parseDateValue(value);
         return (
           <div className="flex items-center gap-1.5">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                  {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
+                  {parsedDt ? format(parsedDt, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar
                   mode="single"
-                  selected={value ? new Date(value) : undefined}
+                  selected={parsedDt}
                   onSelect={(date) => {
                     if (!date) return handleSave(definition.field_key, null);
-                    const existing = value ? new Date(value) : new Date();
+                    const existing = parsedDt || new Date();
                     date.setHours(existing.getHours(), existing.getMinutes());
                     handleSave(definition.field_key, date.toISOString());
                   }}
@@ -134,10 +150,10 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
             </Popover>
             <Input
               type="time"
-              value={value ? format(new Date(value), "HH:mm") : ''}
+              value={parsedDt ? format(parsedDt, "HH:mm") : ''}
               onChange={(e) => {
                 const [hours, minutes] = e.target.value.split(':').map(Number);
-                const d = value ? new Date(value) : new Date();
+                const d = parsedDt || new Date();
                 d.setHours(hours, minutes);
                 handleSave(definition.field_key, d.toISOString());
               }}
@@ -145,6 +161,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
             />
           </div>
         );
+      }
 
       case 'select':
         return (
