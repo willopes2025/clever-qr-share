@@ -6,6 +6,14 @@ import { useEffect } from 'react';
 
 export type SendingMode = 'sequential' | 'random';
 
+export interface MetaVariableMapping {
+  variable_index: number; // 1, 2, 3...
+  source: 'contact_name' | 'contact_phone' | 'contact_email' | 'contact_custom_field' | 'lead_custom_field' | 'fixed_text';
+  field_key?: string; // for custom fields
+  fixed_value?: string; // for fixed text
+  label?: string; // display label
+}
+
 export interface Campaign {
   id: string;
   user_id: string;
@@ -28,6 +36,7 @@ export interface Campaign {
   skipped: number;
   created_at: string;
   updated_at: string;
+  meta_variable_mappings: MetaVariableMapping[] | null;
   // Campaign-specific sending settings
   message_interval_min: number | null;
   message_interval_max: number | null;
