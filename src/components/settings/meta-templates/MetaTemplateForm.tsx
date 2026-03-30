@@ -62,6 +62,8 @@ const BUTTON_TYPES = [
 ];
 
 export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }: MetaTemplateFormProps) {
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [activeTab, setActiveTab] = useState("basic");
   const [formData, setFormData] = useState<CreateTemplateData>({
     name: "",
