@@ -156,6 +156,7 @@ export const CampaignFormDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
+  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
 
   // Detect variables in selected Meta template
   const detectedVariables = useMemo(() => {
