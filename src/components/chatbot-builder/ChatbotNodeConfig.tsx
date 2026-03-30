@@ -564,6 +564,10 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 placeholder="Digite a pergunta..."
                 rows={3}
               />
+              <VariableChipsSelector
+                onInsert={(variable) => handleChange("question", (data?.question || "") + " " + variable)}
+                compact
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="variable">Salvar resposta em</Label>

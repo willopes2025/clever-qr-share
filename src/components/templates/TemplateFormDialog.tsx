@@ -440,7 +440,7 @@ export const TemplateFormDialog = ({
               <div className="space-y-2">
                 <Label htmlFor="content">Conteúdo da Mensagem</Label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável
+                  Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável, ou clique em um chip abaixo
                 </p>
                 <VariableAutocomplete
                   value={content}
@@ -448,6 +448,10 @@ export const TemplateFormDialog = ({
                   placeholder="Digite o conteúdo do template. Use {{ para inserir variáveis dinâmicas."
                   rows={6}
                   className="bg-background border-border font-mono text-sm"
+                />
+                <VariableChipsSelector
+                  onInsert={(variable) => setContent(prev => prev + ' ' + variable)}
+                  compact
                 />
               </div>
 
