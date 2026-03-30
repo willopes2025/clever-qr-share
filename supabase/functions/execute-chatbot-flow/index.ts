@@ -328,36 +328,332 @@ Deno.serve(async (req: Request) => {
 
         case 'action': {
           const actionType = node.data?.actionType || node.data?.action;
+          const config = node.data?.config || {};
           
-          if (actionType === 'add_tag' && node.data?.tagId) {
-            await supabase.from('contact_tags').upsert({
-              contact_id: contactId,
-              tag_id: node.data.tagId,
-            }, { onConflict: 'contact_id,tag_id' });
-          } else if (actionType === 'move_funnel' && node.data?.stageId) {
-            // Move deal to specified stage
+          if (actionType === 'add_tag' && (node.data?.tagId || config.tagName)) {
+            if (config.tagName) {
+              // Find or create tag by name
+              const { data: existingTag } = await supabase
+                .from('tags')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('name', config.tagName)
+                .maybeSingle();
+              
+              let tagId = existingTag?.id;
+              if (!tagId) {
+                const { data: newTag } = await supabase
+                  .from('tags')
+                  .insert({ name: config.tagName, user_id: userId })
+                  .select('id')
+                  .single();
+                tagId = newTag?.id;
+              }
+              if (tagId) {
+                await supabase.from('contact_tags').upsert({
+                  contact_id: contactId,
+                  tag_id: tagId,
+                }, { onConflict: 'contact_id,tag_id' });
+              }
+            } else {
+              await supabase.from('contact_tags').upsert({
+                contact_id: contactId,
+                tag_id: node.data.tagId,
+              }, { onConflict: 'contact_id,tag_id' });
+            }
+          } else if (actionType === 'remove_tag' && config.tagName) {
+            const { data: tag } = await supabase
+              .from('tags')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('name', config.tagName)
+              .maybeSingle();
+            if (tag) {
+              await supabase
+                .from('contact_tags')
+                .delete()
+                .eq('contact_id', contactId)
+                .eq('tag_id', tag.id);
+            }
+          } else if ((actionType === 'move_funnel' || actionType === 'change_lead_status') && config.stageId) {
             const { data: deal } = await supabase
               .from('funnel_deals')
               .select('id')
               .eq('contact_id', contactId)
               .order('created_at', { ascending: false })
               .limit(1)
-              .single();
+              .maybeSingle();
             
             if (deal) {
               await supabase
                 .from('funnel_deals')
-                .update({ stage_id: node.data.stageId })
+                .update({ stage_id: config.stageId })
                 .eq('id', deal.id);
             }
-          } else if (actionType === 'transfer_human') {
-            // Mark conversation as needing human handoff
+          } else if (actionType === 'set_variable' && config.varName) {
+            const variables = execution.variables || {};
+            variables[config.varName] = substituteVars(config.varValue || '');
+            execution.variables = variables;
+            await supabase
+              .from('chatbot_executions')
+              .update({ variables })
+              .eq('id', execution.id);
+          } else if (actionType === 'transfer' || actionType === 'transfer_human') {
             await supabase
               .from('conversations')
               .update({ ai_handoff_requested: true, ai_handled: false })
               .eq('id', conversationId);
+          } else if (actionType === 'http_request' && config.httpUrl) {
+            try {
+              const url = substituteVars(config.httpUrl);
+              const method = config.httpMethod || 'POST';
+              const body = config.httpBody ? substituteVars(config.httpBody) : undefined;
+              const fetchOpts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+              if (method !== 'GET' && body) fetchOpts.body = body;
+              const resp = await fetch(url, fetchOpts);
+              const respText = await resp.text();
+              console.log(`[FLOW] HTTP ${method} ${url} => ${resp.status}`);
+              // Store response in variables
+              const variables = execution.variables || {};
+              variables['_http_status'] = String(resp.status);
+              variables['_http_response'] = respText.substring(0, 2000);
+              execution.variables = variables;
+              await supabase
+                .from('chatbot_executions')
+                .update({ variables })
+                .eq('id', execution.id);
+            } catch (err) {
+              console.error('[FLOW] HTTP request error:', err);
+            }
+          } else if (actionType === 'set_field' && config.fieldKey) {
+            // Update custom field on contact
+            const { data: contactData } = await supabase
+              .from('contacts')
+              .select('custom_fields')
+              .eq('id', contactId)
+              .single();
+            const customFields = (contactData?.custom_fields as Record<string, any>) || {};
+            customFields[config.fieldKey] = substituteVars(config.fieldValue || '');
+            await supabase
+              .from('contacts')
+              .update({ custom_fields: customFields })
+              .eq('id', contactId);
+            console.log(`[FLOW] Set field ${config.fieldKey} on contact`);
+          } else if (actionType === 'create_lead' && config.funnelId && config.stageId) {
+            // Create a new deal/lead
+            await supabase.from('funnel_deals').insert({
+              funnel_id: config.funnelId,
+              stage_id: config.stageId,
+              contact_id: contactId,
+              user_id: userId,
+              title: contact?.name || 'Lead do Chatbot',
+              value: 0,
+            });
+            console.log('[FLOW] Created new lead in funnel');
+          } else if (actionType === 'add_note' && config.noteContent) {
+            const noteText = substituteVars(config.noteContent);
+            await supabase.from('conversation_notes').insert({
+              conversation_id: conversationId,
+              contact_id: contactId,
+              user_id: userId,
+              content: noteText,
+            });
+            console.log('[FLOW] Added note to conversation');
+          } else if (actionType === 'add_task' && config.taskTitle) {
+            const daysOffset = parseInt(config.taskDueDate || '1') || 1;
+            const dueDate = new Date(Date.now() + daysOffset * 86400000).toISOString().split('T')[0];
+            await supabase.from('conversation_tasks').insert({
+              conversation_id: conversationId,
+              contact_id: contactId,
+              user_id: userId,
+              title: substituteVars(config.taskTitle),
+              description: substituteVars(config.taskDescription || ''),
+              due_date: dueDate,
+              priority: 'medium',
+            });
+            console.log('[FLOW] Added task');
+          } else if (actionType === 'change_conversation_status' && config.conversationStatus) {
+            await supabase
+              .from('conversations')
+              .update({ status: config.conversationStatus })
+              .eq('id', conversationId);
+            console.log(`[FLOW] Changed conversation status to ${config.conversationStatus}`);
+          } else if (actionType === 'complete_tasks') {
+            await supabase
+              .from('conversation_tasks')
+              .update({ completed_at: new Date().toISOString() })
+              .eq('contact_id', contactId)
+              .is('completed_at', null);
+            console.log('[FLOW] Completed all pending tasks');
+          } else if (actionType === 'change_responsible' && config.responsibleId) {
+            await supabase
+              .from('conversations')
+              .update({ assigned_to: config.responsibleId })
+              .eq('id', conversationId);
+            console.log(`[FLOW] Changed responsible to ${config.responsibleId}`);
           }
 
+          currentId = getNextNode(node.id);
+          break;
+        }
+
+        case 'list_message': {
+          // Send WhatsApp interactive list message
+          const header = substituteVars(node.data?.header || '');
+          const body = substituteVars(node.data?.body || '');
+          const buttonText = node.data?.buttonText || 'Ver opções';
+          const items = (node.data?.items as Array<{ title: string; description?: string }>) || [];
+
+          if (instanceName && contact?.phone && items.length > 0) {
+            try {
+              const listPayload = {
+                number: contact.phone,
+                title: header,
+                description: body,
+                buttonText: buttonText,
+                footerText: '',
+                sections: [{
+                  title: header || 'Opções',
+                  rows: items.map((item, i) => ({
+                    title: substituteVars(item.title),
+                    description: substituteVars(item.description || ''),
+                    rowId: `option_${i}`,
+                  })),
+                }],
+              };
+
+              const response = await fetch(`${evolutionApiUrl}/message/sendList/${instanceName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                body: JSON.stringify(listPayload),
+              });
+
+              let result: any;
+              try { result = await response.json(); } catch { result = {}; }
+              const whatsappMessageId = result?.key?.id || null;
+
+              await supabase.from('inbox_messages').insert({
+                user_id: userId,
+                conversation_id: conversationId,
+                content: `${body}\n\n📋 ${items.map(i => `• ${i.title}`).join('\n')}`,
+                direction: 'outbound',
+                status: 'sent',
+                message_type: 'text',
+                whatsapp_message_id: whatsappMessageId,
+                sent_at: new Date().toISOString(),
+              });
+
+              await supabase.from('conversations').update({
+                last_message_at: new Date().toISOString(),
+                last_message_preview: body.substring(0, 100),
+                last_message_direction: 'outbound',
+              }).eq('id', conversationId);
+
+              console.log('[FLOW] List message sent');
+            } catch (err) {
+              console.error('[FLOW] Error sending list message:', err);
+            }
+          }
+
+          // Wait for user selection
+          await supabase
+            .from('chatbot_executions')
+            .update({ status: 'waiting_input', current_node_id: node.id })
+            .eq('id', execution.id);
+          currentId = null;
+          break;
+        }
+
+        case 'validation': {
+          const varToValidate = execution.variables?.[node.data?.variable || '_last_input'] || '';
+          const validationType = node.data?.validationType || 'not_empty';
+          let isValid = false;
+
+          switch (validationType) {
+            case 'not_empty':
+              isValid = varToValidate.trim().length > 0;
+              break;
+            case 'email':
+              isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(varToValidate);
+              break;
+            case 'phone':
+              isValid = /^\+?\d{10,15}$/.test(varToValidate.replace(/[\s\-()]/g, ''));
+              break;
+            case 'cpf':
+              isValid = /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(varToValidate);
+              break;
+            case 'number':
+              isValid = !isNaN(Number(varToValidate)) && varToValidate.trim().length > 0;
+              break;
+            case 'regex':
+              try {
+                isValid = new RegExp(node.data?.regexPattern || '.*').test(varToValidate);
+              } catch { isValid = false; }
+              break;
+          }
+
+          console.log(`[FLOW] Validation ${validationType}: "${varToValidate}" => ${isValid}`);
+
+          if (!isValid && node.data?.errorMessage) {
+            await sendMessage(substituteVars(node.data.errorMessage));
+          }
+
+          currentId = getNextNode(node.id, isValid ? 'valid' : 'invalid');
+          break;
+        }
+
+        case 'sub_flow': {
+          // Trigger another flow
+          const targetFlowId = node.data?.targetFlowId;
+          if (targetFlowId) {
+            console.log(`[FLOW] Starting sub-flow: ${targetFlowId}`);
+            try {
+              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/execute-chatbot-flow`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                },
+                body: JSON.stringify({
+                  flowId: targetFlowId,
+                  conversationId,
+                  contactId,
+                  userId,
+                }),
+              });
+            } catch (err) {
+              console.error('[FLOW] Error starting sub-flow:', err);
+            }
+          }
+          currentId = getNextNode(node.id);
+          break;
+        }
+
+        case 'round_robin': {
+          // Distribute conversation to team members in rotation
+          const members = (node.data?.members as string[]) || [];
+          if (members.length > 0) {
+            // Simple round-robin based on timestamp
+            const index = Math.floor(Date.now() / 1000) % members.length;
+            const assignedMember = members[index];
+            
+            // Try to find the member's user_id from profiles
+            const { data: memberProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .ilike('full_name', `%${assignedMember}%`)
+              .maybeSingle();
+
+            if (memberProfile) {
+              await supabase
+                .from('conversations')
+                .update({ assigned_to: memberProfile.id })
+                .eq('id', conversationId);
+              console.log(`[FLOW] Round robin assigned to: ${assignedMember} (${memberProfile.id})`);
+            } else {
+              console.log(`[FLOW] Round robin member not found: ${assignedMember}`);
+            }
+          }
           currentId = getNextNode(node.id);
           break;
         }
