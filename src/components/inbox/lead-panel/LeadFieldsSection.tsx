@@ -29,6 +29,7 @@ interface LeadFieldsSectionProps {
   deal: {
     id: string;
     title?: string;
+    value?: number | null;
     custom_fields?: Record<string, any> | null;
   } | null;
   activeTabId?: string | null;
@@ -388,7 +389,13 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         )}
       </div>
 
-      {/* Lead Fields - filtered by active tab */}
+      {/* Valor da Venda (native deal.value) */}
+      <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+        <span className="text-xs font-medium text-foreground/70 shrink-0">Valor da Venda</span>
+        <span className="text-sm text-foreground font-medium">
+          {deal?.value != null ? `R$ ${Number(deal.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground italic">—</span>}
+        </span>
+      </div>
       {(() => {
         const isFieldFilled = (field: CustomFieldDefinition) => {
           const val = localFields[field.field_key];

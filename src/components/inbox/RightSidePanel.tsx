@@ -72,6 +72,8 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
         <LeadFieldsSection 
           deal={activeDeal ? {
             id: activeDeal.id,
+            title: activeDeal.title,
+            value: activeDeal.value,
             custom_fields: activeDeal.custom_fields as Record<string, any> | null,
           } : null}
           activeTabId={activeTab}
