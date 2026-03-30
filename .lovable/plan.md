@@ -1,30 +1,29 @@
 
 
-## Plano: Adicionar campos personalizados como variáveis no formulário de Template Meta
+## Plano: Corrigir filtros padrão da pesquisa de leads
 
 ### Problema
-O formulário de criação de Template Meta (`MetaTemplateForm.tsx`) usa um `Textarea` simples para o corpo da mensagem. Não há nenhum mecanismo de autocompletar ou lista de variáveis disponíveis mostrando os campos personalizados do sistema.
+A pesquisa retorna 0 resultados em casos onde deveria encontrar empresas (ex: igrejas em Afonso Cláudio) porque os filtros padrão `com_telefone: true` e `somente_celular: true` são muito restritivos. Organizações religiosas e muitas empresas pequenas só possuem telefone fixo ou nenhum telefone cadastrado.
 
-### Contexto Importante
-Templates Meta usam variáveis numéricas (`{{1}}`, `{{2}}`), diferente dos templates internos que usam chaves nomeadas (`{{nome}}`). Porém, ao criar o template, o usuário precisa saber quais dados ele tem disponíveis para planejar as variáveis.
+### Causa Raiz
+No arquivo `src/pages/LeadSearch.tsx`, os `initialFilters` definem:
+```
+com_telefone: true,    // exige que tenha telefone
+somente_celular: true, // exige que seja celular
+```
+Isso exclui automaticamente qualquer empresa que tenha apenas telefone fixo ou nenhum telefone cadastrado.
 
 ### Solução
-Adicionar uma seção de **variáveis disponíveis** abaixo do campo "Corpo da Mensagem" no `MetaTemplateForm.tsx`, mostrando os campos personalizados (contato e lead) como referência visual. Ao clicar em um chip, a próxima variável numérica disponível (`{{1}}`, `{{2}}`, etc.) será inserida no texto.
+Alterar os valores padrão dos filtros para serem menos restritivos:
 
-### Alterações
+**`src/pages/LeadSearch.tsx`** - Mudar `initialFilters`:
+- `com_telefone: false` (não exigir telefone por padrão)
+- `somente_celular: false` (não filtrar apenas celular por padrão)
 
-**1. `src/components/settings/meta-templates/MetaTemplateForm.tsx`**
-- Importar `useCustomFields` para obter `contactFieldDefinitions` e `leadFieldDefinitions`
-- Adicionar seção colapsável "Variáveis disponíveis" abaixo do textarea do corpo, com:
-  - Chips clicáveis organizados em grupos: **Dados do Contato** (nome, telefone, email) e **Campos Personalizados** (contato + lead)
-  - Ao clicar em um chip, insere `{{N}}` (próximo número disponível) no textarea na posição do cursor
-  - Tooltip no chip mostrando o nome amigável do campo
-- Atualizar a dica existente (`Use {{1}}, {{2}}, etc.`) para incluir uma nota de que os campos personalizados estão disponíveis abaixo
-- Adicionar mapeamento visual: ao lado de cada exemplo de variável detectada, mostrar um texto indicando qual campo pode ser vinculado (referência, não binding real — o binding acontece na campanha)
+O usuário ainda poderá ativar esses filtros manualmente quando quiser resultados apenas com celular.
 
-### Detalhes Técnicos
-- Reutilizar os ícones `User`, `FileText` já usados em outros componentes
-- Os chips mostram o `field_name` amigável e ao clicar inserem `{{N+1}}` onde N é a contagem atual de variáveis no texto
-- Nenhuma alteração de banco de dados necessária
-- Nenhuma alteração na Edge Function necessária
+### Impacto
+- Nenhuma alteração de banco de dados
+- Nenhuma alteração na Edge Function
+- Apenas 2 linhas modificadas no frontend
 
