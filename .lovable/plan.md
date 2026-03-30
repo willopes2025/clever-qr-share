@@ -1,58 +1,30 @@
 
 
-## Template com modo IA dinâmico — mensagens únicas por contato no envio
+## Plano: Adicionar campos personalizados como variáveis no formulário de Template Meta
 
-### O que muda
+### Problema
+O formulário de criação de Template Meta (`MetaTemplateForm.tsx`) usa um `Textarea` simples para o corpo da mensagem. Não há nenhum mecanismo de autocompletar ou lista de variáveis disponíveis mostrando os campos personalizados do sistema.
 
-Hoje o "Gerar com IA" no template cria uma mensagem estática uma vez. O que você quer é diferente: o template armazena um **prompt de IA**, e a cada disparo da campanha, a IA gera uma mensagem **única e personalizada** para cada contato, lendo os dados do lead (campos personalizados, etapa do funil, histórico de conversa) — igual ao modo "Mensagem IA" das oportunidades.
+### Contexto Importante
+Templates Meta usam variáveis numéricas (`{{1}}`, `{{2}}`), diferente dos templates internos que usam chaves nomeadas (`{{nome}}`). Porém, ao criar o template, o usuário precisa saber quais dados ele tem disponíveis para planejar as variáveis.
+
+### Solução
+Adicionar uma seção de **variáveis disponíveis** abaixo do campo "Corpo da Mensagem" no `MetaTemplateForm.tsx`, mostrando os campos personalizados (contato e lead) como referência visual. Ao clicar em um chip, a próxima variável numérica disponível (`{{1}}`, `{{2}}`, etc.) será inserida no texto.
 
 ### Alterações
 
-**1. Migração: adicionar campo `ai_prompt` na tabela `message_templates`**
-- Novo campo `ai_prompt TEXT NULL` — quando preenchido, indica que o template é do tipo IA dinâmico
-- O campo `content` existente continua para templates normais (texto estático com variáveis)
+**1. `src/components/settings/meta-templates/MetaTemplateForm.tsx`**
+- Importar `useCustomFields` para obter `contactFieldDefinitions` e `leadFieldDefinitions`
+- Adicionar seção colapsável "Variáveis disponíveis" abaixo do textarea do corpo, com:
+  - Chips clicáveis organizados em grupos: **Dados do Contato** (nome, telefone, email) e **Campos Personalizados** (contato + lead)
+  - Ao clicar em um chip, insere `{{N}}` (próximo número disponível) no textarea na posição do cursor
+  - Tooltip no chip mostrando o nome amigável do campo
+- Atualizar a dica existente (`Use {{1}}, {{2}}, etc.`) para incluir uma nota de que os campos personalizados estão disponíveis abaixo
+- Adicionar mapeamento visual: ao lado de cada exemplo de variável detectada, mostrar um texto indicando qual campo pode ser vinculado (referência, não binding real — o binding acontece na campanha)
 
-**2. Editar `src/components/templates/TemplateFormDialog.tsx`**
-- O botão "Gerar com IA" (estático) fica como está para quem quer gerar uma vez
-- Adicionar um **switch "Modo IA Dinâmico"** — quando ativado:
-  - O campo de conteúdo vira somente leitura com texto explicativo ("A IA gerará mensagens únicas para cada contato no momento do disparo")
-  - Mostra um textarea para o **prompt de instrução da IA** (o que a IA deve considerar ao gerar)
-  - Mostra as variáveis e dados disponíveis (campos de contato, lead, histórico de conversa)
-  - Salva o prompt no campo `ai_prompt` do template
-- O campo `content` recebe um texto placeholder tipo "[Mensagem gerada por IA]" para identificação
-
-**3. Editar `supabase/functions/start-campaign/index.ts`**
-- Na seção de templates internos (linha ~674-714), detectar se o template tem `ai_prompt` preenchido
-- Se sim: em vez de usar o `content` estático, chamar a OpenAI para cada contato (em batches), passando:
-  - Dados do contato (nome, telefone, email, custom_fields)
-  - Dados do deal/lead se o contato estiver em um funil (etapa, valor, campos do deal)
-  - Últimas 20 mensagens da conversa (se houver)
-  - O prompt de instrução do template (`ai_prompt`)
-- Usar tool calling (igual `generate-opportunity-messages`) para gerar mensagens estruturadas
-- Processar em batches de 10 contatos para não estourar limites da API
-
-**4. Editar `src/hooks/useMessageTemplates.ts`**
-- Adicionar `ai_prompt` ao tipo `MessageTemplate` e `CreateTemplateData`
-- Incluir no select/insert/update queries
-
-**5. Exibição na lista de templates**
-- Templates com `ai_prompt` mostram um badge "IA Dinâmica" para diferenciá-los dos estáticos
-
-### Fluxo
-```text
-Criação:
-  Usuário ativa "Modo IA Dinâmico" → Escreve prompt de instrução
-  → Seleciona variáveis/dados que a IA deve considerar
-  → Salva template com ai_prompt preenchido
-
-Disparo (start-campaign):
-  Detecta template.ai_prompt → Para cada contato:
-    → Busca dados do contato + deal + conversa
-    → Chama OpenAI com prompt + contexto
-    → Gera mensagem única personalizada
-    → Insere em campaign_messages
-```
-
-### Resultado
-Templates com modo IA dinâmico geram mensagens únicas para cada contato no momento do disparo, considerando todo o contexto do lead — exatamente como funciona o "Mensagem IA" nas oportunidades, mas disponível para qualquer campanha.
+### Detalhes Técnicos
+- Reutilizar os ícones `User`, `FileText` já usados em outros componentes
+- Os chips mostram o `field_name` amigável e ao clicar inserem `{{N+1}}` onde N é a contagem atual de variáveis no texto
+- Nenhuma alteração de banco de dados necessária
+- Nenhuma alteração na Edge Function necessária
 
