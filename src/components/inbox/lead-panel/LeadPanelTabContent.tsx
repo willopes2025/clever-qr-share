@@ -267,9 +267,9 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         </p>
       ) : (
         fieldsToShow.map((field) => (
-          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40">
-            <span className="text-xs font-medium text-foreground/70">{field.field_name}</span>
-            <div className="flex-1 flex justify-end items-center">
+          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2 overflow-hidden">
+            <span className="text-xs font-medium text-foreground/70 shrink-0 max-w-[40%] truncate">{field.field_name}</span>
+            <div className="flex justify-end items-center min-w-0 overflow-hidden max-w-[60%]">
               {renderFieldValue(field)}
             </div>
           </div>
