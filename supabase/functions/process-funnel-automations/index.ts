@@ -16,7 +16,9 @@ interface AutomationPayload {
   customFieldValue?: string;
   oldValue?: number;
   newValue?: number;
-  isNewDeal?: boolean; // Flag to indicate if this is a newly created deal
+  isNewDeal?: boolean;
+  oldResponsible?: string;
+  newResponsible?: string;
 }
 
 Deno.serve(async (req: Request) => {
