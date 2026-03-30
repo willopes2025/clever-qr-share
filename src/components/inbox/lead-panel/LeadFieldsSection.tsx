@@ -239,7 +239,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
       default: // text, url, phone, email
         if (isEditing) {
           return (
-            <div className="flex items-center gap-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1 min-w-0 w-full">
               <Input
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
@@ -262,9 +262,9 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         return (
           <button 
             onClick={() => setEditingField(definition.field_key)}
-            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden"
+            className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden max-w-full"
           >
-            <span className="truncate">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
+            <span className="truncate block">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
           </button>
         );
@@ -276,7 +276,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   }
 
   return (
-    <div className="p-4 space-y-2 min-w-0">
+    <div className="p-4 space-y-2 min-w-0 overflow-hidden w-full">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-2 min-w-0">
         <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg min-w-0">

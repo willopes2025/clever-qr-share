@@ -239,7 +239,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       default: // text, url, phone, email
         if (isEditing) {
           return (
-            <div className="flex items-center gap-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1 min-w-0 w-full">
               <Input
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
@@ -272,7 +272,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
   };
 
   return (
-    <div className="p-4 space-y-2 min-w-0">
+    <div className="p-4 space-y-2 min-w-0 overflow-hidden w-full">
       {/* Header */}
       <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-lg mb-3 min-w-0">
         <User className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -345,9 +345,9 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
         return (
           <>
             {filledFields.map((field) => (
-              <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2">
-                <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
-                <div className="flex-1 flex justify-end items-center gap-1 min-w-0 overflow-hidden">
+              <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2 overflow-hidden">
+                <span className="text-xs font-medium text-foreground/70 shrink-0 max-w-[40%] truncate">{field.field_name}</span>
+                <div className="flex justify-end items-center gap-1 min-w-0 overflow-hidden max-w-[60%]">
                   {renderFieldValue(field)}
                   <button
                     onClick={() => deleteField.mutate(field.id)}
