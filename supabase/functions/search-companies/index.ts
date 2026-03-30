@@ -412,6 +412,7 @@ Deno.serve(async (req: Request) => {
       console.log('contato_telefonico:', first.contato_telefonico);
       console.log('contato_email:', first.contato_email);
       console.log('endereco:', first.endereco);
+      console.log('quadro_societario:', JSON.stringify(first.quadro_societario));
     }
 
     // Helper function to extract phone from contato_telefonico array
