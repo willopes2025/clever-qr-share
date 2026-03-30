@@ -1114,6 +1114,7 @@ export type Database = {
           message_interval_min: number | null
           meta_phone_number_id: string | null
           meta_template_id: string | null
+          meta_variable_mappings: Json | null
           name: string
           retry_at: string | null
           scheduled_at: string | null
@@ -1164,6 +1165,7 @@ export type Database = {
           message_interval_min?: number | null
           meta_phone_number_id?: string | null
           meta_template_id?: string | null
+          meta_variable_mappings?: Json | null
           name: string
           retry_at?: string | null
           scheduled_at?: string | null
@@ -1214,6 +1216,7 @@ export type Database = {
           message_interval_min?: number | null
           meta_phone_number_id?: string | null
           meta_template_id?: string | null
+          meta_variable_mappings?: Json | null
           name?: string
           retry_at?: string | null
           scheduled_at?: string | null
