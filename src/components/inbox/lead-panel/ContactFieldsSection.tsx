@@ -294,7 +294,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
             onClick={() => setEditingField(definition.field_key)}
             className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px] min-w-0 overflow-hidden"
           >
-            <span className="truncate">{value || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
+            <span className="truncate">{formatDisplayValue(value, definition.field_name) || <span className="text-muted-foreground italic">Clique para editar</span>}</span>
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
           </button>
         );
