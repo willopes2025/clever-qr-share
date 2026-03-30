@@ -334,6 +334,7 @@ export const CampaignFormDialog = ({
       batch_enabled: batchEnabled,
       batch_size: batchSize,
       batch_pause_minutes: batchPauseMinutes,
+      meta_variable_mappings: messageMode === 'meta_template' && variableMappings.length > 0 ? variableMappings : null,
     });
 
     // For new campaigns with AI enabled: link selected agent to the new campaign
