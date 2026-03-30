@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,10 @@ import { useMetaTemplates } from '@/hooks/useMetaTemplates';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { useContacts } from '@/hooks/useContacts';
-import { Campaign } from '@/hooks/useCampaigns';
+import { Campaign, MetaVariableMapping } from '@/hooks/useCampaigns';
 import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone } from 'lucide-react';
+import { useCustomFields } from '@/hooks/useCustomFields';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone, Variable } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { useNavigate } from 'react-router-dom';
@@ -56,6 +57,7 @@ interface CampaignFormDialogProps {
     batch_enabled: boolean;
     batch_size: number;
     batch_pause_minutes: number;
+    meta_variable_mappings?: MetaVariableMapping[] | null;
   }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
@@ -120,11 +122,15 @@ export const CampaignFormDialog = ({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
+  // Variable mappings for Meta templates
+  const [variableMappings, setVariableMappings] = useState<MetaVariableMapping[]>([]);
+
   const { templates } = useMessageTemplates();
   const { metaNumbers } = useMetaWhatsAppNumbers();
   const { lists } = useBroadcastLists();
   const { user } = useAuth();
   const { createTag } = useContacts();
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
   const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   
@@ -150,6 +156,53 @@ export const CampaignFormDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
+  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
+
+  // Detect variables in selected Meta template
+  const detectedVariables = useMemo(() => {
+    if (!selectedMetaTemplate) return [];
+    const matches = selectedMetaTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].map(m => parseInt(m.replace(/[{}]/g, ''))).sort((a, b) => a - b);
+  }, [selectedMetaTemplate]);
+
+  // Auto-initialize variable mappings when template changes
+  useEffect(() => {
+    if (detectedVariables.length > 0) {
+      // Check if campaign has existing mappings
+      const existingMappings = campaign?.meta_variable_mappings as MetaVariableMapping[] | null;
+      if (existingMappings && existingMappings.length > 0) {
+        setVariableMappings(existingMappings);
+      } else {
+        // Default: {{1}} = name, {{2}} = phone, rest empty
+        setVariableMappings(detectedVariables.map(idx => ({
+          variable_index: idx,
+          source: idx === 1 ? 'contact_name' : idx === 2 ? 'contact_phone' : 'fixed_text' as MetaVariableMapping['source'],
+          label: idx === 1 ? 'Nome' : idx === 2 ? 'Telefone' : `Variável ${idx}`,
+        })));
+      }
+    } else {
+      setVariableMappings([]);
+    }
+  }, [detectedVariables.join(','), campaign?.meta_variable_mappings]);
+
+  // Available variable source options
+  const variableSourceOptions = useMemo(() => {
+    const options: { value: string; label: string; source: MetaVariableMapping['source']; field_key?: string }[] = [
+      { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
+      { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
+      { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+    ];
+    // Add contact custom fields
+    contactFieldDefinitions.forEach(f => {
+      options.push({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field', field_key: f.field_key });
+    });
+    // Add lead custom fields
+    leadFieldDefinitions.forEach(f => {
+      options.push({ value: `lead_cf_${f.field_key}`, label: `🎯 ${f.field_name}`, source: 'lead_custom_field', field_key: f.field_key });
+    });
+    options.push({ value: 'fixed_text', label: 'Texto Fixo', source: 'fixed_text' });
+    return options;
+  }, [contactFieldDefinitions, leadFieldDefinitions]);
 
   useEffect(() => {
     if (campaign) {
@@ -281,6 +334,7 @@ export const CampaignFormDialog = ({
       batch_enabled: batchEnabled,
       batch_size: batchSize,
       batch_pause_minutes: batchPauseMinutes,
+      meta_variable_mappings: messageMode === 'meta_template' && variableMappings.length > 0 ? variableMappings : null,
     });
 
     // For new campaigns with AI enabled: link selected agent to the new campaign
@@ -306,7 +360,6 @@ export const CampaignFormDialog = ({
   };
 
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
-  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
   const selectedList = lists?.find(l => l.id === listId);
   const isMetaMode = messageMode === 'meta_template';
 
@@ -443,6 +496,75 @@ export const CampaignFormDialog = ({
                       <span>{selectedMetaTemplate.language}</span>
                     </div>
                     <p className="text-muted-foreground line-clamp-3">{selectedMetaTemplate.body_text}</p>
+                  </div>
+                )}
+
+                {/* Variable Mapping for Meta Templates */}
+                {selectedMetaTemplate && detectedVariables.length > 0 && (
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
+                      <Variable className="h-4 w-4" />
+                      Mapeamento de Variáveis ({detectedVariables.length})
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Defina quais dados serão usados em cada variável do template
+                    </p>
+                    <div className="space-y-2">
+                      {variableMappings.map((mapping, idx) => {
+                        const currentValue = mapping.source === 'contact_custom_field' 
+                          ? `contact_cf_${mapping.field_key}` 
+                          : mapping.source === 'lead_custom_field'
+                          ? `lead_cf_${mapping.field_key}`
+                          : mapping.source;
+                        
+                        return (
+                          <div key={mapping.variable_index} className="flex items-center gap-2">
+                            <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded min-w-[50px] text-center">
+                              {`{{${mapping.variable_index}}}`}
+                            </span>
+                            <Select
+                              value={currentValue}
+                              onValueChange={(val) => {
+                                const option = variableSourceOptions.find(o => o.value === val);
+                                if (!option) return;
+                                const updated = [...variableMappings];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  source: option.source,
+                                  field_key: option.field_key,
+                                  label: option.label,
+                                  fixed_value: option.source === 'fixed_text' ? '' : undefined,
+                                };
+                                setVariableMappings(updated);
+                              }}
+                            >
+                              <SelectTrigger className="flex-1 h-8 text-xs">
+                                <SelectValue placeholder="Selecione o campo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {variableSourceOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {mapping.source === 'fixed_text' && (
+                              <Input
+                                className="flex-1 h-8 text-xs"
+                                placeholder="Texto fixo"
+                                value={mapping.fixed_value || ''}
+                                onChange={(e) => {
+                                  const updated = [...variableMappings];
+                                  updated[idx] = { ...updated[idx], fixed_value: e.target.value };
+                                  setVariableMappings(updated);
+                                }}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

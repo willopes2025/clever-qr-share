@@ -6,6 +6,14 @@ import { useEffect } from 'react';
 
 export type SendingMode = 'sequential' | 'random';
 
+export interface MetaVariableMapping {
+  variable_index: number; // 1, 2, 3...
+  source: 'contact_name' | 'contact_phone' | 'contact_email' | 'contact_custom_field' | 'lead_custom_field' | 'fixed_text';
+  field_key?: string; // for custom fields
+  fixed_value?: string; // for fixed text
+  label?: string; // display label
+}
+
 export interface Campaign {
   id: string;
   user_id: string;
@@ -28,6 +36,7 @@ export interface Campaign {
   skipped: number;
   created_at: string;
   updated_at: string;
+  meta_variable_mappings: MetaVariableMapping[] | null;
   // Campaign-specific sending settings
   message_interval_min: number | null;
   message_interval_max: number | null;
@@ -101,7 +110,7 @@ export const useCampaigns = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Campaign[];
+      return data as unknown as Campaign[];
     },
     enabled: !!user?.id,
   });
@@ -218,6 +227,7 @@ export const useCampaignMutations = () => {
       ai_handoff_keywords?: string[];
       ai_active_hours_start?: number;
       ai_active_hours_end?: number;
+      meta_variable_mappings?: MetaVariableMapping[] | null;
     }) => {
       if (!user?.id) throw new Error('User not authenticated');
 
@@ -231,9 +241,7 @@ export const useCampaignMutations = () => {
         totalContacts = count || 0;
       }
 
-      const { data: campaign, error } = await supabase
-        .from('campaigns')
-        .insert({
+      const insertData: Record<string, unknown> = {
           user_id: user.id,
           name: data.name,
           template_id: data.template_id,
@@ -267,7 +275,12 @@ export const useCampaignMutations = () => {
           ai_handoff_keywords: data.ai_handoff_keywords,
           ai_active_hours_start: data.ai_active_hours_start,
           ai_active_hours_end: data.ai_active_hours_end,
-        })
+          meta_variable_mappings: data.meta_variable_mappings || null,
+      };
+
+      const { data: campaign, error } = await supabase
+        .from('campaigns')
+        .insert(insertData as any)
         .select()
         .single();
 
@@ -317,6 +330,7 @@ export const useCampaignMutations = () => {
       ai_handoff_keywords?: string[];
       ai_active_hours_start?: number;
       ai_active_hours_end?: number;
+      meta_variable_mappings?: MetaVariableMapping[] | null;
     }) => {
       const updateData: Record<string, unknown> = { ...data };
       
