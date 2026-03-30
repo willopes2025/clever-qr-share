@@ -365,7 +365,13 @@ Deno.serve(async (req) => {
       }
     );
 
-    const result = await response.json();
+    let result: any;
+    try {
+      result = await response.json();
+    } catch {
+      const text = await response.text().catch(() => `HTTP ${response.status}`);
+      result = { error: text || `HTTP ${response.status}` };
+    }
 
     if (response.ok && result.key) {
       await supabase
