@@ -54,7 +54,13 @@ type TriggerType =
   | 'on_deal_value_changed'
   | 'on_custom_field_changed'
   | 'on_webhook'
-  | 'on_form_submission';
+  | 'on_form_submission'
+  | 'on_responsible_changed'
+  | 'on_scheduled_before_date_field'
+  | 'on_scheduled_exact_time'
+  | 'on_scheduled_daily'
+  | 'on_conversation_closed'
+  | 'on_hours_after_last_message';
 
 type ActionType = 
   | 'send_message' 
