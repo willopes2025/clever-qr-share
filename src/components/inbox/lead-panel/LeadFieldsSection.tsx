@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, X, Pencil, Target } from "lucide-react";
+import { Check, X, Pencil, Target, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -58,6 +58,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [manuallyAdded, setManuallyAdded] = useState<Set<string>>(new Set());
   
   // Estado para edição do título do lead
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -325,20 +326,61 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
       </div>
 
       {/* Lead Fields - filtered by active tab */}
-      {filteredLeadFields.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          Nenhum campo configurado para esta aba
-        </p>
-      ) : (
-        filteredLeadFields.map((field) => (
-          <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
-            <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
-            <div className="flex-1 flex justify-end items-center min-w-0 overflow-hidden">
-              {renderFieldValue(field)}
-            </div>
-          </div>
-        ))
-      )}
+      {(() => {
+        const isFieldFilled = (field: CustomFieldDefinition) => {
+          const val = localFields[field.field_key];
+          if (field.field_type === 'boolean' || field.field_type === 'switch') return true;
+          return val !== undefined && val !== null && val !== '';
+        };
+
+        const filledFields = filteredLeadFields.filter(f => isFieldFilled(f) || manuallyAdded.has(f.field_key));
+        const emptyFields = filteredLeadFields.filter(f => !isFieldFilled(f) && !manuallyAdded.has(f.field_key));
+
+        return (
+          <>
+            {filledFields.length === 0 && emptyFields.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum campo configurado para esta aba
+              </p>
+            ) : (
+              filledFields.map((field) => (
+                <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+                  <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
+                  <div className="flex-1 flex justify-end items-center min-w-0 overflow-hidden">
+                    {renderFieldValue(field)}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {emptyFields.length > 0 && (
+              <div className="pt-2">
+                <Select
+                  value=""
+                  onValueChange={(fieldKey) => {
+                    setManuallyAdded(prev => new Set(prev).add(fieldKey));
+                    setEditingField(fieldKey);
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs border-dashed border-border/50 bg-transparent text-muted-foreground hover:border-primary/50 hover:text-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Preencher campo ({emptyFields.length})</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {emptyFields.map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 };

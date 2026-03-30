@@ -61,6 +61,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [showFieldCreator, setShowFieldCreator] = useState(false);
+  const [manuallyAdded, setManuallyAdded] = useState<Set<string>>(new Set());
   
   // Estado para edição do nome do contato
   const [isEditingName, setIsEditingName] = useState(false);
@@ -331,21 +332,62 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       )}
 
       {/* Custom Contact Fields */}
-      {filteredContactFields.map((field) => (
-        <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2">
-          <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
-          <div className="flex-1 flex justify-end items-center gap-1 min-w-0 overflow-hidden">
-            {renderFieldValue(field)}
-            <button
-              onClick={() => deleteField.mutate(field.id)}
-              className="opacity-0 group-hover/field:opacity-100 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
-              title="Excluir campo"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      ))}
+      {(() => {
+        const isFieldFilled = (field: CustomFieldDefinition) => {
+          const val = localFields[field.field_key];
+          if (field.field_type === 'boolean' || field.field_type === 'switch') return true;
+          return val !== undefined && val !== null && val !== '';
+        };
+
+        const filledFields = filteredContactFields.filter(f => isFieldFilled(f) || manuallyAdded.has(f.field_key));
+        const emptyFields = filteredContactFields.filter(f => !isFieldFilled(f) && !manuallyAdded.has(f.field_key));
+
+        return (
+          <>
+            {filledFields.map((field) => (
+              <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2">
+                <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
+                <div className="flex-1 flex justify-end items-center gap-1 min-w-0 overflow-hidden">
+                  {renderFieldValue(field)}
+                  <button
+                    onClick={() => deleteField.mutate(field.id)}
+                    className="opacity-0 group-hover/field:opacity-100 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
+                    title="Excluir campo"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {emptyFields.length > 0 && (
+              <div className="pt-2">
+                <Select
+                  value=""
+                  onValueChange={(fieldKey) => {
+                    setManuallyAdded(prev => new Set(prev).add(fieldKey));
+                    setEditingField(fieldKey);
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs border-dashed border-border/50 bg-transparent text-muted-foreground hover:border-primary/50 hover:text-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Preencher campo ({emptyFields.length})</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {emptyFields.map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Add Field Button / Creator */}
       {showFieldCreator ? (
