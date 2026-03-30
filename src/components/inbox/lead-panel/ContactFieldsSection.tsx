@@ -116,6 +116,19 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
     return isNaN(d.getTime()) ? undefined : d;
   };
 
+  const isDateLikeField = (fieldName: string) => {
+    return /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldName);
+  };
+
+  const formatDisplayValue = (value: any, fieldName: string): string => {
+    if (value === null || value === undefined || value === '') return '';
+    if (isDateLikeField(fieldName)) {
+      const parsed = parseDateValue(value);
+      if (parsed) return format(parsed, "dd/MM/yyyy", { locale: ptBR });
+    }
+    return String(value);
+  };
+
   const renderFieldValue = (definition: CustomFieldDefinition) => {
     const value = localFields[definition.field_key];
     const isEditing = editingField === definition.field_key;
