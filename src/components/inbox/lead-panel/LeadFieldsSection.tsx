@@ -165,22 +165,23 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
           />
         );
 
-      case 'datetime':
+      case 'datetime': {
+        const parsedDt = parseDateValue(value);
         return (
           <div className="flex items-center gap-1.5">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                  {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
+                  {parsedDt ? format(parsedDt, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
                 <Calendar
                   mode="single"
-                  selected={value ? new Date(value) : undefined}
+                  selected={parsedDt}
                   onSelect={(date) => {
                     if (!date) return handleSave(definition.field_key, null);
-                    const existing = value ? new Date(value) : new Date();
+                    const existing = parsedDt || new Date();
                     date.setHours(existing.getHours(), existing.getMinutes());
                     handleSave(definition.field_key, date.toISOString());
                   }}
@@ -191,10 +192,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             </Popover>
             <Input
               type="time"
-              value={value ? format(new Date(value), "HH:mm") : ''}
+              value={parsedDt ? format(parsedDt, "HH:mm") : ''}
               onChange={(e) => {
                 const [hours, minutes] = e.target.value.split(':').map(Number);
-                const d = value ? new Date(value) : new Date();
+                const d = parsedDt || new Date();
                 d.setHours(hours, minutes);
                 handleSave(definition.field_key, d.toISOString());
               }}
@@ -202,6 +203,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             />
           </div>
         );
+      }
 
       case 'select':
         return (
