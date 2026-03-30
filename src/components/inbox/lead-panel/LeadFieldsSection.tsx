@@ -29,6 +29,7 @@ interface LeadFieldsSectionProps {
   deal: {
     id: string;
     title?: string;
+    value?: number | null;
     custom_fields?: Record<string, any> | null;
   } | null;
   activeTabId?: string | null;
