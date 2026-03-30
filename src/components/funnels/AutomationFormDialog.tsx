@@ -371,23 +371,40 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="on_funnel_enter">🚀 Quando entrar no funil (qualquer etapa)</SelectItem>
+                {/* Pipeline triggers */}
+                <SelectItem disabled value="__group_pipeline" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos do Pipeline ──</SelectItem>
+                <SelectItem value="on_funnel_enter">🚀 Quando entrar no funil</SelectItem>
                 <SelectItem value="on_existing_deals">📋 Todos que já fazem parte do funil</SelectItem>
-                <SelectItem value="on_stage_enter">Quando entrar na etapa</SelectItem>
-                <SelectItem value="on_stage_exit">Quando sair da etapa</SelectItem>
-                <SelectItem value="on_deal_won">Quando deal for ganho</SelectItem>
-                <SelectItem value="on_deal_lost">Quando deal for perdido</SelectItem>
-                <SelectItem value="on_time_in_stage">Após X dias na etapa</SelectItem>
-                <SelectItem value="on_message_received">Quando receber mensagem</SelectItem>
-                <SelectItem value="on_keyword_received">Quando mensagem conter palavra-chave</SelectItem>
-                <SelectItem value="on_contact_created">Quando contato for criado</SelectItem>
-                <SelectItem value="on_tag_added">Quando tag for adicionada</SelectItem>
-                <SelectItem value="on_tag_removed">Quando tag for removida</SelectItem>
-                <SelectItem value="on_inactivity">Após X dias sem interação</SelectItem>
-                <SelectItem value="on_deal_value_changed">Quando valor do deal mudar</SelectItem>
-                <SelectItem value="on_custom_field_changed">Quando campo personalizado mudar</SelectItem>
-                <SelectItem value="on_webhook">Webhook externo</SelectItem>
+                <SelectItem value="on_stage_enter">⚡ Quando entrar na etapa</SelectItem>
+                <SelectItem value="on_stage_exit">↔️ Quando sair da etapa</SelectItem>
+                <SelectItem value="on_deal_won">✅ Quando deal for ganho</SelectItem>
+                <SelectItem value="on_deal_lost">❌ Quando deal for perdido</SelectItem>
+                <SelectItem value="on_responsible_changed">👤 Quando responsável for alterado</SelectItem>
+                
+                {/* Scheduled triggers */}
+                <SelectItem disabled value="__group_scheduled" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos Programados ──</SelectItem>
+                <SelectItem value="on_scheduled_before_date_field">⏰ X horas antes de campo de data</SelectItem>
+                <SelectItem value="on_scheduled_exact_time">📅 Em data e hora exata</SelectItem>
+                <SelectItem value="on_scheduled_daily">🔄 Diariamente às</SelectItem>
+                <SelectItem value="on_time_in_stage">⏱️ Após X dias na etapa</SelectItem>
+                <SelectItem value="on_inactivity">😴 Após X dias sem interação</SelectItem>
+                
+                {/* Conversation triggers */}
+                <SelectItem disabled value="__group_conversation" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos de Conversa ──</SelectItem>
+                <SelectItem value="on_message_received">💬 Quando receber mensagem</SelectItem>
+                <SelectItem value="on_keyword_received">🔑 Quando conter palavra-chave</SelectItem>
+                <SelectItem value="on_hours_after_last_message">⏳ X horas após última mensagem</SelectItem>
+                <SelectItem value="on_conversation_closed">🔒 Quando conversa for encerrada</SelectItem>
+                
+                {/* Action triggers */}
+                <SelectItem disabled value="__group_action" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos de Ação ──</SelectItem>
+                <SelectItem value="on_tag_added">🏷️ Quando tag for adicionada</SelectItem>
+                <SelectItem value="on_tag_removed">🏷️ Quando tag for removida</SelectItem>
+                <SelectItem value="on_contact_created">👥 Quando contato for criado</SelectItem>
+                <SelectItem value="on_deal_value_changed">💰 Quando valor do deal mudar</SelectItem>
+                <SelectItem value="on_custom_field_changed">📝 Quando campo personalizado mudar</SelectItem>
                 <SelectItem value="on_form_submission">📝 Quando formulário for enviado</SelectItem>
+                <SelectItem value="on_webhook">🔗 Webhook externo</SelectItem>
               </SelectContent>
             </Select>
           </div>
