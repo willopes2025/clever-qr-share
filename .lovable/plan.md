@@ -1,129 +1,45 @@
 
 
-## Plano: Expandir Chatbot Builder com funcionalidades do Kommo
+## Plano: Corrigir roteamento de resposta Meta para leads existentes
 
-### Análise Comparativa
+### Problema
 
-**O que já temos:**
-- Enviar mensagem ✅, Pergunta ✅, Pausar/Delay ✅, Condição ✅, IA ✅, Início/Fim ✅
-- Ações: Adicionar/Remover Tag ✅, Mover no Funil ✅, Definir Variável ✅, Transferir ✅, HTTP Request (webhook) ✅
+Quando uma campanha Meta envia um template para um contato que **já possui conversa** no sistema (via Evolution API), o código encontra a conversa existente e reutiliza o ID dela, mas **não atualiza** os campos `provider` e `meta_phone_number_id`. Quando o contato responde, o sistema roteia a resposta pela Evolution API (telefone antigo) em vez do número Meta que enviou o template.
 
-**O que falta (relevante para o sistema):**
+### Causa raiz
 
-| Recurso Kommo | Prioridade | Tipo |
-|---|---|---|
-| Definir campo personalizado | Alta | Nova ação |
-| Criar lead no funil | Alta | Nova ação |
-| Mudar status do lead | Alta | Nova ação |
-| Adicionar nota à conversa | Alta | Nova ação |
-| Adicionar tarefa | Média | Nova ação |
-| Alterar status da conversa | Média | Nova ação |
-| Completar tarefas | Média | Nova ação |
-| Mudar usuário responsável | Média | Nova ação |
-| List Message (WhatsApp) | Alta | Novo nó |
-| Validação de input | Média | Novo nó |
-| Iniciar outro fluxo | Média | Novo nó |
-| Round Robin (distribuir) | Baixa | Novo nó |
+Em `send-campaign-messages/index.ts`, linhas 992-993: quando `existingConv` é encontrada, o código apenas faz `conversationId = existingConv.id` sem atualizar o provider da conversa para `meta`.
 
-### Solução — Fase 1 (prioridade alta)
+### Solução
 
-Implementar em 3 blocos: novos tipos de ação, novo nó List Message e novo nó Validação.
+**Arquivo: `supabase/functions/send-campaign-messages/index.ts`**
 
----
+Em 2 pontos (sucesso e falha), após encontrar uma conversa existente, adicionar um `UPDATE` para atualizar o provider:
 
-#### 1. Novos tipos de Ação (ActionNode)
+```typescript
+if (existingConv) {
+  conversationId = existingConv.id;
+  // Atualizar provider para meta quando template é enviado via Meta
+  await supabase.from('conversations').update({
+    provider: 'meta',
+    meta_phone_number_id: phoneNumberId,
+  }).eq('id', conversationId);
+}
+```
 
-Adicionar 8 novos subtipos ao nó de Ação existente:
-
-**`src/components/chatbot-builder/ChatbotNodeConfig.tsx`**
-- Adicionar opções no Select de `actionType`: `set_field`, `create_lead`, `change_lead_status`, `add_note`, `add_task`, `change_conversation_status`, `complete_tasks`, `change_responsible`
-- Criar configuração de formulário para cada tipo:
-  - **Definir campo**: Selector de campo personalizado + valor
-  - **Criar lead**: Selector de funil + etapa destino
-  - **Mudar status do lead**: Selector de funil + nova etapa
-  - **Adicionar nota**: Textarea para conteúdo da nota
-  - **Adicionar tarefa**: Título + descrição + prazo
-  - **Alterar status da conversa**: Selector (aberta/pendente/resolvida)
-  - **Completar tarefas**: Toggle para completar todas as tarefas pendentes
-  - **Mudar usuário responsável**: Selector de membros da organização
-
-**`src/components/chatbot-builder/nodes/ActionNode.tsx`**
-- Adicionar ícones e labels para os novos tipos
-
-**`src/components/chatbot-builder/ChatbotFlowSidebar.tsx`**
-- Sem alteração (o nó "Ação" já existe, os subtipos são selecionados na configuração)
-
----
-
-#### 2. Novo nó: List Message (WhatsApp)
-
-Mensagem interativa com lista de opções (botão que abre um menu de seleção no WhatsApp).
-
-**Novo arquivo: `src/components/chatbot-builder/nodes/ListMessageNode.tsx`**
-- Visual com ícone do WhatsApp e preview das opções
-
-**`src/components/chatbot-builder/ChatbotNodeConfig.tsx`**
-- Configuração: título, descrição, texto do botão, e lista de seções com itens (título + descrição)
-- Cada item gera uma saída (handle) para roteamento condicional
-
-**`src/components/chatbot-builder/ChatbotFlowSidebar.tsx`**
-- Adicionar na categoria "Mensagens"
-
-**`src/components/chatbot-builder/ChatbotFlowEditor.tsx`**
-- Registrar novo nodeType
-
----
-
-#### 3. Novo nó: Validação
-
-Valida a resposta do usuário (formato de email, telefone, CPF, número, texto não vazio) antes de prosseguir.
-
-**Novo arquivo: `src/components/chatbot-builder/nodes/ValidationNode.tsx`**
-- Visual verde com ícone de check
-
-**`src/components/chatbot-builder/ChatbotNodeConfig.tsx`**
-- Configuração: variável a validar, tipo de validação (email, telefone, CPF, número, não vazio, regex customizado), mensagem de erro
-- Duas saídas: "Válido" e "Inválido"
-
----
-
-#### 4. Novo nó: Iniciar outro Fluxo
-
-Permite encadear fluxos, disparando outro chatbot a partir do atual.
-
-**Novo arquivo: `src/components/chatbot-builder/nodes/SubFlowNode.tsx`**
-- Selector do fluxo a ser disparado
-
----
-
-#### 5. Novo nó: Round Robin
-
-Distribui a conversa entre membros da equipe de forma rotativa.
-
-**Novo arquivo: `src/components/chatbot-builder/nodes/RoundRobinNode.tsx`**
-- Configuração: lista de usuários participantes do rodízio
-
----
+Isso garante que:
+- A conversa existente passe a ser tratada como Meta
+- A resposta do contato será roteada pelo número Meta correto
+- O `meta-whatsapp-webhook` encontrará a conversa com `provider: 'meta'`
 
 ### Arquivos modificados
 
 | Arquivo | Alteração |
 |---|---|
-| `ChatbotNodeConfig.tsx` | Adicionar configs para 8 novas ações + 3 novos nós |
-| `ActionNode.tsx` | Novos ícones e labels |
-| `ChatbotFlowSidebar.tsx` | 4 novos nós na sidebar |
-| `ChatbotFlowEditor.tsx` | Registrar 4 novos nodeTypes |
-| `nodes/ListMessageNode.tsx` | **Novo** |
-| `nodes/ValidationNode.tsx` | **Novo** |
-| `nodes/SubFlowNode.tsx` | **Novo** |
-| `nodes/RoundRobinNode.tsx` | **Novo** |
-
-### Observação
-
-Esta fase cobre apenas o **frontend** (editor visual). A execução real dos novos nós no motor (`execute-chatbot-flow`) será implementada em uma fase posterior, pois cada novo tipo precisa de lógica de backend específica. O editor já ficará completo para o usuário montar fluxos com todos os recursos.
+| `send-campaign-messages/index.ts` | Adicionar UPDATE de `provider` e `meta_phone_number_id` em 2 pontos (sucesso ~linha 993 e falha ~linha 943) |
 
 ### Impacto
-- Nenhuma alteração de banco de dados nesta fase
-- 4 novos arquivos + 4 arquivos modificados
-- Paridade funcional com o Kommo no editor visual
+- Nenhuma alteração de banco de dados
+- 1 arquivo backend modificado
+- Corrige o roteamento para todos os leads existentes que recebem templates Meta
 
