@@ -227,6 +227,7 @@ export const useCampaignMutations = () => {
       ai_handoff_keywords?: string[];
       ai_active_hours_start?: number;
       ai_active_hours_end?: number;
+      meta_variable_mappings?: MetaVariableMapping[] | null;
     }) => {
       if (!user?.id) throw new Error('User not authenticated');
 
