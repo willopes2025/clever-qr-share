@@ -534,9 +534,10 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 placeholder="Digite a mensagem a ser enviada..."
                 rows={4}
               />
-              <p className="text-xs text-muted-foreground">
-                Use {"{{variavel}}"} para inserir variáveis dinâmicas
-              </p>
+              <VariableChipsSelector
+                onInsert={(variable) => handleChange("message", (data?.message || "") + " " + variable)}
+                compact
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="delay">Delay (segundos)</Label>
