@@ -997,6 +997,11 @@ Deno.serve(async (req: Request) => {
 
         if (existingConv) {
           conversationId = existingConv.id;
+          // Update provider to meta so replies route correctly
+          await supabase.from('conversations').update({
+            provider: 'meta',
+            meta_phone_number_id: phoneNumberId,
+          }).eq('id', conversationId);
         } else {
           const { data: newConv } = await supabase
             .from('conversations')
