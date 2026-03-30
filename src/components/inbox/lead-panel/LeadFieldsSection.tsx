@@ -59,11 +59,11 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     : leadFieldDefinitions;
   
   // Also detect custom_fields keys that have data but NO lead field definition (orphan data)
-  const customFields = (deal?.custom_fields || {}) as Record<string, any>;
+  const dealCustomFields = (deal?.custom_fields || {}) as Record<string, any>;
   const orphanDataFields: CustomFieldDefinition[] = [];
   if (deal?.custom_fields) {
-    for (const key of Object.keys(customFields)) {
-      const val = customFields[key];
+    for (const key of Object.keys(dealCustomFields)) {
+      const val = dealCustomFields[key];
       if (val === null || val === undefined || val === '') continue;
       if (!leadFieldKeySet.has(key)) {
         orphanDataFields.push({
@@ -85,7 +85,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   // Combine defined fields + orphan data fields
   const allVisibleFields = [...filteredLeadFields, ...orphanDataFields];
   
-  const customFields = (deal?.custom_fields || {}) as Record<string, any>;
+  const customFields = dealCustomFields;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [manuallyAdded, setManuallyAdded] = useState<Set<string>>(new Set());
