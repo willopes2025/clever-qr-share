@@ -91,6 +91,13 @@ Deno.serve(async (req: Request) => {
       triggersToCheck.push(triggerType);
     }
 
+    // on_responsible_changed is passed as triggerType, but also check explicitly
+    if (oldResponsible && newResponsible && oldResponsible !== newResponsible) {
+      if (!triggersToCheck.includes('on_responsible_changed')) {
+        triggersToCheck.push('on_responsible_changed');
+      }
+    }
+
     console.log("[FUNNEL-AUTOMATIONS] Triggers to check:", triggersToCheck);
 
     // Fetch applicable automations
