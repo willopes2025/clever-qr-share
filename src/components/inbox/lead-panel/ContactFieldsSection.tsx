@@ -345,9 +345,9 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
         return (
           <>
             {filledFields.map((field) => (
-              <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2">
-                <span className="text-xs font-medium text-foreground/70 shrink-0">{field.field_name}</span>
-                <div className="flex-1 flex justify-end items-center gap-1 min-w-0 overflow-hidden">
+              <div key={field.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 group/field min-w-0 gap-2 overflow-hidden">
+                <span className="text-xs font-medium text-foreground/70 shrink-0 max-w-[40%] truncate">{field.field_name}</span>
+                <div className="flex justify-end items-center gap-1 min-w-0 overflow-hidden max-w-[60%]">
                   {renderFieldValue(field)}
                   <button
                     onClick={() => deleteField.mutate(field.id)}
