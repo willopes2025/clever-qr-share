@@ -507,7 +507,7 @@ Deno.serve(async (req: Request) => {
         message_interval_min, message_interval_max, daily_limit,
         allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at,
         tag_on_delivery_id, template_id, meta_template_id, meta_phone_number_id,
-        batch_enabled, batch_size, batch_pause_minutes
+        batch_enabled, batch_size, batch_pause_minutes, meta_variable_mappings
       `)
       .eq('id', campaignId)
       .single();
