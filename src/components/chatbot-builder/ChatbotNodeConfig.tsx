@@ -12,6 +12,7 @@ import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
 import { useFunnels } from "@/hooks/useFunnels";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VariableChipsSelector } from "@/components/shared/VariableChipsSelector";
 
 interface ConditionItem {
   id: string;
@@ -533,9 +534,10 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 placeholder="Digite a mensagem a ser enviada..."
                 rows={4}
               />
-              <p className="text-xs text-muted-foreground">
-                Use {"{{variavel}}"} para inserir variáveis dinâmicas
-              </p>
+              <VariableChipsSelector
+                onInsert={(variable) => handleChange("message", (data?.message || "") + " " + variable)}
+                compact
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="delay">Delay (segundos)</Label>
@@ -561,6 +563,10 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 onChange={(e) => handleChange("question", e.target.value)}
                 placeholder="Digite a pergunta..."
                 rows={3}
+              />
+              <VariableChipsSelector
+                onInsert={(variable) => handleChange("question", (data?.question || "") + " " + variable)}
+                compact
               />
             </div>
             <div className="space-y-2">

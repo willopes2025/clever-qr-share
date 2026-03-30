@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Sparkles, Loader2, ChevronDown, ChevronUp, ChevronRight, User, FileText, Bot } from 'lucide-react';
+import { VariableChipsSelector } from '@/components/shared/VariableChipsSelector';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -439,7 +440,7 @@ export const TemplateFormDialog = ({
               <div className="space-y-2">
                 <Label htmlFor="content">Conteúdo da Mensagem</Label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável
+                  Digite <span className="font-mono bg-muted px-1 rounded">{'{{'}</span> para inserir uma variável, ou clique em um chip abaixo
                 </p>
                 <VariableAutocomplete
                   value={content}
@@ -447,6 +448,10 @@ export const TemplateFormDialog = ({
                   placeholder="Digite o conteúdo do template. Use {{ para inserir variáveis dinâmicas."
                   rows={6}
                   className="bg-background border-border font-mono text-sm"
+                />
+                <VariableChipsSelector
+                  onInsert={(variable) => setContent(prev => prev + ' ' + variable)}
+                  compact
                 />
               </div>
 
