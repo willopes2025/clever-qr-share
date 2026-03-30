@@ -50,16 +50,36 @@ interface NodeData {
     httpUrl?: string;
     httpMethod?: string;
     httpBody?: string;
+    fieldKey?: string;
+    fieldValue?: string;
+    noteContent?: string;
+    taskTitle?: string;
+    taskDescription?: string;
+    taskDueDate?: string;
+    conversationStatus?: string;
+    responsibleId?: string;
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
   intentDescription?: string;
-  conditionAiConfigId?: string; // AI assistant for intent analysis
-  // Multiple conditions (variable mode)
+  conditionAiConfigId?: string;
   logicOperator?: 'and' | 'or';
   conditions?: ConditionItem[];
-  // Multiple intents (AI mode)
   intents?: IntentItem[];
+  // List message fields
+  header?: string;
+  body?: string;
+  buttonText?: string;
+  items?: Array<{ title: string; description: string }>;
+  // Validation fields
+  validationType?: string;
+  regexPattern?: string;
+  errorMessage?: string;
+  // Sub flow fields
+  flowName?: string;
+  targetFlowId?: string;
+  // Round robin fields
+  members?: string[];
 }
 
 interface ChatbotNodeConfigProps {
