@@ -1,4 +1,4 @@
-import { MessageSquare, GitBranch, Clock, Bot, Tag, Play, Square, HelpCircle } from "lucide-react";
+import { MessageSquare, GitBranch, Clock, Bot, Tag, Play, Square, HelpCircle, List, ShieldCheck, Workflow, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nodeCategories = [
@@ -14,6 +14,7 @@ const nodeCategories = [
     nodes: [
       { type: "message", label: "Mensagem", icon: MessageSquare, color: "bg-blue-500" },
       { type: "question", label: "Pergunta", icon: HelpCircle, color: "bg-purple-500" },
+      { type: "list_message", label: "List Message", icon: List, color: "bg-green-600" },
     ],
   },
   {
@@ -21,6 +22,7 @@ const nodeCategories = [
     nodes: [
       { type: "condition", label: "Condição", icon: GitBranch, color: "bg-yellow-500" },
       { type: "delay", label: "Aguardar", icon: Clock, color: "bg-orange-500" },
+      { type: "validation", label: "Validação", icon: ShieldCheck, color: "bg-emerald-500" },
     ],
   },
   {
@@ -33,6 +35,8 @@ const nodeCategories = [
     label: "Ações",
     nodes: [
       { type: "action", label: "Ação", icon: Tag, color: "bg-pink-500" },
+      { type: "sub_flow", label: "Iniciar Fluxo", icon: Workflow, color: "bg-indigo-500" },
+      { type: "round_robin", label: "Round Robin", icon: RefreshCw, color: "bg-amber-500" },
     ],
   },
 ];

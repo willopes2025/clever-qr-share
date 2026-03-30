@@ -329,6 +329,14 @@ function getDefaultDataForType(type: string): Record<string, any> {
       return { prompt: '', maxTokens: 500 };
     case 'end':
       return { label: 'Fim' };
+    case 'list_message':
+      return { header: '', body: '', buttonText: 'Ver opções', items: [] };
+    case 'validation':
+      return { validationType: 'not_empty', variable: '', errorMessage: '' };
+    case 'sub_flow':
+      return { targetFlowId: '', flowName: '' };
+    case 'round_robin':
+      return { members: [] };
     default:
       return {};
   }
