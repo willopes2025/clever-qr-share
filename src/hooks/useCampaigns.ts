@@ -241,9 +241,7 @@ export const useCampaignMutations = () => {
         totalContacts = count || 0;
       }
 
-      const { data: campaign, error } = await supabase
-        .from('campaigns')
-        .insert({
+      const insertData: Record<string, unknown> = {
           user_id: user.id,
           name: data.name,
           template_id: data.template_id,
@@ -278,7 +276,11 @@ export const useCampaignMutations = () => {
           ai_active_hours_start: data.ai_active_hours_start,
           ai_active_hours_end: data.ai_active_hours_end,
           meta_variable_mappings: data.meta_variable_mappings || null,
-        })
+      };
+
+      const { data: campaign, error } = await supabase
+        .from('campaigns')
+        .insert(insertData as any)
         .select()
         .single();
 
