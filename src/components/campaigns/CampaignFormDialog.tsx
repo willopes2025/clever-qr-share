@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,10 @@ import { useMetaTemplates } from '@/hooks/useMetaTemplates';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useBroadcastLists } from '@/hooks/useBroadcastLists';
 import { useContacts } from '@/hooks/useContacts';
-import { Campaign } from '@/hooks/useCampaigns';
+import { Campaign, MetaVariableMapping } from '@/hooks/useCampaigns';
 import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone } from 'lucide-react';
+import { useCustomFields } from '@/hooks/useCustomFields';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone, Variable } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { useNavigate } from 'react-router-dom';
