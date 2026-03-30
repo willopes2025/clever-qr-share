@@ -272,7 +272,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
   };
 
   return (
-    <div className="p-4 space-y-2 min-w-0">
+    <div className="p-4 space-y-2 min-w-0 overflow-hidden w-full">
       {/* Header */}
       <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-lg mb-3 min-w-0">
         <User className="h-4 w-4 text-muted-foreground shrink-0" />
