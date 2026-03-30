@@ -57,6 +57,7 @@ interface CampaignFormDialogProps {
     batch_enabled: boolean;
     batch_size: number;
     batch_pause_minutes: number;
+    meta_variable_mappings?: MetaVariableMapping[] | null;
   }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
