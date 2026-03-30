@@ -1,45 +1,36 @@
 
 
-## Plano: Corrigir roteamento de resposta Meta para leads existentes
+## Plano: Mostrar apenas campos preenchidos + dropdown para campos vazios
 
-### Problema
+### Conceito
 
-Quando uma campanha Meta envia um template para um contato que **já possui conversa** no sistema (via Evolution API), o código encontra a conversa existente e reutiliza o ID dela, mas **não atualiza** os campos `provider` e `meta_phone_number_id`. Quando o contato responde, o sistema roteia a resposta pela Evolution API (telefone antigo) em vez do número Meta que enviou o template.
+Tanto na seção "Dados do Lead" quanto "Dados do Contato", os campos serão divididos em dois grupos:
+- **Campos preenchidos**: exibidos normalmente como hoje (editáveis inline)
+- **Campos vazios**: ocultos da lista principal e acessíveis via um Select/dropdown "Adicionar campo" que lista apenas os campos sem valor. Ao selecionar um campo vazio, ele é adicionado à lista visível e entra em modo de edição automaticamente
 
-### Causa raiz
+### Alterações
 
-Em `send-campaign-messages/index.ts`, linhas 992-993: quando `existingConv` é encontrada, o código apenas faz `conversationId = existingConv.id` sem atualizar o provider da conversa para `meta`.
+#### 1. `LeadFieldsSection.tsx`
+- Separar `filteredLeadFields` em `filledFields` (campos com valor em `customFields`) e `emptyFields` (sem valor)
+- Renderizar apenas `filledFields` na lista
+- Após a lista, adicionar um `Select` com placeholder "Preencher campo..." listando os `emptyFields` por nome
+- Ao selecionar um campo vazio, setar `editingField` para aquele campo e adicioná-lo temporariamente à lista visível (via estado `manuallyAdded`)
+- Campos boolean/switch sempre aparecem (já que false é um valor válido)
 
-### Solução
-
-**Arquivo: `supabase/functions/send-campaign-messages/index.ts`**
-
-Em 2 pontos (sucesso e falha), após encontrar uma conversa existente, adicionar um `UPDATE` para atualizar o provider:
-
-```typescript
-if (existingConv) {
-  conversationId = existingConv.id;
-  // Atualizar provider para meta quando template é enviado via Meta
-  await supabase.from('conversations').update({
-    provider: 'meta',
-    meta_phone_number_id: phoneNumberId,
-  }).eq('id', conversationId);
-}
-```
-
-Isso garante que:
-- A conversa existente passe a ser tratada como Meta
-- A resposta do contato será roteada pelo número Meta correto
-- O `meta-whatsapp-webhook` encontrará a conversa com `provider: 'meta'`
+#### 2. `ContactFieldsSection.tsx`
+- Mesma lógica: separar preenchidos vs vazios
+- O dropdown de campos vazios fica antes do botão "Adicionar Campo" existente
+- Campos nativos (Nome, Telefone, Email) continuam sempre visíveis
 
 ### Arquivos modificados
 
 | Arquivo | Alteração |
 |---|---|
-| `send-campaign-messages/index.ts` | Adicionar UPDATE de `provider` e `meta_phone_number_id` em 2 pontos (sucesso ~linha 993 e falha ~linha 943) |
+| `LeadFieldsSection.tsx` | Separar filled/empty, dropdown para vazios |
+| `ContactFieldsSection.tsx` | Mesma lógica aplicada aos campos do contato |
 
 ### Impacto
 - Nenhuma alteração de banco de dados
-- 1 arquivo backend modificado
-- Corrige o roteamento para todos os leads existentes que recebem templates Meta
+- 2 arquivos frontend modificados
+- Painel fica mais limpo mostrando só dados relevantes
 
