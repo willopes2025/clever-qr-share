@@ -16,7 +16,9 @@ interface AutomationPayload {
   customFieldValue?: string;
   oldValue?: number;
   newValue?: number;
-  isNewDeal?: boolean; // Flag to indicate if this is a newly created deal
+  isNewDeal?: boolean;
+  oldResponsible?: string;
+  newResponsible?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -30,7 +32,7 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const payload: AutomationPayload = await req.json();
-    const { dealId, fromStageId, toStageId, triggerType, messageContent, tagName, customFieldKey, customFieldValue, isNewDeal } = payload;
+    const { dealId, fromStageId, toStageId, triggerType, messageContent, tagName, customFieldKey, customFieldValue, isNewDeal, oldResponsible, newResponsible } = payload;
 
     console.log("[FUNNEL-AUTOMATIONS] Processing automation", payload);
 
@@ -87,6 +89,13 @@ Deno.serve(async (req: Request) => {
 
     if (triggerType) {
       triggersToCheck.push(triggerType);
+    }
+
+    // on_responsible_changed is passed as triggerType, but also check explicitly
+    if (oldResponsible && newResponsible && oldResponsible !== newResponsible) {
+      if (!triggersToCheck.includes('on_responsible_changed')) {
+        triggersToCheck.push('on_responsible_changed');
+      }
     }
 
     console.log("[FUNNEL-AUTOMATIONS] Triggers to check:", triggersToCheck);

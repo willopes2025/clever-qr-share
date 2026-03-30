@@ -37,7 +37,14 @@ const TRIGGER_LABELS: Record<string, string> = {
   on_inactivity: 'Inatividade',
   on_deal_value_changed: 'Valor do deal alterado',
   on_custom_field_changed: 'Campo personalizado alterado',
-  on_webhook: 'Webhook externo'
+  on_webhook: 'Webhook externo',
+  on_form_submission: 'Formulário enviado',
+  on_responsible_changed: 'Responsável alterado',
+  on_scheduled_before_date_field: 'Antes de campo de data',
+  on_scheduled_exact_time: 'Em data e hora exata',
+  on_scheduled_daily: 'Diariamente às',
+  on_conversation_closed: 'Conversa encerrada',
+  on_hours_after_last_message: 'Após última mensagem',
 };
 
 const ACTION_LABELS: Record<string, string> = {

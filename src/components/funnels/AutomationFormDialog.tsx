@@ -54,7 +54,13 @@ type TriggerType =
   | 'on_deal_value_changed'
   | 'on_custom_field_changed'
   | 'on_webhook'
-  | 'on_form_submission';
+  | 'on_form_submission'
+  | 'on_responsible_changed'
+  | 'on_scheduled_before_date_field'
+  | 'on_scheduled_exact_time'
+  | 'on_scheduled_daily'
+  | 'on_conversation_closed'
+  | 'on_hours_after_last_message';
 
 type ActionType = 
   | 'send_message' 
@@ -311,7 +317,9 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
     }
   };
 
-  const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage'].includes(triggerType);
+  const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage', 'on_scheduled_before_date_field', 'on_scheduled_daily'].includes(triggerType);
+
+  const dateFieldDefinitions = fieldDefinitions?.filter(f => f.field_type === 'date') || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -363,23 +371,40 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="on_funnel_enter">🚀 Quando entrar no funil (qualquer etapa)</SelectItem>
+                {/* Pipeline triggers */}
+                <SelectItem disabled value="__group_pipeline" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos do Pipeline ──</SelectItem>
+                <SelectItem value="on_funnel_enter">🚀 Quando entrar no funil</SelectItem>
                 <SelectItem value="on_existing_deals">📋 Todos que já fazem parte do funil</SelectItem>
-                <SelectItem value="on_stage_enter">Quando entrar na etapa</SelectItem>
-                <SelectItem value="on_stage_exit">Quando sair da etapa</SelectItem>
-                <SelectItem value="on_deal_won">Quando deal for ganho</SelectItem>
-                <SelectItem value="on_deal_lost">Quando deal for perdido</SelectItem>
-                <SelectItem value="on_time_in_stage">Após X dias na etapa</SelectItem>
-                <SelectItem value="on_message_received">Quando receber mensagem</SelectItem>
-                <SelectItem value="on_keyword_received">Quando mensagem conter palavra-chave</SelectItem>
-                <SelectItem value="on_contact_created">Quando contato for criado</SelectItem>
-                <SelectItem value="on_tag_added">Quando tag for adicionada</SelectItem>
-                <SelectItem value="on_tag_removed">Quando tag for removida</SelectItem>
-                <SelectItem value="on_inactivity">Após X dias sem interação</SelectItem>
-                <SelectItem value="on_deal_value_changed">Quando valor do deal mudar</SelectItem>
-                <SelectItem value="on_custom_field_changed">Quando campo personalizado mudar</SelectItem>
-                <SelectItem value="on_webhook">Webhook externo</SelectItem>
+                <SelectItem value="on_stage_enter">⚡ Quando entrar na etapa</SelectItem>
+                <SelectItem value="on_stage_exit">↔️ Quando sair da etapa</SelectItem>
+                <SelectItem value="on_deal_won">✅ Quando deal for ganho</SelectItem>
+                <SelectItem value="on_deal_lost">❌ Quando deal for perdido</SelectItem>
+                <SelectItem value="on_responsible_changed">👤 Quando responsável for alterado</SelectItem>
+                
+                {/* Scheduled triggers */}
+                <SelectItem disabled value="__group_scheduled" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos Programados ──</SelectItem>
+                <SelectItem value="on_scheduled_before_date_field">⏰ X horas antes de campo de data</SelectItem>
+                <SelectItem value="on_scheduled_exact_time">📅 Em data e hora exata</SelectItem>
+                <SelectItem value="on_scheduled_daily">🔄 Diariamente às</SelectItem>
+                <SelectItem value="on_time_in_stage">⏱️ Após X dias na etapa</SelectItem>
+                <SelectItem value="on_inactivity">😴 Após X dias sem interação</SelectItem>
+                
+                {/* Conversation triggers */}
+                <SelectItem disabled value="__group_conversation" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos de Conversa ──</SelectItem>
+                <SelectItem value="on_message_received">💬 Quando receber mensagem</SelectItem>
+                <SelectItem value="on_keyword_received">🔑 Quando conter palavra-chave</SelectItem>
+                <SelectItem value="on_hours_after_last_message">⏳ X horas após última mensagem</SelectItem>
+                <SelectItem value="on_conversation_closed">🔒 Quando conversa for encerrada</SelectItem>
+                
+                {/* Action triggers */}
+                <SelectItem disabled value="__group_action" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos de Ação ──</SelectItem>
+                <SelectItem value="on_tag_added">🏷️ Quando tag for adicionada</SelectItem>
+                <SelectItem value="on_tag_removed">🏷️ Quando tag for removida</SelectItem>
+                <SelectItem value="on_contact_created">👥 Quando contato for criado</SelectItem>
+                <SelectItem value="on_deal_value_changed">💰 Quando valor do deal mudar</SelectItem>
+                <SelectItem value="on_custom_field_changed">📝 Quando campo personalizado mudar</SelectItem>
                 <SelectItem value="on_form_submission">📝 Quando formulário for enviado</SelectItem>
+                <SelectItem value="on_webhook">🔗 Webhook externo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -509,6 +534,94 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
               </Select>
               <p className="text-xs text-muted-foreground">
                 A automação será acionada quando o formulário selecionado for enviado
+              </p>
+            </div>
+          )}
+
+          {triggerType === 'on_scheduled_before_date_field' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Campo de Data</Label>
+                <Select
+                  value={triggerConfig.date_field_key as string || ''}
+                  onValueChange={(v) => setTriggerConfig({ ...triggerConfig, date_field_key: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar campo de data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="expected_close_date">Data prevista de fechamento</SelectItem>
+                    {dateFieldDefinitions.map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Horas antes</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={triggerConfig.hours_before as number || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, hours_before: Number(e.target.value) })}
+                  placeholder="Ex: 24 (= 1 dia antes)"
+                />
+              </div>
+            </div>
+          )}
+
+          {triggerType === 'on_scheduled_exact_time' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Data</Label>
+                <Input
+                  type="date"
+                  value={triggerConfig.scheduled_date as string || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, scheduled_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Hora</Label>
+                <Input
+                  type="time"
+                  value={triggerConfig.scheduled_time as string || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, scheduled_time: e.target.value })}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A automação será executada uma única vez na data e hora exata configurada
+              </p>
+            </div>
+          )}
+
+          {triggerType === 'on_scheduled_daily' && (
+            <div className="space-y-2">
+              <Label>Hora de execução diária</Label>
+              <Input
+                type="time"
+                value={triggerConfig.daily_time as string || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, daily_time: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                A automação será executada todos os dias neste horário para todos os deals do funil/etapa
+              </p>
+            </div>
+          )}
+
+          {triggerType === 'on_hours_after_last_message' && (
+            <div className="space-y-2">
+              <Label>Horas após última mensagem recebida</Label>
+              <Input
+                type="number"
+                min={1}
+                value={triggerConfig.hours as number || ''}
+                onChange={(e) => setTriggerConfig({ ...triggerConfig, hours: Number(e.target.value) })}
+                placeholder="Ex: 2"
+              />
+              <p className="text-xs text-muted-foreground">
+                A automação será acionada X horas após a última mensagem recebida do contato
               </p>
             </div>
           )}
