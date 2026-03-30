@@ -50,16 +50,36 @@ interface NodeData {
     httpUrl?: string;
     httpMethod?: string;
     httpBody?: string;
+    fieldKey?: string;
+    fieldValue?: string;
+    noteContent?: string;
+    taskTitle?: string;
+    taskDescription?: string;
+    taskDueDate?: string;
+    conversationStatus?: string;
+    responsibleId?: string;
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
   intentDescription?: string;
-  conditionAiConfigId?: string; // AI assistant for intent analysis
-  // Multiple conditions (variable mode)
+  conditionAiConfigId?: string;
   logicOperator?: 'and' | 'or';
   conditions?: ConditionItem[];
-  // Multiple intents (AI mode)
   intents?: IntentItem[];
+  // List message fields
+  header?: string;
+  body?: string;
+  buttonText?: string;
+  items?: Array<{ title: string; description: string }>;
+  // Validation fields
+  validationType?: string;
+  regexPattern?: string;
+  errorMessage?: string;
+  // Sub flow fields
+  flowName?: string;
+  targetFlowId?: string;
+  // Round robin fields
+  members?: string[];
 }
 
 interface ChatbotNodeConfigProps {
@@ -643,10 +663,230 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                   <SelectItem value="set_variable">Definir Variável</SelectItem>
                   <SelectItem value="transfer">Transferir para Humano</SelectItem>
                   <SelectItem value="http_request">Requisição HTTP</SelectItem>
+                  <SelectItem value="set_field">Definir Campo</SelectItem>
+                  <SelectItem value="create_lead">Criar Lead</SelectItem>
+                  <SelectItem value="change_lead_status">Mudar Status do Lead</SelectItem>
+                  <SelectItem value="add_note">Adicionar Nota</SelectItem>
+                  <SelectItem value="add_task">Adicionar Tarefa</SelectItem>
+                  <SelectItem value="change_conversation_status">Alterar Status Conversa</SelectItem>
+                  <SelectItem value="complete_tasks">Completar Tarefas</SelectItem>
+                  <SelectItem value="change_responsible">Mudar Responsável</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {renderActionConfig()}
+          </div>
+        );
+
+      case "list_message":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="header">Título</Label>
+              <Input
+                id="header"
+                value={data?.header || ""}
+                onChange={(e) => handleChange("header", e.target.value)}
+                placeholder="Escolha uma opção"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="body">Corpo da mensagem</Label>
+              <Textarea
+                id="body"
+                value={data?.body || ""}
+                onChange={(e) => handleChange("body", e.target.value)}
+                placeholder="Selecione abaixo a opção desejada..."
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="buttonText">Texto do Botão</Label>
+              <Input
+                id="buttonText"
+                value={data?.buttonText || "Ver opções"}
+                onChange={(e) => handleChange("buttonText", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Itens da Lista</Label>
+              {((data?.items as Array<{ title: string; description: string }>) || []).map((item: { title: string; description: string }, index: number) => (
+                <div key={index} className="p-2 border border-border rounded-lg space-y-1 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Item {index + 1}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => {
+                        const items = [...((data?.items as any[]) || [])];
+                        items.splice(index, 1);
+                        handleChange("items", items);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <Input
+                    value={item.title}
+                    onChange={(e) => {
+                      const items = [...((data?.items as any[]) || [])];
+                      items[index] = { ...items[index], title: e.target.value };
+                      handleChange("items", items);
+                    }}
+                    placeholder="Título"
+                    className="h-7 text-xs"
+                  />
+                  <Input
+                    value={item.description}
+                    onChange={(e) => {
+                      const items = [...((data?.items as any[]) || [])];
+                      items[index] = { ...items[index], description: e.target.value };
+                      handleChange("items", items);
+                    }}
+                    placeholder="Descrição (opcional)"
+                    className="h-7 text-xs"
+                  />
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  const items = [...((data?.items as any[]) || []), { title: '', description: '' }];
+                  handleChange("items", items);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar Item
+              </Button>
+            </div>
+          </div>
+        );
+
+      case "validation":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="variable">Variável a Validar</Label>
+              <Input
+                id="variable"
+                value={data?.variable || ""}
+                onChange={(e) => handleChange("variable", e.target.value)}
+                placeholder="nome_variavel"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo de Validação</Label>
+              <Select
+                value={data?.validationType || "not_empty"}
+                onValueChange={(v) => handleChange("validationType", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="not_empty">Não vazio</SelectItem>
+                  <SelectItem value="email">E-mail</SelectItem>
+                  <SelectItem value="phone">Telefone</SelectItem>
+                  <SelectItem value="cpf">CPF</SelectItem>
+                  <SelectItem value="number">Número</SelectItem>
+                  <SelectItem value="regex">Regex personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {data?.validationType === "regex" && (
+              <div className="space-y-2">
+                <Label htmlFor="regexPattern">Padrão Regex</Label>
+                <Input
+                  id="regexPattern"
+                  value={data?.regexPattern || ""}
+                  onChange={(e) => handleChange("regexPattern", e.target.value)}
+                  placeholder="^[0-9]{11}$"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="errorMessage">Mensagem de Erro</Label>
+              <Textarea
+                id="errorMessage"
+                value={data?.errorMessage || ""}
+                onChange={(e) => handleChange("errorMessage", e.target.value)}
+                placeholder="Por favor, informe um valor válido."
+                rows={2}
+              />
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p>Saídas: <strong>Válido</strong> (esquerda) e <strong>Inválido</strong> (direita)</p>
+            </div>
+          </div>
+        );
+
+      case "sub_flow":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Fluxo a Iniciar</Label>
+              <Input
+                value={data?.flowName || ""}
+                onChange={(e) => handleChange("flowName", e.target.value)}
+                placeholder="Nome do fluxo de destino"
+              />
+              <p className="text-xs text-muted-foreground">
+                O fluxo selecionado será iniciado quando a execução chegar neste nó.
+              </p>
+            </div>
+          </div>
+        );
+
+      case "round_robin":
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Membros do Rodízio</Label>
+              {((data?.members as string[]) || []).map((member: string, index: number) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={member}
+                    onChange={(e) => {
+                      const members = [...((data?.members as string[]) || [])];
+                      members[index] = e.target.value;
+                      handleChange("members", members);
+                    }}
+                    placeholder="Nome do membro"
+                    className="h-8 text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => {
+                      const members = [...((data?.members as string[]) || [])];
+                      members.splice(index, 1);
+                      handleChange("members", members);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  const members = [...((data?.members as string[]) || []), ''];
+                  handleChange("members", members);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar Membro
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A conversa será distribuída de forma rotativa entre os membros configurados.
+            </p>
           </div>
         );
 
@@ -822,6 +1062,163 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
             </div>
           </>
         );
+      case "set_field":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="fieldKey">Campo</Label>
+              <Input
+                id="fieldKey"
+                value={config.fieldKey || ""}
+                onChange={(e) => handleChange("config", { ...config, fieldKey: e.target.value })}
+                placeholder="nome_do_campo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fieldValue">Valor</Label>
+              <Input
+                id="fieldValue"
+                value={config.fieldValue || ""}
+                onChange={(e) => handleChange("config", { ...config, fieldValue: e.target.value })}
+                placeholder="valor ou {{variavel}}"
+              />
+            </div>
+          </>
+        );
+      case "create_lead":
+      case "change_lead_status":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="funnelId">Funil</Label>
+              <Select
+                value={config.funnelId || ""}
+                onValueChange={(v) => handleChange("config", { ...config, funnelId: v, stageId: "" })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um funil..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {funnels?.map((funnel) => (
+                    <SelectItem key={funnel.id} value={funnel.id}>
+                      {funnel.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {config.funnelId && selectedFunnel && (
+              <div className="space-y-2">
+                <Label htmlFor="stageId">Etapa</Label>
+                <Select
+                  value={config.stageId || ""}
+                  onValueChange={(v) => handleChange("config", { ...config, stageId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma etapa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedFunnel.stages?.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        {stage.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        );
+      case "add_note":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="noteContent">Conteúdo da Nota</Label>
+            <Textarea
+              id="noteContent"
+              value={config.noteContent || ""}
+              onChange={(e) => handleChange("config", { ...config, noteContent: e.target.value })}
+              placeholder="Escreva o conteúdo da nota..."
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use {"{{variavel}}"} para dados dinâmicos
+            </p>
+          </div>
+        );
+      case "add_task":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="taskTitle">Título da Tarefa</Label>
+              <Input
+                id="taskTitle"
+                value={config.taskTitle || ""}
+                onChange={(e) => handleChange("config", { ...config, taskTitle: e.target.value })}
+                placeholder="Título da tarefa"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="taskDescription">Descrição</Label>
+              <Textarea
+                id="taskDescription"
+                value={config.taskDescription || ""}
+                onChange={(e) => handleChange("config", { ...config, taskDescription: e.target.value })}
+                placeholder="Descrição da tarefa..."
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="taskDueDate">Prazo (dias)</Label>
+              <Input
+                id="taskDueDate"
+                type="number"
+                min={1}
+                value={config.taskDueDate || "1"}
+                onChange={(e) => handleChange("config", { ...config, taskDueDate: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Dias a partir da execução</p>
+            </div>
+          </>
+        );
+      case "change_conversation_status":
+        return (
+          <div className="space-y-2">
+            <Label>Novo Status</Label>
+            <Select
+              value={config.conversationStatus || "open"}
+              onValueChange={(v) => handleChange("config", { ...config, conversationStatus: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open">Aberta</SelectItem>
+                <SelectItem value="pending">Pendente</SelectItem>
+                <SelectItem value="resolved">Resolvida</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      case "complete_tasks":
+        return (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Todas as tarefas pendentes do contato serão marcadas como concluídas.
+            </p>
+          </div>
+        );
+      case "change_responsible":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="responsibleId">Responsável</Label>
+            <Input
+              id="responsibleId"
+              value={config.responsibleId || ""}
+              onChange={(e) => handleChange("config", { ...config, responsibleId: e.target.value })}
+              placeholder="ID ou nome do responsável"
+            />
+          </div>
+        );
       default:
         return null;
     }
@@ -837,6 +1234,10 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
       ai_response: "Resposta IA",
       action: "Ação",
       end: "Fim",
+      list_message: "List Message",
+      validation: "Validação",
+      sub_flow: "Iniciar Fluxo",
+      round_robin: "Round Robin",
     };
     return typeNames[node.type || ""] || "Nó";
   };

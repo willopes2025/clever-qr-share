@@ -34,6 +34,10 @@ import { DelayNode } from './nodes/DelayNode';
 import { AIResponseNode } from './nodes/AIResponseNode';
 import { EndNode } from './nodes/EndNode';
 import { QuestionNode } from './nodes/QuestionNode';
+import { ListMessageNode } from './nodes/ListMessageNode';
+import { ValidationNode } from './nodes/ValidationNode';
+import { SubFlowNode } from './nodes/SubFlowNode';
+import { RoundRobinNode } from './nodes/RoundRobinNode';
 
 const nodeTypes = {
   start: StartNode,
@@ -44,6 +48,10 @@ const nodeTypes = {
   delay: DelayNode,
   ai_response: AIResponseNode,
   end: EndNode,
+  list_message: ListMessageNode,
+  validation: ValidationNode,
+  sub_flow: SubFlowNode,
+  round_robin: RoundRobinNode,
 };
 
 interface ChatbotFlowEditorProps {
@@ -321,6 +329,14 @@ function getDefaultDataForType(type: string): Record<string, any> {
       return { prompt: '', maxTokens: 500 };
     case 'end':
       return { label: 'Fim' };
+    case 'list_message':
+      return { header: '', body: '', buttonText: 'Ver opções', items: [] };
+    case 'validation':
+      return { validationType: 'not_empty', variable: '', errorMessage: '' };
+    case 'sub_flow':
+      return { targetFlowId: '', flowName: '' };
+    case 'round_robin':
+      return { members: [] };
     default:
       return {};
   }

@@ -1,5 +1,5 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { Tag, ArrowRightLeft, Variable, UserPlus, Globe, Trash2 } from "lucide-react";
+import { Tag, ArrowRightLeft, Variable, UserPlus, Globe, Trash2, FileText, PlusCircle, BarChart3, StickyNote, ListTodo, MessageCircle, CheckSquare, Users } from "lucide-react";
 
 const actionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   add_tag: Tag,
@@ -8,6 +8,14 @@ const actionIcons: Record<string, React.ComponentType<{ className?: string }>> =
   set_variable: Variable,
   transfer: UserPlus,
   http_request: Globe,
+  set_field: FileText,
+  create_lead: PlusCircle,
+  change_lead_status: BarChart3,
+  add_note: StickyNote,
+  add_task: ListTodo,
+  change_conversation_status: MessageCircle,
+  complete_tasks: CheckSquare,
+  change_responsible: Users,
 };
 
 const actionLabels: Record<string, string> = {
@@ -17,6 +25,14 @@ const actionLabels: Record<string, string> = {
   set_variable: "Definir Variável",
   transfer: "Transferir",
   http_request: "HTTP Request",
+  set_field: "Definir Campo",
+  create_lead: "Criar Lead",
+  change_lead_status: "Mudar Status Lead",
+  add_note: "Adicionar Nota",
+  add_task: "Adicionar Tarefa",
+  change_conversation_status: "Status Conversa",
+  complete_tasks: "Completar Tarefas",
+  change_responsible: "Mudar Responsável",
 };
 
 export const ActionNode = ({ data, selected }: NodeProps) => {
