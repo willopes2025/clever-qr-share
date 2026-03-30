@@ -43,9 +43,12 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   const activeTabData = tabs?.find(t => t.id === activeTabId);
   const tabFieldKeys = activeTabData?.field_keys || [];
   
-  // Collect all field_keys assigned to ANY tab
+  // Only consider field_keys that match actual LEAD definitions for tab assignment
+  const leadFieldKeySet = new Set(leadFieldDefinitions.map(f => f.field_key));
+  
+  // Collect all field_keys assigned to ANY tab (only lead-type keys)
   const allAssignedFieldKeys = new Set(
-    (tabs || []).flatMap(t => t.field_keys || [])
+    (tabs || []).flatMap(t => t.field_keys || []).filter(k => leadFieldKeySet.has(k))
   );
   
   // Show tab-specific fields + unassigned fields (orphans)
@@ -54,6 +57,33 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         tabFieldKeys.includes(f.field_key) || !allAssignedFieldKeys.has(f.field_key)
       )
     : leadFieldDefinitions;
+  
+  // Also detect custom_fields keys that have data but NO lead field definition (orphan data)
+  const customFields = (deal?.custom_fields || {}) as Record<string, any>;
+  const orphanDataFields: CustomFieldDefinition[] = [];
+  if (deal?.custom_fields) {
+    for (const key of Object.keys(customFields)) {
+      const val = customFields[key];
+      if (val === null || val === undefined || val === '') continue;
+      if (!leadFieldKeySet.has(key)) {
+        orphanDataFields.push({
+          id: `orphan_${key}`,
+          user_id: '',
+          field_name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          field_key: key,
+          field_type: 'text' as FieldType,
+          options: [],
+          is_required: false,
+          display_order: 999,
+          entity_type: 'lead' as EntityType,
+          created_at: '',
+        });
+      }
+    }
+  }
+  
+  // Combine defined fields + orphan data fields
+  const allVisibleFields = [...filteredLeadFields, ...orphanDataFields];
   
   const customFields = (deal?.custom_fields || {}) as Record<string, any>;
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
