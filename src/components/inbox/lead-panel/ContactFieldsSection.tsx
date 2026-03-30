@@ -239,7 +239,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
       default: // text, url, phone, email
         if (isEditing) {
           return (
-            <div className="flex items-center gap-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1 min-w-0 w-full">
               <Input
                 value={localFields[definition.field_key] || ''}
                 onChange={(e) => setLocalFields({ ...localFields, [definition.field_key]: e.target.value })}
