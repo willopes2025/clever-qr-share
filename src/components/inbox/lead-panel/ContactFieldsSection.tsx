@@ -61,6 +61,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
   const [localFields, setLocalFields] = useState<Record<string, any>>(customFields);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [showFieldCreator, setShowFieldCreator] = useState(false);
+  const [manuallyAdded, setManuallyAdded] = useState<Set<string>>(new Set());
   
   // Estado para edição do nome do contato
   const [isEditingName, setIsEditingName] = useState(false);
