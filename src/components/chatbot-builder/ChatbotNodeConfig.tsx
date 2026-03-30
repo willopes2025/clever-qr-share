@@ -1062,6 +1062,163 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
             </div>
           </>
         );
+      case "set_field":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="fieldKey">Campo</Label>
+              <Input
+                id="fieldKey"
+                value={config.fieldKey || ""}
+                onChange={(e) => handleChange("config", { ...config, fieldKey: e.target.value })}
+                placeholder="nome_do_campo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fieldValue">Valor</Label>
+              <Input
+                id="fieldValue"
+                value={config.fieldValue || ""}
+                onChange={(e) => handleChange("config", { ...config, fieldValue: e.target.value })}
+                placeholder="valor ou {{variavel}}"
+              />
+            </div>
+          </>
+        );
+      case "create_lead":
+      case "change_lead_status":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="funnelId">Funil</Label>
+              <Select
+                value={config.funnelId || ""}
+                onValueChange={(v) => handleChange("config", { ...config, funnelId: v, stageId: "" })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um funil..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {funnels?.map((funnel) => (
+                    <SelectItem key={funnel.id} value={funnel.id}>
+                      {funnel.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {config.funnelId && selectedFunnel && (
+              <div className="space-y-2">
+                <Label htmlFor="stageId">Etapa</Label>
+                <Select
+                  value={config.stageId || ""}
+                  onValueChange={(v) => handleChange("config", { ...config, stageId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma etapa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedFunnel.stages?.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        {stage.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        );
+      case "add_note":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="noteContent">Conteúdo da Nota</Label>
+            <Textarea
+              id="noteContent"
+              value={config.noteContent || ""}
+              onChange={(e) => handleChange("config", { ...config, noteContent: e.target.value })}
+              placeholder="Escreva o conteúdo da nota..."
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use {"{{variavel}}"} para dados dinâmicos
+            </p>
+          </div>
+        );
+      case "add_task":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="taskTitle">Título da Tarefa</Label>
+              <Input
+                id="taskTitle"
+                value={config.taskTitle || ""}
+                onChange={(e) => handleChange("config", { ...config, taskTitle: e.target.value })}
+                placeholder="Título da tarefa"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="taskDescription">Descrição</Label>
+              <Textarea
+                id="taskDescription"
+                value={config.taskDescription || ""}
+                onChange={(e) => handleChange("config", { ...config, taskDescription: e.target.value })}
+                placeholder="Descrição da tarefa..."
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="taskDueDate">Prazo (dias)</Label>
+              <Input
+                id="taskDueDate"
+                type="number"
+                min={1}
+                value={config.taskDueDate || "1"}
+                onChange={(e) => handleChange("config", { ...config, taskDueDate: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Dias a partir da execução</p>
+            </div>
+          </>
+        );
+      case "change_conversation_status":
+        return (
+          <div className="space-y-2">
+            <Label>Novo Status</Label>
+            <Select
+              value={config.conversationStatus || "open"}
+              onValueChange={(v) => handleChange("config", { ...config, conversationStatus: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open">Aberta</SelectItem>
+                <SelectItem value="pending">Pendente</SelectItem>
+                <SelectItem value="resolved">Resolvida</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      case "complete_tasks":
+        return (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Todas as tarefas pendentes do contato serão marcadas como concluídas.
+            </p>
+          </div>
+        );
+      case "change_responsible":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor="responsibleId">Responsável</Label>
+            <Input
+              id="responsibleId"
+              value={config.responsibleId || ""}
+              onChange={(e) => handleChange("config", { ...config, responsibleId: e.target.value })}
+              placeholder="ID ou nome do responsável"
+            />
+          </div>
+        );
       default:
         return null;
     }
@@ -1077,6 +1234,10 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
       ai_response: "Resposta IA",
       action: "Ação",
       end: "Fim",
+      list_message: "List Message",
+      validation: "Validação",
+      sub_flow: "Iniciar Fluxo",
+      round_robin: "Round Robin",
     };
     return typeNames[node.type || ""] || "Nó";
   };
