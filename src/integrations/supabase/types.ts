@@ -656,6 +656,45 @@ export type Database = {
           },
         ]
       }
+      automation_execution_log: {
+        Row: {
+          automation_id: string
+          deal_id: string
+          executed_at: string | null
+          id: string
+          trigger_key: string
+        }
+        Insert: {
+          automation_id: string
+          deal_id: string
+          executed_at?: string | null
+          id?: string
+          trigger_key: string
+        }
+        Update: {
+          automation_id?: string
+          deal_id?: string
+          executed_at?: string | null
+          id?: string
+          trigger_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_execution_log_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_execution_log_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       available_widgets: {
         Row: {
           admin_only: boolean | null
@@ -5961,6 +6000,12 @@ export type Database = {
         | "on_form_submission"
         | "on_funnel_enter"
         | "on_existing_deals"
+        | "on_responsible_changed"
+        | "on_scheduled_before_date_field"
+        | "on_scheduled_exact_time"
+        | "on_scheduled_daily"
+        | "on_conversation_closed"
+        | "on_hours_after_last_message"
       template_category:
         | "promotional"
         | "transactional"
@@ -6134,6 +6179,12 @@ export const Constants = {
         "on_form_submission",
         "on_funnel_enter",
         "on_existing_deals",
+        "on_responsible_changed",
+        "on_scheduled_before_date_field",
+        "on_scheduled_exact_time",
+        "on_scheduled_daily",
+        "on_conversation_closed",
+        "on_hours_after_last_message",
       ],
       template_category: [
         "promotional",
