@@ -1388,14 +1388,21 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             ];
             return (
               <Select value={selectedTargetPhone || mainPhone} onValueChange={(v) => setSelectedTargetPhone(v === mainPhone ? "" : v)}>
-                <SelectTrigger className="w-auto h-8 text-xs gap-1 px-2 border-dashed">
-                  <Phone className="h-3 w-3 text-muted-foreground" />
-                  <SelectValue />
+                <SelectTrigger className="max-w-[200px] h-8 text-xs gap-1 px-2 border-dashed">
+                  <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span className="truncate">
+                    {(() => {
+                      const currentPhone = selectedTargetPhone || mainPhone;
+                      const found = allPhones.find(p => p.phone === currentPhone);
+                      const formatted = currentPhone.replace(/^55/, '').replace(/(\d{2})(\d{4,5})(\d{4})/, '($1) $2-$3');
+                      return found ? `${found.label}: ${formatted}` : formatted;
+                    })()}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {allPhones.map((p, i) => (
                     <SelectItem key={i} value={p.phone}>
-                      <span className="text-xs">{p.label}: {p.phone.replace(/^55/, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}</span>
+                      <span className="text-xs">{p.label}: {p.phone.replace(/^55/, '').replace(/(\d{2})(\d{4,5})(\d{4})/, '($1) $2-$3')}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
