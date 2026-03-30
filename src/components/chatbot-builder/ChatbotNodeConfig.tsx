@@ -643,6 +643,14 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                   <SelectItem value="set_variable">Definir Variável</SelectItem>
                   <SelectItem value="transfer">Transferir para Humano</SelectItem>
                   <SelectItem value="http_request">Requisição HTTP</SelectItem>
+                  <SelectItem value="set_field">Definir Campo</SelectItem>
+                  <SelectItem value="create_lead">Criar Lead</SelectItem>
+                  <SelectItem value="change_lead_status">Mudar Status do Lead</SelectItem>
+                  <SelectItem value="add_note">Adicionar Nota</SelectItem>
+                  <SelectItem value="add_task">Adicionar Tarefa</SelectItem>
+                  <SelectItem value="change_conversation_status">Alterar Status Conversa</SelectItem>
+                  <SelectItem value="complete_tasks">Completar Tarefas</SelectItem>
+                  <SelectItem value="change_responsible">Mudar Responsável</SelectItem>
                 </SelectContent>
               </Select>
             </div>
