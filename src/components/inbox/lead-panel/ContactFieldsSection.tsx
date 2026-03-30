@@ -130,18 +130,19 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
           />
         );
 
-      case 'date':
+      case 'date': {
+        const parsedDate = parseDateValue(value);
         return (
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                {value ? format(new Date(value), "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar</span>}
+                {parsedDate ? format(parsedDate, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
               <Calendar
                 mode="single"
-                selected={value ? new Date(value) : undefined}
+                selected={parsedDate}
                 onSelect={(date) => handleSave(definition.field_key, date?.toISOString())}
                 locale={ptBR}
                 className="pointer-events-auto"
@@ -149,6 +150,7 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
             </PopoverContent>
           </Popover>
         );
+      }
 
       case 'time':
         return (
