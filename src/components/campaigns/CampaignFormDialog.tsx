@@ -122,11 +122,15 @@ export const CampaignFormDialog = ({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
 
+  // Variable mappings for Meta templates
+  const [variableMappings, setVariableMappings] = useState<MetaVariableMapping[]>([]);
+
   const { templates } = useMessageTemplates();
   const { metaNumbers } = useMetaWhatsAppNumbers();
   const { lists } = useBroadcastLists();
   const { user } = useAuth();
   const { createTag } = useContacts();
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
   const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   
