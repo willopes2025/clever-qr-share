@@ -752,7 +752,7 @@ Deno.serve(async (req: Request) => {
                     'Authorization': `Bearer ${supabaseKey}`,
                   },
                   body: JSON.stringify({
-                    type: 'deal_stage_change',
+                    type: 'automation_notify',
                     data: {
                       dealId,
                       dealTitle,
