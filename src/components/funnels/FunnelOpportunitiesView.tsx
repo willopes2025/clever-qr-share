@@ -124,8 +124,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         return;
       }
 
-      if (forceRefresh && data?.exhausted) {
-        toast.info("Não há novas oportunidades para analisar neste funil.");
+      if (data?.exhausted) {
+        toast.info("Todos os leads elegíveis já foram analisados. Não há novos leads para mostrar.");
         return;
       }
 

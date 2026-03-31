@@ -80,34 +80,83 @@ serve(async (req) => {
       (fieldDefs || []).map((f: any) => [f.field_key, f.field_name])
     );
 
-    // Fetch deals - include custom_fields, reduced to 30
-    // Use random ordering to get different leads each time
-    let dealsQuery = supabaseAdmin
+    // Fetch ALL open deals
+    const { data: allDeals } = await supabaseAdmin
       .from("funnel_deals")
       .select("id, title, value, stage_id, contact_id, conversation_id, created_at, custom_fields")
       .eq("funnel_id", funnel_id)
       .in("stage_id", openStageIds);
 
-    const { data: allDeals } = await dealsQuery;
-    
-    // Filter out excluded deals and randomize selection
-    let filteredDeals = (allDeals || []).filter(
+    // Strictly filter out excluded deals - NO RESET
+    const filteredDeals = (allDeals || []).filter(
       (d: any) => !excludedDealIds.includes(d.id)
     );
-    
-    // If all deals were excluded, reset and use all deals
-    if (!filteredDeals.length && allDeals?.length) {
-      filteredDeals = allDeals;
-    }
-    
-    // Shuffle and take 30
-    for (let i = filteredDeals.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [filteredDeals[i], filteredDeals[j]] = [filteredDeals[j], filteredDeals[i]];
-    }
-    const deals = filteredDeals.slice(0, 30);
 
-    if (!deals?.length) {
+    // If no deals left after exclusion, return exhausted
+    if (!filteredDeals.length) {
+      return new Response(JSON.stringify({ 
+        opportunities: [], 
+        exhausted: true 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Collect all contact IDs to find conversations by contact_id fallback
+    const allContactIds = [...new Set(filteredDeals.map((d: any) => d.contact_id).filter(Boolean))];
+
+    // Fetch recent conversations for all contacts (fallback for deals without conversation_id)
+    const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
+    const contactConversationMap: Record<string, string> = {};
+
+    if (allContactIds.length) {
+      // Fetch conversations that had recent activity, grouped by contact
+      const { data: recentConvs } = await supabaseAdmin
+        .from("conversations")
+        .select("id, contact_id, last_message_at")
+        .in("contact_id", allContactIds)
+        .gte("last_message_at", sinceDate)
+        .order("last_message_at", { ascending: false });
+
+      // Map each contact to their most recent conversation
+      for (const conv of (recentConvs || [])) {
+        if (!contactConversationMap[conv.contact_id]) {
+          contactConversationMap[conv.contact_id] = conv.id;
+        }
+      }
+    }
+
+    // Resolve effective conversation_id for each deal
+    const dealsWithConv = filteredDeals.map((d: any) => ({
+      ...d,
+      effective_conversation_id: d.conversation_id || contactConversationMap[d.contact_id] || null,
+    }));
+
+    // Separate deals: those with conversation vs without
+    const dealsWithMessages = dealsWithConv.filter((d: any) => d.effective_conversation_id);
+    const dealsWithoutMessages = dealsWithConv.filter((d: any) => !d.effective_conversation_id);
+
+    // Shuffle helper
+    const shuffle = (arr: any[]) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    // Prioritize deals with conversations, fill remainder with cold deals
+    shuffle(dealsWithMessages);
+    shuffle(dealsWithoutMessages);
+
+    const BATCH_SIZE = 30;
+    const deals: any[] = [];
+    deals.push(...dealsWithMessages.slice(0, BATCH_SIZE));
+    if (deals.length < BATCH_SIZE) {
+      deals.push(...dealsWithoutMessages.slice(0, BATCH_SIZE - deals.length));
+    }
+
+    if (!deals.length) {
       return new Response(JSON.stringify({ opportunities: [], exhausted: excludedDealIds.length > 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -121,12 +170,11 @@ serve(async (req) => {
       .in("id", contactIds);
     const contactMap = Object.fromEntries((contacts || []).map((c: any) => [c.id, c]));
 
-    // Fetch conversation messages
-    const conversationIds = [...new Set(deals.map((d: any) => d.conversation_id).filter(Boolean))];
+    // Fetch conversation messages using effective_conversation_id
+    const conversationIds = [...new Set(deals.map((d: any) => d.effective_conversation_id).filter(Boolean))];
     const messagesMap: Record<string, any[]> = {};
 
     if (conversationIds.length) {
-      const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
       for (const convId of conversationIds.slice(0, 30)) {
         const { data: msgs } = await supabase
           .from("inbox_messages")
@@ -142,7 +190,8 @@ serve(async (req) => {
     // Build deal contexts with custom fields
     const dealsContext = deals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
-      const messages = deal.conversation_id ? messagesMap[deal.conversation_id] || [] : [];
+      const convId = deal.effective_conversation_id;
+      const messages = convId ? messagesMap[convId] || [] : [];
       const messagesText = messages
         .map((m: any) => `[${m.direction === "outgoing" ? "Vendedor" : "Cliente"}]: ${m.content || "(mídia)"}`)
         .join("\n");
@@ -308,7 +357,7 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       return {
         deal_id: deal.id,
         contact_id: deal.contact_id,
-        conversation_id: deal.conversation_id || null,
+        conversation_id: deal.effective_conversation_id || null,
         contact_name: contact.name || "Sem nome",
         contact_phone: contact.phone || "",
         contact_email: contact.email || "",
