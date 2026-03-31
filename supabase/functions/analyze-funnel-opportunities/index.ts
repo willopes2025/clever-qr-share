@@ -170,9 +170,11 @@ serve(async (req) => {
         );
 
         const contactConversationMap: Record<string, string> = {};
+        const recentConversationIdSet = new Set<string>();
         for (const response of conversationResponses) {
           if (response.error) throw response.error;
           for (const conversation of response.data || []) {
+            recentConversationIdSet.add(conversation.id);
             if (!contactConversationMap[conversation.contact_id]) {
               contactConversationMap[conversation.contact_id] = conversation.id;
             }
@@ -183,7 +185,10 @@ serve(async (req) => {
           if (scannedEligibleDealIds.has(deal.id)) continue;
           scannedEligibleDealIds.add(deal.id);
 
-          const effectiveConversationId = deal.conversation_id || contactConversationMap[deal.contact_id] || null;
+          const hasRecentDealConversation = typeof deal.conversation_id === "string" && recentConversationIdSet.has(deal.conversation_id);
+          const effectiveConversationId = hasRecentDealConversation
+            ? deal.conversation_id
+            : contactConversationMap[deal.contact_id] || null;
           const enrichedDeal = {
             ...deal,
             effective_conversation_id: effectiveConversationId,
