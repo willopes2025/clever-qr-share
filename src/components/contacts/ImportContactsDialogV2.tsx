@@ -138,6 +138,27 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   email: "E-mail",
 };
 
+const PHASE_LABELS: Record<ImportProgress['phase'], string> = {
+  preparing: 'Preparando dados...',
+  deduplicating: 'Verificando duplicatas...',
+  inserting: 'Inserindo contatos...',
+  updating: 'Atualizando contatos...',
+  tagging: 'Aplicando tags...',
+  deals: 'Criando leads no funil...',
+  done: 'Concluído!',
+};
+
+const getPhaseLabel = (phase: ImportProgress['phase']) => PHASE_LABELS[phase] || 'Processando...';
+
+const getETA = (progress: ImportProgress) => {
+  if (progress.current === 0 || progress.phase === 'done') return '—';
+  const elapsed = (Date.now() - progress.startedAt) / 1000;
+  const rate = progress.current / elapsed;
+  const remaining = (progress.total - progress.current) / rate;
+  if (remaining < 60) return `~${Math.ceil(remaining)}s restantes`;
+  return `~${Math.ceil(remaining / 60)}min restantes`;
+};
+
 export const ImportContactsDialogV2 = ({
   open,
   onOpenChange,
