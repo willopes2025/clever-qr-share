@@ -120,7 +120,7 @@ export const FormCard = ({ form }: FormCardProps) => {
               if (Array.isArray(arr)) return arr.map((v: string) => optionMap.get(v) || v).join(', ');
             } catch {}
           }
-          return optionMap.get(rawValue) || rawValue;
+          return (optionMap.get(rawValue) || rawValue) as string;
         }
       }
       if (typeof rawValue === 'object') return JSON.stringify(rawValue);
