@@ -43,6 +43,7 @@ interface Opportunity {
   insight: string;
   user_notes?: string | null;
   status?: string;
+  analyzed_at?: string | null;
 }
 
 interface Props {
@@ -93,16 +94,27 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
     }
   };
 
-  // Load persisted opportunities from DB on mount
   useEffect(() => {
     loadFromDB();
   }, [funnel.id]);
 
   const loadFromDB = async () => {
+    const { data: latestBatch, error: latestBatchError } = await supabase
+      .from("funnel_opportunities")
+      .select("analyzed_at")
+      .eq("funnel_id", funnel.id)
+      .not("analyzed_at", "is", null)
+      .order("analyzed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestBatchError || !latestBatch?.analyzed_at) return;
+
     const { data, error } = await supabase
       .from("funnel_opportunities")
       .select("*")
       .eq("funnel_id", funnel.id)
+      .eq("analyzed_at", latestBatch.analyzed_at)
       .order("score", { ascending: false });
 
     if (!error && data?.length) {
@@ -129,19 +141,15 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         return;
       }
 
-      // Reload from DB to get persisted data with user_notes/status
-      const { data: dbData } = await supabase
-        .from("funnel_opportunities")
-        .select("*")
-        .eq("funnel_id", funnel.id)
-        .order("score", { ascending: false });
+      await loadFromDB();
 
-      if (dbData?.length) {
-        setOpportunities(dbData as Opportunity[]);
-      } else {
+      if (!cacheRef.current[funnel.id]) {
         const results = data?.opportunities || [];
-        setOpportunities(results);
+        if (results.length) {
+          setOpportunities(results);
+        }
       }
+
       setHasLoaded(true);
       cacheRef.current[funnel.id] = true;
       if (forceRefresh) toast.success("Oportunidades re-analisadas com sucesso!");
