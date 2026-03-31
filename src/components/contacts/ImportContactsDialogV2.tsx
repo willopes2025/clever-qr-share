@@ -90,6 +90,7 @@ interface ImportContactsDialogV2Props {
     funnelConfig?: FunnelConfig
   ) => Promise<ImportStats | void>;
   isLoading?: boolean;
+  importProgress?: ImportProgress | null;
   tags?: TagOption[];
   existingFields?: CustomFieldDefinition[];
   currentContactCount?: number;
