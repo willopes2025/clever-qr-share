@@ -118,6 +118,7 @@ Deno.serve(async (req: Request) => {
       campaign_complete: `✅ Campanha *${data.campaignName}* finalizada`,
       instance_disconnect: `⚠️ Instância *${data.instanceName}* desconectou`,
       internal_chat: `💬 *[Chat Interno - ${data.contactName || 'Conversa'}]*\nDe: *${data.senderName}*\n\n${data.message}\n\n_Responda esta mensagem para enviar ao chat interno._`,
+      automation_notify: data.message || `🔔 Notificação de automação para *${data.contactName || 'contato'}*`,
     };
 
     const message = notificationMessages[type] || `Notificação: ${type}`;
