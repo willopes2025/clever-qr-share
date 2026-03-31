@@ -386,6 +386,7 @@ export const useContacts = () => {
               allContacts = [...allContacts, ...data];
               hasMore = data.length === PAGE_SIZE;
               page++;
+              if (hasMore) await delay(200); // Avoid pool saturation
             } else {
               hasMore = false;
             }
