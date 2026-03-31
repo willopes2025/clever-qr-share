@@ -74,11 +74,12 @@ serve(async (req) => {
     const currentBatchNumber = (funnel.opportunity_last_batch_number || 0) + 1;
     const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
 
-    const { data: stages } = await supabase
+    const { data: stages, error: stagesError } = await supabase
       .from("funnel_stages")
-      .select("id, name, final_type, order_index")
+      .select("id, name, final_type, display_order")
       .eq("funnel_id", funnel_id)
-      .order("order_index", { ascending: true });
+      .order("display_order", { ascending: true });
+    if (stagesError) throw stagesError;
 
     const openStageIds = (stages || [])
       .filter((s: any) => !s.final_type || (s.final_type !== "won" && s.final_type !== "lost"))

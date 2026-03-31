@@ -176,14 +176,17 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
         return;
       }
 
-      await loadFromDB();
-
-      if (!cacheRef.current[funnel.id]) {
-        const results = data?.opportunities || [];
-        if (results.length) {
-          setOpportunities(results);
-        }
+      const results = Array.isArray(data?.opportunities) ? data.opportunities : [];
+      if (!results.length) {
+        setOpportunities([]);
+        setHasLoaded(true);
+        setExhaustedMessage("Nenhum novo lead elegível foi encontrado nesta rodada.");
+        toast.info("Nenhum novo lead elegível foi encontrado nesta rodada.");
+        return;
       }
+
+      setOpportunities(results);
+      await loadFromDB();
 
       setHasLoaded(true);
       cacheRef.current[funnel.id] = true;
