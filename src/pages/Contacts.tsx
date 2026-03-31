@@ -78,6 +78,7 @@ const Contacts = () => {
     deleteContact,
     deleteMultipleContacts,
     importContacts,
+    importProgress,
     toggleOptOut,
     createTag,
     deleteTag,
@@ -840,6 +841,7 @@ const Contacts = () => {
           setShowImportDialog(false);
         }}
         isLoading={importContacts.isPending}
+        importProgress={importProgress}
         tags={tags}
         existingFields={fieldDefinitions}
         currentContactCount={contacts.length}

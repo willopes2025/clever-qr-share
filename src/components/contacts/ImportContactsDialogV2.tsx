@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -39,7 +39,9 @@ import { toast } from "sonner";
 import { CreateFieldInlineDialog, NewFieldConfig, FieldType, EntityType } from "./CreateFieldInlineDialog";
 import { CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
-import { DollarSign, Target } from "lucide-react";
+import { DollarSign, Target, Loader2, Clock } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ImportProgress } from "@/hooks/useContacts";
 
 export interface TagOption {
   id: string;
@@ -88,6 +90,7 @@ interface ImportContactsDialogV2Props {
     funnelConfig?: FunnelConfig
   ) => Promise<ImportStats | void>;
   isLoading?: boolean;
+  importProgress?: ImportProgress | null;
   tags?: TagOption[];
   existingFields?: CustomFieldDefinition[];
   currentContactCount?: number;
@@ -135,11 +138,33 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   email: "E-mail",
 };
 
+const PHASE_LABELS: Record<ImportProgress['phase'], string> = {
+  preparing: 'Preparando dados...',
+  deduplicating: 'Verificando duplicatas...',
+  inserting: 'Inserindo contatos...',
+  updating: 'Atualizando contatos...',
+  tagging: 'Aplicando tags...',
+  deals: 'Criando leads no funil...',
+  done: 'Concluído!',
+};
+
+const getPhaseLabel = (phase: ImportProgress['phase']) => PHASE_LABELS[phase] || 'Processando...';
+
+const getETA = (progress: ImportProgress) => {
+  if (progress.current === 0 || progress.phase === 'done') return '—';
+  const elapsed = (Date.now() - progress.startedAt) / 1000;
+  const rate = progress.current / elapsed;
+  const remaining = (progress.total - progress.current) / rate;
+  if (remaining < 60) return `~${Math.ceil(remaining)}s restantes`;
+  return `~${Math.ceil(remaining / 60)}min restantes`;
+};
+
 export const ImportContactsDialogV2 = ({
   open,
   onOpenChange,
   onImport,
   isLoading,
+  importProgress,
   tags = [],
   existingFields = [],
   currentContactCount = 0,
@@ -1271,49 +1296,82 @@ export const ImportContactsDialogV2 = ({
             </div>
           )}
 
-          {/* Scrollable content - native scroll */}
-          <div className="min-h-0 overflow-y-auto pr-2 touch-pan-y overscroll-contain pb-2">
-            {step === "upload" && renderUploadStep()}
-            {step === "mapping" && renderMappingStep()}
-            {step === "deduplication" && renderDeduplicationStep()}
-            {step === "tags" && renderTagsStep()}
-          </div>
-
-          {/* Fixed navigation footer */}
-          {step !== "upload" && (
-            <div className="flex justify-between pt-4 border-t">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  if (step === "mapping") setStep("upload");
-                  else if (step === "deduplication") setStep("mapping");
-                  else if (step === "tags") setStep("deduplication");
-                }}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
+          {/* Progress overlay when importing */}
+          {isLoading && importProgress ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-6">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
               
-              {step === "mapping" && (
-                <Button onClick={() => setStep("deduplication")} disabled={validContacts.length === 0}>
-                  Próximo
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              )}
+              <div className="w-full space-y-3">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>{getPhaseLabel(importProgress.phase)}</span>
+                  <span>{importProgress.current.toLocaleString('pt-BR')} / {importProgress.total.toLocaleString('pt-BR')}</span>
+                </div>
+                
+                <Progress 
+                  value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0} 
+                  className="h-3"
+                />
+                
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{Math.round(importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0)}%</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {getETA(importProgress)}
+                  </span>
+                </div>
+              </div>
               
-              {step === "deduplication" && (
-                <Button onClick={() => setStep("tags")}>
-                  Próximo
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              )}
-              
-              {step === "tags" && (
-                <Button onClick={handleImport} disabled={isLoading || contactsToImport.length === 0}>
-                  {isLoading ? "Importando..." : `Importar ${contactsToImport.length.toLocaleString('pt-BR')} contatos`}
-                </Button>
-              )}
+              <p className="text-xs text-muted-foreground text-center">
+                Não feche esta janela. O processo está em andamento...
+              </p>
             </div>
+          ) : (
+            <>
+              {/* Scrollable content - native scroll */}
+              <div className="min-h-0 overflow-y-auto pr-2 touch-pan-y overscroll-contain pb-2">
+                {step === "upload" && renderUploadStep()}
+                {step === "mapping" && renderMappingStep()}
+                {step === "deduplication" && renderDeduplicationStep()}
+                {step === "tags" && renderTagsStep()}
+              </div>
+
+              {/* Fixed navigation footer */}
+              {step !== "upload" && (
+                <div className="flex justify-between pt-4 border-t">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      if (step === "mapping") setStep("upload");
+                      else if (step === "deduplication") setStep("mapping");
+                      else if (step === "tags") setStep("deduplication");
+                    }}
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Voltar
+                  </Button>
+                  
+                  {step === "mapping" && (
+                    <Button onClick={() => setStep("deduplication")} disabled={validContacts.length === 0}>
+                      Próximo
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  )}
+                  
+                  {step === "deduplication" && (
+                    <Button onClick={() => setStep("tags")}>
+                      Próximo
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  )}
+                  
+                  {step === "tags" && (
+                    <Button onClick={handleImport} disabled={isLoading || contactsToImport.length === 0}>
+                      Importar {contactsToImport.length.toLocaleString('pt-BR')} contatos
+                    </Button>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>

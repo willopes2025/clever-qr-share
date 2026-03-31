@@ -1,8 +1,16 @@
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
 import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
+
+export interface ImportProgress {
+  phase: 'preparing' | 'deduplicating' | 'inserting' | 'updating' | 'tagging' | 'deals' | 'done';
+  current: number;
+  total: number;
+  startedAt: number;
+}
 
 export interface Contact {
   id: string;
@@ -56,6 +64,7 @@ export interface ContactWithDeals extends ContactWithTags {
 
 export const useContacts = () => {
   const queryClient = useQueryClient();
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
 
   // Function to fetch all contacts in batches (bypasses 1000 limit)
   const fetchAllContacts = async (): Promise<ContactWithDeals[]> => {
@@ -258,6 +267,11 @@ export const useContacts = () => {
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
       const BATCH_SIZE = 20;
+      const startedAt = Date.now();
+      const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
+        setImportProgress({ phase, current, total, startedAt });
+      };
+      reportProgress('preparing', 0, contacts.length);
       
       // Helper function to ensure session is valid
       const ensureSession = async () => {
@@ -337,6 +351,7 @@ export const useContacts = () => {
 
       // If deduplication is enabled, check for existing contacts
       if (deduplication?.enabled) {
+        reportProgress('deduplicating', 0, uniqueContacts.length);
         // Renew session before fetching existing contacts
         await ensureSession();
         
@@ -500,16 +515,18 @@ export const useContacts = () => {
 
       let insertedData: { id: string }[] = [];
       let updatedData: { id: string }[] = [];
+      const totalWork = contactsToInsert.length + contactsToUpdate.length;
+      let processedWork = 0;
 
       // Insert new contacts in batches
       if (contactsToInsert.length > 0) {
+        reportProgress('inserting', 0, totalWork);
         const batches: typeof contactsToInsert[] = [];
         for (let i = 0; i < contactsToInsert.length; i += BATCH_SIZE) {
           batches.push(contactsToInsert.slice(i, i + BATCH_SIZE));
         }
 
         for (const batch of batches) {
-          // Renew session before each batch
           await ensureSession();
           
           const dbBatch = batch.map(prepareForDb);
@@ -525,18 +542,20 @@ export const useContacts = () => {
           if (data) {
             insertedData.push(...data);
           }
+          processedWork += batch.length;
+          reportProgress('inserting', processedWork, totalWork);
         }
       }
 
       // Update existing contacts in batches
       if (contactsToUpdate.length > 0) {
+        reportProgress('updating', processedWork, totalWork);
         const updateBatches: typeof contactsToUpdate[] = [];
         for (let i = 0; i < contactsToUpdate.length; i += BATCH_SIZE) {
           updateBatches.push(contactsToUpdate.slice(i, i + BATCH_SIZE));
         }
 
         for (const batch of updateBatches) {
-          // Renew session before each batch
           await ensureSession();
           
           for (const contact of batch) {
@@ -555,6 +574,8 @@ export const useContacts = () => {
             if (data) {
               updatedData.push(...data);
             }
+            processedWork++;
+            reportProgress('updating', processedWork, totalWork);
           }
         }
       }
@@ -563,7 +584,7 @@ export const useContacts = () => {
 
       // Apply tags to imported/updated contacts if any were selected
       if (tagIds.length > 0 && allContactIds.length > 0) {
-        // Renew session before applying tags
+        reportProgress('tagging', 0, allContactIds.length);
         await ensureSession();
         
         const tagInserts = allContactIds.flatMap((contactId) =>
@@ -586,6 +607,7 @@ export const useContacts = () => {
 
       // Create deals in funnel if configured
       if (funnelConfig?.funnel_id && allContactIds.length > 0) {
+        reportProgress('deals', 0, allContactIds.length);
         await ensureSession();
 
         // Determine target stage
@@ -651,6 +673,8 @@ export const useContacts = () => {
         }
       }
 
+      reportProgress('done', contacts.length, contacts.length);
+
       return {
         total: contacts.length,
         new: insertedData.length,
@@ -659,6 +683,7 @@ export const useContacts = () => {
       };
     },
     onSuccess: (stats) => {
+      setImportProgress(null);
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["custom-field-definitions"] });
       queryClient.invalidateQueries({ queryKey: ["funnels"] });
@@ -680,6 +705,7 @@ export const useContacts = () => {
           ? "Por favor, faça login novamente e tente importar novamente."
           : error.message,
       });
+      setImportProgress(null);
     },
   });
 
@@ -956,6 +982,7 @@ export const useContacts = () => {
     deleteContact,
     deleteMultipleContacts,
     importContacts,
+    importProgress,
     toggleOptOut,
     createTag,
     deleteTag,
