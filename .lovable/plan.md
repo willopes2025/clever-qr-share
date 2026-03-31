@@ -1,77 +1,119 @@
 
-Objetivo: corrigir dois problemas no módulo de oportunidades do funil:
-1. a IA não está cobrindo todos os leads com conversa relevante;
-2. ao clicar em “Re-analisar”, a lista ainda recicla leads já mostrados em vez de forçar novos.
+Objetivo: revisar a configuração e a lógica de oportunidades para parar de reciclar os mesmos leads e abrir alternativas melhores de rotação e descoberta.
 
-O que encontrei no código:
-- A função `analyze-funnel-opportunities` analisa no máximo 30 deals por vez, escolhidos de forma aleatória entre os deals abertos.
-- Ela lê mensagens apenas quando o `funnel_deals.conversation_id` está preenchido. Isso tende a perder leads que têm conversa vinculada ao contato, mas cujo deal não tem `conversation_id`.
-- A reanálise recebe `exclude_deal_ids`, mas quando todos os deals elegíveis acabam excluídos, a função faz “reset” e volta a considerar todos, o que reintroduz os mesmos leads.
-- Depois da análise, a função apaga do banco as oportunidades que não estão no lote atual, então a lista sempre reflete só o último lote analisado.
+O que encontrei
+- O problema principal não parece mais ser “reanálise não exclui os IDs atuais”. Essa exclusão existe.
+- O gargalo real está na estratégia de seleção:
+  - a função escaneia os deals por `created_at desc`, então sempre começa pelos mais novos;
+  - ela interrompe cedo quando enche um pool mínimo, então tende a trabalhar sempre no mesmo pedaço do funil;
+  - depois faz `shuffle`, mas embaralha quase sempre o mesmo subconjunto;
+  - a reanálise exclui apenas os 30 atuais, mas na chamada seguinte o algoritmo volta ao topo da fila e escolhe outros leads do mesmo bloco “quente”.
+- Também há um viés forte para deals com conversa recente, o que é bom, mas sem memória de rotação isso concentra demais nos mesmos contatos.
+- A configuração atual do funil só permite:
+  - prompt de oportunidade
+  - janela de mensagens em dias
+  Isso é pouco para controlar diversidade e reanálise.
 
-Plano de implementação
+Plano revisado
 
-1. Melhorar a busca de conversa por lead
-- Na função `supabase/functions/analyze-funnel-opportunities/index.ts`, parar de depender só de `deal.conversation_id`.
-- Para deals sem `conversation_id`, buscar a conversa mais recente do mesmo `contact_id` e usar essa conversa para coletar mensagens.
-- Priorizar a conversa do deal quando existir; caso não exista, usar fallback por contato.
+1. Reestruturar a seleção de candidatos no backend
+- Trocar a lógica de “scan + stop early” por uma seleção em camadas:
+  - camada A: deals com conversa recente e nunca exibidos recentemente
+  - camada B: deals com conversa recente, mas exibidos há mais tempo
+  - camada C: deals sem conversa recente, mas com sinais de atividade/dados
+- Em vez de sempre começar do topo, usar rotação determinística por cursor/offset persistido por funil.
 
-2. Aumentar a cobertura de leads realmente conversados
-- Separar os deals abertos em grupos:
-  - com conversa/mensagens recentes;
-  - sem conversa.
-- Priorizar primeiro os deals com sinais reais de conversa.
-- Só completar com deals sem conversa se faltar volume para o lote.
-- Isso aumenta a chance de aparecerem “leads compradores” que já interagiram, em vez de muitos leads frios.
+2. Adicionar memória de rotação por funil
+- Criar persistência de estado de análise no backend, por exemplo:
+  - último cursor analisado
+  - últimos deals exibidos
+  - timestamp da última rodada
+- Na reanálise:
+  - excluir os atuais
+  - continuar da posição seguinte do cursor
+  - só reciclar leads antigos quando todo o universo elegível tiver sido percorrido
+- Se o universo acabar, retornar estado claro de “sem novos leads” em vez de repetir.
 
-3. Corrigir a lógica de “Re-analisar” para trazer novos leads
-- Remover o comportamento de reset automático quando todos os leads do lote anterior forem excluídos.
-- Em reanálise, se não houver novos deals elegíveis fora da lista atual, retornar `exhausted: true` sem reciclar os mesmos.
-- Manter a exclusão estrita dos `exclude_deal_ids` recebidos do frontend.
+3. Incluir blacklist temporária de leads já mostrados
+- Implementar uma janela de resfriamento, por exemplo:
+  - “não mostrar novamente por X reanálises”
+  ou
+  - “não mostrar novamente por Y dias”
+- Isso resolve o caso em que o mesmo lead continua elegível e reaparece cedo demais.
 
-4. Melhorar a rotação entre reanálises
-- Em vez de aleatoriedade pura sobre todos os deals, aplicar seleção com rotação mais previsível:
-  - filtrar deals excluídos;
-  - priorizar deals com conversa;
-  - embaralhar apenas dentro do conjunto elegível restante;
-  - limitar ao lote.
-- Resultado esperado: cada reanálise mostra outro conjunto de oportunidades plausíveis, sem repetir em sequência.
+4. Melhorar a configuração da tela de oportunidades
+- Expandir o painel de configurações para incluir opções práticas:
+  - janela de mensagens
+  - priorizar conversas recentes: forte / equilibrado / desligado
+  - evitar repetir leads por N reanálises
+  - tamanho da amostra por rodada
+  - incluir leads sem conversa
+  - estratégia de rotação: recente / equilibrada / explorar novos
+- Isso te dá controle sem depender só do prompt.
 
-5. Ajustar a experiência no frontend
-- Em `src/components/funnels/FunnelOpportunitiesView.tsx`, manter o fluxo atual de `excludeDealIds`, mas alinhar mensagens:
-  - se não houver novos leads, mostrar aviso claro de que todos os leads elegíveis já foram analisados;
-  - se houver novo lote, substituir a lista atual normalmente.
-- Não mudar a UI estrutural; apenas garantir comportamento coerente com a expectativa da reanálise.
+5. Ajustar a heurística de “novos leads”
+- Criar um modo “explorar novos” para reanálise:
+  - prioriza deals nunca analisados
+  - depois deals não mostrados recentemente
+  - por último deals antigos
+- Assim o botão “Re-analisar” passa a se comportar como descoberta de novos candidatos, não apenas novo ranking do mesmo grupo.
 
-Arquivos a alterar
+6. Preservar qualidade sem depender de trocar a IA
+- Neste problema, trocar o modelo de IA não resolve sozinho.
+- O erro está mais na curadoria dos candidatos enviados para a IA do que no modelo em si.
+- Só depois da rotação ficar correta faz sentido revisar prompt/modelo para melhorar score e insight.
+
+7. Ajustar o frontend para refletir melhor o estado da reanálise
+- Exibir feedback específico:
+  - “mostrando novos leads”
+  - “sem novos leads disponíveis”
+  - “última rotação concluída”
+- Opcional: adicionar ação “reiniciar ciclo” para permitir reciclar manualmente apenas quando o usuário quiser.
+
+Alternativas recomendadas
+- Alternativa 1: Cursor persistente por funil
+  - melhor custo/benefício
+  - resolve repetição sequencial
+  - mantém performance boa
+- Alternativa 2: Histórico de exibição + cooldown
+  - melhor para evitar repetição perceptível
+  - ideal combinar com a alternativa 1
+- Alternativa 3: Pool maior + amostragem estratificada
+  - melhora variedade
+  - mas sozinho não impede repetição
+- Recomendação final:
+  - combinar cursor persistente + histórico de exibição + modo “explorar novos”
+
+Arquivos/áreas a revisar na implementação
 - `supabase/functions/analyze-funnel-opportunities/index.ts`
 - `src/components/funnels/FunnelOpportunitiesView.tsx`
+- nova migração para armazenar estado de rotação/histórico
+- possivelmente `funnels` para salvar novas preferências de configuração
 
-Resultado esperado
-- A análise passa a considerar mais leads que realmente conversaram.
-- Leads com conversa deixam de ser perdidos só porque o deal não tem `conversation_id`.
-- “Re-analisar” para de trazer os mesmos leads em sequência.
-- Quando não houver mais leads novos elegíveis, o sistema informa isso em vez de reciclar a lista.
+Impacto esperado
+- reanálise deixa de puxar sempre o mesmo bloco de leads
+- oportunidades passam a variar de rodada para rodada
+- o usuário consegue configurar a estratégia de descoberta
+- a IA passa a analisar um conjunto realmente novo, aumentando a chance de achar oportunidades que hoje estão invisíveis
 
 Detalhes técnicos
 ```text
-Fluxo atual:
-deal -> conversation_id -> inbox_messages
+Problema atual:
+scan por created_at desc
+ -> para cedo
+ -> embaralha subconjunto pequeno
+ -> exclui 30 atuais
+ -> próxima rodada volta ao topo
 
 Fluxo proposto:
-deal
- ├─ se tiver conversation_id -> usa a conversa do deal
- └─ senão -> busca conversa mais recente por contact_id
-                -> lê mensagens
-                -> monta contexto para IA
+estado do funil
+ -> cursor persistido
+ -> histórico recente de exibidos
+ -> cooldown anti-repetição
 
-Reanálise atual:
-exclui IDs atuais
-  -> se zera conjunto, reseta tudo
-  -> repete leads
-
-Reanálise proposta:
-exclui IDs atuais
-  -> se zera conjunto, retorna "sem novos leads"
-  -> não repete em sequência
+reanálise
+ -> continua do cursor
+ -> remove atuais + recentes
+ -> prioriza nunca analisados
+ -> só recicla quando universo elegível acabar
 ```
