@@ -1,0 +1,2 @@
+ALTER TABLE public.inbox_messages ADD COLUMN IF NOT EXISTS sent_via_instance_id UUID REFERENCES public.whatsapp_instances(id);
+ALTER TABLE public.inbox_messages ADD COLUMN IF NOT EXISTS sent_via_meta_number_id TEXT;

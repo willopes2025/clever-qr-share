@@ -3324,6 +3324,8 @@ export type Database = {
           sent_at: string | null
           sent_by_ai_agent_id: string | null
           sent_by_user_id: string | null
+          sent_via_instance_id: string | null
+          sent_via_meta_number_id: string | null
           status: string
           transcription: string | null
           user_id: string
@@ -3345,6 +3347,8 @@ export type Database = {
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
+          sent_via_instance_id?: string | null
+          sent_via_meta_number_id?: string | null
           status?: string
           transcription?: string | null
           user_id: string
@@ -3366,6 +3370,8 @@ export type Database = {
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
+          sent_via_instance_id?: string | null
+          sent_via_meta_number_id?: string | null
           status?: string
           transcription?: string | null
           user_id?: string
@@ -3384,6 +3390,13 @@ export type Database = {
             columns: ["sent_by_ai_agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbox_messages_sent_via_instance_id_fkey"
+            columns: ["sent_via_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
