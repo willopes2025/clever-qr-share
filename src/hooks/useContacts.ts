@@ -982,6 +982,7 @@ export const useContacts = () => {
     deleteContact,
     deleteMultipleContacts,
     importContacts,
+    importProgress,
     toggleOptOut,
     createTag,
     deleteTag,
