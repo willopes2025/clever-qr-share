@@ -1,8 +1,16 @@
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
 import { normalizePhoneWithCountryCode, normalizePhoneWithoutCountryCode } from "@/lib/phone-utils";
+
+export interface ImportProgress {
+  phase: 'preparing' | 'deduplicating' | 'inserting' | 'updating' | 'tagging' | 'deals' | 'done';
+  current: number;
+  total: number;
+  startedAt: number;
+}
 
 export interface Contact {
   id: string;
