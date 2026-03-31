@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send, Settings2 } from "lucide-react";
+import { Sparkles, Phone, Mail, Loader2, RefreshCw, ExternalLink, Download, Send, Settings2, RotateCcw, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import {
@@ -47,7 +48,17 @@ interface Opportunity {
 }
 
 interface Props {
-  funnel: { id: string; name: string; opportunity_prompt?: string | null; opportunity_message_days?: number | null };
+  funnel: {
+    id: string;
+    name: string;
+    opportunity_prompt?: string | null;
+    opportunity_message_days?: number | null;
+    opportunity_rotation_cooldown?: number | null;
+    opportunity_batch_size?: number | null;
+    opportunity_include_no_conversation?: boolean | null;
+    opportunity_conversation_priority?: string | null;
+    opportunity_last_batch_number?: number | null;
+  };
 }
 
 const STATUS_OPTIONS = [
@@ -55,6 +66,12 @@ const STATUS_OPTIONS = [
   { value: "contacted", label: "Contactado" },
   { value: "won", label: "Ganho" },
   { value: "lost", label: "Perdido" },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "strong", label: "Forte" },
+  { value: "balanced", label: "Equilibrado" },
+  { value: "off", label: "Desligado" },
 ];
 
 export const FunnelOpportunitiesView = ({ funnel }: Props) => {
@@ -67,22 +84,36 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
   const [showConfig, setShowConfig] = useState(false);
   const [opportunityPrompt, setOpportunityPrompt] = useState(funnel.opportunity_prompt || "");
   const [messageDays, setMessageDays] = useState(funnel.opportunity_message_days || 30);
+  const [rotationCooldown, setRotationCooldown] = useState(funnel.opportunity_rotation_cooldown ?? 3);
+  const [batchSize, setBatchSize] = useState(funnel.opportunity_batch_size || 30);
+  const [includeNoConversation, setIncludeNoConversation] = useState(funnel.opportunity_include_no_conversation !== false);
+  const [conversationPriority, setConversationPriority] = useState(funnel.opportunity_conversation_priority || "balanced");
   const [savingConfig, setSavingConfig] = useState(false);
+  const [exhaustedMessage, setExhaustedMessage] = useState<string | null>(null);
+  const [canResetCycle, setCanResetCycle] = useState(false);
   const cacheRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     setOpportunityPrompt(funnel.opportunity_prompt || "");
     setMessageDays(funnel.opportunity_message_days || 30);
-  }, [funnel.id, funnel.opportunity_prompt, funnel.opportunity_message_days]);
+    setRotationCooldown(funnel.opportunity_rotation_cooldown ?? 3);
+    setBatchSize(funnel.opportunity_batch_size || 30);
+    setIncludeNoConversation(funnel.opportunity_include_no_conversation !== false);
+    setConversationPriority(funnel.opportunity_conversation_priority || "balanced");
+  }, [funnel.id, funnel.opportunity_prompt, funnel.opportunity_message_days, funnel.opportunity_rotation_cooldown, funnel.opportunity_batch_size, funnel.opportunity_include_no_conversation, funnel.opportunity_conversation_priority]);
 
   const saveConfig = async () => {
     setSavingConfig(true);
     try {
       const { error } = await supabase
         .from("funnels")
-        .update({ 
-          opportunity_prompt: opportunityPrompt || null, 
-          opportunity_message_days: messageDays 
+        .update({
+          opportunity_prompt: opportunityPrompt || null,
+          opportunity_message_days: messageDays,
+          opportunity_rotation_cooldown: rotationCooldown,
+          opportunity_batch_size: batchSize,
+          opportunity_include_no_conversation: includeNoConversation,
+          opportunity_conversation_priority: conversationPriority,
         })
         .eq("id", funnel.id);
       if (error) throw error;
@@ -125,6 +156,8 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
 
   const analyze = async (forceRefresh = false, excludeDealIds: string[] = []) => {
     setIsLoading(true);
+    setExhaustedMessage(null);
+    setCanResetCycle(false);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-funnel-opportunities", {
         body: { funnel_id: funnel.id, exclude_deal_ids: excludeDealIds },
@@ -137,7 +170,9 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
       }
 
       if (data?.exhausted) {
-        toast.info("Todos os leads elegíveis já foram analisados. Não há novos leads para mostrar.");
+        setExhaustedMessage(data.message || "Todos os leads elegíveis já foram analisados.");
+        setCanResetCycle(data.canResetCycle || false);
+        toast.info(data.message || "Não há novos leads para mostrar.");
         return;
       }
 
@@ -152,7 +187,7 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
 
       setHasLoaded(true);
       cacheRef.current[funnel.id] = true;
-      if (forceRefresh) toast.success("Oportunidades re-analisadas com sucesso!");
+      if (forceRefresh) toast.success("Novos leads analisados com sucesso!");
     } catch (err: any) {
       console.error(err);
       toast.error("Erro ao analisar oportunidades");
@@ -163,7 +198,25 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
 
   const reAnalyze = async () => {
     delete cacheRef.current[funnel.id];
+    setExhaustedMessage(null);
     await analyze(true, opportunities.map((opp) => opp.deal_id));
+  };
+
+  const resetCycle = async () => {
+    try {
+      // Reset batch number to 0 and clear history
+      const { error: updateError } = await supabase
+        .from("funnels")
+        .update({ opportunity_last_batch_number: 0 })
+        .eq("id", funnel.id);
+      if (updateError) throw updateError;
+
+      setExhaustedMessage(null);
+      setCanResetCycle(false);
+      toast.success("Ciclo reiniciado! Clique em Re-analisar para começar.");
+    } catch {
+      toast.error("Erro ao reiniciar ciclo");
+    }
   };
 
   const updateField = useCallback(async (dealId: string, field: string, value: string) => {
@@ -195,11 +248,6 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
     if (score >= 70) return <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 font-bold text-sm">{score}</Badge>;
     if (score >= 40) return <Badge className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30 font-bold text-sm">{score}</Badge>;
     return <Badge className="bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30 font-bold text-sm">{score}</Badge>;
-  };
-
-  const getStatusBadge = (status: string) => {
-    const opt = STATUS_OPTIONS.find((s) => s.value === status);
-    return opt?.label || status;
   };
 
   const formatCurrency = (value: number) =>
@@ -276,20 +324,81 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
             Instrua a IA sobre o tipo de oportunidade que você quer encontrar. Deixe em branco para análise padrão.
           </p>
         </div>
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Prazo das mensagens: {messageDays} dias</Label>
-          <Slider
-            value={[messageDays]}
-            onValueChange={([v]) => setMessageDays(v)}
-            min={7}
-            max={180}
-            step={1}
-            className="w-full"
-          />
-          <p className="text-xs text-muted-foreground">
-            A IA analisará apenas mensagens dos últimos {messageDays} dias de cada conversa.
-          </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Prazo das mensagens: {messageDays} dias</Label>
+            <Slider
+              value={[messageDays]}
+              onValueChange={([v]) => setMessageDays(v)}
+              min={7}
+              max={180}
+              step={1}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Mensagens dos últimos {messageDays} dias.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tamanho do lote: {batchSize} deals</Label>
+            <Slider
+              value={[batchSize]}
+              onValueChange={([v]) => setBatchSize(v)}
+              min={10}
+              max={50}
+              step={5}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Quantidade de deals analisados por rodada.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Resfriamento: {rotationCooldown} reanálises</Label>
+            <Slider
+              value={[rotationCooldown]}
+              onValueChange={([v]) => setRotationCooldown(v)}
+              min={0}
+              max={10}
+              step={1}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Evita repetir leads por {rotationCooldown} reanálises. 0 = sem resfriamento.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Priorizar conversas recentes</Label>
+            <Select value={conversationPriority} onValueChange={setConversationPriority}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Forte: prioriza deals com conversa. Equilibrado: 70/30. Desligado: todos iguais.
+            </p>
+          </div>
         </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={includeNoConversation}
+              onCheckedChange={setIncludeNoConversation}
+            />
+            <Label className="text-sm">Incluir leads sem conversa</Label>
+          </div>
+        </div>
+
         <Button size="sm" onClick={saveConfig} disabled={savingConfig}>
           {savingConfig ? "Salvando..." : "Salvar configurações"}
         </Button>
@@ -354,6 +463,19 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
           </Button>
         </div>
       </div>
+
+      {exhaustedMessage && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-sm">
+          <Info className="h-4 w-4 text-yellow-600 dark:text-yellow-400 shrink-0" />
+          <span className="text-yellow-700 dark:text-yellow-300">{exhaustedMessage}</span>
+          {canResetCycle && (
+            <Button variant="outline" size="sm" onClick={resetCycle} className="ml-auto shrink-0">
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Reiniciar ciclo
+            </Button>
+          )}
+        </div>
+      )}
 
       {configPanel}
 
