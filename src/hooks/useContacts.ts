@@ -584,7 +584,7 @@ export const useContacts = () => {
 
       // Apply tags to imported/updated contacts if any were selected
       if (tagIds.length > 0 && allContactIds.length > 0) {
-        // Renew session before applying tags
+        reportProgress('tagging', 0, allContactIds.length);
         await ensureSession();
         
         const tagInserts = allContactIds.flatMap((contactId) =>
