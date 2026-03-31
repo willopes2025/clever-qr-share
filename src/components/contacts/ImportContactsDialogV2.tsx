@@ -143,6 +143,7 @@ export const ImportContactsDialogV2 = ({
   onOpenChange,
   onImport,
   isLoading,
+  importProgress,
   tags = [],
   existingFields = [],
   currentContactCount = 0,
