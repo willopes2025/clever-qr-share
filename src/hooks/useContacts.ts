@@ -559,28 +559,44 @@ export const useContacts = () => {
           updateBatches.push(contactsToUpdate.slice(i, i + BATCH_SIZE));
         }
 
-        for (const batch of updateBatches) {
+        for (let bi = 0; bi < updateBatches.length; bi++) {
+          const batch = updateBatches[bi];
           await ensureSession();
           
-          for (const contact of batch) {
+          // Use upsert in batch for much faster updates
+          const dbBatch = batch.map(contact => {
             const prepared = prepareForDb(contact);
-            const { id, ...updateData } = prepared as typeof prepared & { id: string };
-            const { data, error } = await supabase
-              .from("contacts")
-              .update(updateData)
-              .eq("id", id)
-              .select("id");
+            return prepared;
+          });
+          
+          const { data, error } = await supabase
+            .from("contacts")
+            .upsert(dbBatch, {
+              onConflict: "user_id,phone",
+              ignoreDuplicates: false,
+            })
+            .select("id");
 
-            if (error) {
-              console.error("Error updating contact:", error);
-              continue;
+          if (error) {
+            console.error("Error updating batch:", error);
+            // Fallback: try individual updates
+            for (const contact of batch) {
+              const prepared = prepareForDb(contact);
+              const { id, ...updateData } = prepared as typeof prepared & { id: string };
+              if (!id) continue;
+              const { data: singleData } = await supabase
+                .from("contacts")
+                .update(updateData)
+                .eq("id", id)
+                .select("id");
+              if (singleData) updatedData.push(...singleData);
             }
-            if (data) {
-              updatedData.push(...data);
-            }
-            processedWork++;
-            reportProgress('updating', processedWork, totalWork);
+          } else if (data) {
+            updatedData.push(...data);
           }
+          processedWork += batch.length;
+          reportProgress('updating', processedWork, totalWork);
+          if (bi < updateBatches.length - 1) await delay(BATCH_DELAY_MS);
         }
       }
 
