@@ -250,7 +250,8 @@ Deno.serve(async (req: Request) => {
           status: 'sent',
           whatsapp_message_id: messageId,
           message_type: body.type || 'text',
-          user_id: user.id
+          user_id: user.id,
+          sent_via_meta_number_id: phoneNumberId,
         });
 
       await supabase
