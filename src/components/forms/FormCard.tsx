@@ -190,6 +190,16 @@ export const FormCard = ({ form }: FormCardProps) => {
                   <Code className="h-4 w-4 mr-2" />
                   Copiar Código Embed
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleViewSubmissions}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Ver Respostas
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar Respostas
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => duplicateForm.mutate(form.id)}>
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicar
