@@ -315,7 +315,25 @@ serve(async (req) => {
       });
     }
 
-    const dealsContext = deals.map((deal: any) => {
+    const analyzableDeals = deals.filter((deal: any) => {
+      const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
+      if (!includeNoConversation) {
+        return messages.length > 0;
+      }
+      return true;
+    });
+
+    if (!analyzableDeals.length) {
+      return new Response(JSON.stringify({
+        opportunities: [],
+        exhausted: true,
+        message: "Nenhum novo lead com interação real foi encontrado para esta configuração.",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const dealsContext = analyzableDeals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
       const messagesText = messages
