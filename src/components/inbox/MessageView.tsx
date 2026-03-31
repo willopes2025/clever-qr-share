@@ -503,8 +503,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     try {
     // Validate instance first
-    if (!selectedInstanceId) {
-      toast.error("Selecione uma instância primeiro");
+    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    if (!hasValidSender) {
+      toast.error(isMetaConversation ? "Selecione um número Meta primeiro" : "Selecione uma instância primeiro");
       setSlashCommandOpen(false);
       return;
     }
@@ -568,7 +569,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         sendMessage.mutateAsync({
           content: finalText.trim(),
           conversationId: conversation.id,
-          instanceId: selectedInstanceId,
+          instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
         }).catch(() => {
           toast.error("Erro ao enviar texto do template");
           setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
@@ -1359,7 +1360,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
-            disabled={!selectedInstanceId}
+            disabled={isMetaConversation ? !selectedMetaNumberId : !selectedInstanceId}
           />
 
           <FormLinkButton
@@ -1461,7 +1462,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
-            disabled={!selectedInstanceId}
+            disabled={isMetaConversation ? !selectedMetaNumberId : !selectedInstanceId}
           />
           
           <Tooltip>
