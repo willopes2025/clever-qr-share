@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Form, useForms } from "@/hooks/useForms";
+import { Form, useForms, useFormSubmissions, useFormFields } from "@/hooks/useForms";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,9 @@ import {
   ExternalLink,
   Eye,
   Link2,
-  Code
+  Code,
+  FileText,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
