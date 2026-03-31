@@ -602,8 +602,8 @@ Retorne APENAS o JSON usando a tool fornecida.`,
     }
 
     console.log("[analyze-funnel-opportunities] analysis complete", {
-      selectedDeals: deals.length,
-      prioritizedDeals: deals.filter((deal: any) => deal.effective_conversation_id).length,
+      selectedDeals: analyzableDeals.length,
+      prioritizedDeals: analyzableDeals.filter((deal: any) => deal.effective_conversation_id).length,
       batchNumber: currentBatchNumber,
       totalEligiblePool: totalEligible,
       exhausted: false,

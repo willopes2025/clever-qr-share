@@ -207,7 +207,12 @@ export const FunnelOpportunitiesView = ({ funnel }: Props) => {
 
   const resetCycle = async () => {
     try {
-      // Reset batch number to 0 and clear history
+      const { error: historyError } = await supabase
+        .from("funnel_opportunity_history")
+        .delete()
+        .eq("funnel_id", funnel.id);
+      if (historyError) throw historyError;
+
       const { error: updateError } = await supabase
         .from("funnels")
         .update({ opportunity_last_batch_number: 0 })
