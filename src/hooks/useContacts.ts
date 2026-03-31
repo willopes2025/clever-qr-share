@@ -515,16 +515,18 @@ export const useContacts = () => {
 
       let insertedData: { id: string }[] = [];
       let updatedData: { id: string }[] = [];
+      const totalWork = contactsToInsert.length + contactsToUpdate.length;
+      let processedWork = 0;
 
       // Insert new contacts in batches
       if (contactsToInsert.length > 0) {
+        reportProgress('inserting', 0, totalWork);
         const batches: typeof contactsToInsert[] = [];
         for (let i = 0; i < contactsToInsert.length; i += BATCH_SIZE) {
           batches.push(contactsToInsert.slice(i, i + BATCH_SIZE));
         }
 
         for (const batch of batches) {
-          // Renew session before each batch
           await ensureSession();
           
           const dbBatch = batch.map(prepareForDb);
@@ -540,18 +542,20 @@ export const useContacts = () => {
           if (data) {
             insertedData.push(...data);
           }
+          processedWork += batch.length;
+          reportProgress('inserting', processedWork, totalWork);
         }
       }
 
       // Update existing contacts in batches
       if (contactsToUpdate.length > 0) {
+        reportProgress('updating', processedWork, totalWork);
         const updateBatches: typeof contactsToUpdate[] = [];
         for (let i = 0; i < contactsToUpdate.length; i += BATCH_SIZE) {
           updateBatches.push(contactsToUpdate.slice(i, i + BATCH_SIZE));
         }
 
         for (const batch of updateBatches) {
-          // Renew session before each batch
           await ensureSession();
           
           for (const contact of batch) {
