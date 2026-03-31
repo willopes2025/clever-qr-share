@@ -28,6 +28,8 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const retryCountRef = useRef(0);
+
   const checkSubscription = useCallback(async (isInitial = false) => {
     // Prevent concurrent checks
     if (checkInFlightRef.current) return;
@@ -71,7 +73,14 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         
         if (isNetworkError) {
           console.warn('[SubscriptionContext] Network/timeout error, keeping current state:', message);
-          // Don't logout or clear subscription on network errors
+          // If we have no subscription data yet, schedule a retry with backoff
+          if (!hasLoadedRef.current && retryCountRef.current < 5) {
+            retryCountRef.current++;
+            const delay = Math.min(2000 * Math.pow(2, retryCountRef.current - 1), 30000);
+            console.log(`[SubscriptionContext] Scheduling retry #${retryCountRef.current} in ${delay}ms`);
+            checkInFlightRef.current = false;
+            setTimeout(() => checkSubscription(true), delay);
+          }
           return;
         }
         
@@ -118,6 +127,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setSubscription(data);
         hasLoadedRef.current = true;
+        retryCountRef.current = 0;
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
