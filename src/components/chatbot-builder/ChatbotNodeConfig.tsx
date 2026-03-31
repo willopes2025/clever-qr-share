@@ -1228,6 +1228,8 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
             />
           </div>
         );
+      case "send_meta_template":
+        return <MetaTemplateActionConfig config={config} handleChange={handleChange} data={data} />;
       default:
         return null;
     }
