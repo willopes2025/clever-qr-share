@@ -528,7 +528,8 @@ export const useContacts = () => {
           batches.push(contactsToInsert.slice(i, i + BATCH_SIZE));
         }
 
-        for (const batch of batches) {
+        for (let bi = 0; bi < batches.length; bi++) {
+          const batch = batches[bi];
           await ensureSession();
           
           const dbBatch = batch.map(prepareForDb);
@@ -546,6 +547,7 @@ export const useContacts = () => {
           }
           processedWork += batch.length;
           reportProgress('inserting', processedWork, totalWork);
+          if (bi < batches.length - 1) await delay(BATCH_DELAY_MS);
         }
       }
 
