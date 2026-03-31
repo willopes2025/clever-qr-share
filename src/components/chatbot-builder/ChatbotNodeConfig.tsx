@@ -679,6 +679,7 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                   <SelectItem value="change_conversation_status">Alterar Status Conversa</SelectItem>
                   <SelectItem value="complete_tasks">Completar Tarefas</SelectItem>
                   <SelectItem value="change_responsible">Mudar Responsável</SelectItem>
+                  <SelectItem value="send_meta_template">Enviar Template Meta</SelectItem>
                 </SelectContent>
               </Select>
             </div>
