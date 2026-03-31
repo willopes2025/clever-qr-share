@@ -78,6 +78,9 @@ export interface InboxMessage {
   ai_agent?: {
     agent_name: string;
   } | null;
+  // Origin tracking
+  sent_via_instance_id?: string | null;
+  sent_via_meta_number_id?: string | null;
 }
 
 export const useConversations = () => {

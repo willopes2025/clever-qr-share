@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
 import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
+import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -774,6 +775,45 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const selectedInstance = connectedInstances.find(i => i.id === selectedInstanceId);
   const allMessages = [...(messages || []), ...optimisticMessages];
 
+  // Helper to get origin key for grouping messages by source
+  const getOriginKey = useCallback((msg: typeof allMessages[0]) => {
+    if (msg.sent_via_meta_number_id) return `meta:${msg.sent_via_meta_number_id}`;
+    if (msg.sent_via_instance_id) return `evo:${msg.sent_via_instance_id}`;
+    // Fallback: use conversation-level provider info
+    if (isMetaConversation && conversationMetaNumberId) return `meta:${conversationMetaNumberId}`;
+    if (conversation.instance_id) return `evo:${conversation.instance_id}`;
+    return 'unknown';
+  }, [isMetaConversation, conversationMetaNumberId, conversation.instance_id]);
+
+  // Get label for an origin key
+  const getOriginLabel = useCallback((originKey: string): { provider: 'meta' | 'evolution' | null; label: string; phone?: string | null } => {
+    if (originKey.startsWith('meta:')) {
+      const numberId = originKey.replace('meta:', '');
+      const metaNum = metaNumbers.find(n => n.phone_number_id === numberId);
+      return {
+        provider: 'meta',
+        label: metaNum?.display_name || getMetaLabel(numberId) || 'Meta API',
+        phone: metaNum?.phone_number || null,
+      };
+    }
+    if (originKey.startsWith('evo:')) {
+      const instId = originKey.replace('evo:', '');
+      const inst = instances?.find(i => i.id === instId);
+      return {
+        provider: 'evolution',
+        label: inst?.instance_name || 'WhatsApp Lite',
+        phone: inst?.phone_number || null,
+      };
+    }
+    return { provider: null, label: '', phone: null };
+  }, [metaNumbers, instances, getMetaLabel]);
+
+  // Check if conversation has multiple origins
+  const hasMultipleOrigins = useMemo(() => {
+    const origins = new Set(allMessages.map(getOriginKey));
+    return origins.size > 1;
+  }, [allMessages, getOriginKey]);
+
   const handleInvokeAI = async () => {
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
@@ -1276,10 +1316,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                 const prevMessage = index > 0 ? allMessages[index - 1] : null;
                 const showDateSeparator = shouldShowDateSeparator(prevMessage, message);
                 
+                // Show origin header when source changes (only if multiple origins exist)
+                const currentOrigin = getOriginKey(message);
+                const prevOrigin = prevMessage ? getOriginKey(prevMessage) : null;
+                const showOriginHeader = hasMultipleOrigins && currentOrigin !== prevOrigin;
+                const originInfo = showOriginHeader ? getOriginLabel(currentOrigin) : null;
+                
                 return (
                   <Fragment key={message.id}>
                     {showDateSeparator && (
                       <DateSeparator date={message.created_at} />
+                    )}
+                    {showOriginHeader && originInfo && originInfo.label && (
+                      <ConversationCardHeader
+                        provider={originInfo.provider}
+                        label={originInfo.label}
+                        phoneNumber={originInfo.phone}
+                      />
                     )}
                     <MessageBubble
                       message={message}

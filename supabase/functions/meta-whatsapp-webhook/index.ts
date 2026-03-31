@@ -645,7 +645,8 @@ Deno.serve(async (req) => {
                   whatsapp_message_id: messageId,
                   media_url: finalMediaUrl,
                   message_type: messageType,
-                  created_at: timestamp
+                  created_at: timestamp,
+                  sent_via_meta_number_id: webhookPhoneNumberId,
                 });
 
               if (msgError) {
