@@ -28,6 +28,7 @@ import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
 import { useForms } from "@/hooks/useForms";
 import { useContacts } from "@/hooks/useContacts";
 import { supabase } from "@/integrations/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface AutomationFormDialogProps {
   open: boolean;
