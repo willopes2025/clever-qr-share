@@ -351,6 +351,7 @@ export const useContacts = () => {
 
       // If deduplication is enabled, check for existing contacts
       if (deduplication?.enabled) {
+        reportProgress('deduplicating', 0, uniqueContacts.length);
         // Renew session before fetching existing contacts
         await ensureSession();
         
