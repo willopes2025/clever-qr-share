@@ -495,7 +495,7 @@ Retorne APENAS o JSON usando a tool fornecida.`,
     }
 
     const scoreMap = Object.fromEntries(ranked.map((row: any) => [row.deal_id, row]));
-    const results = deals.map((deal: any) => {
+    const results = analyzableDeals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const aiResult = scoreMap[deal.id] || { score: 0, insight: "Sem dados suficientes para análise" };
       return {
