@@ -1249,6 +1249,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         media_url: finalMediaUrl,
         whatsapp_message_id: key.id,
         sent_at: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+        sent_via_instance_id: instanceId,
       });
 
     // Check if error is a unique constraint violation (duplicate whatsapp_message_id)
