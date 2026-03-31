@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { useFormById, useFormFields, useForms } from "@/hooks/useForms";
 import { Button } from "@/components/ui/button";
@@ -17,13 +17,15 @@ import { SubmissionsList } from "@/components/forms/submissions/SubmissionsList"
 const FormBuilder = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: form, isLoading: formLoading } = useFormById(id);
   const { fields, isLoading: fieldsLoading, createField, updateField, deleteField, updateFieldsOrder } = useFormFields(id);
   const { updateForm } = useForms();
   
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("fields");
+  const initialTab = searchParams.get("tab") || "fields";
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const selectedField = fields?.find(f => f.id === selectedFieldId) || null;
   const isLoading = formLoading || fieldsLoading;
