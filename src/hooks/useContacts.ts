@@ -267,6 +267,8 @@ export const useContacts = () => {
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
       const BATCH_SIZE = 20;
+      const BATCH_DELAY_MS = 300; // Delay between batches to avoid connection pool saturation
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const startedAt = Date.now();
       const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
         setImportProgress({ phase, current, total, startedAt });
@@ -384,6 +386,7 @@ export const useContacts = () => {
               allContacts = [...allContacts, ...data];
               hasMore = data.length === PAGE_SIZE;
               page++;
+              if (hasMore) await delay(200); // Avoid pool saturation
             } else {
               hasMore = false;
             }
@@ -526,7 +529,8 @@ export const useContacts = () => {
           batches.push(contactsToInsert.slice(i, i + BATCH_SIZE));
         }
 
-        for (const batch of batches) {
+        for (let bi = 0; bi < batches.length; bi++) {
+          const batch = batches[bi];
           await ensureSession();
           
           const dbBatch = batch.map(prepareForDb);
@@ -544,6 +548,7 @@ export const useContacts = () => {
           }
           processedWork += batch.length;
           reportProgress('inserting', processedWork, totalWork);
+          if (bi < batches.length - 1) await delay(BATCH_DELAY_MS);
         }
       }
 
@@ -555,28 +560,44 @@ export const useContacts = () => {
           updateBatches.push(contactsToUpdate.slice(i, i + BATCH_SIZE));
         }
 
-        for (const batch of updateBatches) {
+        for (let bi = 0; bi < updateBatches.length; bi++) {
+          const batch = updateBatches[bi];
           await ensureSession();
           
-          for (const contact of batch) {
+          // Use upsert in batch for much faster updates
+          const dbBatch = batch.map(contact => {
             const prepared = prepareForDb(contact);
-            const { id, ...updateData } = prepared as typeof prepared & { id: string };
-            const { data, error } = await supabase
-              .from("contacts")
-              .update(updateData)
-              .eq("id", id)
-              .select("id");
+            return prepared;
+          });
+          
+          const { data, error } = await supabase
+            .from("contacts")
+            .upsert(dbBatch, {
+              onConflict: "user_id,phone",
+              ignoreDuplicates: false,
+            })
+            .select("id");
 
-            if (error) {
-              console.error("Error updating contact:", error);
-              continue;
+          if (error) {
+            console.error("Error updating batch:", error);
+            // Fallback: try individual updates
+            for (const contact of batch) {
+              const prepared = prepareForDb(contact);
+              const { id, ...updateData } = prepared as typeof prepared & { id: string };
+              if (!id) continue;
+              const { data: singleData } = await supabase
+                .from("contacts")
+                .update(updateData)
+                .eq("id", id)
+                .select("id");
+              if (singleData) updatedData.push(...singleData);
             }
-            if (data) {
-              updatedData.push(...data);
-            }
-            processedWork++;
-            reportProgress('updating', processedWork, totalWork);
+          } else if (data) {
+            updatedData.push(...data);
           }
+          processedWork += batch.length;
+          reportProgress('updating', processedWork, totalWork);
+          if (bi < updateBatches.length - 1) await delay(BATCH_DELAY_MS);
         }
       }
 
