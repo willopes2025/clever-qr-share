@@ -246,15 +246,22 @@ Notas do vendedor: ${c.userNotes || 'Nenhuma'}
 
     if (listError) throw listError;
 
-    // 4. Add contacts to list
-    const contactEntries = validContexts.map((ctx: any) => ({
-      list_id: list.id,
-      contact_id: ctx.contactId,
-    }));
+    // 4. Add contacts to list (deduplicate by contactId)
+    const seenContactIds = new Set<string>();
+    const contactEntries = validContexts
+      .filter((ctx: any) => {
+        if (seenContactIds.has(ctx.contactId)) return false;
+        seenContactIds.add(ctx.contactId);
+        return true;
+      })
+      .map((ctx: any) => ({
+        list_id: list.id,
+        contact_id: ctx.contactId,
+      }));
 
     const { error: contactsError } = await supabase
       .from('broadcast_list_contacts')
-      .insert(contactEntries);
+      .upsert(contactEntries, { onConflict: 'list_id,contact_id', ignoreDuplicates: true });
 
     if (contactsError) throw contactsError;
 
