@@ -41,10 +41,12 @@ serve(async (req) => {
 
     const messageDaysLimit = funnel.opportunity_message_days || 30;
 
+    // Fetch stages with order for context
     const { data: stages } = await supabase
       .from("funnel_stages")
-      .select("id, name, final_type")
-      .eq("funnel_id", funnel_id);
+      .select("id, name, final_type, order_index")
+      .eq("funnel_id", funnel_id)
+      .order("order_index", { ascending: true });
 
     const openStageIds = (stages || [])
       .filter((s: any) => !s.final_type || (s.final_type !== "won" && s.final_type !== "lost"))
@@ -58,9 +60,30 @@ serve(async (req) => {
 
     const stageMap = Object.fromEntries((stages || []).map((s: any) => [s.id, s.name]));
 
+    // Build stages context for AI prompt
+    const stagesContext = (stages || [])
+      .map((s: any, i: number) => {
+        const typeLabel = s.final_type === "won" ? " (GANHO - etapa final)" 
+          : s.final_type === "lost" ? " (PERDIDO - etapa final)" 
+          : "";
+        return `${i + 1}. ${s.name}${typeLabel}`;
+      })
+      .join("\n");
+
+    // Fetch custom field definitions for this user
+    const { data: fieldDefs } = await supabase
+      .from("custom_field_definitions")
+      .select("field_key, field_name, field_type")
+      .eq("entity_type", "deal")
+      .eq("user_id", user.id);
+    const fieldDefMap = Object.fromEntries(
+      (fieldDefs || []).map((f: any) => [f.field_key, f.field_name])
+    );
+
+    // Fetch deals - include custom_fields, reduced to 30
     let dealsQuery = supabase
       .from("funnel_deals")
-      .select("id, title, value, stage_id, contact_id, conversation_id, created_at")
+      .select("id, title, value, stage_id, contact_id, conversation_id, created_at, custom_fields")
       .eq("funnel_id", funnel_id)
       .in("stage_id", openStageIds)
       .order("created_at", { ascending: true });
@@ -70,7 +93,7 @@ serve(async (req) => {
       dealsQuery = dealsQuery.not("id", "in", excludedList);
     }
 
-    const { data: deals } = await dealsQuery.limit(50);
+    const { data: deals } = await dealsQuery.limit(30);
 
     if (!deals?.length) {
       return new Response(JSON.stringify({ opportunities: [], exhausted: excludedDealIds.length > 0 }), {
@@ -78,6 +101,7 @@ serve(async (req) => {
       });
     }
 
+    // Fetch contacts
     const contactIds = [...new Set(deals.map((d: any) => d.contact_id).filter(Boolean))];
     const { data: contacts } = await supabase
       .from("contacts")
@@ -85,6 +109,7 @@ serve(async (req) => {
       .in("id", contactIds);
     const contactMap = Object.fromEntries((contacts || []).map((c: any) => [c.id, c]));
 
+    // Fetch conversation messages
     const conversationIds = [...new Set(deals.map((d: any) => d.conversation_id).filter(Boolean))];
     const messagesMap: Record<string, any[]> = {};
 
@@ -97,17 +122,29 @@ serve(async (req) => {
           .eq("conversation_id", convId)
           .gte("created_at", sinceDate)
           .order("created_at", { ascending: false })
-          .limit(30);
+          .limit(40);
         if (msgs?.length) messagesMap[convId] = msgs.reverse();
       }
     }
 
+    // Build deal contexts with custom fields
     const dealsContext = deals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const messages = deal.conversation_id ? messagesMap[deal.conversation_id] || [] : [];
       const messagesText = messages
         .map((m: any) => `[${m.direction === "outgoing" ? "Vendedor" : "Cliente"}]: ${m.content || "(mídia)"}`)
         .join("\n");
+
+      // Format custom fields with readable names
+      const customFields: Record<string, any> = {};
+      if (deal.custom_fields && typeof deal.custom_fields === "object") {
+        for (const [key, val] of Object.entries(deal.custom_fields)) {
+          const label = fieldDefMap[key] || key;
+          if (val !== null && val !== undefined && val !== "") {
+            customFields[label] = val;
+          }
+        }
+      }
 
       return {
         deal_id: deal.id,
@@ -116,43 +153,76 @@ serve(async (req) => {
         contact_email: contact.email || "",
         stage: stageMap[deal.stage_id] || "Desconhecida",
         value: deal.value || 0,
+        custom_fields: Object.keys(customFields).length ? customFields : undefined,
         days_open: Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86400000),
         has_conversation: !!messages.length,
-        conversation_summary: messagesText.slice(-3000),
+        message_count: messages.length,
+        conversation_summary: messagesText.slice(-5000),
       };
     });
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const customPrompt = funnel.opportunity_prompt 
       ? `\n\nINSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${funnel.opportunity_prompt}` 
       : '';
 
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4.1-nano",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
-            content: `Você é um analista de vendas especialista. Analise os deals de um funil e retorne um ranking de oportunidades de fechamento.
-Para cada deal, avalie:
-- Sinais de compra nas mensagens (perguntas sobre preço, prazos, formas de pagamento)
-- Engajamento do cliente (frequência e qualidade das respostas)
-- Estágio no funil e tempo em aberto
-- Valor do deal
+            content: `Você é um analista de vendas especialista que avalia oportunidades de fechamento com base em EVIDÊNCIAS CONCRETAS.
+
+ETAPAS DO FUNIL (da primeira à última):
+${stagesContext}
+
+Para cada deal, avalie criteriosamente:
+
+1. SINAIS DE COMPRA nas mensagens:
+   - Perguntas sobre preço, prazos, formas de pagamento → score alto
+   - Pedido de proposta ou orçamento → score alto
+   - Respostas curtas ou genéricas → score médio-baixo
+   - Sem conversa → score baixo (máximo 25)
+
+2. CAMPOS PERSONALIZADOS do negócio:
+   - Dados preenchidos (local, data, valor, etc.) indicam lead qualificado
+   - Quanto mais informações preenchidas, maior a maturidade
+
+3. ENGAJAMENTO do cliente:
+   - Frequência e qualidade das respostas
+   - Cliente que responde rápido e faz perguntas = alta probabilidade
+   - Cliente que não responde há dias = baixa probabilidade
+
+4. POSIÇÃO NO FUNIL:
+   - Leads em etapas mais avançadas devem ter score maior
+   - Leads parados na mesma etapa há muitos dias sem interação = score reduzido
+
+5. VALOR DO DEAL:
+   - Considere o valor como indicador de prioridade (deals maiores merecem atenção)
+
+REGRAS DE SCORING:
+- Score 80-100: Sinais claros de compra, engajamento ativo, dados completos
+- Score 50-79: Interesse demonstrado mas sem confirmação, algum engajamento
+- Score 25-49: Pouco engajamento, dados incompletos, conversa fria
+- Score 1-24: Sem conversa, sem dados, lead frio ou abandonado
+- NUNCA dê score alto sem evidência concreta nas mensagens ou dados
+
+Gere insights EM PORTUGUÊS que citem evidências específicas (ex: "Cliente perguntou sobre pagamento dia 25/03").
 ${customPrompt}
 
 Retorne APENAS o JSON usando a tool fornecida.`,
           },
           {
             role: "user",
-            content: `Analise estes ${dealsContext.length} deals e ranqueie por probabilidade de fechamento (considerando mensagens dos últimos ${messageDaysLimit} dias):\n\n${JSON.stringify(dealsContext, null, 2)}`,
+            content: `Analise estes ${dealsContext.length} deals do funil "${funnel.name}" e ranqueie por probabilidade de fechamento (mensagens dos últimos ${messageDaysLimit} dias):\n\n${JSON.stringify(dealsContext, null, 2)}`,
           },
         ],
         tools: [
@@ -170,8 +240,8 @@ Retorne APENAS o JSON usando a tool fornecida.`,
                       type: "object",
                       properties: {
                         deal_id: { type: "string" },
-                        score: { type: "number", description: "Score de 1-100" },
-                        insight: { type: "string", description: "Breve justificativa em português (max 150 chars)" },
+                        score: { type: "number", description: "Score de 1-100 baseado em evidências" },
+                        insight: { type: "string", description: "Breve justificativa com evidências em português (max 200 chars)" },
                       },
                       required: ["deal_id", "score", "insight"],
                       additionalProperties: false,
