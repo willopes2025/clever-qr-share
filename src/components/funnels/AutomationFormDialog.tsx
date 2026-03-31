@@ -1208,6 +1208,64 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {actionType === 'notify_user' && (
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Usuários para notificar via WhatsApp
+              </Label>
+              <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                {members && members.length > 0 ? (
+                  members.filter(m => m.status === 'active').map((member) => {
+                    const memberId = member.user_id || member.id;
+                    const selectedIds: string[] = (actionConfig.notify_user_ids as string[]) || [];
+                    const isChecked = selectedIds.includes(memberId);
+                    return (
+                      <label
+                        key={member.id}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            const newIds = checked
+                              ? [...selectedIds, memberId]
+                              : selectedIds.filter((id: string) => id !== memberId);
+                            setActionConfig({ ...actionConfig, notify_user_ids: newIds });
+                          }}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{member.profile?.full_name || member.email}</span>
+                          {member.profile?.full_name && member.email && (
+                            <span className="text-xs text-muted-foreground">{member.email}</span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Nenhum membro da equipe encontrado
+                  </p>
+                )}
+              </div>
+              {((actionConfig.notify_user_ids as string[]) || []).length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {((actionConfig.notify_user_ids as string[]) || []).length} usuário(s) selecionado(s)
+                </p>
+              )}
+              <div className="space-y-2">
+                <Label>Mensagem de notificação (opcional)</Label>
+                <Textarea
+                  value={actionConfig.notify_message as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, notify_message: e.target.value })}
+                  placeholder="Use {{nome}}, {{telefone}}, {{etapa}}, {{funil}} para variáveis"
+                  rows={3}
+                />
+              </div>
+            </div>
+          )
+
           {actionType === 'add_note' && (
             <div className="space-y-2">
               <Label>Conteúdo da Nota</Label>
