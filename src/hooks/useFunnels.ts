@@ -15,6 +15,11 @@ export interface Funnel {
   updated_at: string;
   opportunity_prompt?: string | null;
   opportunity_message_days?: number | null;
+  opportunity_rotation_cooldown?: number | null;
+  opportunity_batch_size?: number | null;
+  opportunity_include_no_conversation?: boolean | null;
+  opportunity_conversation_priority?: string | null;
+  opportunity_last_batch_number?: number | null;
   stages?: FunnelStage[];
 }
 
