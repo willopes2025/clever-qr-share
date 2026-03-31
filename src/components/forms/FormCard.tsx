@@ -59,6 +59,8 @@ const statusConfig = {
 export const FormCard = ({ form }: FormCardProps) => {
   const navigate = useNavigate();
   const { deleteForm, duplicateForm, updateForm } = useForms();
+  const { submissions } = useFormSubmissions(form.id);
+  const { fields } = useFormFields(form.id);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const status = statusConfig[form.status] || statusConfig.draft;
@@ -92,6 +94,66 @@ export const FormCard = ({ form }: FormCardProps) => {
     deleteForm.mutate(form.id, {
       onSuccess: () => setShowDeleteDialog(false),
     });
+  };
+
+  const handleViewSubmissions = () => {
+    navigate(`/forms/${form.id}?tab=submissions`);
+  };
+
+  const handleExportCSV = () => {
+    if (!submissions || submissions.length === 0) {
+      toast.info("Nenhuma resposta para exportar.");
+      return;
+    }
+    const visibleFields = (fields || []).filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
+
+    const resolveDisplayValue = (field: any, rawValue: any): string => {
+      if (rawValue === undefined || rawValue === null) return '-';
+      const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
+      if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
+        const optionMap = new Map(field.options.map((o: any) => [o.value, o.label]));
+        if (Array.isArray(rawValue)) return rawValue.map(v => optionMap.get(v) || v).join(', ');
+        if (typeof rawValue === 'string') {
+          if (rawValue.startsWith('[')) {
+            try {
+              const arr = JSON.parse(rawValue);
+              if (Array.isArray(arr)) return arr.map((v: string) => optionMap.get(v) || v).join(', ');
+            } catch {}
+          }
+          return optionMap.get(rawValue) || rawValue;
+        }
+      }
+      if (typeof rawValue === 'object') return JSON.stringify(rawValue);
+      return String(rawValue);
+    };
+
+    const headers = ['Data', 'Contato', ...visibleFields.map(f => f.label)];
+    const rows = submissions.map(sub => {
+      const contactName = (sub as any).contacts?.name || (sub as any).contacts?.phone || 'Anônimo';
+      const fieldValues = visibleFields.map(f => {
+        const value = sub.data[f.id] ?? sub.data[f.label] ?? '';
+        return resolveDisplayValue(f, value);
+      });
+      return [
+        format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm'),
+        contactName,
+        ...fieldValues,
+      ];
+    });
+
+    const BOM = "\uFEFF";
+    const csvContent = BOM + [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';')),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `respostas-${form.slug || form.id}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success("Exportação concluída!");
   };
 
   return (
