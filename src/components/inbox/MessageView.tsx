@@ -503,8 +503,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     try {
     // Validate instance first
-    if (!selectedInstanceId) {
-      toast.error("Selecione uma instância primeiro");
+    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    if (!hasValidSender) {
+      toast.error(isMetaConversation ? "Selecione um número Meta primeiro" : "Selecione uma instância primeiro");
       setSlashCommandOpen(false);
       return;
     }
