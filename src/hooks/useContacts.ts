@@ -64,6 +64,7 @@ export interface ContactWithDeals extends ContactWithTags {
 
 export const useContacts = () => {
   const queryClient = useQueryClient();
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
 
   // Function to fetch all contacts in batches (bypasses 1000 limit)
   const fetchAllContacts = async (): Promise<ContactWithDeals[]> => {
