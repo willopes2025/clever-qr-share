@@ -673,6 +673,8 @@ export const useContacts = () => {
         }
       }
 
+      reportProgress('done', contacts.length, contacts.length);
+
       return {
         total: contacts.length,
         new: insertedData.length,
@@ -681,6 +683,7 @@ export const useContacts = () => {
       };
     },
     onSuccess: (stats) => {
+      setImportProgress(null);
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       queryClient.invalidateQueries({ queryKey: ["custom-field-definitions"] });
       queryClient.invalidateQueries({ queryKey: ["funnels"] });
