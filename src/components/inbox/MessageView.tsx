@@ -792,8 +792,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       const metaNum = metaNumbers.find(n => n.phone_number_id === numberId);
       return {
         provider: 'meta',
-        label: metaNum?.display_phone_number || getMetaLabel(numberId) || 'Meta API',
-        phone: metaNum?.display_phone_number || null,
+        label: metaNum?.display_name || getMetaLabel(numberId) || 'Meta API',
+        phone: metaNum?.phone_number || null,
       };
     }
     if (originKey.startsWith('evo:')) {
