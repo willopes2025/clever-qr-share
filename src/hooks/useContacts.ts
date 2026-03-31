@@ -607,6 +607,7 @@ export const useContacts = () => {
 
       // Create deals in funnel if configured
       if (funnelConfig?.funnel_id && allContactIds.length > 0) {
+        reportProgress('deals', 0, allContactIds.length);
         await ensureSession();
 
         // Determine target stage
