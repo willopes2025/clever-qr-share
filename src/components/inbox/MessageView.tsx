@@ -1316,10 +1316,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                 const prevMessage = index > 0 ? allMessages[index - 1] : null;
                 const showDateSeparator = shouldShowDateSeparator(prevMessage, message);
                 
+                // Show origin header when source changes (only if multiple origins exist)
+                const currentOrigin = getOriginKey(message);
+                const prevOrigin = prevMessage ? getOriginKey(prevMessage) : null;
+                const showOriginHeader = hasMultipleOrigins && currentOrigin !== prevOrigin;
+                const originInfo = showOriginHeader ? getOriginLabel(currentOrigin) : null;
+                
                 return (
                   <Fragment key={message.id}>
                     {showDateSeparator && (
                       <DateSeparator date={message.created_at} />
+                    )}
+                    {showOriginHeader && originInfo && originInfo.label && (
+                      <ConversationCardHeader
+                        provider={originInfo.provider}
+                        label={originInfo.label}
+                        phoneNumber={originInfo.phone}
+                      />
                     )}
                     <MessageBubble
                       message={message}
