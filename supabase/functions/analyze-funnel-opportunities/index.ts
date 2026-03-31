@@ -7,6 +7,28 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const PAGE_SIZE = 1000;
+const TARGET_BATCH_SIZE = 30;
+const CONTACT_CHUNK_SIZE = 100;
+const MAX_SCAN_PAGES = 20;
+
+const shuffle = <T,>(items: T[]) => {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
+
+const chunkArray = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -17,20 +39,25 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
     if (userError || !user) throw new Error("Unauthorized");
 
     const { funnel_id, exclude_deal_ids } = await req.json();
     if (!funnel_id) throw new Error("funnel_id is required");
+
     const excludedDealIds = Array.isArray(exclude_deal_ids)
       ? exclude_deal_ids.filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
       : [];
+    const excludedDealIdSet = new Set(excludedDealIds);
 
     const { data: funnel, error: funnelError } = await supabase
       .from("funnels")
@@ -40,8 +67,8 @@ serve(async (req) => {
     if (funnelError || !funnel) throw new Error("Funnel not found or access denied");
 
     const messageDaysLimit = funnel.opportunity_message_days || 30;
+    const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
 
-    // Fetch stages with order for context
     const { data: stages } = await supabase
       .from("funnel_stages")
       .select("id, name, final_type, order_index")
@@ -59,150 +86,158 @@ serve(async (req) => {
     }
 
     const stageMap = Object.fromEntries((stages || []).map((s: any) => [s.id, s.name]));
-
-    // Build stages context for AI prompt
     const stagesContext = (stages || [])
       .map((s: any, i: number) => {
-        const typeLabel = s.final_type === "won" ? " (GANHO - etapa final)" 
-          : s.final_type === "lost" ? " (PERDIDO - etapa final)" 
-          : "";
+        const typeLabel = s.final_type === "won"
+          ? " (GANHO - etapa final)"
+          : s.final_type === "lost"
+            ? " (PERDIDO - etapa final)"
+            : "";
         return `${i + 1}. ${s.name}${typeLabel}`;
       })
       .join("\n");
 
-    // Fetch custom field definitions for this user
     const { data: fieldDefs } = await supabase
       .from("custom_field_definitions")
       .select("field_key, field_name, field_type")
       .eq("entity_type", "deal")
       .eq("user_id", user.id);
-    const fieldDefMap = Object.fromEntries(
-      (fieldDefs || []).map((f: any) => [f.field_key, f.field_name])
-    );
+    const fieldDefMap = Object.fromEntries((fieldDefs || []).map((f: any) => [f.field_key, f.field_name]));
 
-    // Fetch ALL open deals
-    const { data: allDeals } = await supabaseAdmin
-      .from("funnel_deals")
-      .select("id, title, value, stage_id, contact_id, conversation_id, created_at, custom_fields")
-      .eq("funnel_id", funnel_id)
-      .in("stage_id", openStageIds);
+    const prioritizedDeals: any[] = [];
+    const fallbackDeals: any[] = [];
+    const scannedEligibleDealIds = new Set<string>();
 
-    // Strictly filter out excluded deals - NO RESET
-    const filteredDeals = (allDeals || []).filter(
-      (d: any) => !excludedDealIds.includes(d.id)
-    );
+    for (let page = 0; page < MAX_SCAN_PAGES; page++) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-    // If no deals left after exclusion, return exhausted
-    if (!filteredDeals.length) {
-      return new Response(JSON.stringify({ 
-        opportunities: [], 
-        exhausted: true 
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      const { data: pageDeals, error: pageDealsError } = await supabaseAdmin
+        .from("funnel_deals")
+        .select("id, title, value, stage_id, contact_id, conversation_id, created_at, custom_fields")
+        .eq("funnel_id", funnel_id)
+        .in("stage_id", openStageIds)
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
-    // Collect all contact IDs to find conversations by contact_id fallback
-    const allContactIds = [...new Set(filteredDeals.map((d: any) => d.contact_id).filter(Boolean))];
+      if (pageDealsError) throw pageDealsError;
+      if (!pageDeals?.length) break;
 
-    // Fetch recent conversations for all contacts (fallback for deals without conversation_id)
-    const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
-    const contactConversationMap: Record<string, string> = {};
+      const eligibleDeals = pageDeals.filter((deal: any) => !excludedDealIdSet.has(deal.id));
 
-    if (allContactIds.length) {
-      // Fetch conversations that had recent activity, grouped by contact
-      const { data: recentConvs } = await supabaseAdmin
-        .from("conversations")
-        .select("id, contact_id, last_message_at")
-        .in("contact_id", allContactIds)
-        .gte("last_message_at", sinceDate)
-        .order("last_message_at", { ascending: false });
+      if (eligibleDeals.length) {
+        const contactIds = [...new Set(eligibleDeals.map((deal: any) => deal.contact_id).filter(Boolean))];
+        const contactChunks = chunkArray(contactIds, CONTACT_CHUNK_SIZE);
+        const conversationResponses = await Promise.all(
+          contactChunks.map((contactChunk) =>
+            supabaseAdmin
+              .from("conversations")
+              .select("id, contact_id, last_message_at")
+              .in("contact_id", contactChunk)
+              .gte("last_message_at", sinceDate)
+              .order("last_message_at", { ascending: false })
+          )
+        );
 
-      // Map each contact to their most recent conversation
-      for (const conv of (recentConvs || [])) {
-        if (!contactConversationMap[conv.contact_id]) {
-          contactConversationMap[conv.contact_id] = conv.id;
+        const contactConversationMap: Record<string, string> = {};
+        for (const response of conversationResponses) {
+          if (response.error) throw response.error;
+          for (const conversation of response.data || []) {
+            if (!contactConversationMap[conversation.contact_id]) {
+              contactConversationMap[conversation.contact_id] = conversation.id;
+            }
+          }
+        }
+
+        for (const deal of eligibleDeals) {
+          if (scannedEligibleDealIds.has(deal.id)) continue;
+          scannedEligibleDealIds.add(deal.id);
+
+          const effectiveConversationId = deal.conversation_id || contactConversationMap[deal.contact_id] || null;
+          const enrichedDeal = {
+            ...deal,
+            effective_conversation_id: effectiveConversationId,
+          };
+
+          if (effectiveConversationId) {
+            prioritizedDeals.push(enrichedDeal);
+          } else {
+            fallbackDeals.push(enrichedDeal);
+          }
         }
       }
-    }
 
-    // Resolve effective conversation_id for each deal
-    const dealsWithConv = filteredDeals.map((d: any) => ({
-      ...d,
-      effective_conversation_id: d.conversation_id || contactConversationMap[d.contact_id] || null,
-    }));
+      console.log("[analyze-funnel-opportunities] scanned page", {
+        page,
+        eligibleDeals: eligibleDeals.length,
+        prioritizedPool: prioritizedDeals.length,
+        fallbackPool: fallbackDeals.length,
+      });
 
-    // Separate deals: those with conversation vs without
-    const dealsWithMessages = dealsWithConv.filter((d: any) => d.effective_conversation_id);
-    const dealsWithoutMessages = dealsWithConv.filter((d: any) => !d.effective_conversation_id);
-
-    // Shuffle helper
-    const shuffle = (arr: any[]) => {
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+      if (prioritizedDeals.length >= TARGET_BATCH_SIZE || prioritizedDeals.length + fallbackDeals.length >= TARGET_BATCH_SIZE * 3) {
+        break;
       }
-      return arr;
-    };
 
-    // Prioritize deals with conversations, fill remainder with cold deals
-    shuffle(dealsWithMessages);
-    shuffle(dealsWithoutMessages);
-
-    const BATCH_SIZE = 30;
-    const deals: any[] = [];
-    deals.push(...dealsWithMessages.slice(0, BATCH_SIZE));
-    if (deals.length < BATCH_SIZE) {
-      deals.push(...dealsWithoutMessages.slice(0, BATCH_SIZE - deals.length));
+      if (pageDeals.length < PAGE_SIZE) break;
     }
+
+    const deals = [
+      ...shuffle(prioritizedDeals).slice(0, TARGET_BATCH_SIZE),
+      ...shuffle(fallbackDeals).slice(0, Math.max(0, TARGET_BATCH_SIZE - Math.min(prioritizedDeals.length, TARGET_BATCH_SIZE))),
+    ].slice(0, TARGET_BATCH_SIZE);
 
     if (!deals.length) {
-      return new Response(JSON.stringify({ opportunities: [], exhausted: excludedDealIds.length > 0 }), {
+      return new Response(JSON.stringify({ opportunities: [], exhausted: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Fetch contacts
-    const contactIds = [...new Set(deals.map((d: any) => d.contact_id).filter(Boolean))];
-    const { data: contacts } = await supabase
+    const contactIds = [...new Set(deals.map((deal: any) => deal.contact_id).filter(Boolean))];
+    const { data: contacts, error: contactsError } = await supabase
       .from("contacts")
       .select("id, name, phone, email, contact_display_id")
       .in("id", contactIds);
-    const contactMap = Object.fromEntries((contacts || []).map((c: any) => [c.id, c]));
+    if (contactsError) throw contactsError;
+    const contactMap = Object.fromEntries((contacts || []).map((contact: any) => [contact.id, contact]));
 
-    // Fetch conversation messages using effective_conversation_id
-    const conversationIds = [...new Set(deals.map((d: any) => d.effective_conversation_id).filter(Boolean))];
+    const conversationIds = [...new Set(deals.map((deal: any) => deal.effective_conversation_id).filter(Boolean))];
     const messagesMap: Record<string, any[]> = {};
 
     if (conversationIds.length) {
-      for (const convId of conversationIds.slice(0, 30)) {
-        const { data: msgs } = await supabase
-          .from("inbox_messages")
-          .select("content, direction, created_at")
-          .eq("conversation_id", convId)
-          .gte("created_at", sinceDate)
-          .order("created_at", { ascending: false })
-          .limit(40);
-        if (msgs?.length) messagesMap[convId] = msgs.reverse();
-      }
+      const messageResponses = await Promise.all(
+        conversationIds.slice(0, TARGET_BATCH_SIZE).map((conversationId) =>
+          supabase
+            .from("inbox_messages")
+            .select("content, direction, created_at")
+            .eq("conversation_id", conversationId)
+            .gte("created_at", sinceDate)
+            .order("created_at", { ascending: false })
+            .limit(40)
+        )
+      );
+
+      conversationIds.slice(0, TARGET_BATCH_SIZE).forEach((conversationId, index) => {
+        const response = messageResponses[index];
+        if (response.error) throw response.error;
+        if (response.data?.length) {
+          messagesMap[conversationId] = response.data.reverse();
+        }
+      });
     }
 
-    // Build deal contexts with custom fields
     const dealsContext = deals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
-      const convId = deal.effective_conversation_id;
-      const messages = convId ? messagesMap[convId] || [] : [];
+      const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
       const messagesText = messages
-        .map((m: any) => `[${m.direction === "outgoing" ? "Vendedor" : "Cliente"}]: ${m.content || "(mídia)"}`)
+        .map((message: any) => `[${message.direction === "outgoing" ? "Vendedor" : "Cliente"}]: ${message.content || "(mídia)"}`)
         .join("\n");
 
-      // Format custom fields with readable names
       const customFields: Record<string, any> = {};
       if (deal.custom_fields && typeof deal.custom_fields === "object") {
-        for (const [key, val] of Object.entries(deal.custom_fields)) {
+        for (const [key, value] of Object.entries(deal.custom_fields)) {
           const label = fieldDefMap[key] || key;
-          if (val !== null && val !== undefined && val !== "") {
-            customFields[label] = val;
+          if (value !== null && value !== undefined && value !== "") {
+            customFields[label] = value;
           }
         }
       }
@@ -216,7 +251,7 @@ serve(async (req) => {
         value: deal.value || 0,
         custom_fields: Object.keys(customFields).length ? customFields : undefined,
         days_open: Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86400000),
-        has_conversation: !!messages.length,
+        has_conversation: messages.length > 0,
         message_count: messages.length,
         conversation_summary: messagesText.slice(-5000),
       };
@@ -225,9 +260,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const customPrompt = funnel.opportunity_prompt 
-      ? `\n\nINSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${funnel.opportunity_prompt}` 
-      : '';
+    const customPrompt = funnel.opportunity_prompt
+      ? `\n\nINSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${funnel.opportunity_prompt}`
+      : "";
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -323,16 +358,18 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       const status = aiResponse.status;
       if (status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (status === 402) {
         return new Response(JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errText = await aiResponse.text();
-      console.error("AI error:", status, errText);
+      const errorText = await aiResponse.text();
+      console.error("AI error:", status, errorText);
       throw new Error("Erro ao analisar oportunidades");
     }
 
@@ -349,8 +386,7 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       }
     }
 
-    // Merge AI scores with deal/contact data
-    const scoreMap = Object.fromEntries(ranked.map((r: any) => [r.deal_id, r]));
+    const scoreMap = Object.fromEntries(ranked.map((row: any) => [row.deal_id, row]));
     const results = deals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const aiResult = scoreMap[deal.id] || { score: 0, insight: "Sem dados suficientes para análise" };
@@ -371,51 +407,53 @@ Retorne APENAS o JSON usando a tool fornecida.`,
 
     results.sort((a: any, b: any) => b.score - a.score);
 
-    // Load existing user_notes and status to preserve them
-    const dealIds = results.map((r: any) => r.deal_id);
-    const { data: existingOpps } = await supabaseAdmin
+    const dealIds = results.map((row: any) => row.deal_id);
+    const { data: existingOpps, error: existingOppsError } = await supabaseAdmin
       .from("funnel_opportunities")
       .select("deal_id, user_notes, status")
       .eq("funnel_id", funnel_id)
       .in("deal_id", dealIds);
-    const existingMap = Object.fromEntries(
-      (existingOpps || []).map((o: any) => [o.deal_id, o])
-    );
+    if (existingOppsError) throw existingOppsError;
 
-    // Remove stale opportunities not in current analysis
-    const currentDealIds = results.map((r: any) => r.deal_id);
-    const staleDeleteQuery = supabaseAdmin
-      .from("funnel_opportunities")
-      .delete()
-      .eq("funnel_id", funnel_id);
+    const existingMap = Object.fromEntries((existingOpps || []).map((row: any) => [row.deal_id, row]));
+    const currentDealIds = results.map((row: any) => row.deal_id);
 
     if (currentDealIds.length) {
-      const currentDealIdsList = `(${currentDealIds.map((id) => `"${id}"`).join(",")})`;
-      await staleDeleteQuery.not("deal_id", "in", currentDealIdsList);
+      const currentDealIdsList = `(${currentDealIds.join(",")})`;
+      const { error: deleteError } = await supabaseAdmin
+        .from("funnel_opportunities")
+        .delete()
+        .eq("funnel_id", funnel_id)
+        .not("deal_id", "in", currentDealIdsList);
+      if (deleteError) throw deleteError;
     } else {
-      await staleDeleteQuery;
+      const { error: deleteError } = await supabaseAdmin
+        .from("funnel_opportunities")
+        .delete()
+        .eq("funnel_id", funnel_id);
+      if (deleteError) throw deleteError;
     }
 
-    // Upsert results into funnel_opportunities using service role
-    const upsertRows = results.map((r: any) => {
-      const existing = existingMap[r.deal_id];
+    const analyzedAt = new Date().toISOString();
+    const upsertRows = results.map((row: any) => {
+      const existing = existingMap[row.deal_id];
       return {
         funnel_id,
-        deal_id: r.deal_id,
-        contact_id: r.contact_id,
-        conversation_id: r.conversation_id,
-        contact_name: r.contact_name,
-        contact_phone: r.contact_phone,
-        contact_email: r.contact_email,
-        contact_display_id: r.contact_display_id,
-        stage_name: r.stage_name,
-        value: r.value,
-        score: r.score,
-        insight: r.insight,
+        deal_id: row.deal_id,
+        contact_id: row.contact_id,
+        conversation_id: row.conversation_id,
+        contact_name: row.contact_name,
+        contact_phone: row.contact_phone,
+        contact_email: row.contact_email,
+        contact_display_id: row.contact_display_id,
+        stage_name: row.stage_name,
+        value: row.value,
+        score: row.score,
+        insight: row.insight,
         user_notes: existing?.user_notes || null,
-        status: existing?.status || 'open',
+        status: existing?.status || "open",
         user_id: user.id,
-        analyzed_at: new Date().toISOString(),
+        analyzed_at: analyzedAt,
       };
     });
 
@@ -423,17 +461,23 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       const { error: upsertError } = await supabaseAdmin
         .from("funnel_opportunities")
         .upsert(upsertRows, { onConflict: "funnel_id,deal_id" });
-
       if (upsertError) throw upsertError;
     }
 
-    return new Response(JSON.stringify({ opportunities: results }), {
+    console.log("[analyze-funnel-opportunities] analysis complete", {
+      selectedDeals: deals.length,
+      prioritizedDeals: deals.filter((deal: any) => deal.effective_conversation_id).length,
+      exhausted: false,
+    });
+
+    return new Response(JSON.stringify({ opportunities: results, exhausted: false }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    console.error("Error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  } catch (error) {
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
