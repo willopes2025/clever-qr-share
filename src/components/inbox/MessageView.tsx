@@ -1360,7 +1360,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
-            disabled={!selectedInstanceId}
+            disabled={isMetaConversation ? !selectedMetaNumberId : !selectedInstanceId}
           />
 
           <FormLinkButton
