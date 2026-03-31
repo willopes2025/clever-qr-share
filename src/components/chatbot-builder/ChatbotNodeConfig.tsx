@@ -503,6 +503,116 @@ const MultipleIntentsConfig = ({
   );
 };
 
+// Component for Meta Template action configuration
+const MetaTemplateActionConfig = ({
+  config,
+  handleChange,
+  data,
+}: {
+  config: Record<string, any>;
+  handleChange: (key: string, value: any) => void;
+  data: NodeData;
+}) => {
+  const { metaNumbers, isLoading: isLoadingNumbers } = useMetaWhatsAppNumbers();
+  
+  // Get waba_id from selected number to filter templates
+  const selectedNumber = metaNumbers?.find(n => n.phone_number_id === config.metaPhoneNumberId);
+  const { templates, isLoading: isLoadingTemplates } = useMetaTemplates(selectedNumber?.waba_id);
+  
+  const approvedTemplates = templates.filter(t => t.status === 'approved');
+  const selectedTemplate = approvedTemplates.find(t => t.id === config.metaTemplateId);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Número Meta WhatsApp</Label>
+        <Select
+          value={config.metaPhoneNumberId || ""}
+          onValueChange={(v) => handleChange("config", { 
+            ...config, 
+            metaPhoneNumberId: v, 
+            metaTemplateId: "",
+            metaTemplateName: "",
+          })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione um número..." />
+          </SelectTrigger>
+          <SelectContent>
+            {isLoadingNumbers ? (
+              <SelectItem value="loading" disabled>Carregando...</SelectItem>
+            ) : metaNumbers?.length === 0 ? (
+              <SelectItem value="empty" disabled>Nenhum número configurado</SelectItem>
+            ) : (
+              metaNumbers?.filter(n => n.is_active).map((number) => (
+                <SelectItem key={number.phone_number_id} value={number.phone_number_id}>
+                  <div className="flex items-center gap-2">
+                    <Send className="h-3 w-3" />
+                    {number.display_name || number.phone_number || number.phone_number_id}
+                  </div>
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {config.metaPhoneNumberId && (
+        <div className="space-y-2">
+          <Label>Template Aprovado</Label>
+          <Select
+            value={config.metaTemplateId || ""}
+            onValueChange={(v) => {
+              const tpl = approvedTemplates.find(t => t.id === v);
+              handleChange("config", { 
+                ...config, 
+                metaTemplateId: v,
+                metaTemplateName: tpl?.name || "",
+                metaTemplateLanguage: tpl?.language || "pt_BR",
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um template..." />
+            </SelectTrigger>
+            <SelectContent>
+              {isLoadingTemplates ? (
+                <SelectItem value="loading" disabled>Carregando...</SelectItem>
+              ) : approvedTemplates.length === 0 ? (
+                <SelectItem value="empty" disabled>Nenhum template aprovado</SelectItem>
+              ) : (
+                approvedTemplates.map((tpl) => (
+                  <SelectItem key={tpl.id} value={tpl.id}>
+                    {tpl.name} ({tpl.category})
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {selectedTemplate && (
+        <div className="rounded-lg bg-muted/50 p-3 space-y-2 border">
+          <p className="text-xs font-medium text-muted-foreground">Preview:</p>
+          <p className="text-sm whitespace-pre-line line-clamp-5">
+            {selectedTemplate.body_text}
+          </p>
+          {selectedTemplate.body_examples?.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Variáveis: {selectedTemplate.body_examples.length} exemplo(s) configurado(s)
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+        <p>O template será enviado via WhatsApp Cloud API (Meta) usando o número selecionado. As variáveis do template serão substituídas com os dados do contato.</p>
+      </div>
+    </div>
+  );
+};
+
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
   const { funnels } = useFunnels();
