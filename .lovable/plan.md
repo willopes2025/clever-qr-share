@@ -1,120 +1,60 @@
 
 
-## Plano: Expandir Gatilhos de Automação (Paridade Kommo)
+## Diagnóstico: Análises de Oportunidade Imprecisas
 
-### Análise: Atual vs Kommo
+### Problemas Identificados
 
-**Já temos:**
-- Gatilhos de pipeline: entrar/sair etapa, deal ganho/perdido, entrar no funil
-- Gatilhos de conversa: mensagem recebida, palavra-chave, inatividade
-- Gatilhos de ação: tag add/remove, formulário, webhook, campo alterado, contato criado, valor alterado
+1. **Modelo fraco (`gpt-4.1-nano`)**: Este é o modelo mais barato e limitado. Para análise complexa de vendas com múltiplos deals e contexto de conversa, ele não tem capacidade de raciocínio suficiente para gerar insights precisos.
 
-**Faltam (baseado nas imagens do Kommo):**
+2. **Campos personalizados ausentes**: A análise NÃO inclui `custom_fields` dos deals (ex: "local do evento", "valor da venda", "data do evento"). Informações cruciais do negócio são ignoradas.
 
-| Categoria | Gatilho Kommo | Novo trigger_type |
-|---|---|---|
-| Pipeline | Quando o responsável é alterado | `on_responsible_changed` |
-| Programado | X horas antes de um campo de data | `on_scheduled_before_date_field` |
-| Programado | Tempo exato (data + hora) | `on_scheduled_exact_time` |
-| Programado | Diariamente às (hora fixa) | `on_scheduled_daily` |
-| Conversa | Quando conversa é encerrada | `on_conversation_closed` |
-| Conversa | X horas após última mensagem recebida | `on_hours_after_last_message` |
+3. **Contexto de conversa truncado**: Apenas os últimos 3.000 caracteres da conversa são enviados (`messagesText.slice(-3000)`), e apenas 30 mensagens por conversa. Mensagens importantes do início podem ser cortadas.
 
-### Implementação
+4. **50 deals de uma vez**: Enviar muitos deals simultaneamente para um modelo fraco dilui a qualidade da análise de cada um.
 
-#### 1. Migração de banco de dados
-Adicionar os 6 novos valores ao enum `funnel_trigger_type`:
-```sql
-ALTER TYPE funnel_trigger_type ADD VALUE 'on_responsible_changed';
-ALTER TYPE funnel_trigger_type ADD VALUE 'on_scheduled_before_date_field';
-ALTER TYPE funnel_trigger_type ADD VALUE 'on_scheduled_exact_time';
-ALTER TYPE funnel_trigger_type ADD VALUE 'on_scheduled_daily';
-ALTER TYPE funnel_trigger_type ADD VALUE 'on_conversation_closed';
-ALTER TYPE funnel_trigger_type ADD VALUE 'on_hours_after_last_message';
-```
+5. **Sem contexto das etapas**: O prompt não explica o significado de cada etapa do funil, então a IA não sabe o que significa estar em "Proposta Enviada" vs "Primeiro Contato".
 
-#### 2. Frontend - AutomationFormDialog.tsx
-- Adicionar os 6 novos tipos ao `TriggerType`
-- Adicionar opções no Select de gatilhos organizadas por categoria (usando separadores visuais)
-- Criar configurações específicas para cada novo gatilho:
-  - **on_responsible_changed**: sem config extra (dispara quando muda o responsável)
-  - **on_scheduled_before_date_field**: selector de campo de data + input de horas antes
-  - **on_scheduled_exact_time**: date picker + time picker
-  - **on_scheduled_daily**: time picker apenas
-  - **on_conversation_closed**: sem config extra
-  - **on_hours_after_last_message**: input de horas
+### Plano de Correção
 
-#### 3. Frontend - AutomationCard.tsx e AutomationsDialog.tsx
-- Adicionar labels, ícones e cores para os novos triggers
-- Subtitles contextuais (ex: "3h antes de Vencimento", "Diário às 09:00")
+#### 1. Trocar modelo para Gemini 2.5 Flash (via Lovable AI Gateway)
+- Substituir chamada direta à OpenAI pelo gateway Lovable AI
+- Usar `google/gemini-2.5-flash` — bom raciocínio, multimodal, custo razoável
+- Não requer API key do usuário
 
-#### 4. Backend - Edge Function `process-funnel-automations`
-- Adicionar `on_responsible_changed` ao processamento de eventos (comparar responsável anterior vs novo)
-- Adicionar `on_conversation_closed` ao processamento
+#### 2. Incluir campos personalizados dos deals
+- Buscar `custom_fields` na query de `funnel_deals`
+- Buscar definições dos campos (`custom_field_definitions`) para usar nomes legíveis
+- Incluir no contexto enviado à IA como dados do negócio
 
-#### 5. Nova Edge Function `process-scheduled-automations`
-Para os 3 gatilhos programados (que precisam de um cron job):
-- **on_scheduled_before_date_field**: A cada minuto, buscar automações ativas deste tipo, verificar se o campo de data do deal minus X horas = agora
-- **on_scheduled_exact_time**: Verificar se a data/hora configurada = agora
-- **on_scheduled_daily**: Verificar se a hora atual = hora configurada, executar para todos os deals do funil/etapa
-- Registrar execuções numa tabela `automation_execution_log` para evitar duplicatas
-- Configurar cron job (pg_cron) para rodar a cada minuto
+#### 3. Incluir descrição das etapas do funil
+- Adicionar ao prompt a lista de etapas com seus nomes e tipos (aberta/ganho/perdido)
+- Dar à IA contexto sobre a progressão do funil
 
-#### 6. Tabela `automation_execution_log`
-```sql
-CREATE TABLE automation_execution_log (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  automation_id uuid REFERENCES funnel_automations(id) ON DELETE CASCADE,
-  deal_id uuid REFERENCES funnel_deals(id) ON DELETE CASCADE,
-  executed_at timestamptz DEFAULT now(),
-  trigger_key text, -- para dedup (ex: "daily_2026-03-30")
-  UNIQUE(automation_id, deal_id, trigger_key)
-);
-```
+#### 4. Melhorar prompt com mais estrutura
+- Instruir a IA a considerar campos personalizados como indicadores de maturidade
+- Pedir análise mais granular: sinais positivos, negativos e neutros
+- Aumentar limite de contexto de conversa de 3.000 para 5.000 chars
 
-### Arquivos modificados/criados
+#### 5. Reduzir batch e melhorar qualidade
+- Reduzir de 50 para 30 deals por batch para dar mais atenção a cada um
+- Randomizar seleção (já existe lógica de exclusão)
+
+### Arquivos Modificados
 
 | Arquivo | Alteração |
 |---|---|
-| Migração SQL | Enum + tabela execution_log + cron |
-| `AutomationFormDialog.tsx` | 6 novos triggers + configs UI |
-| `AutomationCard.tsx` | Labels, ícones, subtitles |
-| `AutomationsDialog.tsx` | Labels para novos triggers |
-| `process-funnel-automations/index.ts` | on_responsible_changed, on_conversation_closed |
-| `process-scheduled-automations/index.ts` | **Nova** - cron para triggers programados |
+| `supabase/functions/analyze-funnel-opportunities/index.ts` | Trocar modelo, incluir custom_fields, melhorar prompt, adicionar contexto de etapas |
 
-### Organização dos gatilhos no formulário (agrupados)
-
-```text
-── GATILHOS DO PIPELINE ──
-  🚀 Quando entrar no funil
-  📋 Todos que já fazem parte do funil
-  ⚡ Quando entrar na etapa
-  ↔️ Quando sair da etapa
-  ✅ Quando deal for ganho
-  ❌ Quando deal for perdido
-  👤 Quando responsável for alterado        ← NOVO
-
-── GATILHOS PROGRAMADOS ──
-  ⏰ X horas antes de campo de data         ← NOVO
-  📅 Em data e hora exata                    ← NOVO
-  🔄 Diariamente às                         ← NOVO
-  ⏱️ Após X dias na etapa
-  😴 Após X dias sem interação
-
-── GATILHOS DE CONVERSA ──
-  💬 Quando receber mensagem
-  🔑 Quando mensagem conter palavra-chave
-  ⏳ X horas após última mensagem           ← NOVO
-  🔒 Quando conversa for encerrada          ← NOVO
-
-── GATILHOS DE AÇÃO ──
-  🏷️ Quando tag for adicionada
-  🏷️ Quando tag for removida
-  👥 Quando contato for criado
-  💰 Quando valor do deal mudar
-  📝 Quando campo personalizado mudar
-  📝 Quando formulário for enviado
-  🔗 Webhook externo
+### Prompt Melhorado (resumo)
+```
+Você é um analista de vendas especialista.
+ETAPAS DO FUNIL: [lista com nomes e significados]
+Para cada deal, considere:
+- Campos personalizados (dados do negócio)
+- Histórico de conversas (sinais de compra)
+- Tempo no funil e etapa atual
+- Valor do negócio
+Gere scores realistas baseados em evidências concretas.
+Se não há conversa ou dados, o score deve ser baixo.
 ```
 
