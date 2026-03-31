@@ -1264,7 +1264,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 />
               </div>
             </div>
-          )
+          )}
 
           {actionType === 'add_note' && (
             <div className="space-y-2">
