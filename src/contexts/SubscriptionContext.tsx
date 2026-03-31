@@ -127,6 +127,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setSubscription(data);
         hasLoadedRef.current = true;
+        retryCountRef.current = 0;
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
