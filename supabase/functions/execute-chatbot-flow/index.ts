@@ -491,6 +491,116 @@ Deno.serve(async (req: Request) => {
               .update({ assigned_to: config.responsibleId })
               .eq('id', conversationId);
             console.log(`[FLOW] Changed responsible to ${config.responsibleId}`);
+          } else if (actionType === 'send_meta_template' && config.metaPhoneNumberId && config.metaTemplateId) {
+            // Send Meta WhatsApp template
+            try {
+              const META_API_URL = 'https://graph.facebook.com/v21.0';
+              
+              // Load the template
+              const { data: metaTemplate } = await supabase
+                .from('meta_templates')
+                .select('*')
+                .eq('id', config.metaTemplateId)
+                .single();
+
+              if (metaTemplate && contact?.phone) {
+                // Get access token from meta_whatsapp_numbers
+                const { data: metaNumber } = await supabase
+                  .from('meta_whatsapp_numbers')
+                  .select('phone_number_id, waba_id')
+                  .eq('phone_number_id', config.metaPhoneNumberId)
+                  .single();
+
+                // Get access token from meta_whatsapp_config
+                const { data: metaConfig } = await supabase
+                  .from('meta_whatsapp_config')
+                  .select('credentials')
+                  .eq('user_id', userId)
+                  .single();
+
+                const accessToken = (metaConfig?.credentials as any)?.access_token;
+                if (!accessToken) {
+                  console.error('[FLOW] No Meta access token found');
+                } else {
+                  const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+
+                  // Build components from body examples
+                  const components: any[] = [];
+                  const bodyExamples = metaTemplate.body_examples || [];
+                  if (bodyExamples.length > 0) {
+                    // Replace variables with contact data
+                    const resolvedVars = bodyExamples.map((example: string) => {
+                      let resolved = example;
+                      resolved = resolved.replace(/\{\{nome\}\}/gi, contact?.name || '');
+                      resolved = resolved.replace(/\{\{telefone\}\}/gi, contact?.phone || '');
+                      resolved = resolved.replace(/\{\{email\}\}/gi, contact?.email || '');
+                      return resolved;
+                    });
+                    components.push({
+                      type: 'body',
+                      parameters: resolvedVars.map((v: string) => ({ type: 'text', text: v })),
+                    });
+                  }
+
+                  const messagePayload: any = {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: formattedPhone,
+                    type: 'template',
+                    template: {
+                      name: metaTemplate.name,
+                      language: { code: metaTemplate.language || 'pt_BR' },
+                    },
+                  };
+                  if (components.length > 0) {
+                    messagePayload.template.components = components;
+                  }
+
+                  const phoneNumberId = config.metaPhoneNumberId;
+                  const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(messagePayload),
+                  });
+
+                  const result = await response.json();
+                  console.log('[FLOW] Meta template send result:', JSON.stringify(result));
+
+                  if (response.ok) {
+                    const whatsappMessageId = result.messages?.[0]?.id;
+                    const displayContent = metaTemplate.body_text || `[Template: ${metaTemplate.name}]`;
+                    
+                    await supabase.from('inbox_messages').insert({
+                      user_id: userId,
+                      conversation_id: conversationId,
+                      content: displayContent,
+                      direction: 'outbound',
+                      status: 'sent',
+                      message_type: 'text',
+                      whatsapp_message_id: whatsappMessageId,
+                      sent_at: new Date().toISOString(),
+                    });
+
+                    await supabase.from('conversations').update({
+                      last_message_at: new Date().toISOString(),
+                      last_message_preview: displayContent.substring(0, 100),
+                      last_message_direction: 'outbound',
+                      provider: 'meta',
+                      meta_phone_number_id: phoneNumberId,
+                    }).eq('id', conversationId);
+
+                    console.log(`[FLOW] Meta template "${metaTemplate.name}" sent successfully`);
+                  } else {
+                    console.error('[FLOW] Meta template send failed:', result.error?.message);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('[FLOW] Error sending Meta template:', err);
+            }
           }
 
           currentId = getNextNode(node.id);
