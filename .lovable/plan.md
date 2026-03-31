@@ -1,60 +1,77 @@
 
+Objetivo: corrigir dois problemas no módulo de oportunidades do funil:
+1. a IA não está cobrindo todos os leads com conversa relevante;
+2. ao clicar em “Re-analisar”, a lista ainda recicla leads já mostrados em vez de forçar novos.
 
-## Diagnóstico: Análises de Oportunidade Imprecisas
+O que encontrei no código:
+- A função `analyze-funnel-opportunities` analisa no máximo 30 deals por vez, escolhidos de forma aleatória entre os deals abertos.
+- Ela lê mensagens apenas quando o `funnel_deals.conversation_id` está preenchido. Isso tende a perder leads que têm conversa vinculada ao contato, mas cujo deal não tem `conversation_id`.
+- A reanálise recebe `exclude_deal_ids`, mas quando todos os deals elegíveis acabam excluídos, a função faz “reset” e volta a considerar todos, o que reintroduz os mesmos leads.
+- Depois da análise, a função apaga do banco as oportunidades que não estão no lote atual, então a lista sempre reflete só o último lote analisado.
 
-### Problemas Identificados
+Plano de implementação
 
-1. **Modelo fraco (`gpt-4.1-nano`)**: Este é o modelo mais barato e limitado. Para análise complexa de vendas com múltiplos deals e contexto de conversa, ele não tem capacidade de raciocínio suficiente para gerar insights precisos.
+1. Melhorar a busca de conversa por lead
+- Na função `supabase/functions/analyze-funnel-opportunities/index.ts`, parar de depender só de `deal.conversation_id`.
+- Para deals sem `conversation_id`, buscar a conversa mais recente do mesmo `contact_id` e usar essa conversa para coletar mensagens.
+- Priorizar a conversa do deal quando existir; caso não exista, usar fallback por contato.
 
-2. **Campos personalizados ausentes**: A análise NÃO inclui `custom_fields` dos deals (ex: "local do evento", "valor da venda", "data do evento"). Informações cruciais do negócio são ignoradas.
+2. Aumentar a cobertura de leads realmente conversados
+- Separar os deals abertos em grupos:
+  - com conversa/mensagens recentes;
+  - sem conversa.
+- Priorizar primeiro os deals com sinais reais de conversa.
+- Só completar com deals sem conversa se faltar volume para o lote.
+- Isso aumenta a chance de aparecerem “leads compradores” que já interagiram, em vez de muitos leads frios.
 
-3. **Contexto de conversa truncado**: Apenas os últimos 3.000 caracteres da conversa são enviados (`messagesText.slice(-3000)`), e apenas 30 mensagens por conversa. Mensagens importantes do início podem ser cortadas.
+3. Corrigir a lógica de “Re-analisar” para trazer novos leads
+- Remover o comportamento de reset automático quando todos os leads do lote anterior forem excluídos.
+- Em reanálise, se não houver novos deals elegíveis fora da lista atual, retornar `exhausted: true` sem reciclar os mesmos.
+- Manter a exclusão estrita dos `exclude_deal_ids` recebidos do frontend.
 
-4. **50 deals de uma vez**: Enviar muitos deals simultaneamente para um modelo fraco dilui a qualidade da análise de cada um.
+4. Melhorar a rotação entre reanálises
+- Em vez de aleatoriedade pura sobre todos os deals, aplicar seleção com rotação mais previsível:
+  - filtrar deals excluídos;
+  - priorizar deals com conversa;
+  - embaralhar apenas dentro do conjunto elegível restante;
+  - limitar ao lote.
+- Resultado esperado: cada reanálise mostra outro conjunto de oportunidades plausíveis, sem repetir em sequência.
 
-5. **Sem contexto das etapas**: O prompt não explica o significado de cada etapa do funil, então a IA não sabe o que significa estar em "Proposta Enviada" vs "Primeiro Contato".
+5. Ajustar a experiência no frontend
+- Em `src/components/funnels/FunnelOpportunitiesView.tsx`, manter o fluxo atual de `excludeDealIds`, mas alinhar mensagens:
+  - se não houver novos leads, mostrar aviso claro de que todos os leads elegíveis já foram analisados;
+  - se houver novo lote, substituir a lista atual normalmente.
+- Não mudar a UI estrutural; apenas garantir comportamento coerente com a expectativa da reanálise.
 
-### Plano de Correção
+Arquivos a alterar
+- `supabase/functions/analyze-funnel-opportunities/index.ts`
+- `src/components/funnels/FunnelOpportunitiesView.tsx`
 
-#### 1. Trocar modelo para Gemini 2.5 Flash (via Lovable AI Gateway)
-- Substituir chamada direta à OpenAI pelo gateway Lovable AI
-- Usar `google/gemini-2.5-flash` — bom raciocínio, multimodal, custo razoável
-- Não requer API key do usuário
+Resultado esperado
+- A análise passa a considerar mais leads que realmente conversaram.
+- Leads com conversa deixam de ser perdidos só porque o deal não tem `conversation_id`.
+- “Re-analisar” para de trazer os mesmos leads em sequência.
+- Quando não houver mais leads novos elegíveis, o sistema informa isso em vez de reciclar a lista.
 
-#### 2. Incluir campos personalizados dos deals
-- Buscar `custom_fields` na query de `funnel_deals`
-- Buscar definições dos campos (`custom_field_definitions`) para usar nomes legíveis
-- Incluir no contexto enviado à IA como dados do negócio
+Detalhes técnicos
+```text
+Fluxo atual:
+deal -> conversation_id -> inbox_messages
 
-#### 3. Incluir descrição das etapas do funil
-- Adicionar ao prompt a lista de etapas com seus nomes e tipos (aberta/ganho/perdido)
-- Dar à IA contexto sobre a progressão do funil
+Fluxo proposto:
+deal
+ ├─ se tiver conversation_id -> usa a conversa do deal
+ └─ senão -> busca conversa mais recente por contact_id
+                -> lê mensagens
+                -> monta contexto para IA
 
-#### 4. Melhorar prompt com mais estrutura
-- Instruir a IA a considerar campos personalizados como indicadores de maturidade
-- Pedir análise mais granular: sinais positivos, negativos e neutros
-- Aumentar limite de contexto de conversa de 3.000 para 5.000 chars
+Reanálise atual:
+exclui IDs atuais
+  -> se zera conjunto, reseta tudo
+  -> repete leads
 
-#### 5. Reduzir batch e melhorar qualidade
-- Reduzir de 50 para 30 deals por batch para dar mais atenção a cada um
-- Randomizar seleção (já existe lógica de exclusão)
-
-### Arquivos Modificados
-
-| Arquivo | Alteração |
-|---|---|
-| `supabase/functions/analyze-funnel-opportunities/index.ts` | Trocar modelo, incluir custom_fields, melhorar prompt, adicionar contexto de etapas |
-
-### Prompt Melhorado (resumo)
+Reanálise proposta:
+exclui IDs atuais
+  -> se zera conjunto, retorna "sem novos leads"
+  -> não repete em sequência
 ```
-Você é um analista de vendas especialista.
-ETAPAS DO FUNIL: [lista com nomes e significados]
-Para cada deal, considere:
-- Campos personalizados (dados do negócio)
-- Histórico de conversas (sinais de compra)
-- Tempo no funil e etapa atual
-- Valor do negócio
-Gere scores realistas baseados em evidências concretas.
-Se não há conversa ou dados, o score deve ser baixo.
-```
-
