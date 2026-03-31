@@ -267,6 +267,8 @@ export const useContacts = () => {
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
       const BATCH_SIZE = 20;
+      const BATCH_DELAY_MS = 300; // Delay between batches to avoid connection pool saturation
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const startedAt = Date.now();
       const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
         setImportProgress({ phase, current, total, startedAt });
