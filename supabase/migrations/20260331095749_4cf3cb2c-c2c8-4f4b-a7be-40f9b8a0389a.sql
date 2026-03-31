@@ -1,0 +1,1 @@
+DELETE FROM funnel_deals WHERE id = 'cad68ae8-0115-4e8e-bb26-778f28112fb4';
