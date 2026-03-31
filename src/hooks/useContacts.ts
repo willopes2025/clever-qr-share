@@ -574,6 +574,8 @@ export const useContacts = () => {
             if (data) {
               updatedData.push(...data);
             }
+            processedWork++;
+            reportProgress('updating', processedWork, totalWork);
           }
         }
       }
