@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 const PAGE_SIZE = 1000;
-const TARGET_BATCH_SIZE = 30;
 const CONTACT_CHUNK_SIZE = 100;
 const MAX_SCAN_PAGES = 20;
 
@@ -59,14 +58,20 @@ serve(async (req) => {
       : [];
     const excludedDealIdSet = new Set(excludedDealIds);
 
+    // Load funnel config with new rotation settings
     const { data: funnel, error: funnelError } = await supabase
       .from("funnels")
-      .select("id, name, opportunity_prompt, opportunity_message_days")
+      .select("id, name, opportunity_prompt, opportunity_message_days, opportunity_rotation_cooldown, opportunity_batch_size, opportunity_include_no_conversation, opportunity_conversation_priority, opportunity_last_batch_number")
       .eq("id", funnel_id)
       .single();
     if (funnelError || !funnel) throw new Error("Funnel not found or access denied");
 
     const messageDaysLimit = funnel.opportunity_message_days || 30;
+    const rotationCooldown = funnel.opportunity_rotation_cooldown ?? 3;
+    const targetBatchSize = funnel.opportunity_batch_size || 30;
+    const includeNoConversation = funnel.opportunity_include_no_conversation !== false;
+    const conversationPriority = funnel.opportunity_conversation_priority || "balanced";
+    const currentBatchNumber = (funnel.opportunity_last_batch_number || 0) + 1;
     const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
 
     const { data: stages } = await supabase
@@ -104,6 +109,29 @@ serve(async (req) => {
       .eq("user_id", user.id);
     const fieldDefMap = Object.fromEntries((fieldDefs || []).map((f: any) => [f.field_key, f.field_name]));
 
+    // === ROTATION MEMORY: Load recently shown deal IDs ===
+    // Get deals shown in the last N batches (cooldown window)
+    const cooldownMinBatch = Math.max(1, currentBatchNumber - rotationCooldown);
+    const { data: recentHistory } = await supabaseAdmin
+      .from("funnel_opportunity_history")
+      .select("deal_id")
+      .eq("funnel_id", funnel_id)
+      .gte("batch_number", cooldownMinBatch);
+    
+    const recentlyShownDealIds = new Set((recentHistory || []).map((h: any) => h.deal_id));
+    
+    // Combine exclusions: explicit + cooldown
+    const fullExclusionSet = new Set([...excludedDealIdSet, ...recentlyShownDealIds]);
+
+    console.log("[analyze-funnel-opportunities] rotation state", {
+      currentBatchNumber,
+      cooldownMinBatch,
+      recentlyShownCount: recentlyShownDealIds.size,
+      explicitExcludeCount: excludedDealIds.length,
+      totalExcluded: fullExclusionSet.size,
+    });
+
+    // === DEEP SCAN: Collect ALL eligible deals across all pages ===
     const prioritizedDeals: any[] = [];
     const fallbackDeals: any[] = [];
     const scannedEligibleDealIds = new Set<string>();
@@ -123,7 +151,8 @@ serve(async (req) => {
       if (pageDealsError) throw pageDealsError;
       if (!pageDeals?.length) break;
 
-      const eligibleDeals = pageDeals.filter((deal: any) => !excludedDealIdSet.has(deal.id));
+      // Filter out ALL excluded deals (explicit + cooldown)
+      const eligibleDeals = pageDeals.filter((deal: any) => !fullExclusionSet.has(deal.id));
 
       if (eligibleDeals.length) {
         const contactIds = [...new Set(eligibleDeals.map((deal: any) => deal.contact_id).filter(Boolean))];
@@ -169,22 +198,77 @@ serve(async (req) => {
 
       console.log("[analyze-funnel-opportunities] scanned page", {
         page,
-        eligibleDeals: eligibleDeals.length,
+        pageDeals: pageDeals.length,
+        eligibleAfterExclusion: eligibleDeals.length,
         prioritizedPool: prioritizedDeals.length,
         fallbackPool: fallbackDeals.length,
       });
 
-      if (prioritizedDeals.length >= TARGET_BATCH_SIZE || prioritizedDeals.length + fallbackDeals.length >= TARGET_BATCH_SIZE * 3) {
+      // Don't stop early - scan enough to fill the batch with variety
+      // Only stop if we have enough candidates (3x batch for good shuffle diversity)
+      if (prioritizedDeals.length + fallbackDeals.length >= targetBatchSize * 3) {
         break;
       }
 
       if (pageDeals.length < PAGE_SIZE) break;
     }
 
-    const deals = [
-      ...shuffle(prioritizedDeals).slice(0, TARGET_BATCH_SIZE),
-      ...shuffle(fallbackDeals).slice(0, Math.max(0, TARGET_BATCH_SIZE - Math.min(prioritizedDeals.length, TARGET_BATCH_SIZE))),
-    ].slice(0, TARGET_BATCH_SIZE);
+    // === CHECK EXHAUSTION ===
+    const totalEligible = prioritizedDeals.length + fallbackDeals.length;
+    if (totalEligible === 0) {
+      // Check if this is truly exhausted or just cooldown
+      const { count: totalOpenDeals } = await supabaseAdmin
+        .from("funnel_deals")
+        .select("id", { count: "exact", head: true })
+        .eq("funnel_id", funnel_id)
+        .in("stage_id", openStageIds);
+
+      const isFullyExhausted = (totalOpenDeals || 0) <= fullExclusionSet.size;
+      
+      console.log("[analyze-funnel-opportunities] no eligible deals found", {
+        totalOpenDeals,
+        totalExcluded: fullExclusionSet.size,
+        isFullyExhausted,
+      });
+
+      return new Response(JSON.stringify({ 
+        opportunities: [], 
+        exhausted: true,
+        canResetCycle: !isFullyExhausted,
+        message: isFullyExhausted 
+          ? "Todos os leads elegíveis já foram analisados neste ciclo."
+          : "Leads em período de resfriamento. Aguarde ou reinicie o ciclo."
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // === LAYERED SELECTION based on conversation_priority ===
+    let deals: any[];
+    
+    if (conversationPriority === "strong") {
+      // Strong: heavily favor deals with conversations
+      const withConv = shuffle(prioritizedDeals).slice(0, targetBatchSize);
+      const remaining = Math.max(0, targetBatchSize - withConv.length);
+      const withoutConv = includeNoConversation ? shuffle(fallbackDeals).slice(0, remaining) : [];
+      deals = [...withConv, ...withoutConv].slice(0, targetBatchSize);
+    } else if (conversationPriority === "off") {
+      // Off: treat all equally
+      const allDeals = includeNoConversation 
+        ? shuffle([...prioritizedDeals, ...fallbackDeals]) 
+        : shuffle(prioritizedDeals);
+      deals = allDeals.slice(0, targetBatchSize);
+    } else {
+      // Balanced (default): 70% with conversation, 30% without
+      const withConvSlots = Math.ceil(targetBatchSize * 0.7);
+      const withoutConvSlots = targetBatchSize - withConvSlots;
+      const withConv = shuffle(prioritizedDeals).slice(0, withConvSlots);
+      const remaining = Math.max(0, targetBatchSize - withConv.length);
+      const withoutConv = includeNoConversation 
+        ? shuffle(fallbackDeals).slice(0, Math.max(withoutConvSlots, remaining)) 
+        : [];
+      deals = [...withConv, ...withoutConv].slice(0, targetBatchSize);
+    }
 
     if (!deals.length) {
       return new Response(JSON.stringify({ opportunities: [], exhausted: true }), {
@@ -205,7 +289,7 @@ serve(async (req) => {
 
     if (conversationIds.length) {
       const messageResponses = await Promise.all(
-        conversationIds.slice(0, TARGET_BATCH_SIZE).map((conversationId) =>
+        conversationIds.slice(0, targetBatchSize).map((conversationId) =>
           supabase
             .from("inbox_messages")
             .select("content, direction, created_at")
@@ -216,7 +300,7 @@ serve(async (req) => {
         )
       );
 
-      conversationIds.slice(0, TARGET_BATCH_SIZE).forEach((conversationId, index) => {
+      conversationIds.slice(0, targetBatchSize).forEach((conversationId, index) => {
         const response = messageResponses[index];
         if (response.error) throw response.error;
         if (response.data?.length) {
@@ -407,6 +491,7 @@ Retorne APENAS o JSON usando a tool fornecida.`,
 
     results.sort((a: any, b: any) => b.score - a.score);
 
+    // === SAVE TO DB: Upsert opportunities ===
     const dealIds = results.map((row: any) => row.deal_id);
     const { data: existingOpps, error: existingOppsError } = await supabaseAdmin
       .from("funnel_opportunities")
@@ -464,13 +549,48 @@ Retorne APENAS o JSON usando a tool fornecida.`,
       if (upsertError) throw upsertError;
     }
 
+    // === SAVE ROTATION HISTORY ===
+    const historyRows = results.map((row: any) => ({
+      funnel_id,
+      deal_id: row.deal_id,
+      user_id: user.id,
+      batch_number: currentBatchNumber,
+      analyzed_at: analyzedAt,
+    }));
+
+    if (historyRows.length) {
+      const { error: historyError } = await supabaseAdmin
+        .from("funnel_opportunity_history")
+        .upsert(historyRows, { onConflict: "funnel_id,deal_id,batch_number", ignoreDuplicates: true });
+      if (historyError) {
+        console.error("Failed to save rotation history:", historyError);
+        // Non-blocking - don't fail the whole request
+      }
+    }
+
+    // Update batch number on funnel
+    const { error: updateBatchError } = await supabaseAdmin
+      .from("funnels")
+      .update({ opportunity_last_batch_number: currentBatchNumber })
+      .eq("id", funnel_id);
+    if (updateBatchError) {
+      console.error("Failed to update batch number:", updateBatchError);
+    }
+
     console.log("[analyze-funnel-opportunities] analysis complete", {
       selectedDeals: deals.length,
       prioritizedDeals: deals.filter((deal: any) => deal.effective_conversation_id).length,
+      batchNumber: currentBatchNumber,
+      totalEligiblePool: totalEligible,
       exhausted: false,
     });
 
-    return new Response(JSON.stringify({ opportunities: results, exhausted: false }), {
+    return new Response(JSON.stringify({ 
+      opportunities: results, 
+      exhausted: false,
+      batchNumber: currentBatchNumber,
+      totalEligible,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

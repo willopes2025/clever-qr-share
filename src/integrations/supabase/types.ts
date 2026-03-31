@@ -3063,6 +3063,48 @@ export type Database = {
           },
         ]
       }
+      funnel_opportunity_history: {
+        Row: {
+          analyzed_at: string
+          batch_number: number
+          deal_id: string
+          funnel_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          analyzed_at?: string
+          batch_number?: number
+          deal_id: string
+          funnel_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          analyzed_at?: string
+          batch_number?: number
+          deal_id?: string
+          funnel_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_opportunity_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_opportunity_history_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnel_stages: {
         Row: {
           color: string | null
@@ -3116,8 +3158,13 @@ export type Database = {
           id: string
           is_default: boolean | null
           name: string
+          opportunity_batch_size: number | null
+          opportunity_conversation_priority: string | null
+          opportunity_include_no_conversation: boolean | null
+          opportunity_last_batch_number: number | null
           opportunity_message_days: number | null
           opportunity_prompt: string | null
+          opportunity_rotation_cooldown: number | null
           updated_at: string | null
           user_id: string
         }
@@ -3129,8 +3176,13 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name: string
+          opportunity_batch_size?: number | null
+          opportunity_conversation_priority?: string | null
+          opportunity_include_no_conversation?: boolean | null
+          opportunity_last_batch_number?: number | null
           opportunity_message_days?: number | null
           opportunity_prompt?: string | null
+          opportunity_rotation_cooldown?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -3142,8 +3194,13 @@ export type Database = {
           id?: string
           is_default?: boolean | null
           name?: string
+          opportunity_batch_size?: number | null
+          opportunity_conversation_priority?: string | null
+          opportunity_include_no_conversation?: boolean | null
+          opportunity_last_batch_number?: number | null
           opportunity_message_days?: number | null
           opportunity_prompt?: string | null
+          opportunity_rotation_cooldown?: number | null
           updated_at?: string | null
           user_id?: string
         }
