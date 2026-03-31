@@ -78,6 +78,7 @@ const Contacts = () => {
     deleteContact,
     deleteMultipleContacts,
     importContacts,
+    importProgress,
     toggleOptOut,
     createTag,
     deleteTag,
