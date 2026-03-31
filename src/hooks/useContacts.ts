@@ -705,6 +705,7 @@ export const useContacts = () => {
           ? "Por favor, faça login novamente e tente importar novamente."
           : error.message,
       });
+      setImportProgress(null);
     },
   });
 
