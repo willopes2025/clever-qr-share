@@ -712,8 +712,64 @@ Deno.serve(async (req: Request) => {
           }
 
           case 'notify_user': {
-            console.log(`[FUNNEL-AUTOMATIONS] User notification triggered for deal ${dealId}`);
-            // TODO: Implement notification system
+            const notifyUserIds = (actionConfig.notify_user_ids as string[]) || [];
+            console.log(`[FUNNEL-AUTOMATIONS] User notification triggered for deal ${dealId}, users: ${notifyUserIds.length}`);
+
+            if (notifyUserIds.length === 0) {
+              console.log(`[FUNNEL-AUTOMATIONS] No users configured for notification`);
+              results.push({ automationId: automation.id, success: false, error: 'No users configured' });
+              break;
+            }
+
+            // Build custom message with variable replacement
+            let notifyMessage = (actionConfig.notify_message as string) || 
+              `🔔 *Automação: ${automation.name}*\n\nLead: *{{nome}}*\nTelefone: {{telefone}}\nFunil: {{funil}}\nEtapa: {{etapa}}`;
+
+            const contactName = deal.contact?.name || 'Sem nome';
+            const contactPhone = deal.contact?.phone || '';
+            const contactEmail = deal.contact?.email || '';
+            const stageName = deal.stage?.name || '';
+            const funnelName = deal.funnel?.name || '';
+            const dealTitle = deal.title || contactName;
+            const dealValue = deal.value ? `R$ ${Number(deal.value).toFixed(2)}` : '';
+
+            notifyMessage = notifyMessage
+              .replace(/\{\{nome\}\}/g, contactName)
+              .replace(/\{\{telefone\}\}/g, contactPhone)
+              .replace(/\{\{email\}\}/g, contactEmail)
+              .replace(/\{\{etapa\}\}/g, stageName)
+              .replace(/\{\{funil\}\}/g, funnelName)
+              .replace(/\{\{titulo\}\}/g, dealTitle)
+              .replace(/\{\{valor\}\}/g, dealValue);
+
+            // Send notification to each selected user via send-whatsapp-notification
+            for (const userId of notifyUserIds) {
+              try {
+                const notifResponse = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`,
+                  },
+                  body: JSON.stringify({
+                    type: 'automation_notify',
+                    data: {
+                      dealId,
+                      dealTitle,
+                      stageName,
+                      contactName,
+                      message: notifyMessage,
+                    },
+                    recipientUserId: userId,
+                  }),
+                });
+                const notifText = await notifResponse.text();
+                console.log(`[FUNNEL-AUTOMATIONS] Notification sent to user ${userId}: ${notifResponse.status}`, notifText);
+              } catch (notifErr) {
+                console.error(`[FUNNEL-AUTOMATIONS] Failed to notify user ${userId}:`, notifErr);
+              }
+            }
+
             results.push({ automationId: automation.id, success: true });
             break;
           }

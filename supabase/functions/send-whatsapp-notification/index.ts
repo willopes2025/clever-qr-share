@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'test' | 'new_message' | 'new_deal' | 'deal_stage_change' | 'deal_assigned' | 'task_due' | 'task_assigned' | 'task_created' | 'task_updated' | 'task_deleted' | 'calendly_event' | 'ai_handoff' | 'campaign_complete' | 'instance_disconnect' | 'internal_chat';
+  type: 'test' | 'new_message' | 'new_deal' | 'deal_stage_change' | 'deal_assigned' | 'task_due' | 'task_assigned' | 'task_created' | 'task_updated' | 'task_deleted' | 'calendly_event' | 'ai_handoff' | 'campaign_complete' | 'instance_disconnect' | 'internal_chat' | 'automation_notify';
   data: {
     dealId?: string;
     conversationId?: string;
@@ -118,6 +118,7 @@ Deno.serve(async (req: Request) => {
       campaign_complete: `✅ Campanha *${data.campaignName}* finalizada`,
       instance_disconnect: `⚠️ Instância *${data.instanceName}* desconectou`,
       internal_chat: `💬 *[Chat Interno - ${data.contactName || 'Conversa'}]*\nDe: *${data.senderName}*\n\n${data.message}\n\n_Responda esta mensagem para enviar ao chat interno._`,
+      automation_notify: data.message || `🔔 Notificação de automação para *${data.contactName || 'contato'}*`,
     };
 
     const message = notificationMessages[type] || `Notificação: ${type}`;
