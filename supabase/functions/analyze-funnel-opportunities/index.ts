@@ -81,19 +81,31 @@ serve(async (req) => {
     );
 
     // Fetch deals - include custom_fields, reduced to 30
-    let dealsQuery = supabase
+    // Use random ordering to get different leads each time
+    let dealsQuery = supabaseAdmin
       .from("funnel_deals")
       .select("id, title, value, stage_id, contact_id, conversation_id, created_at, custom_fields")
       .eq("funnel_id", funnel_id)
-      .in("stage_id", openStageIds)
-      .order("created_at", { ascending: true });
+      .in("stage_id", openStageIds);
 
-    if (excludedDealIds.length) {
-      const excludedList = `(${excludedDealIds.map((id) => `"${id}"`).join(",")})`;
-      dealsQuery = dealsQuery.not("id", "in", excludedList);
+    const { data: allDeals } = await dealsQuery;
+    
+    // Filter out excluded deals and randomize selection
+    let filteredDeals = (allDeals || []).filter(
+      (d: any) => !excludedDealIds.includes(d.id)
+    );
+    
+    // If all deals were excluded, reset and use all deals
+    if (!filteredDeals.length && allDeals?.length) {
+      filteredDeals = allDeals;
     }
-
-    const { data: deals } = await dealsQuery.limit(30);
+    
+    // Shuffle and take 30
+    for (let i = filteredDeals.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [filteredDeals[i], filteredDeals[j]] = [filteredDeals[j], filteredDeals[i]];
+    }
+    const deals = filteredDeals.slice(0, 30);
 
     if (!deals?.length) {
       return new Response(JSON.stringify({ opportunities: [], exhausted: excludedDealIds.length > 0 }), {
