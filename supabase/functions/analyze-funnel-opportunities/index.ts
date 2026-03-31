@@ -74,11 +74,12 @@ serve(async (req) => {
     const currentBatchNumber = (funnel.opportunity_last_batch_number || 0) + 1;
     const sinceDate = new Date(Date.now() - messageDaysLimit * 86400000).toISOString();
 
-    const { data: stages } = await supabase
+    const { data: stages, error: stagesError } = await supabase
       .from("funnel_stages")
-      .select("id, name, final_type, order_index")
+      .select("id, name, final_type, display_order")
       .eq("funnel_id", funnel_id)
-      .order("order_index", { ascending: true });
+      .order("display_order", { ascending: true });
+    if (stagesError) throw stagesError;
 
     const openStageIds = (stages || [])
       .filter((s: any) => !s.final_type || (s.final_type !== "won" && s.final_type !== "lost"))
@@ -169,9 +170,11 @@ serve(async (req) => {
         );
 
         const contactConversationMap: Record<string, string> = {};
+        const recentConversationIdSet = new Set<string>();
         for (const response of conversationResponses) {
           if (response.error) throw response.error;
           for (const conversation of response.data || []) {
+            recentConversationIdSet.add(conversation.id);
             if (!contactConversationMap[conversation.contact_id]) {
               contactConversationMap[conversation.contact_id] = conversation.id;
             }
@@ -182,7 +185,10 @@ serve(async (req) => {
           if (scannedEligibleDealIds.has(deal.id)) continue;
           scannedEligibleDealIds.add(deal.id);
 
-          const effectiveConversationId = deal.conversation_id || contactConversationMap[deal.contact_id] || null;
+          const hasRecentDealConversation = typeof deal.conversation_id === "string" && recentConversationIdSet.has(deal.conversation_id);
+          const effectiveConversationId = hasRecentDealConversation
+            ? deal.conversation_id
+            : contactConversationMap[deal.contact_id] || null;
           const enrichedDeal = {
             ...deal,
             effective_conversation_id: effectiveConversationId,
@@ -309,7 +315,25 @@ serve(async (req) => {
       });
     }
 
-    const dealsContext = deals.map((deal: any) => {
+    const analyzableDeals = deals.filter((deal: any) => {
+      const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
+      if (!includeNoConversation) {
+        return messages.length > 0;
+      }
+      return true;
+    });
+
+    if (!analyzableDeals.length) {
+      return new Response(JSON.stringify({
+        opportunities: [],
+        exhausted: true,
+        message: "Nenhum novo lead com interação real foi encontrado para esta configuração.",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const dealsContext = analyzableDeals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
       const messagesText = messages
@@ -471,7 +495,7 @@ Retorne APENAS o JSON usando a tool fornecida.`,
     }
 
     const scoreMap = Object.fromEntries(ranked.map((row: any) => [row.deal_id, row]));
-    const results = deals.map((deal: any) => {
+    const results = analyzableDeals.map((deal: any) => {
       const contact = contactMap[deal.contact_id] || {};
       const aiResult = scoreMap[deal.id] || { score: 0, insight: "Sem dados suficientes para análise" };
       return {
@@ -578,8 +602,8 @@ Retorne APENAS o JSON usando a tool fornecida.`,
     }
 
     console.log("[analyze-funnel-opportunities] analysis complete", {
-      selectedDeals: deals.length,
-      prioritizedDeals: deals.filter((deal: any) => deal.effective_conversation_id).length,
+      selectedDeals: analyzableDeals.length,
+      prioritizedDeals: analyzableDeals.filter((deal: any) => deal.effective_conversation_id).length,
       batchNumber: currentBatchNumber,
       totalEligiblePool: totalEligible,
       exhausted: false,
