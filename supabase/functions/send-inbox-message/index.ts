@@ -227,6 +227,7 @@ Deno.serve(async (req) => {
           status: 'sending',
           sent_at: new Date().toISOString(),
           sent_by_user_id: senderUserId,
+          sent_via_meta_number_id: phoneNumberId,
         })
         .select()
         .single();
