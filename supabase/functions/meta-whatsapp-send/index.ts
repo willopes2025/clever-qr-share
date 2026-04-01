@@ -75,16 +75,42 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get user's integration (contains the access_token)
-    const { data: integration, error: integrationError } = await supabase
+    // First try own integration, then fallback to org members' integration
+    let integration = null;
+    
+    const { data: ownIntegration } = await supabase
       .from('integrations')
       .select('*')
       .eq('user_id', user.id)
       .eq('provider', 'meta_whatsapp')
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (integrationError || !integration) {
-      console.log('[META-SEND] No integration found for user:', user.id);
+    if (ownIntegration) {
+      integration = ownIntegration;
+    } else {
+      // Fallback: find integration from org members
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: user.id });
+      
+      if (orgMemberIds && orgMemberIds.length > 0) {
+        const { data: orgIntegration } = await supabase
+          .from('integrations')
+          .select('*')
+          .in('user_id', orgMemberIds)
+          .eq('provider', 'meta_whatsapp')
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+        
+        integration = orgIntegration;
+        if (integration) {
+          console.log('[META-SEND] Using org member integration from user:', integration.user_id);
+        }
+      }
+    }
+
+    if (!integration) {
+      console.log('[META-SEND] No integration found for user or org:', user.id);
       return new Response(JSON.stringify({ 
         success: false,
         error: 'Integração Meta WhatsApp não configurada. Configure nas Settings.' 
@@ -123,7 +149,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Fallback: use first active meta number for this user
+      // Fallback: use first active meta number for this user or org
       if (!phoneNumberId) {
         const { data: metaNumber } = await supabase
           .from('meta_whatsapp_numbers')
@@ -137,6 +163,24 @@ Deno.serve(async (req: Request) => {
         if (metaNumber) {
           phoneNumberId = metaNumber.phone_number_id;
           console.log('[META-SEND] Using phone_number_id from meta_whatsapp_numbers:', phoneNumberId);
+        } else {
+          // Fallback: try org members' meta numbers
+          const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: user.id });
+          if (orgMemberIds && orgMemberIds.length > 0) {
+            const { data: orgMetaNumber } = await supabase
+              .from('meta_whatsapp_numbers')
+              .select('phone_number_id')
+              .in('user_id', orgMemberIds)
+              .eq('is_active', true)
+              .order('connected_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (orgMetaNumber) {
+              phoneNumberId = orgMetaNumber.phone_number_id;
+              console.log('[META-SEND] Using phone_number_id from org meta_whatsapp_numbers:', phoneNumberId);
+            }
+          }
         }
       }
 
