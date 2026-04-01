@@ -75,6 +75,7 @@ export const DealFormDialog = ({
   useEffect(() => {
     if (open) {
       setTitle(deal?.title || '');
+      setContactName(deal?.contact?.name || '');
       setContactId(deal?.contact_id || initialContactId || '');
       setValue(deal?.value?.toString() || '');
       setExpectedCloseDate(deal?.expected_close_date || '');
