@@ -19,6 +19,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const { updateDeal } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
+  const grabScroll = useGrabScroll();
   
   const [showDealForm, setShowDealForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
