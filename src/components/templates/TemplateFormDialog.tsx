@@ -195,7 +195,8 @@ export const TemplateFormDialog = ({
       media_type: mediaType,
       media_url: mediaUrl,
       media_filename: mediaFilename,
-      ai_prompt: isDynamicAi ? dynamicAiPrompt : null
+      ai_prompt: isDynamicAi ? dynamicAiPrompt : null,
+      include_asaas_data: isDynamicAi ? includeAsaasData : false
     });
     onOpenChange(false);
   };
