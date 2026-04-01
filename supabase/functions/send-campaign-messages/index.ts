@@ -855,7 +855,7 @@ Deno.serve(async (req: Request) => {
             let value = '';
             switch (mapping.source) {
               case 'contact_name':
-                value = message.contact_name || 'Cliente';
+                value = isValidContactName(message.contact_name) ? message.contact_name : ' ';
                 break;
               case 'contact_phone':
                 value = message.phone;
