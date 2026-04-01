@@ -193,6 +193,8 @@ export const useSsoticaSync = (
         ...(lastOs && {
           ssotica_os_numero: lastOs.numero_os || lastOs.numero || '',
           ssotica_os_status: lastOs.status || '',
+          ssotica_os_etapa_atual: lastOs.etapa_atual || '',
+          ssotica_os_tipo: lastOs.tipo_os || '',
           ssotica_os_data_entrada: lastOs.data_entrada || '',
           ssotica_os_previsao_entrega: lastOs.previsao_entrega || '',
           ssotica_os_valor_total: parseFloat(lastOs.valor_total) || 0,
