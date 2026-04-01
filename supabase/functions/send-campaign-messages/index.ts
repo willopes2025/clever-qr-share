@@ -1027,7 +1027,15 @@ Deno.serve(async (req: Request) => {
         }
 
         if (conversationId) {
-          const displayContent = metaTemplate.body_text || '';
+          let displayContent = metaTemplate.body_text || '';
+          if (bodyParams.length > 0) {
+            bodyParams.forEach((param: any, idx: number) => {
+              displayContent = displayContent.replace(
+                new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'),
+                param.text || ''
+              );
+            });
+          }
           await supabase.from('inbox_messages').insert({
             conversation_id: conversationId,
             user_id: campaign.user_id,
