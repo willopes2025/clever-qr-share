@@ -176,7 +176,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
 
   // Column configuration
-  const defaultColumnIds = ["contact", "stage", "value", "time_in_stage", "expected_close"];
+  const defaultColumnIds = ["contact", "phone", "stage", "value", "time_in_stage", "expected_close"];
   const [visibleColumns, setVisibleColumns] = useState<string[]>(defaultColumnIds);
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
@@ -255,6 +255,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const allColumns: ColumnDefinition[] = useMemo(() => {
     const defaultCols: ColumnDefinition[] = [
       { id: "contact", label: "Contato", type: "text", fixed: true },
+      { id: "phone", label: "Telefone", type: "text" },
       { id: "stage", label: "Etapa", type: "select" },
       { id: "value", label: "Valor", type: "number" },
       { id: "time_in_stage", label: "Tempo na Etapa", type: "time" },
@@ -374,18 +375,27 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   // Filtered deals based on column filters
   const filteredDeals = useMemo(() => {
     return searchableDeals.filter((deal) => {
-      // Contact filter
+      // Contact filter (name only)
       if (columnFilters.contact) {
         const normalizedDealName = normalizeText(deal.contact?.name || "");
         const normalizedDealTitle = normalizeText(deal.title || "");
-        const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
 
         const matches =
           normalizedDealTitle.includes(normalizedContactFilter) ||
-          normalizedDealName.includes(normalizedContactFilter) ||
-          (contactFilterDigits.length > 0 && phoneDigits.includes(contactFilterDigits));
+          normalizedDealName.includes(normalizedContactFilter);
 
         if (!matches) return false;
+      }
+
+      // Phone filter
+      if (columnFilters.phone) {
+        const phoneFilterDigits = columnFilters.phone.replace(/\D/g, "");
+        const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
+        if (phoneFilterDigits.length > 0 && !phoneDigits.includes(phoneFilterDigits)) return false;
+        if (phoneFilterDigits.length === 0) {
+          const normalizedPhone = normalizeText(deal.contact?.phone || "");
+          if (!normalizedPhone.includes(normalizeText(columnFilters.phone))) return false;
+        }
       }
 
       // Stage filter
@@ -604,6 +614,8 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     switch (columnId) {
       case "contact":
         return deal.title || deal.contact?.name || "Sem nome";
+      case "phone":
+        return deal.contact?.phone || "";
       case "stage":
         return deal.stageName;
       case "value":
@@ -641,13 +653,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     switch (columnId) {
       case "contact":
         return (
-          <div>
-            <p className="font-medium">{deal.title || deal.contact?.name || "Sem nome"}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Phone className="h-3 w-3" />
-              {formatForDisplay(deal.contact?.phone || "")}
-            </p>
-          </div>
+          <p className="font-medium">{deal.title || deal.contact?.name || "Sem nome"}</p>
+        );
+      case "phone":
+        return (
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
+            <Phone className="h-3 w-3" />
+            {formatForDisplay(deal.contact?.phone || "")}
+          </p>
         );
       case "stage":
         return (
@@ -751,9 +764,17 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       case "contact":
         return (
           <Input
-            placeholder="Buscar nome ou telefone..."
+            placeholder="Buscar nome..."
             value={columnFilters.contact || ""}
             onChange={(e) => setColumnFilter("contact", e.target.value)}
+          />
+        );
+      case "phone":
+        return (
+          <Input
+            placeholder="Buscar telefone..."
+            value={columnFilters.phone || ""}
+            onChange={(e) => setColumnFilter("phone", e.target.value)}
           />
         );
       case "stage":
