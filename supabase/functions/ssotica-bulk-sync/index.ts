@@ -89,16 +89,27 @@ Deno.serve(async (req) => {
 
     console.log(`[BULK-SSOTICA] Starting bulk sync for user ${userId}`);
 
-    // 1. Fetch all active deals for user with contact data
-    const { data: deals, error: dealsError } = await supabase
-      .from('funnel_deals')
-      .select('id, contact_id, custom_fields, contact:contacts(id, phone, custom_fields)')
-      .eq('user_id', userId)
-      .is('closed_at', null)
-      .limit(1000);
+    // 1. Fetch ALL active deals for user with contact data (paginated)
+    let allDeals: any[] = [];
+    let offset = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data: page, error: pageError } = await supabase
+        .from('funnel_deals')
+        .select('id, contact_id, custom_fields, contact:contacts(id, phone, custom_fields)')
+        .eq('user_id', userId)
+        .is('closed_at', null)
+        .range(offset, offset + PAGE_SIZE - 1);
+      
+      if (pageError) throw pageError;
+      if (!page || page.length === 0) break;
+      allDeals.push(...page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
 
-    if (dealsError) throw dealsError;
-    if (!deals || deals.length === 0) {
+    const deals = allDeals;
+    if (deals.length === 0) {
       return new Response(JSON.stringify({ message: 'Nenhum deal ativo encontrado', synced: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
