@@ -671,6 +671,8 @@ Deno.serve(async (req: Request) => {
             ordem_servico: {
               numero_os: os.numero || os.id,
               status: os.status || os.situacao,
+              etapa_atual: os.etapa_atual || null,
+              tipo_os: os.tipo_os || null,
               previsao_entrega: os.previsao_entrega || os.data_previsao,
               data_entrada: os.data_entrada || os.created_at,
               cliente: {
