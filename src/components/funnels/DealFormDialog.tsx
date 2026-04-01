@@ -114,6 +114,15 @@ export const DealFormDialog = ({
     // Next action is optional now
     
     if (deal) {
+      // Update contact name if changed
+      const trimmedName = contactName.trim() || null;
+      if (trimmedName !== (deal.contact?.name || null) && deal.contact_id) {
+        await supabase
+          .from('contacts')
+          .update({ name: trimmedName })
+          .eq('id', deal.contact_id);
+      }
+
       await updateDeal.mutateAsync({ 
         id: deal.id, 
         title: title || null,
