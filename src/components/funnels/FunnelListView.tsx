@@ -605,6 +605,8 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     switch (columnId) {
       case "contact":
         return deal.title || deal.contact?.name || "Sem nome";
+      case "phone":
+        return deal.contact?.phone || "";
       case "stage":
         return deal.stageName;
       case "value":
