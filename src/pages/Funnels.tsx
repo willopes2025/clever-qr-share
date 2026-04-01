@@ -33,6 +33,7 @@ import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
 import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAutomationsView";
 import { ImportContactsToFunnelDialog } from "@/components/funnels/ImportContactsToFunnelDialog";
 import { FunnelOpportunitiesView } from "@/components/funnels/FunnelOpportunitiesView";
+import { FunnelGlobalSearch } from "@/components/funnels/FunnelGlobalSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
