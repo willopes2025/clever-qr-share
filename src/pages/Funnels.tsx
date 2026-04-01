@@ -226,7 +226,11 @@ const Funnels = () => {
               viewMode === 'kanban' 
                 ? <FunnelKanbanView funnel={currentFunnel} />
                 : viewMode === 'list'
-                  ? <FunnelListView funnel={currentFunnel} />
+                  ? <FunnelListView 
+                      funnel={currentFunnel} 
+                      openDealId={selectedDealIdFromSearch}
+                      onDealOpened={() => setSelectedDealIdFromSearch(null)}
+                    />
                   : viewMode === 'opportunities'
                     ? <FunnelOpportunitiesView funnel={currentFunnel} />
                     : viewMode === 'automations'
