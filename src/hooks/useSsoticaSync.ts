@@ -252,11 +252,17 @@ export const useSsoticaSync = (
 
   // Auto-sync when component mounts (deal card opens)
   useEffect(() => {
-    if (!syncAttemptedRef.current && hasSsotica && dealId && user) {
-      syncAttemptedRef.current = true;
-      syncData();
-    }
-  }, [hasSsotica, dealId, user]); // intentionally not including syncData to avoid loops
+    if (syncAttemptedRef.current) return;
+    if (!hasSsotica || !dealId || !user) return;
+    
+    // Only mark as attempted AFTER we actually have all required data
+    const cpf = getCpfFromContact();
+    const phone = contactPhone?.replace(/\D/g, '');
+    if (!cpf && !phone) return; // wait until contact data is loaded
+    
+    syncAttemptedRef.current = true;
+    syncData();
+  }, [hasSsotica, dealId, user, contactPhone, contactCustomFields]); // include contact data deps
 
   const forceSync = useCallback(() => {
     syncData(true);
