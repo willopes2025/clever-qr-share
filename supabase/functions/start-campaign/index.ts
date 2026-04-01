@@ -794,6 +794,52 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Fetch Asaas financial data if enabled
+          let asaasDataMap: Record<string, Array<{ status: string; value: number; dueDate: string; invoiceUrl: string; billingType: string }>> = {};
+          if (campaign.template?.include_asaas_data) {
+            const asaasApiKey = Deno.env.get('SSOTICA_API_TOKEN') || Deno.env.get('ASAAS_API_KEY');
+            if (asaasApiKey) {
+              const contactsWithAsaas = batch.filter((c: Contact & { asaas_customer_id?: string }) => c.asaas_customer_id);
+              console.log(`[Asaas] Fetching financial data for ${contactsWithAsaas.length} contacts with Asaas ID`);
+              
+              // Also fetch asaas_customer_id from DB for contacts missing it in the select
+              const { data: contactAsaasIds } = await supabase
+                .from('contacts')
+                .select('id, asaas_customer_id')
+                .in('id', contactIds)
+                .not('asaas_customer_id', 'is', null);
+              
+              const asaasMap = new Map((contactAsaasIds || []).map(c => [c.id, c.asaas_customer_id]));
+              
+              for (const [contactId, customerId] of asaasMap.entries()) {
+                if (!customerId) continue;
+                try {
+                  const asaasResponse = await fetch(
+                    `https://api.asaas.com/v3/payments?customer=${customerId}&status=PENDING&status=OVERDUE&limit=5`,
+                    { headers: { 'access_token': asaasApiKey } }
+                  );
+                  if (asaasResponse.ok) {
+                    const asaasResult = await asaasResponse.json();
+                    if (asaasResult.data && asaasResult.data.length > 0) {
+                      asaasDataMap[contactId] = asaasResult.data.map((p: any) => ({
+                        status: p.status,
+                        value: p.value,
+                        dueDate: p.dueDate,
+                        invoiceUrl: p.invoiceUrl || p.bankSlipUrl || '',
+                        billingType: p.billingType || 'N/A'
+                      }));
+                    }
+                  }
+                } catch (asaasErr) {
+                  console.error(`[Asaas] Error fetching for customer ${customerId}:`, asaasErr);
+                }
+              }
+              console.log(`[Asaas] Got financial data for ${Object.keys(asaasDataMap).length} contacts`);
+            } else {
+              console.warn('[Asaas] No Asaas API key found, skipping financial data');
+            }
+          }
+
           const contactContexts = batch.map((contact: Contact, index: number) => {
             const deal = deals?.find(d => d.contact_id === contact.id);
             const conv = conversations?.find(c => c.contact_id === contact.id);
@@ -807,6 +853,20 @@ Deno.serve(async (req) => {
               if (deal.value) context += `Valor: R$ ${deal.value}\n`;
               context += formatFieldContext(deal.custom_fields, leadFieldDefinitions, 'Campos personalizados do lead');
             }
+            
+            // Add Asaas financial data
+            const asaasPayments = asaasDataMap[contact.id];
+            if (asaasPayments && asaasPayments.length > 0) {
+              const statusLabels: Record<string, string> = { PENDING: 'Pendente', OVERDUE: 'Vencida', CONFIRMED: 'Confirmada' };
+              context += `\nDados financeiros (Asaas):\n`;
+              asaasPayments.forEach((p, idx) => {
+                const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.value);
+                const formattedDate = p.dueDate ? p.dueDate.split('-').reverse().join('/') : 'N/A';
+                context += `- Fatura ${idx + 1}: ${formattedValue} | Vencimento: ${formattedDate} | Status: ${statusLabels[p.status] || p.status} | Tipo: ${p.billingType}\n`;
+                if (p.invoiceUrl) context += `  Link: ${p.invoiceUrl}\n`;
+              });
+            }
+            
             if (msgs.length > 0) {
               context += `\nÚltimas mensagens:\n`;
               msgs.forEach((m: any) => {
