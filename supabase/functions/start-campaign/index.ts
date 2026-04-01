@@ -886,9 +886,16 @@ A mensagem deve ser natural, direta e pronta para envio.
 Use SOMENTE os dados realmente presentes no contexto do contato.
 Quando o usuário mencionar nomes amigáveis como "nome do contato", "valor da venda" ou "data de vencimento do boleto", relacione isso aos dados disponíveis no contexto, inclusive quando aparecerem com a chave técnica entre chaves.
 Se um dado não existir no contexto do contato, não invente e não mencione esse dado.
+
+REGRA CRÍTICA SOBRE NOMES:
+- O nome do destinatário da mensagem é SEMPRE o que aparece na linha "Contato:" do contexto.
+- Os dados financeiros (Asaas) podem pertencer a outro titular (ex: cônjuge, responsável financeiro). NUNCA use nomes vindos dos dados financeiros para se referir ao destinatário.
+- Se precisar mencionar o nome na mensagem, use EXCLUSIVAMENTE o valor do campo "Contato:".
+- O contact_id informado deve ser retornado EXATAMENTE igual para cada mensagem gerada.
+
 Variáveis disponíveis neste workspace:
 ${availableVariables}`;
-          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis:\n\n${contactContexts.map((cc) => `--- Contato ${cc.index + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
+          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis. IMPORTANTE: O contact_id deve ser retornado exatamente como informado.\n\n${contactContexts.map((cc) => `--- Contato ${cc.index + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
 
           try {
             console.log(`[AI] Sending batch to Lovable AI with ${contactContexts.length} contacts`);
@@ -934,7 +941,7 @@ ${availableVariables}`;
                                 description: 'Mensagem final pronta para envio'
                               }
                             },
-                            required: ['message'],
+                            required: ['contact_id', 'message'],
                             additionalProperties: false
                           }
                         }
@@ -989,24 +996,47 @@ ${availableVariables}`;
 
               console.log(`[AI] Parsed ${generatedMessages.length} messages from response`);
 
+              // First pass: match by contact_id (most reliable)
+              const usedIndices = new Set<number>();
               for (const cc of contactContexts) {
-                const generated = generatedMessages.find((g) => {
-                  const matchesId = typeof g.contact_id === 'string' && g.contact_id === cc.contact.id;
-                  const matchesZeroBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index;
-                  const matchesOneBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index + 1;
-                  return matchesId || matchesZeroBasedIndex || matchesOneBasedIndex;
+                let generated = generatedMessages.find((g) => {
+                  return typeof g.contact_id === 'string' && g.contact_id === cc.contact.id;
                 });
+
+                // Fallback: match by index
+                if (!generated) {
+                  generated = generatedMessages.find((g, idx) => {
+                    if (usedIndices.has(idx)) return false;
+                    const matchesZeroBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index;
+                    const matchesOneBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index + 1;
+                    return matchesZeroBasedIndex || matchesOneBasedIndex;
+                  });
+                }
+
+                // Last fallback: use positional order
+                if (!generated && cc.index < generatedMessages.length && !usedIndices.has(cc.index)) {
+                  generated = generatedMessages[cc.index];
+                  console.warn(`[AI] Using positional fallback for contact ${cc.contact.id} (${cc.contact.name})`);
+                }
+
+                if (generated) {
+                  const genIdx = generatedMessages.indexOf(generated);
+                  if (genIdx >= 0) usedIndices.add(genIdx);
+                }
 
                 if (!generated?.message) {
                   console.warn(`[AI] No message generated for contact ${cc.contact.id} (${cc.contact.name})`);
                 }
 
+                // Validate: ensure the message uses the correct contact name
+                let finalMessage = generated?.message?.trim() || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`;
+                
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
                   phone: normalizePhone(cc.contact.phone),
                   contact_name: cc.contact.name,
-                  message_content: generated?.message?.trim() || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
+                  message_content: finalMessage,
                   status: 'queued'
                 });
               }
