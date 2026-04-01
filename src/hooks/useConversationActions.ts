@@ -185,7 +185,13 @@ export const useConversationActions = () => {
 
   const mergeConversations = useMutation({
     mutationFn: async ({ keepConversationId, mergeConversationId }: { keepConversationId: string; mergeConversationId: string }) => {
-      // Move all messages from mergeConversation to keepConversation
+      // 1. Count messages before moving to verify later
+      const { count: beforeCount } = await supabase
+        .from('inbox_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', mergeConversationId);
+
+      // 2. Move all messages from mergeConversation to keepConversation
       const { error: msgError } = await supabase
         .from('inbox_messages')
         .update({ conversation_id: keepConversationId })
@@ -193,19 +199,47 @@ export const useConversationActions = () => {
 
       if (msgError) throw msgError;
 
-      // Move notes
-      await supabase
+      // 3. Verify messages were actually moved (protect against silent RLS failures)
+      if (beforeCount && beforeCount > 0) {
+        const { count: remainingCount } = await supabase
+          .from('inbox_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('conversation_id', mergeConversationId);
+
+        if (remainingCount && remainingCount > 0) {
+          throw new Error(`Falha ao mover ${remainingCount} mensagens. Unificação cancelada para preservar o histórico.`);
+        }
+      }
+
+      // 4. Move notes
+      const { error: notesError } = await supabase
         .from('conversation_notes')
         .update({ conversation_id: keepConversationId })
         .eq('conversation_id', mergeConversationId);
 
-      // Move tasks
-      await supabase
+      if (notesError) throw notesError;
+
+      // 5. Move tasks
+      const { error: tasksError } = await supabase
         .from('conversation_tasks')
         .update({ conversation_id: keepConversationId })
         .eq('conversation_id', mergeConversationId);
 
-      // Move tag assignments
+      if (tasksError) throw tasksError;
+
+      // 6. Move voip calls
+      await supabase
+        .from('voip_calls')
+        .update({ conversation_id: keepConversationId })
+        .eq('conversation_id', mergeConversationId);
+
+      // 7. Move AI phone calls
+      await supabase
+        .from('ai_phone_calls')
+        .update({ conversation_id: keepConversationId })
+        .eq('conversation_id', mergeConversationId);
+
+      // 8. Move tag assignments
       const { data: existingTags } = await supabase
         .from('conversation_tag_assignments')
         .select('tag_id')
@@ -218,7 +252,6 @@ export const useConversationActions = () => {
         .select('tag_id')
         .eq('conversation_id', mergeConversationId);
 
-      // Add non-duplicate tags
       for (const tag of (mergeTags || [])) {
         if (!existingTagIds.has(tag.tag_id)) {
           await supabase
@@ -229,13 +262,31 @@ export const useConversationActions = () => {
         }
       }
 
-      // Delete remaining tag assignments from merged conversation
       await supabase
         .from('conversation_tag_assignments')
         .delete()
         .eq('conversation_id', mergeConversationId);
 
-      // Delete the merged conversation
+      // 9. Update last_message_at on keepConversation to reflect the latest message
+      const { data: latestMsg } = await supabase
+        .from('inbox_messages')
+        .select('created_at')
+        .eq('conversation_id', keepConversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestMsg) {
+        await supabase
+          .from('conversations')
+          .update({ 
+            last_message_at: latestMsg.created_at,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', keepConversationId);
+      }
+
+      // 10. Delete the merged conversation (only after all data safely moved)
       const { error: deleteError } = await supabase
         .from('conversations')
         .delete()
@@ -246,11 +297,11 @@ export const useConversationActions = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['inbox-messages'] });
-      toast.success('Conversas unificadas com sucesso!');
+      toast.success('Conversas unificadas com sucesso! Todo o histórico foi preservado.');
     },
     onError: (error) => {
       console.error('Merge error:', error);
-      toast.error('Erro ao unificar conversas');
+      toast.error(error instanceof Error ? error.message : 'Erro ao unificar conversas');
     }
   });
 
