@@ -996,24 +996,47 @@ ${availableVariables}`;
 
               console.log(`[AI] Parsed ${generatedMessages.length} messages from response`);
 
+              // First pass: match by contact_id (most reliable)
+              const usedIndices = new Set<number>();
               for (const cc of contactContexts) {
-                const generated = generatedMessages.find((g) => {
-                  const matchesId = typeof g.contact_id === 'string' && g.contact_id === cc.contact.id;
-                  const matchesZeroBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index;
-                  const matchesOneBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index + 1;
-                  return matchesId || matchesZeroBasedIndex || matchesOneBasedIndex;
+                let generated = generatedMessages.find((g) => {
+                  return typeof g.contact_id === 'string' && g.contact_id === cc.contact.id;
                 });
+
+                // Fallback: match by index
+                if (!generated) {
+                  generated = generatedMessages.find((g, idx) => {
+                    if (usedIndices.has(idx)) return false;
+                    const matchesZeroBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index;
+                    const matchesOneBasedIndex = typeof g.contact_index === 'number' && g.contact_index === cc.index + 1;
+                    return matchesZeroBasedIndex || matchesOneBasedIndex;
+                  });
+                }
+
+                // Last fallback: use positional order
+                if (!generated && cc.index < generatedMessages.length && !usedIndices.has(cc.index)) {
+                  generated = generatedMessages[cc.index];
+                  console.warn(`[AI] Using positional fallback for contact ${cc.contact.id} (${cc.contact.name})`);
+                }
+
+                if (generated) {
+                  const genIdx = generatedMessages.indexOf(generated);
+                  if (genIdx >= 0) usedIndices.add(genIdx);
+                }
 
                 if (!generated?.message) {
                   console.warn(`[AI] No message generated for contact ${cc.contact.id} (${cc.contact.name})`);
                 }
 
+                // Validate: ensure the message uses the correct contact name
+                let finalMessage = generated?.message?.trim() || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`;
+                
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
                   phone: normalizePhone(cc.contact.phone),
                   contact_name: cc.contact.name,
-                  message_content: generated?.message?.trim() || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`,
+                  message_content: finalMessage,
                   status: 'queued'
                 });
               }
