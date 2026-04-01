@@ -941,7 +941,7 @@ ${availableVariables}`;
                                 description: 'Mensagem final pronta para envio'
                               }
                             },
-                            required: ['message'],
+                            required: ['contact_id', 'message'],
                             additionalProperties: false
                           }
                         }
