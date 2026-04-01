@@ -255,6 +255,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const allColumns: ColumnDefinition[] = useMemo(() => {
     const defaultCols: ColumnDefinition[] = [
       { id: "contact", label: "Contato", type: "text", fixed: true },
+      { id: "phone", label: "Telefone", type: "text" },
       { id: "stage", label: "Etapa", type: "select" },
       { id: "value", label: "Valor", type: "number" },
       { id: "time_in_stage", label: "Tempo na Etapa", type: "time" },
