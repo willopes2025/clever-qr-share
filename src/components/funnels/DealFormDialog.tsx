@@ -19,9 +19,11 @@ import {
 import { useFunnels, FunnelDeal } from "@/hooks/useFunnels";
 import { useContacts } from "@/hooks/useContacts";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
+import { SsoticaDealSection } from "./SsoticaDealSection";
 import { NextActionForm, NextActionData } from "./NextActionForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSsoticaSync } from "@/hooks/useSsoticaSync";
 import { toast } from "sonner";
 
 interface DealFormDialogProps {
