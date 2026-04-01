@@ -355,7 +355,7 @@ export const DealFormDialog = ({
               </Button>
               <Button
                 type="submit"
-                disabled={(!deal && !contactId) || (!deal && !isNextActionValid) || createDeal.isPending || updateDeal.isPending}
+                disabled={(!deal && !contactId) || createDeal.isPending || updateDeal.isPending}
               >
                 {deal ? "Salvar" : "Criar Deal"}
               </Button>
