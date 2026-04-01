@@ -296,6 +296,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     );
   }, [funnel.stages]);
 
+  // Open deal from global search
+  useEffect(() => {
+    if (openDealId && allDeals.length > 0) {
+      const deal = allDeals.find(d => d.id === openDealId);
+      if (deal) {
+        setEditingDeal(deal);
+        onDealOpened?.();
+      }
+    }
+  }, [openDealId, allDeals, onDealOpened]);
+
   const contactFilterRaw = columnFilters.contact?.trim() || "";
   const normalizedContactFilter = normalizeText(contactFilterRaw);
   const contactFilterDigits = contactFilterRaw.replace(/\D/g, "");
