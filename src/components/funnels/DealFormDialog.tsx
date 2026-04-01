@@ -189,6 +189,18 @@ export const DealFormDialog = ({
 
         <div className="flex-1 min-h-0 overflow-y-auto pr-2">
           <form onSubmit={handleSubmit} className="space-y-4">
+            {deal && (
+              <div className="space-y-2">
+                <Label htmlFor="contact-name">Nome do contato</Label>
+                <Input
+                  id="contact-name"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="Nome do contato"
+                />
+              </div>
+            )}
+
             {!deal && !initialContactId && (
               <div className="space-y-2">
                 <Label>Contato *</Label>

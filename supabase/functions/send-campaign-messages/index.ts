@@ -878,7 +878,7 @@ Deno.serve(async (req: Request) => {
             bodyParams.push({ type: 'text', text: String(value) || ' ' });
           } else {
             // Fallback: {{1}} = name, {{2}} = phone
-            if (i === 0) bodyParams.push({ type: 'text', text: message.contact_name || 'Cliente' });
+            if (i === 0) bodyParams.push({ type: 'text', text: isValidContactName(message.contact_name) ? message.contact_name : ' ' });
             else if (i === 1) bodyParams.push({ type: 'text', text: message.phone });
             else bodyParams.push({ type: 'text', text: '' });
           }
