@@ -57,6 +57,12 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
 
     setIsLoading(true);
     try {
+      // Get organization member IDs for team support
+      const { data: memberRows } = await supabase.rpc("get_organization_member_ids", {
+        _user_id: user.id,
+      });
+      const memberIds = memberRows?.map((r: any) => r) || [user.id];
+
       const digits = searchTerm.replace(/\D/g, "");
       const isPhone = /^\d+$/.test(digits) && digits.length >= 4;
 
@@ -71,17 +77,16 @@ export function FunnelGlobalSearch({ onSelectDeal }: FunnelGlobalSearchProps) {
           funnel_id,
           contacts!inner(name, phone, email, custom_fields),
           funnel_stages!inner(name, color),
-          funnels!inner(name, color)
+          funnels!inner(name, color, user_id)
         `)
-        .eq("funnels.user_id", user.id)
+        .in("funnels.user_id", memberIds)
         .limit(50);
 
       if (isPhone) {
         queryBuilder = queryBuilder.ilike("contacts.phone", `%${digits}%`);
       } else {
-        const normalized = searchTerm.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         queryBuilder = queryBuilder.or(
-          `name.ilike.%${normalized}%,email.ilike.%${normalized}%,custom_fields::text.ilike.%${normalized}%`,
+          `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`,
           { referencedTable: "contacts" }
         );
       }
