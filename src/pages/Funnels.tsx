@@ -33,6 +33,7 @@ import { FunnelAIDialog } from "@/components/funnels/FunnelAIDialog";
 import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAutomationsView";
 import { ImportContactsToFunnelDialog } from "@/components/funnels/ImportContactsToFunnelDialog";
 import { FunnelOpportunitiesView } from "@/components/funnels/FunnelOpportunitiesView";
+import { FunnelGlobalSearch } from "@/components/funnels/FunnelGlobalSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
@@ -135,7 +136,7 @@ const Funnels = () => {
         ) : (
           <>
             {/* Controls */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Select value={selectedFunnelId || ''} onValueChange={setSelectedFunnelId}>
                   <SelectTrigger className="w-[250px]">
@@ -179,6 +180,13 @@ const Funnels = () => {
                     </Button>
                   </>
                 )}
+
+                <FunnelGlobalSearch
+                  onSelectDeal={(funnelId) => {
+                    setSelectedFunnelId(funnelId);
+                    setViewMode('list');
+                  }}
+                />
               </div>
 
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'automations' | 'dashboard' | 'opportunities')}>
