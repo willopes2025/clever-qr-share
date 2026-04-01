@@ -183,6 +183,13 @@ export const SsoticaDealSection = ({
                           {os.status || 'N/A'}
                         </Badge>
                       </div>
+                      {os.etapa_atual && (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-[10px] bg-primary/5 border-primary/20 text-primary">
+                            📍 {os.etapa_atual}
+                          </Badge>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-muted-foreground">
                         <span>Entrada: {formatDate(os.data_entrada)}</span>
                         <span>Entrega: {formatDate(os.previsao_entrega)}</span>
