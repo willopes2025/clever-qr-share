@@ -644,13 +644,14 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
     switch (columnId) {
       case "contact":
         return (
-          <div>
-            <p className="font-medium">{deal.title || deal.contact?.name || "Sem nome"}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Phone className="h-3 w-3" />
-              {formatForDisplay(deal.contact?.phone || "")}
-            </p>
-          </div>
+          <p className="font-medium">{deal.title || deal.contact?.name || "Sem nome"}</p>
+        );
+      case "phone":
+        return (
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
+            <Phone className="h-3 w-3" />
+            {formatForDisplay(deal.contact?.phone || "")}
+          </p>
         );
       case "stage":
         return (
