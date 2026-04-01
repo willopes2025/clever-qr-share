@@ -136,7 +136,7 @@ const Funnels = () => {
         ) : (
           <>
             {/* Controls */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Select value={selectedFunnelId || ''} onValueChange={setSelectedFunnelId}>
                   <SelectTrigger className="w-[250px]">
