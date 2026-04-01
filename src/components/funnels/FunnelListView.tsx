@@ -755,9 +755,17 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       case "contact":
         return (
           <Input
-            placeholder="Buscar nome ou telefone..."
+            placeholder="Buscar nome..."
             value={columnFilters.contact || ""}
             onChange={(e) => setColumnFilter("contact", e.target.value)}
+          />
+        );
+      case "phone":
+        return (
+          <Input
+            placeholder="Buscar telefone..."
+            value={columnFilters.phone || ""}
+            onChange={(e) => setColumnFilter("phone", e.target.value)}
           />
         );
       case "stage":
