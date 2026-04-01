@@ -172,14 +172,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch parcelas (also windowed, 31-day max)
-    for (const window of windows) {
+    // Fetch parcelas (windowed, 31-day max, only last 90 days)
+    const parcelasWindows = generateDateWindows(90);
+    for (const window of parcelasWindows) {
       try {
         const parcelasData = await ssoticaRequest('/integracoes/financeiro/contas-a-receber/periodo', ssoticaToken, {
           cnpj: cleanedCnpj, inicio_periodo: window.inicio, fim_periodo: window.fim, page: '1', perPage: '100',
         });
         const items = Array.isArray(parcelasData?.data || parcelasData) ? (parcelasData?.data || parcelasData) : [];
         if (Array.isArray(items)) allParcelas.push(...items);
+        console.log(`[BULK-SSOTICA] Parcelas window ${window.inicio}-${window.fim}: ${Array.isArray(items) ? items.length : 0}`);
       } catch (e) {
         console.error(`[BULK-SSOTICA] Error fetching parcelas window ${window.inicio}:`, e);
       }
