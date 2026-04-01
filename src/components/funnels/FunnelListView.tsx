@@ -1029,7 +1029,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
               </TableRow>
             ) : (
               filteredDeals.map((deal) => (
-                <TableRow key={deal.id}>
+                <TableRow key={deal.id} className="cursor-pointer hover:bg-muted/50" onClick={(e) => {
+                  // Don't open if clicking on checkbox, dropdown, or button
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button, [role="checkbox"], [data-radix-collection-item]')) return;
+                  setEditingDeal(deal);
+                }}>
                   <TableCell className="sticky left-0 bg-card z-10">
                     <Checkbox
                       checked={selectedIds.includes(deal.id)}
