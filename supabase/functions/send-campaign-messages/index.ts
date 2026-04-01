@@ -828,9 +828,9 @@ Deno.serve(async (req: Request) => {
 
       // Resolve body variables using variable mappings or default behavior
       const bodyVarCount = (metaTemplate.body_text.match(/\{\{\d+\}\}/g) || []).length;
+      const bodyParams: any[] = [];
       if (bodyVarCount > 0) {
         const mappings = campaign.meta_variable_mappings as any[] | null;
-        const bodyParams: any[] = [];
         
         // Fetch contact data if we have custom field mappings
         let contactData: any = null;
