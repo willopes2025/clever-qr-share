@@ -28,6 +28,15 @@ const MAX_CHUNK_DELAY_SECONDS = 300;
 // Maximum number of chunks to prevent infinite loops
 const MAX_CHUNK_COUNT = 10;
 
+// Check if a contact name is valid (not generic/placeholder)
+const isValidContactName = (name: string | null | undefined): name is string => {
+  if (!name || name.trim().length <= 1) return false;
+  const lower = name.trim().toLowerCase();
+  if (lower === 'cliente') return false;
+  if (/^\d+$/.test(name.trim())) return false;
+  return true;
+};
+
 // Generate a random delay between min and max (inclusive) in seconds
 const getRandomDelay = (minS: number, maxS: number): number => {
   return Math.floor(Math.random() * (maxS - minS + 1)) + minS;
