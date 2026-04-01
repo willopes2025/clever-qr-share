@@ -328,6 +328,17 @@ export const DealFormDialog = ({
             {/* Custom Fields */}
             <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
 
+            {/* ssOtica Integration */}
+            {deal && (
+              <SsoticaDealSection
+                syncedData={ssoticaData}
+                isSyncing={isSsoticaSyncing}
+                error={ssoticaError}
+                onForceSync={forceSsoticaSync}
+                hasSsotica={hasSsotica}
+              />
+            )}
+
             {/* Próxima Ação - Opcional */}
             {!deal && (
               <NextActionForm
