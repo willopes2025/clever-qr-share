@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Fallback: use first active meta number for this user
+      // Fallback: use first active meta number for this user or org
       if (!phoneNumberId) {
         const { data: metaNumber } = await supabase
           .from('meta_whatsapp_numbers')
@@ -163,6 +163,24 @@ Deno.serve(async (req: Request) => {
         if (metaNumber) {
           phoneNumberId = metaNumber.phone_number_id;
           console.log('[META-SEND] Using phone_number_id from meta_whatsapp_numbers:', phoneNumberId);
+        } else {
+          // Fallback: try org members' meta numbers
+          const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: user.id });
+          if (orgMemberIds && orgMemberIds.length > 0) {
+            const { data: orgMetaNumber } = await supabase
+              .from('meta_whatsapp_numbers')
+              .select('phone_number_id')
+              .in('user_id', orgMemberIds)
+              .eq('is_active', true)
+              .order('connected_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (orgMetaNumber) {
+              phoneNumberId = orgMetaNumber.phone_number_id;
+              console.log('[META-SEND] Using phone_number_id from org meta_whatsapp_numbers:', phoneNumberId);
+            }
+          }
         }
       }
 
