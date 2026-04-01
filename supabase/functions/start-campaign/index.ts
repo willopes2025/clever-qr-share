@@ -740,6 +740,9 @@ Deno.serve(async (req) => {
           '- Email do contato ({{email}})',
           ...contactFieldDefinitions.map((field) => `- ${field.field_name} ({{${field.field_key}}}) [contato]`),
           ...leadFieldDefinitions.map((field) => `- ${field.field_name} ({{${field.field_key}}}) [lead]`),
+          ...(campaign.template?.include_asaas_data ? [
+            '- Dados financeiros do Asaas (faturas pendentes/vencidas, valores, links de pagamento)'
+          ] : []),
         ].join('\n');
 
         const BATCH_SIZE = 10;
