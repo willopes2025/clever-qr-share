@@ -48,6 +48,7 @@ export const DealFormDialog = ({
   const { user } = useAuth();
   
   const [title, setTitle] = useState(deal?.title || '');
+  const [contactName, setContactName] = useState(deal?.contact?.name || '');
   const [contactId, setContactId] = useState(deal?.contact_id || initialContactId || '');
   const [value, setValue] = useState(deal?.value?.toString() || '');
   const [expectedCloseDate, setExpectedCloseDate] = useState(deal?.expected_close_date || '');
@@ -74,6 +75,7 @@ export const DealFormDialog = ({
   useEffect(() => {
     if (open) {
       setTitle(deal?.title || '');
+      setContactName(deal?.contact?.name || '');
       setContactId(deal?.contact_id || initialContactId || '');
       setValue(deal?.value?.toString() || '');
       setExpectedCloseDate(deal?.expected_close_date || '');
@@ -112,6 +114,15 @@ export const DealFormDialog = ({
     // Next action is optional now
     
     if (deal) {
+      // Update contact name if changed
+      const trimmedName = contactName.trim() || null;
+      if (trimmedName !== (deal.contact?.name || null) && deal.contact_id) {
+        await supabase
+          .from('contacts')
+          .update({ name: trimmedName })
+          .eq('id', deal.contact_id);
+      }
+
       await updateDeal.mutateAsync({ 
         id: deal.id, 
         title: title || null,
@@ -178,6 +189,18 @@ export const DealFormDialog = ({
 
         <div className="flex-1 min-h-0 overflow-y-auto pr-2">
           <form onSubmit={handleSubmit} className="space-y-4">
+            {deal && (
+              <div className="space-y-2">
+                <Label htmlFor="contact-name">Nome do contato</Label>
+                <Input
+                  id="contact-name"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="Nome do contato"
+                />
+              </div>
+            )}
+
             {!deal && !initialContactId && (
               <div className="space-y-2">
                 <Label>Contato *</Label>

@@ -28,6 +28,15 @@ const MAX_CHUNK_DELAY_SECONDS = 300;
 // Maximum number of chunks to prevent infinite loops
 const MAX_CHUNK_COUNT = 10;
 
+// Check if a contact name is valid (not generic/placeholder)
+const isValidContactName = (name: string | null | undefined): name is string => {
+  if (!name || name.trim().length <= 1) return false;
+  const lower = name.trim().toLowerCase();
+  if (lower === 'cliente') return false;
+  if (/^\d+$/.test(name.trim())) return false;
+  return true;
+};
+
 // Generate a random delay between min and max (inclusive) in seconds
 const getRandomDelay = (minS: number, maxS: number): number => {
   return Math.floor(Math.random() * (maxS - minS + 1)) + minS;
@@ -855,7 +864,7 @@ Deno.serve(async (req: Request) => {
             let value = '';
             switch (mapping.source) {
               case 'contact_name':
-                value = message.contact_name || 'Cliente';
+                value = isValidContactName(message.contact_name) ? message.contact_name : ' ';
                 break;
               case 'contact_phone':
                 value = message.phone;
@@ -878,7 +887,7 @@ Deno.serve(async (req: Request) => {
             bodyParams.push({ type: 'text', text: String(value) || ' ' });
           } else {
             // Fallback: {{1}} = name, {{2}} = phone
-            if (i === 0) bodyParams.push({ type: 'text', text: message.contact_name || 'Cliente' });
+            if (i === 0) bodyParams.push({ type: 'text', text: isValidContactName(message.contact_name) ? message.contact_name : ' ' });
             else if (i === 1) bodyParams.push({ type: 'text', text: message.phone });
             else bodyParams.push({ type: 'text', text: '' });
           }
