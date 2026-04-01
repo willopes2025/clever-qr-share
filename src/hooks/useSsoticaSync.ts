@@ -14,6 +14,8 @@ interface SsoticaSyncData {
   // Última OS
   ssotica_os_numero: string;
   ssotica_os_status: string;
+  ssotica_os_etapa_atual: string;
+  ssotica_os_tipo: string;
   ssotica_os_data_entrada: string;
   ssotica_os_previsao_entrega: string;
   ssotica_os_valor_total: number;
