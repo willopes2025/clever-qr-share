@@ -97,7 +97,14 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   return (
     <>
-      <ScrollArea className="w-full">
+      <div
+        ref={grabScroll.ref}
+        className={cn(
+          "w-full overflow-x-auto pb-2",
+          grabScroll.isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
+        )}
+        {...grabScroll.handlers}
+      >
         <div className="flex gap-4 pb-4 min-w-max">
           {stages.map((stage) => (
             <div
