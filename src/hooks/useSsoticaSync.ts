@@ -47,6 +47,7 @@ export const useSsoticaSync = (
   contactPhone: string | undefined,
   contactCustomFields: Record<string, unknown> | undefined,
   dealCustomFields: Record<string, unknown> | undefined,
+  enabled: boolean = false,
 ) => {
   const { user } = useAuth();
   const { hasSsotica } = useIntegrationStatus();
