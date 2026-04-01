@@ -2,8 +2,8 @@ import { useState, useCallback } from "react";
 import { Plus, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useGrabScroll } from "@/hooks/useGrabScroll";
 import { Funnel, FunnelStage, useFunnels } from "@/hooks/useFunnels";
 import { useStageDealCounts, useLoadMoreDeals, DEALS_PER_PAGE } from "@/hooks/useFunnelDeals";
 import { FunnelDealCard } from "./FunnelDealCard";
@@ -19,6 +19,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const { updateDeal } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
+  const grabScroll = useGrabScroll();
   
   const [showDealForm, setShowDealForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
@@ -96,7 +97,14 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   return (
     <>
-      <ScrollArea className="w-full">
+      <div
+        ref={grabScroll.ref}
+        className={cn(
+          "w-full overflow-x-auto pb-2",
+          grabScroll.isGrabbing ? "cursor-grabbing select-none" : "cursor-grab"
+        )}
+        {...grabScroll.handlers}
+      >
         <div className="flex gap-4 pb-4 min-w-max">
           {stages.map((stage) => (
             <div
@@ -208,8 +216,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
             </Button>
           </div>
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
 
       <DealFormDialog
         open={showDealForm}
