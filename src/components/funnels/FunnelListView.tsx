@@ -176,7 +176,7 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
 
   // Column configuration
-  const defaultColumnIds = ["contact", "stage", "value", "time_in_stage", "expected_close"];
+  const defaultColumnIds = ["contact", "phone", "stage", "value", "time_in_stage", "expected_close"];
   const [visibleColumns, setVisibleColumns] = useState<string[]>(defaultColumnIds);
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
