@@ -20,6 +20,7 @@ export interface MessageTemplate {
   media_url?: string | null;
   media_filename?: string | null;
   ai_prompt?: string | null;
+  include_asaas_data?: boolean;
 }
 
 export interface CreateTemplateData {
