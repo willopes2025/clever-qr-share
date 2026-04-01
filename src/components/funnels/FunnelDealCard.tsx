@@ -248,13 +248,6 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
               </div>
             )}
 
-            {/* Alert: Needs Next Action */}
-            {deal.next_action_required && !nextTask && (
-              <div className="flex items-center gap-1.5 text-xs bg-destructive/10 text-destructive rounded-md px-2 py-1 animate-pulse">
-                <AlertCircle className="h-3 w-3 shrink-0" />
-                <span className="font-medium">Agendar próxima ação!</span>
-              </div>
-            )}
 
             {/* Task & Date Indicators */}
             <div className="flex items-center gap-1.5 flex-wrap">
