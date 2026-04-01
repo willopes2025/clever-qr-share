@@ -67,6 +67,7 @@ export const TemplateFormDialog = ({
   // Dynamic AI mode
   const [isDynamicAi, setIsDynamicAi] = useState(false);
   const [dynamicAiPrompt, setDynamicAiPrompt] = useState('');
+  const [includeAsaasData, setIncludeAsaasData] = useState(false);
 
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
