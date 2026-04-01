@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Sparkles, Loader2, ChevronDown, ChevronUp, ChevronRight, User, FileText, Bot } from 'lucide-react';
+import { Sparkles, Loader2, ChevronDown, ChevronUp, ChevronRight, User, FileText, Bot, DollarSign } from 'lucide-react';
 import { VariableChipsSelector } from '@/components/shared/VariableChipsSelector';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
