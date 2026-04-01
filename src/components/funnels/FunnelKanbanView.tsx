@@ -216,8 +216,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
             </Button>
           </div>
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
 
       <DealFormDialog
         open={showDealForm}
