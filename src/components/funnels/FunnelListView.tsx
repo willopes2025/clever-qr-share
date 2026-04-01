@@ -218,6 +218,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
 
+  // Open deal from global search
+  useEffect(() => {
+    if (openDealId && allDeals.length > 0) {
+      const deal = allDeals.find(d => d.id === openDealId);
+      if (deal) {
+        setEditingDeal(deal);
+        onDealOpened?.();
+      }
+    }
+  }, [openDealId, allDeals, onDealOpened]);
+
   // Calculate total deals vs loaded deals
   const totalDealsCount = useMemo(() => {
     return Object.values(stageCounts).reduce((sum, count) => sum + count, 0);
