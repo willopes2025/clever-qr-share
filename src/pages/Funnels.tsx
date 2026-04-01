@@ -182,9 +182,11 @@ const Funnels = () => {
                 )}
 
                 <FunnelGlobalSearch
-                  onSelectDeal={(funnelId) => {
+                  onSelectDeal={(funnelId, dealId) => {
                     setSelectedFunnelId(funnelId);
                     setViewMode('list');
+                    // Store the dealId to open its card
+                    setSelectedDealIdFromSearch(dealId);
                   }}
                 />
               </div>
