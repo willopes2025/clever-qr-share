@@ -886,9 +886,16 @@ A mensagem deve ser natural, direta e pronta para envio.
 Use SOMENTE os dados realmente presentes no contexto do contato.
 Quando o usuário mencionar nomes amigáveis como "nome do contato", "valor da venda" ou "data de vencimento do boleto", relacione isso aos dados disponíveis no contexto, inclusive quando aparecerem com a chave técnica entre chaves.
 Se um dado não existir no contexto do contato, não invente e não mencione esse dado.
+
+REGRA CRÍTICA SOBRE NOMES:
+- O nome do destinatário da mensagem é SEMPRE o que aparece na linha "Contato:" do contexto.
+- Os dados financeiros (Asaas) podem pertencer a outro titular (ex: cônjuge, responsável financeiro). NUNCA use nomes vindos dos dados financeiros para se referir ao destinatário.
+- Se precisar mencionar o nome na mensagem, use EXCLUSIVAMENTE o valor do campo "Contato:".
+- O contact_id informado deve ser retornado EXATAMENTE igual para cada mensagem gerada.
+
 Variáveis disponíveis neste workspace:
 ${availableVariables}`;
-          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis:\n\n${contactContexts.map((cc) => `--- Contato ${cc.index + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
+          const userMessage = `Instrução do template:\n${aiPrompt}\n\nGere uma mensagem personalizada para cada contato abaixo, usando os dados disponíveis. IMPORTANTE: O contact_id deve ser retornado exatamente como informado.\n\n${contactContexts.map((cc) => `--- Contato ${cc.index + 1} (ID: ${cc.contact.id}) ---\n${cc.context}`).join('\n\n')}`;
 
           try {
             console.log(`[AI] Sending batch to Lovable AI with ${contactContexts.length} contacts`);
