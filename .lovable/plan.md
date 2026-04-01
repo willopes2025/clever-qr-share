@@ -1,70 +1,44 @@
 
 
-## Organização de Mensagens por Conversa/Instância no Inbox
+## Busca Global de Leads em Todos os Funis
 
-### Problema Atual
-Hoje, todas as mensagens de um contato aparecem em um fluxo contínuo único, sem indicação visual de qual número (instância Evolution ou número Meta) enviou/recebeu cada mensagem. O usuário não sabe por qual canal o lead está sendo atendido.
+### Problema
+A busca atual só funciona dentro de um funil específico e apenas na visualização de lista. O usuário precisa de uma busca global — como o "Busca e filtro" do Kommo — que pesquise leads em **todos os funis** simultaneamente, por nome, telefone, cidade ou qualquer dado do contato.
 
-No Kommo (referência), as mensagens são agrupadas em **cards visuais separados por conversa/instância**, com um cabeçalho identificando o número/canal usado.
-
-### Solução Proposta
-
-Agrupar visualmente as mensagens no chat por **blocos de conversa**, identificando o número/instância utilizado. Cada bloco terá um cabeçalho visual que mostra de qual número a interação aconteceu.
+### Solução
+Adicionar uma barra de busca global no topo da página de Funis (ao lado do seletor de funil). Ao digitar, abre um painel dropdown/overlay com resultados em formato de lista, agrupados por funil e etapa, mostrando as informações principais do lead.
 
 ```text
-┌─────────────────────────────────────────┐
-│  ☁ Programa Seven (Meta)               │  ← Cabeçalho do bloco
-│  via +55 27 99999-0001                  │
-├─────────────────────────────────────────┤
-│  [mensagens deste número]               │
-│  ...                                    │
-└─────────────────────────────────────────┘
-
-  21/02/2026 19:01 SalesBot - Tags: ATENDIMENTO
-
-┌─────────────────────────────────────────┐
-│  📱 Seven7685 (Evolution)              │  ← Outro bloco
-│  via +55 27 99999-0002                  │
-├─────────────────────────────────────────┤
-│  [mensagens deste número]               │
-│  ...                                    │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  [Seletor Funil ▼]  [🔍 Busca e filtro...       ]  │
+│                                                     │
+│  ┌─ Resultados (quando digitando) ─────────────┐   │
+│  │  FUNIL: Clientes - Fundo de Fun...           │   │
+│  │    ● Validação da Venda                      │   │
+│  │      - João Silva  |  27999...  |  R$1.200   │   │
+│  │    ● Lançado OS                              │   │
+│  │      - Maria Santos | 27998... |  R$780      │   │
+│  │                                              │   │
+│  │  FUNIL: Pós-Venda                            │   │
+│  │    ● Acompanhamento                          │   │
+│  │      - João Silva  |  27999...  |  R$500     │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Implementação Técnica
+### O que será feito
 
-**1. Armazenar origem por mensagem** (migração SQL)
-- Adicionar colunas `sent_via_instance_id` e `sent_via_meta_number_id` na tabela `inbox_messages` para registrar por qual número cada mensagem foi enviada/recebida
-- Atualizar edge functions (`send-inbox-message`, `meta-whatsapp-send`, `meta-whatsapp-webhook`, `evolution-webhook`) para gravar essas colunas ao inserir mensagens
+1. **Novo componente `FunnelGlobalSearch.tsx`** — Campo de busca com dropdown de resultados. Pesquisa server-side em `contacts` (nome, telefone, email, custom_fields) e cruza com `funnel_deals` em todos os funis. Resultados agrupados por funil > etapa, com click para navegar ao deal.
 
-**2. Componente `ConversationCard`** (novo componente)
-- Cabeçalho com ProviderBadge + nome da instância/número Meta + telefone formatado
-- Número da conversa (ex: "Conversa Nº A72927")
-- Container visual com borda sutil e fundo diferenciado
+2. **Busca server-side** — Reutiliza o padrão já existente no `FunnelListView` (busca por nome com `ilike`, normalização NFD, busca por dígitos do telefone), mas sem filtro de `funnel_id`, buscando em todos os funis. Inclui busca em `custom_fields` para encontrar por cidade/município.
 
-**3. Lógica de agrupamento no `MessageView.tsx`**
-- Agrupar mensagens sequenciais pelo mesmo `sent_via_instance_id` ou `sent_via_meta_number_id`
-- Quando a origem muda, inserir um novo cabeçalho de card
-- Manter o `DateSeparator` existente dentro dos cards
-- Eventos de sistema (bot, automação, movimentação) aparecem entre os cards como timeline
+3. **Integração na página `Funnels.tsx`** — O componente de busca é posicionado na barra de controles, entre o seletor de funil e as tabs de visualização. Ao clicar em um resultado, seleciona o funil correspondente e abre o deal.
 
-**4. Atualizar `MessageBubble.tsx`**
-- Exibir indicador discreto do número de origem quando houver múltiplas origens na conversa (tooltip ou badge pequeno)
+4. **Comportamento** — Debounce de 400ms, mínimo 3 caracteres para texto ou 4 dígitos para telefone. Máximo 50 resultados. Fechar ao clicar fora ou pressionar Esc.
 
-**5. Atualizar ConversationList**
-- Mostrar o último número utilizado de forma mais proeminente na lista de conversas
-
-### Arquivos Modificados
-- `supabase/functions/send-inbox-message/index.ts` — gravar `sent_via_*`
-- `supabase/functions/meta-whatsapp-send/index.ts` — gravar `sent_via_meta_number_id`
-- `supabase/functions/meta-whatsapp-webhook/index.ts` — gravar `sent_via_meta_number_id`
-- `supabase/functions/evolution-webhook/index.ts` — gravar `sent_via_instance_id`
-- `src/components/inbox/ConversationCard.tsx` — novo componente de card
-- `src/components/inbox/MessageView.tsx` — lógica de agrupamento
-- `src/components/inbox/MessageBubble.tsx` — badge de origem
-- Migração SQL — novas colunas em `inbox_messages`
-
-### Notas
-- Mensagens já existentes sem as novas colunas aparecerão em um bloco "sem identificação" ou usarão o `instance_id`/`meta_phone_number_id` da conversa como fallback
-- A separação é puramente visual — não altera a estrutura de dados de conversas
+### Detalhes técnicos
+- Busca em `contacts.name`, `contacts.phone`, `contacts.email`, e `contacts.custom_fields::text` via `ilike`
+- Join com `funnel_deals` (todas as funnel_ids do usuário) + `funnel_stages` para nome/cor da etapa + `funnels` para nome do funil
+- Agrupamento client-side por `funnel_id` > `stage_id`
+- Componente usa `Popover` do shadcn para o dropdown de resultados
 
