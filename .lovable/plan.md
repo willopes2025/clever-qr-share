@@ -1,44 +1,43 @@
 
 
-## Busca Global de Leads em Todos os Funis
+## Corrigir variáveis não substituídas na exibição de mensagens Meta
 
 ### Problema
-A busca atual só funciona dentro de um funil específico e apenas na visualização de lista. O usuário precisa de uma busca global — como o "Busca e filtro" do Kommo — que pesquise leads em **todos os funis** simultaneamente, por nome, telefone, cidade ou qualquer dado do contato.
+Ao enviar campanhas com templates Meta, as mensagens chegam corretamente no WhatsApp do destinatário (a Meta API substitui as variáveis), mas a **mensagem salva no Inbox** e no preview mostra o texto bruto com `{{1}}`, `{{2}}` ao invés dos valores reais (nome, telefone, etc.).
+
+Causa: na linha 1022 de `send-campaign-messages/index.ts`, o conteúdo salvo é `metaTemplate.body_text` sem substituir as variáveis pelos valores já resolvidos em `bodyParams`.
 
 ### Solução
-Adicionar uma barra de busca global no topo da página de Funis (ao lado do seletor de funil). Ao digitar, abre um painel dropdown/overlay com resultados em formato de lista, agrupados por funil e etapa, mostrando as informações principais do lead.
+Após resolver os `bodyParams`, substituir `{{1}}`, `{{2}}`, etc. no `body_text` pelos valores correspondentes antes de salvar no `inbox_messages` e `conversations.last_message_preview`.
 
-```text
-┌─────────────────────────────────────────────────────┐
-│  [Seletor Funil ▼]  [🔍 Busca e filtro...       ]  │
-│                                                     │
-│  ┌─ Resultados (quando digitando) ─────────────┐   │
-│  │  FUNIL: Clientes - Fundo de Fun...           │   │
-│  │    ● Validação da Venda                      │   │
-│  │      - João Silva  |  27999...  |  R$1.200   │   │
-│  │    ● Lançado OS                              │   │
-│  │      - Maria Santos | 27998... |  R$780      │   │
-│  │                                              │   │
-│  │  FUNIL: Pós-Venda                            │   │
-│  │    ● Acompanhamento                          │   │
-│  │      - João Silva  |  27999...  |  R$500     │   │
-│  └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
+### Arquivo alterado
+**`supabase/functions/send-campaign-messages/index.ts`** (1 alteração)
+
+Na seção de persistência (~linhas 1021-1022), substituir:
+```typescript
+const displayContent = metaTemplate.body_text || '';
 ```
 
-### O que será feito
+Por lógica que percorre os `bodyParams` já resolvidos e substitui `{{N}}` no texto:
+```typescript
+let displayContent = metaTemplate.body_text || '';
+if (bodyParams && bodyParams.length > 0) {
+  bodyParams.forEach((param, idx) => {
+    displayContent = displayContent.replace(
+      new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'),
+      param.text || ''
+    );
+  });
+}
+```
 
-1. **Novo componente `FunnelGlobalSearch.tsx`** — Campo de busca com dropdown de resultados. Pesquisa server-side em `contacts` (nome, telefone, email, custom_fields) e cruza com `funnel_deals` em todos os funis. Resultados agrupados por funil > etapa, com click para navegar ao deal.
+Isso garante que o texto armazenado no Inbox reflita exatamente o que o destinatário recebeu (ex: "Opa, Patrícia!" ao invés de "Opa, {{1}}!").
 
-2. **Busca server-side** — Reutiliza o padrão já existente no `FunnelListView` (busca por nome com `ilike`, normalização NFD, busca por dígitos do telefone), mas sem filtro de `funnel_id`, buscando em todos os funis. Inclui busca em `custom_fields` para encontrar por cidade/município.
-
-3. **Integração na página `Funnels.tsx`** — O componente de busca é posicionado na barra de controles, entre o seletor de funil e as tabs de visualização. Ao clicar em um resultado, seleciona o funil correspondente e abre o deal.
-
-4. **Comportamento** — Debounce de 400ms, mínimo 3 caracteres para texto ou 4 dígitos para telefone. Máximo 50 resultados. Fechar ao clicar fora ou pressionar Esc.
+### Escopo do `bodyParams`
+A variável `bodyParams` é declarada dentro de um bloco `if (bodyVarCount > 0)`. Preciso movê-la para fora do bloco ou declarar no escopo mais amplo para que esteja acessível na seção de persistência (~40 linhas abaixo). Alternativamente, posso fazer a substituição inline logo após a construção dos params.
 
 ### Detalhes técnicos
-- Busca em `contacts.name`, `contacts.phone`, `contacts.email`, e `contacts.custom_fields::text` via `ilike`
-- Join com `funnel_deals` (todas as funnel_ids do usuário) + `funnel_stages` para nome/cor da etapa + `funnels` para nome do funil
-- Agrupamento client-side por `funnel_id` > `stage_id`
-- Componente usa `Popover` do shadcn para o dropdown de resultados
+- A mesma correção precisa ser aplicada na seção de erro (~linha 963) onde o conteúdo também é salvo com template bruto
+- Nenhuma alteração de banco de dados necessária
+- A correção afeta apenas futuras mensagens; mensagens já salvas mantêm o texto bruto
 
