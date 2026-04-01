@@ -115,6 +115,8 @@ function formatCustomFieldDate(val: any): string | null {
 
 interface FunnelListViewProps {
   funnel: Funnel;
+  openDealId?: string | null;
+  onDealOpened?: () => void;
 }
 
 type DealWithStage = FunnelDeal & {
