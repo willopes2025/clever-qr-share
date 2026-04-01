@@ -706,7 +706,8 @@ export const useFunnels = () => {
           .select(`
             *,
             funnel:funnels(id, name),
-            stage:funnel_stages(id, name, color)
+            stage:funnel_stages(id, name, color),
+            contact:contacts(id, name, phone, email, custom_fields)
           `)
           .eq('contact_id', contactId)
           .is('closed_at', null)
