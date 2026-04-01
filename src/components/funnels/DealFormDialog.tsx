@@ -19,9 +19,11 @@ import {
 import { useFunnels, FunnelDeal } from "@/hooks/useFunnels";
 import { useContacts } from "@/hooks/useContacts";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
+import { SsoticaDealSection } from "./SsoticaDealSection";
 import { NextActionForm, NextActionData } from "./NextActionForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSsoticaSync } from "@/hooks/useSsoticaSync";
 import { toast } from "sonner";
 
 interface DealFormDialogProps {
@@ -70,6 +72,15 @@ export const DealFormDialog = ({
 
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = currentFunnel?.stages || [];
+
+  // ssOtica sync
+  const { isSyncing: isSsoticaSyncing, syncedData: ssoticaData, error: ssoticaError, forceSync: forceSsoticaSync, hasSsotica } = useSsoticaSync(
+    deal?.id,
+    deal?.contact_id,
+    deal?.contact?.phone,
+    deal?.contact?.custom_fields as Record<string, unknown> | undefined,
+    deal?.custom_fields as Record<string, unknown> | undefined,
+  );
 
   // Reset form when dialog opens with new data
   useEffect(() => {
@@ -316,6 +327,17 @@ export const DealFormDialog = ({
 
             {/* Custom Fields */}
             <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
+
+            {/* ssOtica Integration */}
+            {deal && (
+              <SsoticaDealSection
+                syncedData={ssoticaData}
+                isSyncing={isSsoticaSyncing}
+                error={ssoticaError}
+                onForceSync={forceSsoticaSync}
+                hasSsotica={hasSsotica}
+              />
+            )}
 
             {/* Próxima Ação - Opcional */}
             {!deal && (
