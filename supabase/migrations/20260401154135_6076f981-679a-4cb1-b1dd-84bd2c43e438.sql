@@ -1,0 +1,1 @@
+ALTER TABLE public.message_templates ADD COLUMN include_asaas_data boolean NOT NULL DEFAULT false;
