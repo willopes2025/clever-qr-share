@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Target, Plus, ChevronRight, DollarSign, FileText, CheckSquare, AlertCircle, ArrowRightLeft } from "lucide-react";
+import { Target, Plus, ChevronRight, DollarSign, FileText, CheckSquare, AlertCircle, ArrowRightLeft, Calendar, User, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,8 +21,11 @@ import { useDealTasks } from "@/hooks/useDealTasks";
 import { DealFormDialog } from "@/components/funnels/DealFormDialog";
 import { MoveDealFunnelDialog } from "@/components/funnels/MoveDealFunnelDialog";
 import { DealTasksSection } from "@/components/funnels/DealTasksSection";
+import { SsoticaDealSection } from "@/components/funnels/SsoticaDealSection";
+import { useSsoticaSync } from "@/hooks/useSsoticaSync";
+import { useCustomFields } from "@/hooks/useCustomFields";
 import { useNavigate } from "react-router-dom";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -38,11 +41,23 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
   const [showMoveFunnel, setShowMoveFunnel] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(true);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const navigate = useNavigate();
+  const { leadFieldDefinitions } = useCustomFields();
 
   const { pendingCount, overdueCount } = useDealTasks(activeDeal?.id);
+
+  // ssOtica sync - enabled when deal is visible
+  const { isSyncing: isSsoticaSyncing, syncedData: ssoticaData, error: ssoticaError, forceSync: forceSsoticaSync, hasSsotica } = useSsoticaSync(
+    activeDeal?.id,
+    activeDeal?.contact_id,
+    activeDeal?.contact?.phone,
+    activeDeal?.contact?.custom_fields as Record<string, unknown> | undefined,
+    activeDeal?.custom_fields as Record<string, unknown> | undefined,
+    !!activeDeal,
+  );
 
   const formatCurrency = (value: number, currency: string = 'BRL') => {
     return new Intl.NumberFormat('pt-BR', {
@@ -110,10 +125,17 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
 
   const currentFunnel = funnels?.find(f => f.id === activeDeal.funnel_id);
   const currentStage = currentFunnel?.stages?.find(s => s.id === activeDeal.stage_id);
+  const dealCustomFields = (activeDeal.custom_fields || {}) as Record<string, unknown>;
 
   const handleStageChange = async (newStageId: string) => {
     await updateDeal.mutateAsync({ id: activeDeal.id, stage_id: newStageId });
   };
+
+  // Get non-ssotica custom field values to display
+  const displayCustomFields = leadFieldDefinitions?.filter(def => {
+    const val = dealCustomFields[def.field_key];
+    return val !== undefined && val !== null && val !== '';
+  }) || [];
 
   return (
     <div className="space-y-3">
@@ -162,6 +184,30 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
             <span className="font-semibold text-primary">
               {formatCurrency(activeDeal.value, activeDeal.currency || 'BRL')}
             </span>
+          </div>
+        )}
+
+        {/* Source */}
+        {activeDeal.source && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Tag className="h-3 w-3" />
+            <span>Origem: {activeDeal.source}</span>
+          </div>
+        )}
+
+        {/* Expected Close Date */}
+        {activeDeal.expected_close_date && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Calendar className="h-3 w-3" />
+            <span>Previsão: {format(new Date(activeDeal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+          </div>
+        )}
+
+        {/* Responsible */}
+        {activeDeal.responsible_id && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <User className="h-3 w-3" />
+            <span>Responsável atribuído</span>
           </div>
         )}
 
@@ -218,6 +264,44 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
         </Button>
 
         <Separator />
+
+        {/* Custom Fields Section */}
+        {displayCustomFields.length > 0 && (
+          <Collapsible open={customFieldsOpen} onOpenChange={setCustomFieldsOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between h-8 px-2">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-3.5 w-3.5" />
+                  <span className="text-xs">Campos do Lead ({displayCustomFields.length})</span>
+                </div>
+                <ChevronRight className={cn(
+                  "h-3.5 w-3.5 transition-transform",
+                  customFieldsOpen && "rotate-90"
+                )} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2 space-y-1.5">
+              {displayCustomFields.map(def => {
+                const val = dealCustomFields[def.field_key];
+                return (
+                  <div key={def.id} className="flex items-center justify-between text-xs px-1">
+                    <span className="text-muted-foreground">{def.field_name}</span>
+                    <span className="font-medium truncate max-w-[150px]">{String(val)}</span>
+                  </div>
+                );
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* ssOtica Section */}
+        <SsoticaDealSection
+          syncedData={ssoticaData}
+          isSyncing={isSsoticaSyncing}
+          error={ssoticaError}
+          onForceSync={forceSsoticaSync}
+          hasSsotica={hasSsotica}
+        />
 
         {/* Notes Section */}
         <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
