@@ -80,6 +80,7 @@ export const DealFormDialog = ({
     deal?.contact?.phone,
     deal?.contact?.custom_fields as Record<string, unknown> | undefined,
     deal?.custom_fields as Record<string, unknown> | undefined,
+    open,
   );
 
   // Reset form when dialog opens with new data

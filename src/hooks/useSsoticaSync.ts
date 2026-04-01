@@ -251,19 +251,26 @@ export const useSsoticaSync = (
     }
   }, [hasSsotica, dealId, user, getCpfFromContact, contactPhone, dealCustomFields, isCacheFresh]);
 
-  // Auto-sync when component mounts (deal card opens)
+  // Auto-sync only when enabled (dialog is open)
   useEffect(() => {
+    if (!enabled) return;
     if (syncAttemptedRef.current) return;
     if (!hasSsotica || !dealId || !user) return;
     
-    // Only mark as attempted AFTER we actually have all required data
     const cpf = getCpfFromContact();
     const phone = contactPhone?.replace(/\D/g, '');
-    if (!cpf && !phone) return; // wait until contact data is loaded
+    if (!cpf && !phone) return;
     
     syncAttemptedRef.current = true;
     syncData();
-  }, [hasSsotica, dealId, user, contactPhone, contactCustomFields]); // include contact data deps
+  }, [enabled, hasSsotica, dealId, user, contactPhone, contactCustomFields]);
+
+  // Reset sync attempt when disabled (dialog closes)
+  useEffect(() => {
+    if (!enabled) {
+      syncAttemptedRef.current = false;
+    }
+  }, [enabled]);
 
   const forceSync = useCallback(() => {
     syncData(true);
