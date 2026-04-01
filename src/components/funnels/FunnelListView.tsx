@@ -115,6 +115,8 @@ function formatCustomFieldDate(val: any): string | null {
 
 interface FunnelListViewProps {
   funnel: Funnel;
+  openDealId?: string | null;
+  onDealOpened?: () => void;
 }
 
 type DealWithStage = FunnelDeal & {
@@ -130,7 +132,7 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
+export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
@@ -293,6 +295,17 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
       }))
     );
   }, [funnel.stages]);
+
+  // Open deal from global search
+  useEffect(() => {
+    if (openDealId && allDeals.length > 0) {
+      const deal = allDeals.find(d => d.id === openDealId);
+      if (deal) {
+        setEditingDeal(deal);
+        onDealOpened?.();
+      }
+    }
+  }, [openDealId, allDeals, onDealOpened]);
 
   const contactFilterRaw = columnFilters.contact?.trim() || "";
   const normalizedContactFilter = normalizeText(contactFilterRaw);
@@ -1016,7 +1029,12 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
               </TableRow>
             ) : (
               filteredDeals.map((deal) => (
-                <TableRow key={deal.id}>
+                <TableRow key={deal.id} className="cursor-pointer hover:bg-muted/50" onClick={(e) => {
+                  // Don't open if clicking on checkbox, dropdown, or button
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button, [role="checkbox"], [data-radix-collection-item]')) return;
+                  setEditingDeal(deal);
+                }}>
                   <TableCell className="sticky left-0 bg-card z-10">
                     <Checkbox
                       checked={selectedIds.includes(deal.id)}

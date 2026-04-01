@@ -47,6 +47,7 @@ const Funnels = () => {
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showImportContacts, setShowImportContacts] = useState(false);
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [selectedDealIdFromSearch, setSelectedDealIdFromSearch] = useState<string | null>(null);
 
   // Auto-select first funnel (in useEffect to avoid re-render loop)
   useEffect(() => {
@@ -182,9 +183,11 @@ const Funnels = () => {
                 )}
 
                 <FunnelGlobalSearch
-                  onSelectDeal={(funnelId) => {
+                  onSelectDeal={(funnelId, dealId) => {
                     setSelectedFunnelId(funnelId);
                     setViewMode('list');
+                    // Store the dealId to open its card
+                    setSelectedDealIdFromSearch(dealId);
                   }}
                 />
               </div>
@@ -223,7 +226,11 @@ const Funnels = () => {
               viewMode === 'kanban' 
                 ? <FunnelKanbanView funnel={currentFunnel} />
                 : viewMode === 'list'
-                  ? <FunnelListView funnel={currentFunnel} />
+                  ? <FunnelListView 
+                      funnel={currentFunnel} 
+                      openDealId={selectedDealIdFromSearch}
+                      onDealOpened={() => setSelectedDealIdFromSearch(null)}
+                    />
                   : viewMode === 'opportunities'
                     ? <FunnelOpportunitiesView funnel={currentFunnel} />
                     : viewMode === 'automations'
