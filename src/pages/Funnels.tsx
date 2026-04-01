@@ -47,6 +47,7 @@ const Funnels = () => {
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showImportContacts, setShowImportContacts] = useState(false);
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [selectedDealIdFromSearch, setSelectedDealIdFromSearch] = useState<string | null>(null);
 
   // Auto-select first funnel (in useEffect to avoid re-render loop)
   useEffect(() => {
