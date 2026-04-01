@@ -132,7 +132,7 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
+export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
