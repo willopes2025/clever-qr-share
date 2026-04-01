@@ -305,13 +305,36 @@ export const TemplateFormDialog = ({
                     'Etapa do funil',
                     'Valor do deal',
                     'Campos do lead',
-                    'Últimas 20 mensagens'
+                    'Últimas 20 mensagens',
+                    ...(includeAsaasData ? ['Status pagamento Asaas', 'Valor fatura', 'Data vencimento', 'Link de pagamento'] : [])
                   ].map((item) => (
-                    <Badge key={item} variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-500/30 text-emerald-400">
+                    <Badge key={item} variant="outline" className={`text-[10px] px-1.5 py-0 ${
+                      ['Status pagamento Asaas', 'Valor fatura', 'Data vencimento', 'Link de pagamento'].includes(item)
+                        ? 'border-amber-500/30 text-amber-400'
+                        : 'border-emerald-500/30 text-emerald-400'
+                    }`}>
                       {item}
                     </Badge>
                   ))}
                 </div>
+              </div>
+
+              {/* Asaas Financial Data Toggle */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                <div className="space-y-0.5">
+                  <Label htmlFor="include-asaas" className="flex items-center gap-2 text-xs">
+                    <DollarSign className="h-3.5 w-3.5 text-amber-400" />
+                    Dados financeiros (Asaas)
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Inclui faturas pendentes/vencidas, valores e links de pagamento no contexto da IA
+                  </p>
+                </div>
+                <Switch
+                  id="include-asaas"
+                  checked={includeAsaasData}
+                  onCheckedChange={setIncludeAsaasData}
+                />
               </div>
             </div>
           ) : (
