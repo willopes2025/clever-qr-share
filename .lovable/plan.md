@@ -1,43 +1,57 @@
 
 
-## Corrigir variáveis não substituídas na exibição de mensagens Meta
+## Mensagem IA com Dados do Asaas na Aba Templates
 
-### Problema
-Ao enviar campanhas com templates Meta, as mensagens chegam corretamente no WhatsApp do destinatário (a Meta API substitui as variáveis), mas a **mensagem salva no Inbox** e no preview mostra o texto bruto com `{{1}}`, `{{2}}` ao invés dos valores reais (nome, telefone, etc.).
+### Objetivo
+Adicionar na aba Templates uma funcionalidade de "Mensagem IA" similar à das Oportunidades, onde a IA tem acesso aos dados financeiros do Asaas (faturas pendentes, vencidas, valores) para gerar mensagens de cobrança personalizadas por contato.
 
-Causa: na linha 1022 de `send-campaign-messages/index.ts`, o conteúdo salvo é `metaTemplate.body_text` sem substituir as variáveis pelos valores já resolvidos em `bodyParams`.
+### O que será feito
 
-### Solução
-Após resolver os `bodyParams`, substituir `{{1}}`, `{{2}}`, etc. no `body_text` pelos valores correspondentes antes de salvar no `inbox_messages` e `conversations.last_message_preview`.
+**1. Novo modo no TemplateFormDialog: "IA com Asaas"**
+- Adicionar um checkbox/switch "Incluir dados financeiros (Asaas)" dentro do modo IA Dinâmico já existente
+- Quando ativado, a IA recebe no contexto de cada contato: status de pagamento, valor da fatura, data de vencimento, link de pagamento
+- Badge adicional na lista de dados disponíveis: "Status pagamento Asaas", "Valor fatura", "Data vencimento", "Link de pagamento"
 
-### Arquivo alterado
-**`supabase/functions/send-campaign-messages/index.ts`** (1 alteração)
+**2. Atualizar a edge function `start-campaign` (seção IA dinâmica)**
+- Quando o template tem `ai_prompt` E o usuário tem integração Asaas ativa, buscar os dados financeiros do contato via API Asaas antes de montar o contexto
+- Usar `asaas_customer_id` do contato para buscar faturas pendentes/vencidas
+- Adicionar ao contexto do contato: status do pagamento, valor, vencimento e link do boleto/pix
+- O prompt do sistema já instrui a IA a usar apenas dados presentes no contexto, então basta injetar os dados financeiros
 
-Na seção de persistência (~linhas 1021-1022), substituir:
-```typescript
-const displayContent = metaTemplate.body_text || '';
+**3. Nova edge function `get-asaas-customer-payments`**
+- Recebe `contact_ids[]` e retorna dados financeiros agrupados por contato
+- Busca `asaas_customer_id` dos contatos no banco
+- Para cada customer_id, consulta a API Asaas por faturas PENDING e OVERDUE
+- Retorna: `{ contact_id, payments: [{ status, value, dueDate, invoiceUrl, billingType }] }`
+- Usado pelo `start-campaign` durante a geração IA dinâmica
+
+**4. UI: indicador visual no TemplateFormDialog**
+- No modo IA Dinâmico, adicionar seção colapsável "Dados financeiros (Asaas)"
+- Switch para ativar/desativar inclusão dos dados Asaas
+- Salvar essa preferência no template (novo campo `include_asaas_data: boolean` na tabela `message_templates`)
+
+### Alterações por arquivo
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/templates/TemplateFormDialog.tsx` | Adicionar switch "Dados do Asaas" no modo IA Dinâmico + badges |
+| `src/hooks/useMessageTemplates.ts` | Adicionar campo `include_asaas_data` na interface e mutations |
+| `supabase/functions/start-campaign/index.ts` | Na seção IA dinâmica, buscar dados Asaas quando `include_asaas_data=true` e injetar no contexto |
+| **Migração SQL** | Adicionar coluna `include_asaas_data boolean default false` em `message_templates` |
+
+### Fluxo de execução
+1. Usuário cria template com IA Dinâmica + "Dados Asaas" ativado
+2. Ao disparar campanha, `start-campaign` detecta `ai_prompt` + `include_asaas_data`
+3. Para cada lote de contatos, busca `asaas_customer_id` e consulta faturas na API Asaas
+4. Injeta no contexto: "Dados financeiros: Fatura de R$ 350,00 vencida em 15/03/2026, status: OVERDUE, link: https://..."
+5. IA gera mensagem de cobrança personalizada usando esses dados
+
+### Dados Asaas injetados no contexto da IA
+```text
+Dados financeiros (Asaas):
+- Fatura 1: R$ 350,00 | Vencimento: 15/03/2026 | Status: Vencida | Tipo: Boleto
+  Link: https://www.asaas.com/b/pay/...
+- Fatura 2: R$ 200,00 | Vencimento: 01/04/2026 | Status: Pendente | Tipo: PIX
+  Link: https://www.asaas.com/b/pay/...
 ```
-
-Por lógica que percorre os `bodyParams` já resolvidos e substitui `{{N}}` no texto:
-```typescript
-let displayContent = metaTemplate.body_text || '';
-if (bodyParams && bodyParams.length > 0) {
-  bodyParams.forEach((param, idx) => {
-    displayContent = displayContent.replace(
-      new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'),
-      param.text || ''
-    );
-  });
-}
-```
-
-Isso garante que o texto armazenado no Inbox reflita exatamente o que o destinatário recebeu (ex: "Opa, Patrícia!" ao invés de "Opa, {{1}}!").
-
-### Escopo do `bodyParams`
-A variável `bodyParams` é declarada dentro de um bloco `if (bodyVarCount > 0)`. Preciso movê-la para fora do bloco ou declarar no escopo mais amplo para que esteja acessível na seção de persistência (~40 linhas abaixo). Alternativamente, posso fazer a substituição inline logo após a construção dos params.
-
-### Detalhes técnicos
-- A mesma correção precisa ser aplicada na seção de erro (~linha 963) onde o conteúdo também é salvo com template bruto
-- Nenhuma alteração de banco de dados necessária
-- A correção afeta apenas futuras mensagens; mensagens já salvas mantêm o texto bruto
 
