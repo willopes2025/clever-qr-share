@@ -1,40 +1,37 @@
 
 
-## Scroll horizontal com cursor de mãozinha (grab-to-scroll) no Kanban e Lista
+# Corrigir Loop do ssOtica no Kanban
 
-### O que será feito
-Adicionar funcionalidade de **drag-to-scroll** horizontal nas views Kanban e Lista do funil: o cursor muda para uma mãozinha (grab), e ao clicar e arrastar, o conteúdo rola horizontalmente — igual ao comportamento mostrado na imagem de referência.
+## Problema Identificado
 
-### Implementação
+O `useSsoticaSync` está sendo executado dentro do `DealFormDialog`, que é renderizado por **cada card** no Kanban (`FunnelDealCard`). Com 50+ cards visíveis, cada um dispara 3 chamadas à API do ssOtica (OS, Vendas, Parcelas) simultaneamente. Pior: quando a busca é por telefone (sem CPF), o sistema baixa TODA a lista de OS/vendas/parcelas para filtrar localmente.
 
-**1. Criar hook reutilizável `useGrabScroll`** (`src/hooks/useGrabScroll.ts`)
-- Hook que retorna um `ref` e event handlers (`onMouseDown`, `onMouseMove`, `onMouseUp`, `onMouseLeave`)
-- Controla estado `isGrabbing` para alternar cursor entre `grab` e `grabbing`
-- Calcula deslocamento horizontal baseado no movimento do mouse
-- Ignora drag quando o clique origina de elementos interativos (botões, inputs, links)
+O loop acontece porque:
+1. Sync escreve em `custom_fields` do deal
+2. Isso causa re-fetch dos deals no Kanban
+3. Os cards re-montam, resetando o `syncAttemptedRef`
+4. Sync dispara novamente → ciclo infinito
 
-**2. Aplicar no `FunnelKanbanView.tsx`**
-- Substituir ou envolver o `<ScrollArea>` atual (linha 99) com um `div` que usa o hook `useGrabScroll`
-- Adicionar classes CSS `cursor-grab active:cursor-grabbing` no container
-- Manter o scroll nativo via `overflow-x: auto` no container
+## Solução
 
-**3. Aplicar no `FunnelListView.tsx`**
-- Mesmo tratamento para a área de scroll horizontal, se existir
+### 1. Condicionar o sync ao dialog estar aberto
+No `useSsoticaSync`, adicionar um parâmetro `enabled` e só disparar quando o dialog estiver de fato aberto. Isso elimina completamente o loop pois os 50+ cards do Kanban não vão mais sincronizar em background.
 
-### Detalhes técnicos
+### 2. Passar `open` como parâmetro
+Atualizar todas as chamadas a `useSsoticaSync` para incluir `open` do dialog como condição de ativação.
 
-O hook `useGrabScroll`:
-```typescript
-// Lógica principal
-onMouseDown → salva posição inicial X + scrollLeft, seta isGrabbing = true
-onMouseMove → calcula delta e aplica scrollLeft
-onMouseUp/onMouseLeave → seta isGrabbing = false
-```
+### 3. Melhorar cache para evitar re-syncs
+Quando o dialog abre e já existe `ssotica_ultima_sync` recente nos `custom_fields`, usar os dados em cache sem fazer novas chamadas à API.
 
-Classes CSS no container:
-```
-cursor-grab select-none [&.grabbing]:cursor-grabbing
-```
+## Arquivos Alterados
 
-Importante: não interferir com o drag-and-drop de cards entre colunas — o hook deve ignorar eventos que se originam dos cards arrastáveis (verificar `e.target`).
+- `src/hooks/useSsoticaSync.ts` — Adicionar parâmetro `enabled`, condicionar `useEffect` a ele, e impedir sync quando desabilitado.
+- `src/components/funnels/DealFormDialog.tsx` — Passar `open` como parâmetro `enabled` ao hook.
+
+## Resultado Esperado
+
+- Zero chamadas à API do ssOtica ao carregar o Kanban
+- Sync só dispara quando o usuário clica para abrir um card
+- Cache de 5 minutos continua funcionando
+- Fim do loop e da lentidão
 
