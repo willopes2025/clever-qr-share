@@ -375,18 +375,27 @@ export const FunnelListView = ({ funnel }: FunnelListViewProps) => {
   // Filtered deals based on column filters
   const filteredDeals = useMemo(() => {
     return searchableDeals.filter((deal) => {
-      // Contact filter
+      // Contact filter (name only)
       if (columnFilters.contact) {
         const normalizedDealName = normalizeText(deal.contact?.name || "");
         const normalizedDealTitle = normalizeText(deal.title || "");
-        const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
 
         const matches =
           normalizedDealTitle.includes(normalizedContactFilter) ||
-          normalizedDealName.includes(normalizedContactFilter) ||
-          (contactFilterDigits.length > 0 && phoneDigits.includes(contactFilterDigits));
+          normalizedDealName.includes(normalizedContactFilter);
 
         if (!matches) return false;
+      }
+
+      // Phone filter
+      if (columnFilters.phone) {
+        const phoneFilterDigits = columnFilters.phone.replace(/\D/g, "");
+        const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
+        if (phoneFilterDigits.length > 0 && !phoneDigits.includes(phoneFilterDigits)) return false;
+        if (phoneFilterDigits.length === 0) {
+          const normalizedPhone = normalizeText(deal.contact?.phone || "");
+          if (!normalizedPhone.includes(normalizeText(columnFilters.phone))) return false;
+        }
       }
 
       // Stage filter
