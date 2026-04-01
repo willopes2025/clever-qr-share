@@ -73,6 +73,15 @@ export const DealFormDialog = ({
   const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
   const stages = currentFunnel?.stages || [];
 
+  // ssOtica sync
+  const { isSyncing: isSsoticaSyncing, syncedData: ssoticaData, error: ssoticaError, forceSync: forceSsoticaSync, hasSsotica } = useSsoticaSync(
+    deal?.id,
+    deal?.contact_id,
+    deal?.contact?.phone,
+    deal?.contact?.custom_fields as Record<string, unknown> | undefined,
+    deal?.custom_fields as Record<string, unknown> | undefined,
+  );
+
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (open) {
