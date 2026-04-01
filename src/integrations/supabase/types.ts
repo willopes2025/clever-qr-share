@@ -3863,6 +3863,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          include_asaas_data: boolean
           is_active: boolean
           media_filename: string | null
           media_type: string | null
@@ -3878,6 +3879,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          include_asaas_data?: boolean
           is_active?: boolean
           media_filename?: string | null
           media_type?: string | null
@@ -3893,6 +3895,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          include_asaas_data?: boolean
           is_active?: boolean
           media_filename?: string | null
           media_type?: string | null

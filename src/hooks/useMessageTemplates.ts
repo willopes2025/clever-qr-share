@@ -20,6 +20,7 @@ export interface MessageTemplate {
   media_url?: string | null;
   media_filename?: string | null;
   ai_prompt?: string | null;
+  include_asaas_data?: boolean;
 }
 
 export interface CreateTemplateData {
@@ -32,6 +33,7 @@ export interface CreateTemplateData {
   media_url?: string | null;
   media_filename?: string | null;
   ai_prompt?: string | null;
+  include_asaas_data?: boolean;
 }
 
 export interface UpdateTemplateData extends Partial<CreateTemplateData> {
@@ -95,7 +97,8 @@ export const useMessageTemplates = () => {
         media_type: template.media_type as MediaType,
         media_url: template.media_url,
         media_filename: template.media_filename,
-        ai_prompt: (template as any).ai_prompt || null
+        ai_prompt: (template as any).ai_prompt || null,
+        include_asaas_data: (template as any).include_asaas_data || false
       })) as MessageTemplate[];
     },
     enabled: !!user?.id
@@ -117,7 +120,8 @@ export const useMessageTemplates = () => {
           media_type: data.media_type || null,
           media_url: data.media_url || null,
           media_filename: data.media_filename || null,
-          ai_prompt: data.ai_prompt || null
+          ai_prompt: data.ai_prompt || null,
+          include_asaas_data: data.include_asaas_data || false
         });
 
       if (error) throw error;
