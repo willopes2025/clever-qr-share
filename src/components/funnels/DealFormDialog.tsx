@@ -48,6 +48,7 @@ export const DealFormDialog = ({
   const { user } = useAuth();
   
   const [title, setTitle] = useState(deal?.title || '');
+  const [contactName, setContactName] = useState(deal?.contact?.name || '');
   const [contactId, setContactId] = useState(deal?.contact_id || initialContactId || '');
   const [value, setValue] = useState(deal?.value?.toString() || '');
   const [expectedCloseDate, setExpectedCloseDate] = useState(deal?.expected_close_date || '');
