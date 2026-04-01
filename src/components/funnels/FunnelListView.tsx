@@ -296,15 +296,36 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     );
   }, [funnel.stages]);
 
-  // Open deal from global search
+  // Open deal from global search - fetch from server if not loaded locally
   useEffect(() => {
-    if (openDealId && allDeals.length > 0) {
-      const deal = allDeals.find(d => d.id === openDealId);
-      if (deal) {
-        setEditingDeal(deal);
-        onDealOpened?.();
-      }
+    if (!openDealId) return;
+    
+    const localDeal = allDeals.find(d => d.id === openDealId);
+    if (localDeal) {
+      setEditingDeal(localDeal);
+      onDealOpened?.();
+      return;
     }
+
+    // Deal not loaded locally - fetch from server
+    const fetchDeal = async () => {
+      const { data, error } = await supabase
+        .from("funnel_deals")
+        .select(`
+          *,
+          contact:contacts(id, name, phone, email, custom_fields),
+          close_reason:funnel_close_reasons(*)
+        `)
+        .eq("id", openDealId)
+        .maybeSingle();
+
+      if (!error && data) {
+        setEditingDeal(data as FunnelDeal);
+      }
+      onDealOpened?.();
+    };
+
+    fetchDeal();
   }, [openDealId, allDeals, onDealOpened]);
 
   const contactFilterRaw = columnFilters.contact?.trim() || "";
