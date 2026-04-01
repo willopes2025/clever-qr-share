@@ -180,6 +180,13 @@ const Funnels = () => {
                     </Button>
                   </>
                 )}
+
+                <FunnelGlobalSearch
+                  onSelectDeal={(funnelId) => {
+                    setSelectedFunnelId(funnelId);
+                    setViewMode('list');
+                  }}
+                />
               </div>
 
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'list' | 'automations' | 'dashboard' | 'opportunities')}>
