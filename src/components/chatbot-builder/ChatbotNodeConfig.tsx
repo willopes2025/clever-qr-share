@@ -639,32 +639,7 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
 
       case "message":
         return (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="message">Mensagem</Label>
-              <Textarea
-                id="message"
-                value={data?.message || ""}
-                onChange={(e) => handleChange("message", e.target.value)}
-                placeholder="Digite a mensagem a ser enviada..."
-                rows={4}
-              />
-              <VariableChipsSelector
-                onInsert={(variable) => handleChange("message", (data?.message || "") + " " + variable)}
-                compact
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="delay">Delay (segundos)</Label>
-              <Input
-                id="delay"
-                type="number"
-                min={0}
-                value={data?.delay || 0}
-                onChange={(e) => handleChange("delay", parseInt(e.target.value) || 0)}
-              />
-            </div>
-          </div>
+          <MessageNodeConfig data={data} handleChange={handleChange} />
         );
 
       case "question":
