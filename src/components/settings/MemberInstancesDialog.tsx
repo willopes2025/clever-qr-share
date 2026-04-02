@@ -139,7 +139,7 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
 
   const isLoading = isLoadingInstances || isLoadingMemberInstances || isLoadingMetaNumbers || isLoadingMemberMeta;
   const canSaveEvolution = allInstancesSelected || selectedInstances.length > 0;
-  const canSaveMeta = allMetaSelected || selectedMetaNumbers.length > 0;
+  const canSaveMeta = allMetaSelected || selectedMetaNumbers.length > 0 || activeMetaNumbers.length === 0;
   const canSave = canSaveEvolution && canSaveMeta;
 
   return (
