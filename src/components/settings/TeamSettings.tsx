@@ -82,7 +82,7 @@ export function TeamSettings() {
   const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [instancesDialogOpen, setInstancesDialogOpen] = useState(false);
-  const [metaNumbersDialogOpen, setMetaNumbersDialogOpen] = useState(false);
+  
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [notificationInstanceId, setNotificationInstanceId] = useState<string | null>(null);
