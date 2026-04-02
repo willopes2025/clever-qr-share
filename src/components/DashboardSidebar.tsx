@@ -100,6 +100,7 @@ export const DashboardSidebar = () => {
   const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
   const { data: totalUnread = 0 } = useUnreadCount();
+  const { data: internalChatUnread = 0 } = useInternalChatUnread();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
