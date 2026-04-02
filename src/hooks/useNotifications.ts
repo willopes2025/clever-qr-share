@@ -46,13 +46,7 @@ export const useNotifications = () => {
     }
   }, []);
 
-  const sendNotification = useCallback((title: string, options?: NotificationOptions) => {
-    // Don't show notification if the page is focused
-    if (document.hasFocus()) return null;
-
-    // Play sound regardless of notification permission
-    playNotificationSound();
-    
+  const sendBrowserNotification = useCallback((title: string, options?: NotificationOptions) => {
     if (!isSupported || permission !== 'granted') return null;
     
     try {
@@ -67,7 +61,6 @@ export const useNotifications = () => {
         notification.close();
       };
 
-      // Auto-close after 5 seconds
       setTimeout(() => notification.close(), 5000);
 
       return notification;
@@ -75,22 +68,13 @@ export const useNotifications = () => {
       console.error('Error sending notification:', error);
       return null;
     }
-  }, [isSupported, permission, playNotificationSound]);
-
-  const notifyNewMessage = useCallback((contactName: string, messagePreview: string) => {
-    return sendNotification(`Nova mensagem de ${contactName}`, {
-      body: messagePreview,
-      tag: 'new-message',
-      requireInteraction: false
-    });
-  }, [sendNotification]);
+  }, [isSupported, permission]);
 
   return {
     permission,
     isSupported,
     requestPermission,
-    sendNotification,
-    notifyNewMessage,
+    sendBrowserNotification,
     playNotificationSound
   };
 };

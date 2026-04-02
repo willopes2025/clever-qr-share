@@ -1,10 +1,12 @@
 import { useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications, useUnreadBadge } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useGlobalRealtime } from "@/hooks/useGlobalRealtime";
+import { toast } from "sonner";
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -12,8 +14,9 @@ interface NotificationProviderProps {
 
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { permission, requestPermission, notifyNewMessage } = useNotifications();
+  const { permission, requestPermission, sendBrowserNotification, playNotificationSound } = useNotifications();
 
   // Use optimized unread count hook instead of fetching all conversations
   const { data: totalUnread = 0 } = useUnreadCount();
@@ -114,7 +117,27 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
             ? message.content.substring(0, 50) + '...' 
             : message.content || 'Nova mensagem';
           
-          notifyNewMessage(contactName, messagePreview);
+          // Play sound always
+          playNotificationSound();
+
+          if (document.hasFocus()) {
+            // In-app toast when focused
+            toast(`📩 ${contactName}`, {
+              description: messagePreview,
+              action: {
+                label: 'Abrir',
+                onClick: () => navigate(`/inbox?conversationId=${message.conversation_id}`),
+              },
+              duration: 6000,
+            });
+          } else {
+            // Browser notification when minimized/background
+            sendBrowserNotification(`Nova mensagem de ${contactName}`, {
+              body: messagePreview,
+              tag: 'new-message',
+              requireInteraction: false,
+            });
+          }
         }
       )
       .subscribe();
@@ -122,7 +145,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, getContactName, notifyNewMessage, queryClient, notificationInstanceIds]);
+  }, [user?.id, getContactName, playNotificationSound, sendBrowserNotification, navigate, queryClient, notificationInstanceIds]);
 
   return <>{children}</>;
 };
