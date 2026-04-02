@@ -98,17 +98,24 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today', customRange?:
         .gt('unread_count', 0)
         .eq('status', 'open');
 
+      // Count distinct conversations with at least 1 outbound message in the period
+      const { count: respondedConversations } = await supabase
+        .from('inbox_messages')
+        .select('conversation_id', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const responseRate = totalConversationsCount > 0 ? ((respondedConversations || 0) / totalConversationsCount) * 100 : 0;
+
+      // Still fetch a sample for avg response time calculation
       const { data: messagesData } = await supabase
         .from('inbox_messages')
         .select('conversation_id, direction, created_at')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .order('created_at', { ascending: true })
-        .limit(1000);
-
-      const respondedConvIds = [...new Set(messagesData?.filter(m => m.direction === 'outbound').map(m => m.conversation_id).filter(Boolean) || [])];
-      const respondedConversations = respondedConvIds.length;
-      const responseRate = totalConversationsCount > 0 ? (respondedConversations / totalConversationsCount) * 100 : 0;
+        .limit(5000);
 
       let totalResponseTime = 0;
       let responseCount = 0;
@@ -179,12 +186,12 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
-      // Fix: only count 'delivered' and 'received' as truly delivered (not 'sent')
+      // Fix: include 'read' as delivered — if it was read, it was delivered
       const { count: messagesDeliveredCount } = await supabase
         .from('inbox_messages')
         .select('*', { count: 'exact', head: true })
         .eq('direction', 'outbound')
-        .in('status', ['delivered', 'received'])
+        .in('status', ['delivered', 'received', 'read'])
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
@@ -364,19 +371,30 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
       const { data: stages } = await stagesQuery;
 
       const stageIds = stages?.map(s => s.id) || [];
+      const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
+      const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
+      const finalStageIds = [...wonStageIds, ...lostStageIds];
+      const openStageIds = stageIds.filter(id => !finalStageIds.includes(id));
       
-      // Fix: filter deals by created_at within selected period
-      const { data: deals } = await supabase
+      // Pipeline ATUAL (sem filtro de data) — mostra estado real do funil
+      const { data: currentPipelineDeals } = await supabase
+        .from('funnel_deals')
+        .select('id, stage_id, value')
+        .in('stage_id', openStageIds.length > 0 ? openStageIds : ['']);
+
+      // Deals ganhos/perdidos NO PERÍODO (filtro por closed_at)
+      const { data: closedDeals } = await supabase
         .from('funnel_deals')
         .select('id, stage_id, value, closed_at, created_at')
-        .in('stage_id', stageIds.length > 0 ? stageIds : [''])
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+        .in('stage_id', finalStageIds.length > 0 ? finalStageIds : [''])
+        .gte('closed_at', start.toISOString())
+        .lte('closed_at', end.toISOString());
 
+      // Stage metrics show CURRENT pipeline state
       const stageMetrics: FunnelStageMetric[] = (stages || [])
         .filter(s => !s.is_final)
         .map(stage => {
-          const stageDeals = deals?.filter(d => d.stage_id === stage.id) || [];
+          const stageDeals = currentPipelineDeals?.filter(d => d.stage_id === stage.id) || [];
           const dealCount = stageDeals.length;
           const dealValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
           
@@ -402,19 +420,15 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
         }
       }
 
-      const finalStageIds = stages?.filter(s => s.final_type === 'won' || s.final_type === 'lost').map(s => s.id) || [];
-      const dealsInNegotiation = deals?.filter(d => !finalStageIds.includes(d.stage_id)).length || 0;
-      const valueInNegotiation = deals
-        ?.filter(d => !finalStageIds.includes(d.stage_id))
-        .reduce((sum, d) => sum + (d.value || 0), 0) || 0;
+      const dealsInNegotiation = currentPipelineDeals?.length || 0;
+      const valueInNegotiation = currentPipelineDeals
+        ?.reduce((sum, d) => sum + (d.value || 0), 0) || 0;
 
-      const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
-      const wonDeals = deals?.filter(d => wonStageIds.includes(d.stage_id)) || [];
+      const wonDeals = closedDeals?.filter(d => wonStageIds.includes(d.stage_id)) || [];
       const dealsClosed = wonDeals.length;
       const valueClosed = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
-      const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
-      const lostDeals = deals?.filter(d => lostStageIds.includes(d.stage_id)) || [];
+      const lostDeals = closedDeals?.filter(d => lostStageIds.includes(d.stage_id)) || [];
       const dealsLost = lostDeals.length;
       const valueLost = lostDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
@@ -663,7 +677,9 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d', customRange?: 
       ) || [];
       
       const salesTotal = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-      const avgTicket = wonDeals.length > 0 ? salesTotal / wonDeals.length : 0;
+      // Fix: filter deals with value > 0 for average ticket to avoid distortion
+      const wonDealsWithValue = wonDeals.filter(d => (d.value || 0) > 0);
+      const avgTicket = wonDealsWithValue.length > 0 ? wonDealsWithValue.reduce((sum, d) => sum + (d.value || 0), 0) / wonDealsWithValue.length : 0;
 
       // Value in negotiation (pipeline total - always current state)
       const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
