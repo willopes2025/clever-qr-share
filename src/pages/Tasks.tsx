@@ -33,7 +33,7 @@ const Tasks = () => {
   const { tasks, pendingTasks, completedTasks, isLoading, isOrgAdmin, assigneeIds } = useAllTasks();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("pending");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
