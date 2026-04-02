@@ -557,10 +557,16 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                     <SelectValue placeholder="Selecionar campo de data" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="expected_close_date">Data prevista de fechamento</SelectItem>
-                    {dateFieldDefinitions.map((field) => (
+                    <SelectItem value="created_at">📅 Data de criação do deal</SelectItem>
+                    <SelectItem value="expected_close_date">📅 Data prevista de fechamento</SelectItem>
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'lead').map((field) => (
                       <SelectItem key={field.id} value={field.field_key}>
-                        {field.field_name}
+                        🏷️ {field.field_name}
+                      </SelectItem>
+                    ))}
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'contact').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        📇 {field.field_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
