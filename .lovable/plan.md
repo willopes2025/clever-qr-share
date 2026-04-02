@@ -1,37 +1,36 @@
 
 
-## Plano: Melhorar tabela de Tarefas
+## Plano: Notificações visíveis mesmo com sistema minimizado + toast in-app
 
-### Problemas identificados
-1. Faltam dados do lead (código, nome, telefone) na tabela
-2. A coluna "Origem" não é clicável para abrir o chat
-3. Status só tem "Pendente" e "Concluída" — falta "Atrasada"
-4. Ao concluir, não pede o que foi feito
-5. Filtro de responsável mostra IDs duplicados (puxa tanto `user_id` quanto `assigned_to` de todas as tarefas, gerando repetição)
+### Situação atual
+- O sistema já usa a **Browser Notification API** (`useNotifications.ts`) para notificar mensagens inbound
+- Porém, na linha 51, há um `if (document.hasFocus()) return null` que **bloqueia** notificações quando a aba está ativa
+- Quando a aba está em foco, nenhum feedback visual aparece — o som toca mas não há popup
+- A API de Browser Notifications **já funciona** quando o navegador está minimizado, desde que a permissão tenha sido concedida
 
-### Alterações
+### O que será feito
 
-#### 1. `useAllTasks.ts` — Buscar dados do contato junto
-- Para `conversation_tasks`: fazer join com `contacts` via `contact_id` para trazer `contact_display_id`, `name`, `phone`
-- Para `deal_tasks`: fazer join com `funnel_deals(title, contact_id, contacts(contact_display_id, name, phone))`
-- Adicionar esses campos ao retorno: `contact_name`, `contact_phone`, `contact_display_id`, `conversation_id`
-- Extrair lista de responsáveis únicos (deduplicados) baseada em `assigned_to` — não misturar com `user_id`
+#### 1. Remover bloqueio de notificação quando em foco (`useNotifications.ts`)
+- Remover a linha `if (document.hasFocus()) return null`
+- Quando em foco: exibir **toast in-app** (sonner) com nome do contato e preview da mensagem, clicável para abrir a conversa
+- Quando minimizado/em background: disparar **Browser Notification** normalmente (popup do sistema operacional)
 
-#### 2. `Tasks.tsx` — Colunas e layout da tabela
-- Adicionar colunas: **Código** (`contact_display_id`), **Lead** (nome + telefone)
-- **Origem** vira um link clicável que navega para `/inbox?conversationId=X` ou `/inbox?contactId=X`
-- **Status** com 3 estados:
-  - "Atrasada" (badge vermelha) — `due_date < hoje` e não concluída
-  - "Pendente" (badge secundária) — sem vencimento ou não venceu ainda
-  - "Concluída" (badge verde/default) — tem `completed_at`
-- Filtro de status: "Todas", "Pendentes", "Atrasadas", "Concluídas"
-- **Popup de conclusão**: ao clicar no checkbox para concluir, abrir um `Dialog` com `Textarea` pedindo "O que foi feito?" — só salva `completed_at` após confirmar
+#### 2. Adicionar toast in-app no `NotificationProvider.tsx`
+- Quando a mensagem inbound chega e a aba está em foco, chamar `toast()` do sonner com:
+  - Ícone de mensagem
+  - Nome do contato + preview
+  - Ação clicável que navega para `/inbox?conversationId=X`
+- Quando a aba NÃO está em foco, manter o Browser Notification (popup do OS)
 
-#### 3. Corrigir filtro de responsável
-- No filtro de responsável, usar apenas `assigned_to` (quem está designado), removendo `user_id` duplicado
-- Deduplicar a lista de IDs antes de popular o select
+#### 3. Garantir que o som toca em ambos os cenários
+- O som já toca independente da permissão — será mantido
 
 ### Arquivos a modificar
-- `src/hooks/useAllTasks.ts` — joins com contacts, retornar dados do lead
-- `src/pages/Tasks.tsx` — novas colunas, status atrasado, popup conclusão, fix filtro
+- `src/hooks/useNotifications.ts` — separar lógica: retornar se está em foco ou não, deixar o chamador decidir
+- `src/components/NotificationProvider.tsx` — adicionar toast in-app com navegação quando em foco, browser notification quando não
+
+### Resultado
+- **App minimizado/background**: popup nativo do sistema operacional (Browser Notification)
+- **App em foco**: toast sonner no canto da tela com dados do contato + link para conversa
+- **Ambos**: som de notificação
 
