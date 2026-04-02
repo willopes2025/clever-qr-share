@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const META_API_URL = 'https://graph.facebook.com/v19.0';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -12,8 +14,6 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
-  const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -42,6 +42,9 @@ Deno.serve(async (req) => {
       .select(`
         id,
         user_id,
+        provider,
+        meta_phone_number_id,
+        instance_id,
         contact:contacts(id, phone, name)
       `)
       .eq('id', conversationId)
@@ -51,6 +54,184 @@ Deno.serve(async (req) => {
       console.error('Conversation fetch error:', convError);
       throw new Error('Failed to fetch conversation');
     }
+
+    // Type-safe access to contact
+    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null } | null;
+    if (!contactData || !contactData.phone) {
+      throw new Error('Contact not found');
+    }
+
+    const isMeta = conversation.provider === 'meta';
+
+    // =========================================
+    // META WHATSAPP CLOUD API
+    // =========================================
+    if (isMeta) {
+      console.log('[SEND-MEDIA] Routing to Meta WhatsApp Cloud API');
+
+      // Get Meta integration for this user
+      const { data: integration } = await supabase
+        .from('integrations')
+        .select('*')
+        .eq('user_id', conversation.user_id)
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!integration?.credentials?.access_token) {
+        throw new Error('Integração Meta WhatsApp não configurada ou sem access_token');
+      }
+
+      // Determine phone_number_id - use instanceId which is the meta_phone_number_id from frontend
+      let phoneNumberId = instanceId || conversation.meta_phone_number_id;
+
+      if (!phoneNumberId) {
+        const { data: metaNumber } = await supabase
+          .from('meta_whatsapp_numbers')
+          .select('phone_number_id')
+          .eq('user_id', conversation.user_id)
+          .eq('is_active', true)
+          .order('connected_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        phoneNumberId = metaNumber?.phone_number_id || integration.credentials?.phone_number_id;
+      }
+
+      if (!phoneNumberId) {
+        throw new Error('Phone Number ID não encontrado para envio Meta');
+      }
+
+      const formattedPhone = (targetPhone || contactData.phone).replace(/[^0-9]/g, '');
+
+      // Create message record
+      const { data: message, error: msgError } = await supabase
+        .from('inbox_messages')
+        .insert({
+          conversation_id: conversationId,
+          user_id: conversation.user_id,
+          direction: 'outbound',
+          content: caption || '',
+          message_type: mediaType,
+          media_url: mediaUrl,
+          status: 'sending',
+          sent_at: new Date().toISOString(),
+          sent_by_user_id: senderUserId,
+          sent_via_meta_number_id: phoneNumberId,
+        })
+        .select()
+        .single();
+
+      if (msgError) {
+        console.error('Message insert error:', msgError);
+        throw new Error('Failed to create message record');
+      }
+
+      // Build Meta API payload for media
+      let messagePayload: Record<string, unknown>;
+
+      if (mediaType === 'image') {
+        messagePayload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'image',
+          image: { link: mediaUrl, caption: caption || undefined },
+        };
+      } else if (mediaType === 'video') {
+        messagePayload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'video',
+          video: { link: mediaUrl, caption: caption || undefined },
+        };
+      } else if (mediaType === 'audio') {
+        messagePayload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'audio',
+          audio: { link: mediaUrl },
+        };
+      } else {
+        // document
+        messagePayload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'document',
+          document: { link: mediaUrl, caption: caption || undefined, filename: caption || 'document' },
+        };
+      }
+
+      console.log(`[SEND-MEDIA-META] Sending ${mediaType} to ${formattedPhone} via phone_number_id ${phoneNumberId}`);
+
+      const response = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${integration.credentials.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messagePayload),
+      });
+
+      let result: any;
+      try {
+        result = await response.json();
+      } catch {
+        const text = await response.text().catch(() => `HTTP ${response.status}`);
+        result = { error: { message: text || `HTTP ${response.status}` } };
+      }
+      console.log('[SEND-MEDIA-META] API response:', JSON.stringify(result));
+
+      if (!response.ok) {
+        await supabase.from('inbox_messages').update({ status: 'failed' }).eq('id', message.id);
+        throw new Error(result.error?.message || 'Erro ao enviar mídia via Meta API');
+      }
+
+      const whatsappMessageId = result.messages?.[0]?.id;
+
+      await supabase
+        .from('inbox_messages')
+        .update({ status: 'sent', whatsapp_message_id: whatsappMessageId })
+        .eq('id', message.id);
+
+      // Update conversation
+      const previewText = caption || `[${mediaType === 'image' ? 'Imagem' : mediaType === 'audio' ? 'Áudio' : mediaType === 'video' ? 'Vídeo' : 'Documento'}]`;
+
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_at: new Date().toISOString(),
+          last_message_preview: previewText.substring(0, 100),
+          last_message_direction: 'outbound',
+        })
+        .eq('id', conversationId);
+
+      // Handle AI handoff
+      if (senderUserId) {
+        await supabase
+          .from('conversations')
+          .update({
+            ai_paused: true,
+            ai_handoff_requested: true,
+            ai_handoff_reason: 'Atendente assumiu a conversa',
+          })
+          .eq('id', conversationId);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Media sent via Meta', messageId: message.id, whatsappMessageId }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // =========================================
+    // EVOLUTION API (WhatsApp Lite)
+    // =========================================
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 
     // Get instance info
     const { data: instance, error: instError } = await supabase
@@ -67,15 +248,8 @@ Deno.serve(async (req) => {
     if (instance.status !== 'connected') {
       throw new Error('Instance is not connected');
     }
-
-    // Type-safe access to contact
-    const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null } | null;
-    if (!contactData || !contactData.phone) {
-      throw new Error('Contact not found');
-    }
     
     // Format phone number - handle LID contacts (Click-to-WhatsApp Ads)
-    // Use targetPhone if provided (multi-phone support)
     const rawPhone = targetPhone || contactData.phone;
     let phone: string;
     const isLidContact = rawPhone.startsWith('LID_');
@@ -87,12 +261,10 @@ Deno.serve(async (req) => {
     } else {
       phone = rawPhone.replace(/\D/g, '');
       
-      // Validate phone
       if (phone.length > 13 || phone.length < 10) {
         throw new Error(`Número de telefone inválido: ${rawPhone}`);
       }
       
-      // Add Brazil country code if missing
       if (!phone.startsWith('55')) {
         phone = '55' + phone;
       }
@@ -127,10 +299,7 @@ Deno.serve(async (req) => {
     let endpoint: string;
     let body: Record<string, unknown>;
 
-    // Prefer the Evolution instance name when available (UI name can differ)
     const instanceNameForApi = (instance.evolution_instance_name || instance.instance_name).trim();
-
-    // Encode instance name for URL (handles spaces and special characters)
     const encodedInstanceName = encodeURIComponent(instanceNameForApi);
 
     switch (mediaType) {
