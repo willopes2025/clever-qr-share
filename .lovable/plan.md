@@ -1,37 +1,38 @@
 
 
-# Corrigir Loop do ssOtica no Kanban
+## Plano: Unificar instâncias Evolution e Meta no mesmo dialog de acesso do membro
 
-## Problema Identificado
+### Situação atual
+Hoje existem **dois dialogs separados** no menu do membro da equipe:
+- "Instâncias de Acesso" — mostra apenas instâncias Evolution (WhatsApp Lite)
+- "Números Meta (Oficial)" — mostra apenas números Meta (WhatsApp Business API)
 
-O `useSsoticaSync` está sendo executado dentro do `DealFormDialog`, que é renderizado por **cada card** no Kanban (`FunnelDealCard`). Com 50+ cards visíveis, cada um dispara 3 chamadas à API do ssOtica (OS, Vendas, Parcelas) simultaneamente. Pior: quando a busca é por telefone (sem CPF), o sistema baixa TODA a lista de OS/vendas/parcelas para filtrar localmente.
+O usuário precisa abrir dois dialogs diferentes para configurar o acesso completo de um membro.
 
-O loop acontece porque:
-1. Sync escreve em `custom_fields` do deal
-2. Isso causa re-fetch dos deals no Kanban
-3. Os cards re-montam, resetando o `syncAttemptedRef`
-4. Sync dispara novamente → ciclo infinito
+### O que será feito
 
-## Solução
+Unificar tudo em **um único dialog** chamado "Instâncias de Acesso" que exibe ambos os tipos, separados por seções visuais com badges indicando o provedor (Lite / API).
 
-### 1. Condicionar o sync ao dialog estar aberto
-No `useSsoticaSync`, adicionar um parâmetro `enabled` e só disparar quando o dialog estiver de fato aberto. Isso elimina completamente o loop pois os 50+ cards do Kanban não vão mais sincronizar em background.
+### Alterações
 
-### 2. Passar `open` como parâmetro
-Atualizar todas as chamadas a `useSsoticaSync` para incluir `open` do dialog como condição de ativação.
+1. **`MemberInstancesDialog.tsx`** — Refatorar para incluir ambos os tipos:
+   - Importar `useMetaWhatsAppNumbers` e `useMemberMetaNumbers` além dos hooks Evolution já existentes
+   - Adicionar estado para seleção de números Meta (`selectedMetaNumbers`, `allMetaSelected`)
+   - Dividir a lista em duas seções: "WhatsApp Lite (Evolution)" e "WhatsApp Business (Meta)", cada uma com seu checkbox "Todos"
+   - Usar o `ProviderBadge` existente para diferenciar visualmente
+   - No `handleSave`, salvar ambas as permissões (chamar `updateMemberInstances` + `updateMemberMetaNumbers`)
 
-### 3. Melhorar cache para evitar re-syncs
-Quando o dialog abre e já existe `ssotica_ultima_sync` recente nos `custom_fields`, usar os dados em cache sem fazer novas chamadas à API.
+2. **`TeamSettings.tsx`** — Simplificar o menu:
+   - Remover o item de menu "Números Meta (Oficial)" separado
+   - Remover estado `metaNumbersDialogOpen` e handler `handleOpenMetaNumbers`
+   - Remover o `MemberMetaNumbersDialog` separado
+   - Manter apenas o item "Instâncias de Acesso" que agora abre o dialog unificado
 
-## Arquivos Alterados
+3. **`MemberMetaNumbersDialog.tsx`** — Pode ser removido ou mantido como arquivo legado (o código será absorvido pelo dialog unificado).
 
-- `src/hooks/useSsoticaSync.ts` — Adicionar parâmetro `enabled`, condicionar `useEffect` a ele, e impedir sync quando desabilitado.
-- `src/components/funnels/DealFormDialog.tsx` — Passar `open` como parâmetro `enabled` ao hook.
-
-## Resultado Esperado
-
-- Zero chamadas à API do ssOtica ao carregar o Kanban
-- Sync só dispara quando o usuário clica para abrir um card
-- Cache de 5 minutos continua funcionando
-- Fim do loop e da lentidão
+### Detalhes técnicos
+- O dialog unificado terá um `ScrollArea` com duas seções separadas por headers
+- Cada seção mantém sua lógica independente de "Todos" vs "Específicos"
+- O save dispara ambas as mutations em paralelo (`Promise.all`)
+- Nenhuma alteração no banco de dados é necessária — as tabelas `team_member_instances` e `team_member_meta_numbers` continuam sendo usadas separadamente
 
