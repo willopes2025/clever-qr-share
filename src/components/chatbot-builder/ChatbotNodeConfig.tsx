@@ -616,6 +616,215 @@ const MetaTemplateActionConfig = ({
   );
 };
 
+// Component for Message node with template support
+const MessageNodeConfig = ({
+  data,
+  handleChange,
+}: {
+  data: NodeData;
+  handleChange: (key: string, value: any) => void;
+}) => {
+  const messageMode = data?.messageMode || 'text';
+  const { templates } = useMessageTemplates();
+  const { metaNumbers, isLoading: isLoadingNumbers } = useMetaWhatsAppNumbers();
+  
+  const selectedMetaNumber = metaNumbers?.find(n => n.phone_number_id === data?.config?.metaPhoneNumberId);
+  const { templates: metaTemplatesList, isLoading: isLoadingMetaTemplates } = useMetaTemplates(selectedMetaNumber?.waba_id);
+  const approvedMetaTemplates = metaTemplatesList.filter(t => t.status === 'approved');
+
+  const activeTemplates = templates?.filter(t => t.is_active) || [];
+  const selectedTemplate = activeTemplates.find(t => t.id === data?.templateId);
+  const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === data?.config?.metaTemplateId);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Tipo de Mensagem</Label>
+        <RadioGroup
+          value={messageMode}
+          onValueChange={(v) => handleChange("messageMode", v)}
+          className="space-y-2"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="text" id="msg-text" />
+            <Label htmlFor="msg-text" className="font-normal cursor-pointer text-sm">
+              Texto livre
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="template" id="msg-template" />
+            <Label htmlFor="msg-template" className="font-normal cursor-pointer text-sm">
+              Template (WhatsApp Lite)
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="meta_template" id="msg-meta-template" />
+            <Label htmlFor="msg-meta-template" className="font-normal cursor-pointer text-sm">
+              Template Meta (WhatsApp Oficial)
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {messageMode === 'text' && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="message">Mensagem</Label>
+            <Textarea
+              id="message"
+              value={data?.message || ""}
+              onChange={(e) => handleChange("message", e.target.value)}
+              placeholder="Digite a mensagem a ser enviada..."
+              rows={4}
+            />
+            <VariableChipsSelector
+              onInsert={(variable) => handleChange("message", (data?.message || "") + " " + variable)}
+              compact
+            />
+          </div>
+        </>
+      )}
+
+      {messageMode === 'template' && (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Template</Label>
+            <Select
+              value={data?.templateId || ""}
+              onValueChange={(v) => {
+                const tpl = activeTemplates.find(t => t.id === v);
+                handleChange("templateId", v);
+                if (tpl) {
+                  handleChange("message", tpl.content);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um template..." />
+              </SelectTrigger>
+              <SelectContent>
+                {activeTemplates.length === 0 ? (
+                  <SelectItem value="empty" disabled>Nenhum template disponível</SelectItem>
+                ) : (
+                  activeTemplates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-3 w-3" />
+                        {tpl.name}
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedTemplate && (
+            <div className="rounded-lg bg-muted/50 p-3 space-y-2 border">
+              <p className="text-xs font-medium text-muted-foreground">Preview:</p>
+              <p className="text-sm whitespace-pre-line line-clamp-6">{selectedTemplate.content}</p>
+              {selectedTemplate.media_type && (
+                <p className="text-xs text-muted-foreground">
+                  Mídia: {selectedTemplate.media_type} {selectedTemplate.media_filename ? `(${selectedTemplate.media_filename})` : ''}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {messageMode === 'meta_template' && (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Número Meta WhatsApp</Label>
+            <Select
+              value={data?.config?.metaPhoneNumberId || ""}
+              onValueChange={(v) => handleChange("config", {
+                ...(data?.config || {}),
+                metaPhoneNumberId: v,
+                metaTemplateId: "",
+                metaTemplateName: "",
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um número..." />
+              </SelectTrigger>
+              <SelectContent>
+                {isLoadingNumbers ? (
+                  <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                ) : metaNumbers?.length === 0 ? (
+                  <SelectItem value="empty" disabled>Nenhum número configurado</SelectItem>
+                ) : (
+                  metaNumbers?.filter(n => n.is_active).map((number) => (
+                    <SelectItem key={number.phone_number_id} value={number.phone_number_id}>
+                      <div className="flex items-center gap-2">
+                        <Send className="h-3 w-3" />
+                        {number.display_name || number.phone_number || number.phone_number_id}
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {data?.config?.metaPhoneNumberId && (
+            <div className="space-y-2">
+              <Label>Template Aprovado</Label>
+              <Select
+                value={data?.config?.metaTemplateId || ""}
+                onValueChange={(v) => {
+                  const tpl = approvedMetaTemplates.find(t => t.id === v);
+                  handleChange("config", {
+                    ...(data?.config || {}),
+                    metaTemplateId: v,
+                    metaTemplateName: tpl?.name || "",
+                    metaTemplateLanguage: tpl?.language || "pt_BR",
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um template..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingMetaTemplates ? (
+                    <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                  ) : approvedMetaTemplates.length === 0 ? (
+                    <SelectItem value="empty" disabled>Nenhum template aprovado</SelectItem>
+                  ) : (
+                    approvedMetaTemplates.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({tpl.category})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {selectedMetaTemplate && (
+            <div className="rounded-lg bg-muted/50 p-3 space-y-2 border">
+              <p className="text-xs font-medium text-muted-foreground">Preview:</p>
+              <p className="text-sm whitespace-pre-line line-clamp-5">{selectedMetaTemplate.body_text}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="delay">Delay (segundos)</Label>
+        <Input
+          id="delay"
+          type="number"
+          min={0}
+          value={data?.delay || 0}
+          onChange={(e) => handleChange("delay", parseInt(e.target.value) || 0)}
+        />
+      </div>
+    </div>
+  );
+};
+
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
   const { funnels } = useFunnels();
