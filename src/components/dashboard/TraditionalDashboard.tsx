@@ -4,6 +4,8 @@ import { DashboardDateFilter } from './DashboardDateFilter';
 import { OverviewSection } from './OverviewSection';
 import { WhatsAppSection } from './WhatsAppSection';
 import { LeadsSection } from './LeadsSection';
+import { LeadChannelsSection } from './LeadChannelsSection';
+import { CampaignDispatchSection } from './CampaignDispatchSection';
 import { FunnelSection } from './FunnelSection';
 import { FinancialSection } from './FinancialSection';
 import { AutomationSection } from './AutomationSection';
@@ -31,9 +33,12 @@ export const TraditionalDashboard = () => {
 
       <OverviewSection dateRange={dateRange} customRange={customRange} />
 
+      {/* Disparos + Leads por Canal */}
+      <CampaignDispatchSection dateRange={dateRange} customRange={customRange} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <WhatsAppSection dateRange={dateRange} customRange={customRange} />
-        <LeadsSection dateRange={dateRange} customRange={customRange} />
+        <LeadChannelsSection dateRange={dateRange} customRange={customRange} />
       </div>
 
       <FunnelSection dateRange={dateRange} customRange={customRange} />
