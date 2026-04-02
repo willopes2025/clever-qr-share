@@ -263,6 +263,20 @@ const InternalChat = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, selectedTarget, refetchMessages]);
 
+  // Global realtime for unread badge refresh
+  useEffect(() => {
+    if (!user) return;
+    const ch1 = supabase.channel('internal-unread-dm')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'internal_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['internal-chat-unread-counts'] });
+      }).subscribe();
+    const ch2 = supabase.channel('internal-unread-group')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'internal_group_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['internal-chat-unread-counts'] });
+      }).subscribe();
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); };
+  }, [user, queryClient]);
+
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
