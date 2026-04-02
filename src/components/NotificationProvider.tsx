@@ -1,10 +1,12 @@
 import { useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotifications, useUnreadBadge } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useGlobalRealtime } from "@/hooks/useGlobalRealtime";
+import { toast } from "sonner";
 
 interface NotificationProviderProps {
   children: React.ReactNode;
