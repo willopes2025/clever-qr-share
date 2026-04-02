@@ -201,14 +201,17 @@ export const MobileSidebarDrawer = () => {
                         >
                           <item.icon className="h-5 w-5 shrink-0" />
                           <span className="flex-1 text-left">{item.label}</span>
-                          {item.showBadge && totalUnread > 0 && (
-                            <Badge 
-                              variant="destructive" 
-                              className="h-5 min-w-5 px-1.5 text-xs font-bold"
-                            >
-                              {totalUnread > 99 ? '99+' : totalUnread}
-                            </Badge>
-                          )}
+                          {item.showBadge && (() => {
+                            const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+                            return count > 0 ? (
+                              <Badge 
+                                variant="destructive" 
+                                className="h-5 min-w-5 px-1.5 text-xs font-bold"
+                              >
+                                {count > 99 ? '99+' : count}
+                              </Badge>
+                            ) : null;
+                          })()}
                         </button>
                       );
                     })}
