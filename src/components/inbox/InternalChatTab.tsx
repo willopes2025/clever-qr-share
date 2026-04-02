@@ -53,9 +53,13 @@ export const InternalChatTab = ({ conversationId, contactId }: InternalChatTabPr
 
   const handleSend = async () => {
     if (!newMessage.trim()) return;
+    const allMemberIds = selectedMemberId 
+      ? undefined 
+      : otherMembers.map(m => m.user_id).filter(Boolean) as string[];
     await sendMessage.mutateAsync({ 
       content: newMessage.trim(),
-      targetMemberId: selectedMemberId 
+      targetMemberId: selectedMemberId,
+      allMemberIds,
     });
     setNewMessage("");
     inputRef.current?.focus();
