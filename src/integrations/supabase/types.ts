@@ -3700,6 +3700,30 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_chat_read_status: {
+        Row: {
+          id: string
+          last_read_at: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          last_read_at?: string
+          target_id: string
+          target_type: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          last_read_at?: string
+          target_id?: string
+          target_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       internal_chat_sessions: {
         Row: {
           contact_id: string | null

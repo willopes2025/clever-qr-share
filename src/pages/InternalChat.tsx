@@ -53,6 +53,38 @@ const InternalChat = () => {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Fetch read status for all chats
+  const { data: readStatuses = [] } = useQuery({
+    queryKey: ['internal-chat-read-status', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('internal_chat_read_status')
+        .select('target_type, target_id, last_read_at')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Mark chat as read
+  const markAsRead = async (target: ChatTarget) => {
+    if (!user) return;
+    const targetId = target.type === 'member'
+      ? members.find(m => m.id === target.id)?.user_id || target.id
+      : target.id;
+    await supabase
+      .from('internal_chat_read_status')
+      .upsert({
+        user_id: user.id,
+        target_type: target.type,
+        target_id: targetId,
+        last_read_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,target_type,target_id' });
+    queryClient.invalidateQueries({ queryKey: ['internal-chat-read-status'] });
+  };
+
   // Fetch team members
   const { data: members = [] } = useQuery({
     queryKey: ['internal-chat-members'],
@@ -100,6 +132,61 @@ const InternalChat = () => {
     },
     enabled: !!user,
   });
+
+  // Fetch unread counts for DMs and groups
+  const { data: unreadCounts = new Map<string, number>() } = useQuery({
+    queryKey: ['internal-chat-unread-counts', user?.id, JSON.stringify(readStatuses)],
+    queryFn: async () => {
+      if (!user) return new Map<string, number>();
+      const counts = new Map<string, number>();
+
+      for (const member of members) {
+        if (!member.user_id) continue;
+        const readEntry = readStatuses.find(
+          r => r.target_type === 'member' && r.target_id === member.user_id
+        );
+        let query = supabase
+          .from('internal_messages')
+          .select('id', { count: 'exact', head: true })
+          .is('conversation_id', null)
+          .is('contact_id', null)
+          .eq('user_id', member.user_id)
+          .contains('mentions', [user.id]);
+        if (readEntry?.last_read_at) {
+          query = query.gt('created_at', readEntry.last_read_at);
+        }
+        const { count } = await query;
+        if (count && count > 0) counts.set(`member:${member.user_id}`, count);
+      }
+
+      for (const group of groups) {
+        const readEntry = readStatuses.find(
+          r => r.target_type === 'group' && r.target_id === group.id
+        );
+        let query = supabase
+          .from('internal_group_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', group.id)
+          .neq('user_id', user.id);
+        if (readEntry?.last_read_at) {
+          query = query.gt('created_at', readEntry.last_read_at);
+        }
+        const { count } = await query;
+        if (count && count > 0) counts.set(`group:${group.id}`, count);
+      }
+
+      return counts;
+    },
+    enabled: !!user && (members.length > 0 || groups.length > 0),
+    refetchInterval: 30000,
+  });
+
+  const getUnreadCount = (type: 'member' | 'group', id: string): number => {
+    const key = type === 'member'
+      ? `member:${members.find(m => m.id === id)?.user_id}`
+      : `group:${id}`;
+    return unreadCounts.get(key) || 0;
+  };
 
   // Fetch messages based on target
   const { data: messages_list = [], refetch: refetchMessages } = useQuery({
@@ -169,10 +256,26 @@ const InternalChat = () => {
       .channel(`internal-chat-${selectedTarget.type}-${selectedTarget.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, () => {
         refetchMessages();
+        markAsRead(selectedTarget);
+        queryClient.invalidateQueries({ queryKey: ['internal-chat-unread-counts'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user, selectedTarget, refetchMessages]);
+
+  // Global realtime for unread badge refresh
+  useEffect(() => {
+    if (!user) return;
+    const ch1 = supabase.channel('internal-unread-dm')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'internal_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['internal-chat-unread-counts'] });
+      }).subscribe();
+    const ch2 = supabase.channel('internal-unread-group')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'internal_group_messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['internal-chat-unread-counts'] });
+      }).subscribe();
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); };
+  }, [user, queryClient]);
 
   // Auto-scroll
   useEffect(() => {
@@ -302,10 +405,12 @@ const InternalChat = () => {
             {filteredGroups.length > 0 && (
               <div>
                 <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Grupos</p>
-                {filteredGroups.map(group => (
+                {filteredGroups.map(group => {
+                  const unread = getUnreadCount('group', group.id);
+                  return (
                   <button
                     key={`g-${group.id}`}
-                    onClick={() => setSelectedTarget({ type: 'group', id: group.id })}
+                    onClick={() => { const t: ChatTarget = { type: 'group', id: group.id }; setSelectedTarget(t); markAsRead(t); }}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors text-left",
                       selectedTarget?.type === 'group' && selectedTarget.id === group.id && "bg-accent"
@@ -318,8 +423,14 @@ const InternalChat = () => {
                       <p className="text-sm font-medium text-foreground truncate">{group.name}</p>
                       <p className="text-xs text-muted-foreground">{group.member_count} membros</p>
                     </div>
+                    {unread > 0 && (
+                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -329,10 +440,12 @@ const InternalChat = () => {
               {filteredMembers.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">Nenhum membro</p>
               ) : (
-                filteredMembers.map(member => (
+                filteredMembers.map(member => {
+                  const unread = getUnreadCount('member', member.id);
+                  return (
                   <button
                     key={member.id}
-                    onClick={() => setSelectedTarget({ type: 'member', id: member.id })}
+                    onClick={() => { const t: ChatTarget = { type: 'member', id: member.id }; setSelectedTarget(t); markAsRead(t); }}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors text-left",
                       selectedTarget?.type === 'member' && selectedTarget.id === member.id && "bg-accent"
@@ -350,8 +463,14 @@ const InternalChat = () => {
                       </p>
                       <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
                     </div>
+                    {unread > 0 && (
+                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
           </ScrollArea>
