@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarContext } from "@/contexts/SidebarContext";
@@ -29,6 +30,7 @@ interface NavItem {
   path: string;
   permission?: PermissionKey;
   showBadge?: boolean;
+  badgeKey?: string;
   premiumOnly?: boolean;
 }
 
@@ -58,7 +60,7 @@ const navGroups: NavGroup[] = [
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
-      { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox" },
+      { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox", showBadge: true, badgeKey: "internal-chat" },
       { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox" },
     ],
   },
@@ -98,6 +100,7 @@ export const DashboardSidebar = () => {
   const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
   const { data: totalUnread = 0 } = useUnreadCount();
+  const { data: internalChatUnread = 0 } = useInternalChatUnread();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
@@ -186,21 +189,27 @@ export const DashboardSidebar = () => {
         {!isCollapsed && (
           <>
             <span className="flex-1">{item.label}</span>
-            {item.showBadge && totalUnread > 0 && (
-              <Badge 
-                variant="destructive" 
-                className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
-              >
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </Badge>
-            )}
+            {item.showBadge && (() => {
+              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+              return count > 0 ? (
+                <Badge 
+                  variant="destructive" 
+                  className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
+                >
+                  {count > 99 ? '99+' : count}
+                </Badge>
+              ) : null;
+            })()}
           </>
         )}
-        {isCollapsed && item.showBadge && totalUnread > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-            {totalUnread > 99 ? '99+' : totalUnread}
-          </span>
-        )}
+        {isCollapsed && item.showBadge && (() => {
+          const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+          return count > 0 ? (
+            <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+              {count > 99 ? '99+' : count}
+            </span>
+          ) : null;
+        })()}
       </NavLink>
     );
 
@@ -212,11 +221,14 @@ export const DashboardSidebar = () => {
           </TooltipTrigger>
           <TooltipContent side="right" className="flex items-center gap-2">
             {item.label}
-            {item.showBadge && totalUnread > 0 && (
-              <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </Badge>
-            )}
+            {item.showBadge && (() => {
+              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+              return count > 0 ? (
+                <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
+                  {count > 99 ? '99+' : count}
+                </Badge>
+              ) : null;
+            })()}
           </TooltipContent>
         </Tooltip>
       );

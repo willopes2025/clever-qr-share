@@ -1,4 +1,5 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,6 +27,7 @@ interface NavItem {
   path: string;
   permission?: PermissionKey;
   showBadge?: boolean;
+  badgeKey?: string;
   premiumOnly?: boolean;
 }
 
@@ -55,7 +57,7 @@ const navGroups: NavGroup[] = [
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
-      { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox" },
+      { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox", showBadge: true, badgeKey: "internal-chat" },
       { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox" },
     ],
   },
@@ -99,6 +101,7 @@ export const MobileSidebarDrawer = () => {
   const { hasSsotica } = useSsotica();
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+  const { data: internalChatUnread = 0 } = useInternalChatUnread();
 
   // Build dynamic nav groups with Financeiro/ssOtica if connected
   // For organization members: show these items based on permissions (even if integration isn't connected yet)
@@ -198,14 +201,17 @@ export const MobileSidebarDrawer = () => {
                         >
                           <item.icon className="h-5 w-5 shrink-0" />
                           <span className="flex-1 text-left">{item.label}</span>
-                          {item.showBadge && totalUnread > 0 && (
-                            <Badge 
-                              variant="destructive" 
-                              className="h-5 min-w-5 px-1.5 text-xs font-bold"
-                            >
-                              {totalUnread > 99 ? '99+' : totalUnread}
-                            </Badge>
-                          )}
+                          {item.showBadge && (() => {
+                            const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+                            return count > 0 ? (
+                              <Badge 
+                                variant="destructive" 
+                                className="h-5 min-w-5 px-1.5 text-xs font-bold"
+                              >
+                                {count > 99 ? '99+' : count}
+                              </Badge>
+                            ) : null;
+                          })()}
                         </button>
                       );
                     })}
