@@ -1,56 +1,59 @@
 
 
-## Plano: Revisão completa do sistema de automações — campos de data e fluxo de execução
+## Plano: Correção do Dashboard — Dados inconsistentes com a realidade
 
-### Problemas identificados
+### Problemas identificados com dados reais
 
-**1. Seletor de "Campo de Data" mostra apenas campos com `field_type = 'date'` (linha 323)**
+Comparei as queries do dashboard com os dados reais do banco:
 
-O filtro atual:
-```typescript
-const dateFieldDefinitions = fieldDefinitions?.filter(f => f.field_type === 'date') || [];
-```
+**1. Taxa de entrega WhatsApp está errada (~2% quando deveria ser ~10%+)**
+- O código conta apenas status `delivered` e `received` (162 msgs)
+- Ignora status `read` (460 msgs) — se foi lido, foi entregue
+- Também ignora `sent` (7.272 msgs) que indica envio bem-sucedido ao servidor
+- **Fix**: incluir `read` como entregue. Considerar `sent` separadamente.
 
-Isso exclui **5 campos com nomes de data** que estão cadastrados como `field_type: 'text'`:
-- `data_da_consulta` (Data da Consulta) — lead
-- `data_da_entrada` (Data da Entrada) — lead  
-- `data_de_nascimento` (Data de Nascimento) — contact
-- `data_que_veio_a_loja` (Data que veio a loja) — lead
+**2. Funil mostra apenas deals criados no período, não o estado atual do pipeline**
+- A query filtra `funnel_deals` por `created_at` no período selecionado
+- Resultado: "Em Negociação" mostra apenas deals novos, não o pipeline real
+- O pipeline real tem 7.777 deals; o dashboard mostra apenas ~1.500
+- **Fix**: remover filtro de `created_at` para métricas de pipeline atual (Em Negociação, valor). Manter filtro apenas para Vendas Fechadas/Perdidas (usar `closed_at`)
 
-Apenas 5 campos aparecem hoje (os que têm `field_type: 'date'`): Data de Abertura, Data de pagamento, data de retorno, Data de Vencimento Boleto, Data do exame.
+**3. Atendimentos Automáticos mostra 0 (correto nos dados, mas a lógica é frágil)**
+- `ai_handled = true` nos últimos 7 dias = 0
+- A lógica depende de `ai_handled` ser setado no momento correto. Confirmo que os dados refletem isso, mas é consistente.
 
-Também faltam campos fixos do deal como `created_at` (data de criação do deal).
+**4. Taxa de resposta limitada a 1.000 mensagens**
+- A query de `inbox_messages` tem `limit(1000)` mas existem 8.178+ outbound msgs nos últimos 7 dias
+- Isso trunca o cálculo de taxa de resposta e tempo médio
+- **Fix**: usar contagem por query separada em vez de carregar todas as mensagens
 
-**2. O motor de execução (`process-scheduled-automations`) só busca datas em `deal.custom_fields`**
-
-Para campos de contato (`entity_type: 'contact'`), como `data_de_nascimento` e `data_de_vencimento_boleto`, o motor busca em `deal.custom_fields` mas o dado pode estar em `contacts.custom_fields`. Isso faz com que o gatilho nunca dispare para esses campos.
-
-**3. Não há tratamento de datas em formato Excel serial number no motor**
-
-Dados importados podem conter datas como números seriais (ex: `46061`). O `new Date(dateValue)` no motor não converte esses formatos.
+**5. Financeiro: muitos deals com valor 0**
+- 498 deals têm valor > 0 (total R$362K), mas 7.279 têm valor = 0
+- O dashboard mostra valores baixos porque calcula médias incluindo deals sem valor
+- **Fix**: filtrar deals com `value > 0` para ticket médio
 
 ---
 
 ### Correções planejadas
 
-#### Arquivo 1: `src/components/funnels/AutomationFormDialog.tsx`
+#### Arquivo: `src/hooks/useDashboardMetricsV2.ts`
 
-- **Expandir o filtro de campos de data** (linha 323): incluir campos com `field_type === 'date'`, `field_type === 'datetime'`, e campos cujo nome contenha palavras-chave de data (`data`, `date`, `vencimento`, `nascimento`, etc.) — mesma lógica já usada no `FunnelListView`
-- **Adicionar campos fixos do deal** no seletor: `created_at` (Data de criação), `expected_close_date` já existe
-- **Separar visualmente** campos de Lead vs Contato no seletor (com prefixo 📇 para contato)
+**WhatsApp Metrics (linha ~183-189)**
+- Adicionar `read` à lista de status "entregues": `.in('status', ['delivered', 'received', 'read'])`
 
-#### Arquivo 2: `supabase/functions/process-scheduled-automations/index.ts`
+**Funnel Metrics (linha ~369-374)**  
+- Separar queries: pipeline atual (sem filtro de data) vs. deals ganhos/perdidos no período (filtrar por `closed_at`)
+- Stages mostram contagem ATUAL, não apenas do período
 
-- **Buscar dados do contato** quando o campo de data não for encontrado no deal: fazer join/lookup em `contacts.custom_fields` para campos de contato
-- **Converter datas em formato Excel serial** para ISO antes de comparar (função `excelSerialToDate`)
-- **Incluir `contact_id` na query de deals** (já incluído) para poder buscar o contato
+**Overview — Taxa de resposta (linha ~101-141)**
+- Substituir a abordagem de carregar 1.000 mensagens por queries de contagem separadas:
+  - Total de conversas no período
+  - Conversas com pelo menos 1 resposta outbound no período
 
-#### Deploy
+**Financial — Ticket médio (linha ~666)**
+- Filtrar `value > 0` ao calcular ticket médio para não distorcer com deals sem valor
 
-- Redeployar `process-scheduled-automations` após as correções
+### Arquivo a modificar
 
-### Arquivos a modificar
-
-1. `src/components/funnels/AutomationFormDialog.tsx` — expandir filtro de campos de data e melhorar seletor
-2. `supabase/functions/process-scheduled-automations/index.ts` — suportar campos de contato e datas Excel
+1. `src/hooks/useDashboardMetricsV2.ts` — 4 correções nas queries de métricas
 
