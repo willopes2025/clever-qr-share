@@ -501,11 +501,6 @@ export function TeamSettings() {
             onOpenChange={setInstancesDialogOpen}
             member={selectedMember}
           />
-          <MemberMetaNumbersDialog
-            open={metaNumbersDialogOpen}
-            onOpenChange={setMetaNumbersDialogOpen}
-            member={selectedMember}
-          />
         </>
       )}
 
