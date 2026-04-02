@@ -101,6 +101,7 @@ export const MobileSidebarDrawer = () => {
   const { hasSsotica } = useSsotica();
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+  const { data: internalChatUnread = 0 } = useInternalChatUnread();
 
   // Build dynamic nav groups with Financeiro/ssOtica if connected
   // For organization members: show these items based on permissions (even if integration isn't connected yet)
