@@ -86,8 +86,24 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
   }, [conversationId, contactId, refetch]);
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, mentions = [], targetMemberId }: { content: string; mentions?: string[]; targetMemberId?: string | null }) => {
+    mutationFn: async ({ content, mentions = [], targetMemberId, allMemberIds }: { content: string; mentions?: string[]; targetMemberId?: string | null; allMemberIds?: string[] }) => {
       if (!user) throw new Error('Usuário não autenticado');
+      
+      // Build mentions: if targetMemberId is set, mention that member
+      // If sending to "Todos", mention all team members
+      let finalMentions = [...mentions];
+      if (targetMemberId) {
+        if (!finalMentions.includes(targetMemberId)) {
+          finalMentions.push(targetMemberId);
+        }
+      } else if (allMemberIds && allMemberIds.length > 0) {
+        // "Todos" - mention all other members
+        for (const memberId of allMemberIds) {
+          if (memberId !== user.id && !finalMentions.includes(memberId)) {
+            finalMentions.push(memberId);
+          }
+        }
+      }
       
       const { data, error } = await supabase
         .from('internal_messages')
@@ -96,7 +112,7 @@ export const useInternalMessages = (conversationId: string | null, contactId: st
           conversation_id: conversationId,
           contact_id: contactId,
           content,
-          mentions,
+          mentions: finalMentions,
           source: 'web',
         })
         .select('*')

@@ -19,30 +19,23 @@ export const useInternalChatUnread = () => {
       const statuses = readStatuses || [];
       let total = 0;
 
-      // Count unread DMs (messages mentioning me)
+      // Count unread DMs (ALL messages mentioning me, including from conversations)
       const { count: allDmCount } = await supabase
         .from('internal_messages')
         .select('id', { count: 'exact', head: true })
-        .is('conversation_id', null)
-        .is('contact_id', null)
         .neq('user_id', user.id)
         .contains('mentions', [user.id]);
 
       if (allDmCount && allDmCount > 0) {
-        // Subtract already-read ones by checking per-member read status
-        // Simpler approach: count all unread DMs after earliest untracked time
         const dmReadEntries = statuses.filter(s => s.target_type === 'member');
         
         if (dmReadEntries.length === 0) {
           total += allDmCount;
         } else {
-          // For DMs we need per-sender counting
-          // Get distinct senders
+          // Per-sender counting
           const { data: senders } = await supabase
             .from('internal_messages')
             .select('user_id')
-            .is('conversation_id', null)
-            .is('contact_id', null)
             .neq('user_id', user.id)
             .contains('mentions', [user.id]);
 
@@ -55,8 +48,6 @@ export const useInternalChatUnread = () => {
             let query = supabase
               .from('internal_messages')
               .select('id', { count: 'exact', head: true })
-              .is('conversation_id', null)
-              .is('contact_id', null)
               .eq('user_id', senderId)
               .contains('mentions', [user.id]);
             if (readEntry?.last_read_at) {
