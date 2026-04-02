@@ -424,10 +424,12 @@ const InternalChat = () => {
               {filteredMembers.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">Nenhum membro</p>
               ) : (
-                filteredMembers.map(member => (
+                filteredMembers.map(member => {
+                  const unread = getUnreadCount('member', member.id);
+                  return (
                   <button
                     key={member.id}
-                    onClick={() => setSelectedTarget({ type: 'member', id: member.id })}
+                    onClick={() => { const t: ChatTarget = { type: 'member', id: member.id }; setSelectedTarget(t); markAsRead(t); }}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors text-left",
                       selectedTarget?.type === 'member' && selectedTarget.id === member.id && "bg-accent"
@@ -445,8 +447,14 @@ const InternalChat = () => {
                       </p>
                       <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
                     </div>
+                    {unread > 0 && (
+                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
           </ScrollArea>
