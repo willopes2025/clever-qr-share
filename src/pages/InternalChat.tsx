@@ -256,6 +256,8 @@ const InternalChat = () => {
       .channel(`internal-chat-${selectedTarget.type}-${selectedTarget.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, () => {
         refetchMessages();
+        markAsRead(selectedTarget);
+        queryClient.invalidateQueries({ queryKey: ['internal-chat-unread-counts'] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
