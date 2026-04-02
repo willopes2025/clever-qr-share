@@ -221,11 +221,14 @@ export const DashboardSidebar = () => {
           </TooltipTrigger>
           <TooltipContent side="right" className="flex items-center gap-2">
             {item.label}
-            {item.showBadge && totalUnread > 0 && (
-              <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </Badge>
-            )}
+            {item.showBadge && (() => {
+              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+              return count > 0 ? (
+                <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
+                  {count > 99 ? '99+' : count}
+                </Badge>
+              ) : null;
+            })()}
           </TooltipContent>
         </Tooltip>
       );
