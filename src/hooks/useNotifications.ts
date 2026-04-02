@@ -70,20 +70,11 @@ export const useNotifications = () => {
     }
   }, [isSupported, permission]);
 
-  const notifyNewMessage = useCallback((contactName: string, messagePreview: string) => {
-    return sendNotification(`Nova mensagem de ${contactName}`, {
-      body: messagePreview,
-      tag: 'new-message',
-      requireInteraction: false
-    });
-  }, [sendNotification]);
-
   return {
     permission,
     isSupported,
     requestPermission,
-    sendNotification,
-    notifyNewMessage,
+    sendBrowserNotification,
     playNotificationSound
   };
 };
