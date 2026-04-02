@@ -368,6 +368,216 @@ export const useLeadMetrics = (dateRange: DateRange = '7d', customRange?: Custom
   });
 };
 
+// ==================== LEAD CHANNEL METRICS ====================
+export interface LeadChannelData {
+  channel: string;
+  count: number;
+  icon: string;
+  details?: Array<{ name: string; count: number }>;
+}
+
+export interface LeadChannelMetrics {
+  totalLeads: number;
+  channels: LeadChannelData[];
+}
+
+export const useLeadChannelMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
+  return useQuery({
+    queryKey: ['lead-channel-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
+    queryFn: async (): Promise<LeadChannelMetrics> => {
+      const { start, end } = getDateRange(dateRange, customRange);
+
+      // Get contacts created in period
+      const { data: contacts } = await supabase
+        .from('contacts')
+        .select('id, created_at')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .limit(5000);
+
+      const contactIds = contacts?.map(c => c.id) || [];
+      const totalLeads = contactIds.length;
+
+      if (contactIds.length === 0) {
+        return { totalLeads: 0, channels: [] };
+      }
+
+      // Get conversations for these contacts to determine channel
+      const { data: conversations } = await supabase
+        .from('conversations')
+        .select('contact_id, provider, instance_id, meta_phone_number_id')
+        .in('contact_id', contactIds.slice(0, 500));
+
+      // Get form submissions for these contacts
+      const { data: formSubmissions } = await supabase
+        .from('form_submissions')
+        .select('contact_id, form_id')
+        .in('contact_id', contactIds.slice(0, 500));
+
+      // Get form names
+      const formIds = [...new Set(formSubmissions?.map(fs => fs.form_id).filter(Boolean) || [])];
+      const { data: forms } = await supabase
+        .from('forms')
+        .select('id, name')
+        .in('id', formIds.length > 0 ? formIds : ['']);
+
+      // Classify each contact
+      const channelCounts = new Map<string, number>();
+      const formDetailCounts = new Map<string, number>();
+      const contactChannelMap = new Set<string>();
+
+      // Form submissions
+      formSubmissions?.forEach(fs => {
+        if (fs.contact_id && !contactChannelMap.has(fs.contact_id)) {
+          contactChannelMap.add(fs.contact_id);
+          channelCounts.set('Formulário', (channelCounts.get('Formulário') || 0) + 1);
+          const form = forms?.find(f => f.id === fs.form_id);
+          const formName = form?.name || 'Sem nome';
+          formDetailCounts.set(formName, (formDetailCounts.get(formName) || 0) + 1);
+        }
+      });
+
+      // Conversations
+      conversations?.forEach(conv => {
+        if (!conv.contact_id || contactChannelMap.has(conv.contact_id)) return;
+        contactChannelMap.add(conv.contact_id);
+
+        if (conv.provider === 'meta' && conv.meta_phone_number_id) {
+          channelCounts.set('WhatsApp Meta', (channelCounts.get('WhatsApp Meta') || 0) + 1);
+        } else if (conv.instance_id) {
+          channelCounts.set('WhatsApp Evolution', (channelCounts.get('WhatsApp Evolution') || 0) + 1);
+        }
+      });
+
+      // Remaining contacts without conversation or form = Manual/Import
+      contactIds.forEach(id => {
+        if (!contactChannelMap.has(id)) {
+          channelCounts.set('Manual/Importação', (channelCounts.get('Manual/Importação') || 0) + 1);
+        }
+      });
+
+      const channels: LeadChannelData[] = Array.from(channelCounts.entries())
+        .map(([channel, count]) => {
+          const iconMap: Record<string, string> = {
+            'WhatsApp Meta': '📱',
+            'WhatsApp Evolution': '💬',
+            'Formulário': '📋',
+            'Instagram': '📸',
+            'Email': '📧',
+            'Manual/Importação': '📥',
+          };
+          const result: LeadChannelData = {
+            channel,
+            count,
+            icon: iconMap[channel] || '📊',
+          };
+          if (channel === 'Formulário') {
+            result.details = Array.from(formDetailCounts.entries())
+              .map(([name, count]) => ({ name, count }))
+              .sort((a, b) => b.count - a.count);
+          }
+          return result;
+        })
+        .sort((a, b) => b.count - a.count);
+
+      return { totalLeads, channels };
+    },
+  });
+};
+
+// ==================== CAMPAIGN DISPATCH METRICS ====================
+export interface CampaignDispatchMetrics {
+  totalCampaigns: number;
+  sending: number;
+  completed: number;
+  scheduled: number;
+  failed: number;
+  cancelled: number;
+  totalMessagesSent: number;
+  totalMessagesDelivered: number;
+  totalMessagesFailed: number;
+  totalMessagesQueued: number;
+  recentCampaigns: Array<{
+    id: string;
+    name: string;
+    status: string;
+    sent: number;
+    delivered: number;
+    failed: number;
+    totalContacts: number;
+    startedAt: string | null;
+  }>;
+}
+
+export const useCampaignDispatchMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
+  return useQuery({
+    queryKey: ['campaign-dispatch-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
+    queryFn: async (): Promise<CampaignDispatchMetrics> => {
+      const { start, end } = getDateRange(dateRange, customRange);
+
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id, name, status, sent, delivered, failed, total_contacts, started_at, completed_at')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: false });
+
+      const campaignList = campaigns || [];
+      
+      const totalCampaigns = campaignList.length;
+      const sending = campaignList.filter(c => c.status === 'sending').length;
+      const completed = campaignList.filter(c => c.status === 'completed').length;
+      const scheduled = campaignList.filter(c => c.status === 'scheduled').length;
+      const failed = campaignList.filter(c => c.status === 'failed').length;
+      const cancelled = campaignList.filter(c => c.status === 'cancelled').length;
+
+      const totalMessagesSent = campaignList.reduce((sum, c) => sum + (c.sent || 0), 0);
+      const totalMessagesDelivered = campaignList.reduce((sum, c) => sum + (c.delivered || 0), 0);
+      const totalMessagesFailed = campaignList.reduce((sum, c) => sum + (c.failed || 0), 0);
+
+      // Count queued messages for active campaigns
+      const activeCampaignIds = campaignList
+        .filter(c => c.status === 'sending' || c.status === 'scheduled')
+        .map(c => c.id);
+
+      let totalMessagesQueued = 0;
+      if (activeCampaignIds.length > 0) {
+        const { count } = await supabase
+          .from('campaign_messages')
+          .select('*', { count: 'exact', head: true })
+          .in('campaign_id', activeCampaignIds)
+          .eq('status', 'queued');
+        totalMessagesQueued = count || 0;
+      }
+
+      const recentCampaigns = campaignList.slice(0, 10).map(c => ({
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        sent: c.sent || 0,
+        delivered: c.delivered || 0,
+        failed: c.failed || 0,
+        totalContacts: c.total_contacts || 0,
+        startedAt: c.started_at,
+      }));
+
+      return {
+        totalCampaigns,
+        sending,
+        completed,
+        scheduled,
+        failed,
+        cancelled,
+        totalMessagesSent,
+        totalMessagesDelivered,
+        totalMessagesFailed,
+        totalMessagesQueued,
+        recentCampaigns,
+      };
+    },
+  });
+};
+
 // ==================== FUNNEL METRICS ====================
 export interface FunnelStageMetric {
   stageId: string;
