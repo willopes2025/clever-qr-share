@@ -30,6 +30,7 @@ interface NavItem {
   path: string;
   permission?: PermissionKey;
   showBadge?: boolean;
+  badgeKey?: string;
   premiumOnly?: boolean;
 }
 
