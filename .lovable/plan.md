@@ -1,36 +1,33 @@
 
 
-## Plano: Notificações visíveis mesmo com sistema minimizado + toast in-app
+## Plano: Corrigir dados de campos personalizados importados para o funil
 
-### Situação atual
-- O sistema já usa a **Browser Notification API** (`useNotifications.ts`) para notificar mensagens inbound
-- Porém, na linha 51, há um `if (document.hasFocus()) return null` que **bloqueia** notificações quando a aba está ativa
-- Quando a aba está em foco, nenhum feedback visual aparece — o som toca mas não há popup
-- A API de Browser Notifications **já funciona** quando o navegador está minimizado, desde que a permissão tenha sido concedida
+### Problema identificado
 
-### O que será feito
+Os dados importados via planilha para o funil "Programa Seven" foram salvos no local errado. Campos como **Convênio**, **Tratamento**, **Forma Pg Saldo**, **Valor Restante**, **Armação Própria**, **Parcelas** e **Ocorrências** estão definidos como `entity_type = 'lead'` (devem estar em `funnel_deals.custom_fields`), mas os dados foram gravados em `contacts.custom_fields`.
 
-#### 1. Remover bloqueio de notificação quando em foco (`useNotifications.ts`)
-- Remover a linha `if (document.hasFocus()) return null`
-- Quando em foco: exibir **toast in-app** (sonner) com nome do contato e preview da mensagem, clicável para abrir a conversa
-- Quando minimizado/em background: disparar **Browser Notification** normalmente (popup do sistema operacional)
+Resultado: o funil busca esses campos em `funnel_deals.custom_fields`, que está vazio — por isso não aparecem.
 
-#### 2. Adicionar toast in-app no `NotificationProvider.tsx`
-- Quando a mensagem inbound chega e a aba está em foco, chamar `toast()` do sonner com:
-  - Ícone de mensagem
-  - Nome do contato + preview
-  - Ação clicável que navega para `/inbox?conversationId=X`
-- Quando a aba NÃO está em foco, manter o Browser Notification (popup do OS)
+**193 deals** no funil "Programa Seven" estão afetados, além de deals nos funis "Líderes Seven" e "Cobrança Seven".
 
-#### 3. Garantir que o som toca em ambos os cenários
-- O som já toca independente da permissão — será mantido
+### Solução
+
+Duas ações:
+
+1. **Migração de dados existentes** — Criar e executar um script (via edge function ou SQL) que:
+   - Para cada deal no funil Programa Seven (e Líderes/Cobrança Seven) com `custom_fields` vazio
+   - Leia os campos do lead (`convenio`, `tratamento`, `forma_pg_saldo`, `valor_restante`, `armao_prpria`, `parcelas`, `ocorrencias`) de `contacts.custom_fields`
+   - Copie esses valores para `funnel_deals.custom_fields`
+   - Mantenha os dados no contato (não apagar, pois podem servir de referência)
+
+2. **Prevenir reincidência** — Verificar e corrigir o fluxo de importação em `useContacts.ts` para garantir que campos com `entity_type = 'lead'` sejam corretamente salvos em `funnel_deals.custom_fields` ao importar com funil selecionado (este fluxo já parece correto no código atual — o bug provavelmente veio de uma versão anterior da importação).
 
 ### Arquivos a modificar
-- `src/hooks/useNotifications.ts` — separar lógica: retornar se está em foco ou não, deixar o chamador decidir
-- `src/components/NotificationProvider.tsx` — adicionar toast in-app com navegação quando em foco, browser notification quando não
 
-### Resultado
-- **App minimizado/background**: popup nativo do sistema operacional (Browser Notification)
-- **App em foco**: toast sonner no canto da tela com dados do contato + link para conversa
-- **Ambos**: som de notificação
+- **Criar script de migração temporário** — Edge function `sync-funnel-deals` ou script SQL para copiar dados de `contacts.custom_fields` para `funnel_deals.custom_fields` baseado nas field_keys dos campos com `entity_type = 'lead'`
+- **Nenhuma alteração de código frontend necessária** — O código atual de importação e exibição já está correto; o problema é apenas nos dados históricos
+
+### Resultado esperado
+
+Todos os campos personalizados importados aparecerão corretamente nos cards do funil e na sidebar do lead.
 
