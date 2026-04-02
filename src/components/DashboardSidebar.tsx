@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
+import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarContext } from "@/contexts/SidebarContext";
