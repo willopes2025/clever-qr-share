@@ -320,7 +320,13 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
 
   const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage', 'on_scheduled_before_date_field', 'on_scheduled_daily'].includes(triggerType);
 
-  const dateFieldDefinitions = fieldDefinitions?.filter(f => f.field_type === 'date') || [];
+  const DATE_KEYWORDS = /data|date|vencimento|nascimento|pagamento|entrada|consulta|retorno|exame|abertura/i;
+  const dateFieldDefinitions = fieldDefinitions?.filter(f => 
+    f.field_type === 'date' || 
+    f.field_type === 'datetime' || 
+    DATE_KEYWORDS.test(f.field_name) ||
+    DATE_KEYWORDS.test(f.field_key)
+  ) || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
