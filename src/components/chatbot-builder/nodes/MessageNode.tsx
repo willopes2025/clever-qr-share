@@ -1,7 +1,11 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
-import { MessageSquare, Trash2 } from "lucide-react";
+import { MessageSquare, FileText, Send, Trash2 } from "lucide-react";
 
 export const MessageNode = ({ data, selected }: NodeProps) => {
+  const messageMode = (data?.messageMode as string) || 'text';
+  const modeLabel = messageMode === 'template' ? 'Template' : messageMode === 'meta_template' ? 'Template Meta' : 'Mensagem';
+  const ModeIcon = messageMode === 'template' ? FileText : messageMode === 'meta_template' ? Send : MessageSquare;
+
   return (
     <div
       className={`
@@ -27,13 +31,18 @@ export const MessageNode = ({ data, selected }: NodeProps) => {
       />
       <div className="flex items-center gap-2 mb-2">
         <div className="p-1.5 rounded-lg bg-blue-500">
-          <MessageSquare className="h-4 w-4 text-white" />
+          <ModeIcon className="h-4 w-4 text-white" />
         </div>
-        <span className="font-medium text-sm">Mensagem</span>
+        <span className="font-medium text-sm">{modeLabel}</span>
       </div>
       {data?.message && (
         <p className="text-xs text-muted-foreground line-clamp-2">
           {data.message as string}
+        </p>
+      )}
+      {messageMode === 'meta_template' && (data?.config as any)?.metaTemplateName && (
+        <p className="text-xs text-muted-foreground line-clamp-1">
+          📋 {(data.config as any).metaTemplateName}
         </p>
       )}
       <Handle
