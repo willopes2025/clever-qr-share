@@ -202,11 +202,14 @@ export const DashboardSidebar = () => {
             })()}
           </>
         )}
-        {isCollapsed && item.showBadge && totalUnread > 0 && (
-          <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-            {totalUnread > 99 ? '99+' : totalUnread}
-          </span>
-        )}
+        {isCollapsed && item.showBadge && (() => {
+          const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+          return count > 0 ? (
+            <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+              {count > 99 ? '99+' : count}
+            </span>
+          ) : null;
+        })()}
       </NavLink>
     );
 
