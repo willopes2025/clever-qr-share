@@ -98,17 +98,24 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today', customRange?:
         .gt('unread_count', 0)
         .eq('status', 'open');
 
+      // Count distinct conversations with at least 1 outbound message in the period
+      const { count: respondedConversations } = await supabase
+        .from('inbox_messages')
+        .select('conversation_id', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+
+      const responseRate = totalConversationsCount > 0 ? ((respondedConversations || 0) / totalConversationsCount) * 100 : 0;
+
+      // Still fetch a sample for avg response time calculation
       const { data: messagesData } = await supabase
         .from('inbox_messages')
         .select('conversation_id, direction, created_at')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .order('created_at', { ascending: true })
-        .limit(1000);
-
-      const respondedConvIds = [...new Set(messagesData?.filter(m => m.direction === 'outbound').map(m => m.conversation_id).filter(Boolean) || [])];
-      const respondedConversations = respondedConvIds.length;
-      const responseRate = totalConversationsCount > 0 ? (respondedConversations / totalConversationsCount) * 100 : 0;
+        .limit(5000);
 
       let totalResponseTime = 0;
       let responseCount = 0;
