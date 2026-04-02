@@ -298,6 +298,20 @@ const App = () => (
                       </NotificationProvider>
                     </ProtectedRoute>
                   } />
+                  <Route path="/internal-chat" element={
+                    <ProtectedRoute>
+                      <NotificationProvider>
+                        <InternalChat />
+                      </NotificationProvider>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/tasks" element={
+                    <ProtectedRoute>
+                      <NotificationProvider>
+                        <Tasks />
+                      </NotificationProvider>
+                    </ProtectedRoute>
+                  } />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
