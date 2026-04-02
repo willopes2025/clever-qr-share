@@ -148,8 +148,6 @@ const InternalChat = () => {
         let query = supabase
           .from('internal_messages')
           .select('id', { count: 'exact', head: true })
-          .is('conversation_id', null)
-          .is('contact_id', null)
           .eq('user_id', member.user_id)
           .contains('mentions', [user.id]);
         if (readEntry?.last_read_at) {
