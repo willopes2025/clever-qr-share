@@ -677,7 +677,9 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d', customRange?: 
       ) || [];
       
       const salesTotal = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-      const avgTicket = wonDeals.length > 0 ? salesTotal / wonDeals.length : 0;
+      // Fix: filter deals with value > 0 for average ticket to avoid distortion
+      const wonDealsWithValue = wonDeals.filter(d => (d.value || 0) > 0);
+      const avgTicket = wonDealsWithValue.length > 0 ? wonDealsWithValue.reduce((sum, d) => sum + (d.value || 0), 0) / wonDealsWithValue.length : 0;
 
       // Value in negotiation (pipeline total - always current state)
       const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
