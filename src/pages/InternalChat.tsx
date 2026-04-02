@@ -219,8 +219,6 @@ const InternalChat = () => {
       const { data, error } = await supabase
         .from('internal_messages')
         .select('*')
-        .is('conversation_id', null)
-        .is('contact_id', null)
         .or(`user_id.eq.${user.id},user_id.eq.${member.user_id}`)
         .order('created_at', { ascending: true });
 
