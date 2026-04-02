@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { 
   MoreHorizontal, UserPlus, Shield, User, Trash2, Settings2, Crown, Building2, 
-  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2, MessageSquare 
+  RefreshCw, Pencil, Key, Smartphone, Bell, Loader2 
 } from 'lucide-react';
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { MemberPermissionsDialog } from './MemberPermissionsDialog';
@@ -45,7 +45,7 @@ import { DeleteOrganizationDialog } from './DeleteOrganizationDialog';
 import { EditMemberDialog } from './EditMemberDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { MemberInstancesDialog } from './MemberInstancesDialog';
-import { MemberMetaNumbersDialog } from './MemberMetaNumbersDialog';
+
 import { MyPermissionsCard } from './MyPermissionsCard';
 import { TeamMember } from '@/hooks/useOrganization';
 import { TeamRole } from '@/config/permissions';
@@ -82,7 +82,7 @@ export function TeamSettings() {
   const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [instancesDialogOpen, setInstancesDialogOpen] = useState(false);
-  const [metaNumbersDialogOpen, setMetaNumbersDialogOpen] = useState(false);
+  
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [notificationInstanceId, setNotificationInstanceId] = useState<string | null>(null);
@@ -131,7 +131,7 @@ export function TeamSettings() {
   // Sincroniza o selectedMember com os dados atualizados do members
   // Não atualiza enquanto algum dialog está aberto para evitar reset de estado
   useEffect(() => {
-    if (permissionsDialogOpen || editMemberDialogOpen || resetPasswordDialogOpen || instancesDialogOpen || metaNumbersDialogOpen) {
+    if (permissionsDialogOpen || editMemberDialogOpen || resetPasswordDialogOpen || instancesDialogOpen) {
       return;
     }
     
@@ -163,10 +163,6 @@ export function TeamSettings() {
     setInstancesDialogOpen(true);
   };
 
-  const handleOpenMetaNumbers = (member: TeamMember) => {
-    setSelectedMember(member);
-    setMetaNumbersDialogOpen(true);
-  };
 
   const handleRemoveMember = async () => {
     if (memberToRemove) {
@@ -445,10 +441,6 @@ export function TeamSettings() {
                               <Smartphone className="mr-2 h-4 w-4" />
                               Instâncias de Acesso
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenMetaNumbers(member)}>
-                              <MessageSquare className="mr-2 h-4 w-4" />
-                              Números Meta (Oficial)
-                            </DropdownMenuItem>
                             {member.status === 'active' && member.user_id && (
                               <DropdownMenuItem onClick={() => handleOpenResetPassword(member)}>
                                 <Key className="mr-2 h-4 w-4" />
@@ -507,11 +499,6 @@ export function TeamSettings() {
           <MemberInstancesDialog
             open={instancesDialogOpen}
             onOpenChange={setInstancesDialogOpen}
-            member={selectedMember}
-          />
-          <MemberMetaNumbersDialog
-            open={metaNumbersDialogOpen}
-            onOpenChange={setMetaNumbersDialogOpen}
             member={selectedMember}
           />
         </>
