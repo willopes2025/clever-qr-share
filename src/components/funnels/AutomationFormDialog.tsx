@@ -320,7 +320,13 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
 
   const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage', 'on_scheduled_before_date_field', 'on_scheduled_daily'].includes(triggerType);
 
-  const dateFieldDefinitions = fieldDefinitions?.filter(f => f.field_type === 'date') || [];
+  const DATE_KEYWORDS = /data|date|vencimento|nascimento|pagamento|entrada|consulta|retorno|exame|abertura/i;
+  const dateFieldDefinitions = fieldDefinitions?.filter(f => 
+    f.field_type === 'date' || 
+    f.field_type === 'datetime' || 
+    DATE_KEYWORDS.test(f.field_name) ||
+    DATE_KEYWORDS.test(f.field_key)
+  ) || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -551,10 +557,16 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                     <SelectValue placeholder="Selecionar campo de data" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="expected_close_date">Data prevista de fechamento</SelectItem>
-                    {dateFieldDefinitions.map((field) => (
+                    <SelectItem value="created_at">📅 Data de criação do deal</SelectItem>
+                    <SelectItem value="expected_close_date">📅 Data prevista de fechamento</SelectItem>
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'lead').map((field) => (
                       <SelectItem key={field.id} value={field.field_key}>
-                        {field.field_name}
+                        🏷️ {field.field_name}
+                      </SelectItem>
+                    ))}
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'contact').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        📇 {field.field_name}
                       </SelectItem>
                     ))}
                   </SelectContent>

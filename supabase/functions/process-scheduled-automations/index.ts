@@ -5,6 +5,43 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Convert Excel serial number to Date
+function excelSerialToDate(serial: number): Date {
+  const epoch = new Date(1899, 11, 30);
+  return new Date(epoch.getTime() + serial * 86400000);
+}
+
+// Parse any date value (ISO string, dd/MM/yyyy, Excel serial)
+function parseDateValue(value: unknown): Date | null {
+  if (!value) return null;
+  
+  if (typeof value === 'number') {
+    if (value > 25000 && value < 60000) {
+      return excelSerialToDate(value);
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  
+  if (typeof value === 'string') {
+    // Try dd/MM/yyyy
+    const brMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (brMatch) {
+      return new Date(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1]));
+    }
+    // Try number string (Excel serial)
+    const num = Number(value);
+    if (!isNaN(num) && num > 25000 && num < 60000) {
+      return excelSerialToDate(num);
+    }
+    // Standard ISO / Date parse
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -19,7 +56,6 @@ Deno.serve(async (req: Request) => {
     const results: { type: string; processed: number; errors: number }[] = [];
 
     // ========== 1. on_scheduled_exact_time ==========
-    // Find automations with scheduled_date + scheduled_time matching current minute
     {
       const { data: automations } = await supabase
         .from('funnel_automations')
@@ -38,7 +74,6 @@ Deno.serve(async (req: Request) => {
         const diffMinutes = Math.abs((now.getTime() - scheduledMoment.getTime()) / 60000);
         if (diffMinutes > 1) continue;
 
-        // Get all open deals in this funnel/stage
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
           const triggerKey = `exact_${scheduledDate}_${scheduledTime}`;
@@ -71,7 +106,6 @@ Deno.serve(async (req: Request) => {
         const dailyTime = config.daily_time as string;
         if (!dailyTime) continue;
 
-        // Check if current time matches (within 1 minute)
         const [targetH, targetM] = dailyTime.split(':').map(Number);
         const [nowH, nowM] = currentTime.split(':').map(Number);
         if (targetH !== nowH || Math.abs(targetM - nowM) > 0) continue;
@@ -110,23 +144,17 @@ Deno.serve(async (req: Request) => {
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
-          let dateValue: string | null = null;
-
-          if (dateFieldKey === 'expected_close_date') {
-            dateValue = deal.expected_close_date;
-          } else {
-            const customFields = (deal.custom_fields || {}) as Record<string, unknown>;
-            dateValue = customFields[dateFieldKey] as string || null;
-          }
-
+          const dateValue = await resolveDateField(supabase, deal, dateFieldKey);
           if (!dateValue) continue;
 
-          const targetDate = new Date(dateValue);
+          const targetDate = parseDateValue(dateValue);
+          if (!targetDate) continue;
+
           const triggerTime = new Date(targetDate.getTime() - hoursBefore * 3600000);
           const diffMinutes = Math.abs((now.getTime() - triggerTime.getTime()) / 60000);
           if (diffMinutes > 1) continue;
 
-          const triggerKey = `before_${dateFieldKey}_${dateValue}`;
+          const triggerKey = `before_${dateFieldKey}_${String(dateValue)}`;
           const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
           if (alreadyRun) continue;
 
@@ -156,7 +184,6 @@ Deno.serve(async (req: Request) => {
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
-          // Get last inbound message time for this contact
           const { data: conv } = await supabase
             .from('conversations')
             .select('id, last_message_at, last_message_direction')
@@ -200,18 +227,52 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+// Resolve date field value from deal or contact
+async function resolveDateField(
+  supabase: ReturnType<typeof createClient>,
+  deal: Record<string, unknown>,
+  dateFieldKey: string
+): Promise<unknown> {
+  // System fields on deal
+  if (dateFieldKey === 'expected_close_date') return deal.expected_close_date;
+  if (dateFieldKey === 'created_at') return deal.created_at;
+
+  // Try deal custom_fields first
+  const dealCf = (deal.custom_fields || {}) as Record<string, unknown>;
+  if (dealCf[dateFieldKey] !== undefined && dealCf[dateFieldKey] !== null && dealCf[dateFieldKey] !== '') {
+    return dealCf[dateFieldKey];
+  }
+
+  // Fallback: check contact custom_fields
+  if (deal.contact_id) {
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('custom_fields')
+      .eq('id', deal.contact_id as string)
+      .maybeSingle();
+
+    if (contact) {
+      const contactCf = (contact.custom_fields || {}) as Record<string, unknown>;
+      if (contactCf[dateFieldKey] !== undefined && contactCf[dateFieldKey] !== null && contactCf[dateFieldKey] !== '') {
+        return contactCf[dateFieldKey];
+      }
+    }
+  }
+
+  return null;
+}
+
 // Helper: get deals for an automation (filtered by funnel + optional stage)
 async function getDeals(supabase: ReturnType<typeof createClient>, automation: Record<string, unknown>) {
   let query = supabase
     .from('funnel_deals')
-    .select('id, contact_id, user_id, expected_close_date, custom_fields, stage_id')
+    .select('id, contact_id, user_id, expected_close_date, custom_fields, stage_id, created_at')
     .eq('funnel_id', automation.funnel_id as string);
 
   if (automation.stage_id) {
     query = query.eq('stage_id', automation.stage_id as string);
   }
 
-  // Exclude deals in final stages (won/lost)
   const { data: finalStages } = await supabase
     .from('funnel_stages')
     .select('id')
@@ -222,7 +283,6 @@ async function getDeals(supabase: ReturnType<typeof createClient>, automation: R
 
   const { data: deals } = await query;
   
-  // Filter out final stage deals
   return (deals || []).filter((d: { stage_id: string }) => !finalStageIds.includes(d.stage_id));
 }
 
