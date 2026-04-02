@@ -142,12 +142,14 @@ export const useConversations = () => {
         .order('last_message_at', { ascending: false });
 
       // Filter by instance IDs if member has instance restrictions
+      // But always include Meta conversations (instance_id IS NULL) unless user has meta number restrictions
       if (hasInstanceRestriction && allowedInstanceIds !== undefined) {
         if (allowedInstanceIds.length > 0) {
-          query = query.in('instance_id', allowedInstanceIds);
+          // Include assigned instances AND meta conversations (instance_id is null)
+          query = query.or(`instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`);
         } else {
-          // Member has instance restrictions but no instances assigned - return empty
-          return [];
+          // No Evolution instances assigned - still show Meta conversations
+          query = query.is('instance_id', null);
         }
       }
 
