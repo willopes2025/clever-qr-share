@@ -49,6 +49,8 @@ const FormBuilder = lazy(() => import("./pages/FormBuilder"));
 const PublicFormPage = lazy(() => import("./pages/PublicFormPage"));
 const Ajuda = lazy(() => import("./pages/Ajuda"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
+const InternalChat = lazy(() => import("./pages/InternalChat"));
+const Tasks = lazy(() => import("./pages/Tasks"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
