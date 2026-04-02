@@ -179,73 +179,110 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
     queryFn: async (): Promise<WhatsAppMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
-      const { count: messagesSentCount } = await supabase
-        .from('inbox_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+      // Count sent, delivered, failed in parallel
+      const [sentResult, deliveredResult, failedResult] = await Promise.all([
+        supabase
+          .from('inbox_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('direction', 'outbound')
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString()),
+        supabase
+          .from('inbox_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('direction', 'outbound')
+          .in('status', ['delivered', 'received', 'read'])
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString()),
+        supabase
+          .from('inbox_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('direction', 'outbound')
+          .eq('status', 'failed')
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString()),
+      ]);
 
-      // Fix: include 'read' as delivered — if it was read, it was delivered
-      const { count: messagesDeliveredCount } = await supabase
-        .from('inbox_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .in('status', ['delivered', 'received', 'read'])
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-
-      const { count: messagesFailedCount } = await supabase
-        .from('inbox_messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .eq('status', 'failed')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-
-      const messagesSent = messagesSentCount || 0;
-      const messagesDelivered = messagesDeliveredCount || 0;
-      const messagesFailed = messagesFailedCount || 0;
+      const messagesSent = sentResult.count || 0;
+      const messagesDelivered = deliveredResult.count || 0;
+      const messagesFailed = failedResult.count || 0;
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
+      // Fetch messages with conversation details including provider and meta_phone_number_id
       const { data: messagesData } = await supabase
         .from('inbox_messages')
         .select('conversation_id')
         .eq('direction', 'outbound')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
-        .limit(1000);
+        .limit(5000);
 
       const conversationIds = [...new Set(messagesData?.map(m => m.conversation_id).filter(Boolean) || [])];
       
+      // Fetch conversations with provider info to distinguish Evolution vs Meta
       const { data: conversationsData } = await supabase
         .from('conversations')
-        .select('id, instance_id')
+        .select('id, instance_id, provider, meta_phone_number_id')
         .in('id', conversationIds.length > 0 ? conversationIds : ['']);
 
-      const instanceCounts = new Map<string, number>();
+      // Group messages by chip: Evolution instances + Meta phone numbers
+      const chipCounts = new Map<string, number>();
       messagesData?.forEach(m => {
         const conv = conversationsData?.find(c => c.id === m.conversation_id);
-        if (conv?.instance_id) {
-          instanceCounts.set(conv.instance_id, (instanceCounts.get(conv.instance_id) || 0) + 1);
+        if (!conv) return;
+        
+        if (conv.provider === 'meta' && conv.meta_phone_number_id) {
+          // Meta conversations: group by meta_phone_number_id
+          const key = `meta:${conv.meta_phone_number_id}`;
+          chipCounts.set(key, (chipCounts.get(key) || 0) + 1);
+        } else if (conv.instance_id) {
+          // Evolution conversations: group by instance_id
+          const key = `evo:${conv.instance_id}`;
+          chipCounts.set(key, (chipCounts.get(key) || 0) + 1);
         }
       });
 
-      const { data: instances } = await supabase
-        .from('whatsapp_instances')
-        .select('id, instance_name, status');
+      // Fetch Evolution instances and Meta numbers in parallel
+      const [instancesResult, metaNumbersResult] = await Promise.all([
+        supabase.from('whatsapp_instances').select('id, instance_name, status'),
+        supabase.from('meta_whatsapp_numbers').select('id, phone_number_id, display_name'),
+      ]);
 
-      const messagesByInstance = Array.from(instanceCounts.entries()).map(([instanceId, count]) => {
-        const instance = instances?.find(i => i.id === instanceId);
-        return {
-          instanceId,
-          instanceName: instance?.instance_name || 'Desconhecido',
-          count,
-        };
-      });
+      const instances = instancesResult.data || [];
+      const metaNumbers = metaNumbersResult.data || [];
 
-      const activeChips = instances?.filter(i => i.status === 'connected').length || 0;
-      const inactiveChips = instances?.filter(i => i.status !== 'connected').length || 0;
+      const messagesByInstance = Array.from(chipCounts.entries())
+        .map(([key, count]) => {
+          if (key.startsWith('meta:')) {
+            const phoneNumberId = key.replace('meta:', '');
+            const metaNum = metaNumbers.find(mn => mn.phone_number_id === phoneNumberId);
+            return {
+              instanceId: key,
+              instanceName: metaNum?.display_name ? `📱 ${metaNum.display_name}` : `Meta ${phoneNumberId.slice(-4)}`,
+              count,
+            };
+          } else {
+            const instanceId = key.replace('evo:', '');
+            const instance = instances.find(i => i.id === instanceId);
+            return {
+              instanceId: key,
+              instanceName: instance?.instance_name || 'Desconhecido',
+              count,
+            };
+          }
+        })
+        .sort((a, b) => b.count - a.count);
+
+      // Active/inactive chips: Evolution instances + Meta numbers count as active chips
+      const activeEvolution = instances.filter(i => i.status === 'connected').length;
+      const inactiveEvolution = instances.filter(i => i.status !== 'connected').length;
+      // Meta numbers are always "active" if they exist and have messages
+      const activeMetaCount = new Set(
+        Array.from(chipCounts.keys()).filter(k => k.startsWith('meta:'))
+      ).size;
+
+      const activeChips = activeEvolution + activeMetaCount;
+      const inactiveChips = inactiveEvolution;
 
       return {
         messagesSent,
