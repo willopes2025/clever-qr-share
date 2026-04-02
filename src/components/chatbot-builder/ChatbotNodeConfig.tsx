@@ -64,6 +64,10 @@ interface NodeData {
     taskDueDate?: string;
     conversationStatus?: string;
     responsibleId?: string;
+    metaPhoneNumberId?: string;
+    metaTemplateId?: string;
+    metaTemplateName?: string;
+    metaTemplateLanguage?: string;
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
