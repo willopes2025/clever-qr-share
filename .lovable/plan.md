@@ -1,38 +1,26 @@
 
 
-## Plano: Unificar instâncias Evolution e Meta no mesmo dialog de acesso do membro
+## Plano: Ocultar dados ssOtica por padrão no painel do lead (Inbox)
 
-### Situação atual
-Hoje existem **dois dialogs separados** no menu do membro da equipe:
-- "Instâncias de Acesso" — mostra apenas instâncias Evolution (WhatsApp Lite)
-- "Números Meta (Oficial)" — mostra apenas números Meta (WhatsApp Business API)
+### Problema
+A seção ssOtica no card do lead na Inbox aparece **aberta por padrão**, mostrando todos os dados (OS, Vendas, Parcelas) imediatamente. O usuário quer que esses dados só apareçam ao clicar explicitamente em "ssOtica".
 
-O usuário precisa abrir dois dialogs diferentes para configurar o acesso completo de um membro.
+### Alteração
 
-### O que será feito
+**`src/components/funnels/SsoticaDealSection.tsx`** — Linha 30:
+- Mudar `useState(true)` para `useState(false)` no estado `isOpen`
+- Isso faz a seção iniciar **fechada**, mostrando apenas o header "ssOtica" com o botão de sync
+- O usuário clica para expandir e ver OS, Vendas e Parcelas
 
-Unificar tudo em **um único dialog** chamado "Instâncias de Acesso" que exibe ambos os tipos, separados por seções visuais com badges indicando o provedor (Lite / API).
+### Verificação de tipos de dados
 
-### Alterações
+Já verificado — os tipos estão corretos:
+- **Datas** (entrada, entrega, vencimento, data_venda): formatadas com `dd/MM/yyyy` via `format()`
+- **Valores monetários** (valor_total, valor_parcela): formatados como `R$ X.XXX,XX` via `toLocaleString('pt-BR')`
+- **Contadores** (total_os, total_vendas, total_parcelas): exibidos como números inteiros
+- **Texto** (status, etapa_atual, observações, forma_pagamento): exibidos como strings
+- **Datas vencidas**: comparação correta com `new Date()` para highlight visual
 
-1. **`MemberInstancesDialog.tsx`** — Refatorar para incluir ambos os tipos:
-   - Importar `useMetaWhatsAppNumbers` e `useMemberMetaNumbers` além dos hooks Evolution já existentes
-   - Adicionar estado para seleção de números Meta (`selectedMetaNumbers`, `allMetaSelected`)
-   - Dividir a lista em duas seções: "WhatsApp Lite (Evolution)" e "WhatsApp Business (Meta)", cada uma com seu checkbox "Todos"
-   - Usar o `ProviderBadge` existente para diferenciar visualmente
-   - No `handleSave`, salvar ambas as permissões (chamar `updateMemberInstances` + `updateMemberMetaNumbers`)
-
-2. **`TeamSettings.tsx`** — Simplificar o menu:
-   - Remover o item de menu "Números Meta (Oficial)" separado
-   - Remover estado `metaNumbersDialogOpen` e handler `handleOpenMetaNumbers`
-   - Remover o `MemberMetaNumbersDialog` separado
-   - Manter apenas o item "Instâncias de Acesso" que agora abre o dialog unificado
-
-3. **`MemberMetaNumbersDialog.tsx`** — Pode ser removido ou mantido como arquivo legado (o código será absorvido pelo dialog unificado).
-
-### Detalhes técnicos
-- O dialog unificado terá um `ScrollArea` com duas seções separadas por headers
-- Cada seção mantém sua lógica independente de "Todos" vs "Específicos"
-- O save dispara ambas as mutations em paralelo (`Promise.all`)
-- Nenhuma alteração no banco de dados é necessária — as tabelas `team_member_instances` e `team_member_meta_numbers` continuam sendo usadas separadamente
+### Resultado
+A seção ssOtica aparecerá colapsada por padrão. Um clique no header "ssOtica" revela todos os dados da integração com a formatação correta de cada tipo.
 
