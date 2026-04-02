@@ -32,6 +32,8 @@ interface IntentItem {
 
 interface NodeData {
   message?: string;
+  messageMode?: 'text' | 'template' | 'meta_template';
+  templateId?: string;
   delay?: number;
   question?: string;
   variable?: string;
