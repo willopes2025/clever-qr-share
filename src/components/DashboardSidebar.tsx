@@ -189,14 +189,17 @@ export const DashboardSidebar = () => {
         {!isCollapsed && (
           <>
             <span className="flex-1">{item.label}</span>
-            {item.showBadge && totalUnread > 0 && (
-              <Badge 
-                variant="destructive" 
-                className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
-              >
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </Badge>
-            )}
+            {item.showBadge && (() => {
+              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+              return count > 0 ? (
+                <Badge 
+                  variant="destructive" 
+                  className="h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse"
+                >
+                  {count > 99 ? '99+' : count}
+                </Badge>
+              ) : null;
+            })()}
           </>
         )}
         {isCollapsed && item.showBadge && totalUnread > 0 && (
