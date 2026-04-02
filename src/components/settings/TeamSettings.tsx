@@ -163,10 +163,6 @@ export function TeamSettings() {
     setInstancesDialogOpen(true);
   };
 
-  const handleOpenMetaNumbers = (member: TeamMember) => {
-    setSelectedMember(member);
-    setMetaNumbersDialogOpen(true);
-  };
 
   const handleRemoveMember = async () => {
     if (memberToRemove) {
