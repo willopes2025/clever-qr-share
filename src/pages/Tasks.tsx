@@ -33,7 +33,7 @@ const Tasks = () => {
   const { tasks, pendingTasks, completedTasks, isLoading, isOrgAdmin, assigneeIds } = useAllTasks();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("pending");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
@@ -61,7 +61,7 @@ const Tasks = () => {
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
-    if (statusFilter === "pending") result = result.filter(t => !t.completed_at && !isOverdue(t));
+    if (statusFilter === "pending") result = result.filter(t => !t.completed_at);
     if (statusFilter === "overdue") result = result.filter(t => isOverdue(t));
     if (statusFilter === "completed") result = result.filter(t => !!t.completed_at);
     if (priorityFilter !== "all") result = result.filter(t => (t.priority || 'medium') === priorityFilter);
