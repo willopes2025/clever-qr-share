@@ -151,7 +151,7 @@ const InternalChat = () => {
       const { data: profiles } = userIds.length > 0
         ? await supabase.from('profiles').select('id, full_name, avatar_url').in('id', userIds)
         : { data: [] };
-      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const profileMap = new Map((profiles || []).map(p => [p.id, p] as const));
 
       return filtered.map(m => ({
         ...m,
