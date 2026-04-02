@@ -53,6 +53,38 @@ const InternalChat = () => {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Fetch read status for all chats
+  const { data: readStatuses = [] } = useQuery({
+    queryKey: ['internal-chat-read-status', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('internal_chat_read_status')
+        .select('target_type, target_id, last_read_at')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Mark chat as read
+  const markAsRead = async (target: ChatTarget) => {
+    if (!user) return;
+    const targetId = target.type === 'member'
+      ? members.find(m => m.id === target.id)?.user_id || target.id
+      : target.id;
+    await supabase
+      .from('internal_chat_read_status')
+      .upsert({
+        user_id: user.id,
+        target_type: target.type,
+        target_id: targetId,
+        last_read_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,target_type,target_id' });
+    queryClient.invalidateQueries({ queryKey: ['internal-chat-read-status'] });
+  };
+
   // Fetch team members
   const { data: members = [] } = useQuery({
     queryKey: ['internal-chat-members'],
