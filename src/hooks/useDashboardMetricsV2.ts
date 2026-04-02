@@ -371,19 +371,30 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
       const { data: stages } = await stagesQuery;
 
       const stageIds = stages?.map(s => s.id) || [];
+      const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
+      const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
+      const finalStageIds = [...wonStageIds, ...lostStageIds];
+      const openStageIds = stageIds.filter(id => !finalStageIds.includes(id));
       
-      // Fix: filter deals by created_at within selected period
-      const { data: deals } = await supabase
+      // Pipeline ATUAL (sem filtro de data) — mostra estado real do funil
+      const { data: currentPipelineDeals } = await supabase
+        .from('funnel_deals')
+        .select('id, stage_id, value')
+        .in('stage_id', openStageIds.length > 0 ? openStageIds : ['']);
+
+      // Deals ganhos/perdidos NO PERÍODO (filtro por closed_at)
+      const { data: closedDeals } = await supabase
         .from('funnel_deals')
         .select('id, stage_id, value, closed_at, created_at')
-        .in('stage_id', stageIds.length > 0 ? stageIds : [''])
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+        .in('stage_id', finalStageIds.length > 0 ? finalStageIds : [''])
+        .gte('closed_at', start.toISOString())
+        .lte('closed_at', end.toISOString());
 
+      // Stage metrics show CURRENT pipeline state
       const stageMetrics: FunnelStageMetric[] = (stages || [])
         .filter(s => !s.is_final)
         .map(stage => {
-          const stageDeals = deals?.filter(d => d.stage_id === stage.id) || [];
+          const stageDeals = currentPipelineDeals?.filter(d => d.stage_id === stage.id) || [];
           const dealCount = stageDeals.length;
           const dealValue = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
           
@@ -409,19 +420,15 @@ export const useFunnelMetrics = (dateRange: DateRange = '30d', funnelId?: string
         }
       }
 
-      const finalStageIds = stages?.filter(s => s.final_type === 'won' || s.final_type === 'lost').map(s => s.id) || [];
-      const dealsInNegotiation = deals?.filter(d => !finalStageIds.includes(d.stage_id)).length || 0;
-      const valueInNegotiation = deals
-        ?.filter(d => !finalStageIds.includes(d.stage_id))
-        .reduce((sum, d) => sum + (d.value || 0), 0) || 0;
+      const dealsInNegotiation = currentPipelineDeals?.length || 0;
+      const valueInNegotiation = currentPipelineDeals
+        ?.reduce((sum, d) => sum + (d.value || 0), 0) || 0;
 
-      const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
-      const wonDeals = deals?.filter(d => wonStageIds.includes(d.stage_id)) || [];
+      const wonDeals = closedDeals?.filter(d => wonStageIds.includes(d.stage_id)) || [];
       const dealsClosed = wonDeals.length;
       const valueClosed = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
-      const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
-      const lostDeals = deals?.filter(d => lostStageIds.includes(d.stage_id)) || [];
+      const lostDeals = closedDeals?.filter(d => lostStageIds.includes(d.stage_id)) || [];
       const dealsLost = lostDeals.length;
       const valueLost = lostDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
