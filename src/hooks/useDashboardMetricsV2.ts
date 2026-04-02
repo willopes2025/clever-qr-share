@@ -186,12 +186,12 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
-      // Fix: only count 'delivered' and 'received' as truly delivered (not 'sent')
+      // Fix: include 'read' as delivered — if it was read, it was delivered
       const { count: messagesDeliveredCount } = await supabase
         .from('inbox_messages')
         .select('*', { count: 'exact', head: true })
         .eq('direction', 'outbound')
-        .in('status', ['delivered', 'received'])
+        .in('status', ['delivered', 'received', 'read'])
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
 
