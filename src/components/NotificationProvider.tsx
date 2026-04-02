@@ -14,8 +14,9 @@ interface NotificationProviderProps {
 
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { permission, requestPermission, notifyNewMessage } = useNotifications();
+  const { permission, requestPermission, sendBrowserNotification, playNotificationSound } = useNotifications();
 
   // Use optimized unread count hook instead of fetching all conversations
   const { data: totalUnread = 0 } = useUnreadCount();
