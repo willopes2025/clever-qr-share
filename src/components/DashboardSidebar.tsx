@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,8 @@ const navGroups: NavGroup[] = [
       { icon: Target, label: "Funis", path: "/funnels", permission: "view_funnels" },
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
+      { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox" },
+      { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox" },
     ],
   },
   {
