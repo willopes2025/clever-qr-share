@@ -27,7 +27,7 @@ export const SsoticaDealSection = ({
   onForceSync,
   hasSsotica,
 }: SsoticaDealSectionProps) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [showAllOs, setShowAllOs] = useState(false);
   const [showAllVendas, setShowAllVendas] = useState(false);
   const [showAllParcelas, setShowAllParcelas] = useState(false);
