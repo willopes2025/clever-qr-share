@@ -133,6 +133,61 @@ const InternalChat = () => {
     enabled: !!user,
   });
 
+  // Fetch unread counts for DMs and groups
+  const { data: unreadCounts = new Map<string, number>() } = useQuery({
+    queryKey: ['internal-chat-unread-counts', user?.id, JSON.stringify(readStatuses)],
+    queryFn: async () => {
+      if (!user) return new Map<string, number>();
+      const counts = new Map<string, number>();
+
+      for (const member of members) {
+        if (!member.user_id) continue;
+        const readEntry = readStatuses.find(
+          r => r.target_type === 'member' && r.target_id === member.user_id
+        );
+        let query = supabase
+          .from('internal_messages')
+          .select('id', { count: 'exact', head: true })
+          .is('conversation_id', null)
+          .is('contact_id', null)
+          .eq('user_id', member.user_id)
+          .contains('mentions', [user.id]);
+        if (readEntry?.last_read_at) {
+          query = query.gt('created_at', readEntry.last_read_at);
+        }
+        const { count } = await query;
+        if (count && count > 0) counts.set(`member:${member.user_id}`, count);
+      }
+
+      for (const group of groups) {
+        const readEntry = readStatuses.find(
+          r => r.target_type === 'group' && r.target_id === group.id
+        );
+        let query = supabase
+          .from('internal_group_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', group.id)
+          .neq('user_id', user.id);
+        if (readEntry?.last_read_at) {
+          query = query.gt('created_at', readEntry.last_read_at);
+        }
+        const { count } = await query;
+        if (count && count > 0) counts.set(`group:${group.id}`, count);
+      }
+
+      return counts;
+    },
+    enabled: !!user && (members.length > 0 || groups.length > 0),
+    refetchInterval: 30000,
+  });
+
+  const getUnreadCount = (type: 'member' | 'group', id: string): number => {
+    const key = type === 'member'
+      ? `member:${members.find(m => m.id === id)?.user_id}`
+      : `group:${id}`;
+    return unreadCounts.get(key) || 0;
+  };
+
   // Fetch messages based on target
   const { data: messages_list = [], refetch: refetchMessages } = useQuery({
     queryKey: ['internal-direct-messages', user?.id, selectedTarget?.type, selectedTarget?.id],
