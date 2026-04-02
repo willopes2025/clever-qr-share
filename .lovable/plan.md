@@ -1,54 +1,37 @@
 
 
-## Plano: Adicionar "Conversas Internas" e "Tarefas" como páginas na sidebar
+## Plano: Melhorar tabela de Tarefas
 
-### Contexto
-Atualmente, o chat interno (`InternalChatTab`) existe apenas como uma aba dentro da conversa no Inbox. Não há página dedicada. As tarefas (`conversation_tasks` e `deal_tasks`) são gerenciadas dentro de cada conversa/deal individualmente, sem visão centralizada.
+### Problemas identificados
+1. Faltam dados do lead (código, nome, telefone) na tabela
+2. A coluna "Origem" não é clicável para abrir o chat
+3. Status só tem "Pendente" e "Concluída" — falta "Atrasada"
+4. Ao concluir, não pede o que foi feito
+5. Filtro de responsável mostra IDs duplicados (puxa tanto `user_id` quanto `assigned_to` de todas as tarefas, gerando repetição)
 
-### O que será feito
+### Alterações
 
-Criar **duas novas páginas** com rotas próprias e adicioná-las na sidebar (desktop e mobile).
+#### 1. `useAllTasks.ts` — Buscar dados do contato junto
+- Para `conversation_tasks`: fazer join com `contacts` via `contact_id` para trazer `contact_display_id`, `name`, `phone`
+- Para `deal_tasks`: fazer join com `funnel_deals(title, contact_id, contacts(contact_display_id, name, phone))`
+- Adicionar esses campos ao retorno: `contact_name`, `contact_phone`, `contact_display_id`, `conversation_id`
+- Extrair lista de responsáveis únicos (deduplicados) baseada em `assigned_to` — não misturar com `user_id`
 
----
+#### 2. `Tasks.tsx` — Colunas e layout da tabela
+- Adicionar colunas: **Código** (`contact_display_id`), **Lead** (nome + telefone)
+- **Origem** vira um link clicável que navega para `/inbox?conversationId=X` ou `/inbox?contactId=X`
+- **Status** com 3 estados:
+  - "Atrasada" (badge vermelha) — `due_date < hoje` e não concluída
+  - "Pendente" (badge secundária) — sem vencimento ou não venceu ainda
+  - "Concluída" (badge verde/default) — tem `completed_at`
+- Filtro de status: "Todas", "Pendentes", "Atrasadas", "Concluídas"
+- **Popup de conclusão**: ao clicar no checkbox para concluir, abrir um `Dialog` com `Textarea` pedindo "O que foi feito?" — só salva `completed_at` após confirmar
 
-### 1. Página "Conversas Internas" (`/internal-chat`)
-
-- Nova página `src/pages/InternalChat.tsx` com layout de chat entre membros da equipe
-- Lista de sessões de chat interno (tabela `internal_chat_sessions`) na lateral esquerda
-- Área de mensagens na direita, reutilizando lógica do `useInternalMessages`
-- Diferente do componente atual que é vinculado a uma conversa específica — aqui será uma interface de mensagens diretas entre membros da equipe (sem vínculo obrigatório com contato/conversa)
-- Componentes: `InternalChatPage` com lista de membros/sessões + área de chat
-
-### 2. Página "Tarefas" (`/tasks`)
-
-- Nova página `src/pages/Tasks.tsx` com tabela centralizada de todas as tarefas
-- Busca dados de `conversation_tasks` e `deal_tasks` (similar ao `useUnifiedTasks` mas sem filtro por conversa/deal)
-- **Admin**: vê todas as tarefas de todos os usuários da organização
-- **Não-admin**: vê apenas tarefas onde `user_id` ou `assigned_to` = seu ID
-- Colunas da tabela: Título, Responsável, Prioridade, Data de Vencimento, Status (pendente/concluída), Origem (Conversa/Deal)
-- Filtros: por status, prioridade, responsável, data
-- Hook `useAllTasks` que busca ambas as tabelas com a lógica de permissão
-
-### 3. Sidebar (`DashboardSidebar.tsx` + `MobileSidebarDrawer.tsx`)
-
-- Adicionar no grupo "Atendimento e Vendas":
-  - `{ icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat" }`
-  - `{ icon: CheckSquare, label: "Tarefas", path: "/tasks" }`
-
-### 4. Rotas (`App.tsx`)
-
-- Adicionar rotas protegidas para `/internal-chat` e `/tasks`
-
-### Arquivos a criar
-- `src/pages/InternalChat.tsx`
-- `src/pages/Tasks.tsx`
-- `src/hooks/useAllTasks.ts`
+#### 3. Corrigir filtro de responsável
+- No filtro de responsável, usar apenas `assigned_to` (quem está designado), removendo `user_id` duplicado
+- Deduplicar a lista de IDs antes de popular o select
 
 ### Arquivos a modificar
-- `src/components/DashboardSidebar.tsx` — adicionar itens na nav
-- `src/components/MobileSidebarDrawer.tsx` — adicionar itens na nav mobile
-- `src/App.tsx` — adicionar rotas
-
-### Sem alterações no banco de dados
-As tabelas `internal_messages`, `internal_chat_sessions`, `conversation_tasks` e `deal_tasks` já existem. A lógica de admin vs membro será feita no frontend usando `useUserRole`/`useOrganization` para verificar se é admin e filtrar os dados adequadamente via query.
+- `src/hooks/useAllTasks.ts` — joins com contacts, retornar dados do lead
+- `src/pages/Tasks.tsx` — novas colunas, status atrasado, popup conclusão, fix filtro
 
