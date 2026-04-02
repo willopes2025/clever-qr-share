@@ -268,12 +268,141 @@ Deno.serve(async (req: Request) => {
           // Reset resume flag after handling this node
           resumingFromSchedule = false;
 
-          const text = substituteVars(node.data?.message || node.data?.text || '');
-          if (text) {
-            await sendMessage(text);
-            // Small delay between consecutive messages
+          const msgMode = (node.data?.messageMode as string) || 'text';
+
+          if (msgMode === 'template' && node.data?.templateId) {
+            // Send Evolution/Lite template
+            try {
+              const { data: tpl } = await supabase
+                .from('message_templates')
+                .select('content, media_url, media_type')
+                .eq('id', node.data.templateId)
+                .single();
+
+              if (tpl) {
+                const tplText = substituteVars(tpl.content || '');
+                if (tpl.media_url && tpl.media_type && instanceName && contact?.phone) {
+                  // Send media first
+                  const mediaEndpoint = tpl.media_type === 'image' ? 'sendMedia' : tpl.media_type === 'video' ? 'sendMedia' : 'sendMedia';
+                  await fetch(`${evolutionApiUrl}/message/sendMedia/${instanceName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                    body: JSON.stringify({
+                      number: contact.phone,
+                      mediatype: tpl.media_type,
+                      media: tpl.media_url,
+                      caption: tplText || undefined,
+                    }),
+                  });
+                  await supabase.from('inbox_messages').insert({
+                    user_id: userId, conversation_id: conversationId,
+                    content: tplText || '', direction: 'outbound', status: 'sent',
+                    message_type: tpl.media_type, media_url: tpl.media_url,
+                    sent_at: new Date().toISOString(),
+                  });
+                } else if (tplText) {
+                  await sendMessage(tplText);
+                }
+              }
+            } catch (err) {
+              console.error('[FLOW] Error sending template:', err);
+            }
             await new Promise(r => setTimeout(r, 1500));
+
+          } else if (msgMode === 'meta_template' && node.data?.config?.metaTemplateId) {
+            // Send Meta WhatsApp template
+            try {
+              const metaConfig = node.data.config;
+              const META_API_URL = 'https://graph.facebook.com/v21.0';
+
+              const { data: metaTemplate } = await supabase
+                .from('meta_templates')
+                .select('*')
+                .eq('id', metaConfig.metaTemplateId)
+                .single();
+
+              if (metaTemplate && contact?.phone) {
+                const { data: metaCfg } = await supabase
+                  .from('meta_whatsapp_config')
+                  .select('credentials')
+                  .eq('user_id', userId)
+                  .single();
+
+                const accessToken = (metaCfg?.credentials as any)?.access_token;
+                if (accessToken) {
+                  const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+                  const components: any[] = [];
+                  const bodyExamples = metaTemplate.body_examples || [];
+                  if (bodyExamples.length > 0) {
+                    const resolvedVars = bodyExamples.map((ex: string) => {
+                      return ex
+                        .replace(/\{\{nome\}\}/gi, contact?.name || '')
+                        .replace(/\{\{telefone\}\}/gi, contact?.phone || '')
+                        .replace(/\{\{email\}\}/gi, contact?.email || '');
+                    });
+                    components.push({
+                      type: 'body',
+                      parameters: resolvedVars.map((v: string) => ({ type: 'text', text: v })),
+                    });
+                  }
+
+                  const messagePayload: any = {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: formattedPhone,
+                    type: 'template',
+                    template: {
+                      name: metaTemplate.name,
+                      language: { code: metaTemplate.language || 'pt_BR' },
+                    },
+                  };
+                  if (components.length > 0) {
+                    messagePayload.template.components = components;
+                  }
+
+                  const phoneNumberId = metaConfig.metaPhoneNumberId;
+                  const resp = await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(messagePayload),
+                  });
+                  const result = await resp.json();
+                  console.log('[FLOW] Meta template sent:', result);
+
+                  // Save to inbox
+                  const previewText = metaTemplate.body_text || `[Template: ${metaTemplate.name}]`;
+                  await supabase.from('inbox_messages').insert({
+                    user_id: userId, conversation_id: conversationId,
+                    content: previewText, direction: 'outbound', status: 'sent',
+                    message_type: 'template',
+                    sent_at: new Date().toISOString(),
+                  });
+                  await supabase.from('conversations').update({
+                    last_message_at: new Date().toISOString(),
+                    last_message_preview: previewText.substring(0, 100),
+                    last_message_direction: 'outbound',
+                  }).eq('id', conversationId);
+                } else {
+                  console.error('[FLOW] No Meta access token found');
+                }
+              }
+            } catch (err) {
+              console.error('[FLOW] Error sending Meta template:', err);
+            }
+            await new Promise(r => setTimeout(r, 1500));
+
+          } else {
+            // Plain text message
+            const text = substituteVars(node.data?.message || node.data?.text || '');
+            if (text) {
+              await sendMessage(text);
+              await new Promise(r => setTimeout(r, 1500));
+            }
           }
+
           currentId = getNextNode(node.id);
           break;
         }
