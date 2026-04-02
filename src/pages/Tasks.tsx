@@ -1,21 +1,21 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { useAllTasks } from "@/hooks/useAllTasks";
-import { UnifiedTask } from "@/hooks/useUnifiedTasks";
+import { useAllTasks, AllTaskItem } from "@/hooks/useAllTasks";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, Circle, Calendar, AlertTriangle, Filter, ListTodo, CheckSquare } from "lucide-react";
+import { CheckCircle2, Circle, Calendar, AlertTriangle, Filter, ListTodo, CheckSquare, ExternalLink, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
 
 const priorityColors: Record<string, string> = {
   high: "text-destructive",
@@ -30,23 +30,18 @@ const priorityLabels: Record<string, string> = {
 };
 
 const Tasks = () => {
-  const { tasks, pendingTasks, completedTasks, isLoading, isOrgAdmin } = useAllTasks();
-  const { user } = useAuth();
+  const { tasks, pendingTasks, completedTasks, isLoading, isOrgAdmin, assigneeIds } = useAllTasks();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
+  const navigate = useNavigate();
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "overdue" | "completed">("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
-  // Fetch profiles for assignee names
-  const assigneeIds = useMemo(() => {
-    const ids = new Set<string>();
-    tasks.forEach(t => {
-      if (t.assigned_to) ids.add(t.assigned_to);
-      if (t.user_id) ids.add(t.user_id);
-    });
-    return [...ids];
-  }, [tasks]);
+  // Completion dialog state
+  const [completingTask, setCompletingTask] = useState<AllTaskItem | null>(null);
+  const [completionNotes, setCompletionNotes] = useState("");
 
+  // Fetch profiles for assignee names
   const { data: profiles = [] } = useQuery({
     queryKey: ['task-profiles', assigneeIds],
     queryFn: async () => {
@@ -59,32 +54,81 @@ const Tasks = () => {
 
   const profileMap = useMemo(() => new Map(profiles.map(p => [p.id, p.full_name || 'Sem nome'])), [profiles]);
 
+  const isOverdue = (task: AllTaskItem) => {
+    if (task.completed_at || !task.due_date) return false;
+    return new Date(task.due_date) < new Date(new Date().toDateString());
+  };
+
   const filteredTasks = useMemo(() => {
     let result = tasks;
-    if (statusFilter === "pending") result = result.filter(t => !t.completed_at);
+    if (statusFilter === "pending") result = result.filter(t => !t.completed_at && !isOverdue(t));
+    if (statusFilter === "overdue") result = result.filter(t => isOverdue(t));
     if (statusFilter === "completed") result = result.filter(t => !!t.completed_at);
     if (priorityFilter !== "all") result = result.filter(t => (t.priority || 'medium') === priorityFilter);
-    if (assigneeFilter !== "all") result = result.filter(t => t.assigned_to === assigneeFilter || t.user_id === assigneeFilter);
+    if (assigneeFilter !== "all") result = result.filter(t => t.assigned_to === assigneeFilter);
     return result;
   }, [tasks, statusFilter, priorityFilter, assigneeFilter]);
 
-  const toggleComplete = async (task: UnifiedTask) => {
+  const overdueTasks = useMemo(() => tasks.filter(t => isOverdue(t)), [tasks]);
+
+  const handleToggleComplete = (task: AllTaskItem) => {
+    if (task.completed_at) {
+      // Reopen task directly
+      reopenTask(task);
+    } else {
+      // Open completion dialog
+      setCompletingTask(task);
+      setCompletionNotes("");
+    }
+  };
+
+  const reopenTask = async (task: AllTaskItem) => {
     const table = task.source === 'deal' ? 'deal_tasks' : 'conversation_tasks';
     const { error } = await supabase
       .from(table)
-      .update({ completed_at: task.completed_at ? null : new Date().toISOString() })
+      .update({ completed_at: null } as any)
       .eq('id', task.id);
     if (error) {
-      toast.error('Erro ao atualizar tarefa');
+      toast.error('Erro ao reabrir tarefa');
     } else {
-      toast.success(task.completed_at ? 'Tarefa reaberta' : 'Tarefa concluída');
+      toast.success('Tarefa reaberta');
       queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
     }
   };
 
-  const isOverdue = (task: UnifiedTask) => {
-    if (task.completed_at || !task.due_date) return false;
-    return new Date(task.due_date) < new Date(new Date().toDateString());
+  const confirmCompletion = async () => {
+    if (!completingTask) return;
+    const table = completingTask.source === 'deal' ? 'deal_tasks' : 'conversation_tasks';
+    const { error } = await supabase
+      .from(table)
+      .update({ completed_at: new Date().toISOString() } as any)
+      .eq('id', completingTask.id);
+    if (error) {
+      toast.error('Erro ao concluir tarefa');
+    } else {
+      toast.success('Tarefa concluída');
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
+    }
+    setCompletingTask(null);
+    setCompletionNotes("");
+  };
+
+  const navigateToOrigin = (task: AllTaskItem) => {
+    if (task.conversation_id) {
+      navigate(`/inbox?conversationId=${task.conversation_id}`);
+    } else if (task.contact_id) {
+      navigate(`/inbox?contactId=${task.contact_id}`);
+    }
+  };
+
+  const getStatusBadge = (task: AllTaskItem) => {
+    if (task.completed_at) {
+      return <Badge className="text-xs bg-primary/10 text-primary border-primary/20">Concluída</Badge>;
+    }
+    if (isOverdue(task)) {
+      return <Badge variant="destructive" className="text-xs">Atrasada</Badge>;
+    }
+    return <Badge variant="secondary" className="text-xs">Pendente</Badge>;
   };
 
   return (
@@ -100,6 +144,12 @@ const Tasks = () => {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ListTodo className="h-4 w-4" />
             <span>{pendingTasks.length} pendentes</span>
+            {overdueTasks.length > 0 && (
+              <>
+                <AlertTriangle className="h-4 w-4 ml-2 text-destructive" />
+                <span className="text-destructive">{overdueTasks.length} atrasadas</span>
+              </>
+            )}
             <CheckSquare className="h-4 w-4 ml-2" />
             <span>{completedTasks.length} concluídas</span>
           </div>
@@ -115,6 +165,7 @@ const Tasks = () => {
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
               <SelectItem value="pending">Pendentes</SelectItem>
+              <SelectItem value="overdue">Atrasadas</SelectItem>
               <SelectItem value="completed">Concluídas</SelectItem>
             </SelectContent>
           </Select>
@@ -152,6 +203,8 @@ const Tasks = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"></TableHead>
+                <TableHead className="w-[80px]">Código</TableHead>
+                <TableHead>Lead</TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead>Prioridade</TableHead>
                 <TableHead>Responsável</TableHead>
@@ -163,26 +216,42 @@ const Tasks = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Carregando tarefas...
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Nenhuma tarefa encontrada
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.map(task => (
                 <TableRow key={`${task.source}-${task.id}`} className={cn(task.completed_at && "opacity-60")}>
                   <TableCell>
-                    <button onClick={() => toggleComplete(task)} className="hover:scale-110 transition-transform">
+                    <button onClick={() => handleToggleComplete(task)} className="hover:scale-110 transition-transform">
                       {task.completed_at ? (
                         <CheckCircle2 className="h-5 w-5 text-primary" />
                       ) : (
                         <Circle className="h-5 w-5 text-muted-foreground" />
                       )}
                     </button>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {task.contact_display_id || '—'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-medium block">{task.contact_name || '—'}</span>
+                      {task.contact_phone && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {task.contact_phone}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className={cn("font-medium", task.completed_at && "line-through text-muted-foreground")}>
@@ -198,7 +267,7 @@ const Tasks = () => {
                     </span>
                   </TableCell>
                   <TableCell className="text-sm">
-                    {task.assigned_to ? profileMap.get(task.assigned_to) || '—' : profileMap.get(task.user_id) || '—'}
+                    {task.assigned_to ? profileMap.get(task.assigned_to) || '—' : '—'}
                   </TableCell>
                   <TableCell>
                     {task.due_date ? (
@@ -213,14 +282,22 @@ const Tasks = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {task.source === 'deal' ? (task.deal_title ? `Deal: ${task.deal_title}` : 'Deal') : 'Conversa'}
-                    </Badge>
+                    {(task.conversation_id || task.contact_id) ? (
+                      <button
+                        onClick={() => navigateToOrigin(task)}
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {task.source === 'deal' ? (task.deal_title ? `Deal: ${task.deal_title}` : 'Deal') : 'Conversa'}
+                      </button>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        {task.source === 'deal' ? (task.deal_title ? `Deal: ${task.deal_title}` : 'Deal') : 'Conversa'}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={task.completed_at ? "default" : "secondary"} className="text-xs">
-                      {task.completed_at ? 'Concluída' : 'Pendente'}
-                    </Badge>
+                    {getStatusBadge(task)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -228,6 +305,30 @@ const Tasks = () => {
           </Table>
         </div>
       </div>
+
+      {/* Completion Dialog */}
+      <Dialog open={!!completingTask} onOpenChange={(open) => { if (!open) setCompletingTask(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Concluir tarefa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Tarefa: <span className="font-medium text-foreground">{completingTask?.title}</span>
+            </p>
+            <Textarea
+              placeholder="O que foi feito? (opcional)"
+              value={completionNotes}
+              onChange={(e) => setCompletionNotes(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompletingTask(null)}>Cancelar</Button>
+            <Button onClick={confirmCompletion}>Concluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
