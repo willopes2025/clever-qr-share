@@ -389,10 +389,12 @@ const InternalChat = () => {
             {filteredGroups.length > 0 && (
               <div>
                 <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Grupos</p>
-                {filteredGroups.map(group => (
+                {filteredGroups.map(group => {
+                  const unread = getUnreadCount('group', group.id);
+                  return (
                   <button
                     key={`g-${group.id}`}
-                    onClick={() => setSelectedTarget({ type: 'group', id: group.id })}
+                    onClick={() => { const t: ChatTarget = { type: 'group', id: group.id }; setSelectedTarget(t); markAsRead(t); }}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition-colors text-left",
                       selectedTarget?.type === 'group' && selectedTarget.id === group.id && "bg-accent"
@@ -405,8 +407,14 @@ const InternalChat = () => {
                       <p className="text-sm font-medium text-foreground truncate">{group.name}</p>
                       <p className="text-xs text-muted-foreground">{group.member_count} membros</p>
                     </div>
+                    {unread > 0 && (
+                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
 
