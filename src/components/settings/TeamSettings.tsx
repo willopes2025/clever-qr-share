@@ -131,7 +131,7 @@ export function TeamSettings() {
   // Sincroniza o selectedMember com os dados atualizados do members
   // Não atualiza enquanto algum dialog está aberto para evitar reset de estado
   useEffect(() => {
-    if (permissionsDialogOpen || editMemberDialogOpen || resetPasswordDialogOpen || instancesDialogOpen || metaNumbersDialogOpen) {
+    if (permissionsDialogOpen || editMemberDialogOpen || resetPasswordDialogOpen || instancesDialogOpen) {
       return;
     }
     
