@@ -195,14 +195,29 @@ export const ChatbotTestDialog = ({
         break;
 
       case 'message':
-        const message = replaceVariables(data.message || 'Mensagem não configurada');
-        addMessage('bot', message, undefined, nodeId);
+        const messageMode = (data.messageMode as string) || 'text';
+        let messageContent = '';
+        
+        if (messageMode === 'template') {
+          const templateId = data.templateId as string;
+          messageContent = templateId 
+            ? `📋 [Template selecionado: ${templateId}]\n${replaceVariables(data.message || '')}`
+            : replaceVariables(data.message || 'Mensagem não configurada');
+        } else if (messageMode === 'meta_template') {
+          const metaConfig = data.config as any;
+          const templateName = metaConfig?.metaTemplateName || 'Template não selecionado';
+          messageContent = `📋 [Template Meta: ${templateName}]`;
+        } else {
+          messageContent = replaceVariables(data.message || 'Mensagem não configurada');
+        }
+        
+        addMessage('bot', messageContent, undefined, nodeId);
         
         // Handle delay if configured
         const delay = data.delay || 0;
         if (delay > 0) {
           addMessage('system', `⏱️ Aguardando ${delay}s...`);
-          await new Promise(resolve => setTimeout(resolve, Math.min(delay * 100, 2000))); // Max 2s real delay
+          await new Promise(resolve => setTimeout(resolve, Math.min(delay * 100, 2000)));
         }
         
         const nextFromMessage = findNextNode(nodeId);
