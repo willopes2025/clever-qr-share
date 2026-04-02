@@ -441,10 +441,6 @@ export function TeamSettings() {
                               <Smartphone className="mr-2 h-4 w-4" />
                               Instâncias de Acesso
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenMetaNumbers(member)}>
-                              <MessageSquare className="mr-2 h-4 w-4" />
-                              Números Meta (Oficial)
-                            </DropdownMenuItem>
                             {member.status === 'active' && member.user_id && (
                               <DropdownMenuItem onClick={() => handleOpenResetPassword(member)}>
                                 <Key className="mr-2 h-4 w-4" />
