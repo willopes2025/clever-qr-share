@@ -1,33 +1,56 @@
 
 
-## Plano: Corrigir dados de campos personalizados importados para o funil
+## Plano: Revisão completa do sistema de automações — campos de data e fluxo de execução
 
-### Problema identificado
+### Problemas identificados
 
-Os dados importados via planilha para o funil "Programa Seven" foram salvos no local errado. Campos como **Convênio**, **Tratamento**, **Forma Pg Saldo**, **Valor Restante**, **Armação Própria**, **Parcelas** e **Ocorrências** estão definidos como `entity_type = 'lead'` (devem estar em `funnel_deals.custom_fields`), mas os dados foram gravados em `contacts.custom_fields`.
+**1. Seletor de "Campo de Data" mostra apenas campos com `field_type = 'date'` (linha 323)**
 
-Resultado: o funil busca esses campos em `funnel_deals.custom_fields`, que está vazio — por isso não aparecem.
+O filtro atual:
+```typescript
+const dateFieldDefinitions = fieldDefinitions?.filter(f => f.field_type === 'date') || [];
+```
 
-**193 deals** no funil "Programa Seven" estão afetados, além de deals nos funis "Líderes Seven" e "Cobrança Seven".
+Isso exclui **5 campos com nomes de data** que estão cadastrados como `field_type: 'text'`:
+- `data_da_consulta` (Data da Consulta) — lead
+- `data_da_entrada` (Data da Entrada) — lead  
+- `data_de_nascimento` (Data de Nascimento) — contact
+- `data_que_veio_a_loja` (Data que veio a loja) — lead
 
-### Solução
+Apenas 5 campos aparecem hoje (os que têm `field_type: 'date'`): Data de Abertura, Data de pagamento, data de retorno, Data de Vencimento Boleto, Data do exame.
 
-Duas ações:
+Também faltam campos fixos do deal como `created_at` (data de criação do deal).
 
-1. **Migração de dados existentes** — Criar e executar um script (via edge function ou SQL) que:
-   - Para cada deal no funil Programa Seven (e Líderes/Cobrança Seven) com `custom_fields` vazio
-   - Leia os campos do lead (`convenio`, `tratamento`, `forma_pg_saldo`, `valor_restante`, `armao_prpria`, `parcelas`, `ocorrencias`) de `contacts.custom_fields`
-   - Copie esses valores para `funnel_deals.custom_fields`
-   - Mantenha os dados no contato (não apagar, pois podem servir de referência)
+**2. O motor de execução (`process-scheduled-automations`) só busca datas em `deal.custom_fields`**
 
-2. **Prevenir reincidência** — Verificar e corrigir o fluxo de importação em `useContacts.ts` para garantir que campos com `entity_type = 'lead'` sejam corretamente salvos em `funnel_deals.custom_fields` ao importar com funil selecionado (este fluxo já parece correto no código atual — o bug provavelmente veio de uma versão anterior da importação).
+Para campos de contato (`entity_type: 'contact'`), como `data_de_nascimento` e `data_de_vencimento_boleto`, o motor busca em `deal.custom_fields` mas o dado pode estar em `contacts.custom_fields`. Isso faz com que o gatilho nunca dispare para esses campos.
+
+**3. Não há tratamento de datas em formato Excel serial number no motor**
+
+Dados importados podem conter datas como números seriais (ex: `46061`). O `new Date(dateValue)` no motor não converte esses formatos.
+
+---
+
+### Correções planejadas
+
+#### Arquivo 1: `src/components/funnels/AutomationFormDialog.tsx`
+
+- **Expandir o filtro de campos de data** (linha 323): incluir campos com `field_type === 'date'`, `field_type === 'datetime'`, e campos cujo nome contenha palavras-chave de data (`data`, `date`, `vencimento`, `nascimento`, etc.) — mesma lógica já usada no `FunnelListView`
+- **Adicionar campos fixos do deal** no seletor: `created_at` (Data de criação), `expected_close_date` já existe
+- **Separar visualmente** campos de Lead vs Contato no seletor (com prefixo 📇 para contato)
+
+#### Arquivo 2: `supabase/functions/process-scheduled-automations/index.ts`
+
+- **Buscar dados do contato** quando o campo de data não for encontrado no deal: fazer join/lookup em `contacts.custom_fields` para campos de contato
+- **Converter datas em formato Excel serial** para ISO antes de comparar (função `excelSerialToDate`)
+- **Incluir `contact_id` na query de deals** (já incluído) para poder buscar o contato
+
+#### Deploy
+
+- Redeployar `process-scheduled-automations` após as correções
 
 ### Arquivos a modificar
 
-- **Criar script de migração temporário** — Edge function `sync-funnel-deals` ou script SQL para copiar dados de `contacts.custom_fields` para `funnel_deals.custom_fields` baseado nas field_keys dos campos com `entity_type = 'lead'`
-- **Nenhuma alteração de código frontend necessária** — O código atual de importação e exibição já está correto; o problema é apenas nos dados históricos
-
-### Resultado esperado
-
-Todos os campos personalizados importados aparecerão corretamente nos cards do funil e na sidebar do lead.
+1. `src/components/funnels/AutomationFormDialog.tsx` — expandir filtro de campos de data e melhorar seletor
+2. `supabase/functions/process-scheduled-automations/index.ts` — suportar campos de contato e datas Excel
 
