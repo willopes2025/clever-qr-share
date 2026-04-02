@@ -117,7 +117,27 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
             ? message.content.substring(0, 50) + '...' 
             : message.content || 'Nova mensagem';
           
-          notifyNewMessage(contactName, messagePreview);
+          // Play sound always
+          playNotificationSound();
+
+          if (document.hasFocus()) {
+            // In-app toast when focused
+            toast(`📩 ${contactName}`, {
+              description: messagePreview,
+              action: {
+                label: 'Abrir',
+                onClick: () => navigate(`/inbox?conversationId=${message.conversation_id}`),
+              },
+              duration: 6000,
+            });
+          } else {
+            // Browser notification when minimized/background
+            sendBrowserNotification(`Nova mensagem de ${contactName}`, {
+              body: messagePreview,
+              tag: 'new-message',
+              requireInteraction: false,
+            });
+          }
         }
       )
       .subscribe();
@@ -125,7 +145,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, getContactName, notifyNewMessage, queryClient, notificationInstanceIds]);
+  }, [user?.id, getContactName, playNotificationSound, sendBrowserNotification, navigate, queryClient, notificationInstanceIds]);
 
   return <>{children}</>;
 };
