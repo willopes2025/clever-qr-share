@@ -80,47 +80,12 @@ import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
 /**
  * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
  * Also handles ISO date strings and other common date formats.
+ * Uses the shared utility from date-utils.
  */
+import { formatDateValue, formatCustomFieldValue, isDateLikeFieldName } from "@/lib/date-utils";
+
 function formatCustomFieldDate(val: any): string | null {
-  if (val === undefined || val === null || val === '') return null;
-
-  // If it's a number, treat as Excel serial date
-  if (typeof val === 'number' || (typeof val === 'string' && /^\d{4,5}(\.\d+)?$/.test(val.trim()))) {
-    const serial = typeof val === 'number' ? val : parseFloat(val);
-    if (serial > 25000 && serial < 100000) {
-      // Excel serial: days since 1899-12-30
-      const excelEpoch = new Date(1899, 11, 30);
-      const date = new Date(excelEpoch.getTime() + serial * 86400000);
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-  }
-
-  // If it's a string that looks like a date (ISO or dd/MM/yyyy)
-  if (typeof val === 'string') {
-    // Already formatted
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
-    // YYYY-MM-DD or ISO format — use timezone-safe parsing
-    if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
-      const datePart = val.split('T')[0];
-      const [year, month, day] = datePart.split('-').map(Number);
-      if (year && month && day) {
-        return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
-      }
-    }
-    // Other date strings
-    const parsed = new Date(val);
-    if (!isNaN(parsed.getTime())) {
-      const day = parsed.getDate().toString().padStart(2, '0');
-      const month = (parsed.getMonth() + 1).toString().padStart(2, '0');
-      const year = parsed.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-  }
-
-  return null;
+  return formatDateValue(val);
 }
 
 interface FunnelListViewProps {
@@ -692,8 +657,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             val = (deal.contact as any)?.custom_fields?.[key];
           }
           if (val === undefined || val === null) return "";
-          if (typeof val === "boolean") return val ? "Sim" : "Não";
-          return String(val).replace(/;/g, ",");
+          return formatCustomFieldValue(val, fieldDef?.field_name || key, fieldDef?.field_type).replace(/;/g, ",");
         }),
       ].map((v) => (typeof v === "string" ? v.replace(/;/g, ",") : String(v)));
     });

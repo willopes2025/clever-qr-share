@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCustomFieldValue } from "@/lib/date-utils";
 import {
   Table,
   TableBody,
@@ -208,7 +209,7 @@ export function ContactsTableConfigurable({
       if (typeof value === 'boolean') {
         return value ? <Check className="h-4 w-4 text-neon-green" /> : <span className="text-muted-foreground">-</span>;
       }
-      return String(value);
+      return formatCustomFieldValue(value, fieldKey);
     }
 
     // Custom deal fields
@@ -221,7 +222,7 @@ export function ContactsTableConfigurable({
       if (typeof value === 'boolean') {
         return value ? <Check className="h-4 w-4 text-neon-green" /> : <span className="text-muted-foreground">-</span>;
       }
-      return String(value);
+      return formatCustomFieldValue(value, fieldKey);
     }
 
     return <span className="text-muted-foreground">-</span>;
