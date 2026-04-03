@@ -175,6 +175,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBroadcast, setShowBroadcast] = useState(false);
 
   // Column filters (key -> value)
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
