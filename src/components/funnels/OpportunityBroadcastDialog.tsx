@@ -115,6 +115,9 @@ export const OpportunityBroadcastDialog = ({
   // Meta phone number selection
   const [selectedMetaPhoneNumberId, setSelectedMetaPhoneNumberId] = useState('');
 
+  // Variable mappings for Meta templates
+  const [variableMappings, setVariableMappings] = useState<MetaVariableMapping[]>([]);
+
   const { data: tags } = useQuery({
     queryKey: ['tags', user?.id],
     queryFn: async () => {
@@ -126,11 +129,47 @@ export const OpportunityBroadcastDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
-  // Only show templates that belong to the user's active WABA IDs - never show all when WABAs are empty
   const approvedMetaTemplates = metaTemplates?.filter(t => 
     t.status === 'approved' && userWabaIds.length > 0 && userWabaIds.includes(t.waba_id || '')
   ) || [];
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
+
+  // Detect variables in selected Meta template
+  const detectedVariables = useMemo(() => {
+    if (!selectedMetaTemplate) return [];
+    const matches = selectedMetaTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].map(m => parseInt(m.replace(/[{}]/g, ''))).sort((a, b) => a - b);
+  }, [selectedMetaTemplate]);
+
+  // Auto-initialize variable mappings when template changes
+  useEffect(() => {
+    if (detectedVariables.length > 0) {
+      setVariableMappings(detectedVariables.map(idx => ({
+        variable_index: idx,
+        source: idx === 1 ? 'contact_name' : 'fixed_text' as MetaVariableMapping['source'],
+        label: idx === 1 ? 'Nome' : `Variável ${idx}`,
+      })));
+    } else {
+      setVariableMappings([]);
+    }
+  }, [detectedVariables.join(',')]);
+
+  // Available variable source options
+  const variableSourceOptions = useMemo(() => {
+    const options: { value: string; label: string; source: MetaVariableMapping['source']; field_key?: string }[] = [
+      { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
+      { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
+      { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+    ];
+    contactFieldDefinitions.forEach(f => {
+      options.push({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field', field_key: f.field_key });
+    });
+    leadFieldDefinitions.forEach(f => {
+      options.push({ value: `lead_cf_${f.field_key}`, label: `🎯 ${f.field_name}`, source: 'lead_custom_field', field_key: f.field_key });
+    });
+    options.push({ value: 'fixed_text', label: 'Texto Fixo', source: 'fixed_text' });
+    return options;
+  }, [contactFieldDefinitions, leadFieldDefinitions]);
 
   const toggleDay = (day: string) => {
     setAllowedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
