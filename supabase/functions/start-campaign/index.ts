@@ -1121,22 +1121,70 @@ ${availableVariables}`;
         .single();
 
       const templateBody = metaTemplate?.body_text || `[Meta Template: ${metaTemplate?.name || campaign.meta_template_id}]`;
+      const mappings = campaign.meta_variable_mappings as any[] | null;
+
+      // Pre-fetch deal data if any mapping uses lead_custom_field
+      const needsDealData = mappings?.some((m: any) => m.source === 'lead_custom_field');
+      let dealDataMap: Record<string, Record<string, unknown>> = {};
+      
+      if (needsDealData) {
+        const contactIds = filteredContacts.map((c: Contact) => c.id);
+        // Fetch most recent deal for each contact
+        const { data: deals } = await supabase
+          .from('funnel_deals')
+          .select('contact_id, custom_fields')
+          .in('contact_id', contactIds)
+          .order('created_at', { ascending: false });
+        
+        if (deals) {
+          for (const deal of deals) {
+            if (deal.contact_id && !dealDataMap[deal.contact_id]) {
+              dealDataMap[deal.contact_id] = (deal.custom_fields as Record<string, unknown>) || {};
+            }
+          }
+        }
+      }
 
       messageRecords = filteredContacts.map((contact: Contact) => {
         let messageContent = templateBody;
-        messageContent = messageContent.replace(/\{\{1\}\}/g, contact.name || '');
-        messageContent = messageContent.replace(/\{\{2\}\}/g, contact.phone || '');
-        messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
-        messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
-        messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
-        messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
-        messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
 
-        const customFields = contact.custom_fields || {};
-        for (const [key, value] of Object.entries(customFields)) {
-          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
-          messageContent = messageContent.replace(regex, value || '');
+        if (mappings && mappings.length > 0) {
+          // Use meta_variable_mappings to resolve each {{N}} variable
+          for (const mapping of mappings) {
+            const varIndex = mapping.variable_index;
+            const regex = new RegExp(`\\{\\{${varIndex}\\}\\}`, 'g');
+            let value = '';
+            
+            switch (mapping.source) {
+              case 'contact_name':
+                value = contact.name || '';
+                break;
+              case 'contact_phone':
+                value = contact.phone || '';
+                break;
+              case 'contact_email':
+                value = contact.email || '';
+                break;
+              case 'contact_custom_field':
+                value = String(contact.custom_fields?.[mapping.field_key] || '');
+                break;
+              case 'lead_custom_field':
+                value = String(dealDataMap[contact.id]?.[mapping.field_key] || '');
+                break;
+              case 'fixed_text':
+                value = mapping.fixed_value || '';
+                break;
+              default:
+                value = '';
+            }
+            messageContent = messageContent.replace(regex, value);
+          }
+        } else {
+          // Fallback: only {{1}} = name, others cleared
+          messageContent = messageContent.replace(/\{\{1\}\}/g, contact.name || '');
         }
+
+        // Clean any remaining unresolved variables
         messageContent = messageContent.replace(/\{\{[^}]+\}\}/g, '');
 
         return {
