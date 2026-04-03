@@ -42,7 +42,7 @@ export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
   };
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR', { 
+    return new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { 
       day: '2-digit', 
       month: 'short' 
     });

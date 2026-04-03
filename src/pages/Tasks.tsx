@@ -274,7 +274,7 @@ const Tasks = () => {
                       <div className={cn("flex items-center gap-1 text-sm", isOverdue(task) && "text-destructive")}>
                         {isOverdue(task) && <AlertTriangle className="h-3 w-3" />}
                         <Calendar className="h-3 w-3" />
-                        {format(new Date(task.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                        {format(new Date(task.due_date + 'T00:00:00'), "dd/MM/yyyy", { locale: ptBR })}
                         {task.due_time && <span className="text-xs text-muted-foreground ml-1">{task.due_time.slice(0, 5)}</span>}
                       </div>
                     ) : (
