@@ -56,7 +56,7 @@ const Tasks = () => {
 
   const isOverdue = (task: AllTaskItem) => {
     if (task.completed_at || !task.due_date) return false;
-    return new Date(task.due_date) < new Date(new Date().toDateString());
+    return new Date(task.due_date + 'T00:00:00') < new Date(new Date().toDateString());
   };
 
   const filteredTasks = useMemo(() => {
