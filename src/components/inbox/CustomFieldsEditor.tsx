@@ -165,7 +165,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                   handleFieldChange(definition.field_key, dateStr);
                   updateContactCustomFields.mutate({
                     contactId,
-                    customFields: { ...localFields, [definition.field_key]: isoDate },
+                    customFields: { ...localFields, [definition.field_key]: dateStr },
                   });
                   toast.success("Campo atualizado com sucesso");
                 }}
