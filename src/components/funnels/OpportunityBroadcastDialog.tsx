@@ -234,8 +234,26 @@ export const OpportunityBroadcastDialog = ({
         }
       }
 
-      setPendingCampaignId(campaign.id);
-      setShowInstanceDialog(true);
+      if (isMetaMode) {
+        // Meta template mode: start campaign directly without WhatsApp Lite instance
+        try {
+          await startCampaign.mutateAsync({
+            campaignId: campaign.id,
+            instanceIds: [],
+            sendingMode: 'sequential' as CampaignSendingMode,
+          });
+          onOpenChange(false);
+          queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+          toast.success(`Disparo Meta iniciado para ${selectedContacts.length} contatos!`);
+          setTemplateId('');
+        } catch (startError: any) {
+          toast.error('Erro ao iniciar disparo: ' + startError.message);
+        }
+      } else {
+        // Template mode: needs WhatsApp Lite instance selection
+        setPendingCampaignId(campaign.id);
+        setShowInstanceDialog(true);
+      }
     } catch (error: any) {
       console.error(error);
       toast.error('Erro ao preparar disparo: ' + error.message);
