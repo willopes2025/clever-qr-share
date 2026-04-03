@@ -17,6 +17,7 @@ import {
   ChevronDown,
   FileSpreadsheet,
   Loader2,
+  Send,
 } from "lucide-react";
 import {
   Table,
@@ -74,6 +75,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
 
 /**
  * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
@@ -173,6 +175,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBroadcast, setShowBroadcast] = useState(false);
 
   // Column filters (key -> value)
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
@@ -987,6 +990,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                 Editar em Massa
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBroadcast(true)}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Disparar ({selectedIds.length})
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => setBulkDeleteConfirm(true)}
@@ -1214,6 +1225,21 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           });
           setEditingFieldDeal(null);
         }}
+      />
+
+      <OpportunityBroadcastDialog
+        open={showBroadcast}
+        onOpenChange={setShowBroadcast}
+        selectedContacts={selectedIds.map(id => {
+          const deal = filteredDeals.find(d => d.id === id);
+          return {
+            contactId: deal?.contact_id || '',
+            contactName: deal?.contact?.name || deal?.title || 'Sem nome',
+          };
+        }).filter(c => c.contactId)}
+        selectedDealIds={selectedIds}
+        funnelId={funnel.id}
+        funnelName={funnel.name}
       />
 
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
