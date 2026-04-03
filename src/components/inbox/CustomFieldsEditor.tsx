@@ -161,8 +161,8 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 mode="single"
                 selected={dateValue}
                 onSelect={(date) => {
-                  const isoDate = date ? date.toISOString() : null;
-                  handleFieldChange(definition.field_key, isoDate);
+                  const dateStr = date ? format(date, 'yyyy-MM-dd') : null;
+                  handleFieldChange(definition.field_key, dateStr);
                   updateContactCustomFields.mutate({
                     contactId,
                     customFields: { ...localFields, [definition.field_key]: isoDate },
