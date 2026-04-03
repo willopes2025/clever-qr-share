@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,13 +9,14 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud, Phone } from 'lucide-react';
+import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud, Phone, Variable } from 'lucide-react';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useMetaTemplates } from '@/hooks/useMetaTemplates';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/hooks/useAuth';
-import { useCampaignMutations, type SendingMode as CampaignSendingMode } from '@/hooks/useCampaigns';
+import { useCampaignMutations, type SendingMode as CampaignSendingMode, type MetaVariableMapping } from '@/hooks/useCampaigns';
+import { useCustomFields } from '@/hooks/useCustomFields';
 import { useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { SelectInstanceDialog } from '@/components/campaigns/SelectInstanceDialog';
@@ -61,6 +62,7 @@ export const OpportunityBroadcastDialog = ({
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
   // Message mode
   const [messageMode, setMessageMode] = useState<'template' | 'meta_template' | 'ai'>('template');
@@ -113,6 +115,9 @@ export const OpportunityBroadcastDialog = ({
   // Meta phone number selection
   const [selectedMetaPhoneNumberId, setSelectedMetaPhoneNumberId] = useState('');
 
+  // Variable mappings for Meta templates
+  const [variableMappings, setVariableMappings] = useState<MetaVariableMapping[]>([]);
+
   const { data: tags } = useQuery({
     queryKey: ['tags', user?.id],
     queryFn: async () => {
@@ -124,11 +129,47 @@ export const OpportunityBroadcastDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
-  // Only show templates that belong to the user's active WABA IDs - never show all when WABAs are empty
   const approvedMetaTemplates = metaTemplates?.filter(t => 
     t.status === 'approved' && userWabaIds.length > 0 && userWabaIds.includes(t.waba_id || '')
   ) || [];
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
+
+  // Detect variables in selected Meta template
+  const detectedVariables = useMemo(() => {
+    if (!selectedMetaTemplate) return [];
+    const matches = selectedMetaTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)].map(m => parseInt(m.replace(/[{}]/g, ''))).sort((a, b) => a - b);
+  }, [selectedMetaTemplate]);
+
+  // Auto-initialize variable mappings when template changes
+  useEffect(() => {
+    if (detectedVariables.length > 0) {
+      setVariableMappings(detectedVariables.map(idx => ({
+        variable_index: idx,
+        source: idx === 1 ? 'contact_name' : 'fixed_text' as MetaVariableMapping['source'],
+        label: idx === 1 ? 'Nome' : `Variável ${idx}`,
+      })));
+    } else {
+      setVariableMappings([]);
+    }
+  }, [detectedVariables.join(',')]);
+
+  // Available variable source options
+  const variableSourceOptions = useMemo(() => {
+    const options: { value: string; label: string; source: MetaVariableMapping['source']; field_key?: string }[] = [
+      { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
+      { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
+      { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+    ];
+    contactFieldDefinitions.forEach(f => {
+      options.push({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field', field_key: f.field_key });
+    });
+    leadFieldDefinitions.forEach(f => {
+      options.push({ value: `lead_cf_${f.field_key}`, label: `🎯 ${f.field_name}`, source: 'lead_custom_field', field_key: f.field_key });
+    });
+    options.push({ value: 'fixed_text', label: 'Texto Fixo', source: 'fixed_text' });
+    return options;
+  }, [contactFieldDefinitions, leadFieldDefinitions]);
 
   const toggleDay = (day: string) => {
     setAllowedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
@@ -221,6 +262,7 @@ export const OpportunityBroadcastDialog = ({
         batch_enabled: batchEnabled,
         batch_size: batchSize,
         batch_pause_minutes: batchPauseMinutes,
+        meta_variable_mappings: isMetaMode && variableMappings.length > 0 ? variableMappings : null,
       });
 
       if (aiEnabled && selectedAgentId && campaign?.id) {
@@ -460,6 +502,75 @@ export const OpportunityBroadcastDialog = ({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Variable Mapping for Meta Templates */}
+                {selectedMetaTemplate && detectedVariables.length > 0 && (
+                  <div className="border rounded-lg p-4 space-y-3 mt-4">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
+                      <Variable className="h-4 w-4" />
+                      Mapeamento de Variáveis ({detectedVariables.length})
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Defina quais dados serão usados em cada variável do template
+                    </p>
+                    <div className="space-y-2">
+                      {variableMappings.map((mapping, idx) => {
+                        const currentValue = mapping.source === 'contact_custom_field' 
+                          ? `contact_cf_${mapping.field_key}` 
+                          : mapping.source === 'lead_custom_field'
+                          ? `lead_cf_${mapping.field_key}`
+                          : mapping.source;
+                        
+                        return (
+                          <div key={mapping.variable_index} className="flex items-center gap-2">
+                            <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded min-w-[50px] text-center">
+                              {`{{${mapping.variable_index}}}`}
+                            </span>
+                            <Select
+                              value={currentValue}
+                              onValueChange={(val) => {
+                                const option = variableSourceOptions.find(o => o.value === val);
+                                if (!option) return;
+                                const updated = [...variableMappings];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  source: option.source,
+                                  field_key: option.field_key,
+                                  label: option.label,
+                                  fixed_value: option.source === 'fixed_text' ? '' : undefined,
+                                };
+                                setVariableMappings(updated);
+                              }}
+                            >
+                              <SelectTrigger className="flex-1 h-8 text-xs">
+                                <SelectValue placeholder="Selecione o campo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {variableSourceOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {mapping.source === 'fixed_text' && (
+                              <Input
+                                className="flex-1 h-8 text-xs"
+                                placeholder="Texto fixo"
+                                value={mapping.fixed_value || ''}
+                                onChange={(e) => {
+                                  const updated = [...variableMappings];
+                                  updated[idx] = { ...updated[idx], fixed_value: e.target.value };
+                                  setVariableMappings(updated);
+                                }}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
