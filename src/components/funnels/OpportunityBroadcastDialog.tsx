@@ -262,6 +262,7 @@ export const OpportunityBroadcastDialog = ({
         batch_enabled: batchEnabled,
         batch_size: batchSize,
         batch_pause_minutes: batchPauseMinutes,
+        meta_variable_mappings: isMetaMode && variableMappings.length > 0 ? variableMappings : null,
       });
 
       if (aiEnabled && selectedAgentId && campaign?.id) {
