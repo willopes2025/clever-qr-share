@@ -1,59 +1,53 @@
 
 
-## Plano: Correção do Dashboard — Dados inconsistentes com a realidade
+## Plano: Lista de disparo a partir do funil + correção de dados de cidade nos formulários
 
-### Problemas identificados com dados reais
+### Problema 1: Gerar lista de disparo com leads selecionados no funil (lista view)
 
-Comparei as queries do dashboard com os dados reais do banco:
+A visualização em lista do funil já tem seleção de checkboxes e botões de "Editar em Massa" e "Excluir", mas **não tem botão para criar lista de disparo**. A aba de Oportunidades já tem essa funcionalidade via `OpportunityBroadcastDialog`.
 
-**1. Taxa de entrega WhatsApp está errada (~2% quando deveria ser ~10%+)**
-- O código conta apenas status `delivered` e `received` (162 msgs)
-- Ignora status `read` (460 msgs) — se foi lido, foi entregue
-- Também ignora `sent` (7.272 msgs) que indica envio bem-sucedido ao servidor
-- **Fix**: incluir `read` como entregue. Considerar `sent` separadamente.
+**Solução**: Reutilizar o `OpportunityBroadcastDialog` na `FunnelListView`, adicionando um botão "Criar Lista de Disparo" na barra de ações que aparece quando há leads selecionados.
 
-**2. Funil mostra apenas deals criados no período, não o estado atual do pipeline**
-- A query filtra `funnel_deals` por `created_at` no período selecionado
-- Resultado: "Em Negociação" mostra apenas deals novos, não o pipeline real
-- O pipeline real tem 7.777 deals; o dashboard mostra apenas ~1.500
-- **Fix**: remover filtro de `created_at` para métricas de pipeline atual (Em Negociação, valor). Manter filtro apenas para Vendas Fechadas/Perdidas (usar `closed_at`)
-
-**3. Atendimentos Automáticos mostra 0 (correto nos dados, mas a lógica é frágil)**
-- `ai_handled = true` nos últimos 7 dias = 0
-- A lógica depende de `ai_handled` ser setado no momento correto. Confirmo que os dados refletem isso, mas é consistente.
-
-**4. Taxa de resposta limitada a 1.000 mensagens**
-- A query de `inbox_messages` tem `limit(1000)` mas existem 8.178+ outbound msgs nos últimos 7 dias
-- Isso trunca o cálculo de taxa de resposta e tempo médio
-- **Fix**: usar contagem por query separada em vez de carregar todas as mensagens
-
-**5. Financeiro: muitos deals com valor 0**
-- 498 deals têm valor > 0 (total R$362K), mas 7.279 têm valor = 0
-- O dashboard mostra valores baixos porque calcula médias incluindo deals sem valor
-- **Fix**: filtrar deals com `value > 0` para ticket médio
+**Arquivo**: `src/components/funnels/FunnelListView.tsx`
+- Adicionar estado `showBroadcast` e computar `selectedContacts` a partir dos `selectedIds` (extrair `contact_id` e nome dos deals selecionados)
+- Adicionar botão "Disparar (N)" ao lado de "Editar em Massa" quando há seleção
+- Renderizar `OpportunityBroadcastDialog` com os contatos selecionados
 
 ---
 
-### Correções planejadas
+### Problema 2: Edição de submissões de formulário não salva (RLS)
 
-#### Arquivo: `src/hooks/useDashboardMetricsV2.ts`
+A tabela `form_submissions` tem políticas de SELECT, INSERT e DELETE, mas **nenhuma política de UPDATE**. Qualquer tentativa de editar uma submissão falha silenciosamente.
 
-**WhatsApp Metrics (linha ~183-189)**
-- Adicionar `read` à lista de status "entregues": `.in('status', ['delivered', 'received', 'read'])`
+**Solução**: Criar migração SQL adicionando política de UPDATE.
 
-**Funnel Metrics (linha ~369-374)**  
-- Separar queries: pipeline atual (sem filtro de data) vs. deals ganhos/perdidos no período (filtrar por `closed_at`)
-- Stages mostram contagem ATUAL, não apenas do período
+**Migração SQL**:
+```sql
+CREATE POLICY "Users can update form submissions"
+ON public.form_submissions FOR UPDATE
+USING (user_id IN (SELECT get_organization_member_ids(auth.uid())))
+WITH CHECK (user_id IN (SELECT get_organization_member_ids(auth.uid())));
+```
 
-**Overview — Taxa de resposta (linha ~101-141)**
-- Substituir a abordagem de carregar 1.000 mensagens por queries de contagem separadas:
-  - Total de conversas no período
-  - Conversas com pelo menos 1 resposta outbound no período
+---
 
-**Financial — Ticket médio (linha ~666)**
-- Filtrar `value > 0` ao calcular ticket médio para não distorcer com deals sem valor
+### Problema 3: Cidade confusa entre formulário e funil
 
-### Arquivo a modificar
+Os dados mostram que:
+- Formulários mapeiam "Cidade" como `mapping_type = 'custom_field'` com `mapping_target = 'municipio'` (entidade **contato**)
+- Alguns formulários mapeiam como `mapping_type = 'lead_field'` com `mapping_target = 'cidade_do_evento'` (entidade **lead/deal**)
+- Os deals no funil mostram `cidade_do_evento = null` para a maioria, porque a cidade foi salva no **contato** (`contacts.custom_fields.municipio`), não no deal
 
-1. `src/hooks/useDashboardMetricsV2.ts` — 4 correções nas queries de métricas
+O campo "Cidade" no funil lista view já resolve isso corretamente (linhas 465-467 e 670-673 verificam ambos `deal.custom_fields` e `contact.custom_fields`). Porém, se o campo no formulário está mapeado como `custom_field` → `municipio` (contato), o valor fica no contato e aparece corretamente na lista — **desde que a coluna `custom_municipio` esteja visível**.
+
+**Não há bug no código de resolução**, mas há um problema de **consistência nos dados existentes**: formulários que salvam cidade como campo de contato (`municipio`) funcionam, mas formulários que salvam como campo de lead (`cidade_do_evento`) criam uma fragmentação.
+
+**Nenhuma alteração de código necessária** para este item — a resolução já busca em ambos os locais. O sistema está funcionando como configurado nos formulários.
+
+---
+
+### Resumo de arquivos a modificar
+
+1. **Migração SQL** — Adicionar política UPDATE em `form_submissions`
+2. **`src/components/funnels/FunnelListView.tsx`** — Adicionar botão de disparo e integração com `OpportunityBroadcastDialog`
 
