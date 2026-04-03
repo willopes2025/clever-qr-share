@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseAnyDateValue, isDateLikeFieldName, formatDateValue } from "@/lib/date-utils";
 import { useCustomFields, CustomFieldDefinition, FieldType, EntityType } from "@/hooks/useCustomFields";
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
 import { CustomFieldsManager } from "../CustomFieldsManager";
