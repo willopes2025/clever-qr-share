@@ -1180,27 +1180,68 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </div>
         </div>
 
-      {/* Load More Button */}
-      {hasMoreDeals && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="outline"
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-          >
-            {loadingMore ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Carregando...
-              </>
-            ) : (
-              <>
-                Carregar mais ({totalDealsCount - loadedDealsCount} restantes)
-              </>
-            )}
-          </Button>
+      {/* Counts bar + pagination controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{totalDealsCount.toLocaleString('pt-BR')}</strong> leads no funil
+          </span>
+          {hasActiveFilters && (
+            <span className="text-muted-foreground">
+              · <strong className="text-foreground">{filteredDeals.length.toLocaleString('pt-BR')}</strong> filtrados
+            </span>
+          )}
+          {selectedIds.length > 0 && (
+            <span className="text-primary font-medium">
+              · {selectedIds.length.toLocaleString('pt-BR')} selecionado(s)
+            </span>
+          )}
+          {hasMoreDeals && (
+            <span className="text-muted-foreground">
+              · {loadedDealsCount.toLocaleString('pt-BR')} carregados
+            </span>
+          )}
         </div>
-      )}
+
+        {hasMoreDeals && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Carregar:</span>
+            <Select value={String(pageSize)} onValueChange={(val) => setPageSize(Number(val))}>
+              <SelectTrigger className="h-8 w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="200">200</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleLoadMore()}
+              disabled={loadingMore}
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Carregando...
+                </>
+              ) : (
+                <>Carregar +{pageSize}</>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLoadAll}
+              disabled={loadingMore}
+            >
+              Carregar todos ({(totalDealsCount - loadedDealsCount).toLocaleString('pt-BR')})
+            </Button>
+          </div>
+        )}
+      </div>
 
       {editingDeal && (
         <DealFormDialog
