@@ -102,7 +102,15 @@ function formatCustomFieldDate(val: any): string | null {
   if (typeof val === 'string') {
     // Already formatted
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
-    // ISO format
+    // YYYY-MM-DD or ISO format — use timezone-safe parsing
+    if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+      const datePart = val.split('T')[0];
+      const [year, month, day] = datePart.split('-').map(Number);
+      if (year && month && day) {
+        return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+      }
+    }
+    // Other date strings
     const parsed = new Date(val);
     if (!isNaN(parsed.getTime())) {
       const day = parsed.getDate().toString().padStart(2, '0');
