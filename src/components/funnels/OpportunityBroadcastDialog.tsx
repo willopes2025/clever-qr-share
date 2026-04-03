@@ -124,8 +124,9 @@ export const OpportunityBroadcastDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
+  // Only show templates that belong to the user's active WABA IDs - never show all when WABAs are empty
   const approvedMetaTemplates = metaTemplates?.filter(t => 
-    t.status === 'approved' && (userWabaIds.length === 0 || userWabaIds.includes(t.waba_id || ''))
+    t.status === 'approved' && userWabaIds.length > 0 && userWabaIds.includes(t.waba_id || '')
   ) || [];
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
 
