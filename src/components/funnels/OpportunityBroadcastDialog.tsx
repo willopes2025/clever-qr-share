@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud, Phone } from 'lucide-react';
+import { Settings2, ChevronDown, ChevronUp, Bot, UserX, Tag, Plus, Loader2, Send, Sparkles, Cloud, Phone, Variable } from 'lucide-react';
 import { useMessageTemplates } from '@/hooks/useMessageTemplates';
 import { useMetaTemplates } from '@/hooks/useMetaTemplates';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
