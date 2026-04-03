@@ -823,7 +823,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     const col = allColumns.find((c) => c.id === columnId);
     if (!col) return null;
 
-    const hasFilter = columnFilters[columnId] && columnFilters[columnId] !== "all";
+    const hasFilter = (columnFilters[columnId] && columnFilters[columnId] !== "all") || 
+      columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`];
 
     return (
       <Popover>
