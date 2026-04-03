@@ -657,8 +657,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             val = (deal.contact as any)?.custom_fields?.[key];
           }
           if (val === undefined || val === null) return "";
-          if (typeof val === "boolean") return val ? "Sim" : "Não";
-          return String(val).replace(/;/g, ",");
+          return formatCustomFieldValue(val, fieldDef?.field_name || key, fieldDef?.field_type).replace(/;/g, ",");
         }),
       ].map((v) => (typeof v === "string" ? v.replace(/;/g, ",") : String(v)));
     });
