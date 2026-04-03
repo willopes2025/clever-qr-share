@@ -90,11 +90,13 @@ export const useLoadMoreDeals = () => {
     mutationFn: async ({ 
       stageId, 
       funnelId, 
-      offset 
+      offset,
+      limit = DEALS_PER_PAGE
     }: { 
       stageId: string; 
       funnelId: string; 
       offset: number;
+      limit?: number;
     }): Promise<FunnelDeal[]> => {
       const { data, error } = await supabase
         .from('funnel_deals')
@@ -106,7 +108,7 @@ export const useLoadMoreDeals = () => {
         .eq('stage_id', stageId)
         .eq('funnel_id', funnelId)
         .order('updated_at', { ascending: false })
-        .range(offset, offset + DEALS_PER_PAGE - 1);
+        .range(offset, offset + limit - 1);
 
       if (error) throw error;
       return data as FunnelDeal[];
