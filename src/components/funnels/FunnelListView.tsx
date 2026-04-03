@@ -1227,6 +1227,21 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         }}
       />
 
+      <OpportunityBroadcastDialog
+        open={showBroadcast}
+        onOpenChange={setShowBroadcast}
+        selectedContacts={selectedIds.map(id => {
+          const deal = filteredDeals.find(d => d.id === id);
+          return {
+            contactId: deal?.contact_id || '',
+            contactName: deal?.contact?.name || deal?.title || 'Sem nome',
+          };
+        }).filter(c => c.contactId)}
+        selectedDealIds={selectedIds}
+        funnelId={funnel.id}
+        funnelName={funnel.name}
+      />
+
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
