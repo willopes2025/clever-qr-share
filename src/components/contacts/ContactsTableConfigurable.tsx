@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCustomFieldValue } from "@/lib/date-utils";
 import {
   Table,
   TableBody,
