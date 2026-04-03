@@ -242,10 +242,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const hasMoreDeals = totalDealsCount > loadedDealsCount;
 
   // Load more deals for all stages
-  const handleLoadMore = async () => {
+  const handleLoadMore = async (customLimit?: number) => {
     setLoadingMore(true);
+    const limit = customLimit || pageSize;
     try {
-      // Load more for each stage that has more deals
       const loadPromises = (funnel.stages || []).map(async (stage) => {
         const loadedCount = stage.deals?.length || 0;
         const totalCount = stageCounts[stage.id] || 0;
@@ -254,11 +254,35 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           await loadMoreDeals.mutateAsync({
             stageId: stage.id,
             funnelId: funnel.id,
-            offset: loadedCount
+            offset: loadedCount,
+            limit,
           });
         }
       });
       
+      await Promise.all(loadPromises);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleLoadAll = async () => {
+    setLoadingMore(true);
+    try {
+      const loadPromises = (funnel.stages || []).map(async (stage) => {
+        let loadedCount = stage.deals?.length || 0;
+        const totalCount = stageCounts[stage.id] || 0;
+        while (loadedCount < totalCount) {
+          const batch = await loadMoreDeals.mutateAsync({
+            stageId: stage.id,
+            funnelId: funnel.id,
+            offset: loadedCount,
+            limit: 200,
+          });
+          loadedCount += batch.length;
+          if (batch.length === 0) break;
+        }
+      });
       await Promise.all(loadPromises);
     } finally {
       setLoadingMore(false);
