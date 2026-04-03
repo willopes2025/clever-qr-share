@@ -501,6 +501,75 @@ export const OpportunityBroadcastDialog = ({
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Variable Mapping for Meta Templates */}
+                {selectedMetaTemplate && detectedVariables.length > 0 && (
+                  <div className="border rounded-lg p-4 space-y-3 mt-4">
+                    <Label className="flex items-center gap-2 text-sm font-medium">
+                      <Variable className="h-4 w-4" />
+                      Mapeamento de Variáveis ({detectedVariables.length})
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Defina quais dados serão usados em cada variável do template
+                    </p>
+                    <div className="space-y-2">
+                      {variableMappings.map((mapping, idx) => {
+                        const currentValue = mapping.source === 'contact_custom_field' 
+                          ? `contact_cf_${mapping.field_key}` 
+                          : mapping.source === 'lead_custom_field'
+                          ? `lead_cf_${mapping.field_key}`
+                          : mapping.source;
+                        
+                        return (
+                          <div key={mapping.variable_index} className="flex items-center gap-2">
+                            <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded min-w-[50px] text-center">
+                              {`{{${mapping.variable_index}}}`}
+                            </span>
+                            <Select
+                              value={currentValue}
+                              onValueChange={(val) => {
+                                const option = variableSourceOptions.find(o => o.value === val);
+                                if (!option) return;
+                                const updated = [...variableMappings];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  source: option.source,
+                                  field_key: option.field_key,
+                                  label: option.label,
+                                  fixed_value: option.source === 'fixed_text' ? '' : undefined,
+                                };
+                                setVariableMappings(updated);
+                              }}
+                            >
+                              <SelectTrigger className="flex-1 h-8 text-xs">
+                                <SelectValue placeholder="Selecione o campo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {variableSourceOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {mapping.source === 'fixed_text' && (
+                              <Input
+                                className="flex-1 h-8 text-xs"
+                                placeholder="Texto fixo"
+                                value={mapping.fixed_value || ''}
+                                onChange={(e) => {
+                                  const updated = [...variableMappings];
+                                  updated[idx] = { ...updated[idx], fixed_value: e.target.value };
+                                  setVariableMappings(updated);
+                                }}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
