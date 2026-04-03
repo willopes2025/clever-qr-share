@@ -38,7 +38,7 @@ export const DealTasksSection = ({ dealId }: DealTasksSectionProps) => {
 
   const isOverdue = (task: UnifiedTask) => {
     if (!task.due_date || task.completed_at) return false;
-    return new Date(task.due_date) < new Date();
+    return new Date(task.due_date + 'T00:00:00') < new Date();
   };
 
   const formatDate = (date: string) => {
