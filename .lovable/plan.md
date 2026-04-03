@@ -1,34 +1,31 @@
 
 
-## Plano: Total de leads filtrados + seletor de quantidade por página na lista do funil
+## Plano: Adicionar mapeamento de variáveis Meta no disparo pelo funil
 
-### Situação atual
+### Problema
 
-- A lista carrega 50 deals por etapa inicialmente, com botão "Carregar mais" para buscar os restantes
-- O total de deals no funil (`totalDealsCount`) é calculado via RPC (`get_stage_deal_counts`), mas **não aparece de forma destacada** na interface
-- Não existe seletor de quantidade de itens por página — sempre carrega de 50 em 50
+O `OpportunityBroadcastDialog` (disparo pelo funil) **não tem UI de mapeamento de variáveis** para templates Meta. A campanha é criada sem `meta_variable_mappings`, e o sistema usa o default do `CampaignFormDialog` que atribui `{{1}}=Nome` e `{{2}}=Telefone`. O usuário precisa editar manualmente depois.
+
+### Solução
+
+Replicar a lógica de mapeamento de variáveis que já existe em `CampaignFormDialog` para dentro do `OpportunityBroadcastDialog`.
 
 ### Mudanças
 
-**Arquivo: `src/components/funnels/FunnelListView.tsx`**
+**Arquivo: `src/components/funnels/OpportunityBroadcastDialog.tsx`**
 
-1. **Exibir contagem total de leads filtrados** — Adicionar um indicador fixo acima da tabela mostrando:
-   - Total de leads no funil (ex: "1.250 leads no funil")
-   - Total de leads visíveis após filtros (ex: "342 leads filtrados")
-   - Total de leads selecionados (ex: "15 selecionados")
+1. **Importar dependências** — `MetaVariableMapping` do hook `useCampaigns`, `useCustomFields`, e `useMemo`/`useEffect`
 
-2. **Seletor de quantidade por página** — Substituir o botão "Carregar mais" por um seletor de quantidade (50, 100, 200) que define quantos leads carregar de uma vez. Ao selecionar, o sistema carrega automaticamente todos os deals necessários para atingir essa quantidade (fazendo múltiplas chamadas se necessário).
+2. **Adicionar estado e lógica de detecção** — Estado `variableMappings`, detecção automática de variáveis `{{1}}`, `{{2}}`, etc. no `body_text` do template selecionado. Default inteligente: `{{1}}=Nome`, demais = `Texto Fixo` (não mais telefone no `{{2}}`)
 
-3. **Botão "Carregar todos"** — Manter um botão para carregar todos os restantes de uma vez, caso o usuário queira ver tudo sem paginar.
+3. **Adicionar UI de mapeamento** — Após a seleção do template Meta, exibir um bloco com selects para cada variável detectada, permitindo escolher entre: Nome, Telefone, E-mail, campos personalizados de contato/lead, ou texto fixo
 
-**Arquivo: `src/hooks/useFunnelDeals.ts`**
-
-4. **Aceitar parâmetro `limit`** na mutation `useLoadMoreDeals` para poder carregar mais que 50 por vez (usar o valor selecionado pelo usuário: 50, 100 ou 200).
+4. **Passar `meta_variable_mappings` na criação da campanha** — Incluir o campo no `createCampaign.mutateAsync()` (linha ~224)
 
 ### Detalhes técnicos
 
-- O `DEALS_PER_PAGE` passa a ser dinâmico, controlado por um estado `pageSize` no componente
-- A query `range()` do Supabase será ajustada para usar o novo limite
-- O indicador de contagem usa `totalDealsCount` (do RPC) para o total real e `filteredDeals.length` para o total filtrado
-- O seletor será um `<Select>` com opções: 50, 100, 200
+- A detecção usa regex `{{(\d+)}}` no `body_text` do template
+- O default muda: apenas `{{1}}` mapeia para `contact_name`, todos os outros mapeiam para `fixed_text` (forçando o usuário a definir)
+- As opções de fonte incluem campos personalizados via `useCustomFields('contact')` e `useCustomFields('lead')`
+- Nenhuma alteração no backend necessária — o campo `meta_variable_mappings` já é suportado pela mutation e pelo edge function de envio
 
