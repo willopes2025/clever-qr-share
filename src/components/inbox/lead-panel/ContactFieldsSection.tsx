@@ -104,34 +104,19 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
     setEditingField(null);
   };
 
-  const parseDateValue = (value: any): Date | undefined => {
-    if (!value) return undefined;
-    if (typeof value === 'number' || (typeof value === 'string' && /^\d{4,5}$/.test(value))) {
-      const serial = typeof value === 'number' ? value : parseInt(value, 10);
-      if (serial > 25000 && serial < 100000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        return new Date(excelEpoch.getTime() + serial * 86400000);
-      }
-    }
-    // Timezone-safe: parse YYYY-MM-DD as local date, not UTC
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
-      const datePart = value.split('T')[0];
-      const [y, m, d] = datePart.split('-').map(Number);
-      if (y && m && d) return new Date(y, m - 1, d);
-    }
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? undefined : d;
-  };
+  const parseDateValue = parseAnyDateValue;
 
-  const isDateLikeField = (fieldName: string) => {
-    return /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldName);
-  };
+  const isDateLikeField = isDateLikeFieldName;
 
   const formatDisplayValue = (value: any, fieldName: string): string => {
     if (value === null || value === undefined || value === '') return '';
     if (isDateLikeField(fieldName)) {
-      const parsed = parseDateValue(value);
-      if (parsed) return format(parsed, "dd/MM/yyyy", { locale: ptBR });
+      const formatted = formatDateValue(value);
+      if (formatted) return formatted;
+    }
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value)) {
+      const formatted = formatDateValue(value);
+      if (formatted) return formatted;
     }
     return String(value);
   };
