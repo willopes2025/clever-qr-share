@@ -495,6 +495,35 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       // Custom field filters
       for (const [key, filterValue] of Object.entries(columnFilters)) {
         if (key.startsWith("custom_") && filterValue) {
+          // Skip date range helper keys (they are handled below)
+          if (key.endsWith('_from') || key.endsWith('_to')) {
+            // Handle date range filters
+            const baseKey = key.replace(/_from$|_to$/, '');
+            const fieldKey = baseKey.replace("custom_", "");
+            const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+            let dealValue = deal.custom_fields?.[fieldKey];
+            if ((dealValue === undefined || dealValue === null) && fieldDef?.entity_type === 'contact') {
+              dealValue = (deal.contact as any)?.custom_fields?.[fieldKey];
+            }
+            if (dealValue === undefined || dealValue === null) return false;
+            
+            // Parse the deal's date value to YYYY-MM-DD for comparison
+            let dealDateStr = '';
+            if (typeof dealValue === 'string') {
+              if (/^\d{4}-\d{2}-\d{2}/.test(dealValue)) {
+                dealDateStr = dealValue.split('T')[0];
+              } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dealValue)) {
+                const [d, m, y] = dealValue.split('/');
+                dealDateStr = `${y}-${m}-${d}`;
+              }
+            }
+            if (!dealDateStr) return false;
+            
+            if (key.endsWith('_from') && dealDateStr < filterValue) return false;
+            if (key.endsWith('_to') && dealDateStr > filterValue) return false;
+            continue;
+          }
+          
           const fieldKey = key.replace("custom_", "");
           const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
           let dealValue = deal.custom_fields?.[fieldKey];
@@ -556,6 +585,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     setColumnFilters((prev) => {
       const next = { ...prev };
       delete next[columnId];
+      // Also clear date range helpers
+      delete next[`${columnId}_from`];
+      delete next[`${columnId}_to`];
       return next;
     });
   };
@@ -791,7 +823,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     const col = allColumns.find((c) => c.id === columnId);
     if (!col) return null;
 
-    const hasFilter = columnFilters[columnId] && columnFilters[columnId] !== "all";
+    const hasFilter = (columnFilters[columnId] && columnFilters[columnId] !== "all") || 
+      columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`];
 
     return (
       <Popover>
@@ -904,7 +937,38 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </Select>
         );
       default:
-        // Custom fields - use text input for now
+        // Custom fields - check if date type for date picker
+        if (columnId.startsWith("custom_")) {
+          const fieldKey = columnId.replace("custom_", "");
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          const isDateField = (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
+            (fieldDef?.field_name && /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldDef.field_name));
+          
+          if (isDateField) {
+            return (
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={columnFilters[`${columnId}_from`] || ""}
+                  onChange={(e) => setColumnFilter(`${columnId}_from`, e.target.value)}
+                  placeholder="De"
+                />
+                <Input
+                  type="date"
+                  value={columnFilters[`${columnId}_to`] || ""}
+                  onChange={(e) => setColumnFilter(`${columnId}_to`, e.target.value)}
+                  placeholder="Até"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`]
+                    ? `Filtrando: ${columnFilters[`${columnId}_from`] || '...'} → ${columnFilters[`${columnId}_to`] || '...'}`
+                    : "Selecione um intervalo de datas"
+                  }
+                </p>
+              </div>
+            );
+          }
+        }
         return (
           <Input
             placeholder={`Filtrar ${col.label}...`}
