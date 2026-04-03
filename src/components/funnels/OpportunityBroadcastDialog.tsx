@@ -124,7 +124,9 @@ export const OpportunityBroadcastDialog = ({
 
   const activeTemplates = templates?.filter(t => t.is_active) || [];
   const selectedTemplate = activeTemplates.find(t => t.id === templateId);
-  const approvedMetaTemplates = metaTemplates?.filter(t => t.status === 'approved') || [];
+  const approvedMetaTemplates = metaTemplates?.filter(t => 
+    t.status === 'approved' && (userWabaIds.length === 0 || userWabaIds.includes(t.waba_id || ''))
+  ) || [];
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
 
   const toggleDay = (day: string) => {
