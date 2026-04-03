@@ -495,6 +495,35 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       // Custom field filters
       for (const [key, filterValue] of Object.entries(columnFilters)) {
         if (key.startsWith("custom_") && filterValue) {
+          // Skip date range helper keys (they are handled below)
+          if (key.endsWith('_from') || key.endsWith('_to')) {
+            // Handle date range filters
+            const baseKey = key.replace(/_from$|_to$/, '');
+            const fieldKey = baseKey.replace("custom_", "");
+            const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+            let dealValue = deal.custom_fields?.[fieldKey];
+            if ((dealValue === undefined || dealValue === null) && fieldDef?.entity_type === 'contact') {
+              dealValue = (deal.contact as any)?.custom_fields?.[fieldKey];
+            }
+            if (dealValue === undefined || dealValue === null) return false;
+            
+            // Parse the deal's date value to YYYY-MM-DD for comparison
+            let dealDateStr = '';
+            if (typeof dealValue === 'string') {
+              if (/^\d{4}-\d{2}-\d{2}/.test(dealValue)) {
+                dealDateStr = dealValue.split('T')[0];
+              } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dealValue)) {
+                const [d, m, y] = dealValue.split('/');
+                dealDateStr = `${y}-${m}-${d}`;
+              }
+            }
+            if (!dealDateStr) return false;
+            
+            if (key.endsWith('_from') && dealDateStr < filterValue) return false;
+            if (key.endsWith('_to') && dealDateStr > filterValue) return false;
+            continue;
+          }
+          
           const fieldKey = key.replace("custom_", "");
           const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
           let dealValue = deal.custom_fields?.[fieldKey];
