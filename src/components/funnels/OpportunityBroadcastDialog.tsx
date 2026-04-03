@@ -62,6 +62,7 @@ export const OpportunityBroadcastDialog = ({
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
   // Message mode
   const [messageMode, setMessageMode] = useState<'template' | 'meta_template' | 'ai'>('template');
