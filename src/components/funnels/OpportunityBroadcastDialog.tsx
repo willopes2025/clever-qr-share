@@ -53,9 +53,11 @@ export const OpportunityBroadcastDialog = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { templates } = useMessageTemplates();
-  const { templates: metaTemplates } = useMetaTemplates();
   const { metaNumbers } = useMetaWhatsAppNumbers();
   const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
+  // Filter meta templates by the user's active WABA IDs only
+  const userWabaIds = activeMetaNumbers.map(n => n.waba_id).filter(Boolean);
+  const { templates: metaTemplates } = useMetaTemplates(userWabaIds.length === 1 ? userWabaIds[0] : undefined);
   const { createTag } = useContacts();
   const { createCampaign, startCampaign } = useCampaignMutations();
   const { linkConfigToCampaign } = useAgentConfigMutations();

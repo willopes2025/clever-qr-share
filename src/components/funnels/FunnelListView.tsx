@@ -904,7 +904,38 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </Select>
         );
       default:
-        // Custom fields - use text input for now
+        // Custom fields - check if date type for date picker
+        if (columnId.startsWith("custom_")) {
+          const fieldKey = columnId.replace("custom_", "");
+          const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+          const isDateField = (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
+            (fieldDef?.field_name && /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldDef.field_name));
+          
+          if (isDateField) {
+            return (
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={columnFilters[`${columnId}_from`] || ""}
+                  onChange={(e) => setColumnFilter(`${columnId}_from`, e.target.value)}
+                  placeholder="De"
+                />
+                <Input
+                  type="date"
+                  value={columnFilters[`${columnId}_to`] || ""}
+                  onChange={(e) => setColumnFilter(`${columnId}_to`, e.target.value)}
+                  placeholder="Até"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`]
+                    ? `Filtrando: ${columnFilters[`${columnId}_from`] || '...'} → ${columnFilters[`${columnId}_to`] || '...'}`
+                    : "Selecione um intervalo de datas"
+                  }
+                </p>
+              </div>
+            );
+          }
+        }
         return (
           <Input
             placeholder={`Filtrar ${col.label}...`}
