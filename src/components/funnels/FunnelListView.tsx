@@ -585,6 +585,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     setColumnFilters((prev) => {
       const next = { ...prev };
       delete next[columnId];
+      // Also clear date range helpers
+      delete next[`${columnId}_from`];
+      delete next[`${columnId}_to`];
       return next;
     });
   };
