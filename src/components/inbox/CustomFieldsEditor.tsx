@@ -194,7 +194,14 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
         );
 
       case 'datetime':
-        const dtValue = value ? (isValid(new Date(value)) ? new Date(value) : undefined) : undefined;
+        const dtValue = value ? (() => {
+          if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+            const [y, m, d] = value.split('T')[0].split('-').map(Number);
+            return new Date(y, m - 1, d);
+          }
+          const p = new Date(value);
+          return isValid(p) ? p : undefined;
+        })() : undefined;
         return (
           <div className="flex items-center gap-2">
             <Popover>
