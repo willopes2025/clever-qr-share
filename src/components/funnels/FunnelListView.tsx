@@ -990,6 +990,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                 Editar em Massa
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBroadcast(true)}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Disparar ({selectedIds.length})
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => setBulkDeleteConfirm(true)}
