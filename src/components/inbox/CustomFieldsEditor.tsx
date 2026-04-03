@@ -133,7 +133,14 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
         );
 
       case 'date':
-        const dateValue = value ? (isValid(new Date(value)) ? new Date(value) : undefined) : undefined;
+        const dateValue = value ? (() => {
+          if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+            const [y, m, d] = value.split('T')[0].split('-').map(Number);
+            return new Date(y, m - 1, d);
+          }
+          const p = new Date(value);
+          return isValid(p) ? p : undefined;
+        })() : undefined;
         return (
           <Popover>
             <PopoverTrigger asChild>
@@ -154,11 +161,11 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 mode="single"
                 selected={dateValue}
                 onSelect={(date) => {
-                  const isoDate = date ? date.toISOString() : null;
-                  handleFieldChange(definition.field_key, isoDate);
+                  const dateStr = date ? format(date, 'yyyy-MM-dd') : null;
+                  handleFieldChange(definition.field_key, dateStr);
                   updateContactCustomFields.mutate({
                     contactId,
-                    customFields: { ...localFields, [definition.field_key]: isoDate },
+                    customFields: { ...localFields, [definition.field_key]: dateStr },
                   });
                   toast.success("Campo atualizado com sucesso");
                 }}
@@ -187,7 +194,14 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
         );
 
       case 'datetime':
-        const dtValue = value ? (isValid(new Date(value)) ? new Date(value) : undefined) : undefined;
+        const dtValue = value ? (() => {
+          if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+            const [y, m, d] = value.split('T')[0].split('-').map(Number);
+            return new Date(y, m - 1, d);
+          }
+          const p = new Date(value);
+          return isValid(p) ? p : undefined;
+        })() : undefined;
         return (
           <div className="flex items-center gap-2">
             <Popover>

@@ -73,6 +73,12 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
         return new Date(excelEpoch.getTime() + serial * 86400000);
       }
     }
+    // Timezone-safe: parse YYYY-MM-DD as local date, not UTC
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const datePart = value.split('T')[0];
+      const [y, m, d] = datePart.split('-').map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
     const d = new Date(value);
     return isNaN(d.getTime()) ? undefined : d;
   };

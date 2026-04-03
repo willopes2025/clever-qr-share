@@ -34,6 +34,11 @@ function parseDateValue(value: unknown): Date | null {
     if (!isNaN(num) && num > 25000 && num < 60000) {
       return excelSerialToDate(num);
     }
+    // Timezone-safe: parse YYYY-MM-DD as local date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [y, m, dd] = value.split('-').map(Number);
+      return new Date(y, m - 1, dd);
+    }
     // Standard ISO / Date parse
     const d = new Date(value);
     return isNaN(d.getTime()) ? null : d;
