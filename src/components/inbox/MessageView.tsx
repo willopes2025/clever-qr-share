@@ -1373,38 +1373,81 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
-            <Select 
-              value={selectedInstanceId} 
-              onValueChange={async (value) => {
-                setSelectedInstanceId(value);
-                try {
-                  await supabase
-                    .from('conversations')
-                    .update({ instance_id: value })
-                    .eq('id', conversation.id);
-                } catch (error) {
-                  toast.error("Erro ao atualizar número");
-                }
-              }}
-            >
-              <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
-                <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Selecionar número" />
-              </SelectTrigger>
-              <SelectContent>
-                {connectedInstances.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground text-center">
-                    Nenhuma instância conectada
-                  </div>
-                ) : (
-                  connectedInstances.map((instance) => (
-                    <SelectItem key={instance.id} value={instance.id}>
-                      {instance.instance_name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            {isMetaConversation ? (
+              <Select 
+                value={selectedMetaNumberId} 
+                onValueChange={async (value) => {
+                  setSelectedMetaNumberId(value);
+                  try {
+                    await supabase
+                      .from('conversations')
+                      .update({ meta_phone_number_id: value })
+                      .eq('id', conversation.id);
+                    toast.success("Número Meta atualizado");
+                  } catch (error) {
+                    toast.error("Erro ao atualizar número");
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
+                  <Cloud className="h-3.5 w-3.5 mr-2 text-blue-500" />
+                  <SelectValue placeholder="Selecionar número" />
+                </SelectTrigger>
+                <SelectContent>
+                  {metaNumbers.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhum número Meta ativo
+                    </div>
+                  ) : (
+                    metaNumbers.map((num) => (
+                      <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
+                        <div className="flex flex-col items-start">
+                          <span>{num.display_name || num.phone_number_id}</span>
+                          {num.phone_number && (
+                            <span className="text-xs text-muted-foreground">
+                              {num.phone_number}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select 
+                value={selectedInstanceId} 
+                onValueChange={async (value) => {
+                  setSelectedInstanceId(value);
+                  try {
+                    await supabase
+                      .from('conversations')
+                      .update({ instance_id: value })
+                      .eq('id', conversation.id);
+                  } catch (error) {
+                    toast.error("Erro ao atualizar número");
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
+                  <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Selecionar número" />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedInstances.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhuma instância conectada
+                    </div>
+                  ) : (
+                    connectedInstances.map((instance) => (
+                      <SelectItem key={instance.id} value={instance.id}>
+                        {instance.instance_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         )}
         
