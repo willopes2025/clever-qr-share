@@ -123,7 +123,7 @@ export const AsaasSettings = () => {
 
   // Load existing config only when the saved integration actually changes
   useEffect(() => {
-    if (!existingAsaasIntegration) return;
+    if (!existingAsaasIntegration || hasUserTouchedBilling) return;
 
     const creds = existingAsaasIntegration.credentials as Record<string, string> || {};
     setAccessToken(creds.access_token || '');
@@ -139,7 +139,7 @@ export const AsaasSettings = () => {
     if (settings.billing_enabled_types) {
       setEnabledReminders(prev => ({ ...prev, ...settings.billing_enabled_types }));
     }
-  }, [existingAsaasIntegration?.id, existingAsaasIntegration?.updated_at]);
+  }, [existingAsaasIntegration?.id, existingAsaasIntegration?.updated_at, hasUserTouchedBilling]);
 
   // Auto-check template status when Meta number is selected
   useEffect(() => {
