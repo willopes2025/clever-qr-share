@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Funnel, FunnelAutomation, useFunnels } from "@/hooks/useFunnels";
+import { supabase } from "@/integrations/supabase/client";
 import { StageAutomationsColumn } from "./StageAutomationsColumn";
 import { GlobalAutomationsColumn } from "./GlobalAutomationsColumn";
 import { AutomationFormDialog } from "../AutomationFormDialog";
