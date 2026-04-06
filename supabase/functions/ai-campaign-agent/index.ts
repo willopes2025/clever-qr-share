@@ -2117,6 +2117,53 @@ ${mapeamento}
               });
             }
           }
+        } else if (functionName === 'create_task') {
+          const taskTitle = args.title || 'Tarefa da IA';
+          const taskDescription = args.description || '';
+          const taskDueDate = args.due_date || null;
+          const taskPriority = args.priority || 'medium';
+          
+          console.log(`[AI-AGENT] create_task called: "${taskTitle}"`);
+          
+          try {
+            const { data: newTask, error: taskError } = await supabase
+              .from('conversation_tasks')
+              .insert({
+                user_id: conversation.user_id,
+                conversation_id: conversationId,
+                contact_id: conversation.contact_id,
+                title: taskTitle,
+                description: taskDescription,
+                due_date: taskDueDate,
+                priority: taskPriority,
+                assigned_to: conversation.assigned_to || conversation.user_id,
+              })
+              .select('id')
+              .single();
+            
+            if (taskError) {
+              console.error('[AI-AGENT] Error creating task:', taskError);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao criar tarefa: ${taskError.message}`,
+              });
+            } else {
+              console.log(`[AI-AGENT] Task created successfully: ${newTask.id}`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `✅ Tarefa criada com sucesso! Título: "${taskTitle}". A equipe será notificada.`,
+              });
+            }
+          } catch (taskErr) {
+            console.error('[AI-AGENT] Exception creating task:', taskErr);
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `❌ Erro inesperado ao criar tarefa.`,
+            });
+          }
         }
       }
       
