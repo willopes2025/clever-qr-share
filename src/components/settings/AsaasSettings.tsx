@@ -277,6 +277,25 @@ export const AsaasSettings = () => {
     }
   };
 
+  const handleSyncExistingReminders = async () => {
+    setIsSyncingReminders(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-existing-billing-reminders');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      toast.success(
+        `${data.remindersCreated} lembretes criados para ${data.paymentsProcessed} cobranças` +
+        (data.paymentsSkipped > 0 ? ` (${data.paymentsSkipped} sem lembretes pendentes)` : '')
+      );
+    } catch (err: any) {
+      toast.error('Erro ao sincronizar: ' + (err.message || 'Erro desconhecido'));
+      console.error('Sync error:', err);
+    } finally {
+      setIsSyncingReminders(false);
+    }
+  };
+
   // Count how many templates are approved
   const approvedCount = META_TEMPLATE_NAMES.filter(n => templateStatuses[n] === 'APPROVED').length;
   const allApproved = approvedCount === META_TEMPLATE_NAMES.length;
