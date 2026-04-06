@@ -96,6 +96,7 @@ const actionIcons: Record<string, React.ReactNode> = {
   close_deal_won: <CheckCircle2 className="h-3 w-3" />,
   close_deal_lost: <XCircle className="h-3 w-3" />,
   ai_analyze_and_move: <Bot className="h-3 w-3" />,
+  activate_ai: <Bot className="h-3 w-3" />,
 };
 
 const actionLabels: Record<string, string> = {
