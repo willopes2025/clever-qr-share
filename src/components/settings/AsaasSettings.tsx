@@ -223,6 +223,25 @@ export const AsaasSettings = () => {
       return;
     }
 
+    const isFirstConnection = !existingAsaasIntegration;
+
+    // On first connection, auto-enable billing reminders with defaults
+    const saveBillingEnabled = isFirstConnection ? true : billingEnabled;
+    const saveTemplates = isFirstConnection && !hasUserTouchedBilling ? { ...DEFAULT_TEMPLATES } : templates;
+    const saveEnabledReminders = isFirstConnection && !hasUserTouchedBilling ? {
+      emitted: true,
+      before_5d: true,
+      due_day: true,
+      after_1d: true,
+      after_3d: true,
+      after_5d: true,
+    } : enabledReminders;
+
+    // Auto-select first Meta number if available and none selected
+    const saveMetaPhoneNumberId = isFirstConnection && !metaPhoneNumberId && metaNumbers.length > 0
+      ? (metaNumbers[0] as any).phone_number_id
+      : metaPhoneNumberId;
+
     setIsSaving(true);
     try {
       await connectIntegration.mutateAsync({
@@ -232,13 +251,24 @@ export const AsaasSettings = () => {
           environment,
         },
         settings: {
-          billing_reminders_enabled: billingEnabled,
-          billing_meta_phone_number_id: metaPhoneNumberId,
-          billing_templates: templates,
-          billing_enabled_types: enabledReminders,
+          billing_reminders_enabled: saveBillingEnabled,
+          billing_meta_phone_number_id: saveMetaPhoneNumberId,
+          billing_templates: saveTemplates,
+          billing_enabled_types: saveEnabledReminders,
         },
       });
-      toast.success('Configurações do Asaas salvas com sucesso!');
+
+      // Update local state to reflect auto-configured values
+      if (isFirstConnection) {
+        setBillingEnabled(saveBillingEnabled);
+        setTemplates(saveTemplates);
+        setEnabledReminders(saveEnabledReminders);
+        if (saveMetaPhoneNumberId) setMetaPhoneNumberId(saveMetaPhoneNumberId);
+      }
+
+      toast.success(isFirstConnection 
+        ? 'Asaas conectado! Lembretes de cobrança configurados automaticamente.' 
+        : 'Configurações do Asaas salvas com sucesso!');
     } catch (err) {
       toast.error('Erro ao salvar configurações');
     } finally {
