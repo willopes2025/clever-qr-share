@@ -81,7 +81,8 @@ type ActionType =
   | 'create_task'
   | 'close_deal_won'
   | 'close_deal_lost'
-  | 'ai_analyze_and_move';
+  | 'ai_analyze_and_move'
+  | 'activate_ai';
 
 interface AutomationCondition {
   field: string;
