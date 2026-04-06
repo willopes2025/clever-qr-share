@@ -54,9 +54,18 @@ Deno.serve(async (req) => {
     }
 
     for (const [userId, userReminders] of byUser) {
-      // Get user's WhatsApp instance (Evolution or Meta)
-      // First check if there's a conversation with a known instance
-      // Then fallback to the user's default instance
+      // Get Asaas integration settings to find configured Meta phone number
+      const { data: asaasIntegration } = await supabase
+        .from('integrations')
+        .select('settings')
+        .eq('user_id', userId)
+        .eq('provider', 'asaas')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      const asaasSettings = (asaasIntegration?.settings as Record<string, any>) || {};
+      const configuredMetaPhoneNumberId = asaasSettings.billing_meta_phone_number_id as string | undefined;
+      const useEvolutionByConfig = configuredMetaPhoneNumberId === 'evolution';
 
       // Try to find user's default Evolution instance
       const { data: instances } = await supabase
@@ -164,12 +173,21 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Determine provider from conversation
+          // Determine provider: use configured setting first, then conversation, then fallback
           let useMetaForThis = false;
           let metaPhoneNumberId: string | null = null;
           let evolutionInstanceId: string | null = null;
 
-          if (conversationId) {
+          // If user configured a specific provider in Asaas settings, use that
+          if (useEvolutionByConfig) {
+            if (hasEvolution) {
+              evolutionInstanceId = instances![0].id;
+            }
+          } else if (configuredMetaPhoneNumberId && hasMeta) {
+            useMetaForThis = true;
+            metaPhoneNumberId = configuredMetaPhoneNumberId;
+          } else if (conversationId) {
+            // Fallback to conversation provider
             const { data: conv } = await supabase
               .from('conversations')
               .select('provider, meta_phone_number_id, instance_id')

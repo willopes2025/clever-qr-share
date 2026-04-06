@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MetaWhatsAppSettings } from "./MetaWhatsAppSettings";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
+import { AsaasSettings } from "./AsaasSettings";
 
 interface IntegrationConfig {
   id: IntegrationProvider;
@@ -286,11 +287,9 @@ const integrationConfigs: IntegrationConfig[] = [
     icon: CreditCard,
     category: 'payments',
     minPlan: 'profissional',
-    fields: [
-      { key: 'access_token', label: 'API Key', type: 'password', helpText: 'Chave de produção do Asaas (Minha Conta > Integrações)' },
-      { key: 'environment', label: 'Ambiente', type: 'text', placeholder: 'production ou sandbox' },
-    ],
+    fields: [],
     docsUrl: 'https://docs.asaas.com/',
+    customComponent: true,
   },
 ];
 
@@ -443,6 +442,23 @@ export const IntegrationsSettings = () => {
           Voltar para Integrações
         </Button>
         <MetaWhatsAppSettings />
+      </div>
+    );
+  }
+
+  if (customComponentId === 'asaas') {
+    return (
+      <div className="space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setCustomComponentId(null)}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Integrações
+        </Button>
+        <AsaasSettings />
       </div>
     );
   }
