@@ -148,6 +148,16 @@ export const AsaasSettings = () => {
     }
   }, [metaPhoneNumberId, selectedWabaId]);
 
+  const handleBillingEnabledChange = (checked: boolean) => {
+    setHasUserTouchedBilling(true);
+    setBillingEnabled(checked);
+  };
+
+  const handleToggleBillingEnabled = () => {
+    setHasUserTouchedBilling(true);
+    setBillingEnabled((prev) => !prev);
+  };
+
   const handleCheckStatus = async () => {
     if (!selectedWabaId) return;
     setIsCheckingStatus(true);
