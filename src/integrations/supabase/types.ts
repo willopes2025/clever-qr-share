@@ -746,6 +746,87 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_reminders: {
+        Row: {
+          asaas_customer_id: string | null
+          asaas_payment_id: string
+          bank_slip_url: string | null
+          billing_type: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          due_date: string | null
+          error_message: string | null
+          id: string
+          invoice_url: string | null
+          message_content: string | null
+          reminder_type: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          asaas_customer_id?: string | null
+          asaas_payment_id: string
+          bank_slip_url?: string | null
+          billing_type?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          error_message?: string | null
+          id?: string
+          invoice_url?: string | null
+          message_content?: string | null
+          reminder_type: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          asaas_customer_id?: string | null
+          asaas_payment_id?: string
+          bank_slip_url?: string | null
+          billing_type?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          error_message?: string | null
+          id?: string
+          invoice_url?: string | null
+          message_content?: string | null
+          reminder_type?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_reminders_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_reminders_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       broadcast_list_contacts: {
         Row: {
           added_at: string
