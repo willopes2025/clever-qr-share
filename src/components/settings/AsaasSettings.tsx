@@ -20,7 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Save, CreditCard, Bell, MessageSquare } from "lucide-react";
+import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw } from "lucide-react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -46,11 +46,40 @@ const REMINDER_LABELS: Record<string, string> = {
   after_5d: '🚨 5 dias após o vencimento',
 };
 
+// Mapping from reminder type to Meta template name
+const REMINDER_TO_META_TEMPLATE: Record<string, string> = {
+  emitted: 'cobranca_emitida',
+  before_5d: 'cobranca_5dias_antes',
+  due_day: 'cobranca_dia_vencimento',
+  after_1d: 'cobranca_1dia_atraso',
+  after_3d: 'cobranca_3dias_atraso',
+  after_5d: 'cobranca_5dias_atraso',
+};
+
+const META_TEMPLATE_NAMES = Object.values(REMINDER_TO_META_TEMPLATE);
+
+const getStatusBadge = (status: string | undefined) => {
+  if (!status) return null;
+  switch (status) {
+    case 'APPROVED':
+      return <Badge className="bg-green-500/10 text-green-600 border-green-200 text-[10px]"><CheckCircle2 className="h-3 w-3 mr-1" />Aprovado</Badge>;
+    case 'PENDING':
+      return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-200 text-[10px]"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+    case 'REJECTED':
+      return <Badge className="bg-red-500/10 text-red-600 border-red-200 text-[10px]"><XCircle className="h-3 w-3 mr-1" />Rejeitado</Badge>;
+    default:
+      return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+  }
+};
+
 export const AsaasSettings = () => {
   const { user } = useAuth();
   const { organization } = useOrganization();
   const { getIntegration, connectIntegration } = useIntegrations();
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreatingTemplates, setIsCreatingTemplates] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [templateStatuses, setTemplateStatuses] = useState<Record<string, string>>({});
 
   // Credentials
   const [accessToken, setAccessToken] = useState('');
@@ -77,12 +106,17 @@ export const AsaasSettings = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from('meta_whatsapp_numbers')
-        .select('id, display_phone_number, verified_name, phone_number_id')
+        .select('id, display_phone_number, verified_name, phone_number_id, waba_id')
         .eq('is_active', true);
       return data || [];
     },
     enabled: !!targetUserId,
   });
+
+  // Check if a Meta number is selected (not evolution)
+  const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
+  const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
+  const selectedWabaId = selectedMetaNumber?.waba_id;
 
   // Load existing config
   useEffect(() => {
@@ -104,6 +138,72 @@ export const AsaasSettings = () => {
       }
     }
   }, [getIntegration]);
+
+  // Auto-check template status when Meta number is selected
+  useEffect(() => {
+    if (isMetaSelected && selectedWabaId) {
+      handleCheckStatus();
+    }
+  }, [metaPhoneNumberId, selectedWabaId]);
+
+  const handleCheckStatus = async () => {
+    if (!selectedWabaId) return;
+    setIsCheckingStatus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-billing-meta-templates', {
+        body: { action: 'check_status', wabaId: selectedWabaId },
+      });
+      if (error) throw error;
+      if (data?.statuses) {
+        setTemplateStatuses(data.statuses);
+      }
+    } catch (err) {
+      console.error('Error checking template status:', err);
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  const handleCreateTemplates = async () => {
+    if (!selectedWabaId) {
+      toast.error('Selecione um número Meta para criar os templates');
+      return;
+    }
+    setIsCreatingTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-billing-meta-templates', {
+        body: { action: 'create', wabaId: selectedWabaId },
+      });
+      if (error) throw error;
+      
+      if (data?.results) {
+        const newStatuses: Record<string, string> = {};
+        let created = 0;
+        let errors = 0;
+        for (const [name, result] of Object.entries(data.results as Record<string, any>)) {
+          if (result.success) {
+            newStatuses[name] = result.status || 'PENDING';
+            created++;
+          } else {
+            errors++;
+            console.error(`Template ${name} error:`, result.error);
+          }
+        }
+        setTemplateStatuses(newStatuses);
+        
+        if (errors > 0) {
+          toast.warning(`${created} templates enviados, ${errors} com erro`);
+        } else {
+          toast.success(`${created} templates enviados para aprovação da Meta!`);
+        }
+      }
+    } catch (err) {
+      toast.error('Erro ao criar templates');
+      console.error(err);
+    } finally {
+      setIsCreatingTemplates(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!accessToken) {
@@ -133,6 +233,10 @@ export const AsaasSettings = () => {
       setIsSaving(false);
     }
   };
+
+  // Count how many templates are approved
+  const approvedCount = META_TEMPLATE_NAMES.filter(n => templateStatuses[n] === 'APPROVED').length;
+  const allApproved = approvedCount === META_TEMPLATE_NAMES.length;
 
   return (
     <div className="space-y-6">
@@ -227,16 +331,85 @@ export const AsaasSettings = () => {
                 </p>
               </div>
 
+              {/* Meta Templates Section - only show when Meta number selected */}
+              {isMetaSelected && (
+                <>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="flex items-center gap-2 text-sm font-medium">
+                          <FileText className="h-4 w-4" />
+                          Templates Oficiais Meta
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Templates precisam ser aprovados pela Meta para envio fora da janela de 24h
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCheckStatus}
+                          disabled={isCheckingStatus}
+                        >
+                          {isCheckingStatus ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          <span className="ml-1">Atualizar</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleCreateTemplates}
+                          disabled={isCreatingTemplates || allApproved}
+                        >
+                          {isCreatingTemplates ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileText className="h-3 w-3 mr-1" />}
+                          {allApproved ? 'Todos aprovados' : 'Criar Templates'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Template status list */}
+                    <div className="rounded-md border">
+                      {Object.entries(REMINDER_TO_META_TEMPLATE).map(([reminderType, templateName], idx) => (
+                        <div
+                          key={templateName}
+                          className={`flex items-center justify-between px-4 py-2.5 text-sm ${idx < Object.keys(REMINDER_TO_META_TEMPLATE).length - 1 ? 'border-b' : ''}`}
+                        >
+                          <span className="text-muted-foreground">{REMINDER_LABELS[reminderType]}</span>
+                          <div className="flex items-center gap-2">
+                            <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{templateName}</code>
+                            {getStatusBadge(templateStatuses[templateName])}
+                            {!templateStatuses[templateName] && (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">Não criado</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {approvedCount > 0 && !allApproved && (
+                      <p className="text-xs text-muted-foreground">
+                        {approvedCount} de {META_TEMPLATE_NAMES.length} templates aprovados. Templates pendentes serão enviados como texto quando possível.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
               <Separator />
 
-              {/* Template Configuration */}
+              {/* Template Configuration - only for Evolution or fallback text */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Templates de Mensagem</Label>
+                <Label className="text-sm font-medium">
+                  {isMetaSelected ? 'Templates de Texto (fallback)' : 'Templates de Mensagem'}
+                </Label>
                 <p className="text-xs text-muted-foreground">
-                  Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>{' '}
-                  <code className="bg-muted px-1 rounded">{'{valor}'}</code>{' '}
-                  <code className="bg-muted px-1 rounded">{'{data}'}</code>{' '}
-                  <code className="bg-muted px-1 rounded">{'{url}'}</code>
+                  {isMetaSelected 
+                    ? 'Usados como fallback quando o template Meta não está aprovado'
+                    : <>Variáveis disponíveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>{' '}
+                      <code className="bg-muted px-1 rounded">{'{valor}'}</code>{' '}
+                      <code className="bg-muted px-1 rounded">{'{data}'}</code>{' '}
+                      <code className="bg-muted px-1 rounded">{'{url}'}</code></>
+                  }
                 </p>
               </div>
 
