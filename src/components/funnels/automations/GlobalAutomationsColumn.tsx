@@ -21,6 +21,7 @@ export const GlobalAutomationsColumn = ({
   onDeleteAutomation,
   onToggleActive,
   onCopyAutomation,
+  onRunAutomation,
 }: GlobalAutomationsColumnProps) => {
   const globalAutomations = automations.filter(a => !a.stage_id);
 
