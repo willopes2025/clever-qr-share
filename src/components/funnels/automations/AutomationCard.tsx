@@ -146,9 +146,22 @@ export const AutomationCard = ({
   onDelete,
   onToggleActive,
   onCopy,
+  onRunNow,
   isDragging = false,
 }: AutomationCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const handleRunNow = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onRunNow || isRunning) return;
+    setIsRunning(true);
+    try {
+      await onRunNow(automation);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [onRunNow, automation, isRunning]);
 
   // Safety check for invalid automation data
   if (!automation || !automation.id) {
