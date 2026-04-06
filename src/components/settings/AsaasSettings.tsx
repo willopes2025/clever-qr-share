@@ -79,6 +79,7 @@ export const AsaasSettings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isCreatingTemplates, setIsCreatingTemplates] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isSyncingReminders, setIsSyncingReminders] = useState(false);
   const [templateStatuses, setTemplateStatuses] = useState<Record<string, string>>({});
   const [hasUserTouchedBilling, setHasUserTouchedBilling] = useState(false);
 
