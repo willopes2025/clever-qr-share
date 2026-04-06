@@ -1,61 +1,46 @@
 
 
-## Análise da IA — Studio Aline Galacha
+## Plano: IA do WhatsApp criar tarefas no sistema
 
-### Estado Atual
+### O que será feito
+A IA que atende clientes no WhatsApp poderá criar tarefas automaticamente dentro do sistema. Por exemplo, quando um cliente pedir para agendar algo ou quando a IA identificar que precisa de follow-up, ela criará uma tarefa atribuída ao responsável da conversa.
 
-A IA "Assistente da Aline Galacha" está configurada mas **desativada** (`is_active: false`). Analisando os dados:
+### Como funciona
+A IA já usa um sistema de "ferramentas" (tool calling) para agendar no Calendly e enviar templates. Vamos adicionar uma nova ferramenta `create_task` que a IA pode chamar durante a conversa.
 
-**Pontos positivos:**
-- Prompt de personalidade bem escrito (tom acolhedor, linguagem de WhatsApp)
-- Regras de handoff claras (passar para humano quando quer agendar unhas, fechar curso)
-- Delay entre respostas configurado (8-30s) para parecer natural
-- Mensagem de saudação e despedida configuradas
+### Exemplo de uso
+- Cliente diz: "Preciso agendar manutenção de unhas para semana que vem"
+- IA responde: "Vou passar sua informação para a Aline agendar seu horário! 😊"
+- IA automaticamente cria uma tarefa: "Agendar manutenção de unhas - [Nome do cliente]" com a data sugerida
 
-**Problemas encontrados:**
+### Alterações
 
-1. **Base de conhecimento com URLs vazias** — As duas URLs de landing page (`landingpage.alinegalacha.com.br` e `curso-profissional-nail--j4jm3qj.gamma.site`) têm `processed_content` vazio. A IA não aprendeu nada dessas páginas.
+**1. Edge Function `ai-campaign-agent/index.ts`**
 
-2. **Informações duplicadas** — "Valor da manutenção" aparece 2x como item de conhecimento separado.
+- Adicionar a ferramenta `create_task` na lista de tools (sempre disponível, não depende de configuração):
+  ```
+  {
+    name: 'create_task',
+    description: 'Cria uma tarefa interna para a equipe de atendimento...',
+    parameters: { title, description, due_date, priority }
+  }
+  ```
 
-3. **Falta informação sobre o curso** — Só tem o preço (10x R$175 ou R$1.500 à vista). Não tem: conteúdo dos módulos, duração, formato (online/presencial), certificado, diferenciais, depoimentos, próximas turmas.
+- Adicionar o handler no bloco de processamento de tool calls (após `send_template`):
+  - Insere na tabela `conversation_tasks` com `user_id` do dono da conversa, `conversation_id`, `contact_id`
+  - Retorna confirmação para a IA continuar a resposta
 
-4. **Fluxo de estágios incompleto** — Só existe 1 estágio ("Coletar Motivação") e não é final. Não há estágios de apresentação do curso, quebra de objeções, ou direcionamento para matrícula.
-
-5. **Lógica de agendamento de unhas incompleta** — A regra diz "passar para humano", mas não instrui a IA a informar que "vai passar a informação para a Aline agendar".
-
-### Plano de Melhorias
-
-**1. Reprocessar URLs da base de conhecimento**
-- Reexecutar o processamento das 2 URLs para extrair conteúdo real das landing pages
-- Se as URLs estiverem fora do ar, remover e adicionar conteúdo manualmente
-
-**2. Enriquecer a base de conhecimento**
-- Adicionar item com detalhes do curso: módulos, duração, formato, certificado, público-alvo
-- Adicionar item com diferenciais da Aline (experiência, resultados de alunas)
-- Adicionar item com FAQ (dúvidas frequentes sobre o curso)
-- Remover o item duplicado de "Valor da manutenção"
-
-**3. Ajustar o prompt de personalidade e regras**
-- Adicionar instrução explícita: quando o assunto for agendamento de unhas/manutenção, a IA deve responder algo como "Vou passar sua informação para a Aline agendar seu horário, tá bom? 😊" e fazer o handoff
-- Reforçar que a IA deve saber responder sobre o curso com segurança usando a base de conhecimento
-- Adicionar instrução para coletar nome e horário preferido antes de fazer handoff de agendamento
-
-**4. Completar o fluxo de estágios**
-- Estágio 1: Identificação (rapport + entender se quer curso ou serviço de unhas)
-- Estágio 2: Qualificação (já trabalha na área? Experiência?)
-- Estágio 3: Apresentação do curso (benefícios, preço, formato)
-- Estágio 4: Quebra de objeções
-- Estágio 5: Direcionamento (handoff para Aline fechar)
-
-**5. Ativar a IA**
-- Após as melhorias, ativar (`is_active: true`)
+- Adicionar instrução no system prompt para a IA saber quando criar tarefas:
+  - Quando cliente pede agendamento e não há Calendly
+  - Quando precisa de follow-up humano
+  - Quando faz handoff para humano
+  - Quando coleta informação que requer ação posterior
 
 ### Detalhes técnicos
 
-- Atualizações no `ai_agent_configs`: campo `personality_prompt` e `behavior_rules`
-- Novos registros em `ai_agent_knowledge_items` com `source_type: text`
-- Novos registros em `ai_agent_stages` com estágios encadeados
-- Remoção do item de conhecimento duplicado (id: `c31df066...`)
-- Reprocessamento das URLs via edge function `process-knowledge-url`
+- Tabela `conversation_tasks` já existe e é usada pelo chatbot builder (`execute-chatbot-flow`)
+- Campos: `title` (obrigatório), `description`, `due_date`, `priority` (low/medium/high)
+- O `assigned_to` será o `user_id` do dono da conversa (responsável)
+- A tarefa aparecerá automaticamente no painel de Tarefas (/tasks) e na sidebar do Inbox
+- Nenhuma migration necessária — a tabela e campos já existem
 
