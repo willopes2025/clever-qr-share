@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, asaas-access-token',
 };
 
-// Default message templates
-const MESSAGE_TEMPLATES: Record<string, string> = {
+// Default message templates (fallback)
+const DEFAULT_TEMPLATES: Record<string, string> = {
   emitted: 'Olá {nome}! 😊 Sua cobrança de R${valor} foi gerada.\n\n📅 Vencimento: {data}\n🔗 Link para pagamento: {url}',
   before_5d: '⏰ Lembrete: sua cobrança de R${valor} vence em 5 dias ({data}).\n\n🔗 Link para pagamento: {url}',
   due_day: '📢 Hoje é o vencimento da sua cobrança de R${valor}. Evite juros!\n\n🔗 Pague agora: {url}',
@@ -24,8 +24,9 @@ function formatDate(dateStr: string): string {
   return `${day}/${month}/${year}`;
 }
 
-function buildMessage(type: string, name: string, value: number, dueDate: string, paymentUrl: string): string {
-  const template = MESSAGE_TEMPLATES[type] || MESSAGE_TEMPLATES['emitted'];
+function buildMessage(type: string, name: string, value: number, dueDate: string, paymentUrl: string, customTemplates?: Record<string, string>): string {
+  const templates = { ...DEFAULT_TEMPLATES, ...(customTemplates || {}) };
+  const template = templates[type] || DEFAULT_TEMPLATES['emitted'];
   return template
     .replace('{nome}', name || 'Cliente')
     .replace(/\{valor\}/g, formatValue(value))
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get the integration to verify it exists
+    // Get the integration to verify it exists and read settings
     const { data: integration, error: integrationError } = await supabaseClient
       .from('integrations')
       .select('id, settings')
@@ -74,6 +75,13 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    // Read billing reminder settings
+    const settings = (integration.settings as Record<string, any>) || {};
+    const billingEnabled = settings.billing_reminders_enabled === true;
+    const billingTemplates = settings.billing_templates as Record<string, string> | undefined;
+    const billingEnabledTypes = settings.billing_enabled_types as Record<string, boolean> | undefined;
+    const billingMetaPhoneNumberId = settings.billing_meta_phone_number_id as string | undefined;
 
     // Process the webhook event
     const { event, payment, subscription, transfer } = body;
@@ -125,7 +133,6 @@ Deno.serve(async (req) => {
 
       const contact = contacts[0];
 
-      // Find latest conversation for this contact
       const { data: conversations } = await supabaseClient
         .from('conversations')
         .select('id')
@@ -143,9 +150,14 @@ Deno.serve(async (req) => {
 
     // Helper to schedule billing reminders
     const scheduleBillingReminders = async (paymentData: any) => {
+      if (!billingEnabled) {
+        console.log('Billing reminders disabled for user, skipping');
+        return;
+      }
+
       if (!paymentData) return;
 
-      const { id: paymentId, customer: customerId, dueDate, value, billingType, invoiceUrl, bankSlipUrl, invoiceNumber } = paymentData;
+      const { id: paymentId, customer: customerId, dueDate, value, billingType, invoiceUrl, bankSlipUrl } = paymentData;
       
       if (!dueDate || !value) {
         console.log('Missing dueDate or value in payment, skipping reminders');
@@ -156,12 +168,11 @@ Deno.serve(async (req) => {
 
       const paymentUrl = invoiceUrl || bankSlipUrl || '';
 
-      // Calculate scheduled dates based on due date
-      const due = new Date(dueDate + 'T10:00:00-03:00'); // 10am BRT
+      const due = new Date(dueDate + 'T10:00:00-03:00');
       const now = new Date();
 
-      const reminders = [
-        { type: 'emitted', date: now }, // Send immediately
+      const allReminders = [
+        { type: 'emitted', date: now },
         { type: 'before_5d', date: new Date(due.getTime() - 5 * 24 * 60 * 60 * 1000) },
         { type: 'due_day', date: new Date(due.getTime()) },
         { type: 'after_1d', date: new Date(due.getTime() + 1 * 24 * 60 * 60 * 1000) },
@@ -169,24 +180,29 @@ Deno.serve(async (req) => {
         { type: 'after_5d', date: new Date(due.getTime() + 5 * 24 * 60 * 60 * 1000) },
       ];
 
-      const reminderRecords = reminders
-        .filter(r => r.date >= now || r.type === 'emitted') // Skip past dates
-        .map(r => ({
-          user_id: userId,
-          contact_id: contactId,
-          conversation_id: conversationId,
-          asaas_payment_id: paymentId,
-          asaas_customer_id: customerId,
-          reminder_type: r.type,
-          scheduled_for: r.date.toISOString(),
-          status: 'pending',
-          message_content: buildMessage(r.type, contactName || '', value, dueDate, paymentUrl),
-          due_date: dueDate,
-          value,
-          billing_type: billingType,
-          invoice_url: invoiceUrl,
-          bank_slip_url: bankSlipUrl,
-        }));
+      // Filter by enabled types
+      const reminders = allReminders
+        .filter(r => {
+          if (billingEnabledTypes && billingEnabledTypes[r.type] === false) return false;
+          return r.date >= now || r.type === 'emitted';
+        });
+
+      const reminderRecords = reminders.map(r => ({
+        user_id: userId,
+        contact_id: contactId,
+        conversation_id: conversationId,
+        asaas_payment_id: paymentId,
+        asaas_customer_id: customerId,
+        reminder_type: r.type,
+        scheduled_for: r.date.toISOString(),
+        status: 'pending',
+        message_content: buildMessage(r.type, contactName || '', value, dueDate, paymentUrl, billingTemplates),
+        due_date: dueDate,
+        value,
+        billing_type: billingType,
+        invoice_url: invoiceUrl,
+        bank_slip_url: bankSlipUrl,
+      }));
 
       if (reminderRecords.length > 0) {
         const { error: insertError } = await supabaseClient
@@ -201,7 +217,7 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Helper to cancel pending reminders for a payment
+    // Helper to cancel pending reminders
     const cancelPendingReminders = async (paymentId: string) => {
       const { error, count } = await supabaseClient
         .from('billing_reminders')
@@ -223,7 +239,6 @@ Deno.serve(async (req) => {
         if (payment?.customer) {
           await updateContactPaymentStatus(payment.customer, 'pending');
         }
-        // Schedule billing reminders
         await scheduleBillingReminders(payment);
         break;
 
@@ -240,7 +255,6 @@ Deno.serve(async (req) => {
         if (payment?.customer) {
           await updateContactPaymentStatus(payment.customer, 'current');
         }
-        // Cancel pending reminders — payment was made
         if (payment?.id) {
           await cancelPendingReminders(payment.id);
         }
@@ -270,7 +284,6 @@ Deno.serve(async (req) => {
         }
         break;
 
-      // Subscription events
       case 'SUBSCRIPTION_CREATED':
       case 'SUBSCRIPTION_UPDATED':
       case 'SUBSCRIPTION_DELETED':
@@ -278,7 +291,6 @@ Deno.serve(async (req) => {
         console.log('Subscription event:', event, subscription?.id);
         break;
 
-      // Transfer events
       case 'TRANSFER_CREATED':
       case 'TRANSFER_PENDING':
       case 'TRANSFER_IN_BANK_PROCESSING':
