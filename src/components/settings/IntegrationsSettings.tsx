@@ -287,11 +287,9 @@ const integrationConfigs: IntegrationConfig[] = [
     icon: CreditCard,
     category: 'payments',
     minPlan: 'profissional',
-    fields: [
-      { key: 'access_token', label: 'API Key', type: 'password', helpText: 'Chave de produção do Asaas (Minha Conta > Integrações)' },
-      { key: 'environment', label: 'Ambiente', type: 'text', placeholder: 'production ou sandbox' },
-    ],
+    fields: [],
     docsUrl: 'https://docs.asaas.com/',
+    customComponent: true,
   },
 ];
 
