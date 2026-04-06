@@ -54,9 +54,18 @@ Deno.serve(async (req) => {
     }
 
     for (const [userId, userReminders] of byUser) {
-      // Get user's WhatsApp instance (Evolution or Meta)
-      // First check if there's a conversation with a known instance
-      // Then fallback to the user's default instance
+      // Get Asaas integration settings to find configured Meta phone number
+      const { data: asaasIntegration } = await supabase
+        .from('integrations')
+        .select('settings')
+        .eq('user_id', userId)
+        .eq('provider', 'asaas')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      const asaasSettings = (asaasIntegration?.settings as Record<string, any>) || {};
+      const configuredMetaPhoneNumberId = asaasSettings.billing_meta_phone_number_id as string | undefined;
+      const useEvolutionByConfig = configuredMetaPhoneNumberId === 'evolution';
 
       // Try to find user's default Evolution instance
       const { data: instances } = await supabase
