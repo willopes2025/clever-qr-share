@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MetaWhatsAppSettings } from "./MetaWhatsAppSettings";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
+import { AsaasSettings } from "./AsaasSettings";
 
 interface IntegrationConfig {
   id: IntegrationProvider;
