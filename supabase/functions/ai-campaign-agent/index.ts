@@ -1637,7 +1637,15 @@ ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra toda
 - Seja educado, amigável e objetivo
 - Use linguagem informal mas profissional
 - Se não souber responder algo específico, sugira falar com um atendente
-- Não invente informações que não estão na base de conhecimento`;
+- Não invente informações que não estão na base de conhecimento
+
+## 📌 CRIAÇÃO DE TAREFAS
+Você pode criar tarefas internas para a equipe usando a ferramenta create_task. Use quando:
+- O cliente pedir agendamento e não houver integração com Calendly
+- Você fizer handoff para atendimento humano (crie a tarefa com o contexto)
+- O cliente solicitar algo que precisa de ação posterior (retorno, envio de material, etc.)
+- Coletar informação importante que a equipe precisa agir sobre
+Inclua sempre o nome do cliente e detalhes relevantes no título e descrição.`;
 
     // Add available templates context for AI
     if (availableTemplates.length > 0) {
