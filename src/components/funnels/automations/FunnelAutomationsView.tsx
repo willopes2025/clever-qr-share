@@ -143,6 +143,27 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
     toast.info("Clipboard limpo");
   };
 
+  const handleRunAutomation = async (automation: FunnelAutomation) => {
+    const { data, error } = await supabase.functions.invoke('process-existing-deals-automation', {
+      body: { automationId: automation.id },
+    });
+
+    if (error) {
+      toast.error("Erro ao disparar automação: " + error.message);
+      return;
+    }
+
+    const results = data?.results || [];
+    const successCount = results.filter((r: any) => r.status === 'success').length;
+    const errorCount = results.filter((r: any) => r.status === 'error').length;
+
+    if (results.length === 0) {
+      toast.info("Nenhum deal encontrado para processar.");
+    } else {
+      toast.success(`Automação executada em ${results.length} deals (${successCount} ok, ${errorCount} erros)`);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-280px)]">
       {/* Clipboard indicator */}
