@@ -20,7 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw } from "lucide-react";
+import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Download } from "lucide-react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
