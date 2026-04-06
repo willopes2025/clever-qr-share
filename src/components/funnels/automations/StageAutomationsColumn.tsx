@@ -34,6 +34,7 @@ export const StageAutomationsColumn = ({
   onToggleActive,
   onCopyAutomation,
   onPasteAutomation,
+  onRunAutomation,
   onDragStart,
   onDragEnd,
   onDrop,
