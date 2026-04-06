@@ -10,32 +10,32 @@ const META_API_URL = 'https://graph.facebook.com/v19.0';
 const BILLING_TEMPLATES = [
   {
     name: 'cobranca_emitida',
-    body: 'Olá {{1}}! Sua cobrança de R${{2}} foi gerada. Vencimento: {{3}}. Link: {{4}}',
+    body: 'Olá {{1}}! Sua cobrança no valor de R${{2}} foi gerada com sucesso. O vencimento é {{3}}. Acesse o link a seguir para realizar o pagamento: {{4}} - Qualquer dúvida, estamos à disposição.',
     example: ['João', '150,00', '10/07/2025', 'https://www.asaas.com/i/abc123'],
   },
   {
     name: 'cobranca_5dias_antes',
-    body: 'Lembrete: sua cobrança de R${{1}} vence em 5 dias ({{2}}). Link: {{3}}',
+    body: 'Olá! Estamos lembrando que sua cobrança no valor de R${{1}} vence em 5 dias, no dia {{2}}. Acesse o link a seguir para realizar o pagamento: {{3}} - Evite juros e multas pagando em dia.',
     example: ['150,00', '10/07/2025', 'https://www.asaas.com/i/abc123'],
   },
   {
     name: 'cobranca_dia_vencimento',
-    body: 'Hoje é o vencimento da sua cobrança de R${{1}}. Evite juros! Link: {{2}}',
+    body: 'Olá! Hoje é o dia do vencimento da sua cobrança no valor de R${{1}}. Evite juros realizando o pagamento agora pelo link: {{2}} - Agradecemos a sua atenção.',
     example: ['150,00', 'https://www.asaas.com/i/abc123'],
   },
   {
     name: 'cobranca_1dia_atraso',
-    body: 'Sua cobrança de R${{1}} venceu ontem ({{2}}). Regularize: {{3}}',
+    body: 'Olá! Informamos que sua cobrança no valor de R${{1}}, com vencimento em {{2}}, encontra-se em atraso. Regularize sua situação acessando o link: {{3}} - Evite encargos adicionais.',
     example: ['150,00', '10/07/2025', 'https://www.asaas.com/i/abc123'],
   },
   {
     name: 'cobranca_3dias_atraso',
-    body: 'Cobrança de R${{1}} em atraso há 3 dias (vencimento: {{2}}). Link: {{3}}',
+    body: 'Olá! Sua cobrança no valor de R${{1}} está em atraso há 3 dias. O vencimento foi em {{2}}. Acesse o link a seguir para regularizar: {{3}} - Entre em contato se precisar de ajuda.',
     example: ['150,00', '10/07/2025', 'https://www.asaas.com/i/abc123'],
   },
   {
     name: 'cobranca_5dias_atraso',
-    body: 'Último lembrete: cobrança de R${{1}} em atraso (vencimento: {{2}}). Link: {{3}}',
+    body: 'Olá! Este é o último lembrete: sua cobrança no valor de R${{1}} está em atraso desde {{2}}. Regularize agora pelo link: {{3}} - Entre em contato conosco para negociar.',
     example: ['150,00', '10/07/2025', 'https://www.asaas.com/i/abc123'],
   },
 ];
