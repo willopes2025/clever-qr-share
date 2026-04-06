@@ -42,6 +42,7 @@ interface AutomationCardProps {
   onDelete: (automation: FunnelAutomation) => void;
   onToggleActive: (automation: FunnelAutomation) => void;
   onCopy: (automation: FunnelAutomation) => void;
+  onRunNow?: (automation: FunnelAutomation) => Promise<void>;
   isDragging?: boolean;
 }
 
