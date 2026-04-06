@@ -321,7 +321,7 @@ export const AsaasSettings = () => {
                     </SelectItem>
                     {metaNumbers.map((num: any) => (
                       <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
-                        {num.display_phone_number} - {num.verified_name}
+                        {num.phone_number} - {num.display_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
