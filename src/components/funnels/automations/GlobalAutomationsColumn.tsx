@@ -11,6 +11,7 @@ interface GlobalAutomationsColumnProps {
   onDeleteAutomation: (automation: FunnelAutomation) => void;
   onToggleActive: (automation: FunnelAutomation) => void;
   onCopyAutomation: (automation: FunnelAutomation) => void;
+  onRunAutomation?: (automation: FunnelAutomation) => Promise<void>;
 }
 
 export const GlobalAutomationsColumn = ({
