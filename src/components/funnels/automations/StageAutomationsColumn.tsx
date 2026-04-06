@@ -15,6 +15,7 @@ interface StageAutomationsColumnProps {
   onToggleActive: (automation: FunnelAutomation) => void;
   onCopyAutomation: (automation: FunnelAutomation) => void;
   onPasteAutomation: (stageId: string) => void;
+  onRunAutomation?: (automation: FunnelAutomation) => Promise<void>;
   onDragStart: (automation: FunnelAutomation) => void;
   onDragEnd: () => void;
   onDrop: (stageId: string) => void;
