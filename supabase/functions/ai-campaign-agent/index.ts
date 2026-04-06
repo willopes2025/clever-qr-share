@@ -1637,7 +1637,15 @@ ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra toda
 - Seja educado, amigável e objetivo
 - Use linguagem informal mas profissional
 - Se não souber responder algo específico, sugira falar com um atendente
-- Não invente informações que não estão na base de conhecimento`;
+- Não invente informações que não estão na base de conhecimento
+
+## 📌 CRIAÇÃO DE TAREFAS
+Você pode criar tarefas internas para a equipe usando a ferramenta create_task. Use quando:
+- O cliente pedir agendamento e não houver integração com Calendly
+- Você fizer handoff para atendimento humano (crie a tarefa com o contexto)
+- O cliente solicitar algo que precisa de ação posterior (retorno, envio de material, etc.)
+- Coletar informação importante que a equipe precisa agir sobre
+Inclua sempre o nome do cliente e detalhes relevantes no título e descrição.`;
 
     // Add available templates context for AI
     if (availableTemplates.length > 0) {
@@ -1715,6 +1723,38 @@ ${templatesList}
       });
     }
     
+    // Always add create_task tool (doesn't depend on any integration)
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'create_task',
+        description: 'Cria uma tarefa interna para a equipe de atendimento sobre este contato. Use quando: o cliente pedir agendamento e não houver Calendly, quando precisar de follow-up humano, quando fizer handoff, ou quando coletar informação que requer ação posterior.',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: 'Título da tarefa. Ex: "Agendar manutenção de unhas - Maria"',
+            },
+            description: {
+              type: 'string',
+              description: 'Descrição detalhada da tarefa com contexto da conversa',
+            },
+            due_date: {
+              type: 'string',
+              description: 'Data de vencimento no formato YYYY-MM-DD (opcional)',
+            },
+            priority: {
+              type: 'string',
+              enum: ['low', 'medium', 'high'],
+              description: 'Prioridade da tarefa: low, medium ou high',
+            },
+          },
+          required: ['title'],
+        },
+      },
+    });
+
     if (tools.length > 0) {
       aiRequestBody.tools = tools;
       aiRequestBody.tool_choice = 'auto';
@@ -2084,6 +2124,53 @@ ${mapeamento}
                 content: `❌ Erro ao enviar template: ${templateError instanceof Error ? templateError.message : 'Erro desconhecido'}`,
               });
             }
+          }
+        } else if (functionName === 'create_task') {
+          const taskTitle = args.title || 'Tarefa da IA';
+          const taskDescription = args.description || '';
+          const taskDueDate = args.due_date || null;
+          const taskPriority = args.priority || 'medium';
+          
+          console.log(`[AI-AGENT] create_task called: "${taskTitle}"`);
+          
+          try {
+            const { data: newTask, error: taskError } = await supabase
+              .from('conversation_tasks')
+              .insert({
+                user_id: conversation.user_id,
+                conversation_id: conversationId,
+                contact_id: conversation.contact_id,
+                title: taskTitle,
+                description: taskDescription,
+                due_date: taskDueDate,
+                priority: taskPriority,
+                assigned_to: conversation.assigned_to || conversation.user_id,
+              })
+              .select('id')
+              .single();
+            
+            if (taskError) {
+              console.error('[AI-AGENT] Error creating task:', taskError);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `❌ Erro ao criar tarefa: ${taskError.message}`,
+              });
+            } else {
+              console.log(`[AI-AGENT] Task created successfully: ${newTask.id}`);
+              toolResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: `✅ Tarefa criada com sucesso! Título: "${taskTitle}". A equipe será notificada.`,
+              });
+            }
+          } catch (taskErr) {
+            console.error('[AI-AGENT] Exception creating task:', taskErr);
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `❌ Erro inesperado ao criar tarefa.`,
+            });
           }
         }
       }
