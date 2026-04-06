@@ -383,6 +383,27 @@ export const AsaasSettings = () => {
 
           {billingEnabled && (
             <>
+              {/* Sync existing payments button */}
+              {existingAsaasIntegration && (
+                <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium">Sincronizar cobranças existentes</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cria lembretes para cobranças pendentes/vencidas já emitidas no Asaas
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncExistingReminders}
+                    disabled={isSyncingReminders}
+                  >
+                    {isSyncingReminders ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+                    {isSyncingReminders ? 'Sincronizando...' : 'Sincronizar'}
+                  </Button>
+                </div>
+              )}
+
               <Separator />
               
               {/* Meta Phone Number Selection */}
