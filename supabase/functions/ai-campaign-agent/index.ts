@@ -1715,6 +1715,38 @@ ${templatesList}
       });
     }
     
+    // Always add create_task tool (doesn't depend on any integration)
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'create_task',
+        description: 'Cria uma tarefa interna para a equipe de atendimento sobre este contato. Use quando: o cliente pedir agendamento e não houver Calendly, quando precisar de follow-up humano, quando fizer handoff, ou quando coletar informação que requer ação posterior.',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: 'Título da tarefa. Ex: "Agendar manutenção de unhas - Maria"',
+            },
+            description: {
+              type: 'string',
+              description: 'Descrição detalhada da tarefa com contexto da conversa',
+            },
+            due_date: {
+              type: 'string',
+              description: 'Data de vencimento no formato YYYY-MM-DD (opcional)',
+            },
+            priority: {
+              type: 'string',
+              enum: ['low', 'medium', 'high'],
+              description: 'Prioridade da tarefa: low, medium ou high',
+            },
+          },
+          required: ['title'],
+        },
+      },
+    });
+
     if (tools.length > 0) {
       aiRequestBody.tools = tools;
       aiRequestBody.tool_choice = 'auto';
