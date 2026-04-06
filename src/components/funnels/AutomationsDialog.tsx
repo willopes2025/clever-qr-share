@@ -62,7 +62,9 @@ const ACTION_LABELS: Record<string, string> = {
   webhook_request: 'Enviar webhook',
   create_task: 'Criar tarefa',
   close_deal_won: 'Fechar como ganho',
-  close_deal_lost: 'Fechar como perdido'
+  close_deal_lost: 'Fechar como perdido',
+  ai_analyze_and_move: 'IA analisa e move',
+  activate_ai: 'Acionar agente de IA'
 };
 
 export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsDialogProps) => {

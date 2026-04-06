@@ -81,7 +81,8 @@ type ActionType =
   | 'create_task'
   | 'close_deal_won'
   | 'close_deal_lost'
-  | 'ai_analyze_and_move';
+  | 'ai_analyze_and_move'
+  | 'activate_ai';
 
 interface AutomationCondition {
   field: string;
@@ -765,6 +766,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="close_deal_won">Fechar como ganho</SelectItem>
                 <SelectItem value="close_deal_lost">Fechar como perdido</SelectItem>
                 <SelectItem value="ai_analyze_and_move">🤖 IA Analisa e Move</SelectItem>
+                <SelectItem value="activate_ai">🧠 Acionar Agente de IA</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1511,6 +1513,77 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          )}
+
+          {actionType === 'activate_ai' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  🧠 Ativa um Agente de IA para assumir a conversa com o lead. O agente usará sua personalidade, base de conhecimento e regras configuradas.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Agente de IA</Label>
+                <Select
+                  value={actionConfig.agent_config_id as string || ''}
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, agent_config_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar agente..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agentConfigs?.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.agent_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(!agentConfigs || agentConfigs.length === 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum agente configurado. Crie um agente primeiro.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Comportamento inicial</Label>
+                <Select
+                  value={actionConfig.send_proactive as string || 'true'}
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, send_proactive: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Enviar mensagem proativa</SelectItem>
+                    <SelectItem value="false">Apenas ativar e aguardar resposta</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {actionConfig.send_proactive === 'false' 
+                    ? 'A IA será ativada mas só responderá quando o lead enviar uma mensagem'
+                    : 'A IA gerará e enviará uma mensagem inicial ao lead automaticamente'}
+                </p>
+              </div>
+
+              {actionConfig.send_proactive !== 'false' && (
+                <div className="space-y-2">
+                  <Label>Contexto adicional para a primeira mensagem (opcional)</Label>
+                  <Textarea
+                    value={actionConfig.proactive_context as string || ''}
+                    onChange={(e) => setActionConfig({ ...actionConfig, proactive_context: e.target.value })}
+                    placeholder="Ex: O lead acabou de ser qualificado e demonstrou interesse no plano premium. Inicie a conversa apresentando os benefícios."
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Esse contexto será adicionado ao prompt do agente para personalizar a primeira mensagem.
+                    Use {'{{nome}}'}, {'{{funil}}'}, {'{{etapa}}'} para variáveis.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
