@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { 
+  Play,
+  Loader2,
   MessageCircle, 
   Clock, 
   Bot, 
@@ -40,6 +42,7 @@ interface AutomationCardProps {
   onDelete: (automation: FunnelAutomation) => void;
   onToggleActive: (automation: FunnelAutomation) => void;
   onCopy: (automation: FunnelAutomation) => void;
+  onRunNow?: (automation: FunnelAutomation) => Promise<void>;
   isDragging?: boolean;
 }
 
@@ -143,9 +146,22 @@ export const AutomationCard = ({
   onDelete,
   onToggleActive,
   onCopy,
+  onRunNow,
   isDragging = false,
 }: AutomationCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const handleRunNow = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onRunNow || isRunning) return;
+    setIsRunning(true);
+    try {
+      await onRunNow(automation);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [onRunNow, automation, isRunning]);
 
   // Safety check for invalid automation data
   if (!automation || !automation.id) {
@@ -250,6 +266,27 @@ export const AutomationCard = ({
             </TooltipTrigger>
             <TooltipContent>Copiar</TooltipContent>
           </Tooltip>
+
+          {onRunNow && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={isRunning}
+                  onClick={handleRunNow}
+                >
+                  {isRunning ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Play className="h-3 w-3" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Disparar agora</TooltipContent>
+            </Tooltip>
+          )}
 
           <Tooltip>
             <TooltipTrigger asChild>

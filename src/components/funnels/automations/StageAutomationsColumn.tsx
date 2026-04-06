@@ -15,6 +15,7 @@ interface StageAutomationsColumnProps {
   onToggleActive: (automation: FunnelAutomation) => void;
   onCopyAutomation: (automation: FunnelAutomation) => void;
   onPasteAutomation: (stageId: string) => void;
+  onRunAutomation?: (automation: FunnelAutomation) => Promise<void>;
   onDragStart: (automation: FunnelAutomation) => void;
   onDragEnd: () => void;
   onDrop: (stageId: string) => void;
@@ -33,6 +34,7 @@ export const StageAutomationsColumn = ({
   onToggleActive,
   onCopyAutomation,
   onPasteAutomation,
+  onRunAutomation,
   onDragStart,
   onDragEnd,
   onDrop,
@@ -122,6 +124,7 @@ export const StageAutomationsColumn = ({
                   onDelete={onDeleteAutomation}
                   onToggleActive={onToggleActive}
                   onCopy={onCopyAutomation}
+                  onRunNow={onRunAutomation}
                 />
               </div>
             ))

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Funnel, FunnelAutomation, useFunnels } from "@/hooks/useFunnels";
+import { supabase } from "@/integrations/supabase/client";
 import { StageAutomationsColumn } from "./StageAutomationsColumn";
 import { GlobalAutomationsColumn } from "./GlobalAutomationsColumn";
 import { AutomationFormDialog } from "../AutomationFormDialog";
@@ -142,6 +143,27 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
     toast.info("Clipboard limpo");
   };
 
+  const handleRunAutomation = async (automation: FunnelAutomation) => {
+    const { data, error } = await supabase.functions.invoke('process-existing-deals-automation', {
+      body: { automationId: automation.id },
+    });
+
+    if (error) {
+      toast.error("Erro ao disparar automação: " + error.message);
+      return;
+    }
+
+    const results = data?.results || [];
+    const successCount = results.filter((r: any) => r.status === 'success').length;
+    const errorCount = results.filter((r: any) => r.status === 'error').length;
+
+    if (results.length === 0) {
+      toast.info("Nenhum deal encontrado para processar.");
+    } else {
+      toast.success(`Automação executada em ${results.length} deals (${successCount} ok, ${errorCount} erros)`);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-280px)]">
       {/* Clipboard indicator */}
@@ -168,6 +190,7 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
             onDeleteAutomation={setAutomationToDelete}
             onToggleActive={handleToggleActive}
             onCopyAutomation={handleCopyAutomation}
+            onRunAutomation={handleRunAutomation}
           />
 
           {/* Stage columns */}
@@ -182,6 +205,7 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
               onDeleteAutomation={setAutomationToDelete}
               onToggleActive={handleToggleActive}
               onCopyAutomation={handleCopyAutomation}
+              onRunAutomation={handleRunAutomation}
               onPasteAutomation={handlePasteAutomation}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}

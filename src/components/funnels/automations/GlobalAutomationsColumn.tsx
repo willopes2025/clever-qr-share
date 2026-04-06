@@ -11,6 +11,7 @@ interface GlobalAutomationsColumnProps {
   onDeleteAutomation: (automation: FunnelAutomation) => void;
   onToggleActive: (automation: FunnelAutomation) => void;
   onCopyAutomation: (automation: FunnelAutomation) => void;
+  onRunAutomation?: (automation: FunnelAutomation) => Promise<void>;
 }
 
 export const GlobalAutomationsColumn = ({
@@ -20,6 +21,7 @@ export const GlobalAutomationsColumn = ({
   onDeleteAutomation,
   onToggleActive,
   onCopyAutomation,
+  onRunAutomation,
 }: GlobalAutomationsColumnProps) => {
   const globalAutomations = automations.filter(a => !a.stage_id);
 
@@ -72,6 +74,7 @@ export const GlobalAutomationsColumn = ({
                 onDelete={onDeleteAutomation}
                 onToggleActive={onToggleActive}
                 onCopy={onCopyAutomation}
+                onRunNow={onRunAutomation}
               />
             ))
           )}
