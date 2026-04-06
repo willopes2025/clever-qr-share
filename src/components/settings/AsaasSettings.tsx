@@ -106,7 +106,7 @@ export const AsaasSettings = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from('meta_whatsapp_numbers')
-        .select('id, display_phone_number, verified_name, phone_number_id, waba_id')
+        .select('id, display_name, phone_number, phone_number_id, waba_id')
         .eq('is_active', true);
       return data || [];
     },
