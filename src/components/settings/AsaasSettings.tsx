@@ -303,14 +303,32 @@ export const AsaasSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div
+            className="flex items-center justify-between rounded-md"
+            role="button"
+            tabIndex={0}
+            onClick={handleToggleBillingEnabled}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleToggleBillingEnabled();
+              }
+            }}
+          >
             <div>
               <Label className="text-sm font-medium">Ativar lembretes automáticos</Label>
               <p className="text-xs text-muted-foreground mt-1">
                 Envia mensagens no WhatsApp quando cobranças são criadas e próximas do vencimento
               </p>
             </div>
-            <Switch checked={billingEnabled} onCheckedChange={setBillingEnabled} />
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <Switch checked={billingEnabled} onCheckedChange={handleBillingEnabledChange} />
+            </div>
           </div>
 
           {billingEnabled && (
