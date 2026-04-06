@@ -190,6 +190,7 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
             onDeleteAutomation={setAutomationToDelete}
             onToggleActive={handleToggleActive}
             onCopyAutomation={handleCopyAutomation}
+            onRunAutomation={handleRunAutomation}
           />
 
           {/* Stage columns */}
