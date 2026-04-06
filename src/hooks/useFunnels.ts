@@ -635,9 +635,9 @@ export const useFunnels = () => {
         funnel_id: data.funnel_id,
         stage_id: data.stage_id || null,
         name: data.name,
-        trigger_type: data.trigger_type as 'on_stage_enter' | 'on_stage_exit' | 'on_deal_won' | 'on_deal_lost' | 'on_time_in_stage',
+        trigger_type: data.trigger_type as any,
         trigger_config: (data.trigger_config || {}) as Record<string, never>,
-        action_type: data.action_type as 'send_message' | 'send_template' | 'add_tag' | 'remove_tag' | 'notify_user' | 'move_stage',
+        action_type: data.action_type as any,
         action_config: (data.action_config || {}) as Record<string, never>,
         is_active: data.is_active ?? true
       }]).select().single();
