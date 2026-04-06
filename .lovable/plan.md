@@ -1,36 +1,31 @@
 
 
-## Sincronizar apenas cobranças dentro do prazo da trilha
+## Plano: Botão "Disparar agora" no card de automação
 
-### Contexto
-A trilha de cobrança cobre do momento da emissão até 5 dias após o vencimento. Cobranças com vencimento há mais de 5 dias não teriam nenhum lembrete futuro para agendar, então sincronizá-las seria desperdício de processamento.
+### O que será feito
+Adicionar um botão de execução imediata (ícone Play ▶) nos hover actions do `AutomationCard`. Ao clicar, a automação será executada em todos os deals da etapa/funil usando a mesma Edge Function `process-existing-deals-automation` que já existe.
 
-### Mudança proposta
+### Alterações
 
-Na Edge Function `sync-existing-billing-reminders`:
+**1. `AutomationCard.tsx`**
+- Adicionar nova prop `onRunNow: (automation: FunnelAutomation) => void`
+- Adicionar ícone `Play` nos imports do lucide-react
+- Adicionar estado local `isRunning` para feedback visual (spinner)
+- Inserir novo botão com tooltip "Disparar agora" nos hover actions, entre o botão de Copiar e o de Ativar/Desativar
+- O botão mostra um spinner enquanto executa
 
-1. **Filtrar cobranças por data na API do Asaas** — ao buscar cobranças `PENDING` e `OVERDUE`, adicionar o filtro `dueDate[ge]` com a data de hoje menos 5 dias. Isso garante que só retornem cobranças cujo vencimento está no máximo 5 dias no passado (ainda dentro da trilha).
+**2. `StageAutomationsColumn.tsx`**
+- Receber nova prop `onRunAutomation` e repassá-la ao `AutomationCard`
 
-2. **Validação adicional no loop** — para cada cobrança retornada, calcular quais tipos de lembrete ainda têm `scheduled_for` no futuro e ignorar os que já passaram. Se nenhum lembrete futuro for possível, pular a cobrança.
+**3. `GlobalAutomationsColumn.tsx`**
+- Receber nova prop `onRunAutomation` e repassá-la ao `AutomationCard`
 
-### Lógica resumida
-```text
-Data mínima = hoje - 5 dias
-Buscar cobranças: status IN (PENDING, OVERDUE) AND dueDate >= data_mínima
+**4. Componente pai (Automatize view)**
+- Implementar o handler `handleRunAutomation` que invoca `process-existing-deals-automation` com o `automationId`, exibindo toast de sucesso/erro com contagem de deals processados (mesma lógica que já existe em `AutomationsDialog.tsx`)
 
-Para cada cobrança:
-  Calcular 6 datas de lembrete
-  Filtrar apenas scheduled_for > agora
-  Se nenhum → pular
-  Se há futuros → inserir em billing_reminders
-```
-
-### Benefícios
-- Menos chamadas à API do Asaas (retorna menos cobranças)
-- Processamento mais rápido
-- Evita criar registros inúteis no banco
-
-### Arquivo envolvido
-- `supabase/functions/sync-existing-billing-reminders/index.ts` (novo)
-- `src/components/settings/AsaasSettings.tsx` (botão de sincronização)
+### Fluxo do usuário
+1. Hover no card da automação na aba Automatize
+2. Clica no botão ▶ (Play)
+3. Botão vira spinner durante processamento
+4. Toast informa: "Automação executada em X deals (Y ok, Z erros)"
 
