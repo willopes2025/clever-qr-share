@@ -80,6 +80,7 @@ export const AsaasSettings = () => {
   const [isCreatingTemplates, setIsCreatingTemplates] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [templateStatuses, setTemplateStatuses] = useState<Record<string, string>>({});
+  const [hasUserTouchedBilling, setHasUserTouchedBilling] = useState(false);
 
   // Credentials
   const [accessToken, setAccessToken] = useState('');
@@ -118,26 +119,27 @@ export const AsaasSettings = () => {
   const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
   const selectedWabaId = selectedMetaNumber?.waba_id;
 
-  // Load existing config
-  useEffect(() => {
-    const existing = getIntegration('asaas');
-    if (existing) {
-      const creds = existing.credentials as Record<string, string> || {};
-      setAccessToken(creds.access_token || '');
-      setEnvironment(creds.environment || 'production');
+  const existingAsaasIntegration = getIntegration('asaas');
 
-      const settings = existing.settings as Record<string, any> || {};
-      setBillingEnabled(settings.billing_reminders_enabled || false);
-      setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
-      
-      if (settings.billing_templates) {
-        setTemplates({ ...DEFAULT_TEMPLATES, ...settings.billing_templates });
-      }
-      if (settings.billing_enabled_types) {
-        setEnabledReminders(prev => ({ ...prev, ...settings.billing_enabled_types }));
-      }
+  // Load existing config only when the saved integration actually changes
+  useEffect(() => {
+    if (!existingAsaasIntegration || hasUserTouchedBilling) return;
+
+    const creds = existingAsaasIntegration.credentials as Record<string, string> || {};
+    setAccessToken(creds.access_token || '');
+    setEnvironment(creds.environment || 'production');
+
+    const settings = existingAsaasIntegration.settings as Record<string, any> || {};
+    setBillingEnabled(settings.billing_reminders_enabled || false);
+    setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
+
+    if (settings.billing_templates) {
+      setTemplates({ ...DEFAULT_TEMPLATES, ...settings.billing_templates });
     }
-  }, [getIntegration]);
+    if (settings.billing_enabled_types) {
+      setEnabledReminders(prev => ({ ...prev, ...settings.billing_enabled_types }));
+    }
+  }, [existingAsaasIntegration?.id, existingAsaasIntegration?.updated_at, hasUserTouchedBilling]);
 
   // Auto-check template status when Meta number is selected
   useEffect(() => {
@@ -145,6 +147,16 @@ export const AsaasSettings = () => {
       handleCheckStatus();
     }
   }, [metaPhoneNumberId, selectedWabaId]);
+
+  const handleBillingEnabledChange = (checked: boolean) => {
+    setHasUserTouchedBilling(true);
+    setBillingEnabled(checked);
+  };
+
+  const handleToggleBillingEnabled = () => {
+    setHasUserTouchedBilling(true);
+    setBillingEnabled((prev) => !prev);
+  };
 
   const handleCheckStatus = async () => {
     if (!selectedWabaId) return;
@@ -291,14 +303,32 @@ export const AsaasSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div
+            className="flex items-center justify-between rounded-md"
+            role="button"
+            tabIndex={0}
+            onClick={handleToggleBillingEnabled}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleToggleBillingEnabled();
+              }
+            }}
+          >
             <div>
               <Label className="text-sm font-medium">Ativar lembretes automáticos</Label>
               <p className="text-xs text-muted-foreground mt-1">
                 Envia mensagens no WhatsApp quando cobranças são criadas e próximas do vencimento
               </p>
             </div>
-            <Switch checked={billingEnabled} onCheckedChange={setBillingEnabled} />
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <Switch checked={billingEnabled} onCheckedChange={handleBillingEnabledChange} />
+            </div>
           </div>
 
           {billingEnabled && (
