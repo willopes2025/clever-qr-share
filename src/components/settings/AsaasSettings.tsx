@@ -80,6 +80,7 @@ export const AsaasSettings = () => {
   const [isCreatingTemplates, setIsCreatingTemplates] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [templateStatuses, setTemplateStatuses] = useState<Record<string, string>>({});
+  const [hasUserTouchedBilling, setHasUserTouchedBilling] = useState(false);
 
   // Credentials
   const [accessToken, setAccessToken] = useState('');
