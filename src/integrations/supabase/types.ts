@@ -6251,6 +6251,7 @@ export type Database = {
         | "close_deal_lost"
         | "ai_analyze_and_move"
         | "move_to_funnel"
+        | "activate_ai"
       funnel_trigger_type:
         | "on_stage_enter"
         | "on_stage_exit"
@@ -6429,6 +6430,7 @@ export const Constants = {
         "close_deal_lost",
         "ai_analyze_and_move",
         "move_to_funnel",
+        "activate_ai",
       ],
       funnel_trigger_type: [
         "on_stage_enter",
