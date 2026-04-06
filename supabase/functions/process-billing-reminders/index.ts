@@ -5,6 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Mapping from reminder_type to Meta template name and variable order
+const META_TEMPLATE_MAP: Record<string, { name: string; vars: string[] }> = {
+  emitted: { name: 'cobranca_emitida', vars: ['nome', 'valor', 'data', 'url'] },
+  before_5d: { name: 'cobranca_5dias_antes', vars: ['valor', 'data', 'url'] },
+  due_day: { name: 'cobranca_dia_vencimento', vars: ['valor', 'url'] },
+  after_1d: { name: 'cobranca_1dia_atraso', vars: ['valor', 'data', 'url'] },
+  after_3d: { name: 'cobranca_3dias_atraso', vars: ['valor', 'data', 'url'] },
+  after_5d: { name: 'cobranca_5dias_atraso', vars: ['valor', 'data', 'url'] },
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -89,7 +99,6 @@ Deno.serve(async (req) => {
 
       if (!hasEvolution && !hasMeta) {
         console.log(`No WhatsApp instance found for user ${userId}, skipping ${userReminders.length} reminders`);
-        // Mark as skipped
         for (const r of userReminders) {
           await supabase
             .from('billing_reminders')
@@ -98,6 +107,37 @@ Deno.serve(async (req) => {
         }
         skipped += userReminders.length;
         continue;
+      }
+
+      // Pre-fetch Meta template statuses if using Meta
+      let metaTemplateStatuses: Record<string, string> = {};
+      if (configuredMetaPhoneNumberId && configuredMetaPhoneNumberId !== 'evolution' && hasMeta) {
+        try {
+          // Get WABA ID from the meta number
+          const { data: metaNumber } = await supabase
+            .from('meta_whatsapp_numbers')
+            .select('waba_id')
+            .eq('phone_number_id', configuredMetaPhoneNumberId)
+            .maybeSingle();
+
+          if (metaNumber?.waba_id) {
+            const META_API_URL = 'https://graph.facebook.com/v19.0';
+            const response = await fetch(
+              `${META_API_URL}/${metaNumber.waba_id}/message_templates?fields=name,status,language&limit=100`,
+              { headers: { 'Authorization': `Bearer ${metaIntegration!.credentials.access_token}` } }
+            );
+            if (response.ok) {
+              const data = await response.json();
+              for (const tmpl of (data.data || [])) {
+                if (tmpl.language === 'pt_BR') {
+                  metaTemplateStatuses[tmpl.name] = tmpl.status;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching Meta template statuses:', e);
+        }
       }
 
       for (const reminder of userReminders) {
@@ -135,7 +175,6 @@ Deno.serve(async (req) => {
               contactName = contacts[0].name;
               contactLabelId = contacts[0].label_id;
               
-              // Update contact_id if not set
               if (!reminder.contact_id) {
                 await supabase
                   .from('billing_reminders')
@@ -173,12 +212,11 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Determine provider: use configured setting first, then conversation, then fallback
+          // Determine provider
           let useMetaForThis = false;
           let metaPhoneNumberId: string | null = null;
           let evolutionInstanceId: string | null = null;
 
-          // If user configured a specific provider in Asaas settings, use that
           if (useEvolutionByConfig) {
             if (hasEvolution) {
               evolutionInstanceId = instances![0].id;
@@ -187,7 +225,6 @@ Deno.serve(async (req) => {
             useMetaForThis = true;
             metaPhoneNumberId = configuredMetaPhoneNumberId;
           } else if (conversationId) {
-            // Fallback to conversation provider
             const { data: conv } = await supabase
               .from('conversations')
               .select('provider, meta_phone_number_id, instance_id')
@@ -202,13 +239,12 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Fallback: use available provider
+          // Fallback
           if (!useMetaForThis && !evolutionInstanceId) {
             if (hasEvolution) {
               evolutionInstanceId = instances![0].id;
             } else if (hasMeta) {
               useMetaForThis = true;
-              // Get default phone number
               const settings = metaIntegration?.settings as any;
               metaPhoneNumberId = settings?.phone_number_id || null;
             }
@@ -218,32 +254,87 @@ Deno.serve(async (req) => {
           let sendSuccess = false;
 
           if (useMetaForThis && hasMeta && metaPhoneNumberId) {
-            // Send via Meta WhatsApp Cloud API
             const formattedPhone = contactPhone.replace(/\D/g, '');
             const META_API_URL = 'https://graph.facebook.com/v19.0';
 
-            const response = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${metaIntegration!.credentials.access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                messaging_product: 'whatsapp',
-                recipient_type: 'individual',
-                to: formattedPhone,
-                type: 'text',
-                text: { body: messageContent },
-              }),
-            });
+            // Check if we have an approved Meta template for this reminder type
+            const templateInfo = META_TEMPLATE_MAP[reminder.reminder_type];
+            const templateApproved = templateInfo && metaTemplateStatuses[templateInfo.name] === 'APPROVED';
 
-            if (response.ok) {
-              sendSuccess = true;
-              console.log(`[META] Sent billing reminder ${reminder.id} to ${formattedPhone}`);
-            } else {
-              const err = await response.text();
-              console.error(`[META] Failed to send reminder ${reminder.id}:`, err);
-              throw new Error(`Meta API error: ${err}`);
+            if (templateApproved) {
+              // Send via approved Meta template
+              const varValues: Record<string, string> = {
+                nome: contactName || 'Cliente',
+                valor: reminder.value ? Number(reminder.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+                data: reminder.due_date ? new Date(reminder.due_date).toLocaleDateString('pt-BR') : '',
+                url: reminder.invoice_url || reminder.bank_slip_url || '',
+              };
+
+              const parameters = templateInfo.vars.map(v => ({
+                type: 'text' as const,
+                text: varValues[v] || '',
+              }));
+
+              const response = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${metaIntegration!.credentials.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  recipient_type: 'individual',
+                  to: formattedPhone,
+                  type: 'template',
+                  template: {
+                    name: templateInfo.name,
+                    language: { code: 'pt_BR' },
+                    components: [
+                      {
+                        type: 'body',
+                        parameters,
+                      },
+                    ],
+                  },
+                }),
+              });
+
+              if (response.ok) {
+                sendSuccess = true;
+                console.log(`[META-TEMPLATE] Sent ${templateInfo.name} for reminder ${reminder.id} to ${formattedPhone}`);
+              } else {
+                const err = await response.text();
+                console.error(`[META-TEMPLATE] Failed:`, err);
+                // Fallback to text
+                console.log(`[META] Falling back to text message for ${reminder.id}`);
+              }
+            }
+
+            // Fallback: send as regular text (only works within 24h window)
+            if (!sendSuccess) {
+              const response = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${metaIntegration!.credentials.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  recipient_type: 'individual',
+                  to: formattedPhone,
+                  type: 'text',
+                  text: { body: messageContent },
+                }),
+              });
+
+              if (response.ok) {
+                sendSuccess = true;
+                console.log(`[META-TEXT] Sent billing reminder ${reminder.id} to ${formattedPhone}`);
+              } else {
+                const err = await response.text();
+                console.error(`[META-TEXT] Failed to send reminder ${reminder.id}:`, err);
+                throw new Error(`Meta API error: ${err}`);
+              }
             }
           } else if (hasEvolution) {
             // Send via Evolution API
@@ -290,7 +381,6 @@ Deno.serve(async (req) => {
           }
 
           if (sendSuccess) {
-            // Record in inbox_messages
             if (conversationId) {
               await supabase
                 .from('inbox_messages')
@@ -299,14 +389,13 @@ Deno.serve(async (req) => {
                   user_id: userId,
                   direction: 'outbound',
                   content: messageContent,
-                  message_type: 'text',
+                  message_type: useMetaForThis && META_TEMPLATE_MAP[reminder.reminder_type] ? 'template' : 'text',
                   status: 'sent',
                   sent_at: new Date().toISOString(),
                   sent_via_instance_id: evolutionInstanceId,
                   sent_via_meta_number_id: metaPhoneNumberId,
                 });
 
-              // Update conversation preview
               await supabase
                 .from('conversations')
                 .update({
@@ -317,7 +406,6 @@ Deno.serve(async (req) => {
                 .eq('id', conversationId);
             }
 
-            // Mark reminder as sent
             await supabase
               .from('billing_reminders')
               .update({ status: 'sent', sent_at: new Date().toISOString() })
