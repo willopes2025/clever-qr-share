@@ -446,6 +446,23 @@ export const IntegrationsSettings = () => {
     );
   }
 
+  if (customComponentId === 'asaas') {
+    return (
+      <div className="space-y-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setCustomComponentId(null)}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar para Integrações
+        </Button>
+        <AsaasSettings />
+      </div>
+    );
+  }
+
   if (customComponentId === 'google_calendar') {
     return (
       <div className="space-y-6">
