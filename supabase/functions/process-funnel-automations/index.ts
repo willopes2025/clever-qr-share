@@ -1175,6 +1175,192 @@ Não adicione explicações, apenas o número.`
             break;
           }
 
+          case 'activate_ai': {
+            const agentConfigId = actionConfig.agent_config_id as string;
+            const sendProactive = (actionConfig.send_proactive as string) !== 'false';
+            const proactiveContext = actionConfig.proactive_context as string || '';
+
+            if (!agentConfigId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot activate AI - no agent config`);
+              results.push({ automationId: automation.id, success: false, error: 'No agent config selected' });
+              break;
+            }
+
+            if (!deal.contact?.phone) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot activate AI - no contact phone`);
+              results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
+              break;
+            }
+
+            // Fetch agent config
+            const { data: agentConfig, error: agentError } = await supabase
+              .from('ai_agent_configs')
+              .select('id, agent_name, personality_prompt, greeting_message, is_active')
+              .eq('id', agentConfigId)
+              .single();
+
+            if (agentError || !agentConfig) {
+              console.log(`[FUNNEL-AUTOMATIONS] Agent config not found: ${agentConfigId}`);
+              results.push({ automationId: automation.id, success: false, error: 'Agent not found' });
+              break;
+            }
+
+            // Find or get conversation
+            let aiConversationId = deal.conversation_id;
+            let aiInstanceId: string | null = null;
+
+            if (!aiConversationId) {
+              const { data: conv } = await supabase
+                .from('conversations')
+                .select('id, instance_id')
+                .eq('contact_id', deal.contact_id)
+                .eq('user_id', deal.user_id)
+                .order('last_message_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (conv) {
+                aiConversationId = conv.id;
+                aiInstanceId = conv.instance_id;
+              }
+            } else {
+              const { data: existingConv } = await supabase
+                .from('conversations')
+                .select('instance_id')
+                .eq('id', aiConversationId)
+                .single();
+              aiInstanceId = existingConv?.instance_id || null;
+            }
+
+            if (!aiConversationId) {
+              console.log(`[FUNNEL-AUTOMATIONS] No conversation found for AI activation`);
+              results.push({ automationId: automation.id, success: false, error: 'No conversation found' });
+              break;
+            }
+
+            // Activate AI on the conversation
+            await supabase
+              .from('conversations')
+              .update({
+                ai_handled: true,
+                ai_paused: false,
+                ai_interactions_count: 0,
+              })
+              .eq('id', aiConversationId);
+
+            console.log(`[FUNNEL-AUTOMATIONS] AI activated on conversation ${aiConversationId} with agent ${agentConfig.agent_name}`);
+
+            // If proactive, generate and send first message
+            if (sendProactive) {
+              try {
+                const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+                if (!OPENAI_API_KEY) {
+                  console.error(`[FUNNEL-AUTOMATIONS] OPENAI_API_KEY not configured for proactive AI message`);
+                  results.push({ automationId: automation.id, success: true });
+                  break;
+                }
+
+                const contactName = deal.contact?.name || 'Cliente';
+                const contextInfo = proactiveContext 
+                  ? replaceVariables(proactiveContext)
+                  : '';
+
+                const systemPrompt = `${agentConfig.personality_prompt || 'Você é um assistente de atendimento profissional.'}
+
+${contextInfo ? `\nCONTEXTO DA AUTOMAÇÃO: ${contextInfo}\n` : ''}
+
+Gere uma mensagem inicial proativa para enviar ao cliente ${contactName} via WhatsApp.
+A mensagem deve ser natural, acolhedora e contextualizada.
+Retorne APENAS a mensagem, sem explicações ou aspas.`;
+
+                const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: 'gpt-4.1-nano',
+                    messages: [
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: `Gere uma mensagem inicial para ${contactName}.` }
+                    ],
+                  }),
+                });
+
+                if (aiResponse.ok) {
+                  const aiData = await aiResponse.json();
+                  const generatedMessage = aiData.choices?.[0]?.message?.content?.trim();
+
+                  if (generatedMessage && aiInstanceId) {
+                    // Send via WhatsApp
+                    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+                    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+
+                    if (evolutionApiUrl && evolutionApiKey) {
+                      const { data: inst } = await supabase
+                        .from('whatsapp_instances')
+                        .select('instance_name, evolution_instance_name, status')
+                        .eq('id', aiInstanceId)
+                        .single();
+
+                      if (inst?.status === 'connected') {
+                        let phone = deal.contact.phone.replace(/\D/g, '');
+                        const isLid = deal.contact.phone.startsWith('LID_') || deal.contact.label_id;
+                        
+                        const sendPayload = isLid
+                          ? { number: deal.contact.label_id || phone, options: { presence: 'composing' }, text: generatedMessage }
+                          : { number: phone.startsWith('55') ? phone : '55' + phone, text: generatedMessage };
+
+                        const evoName = inst.evolution_instance_name || inst.instance_name;
+
+                        const sendResp = await fetch(
+                          `${evolutionApiUrl}/message/sendText/${encodeURIComponent(evoName)}`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                            body: JSON.stringify(sendPayload)
+                          }
+                        );
+
+                        const sendResult = await sendResp.json();
+                        if (sendResp.ok && sendResult.key) {
+                          await supabase.from('inbox_messages').insert({
+                            conversation_id: aiConversationId,
+                            user_id: deal.user_id,
+                            direction: 'outbound',
+                            content: generatedMessage,
+                            message_type: 'text',
+                            status: 'sent',
+                            sent_at: new Date().toISOString(),
+                            whatsapp_message_id: sendResult.key.id,
+                            is_ai_generated: true
+                          });
+
+                          await supabase.from('conversations').update({
+                            last_message_at: new Date().toISOString(),
+                            last_message_preview: generatedMessage.substring(0, 100),
+                            last_message_direction: 'outbound',
+                            ai_interactions_count: 1
+                          }).eq('id', aiConversationId);
+
+                          console.log(`[FUNNEL-AUTOMATIONS] AI proactive message sent successfully`);
+                        }
+                      }
+                    }
+                  }
+                } else {
+                  console.error(`[FUNNEL-AUTOMATIONS] AI proactive message generation failed: ${aiResponse.status}`);
+                }
+              } catch (proactiveError) {
+                console.error(`[FUNNEL-AUTOMATIONS] Error sending proactive AI message:`, proactiveError);
+              }
+            }
+
+            results.push({ automationId: automation.id, success: true });
+            break;
+          }
+
           default:
             console.log(`[FUNNEL-AUTOMATIONS] Unknown action type: ${automation.action_type}`);
             results.push({ automationId: automation.id, success: false, error: 'Unknown action type' });
