@@ -20,7 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw } from "lucide-react";
+import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Download } from "lucide-react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -79,6 +79,7 @@ export const AsaasSettings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isCreatingTemplates, setIsCreatingTemplates] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isSyncingReminders, setIsSyncingReminders] = useState(false);
   const [templateStatuses, setTemplateStatuses] = useState<Record<string, string>>({});
   const [hasUserTouchedBilling, setHasUserTouchedBilling] = useState(false);
 
@@ -276,6 +277,25 @@ export const AsaasSettings = () => {
     }
   };
 
+  const handleSyncExistingReminders = async () => {
+    setIsSyncingReminders(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-existing-billing-reminders');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      toast.success(
+        `${data.remindersCreated} lembretes criados para ${data.paymentsProcessed} cobranças` +
+        (data.paymentsSkipped > 0 ? ` (${data.paymentsSkipped} sem lembretes pendentes)` : '')
+      );
+    } catch (err: any) {
+      toast.error('Erro ao sincronizar: ' + (err.message || 'Erro desconhecido'));
+      console.error('Sync error:', err);
+    } finally {
+      setIsSyncingReminders(false);
+    }
+  };
+
   // Count how many templates are approved
   const approvedCount = META_TEMPLATE_NAMES.filter(n => templateStatuses[n] === 'APPROVED').length;
   const allApproved = approvedCount === META_TEMPLATE_NAMES.length;
@@ -363,6 +383,27 @@ export const AsaasSettings = () => {
 
           {billingEnabled && (
             <>
+              {/* Sync existing payments button */}
+              {existingAsaasIntegration && (
+                <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium">Sincronizar cobranças existentes</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cria lembretes para cobranças pendentes/vencidas já emitidas no Asaas
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncExistingReminders}
+                    disabled={isSyncingReminders}
+                  >
+                    {isSyncingReminders ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+                    {isSyncingReminders ? 'Sincronizando...' : 'Sincronizar'}
+                  </Button>
+                </div>
+              )}
+
               <Separator />
               
               {/* Meta Phone Number Selection */}
