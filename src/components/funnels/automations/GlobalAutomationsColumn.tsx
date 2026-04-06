@@ -74,6 +74,7 @@ export const GlobalAutomationsColumn = ({
                 onDelete={onDeleteAutomation}
                 onToggleActive={onToggleActive}
                 onCopy={onCopyAutomation}
+                onRunNow={onRunAutomation}
               />
             ))
           )}

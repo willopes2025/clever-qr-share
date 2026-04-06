@@ -124,6 +124,7 @@ export const StageAutomationsColumn = ({
                   onDelete={onDeleteAutomation}
                   onToggleActive={onToggleActive}
                   onCopy={onCopyAutomation}
+                  onRunNow={onRunAutomation}
                 />
               </div>
             ))

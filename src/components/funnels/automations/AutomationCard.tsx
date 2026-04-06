@@ -267,6 +267,27 @@ export const AutomationCard = ({
             <TooltipContent>Copiar</TooltipContent>
           </Tooltip>
 
+          {onRunNow && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={isRunning}
+                  onClick={handleRunNow}
+                >
+                  {isRunning ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Play className="h-3 w-3" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Disparar agora</TooltipContent>
+            </Tooltip>
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
