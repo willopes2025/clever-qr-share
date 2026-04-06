@@ -205,6 +205,7 @@ export const FunnelAutomationsView = ({ funnel }: FunnelAutomationsViewProps) =>
               onDeleteAutomation={setAutomationToDelete}
               onToggleActive={handleToggleActive}
               onCopyAutomation={handleCopyAutomation}
+              onRunAutomation={handleRunAutomation}
               onPasteAutomation={handlePasteAutomation}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
