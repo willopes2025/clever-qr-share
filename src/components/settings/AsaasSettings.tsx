@@ -118,26 +118,27 @@ export const AsaasSettings = () => {
   const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
   const selectedWabaId = selectedMetaNumber?.waba_id;
 
-  // Load existing config
-  useEffect(() => {
-    const existing = getIntegration('asaas');
-    if (existing) {
-      const creds = existing.credentials as Record<string, string> || {};
-      setAccessToken(creds.access_token || '');
-      setEnvironment(creds.environment || 'production');
+  const existingAsaasIntegration = getIntegration('asaas');
 
-      const settings = existing.settings as Record<string, any> || {};
-      setBillingEnabled(settings.billing_reminders_enabled || false);
-      setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
-      
-      if (settings.billing_templates) {
-        setTemplates({ ...DEFAULT_TEMPLATES, ...settings.billing_templates });
-      }
-      if (settings.billing_enabled_types) {
-        setEnabledReminders(prev => ({ ...prev, ...settings.billing_enabled_types }));
-      }
+  // Load existing config only when the saved integration actually changes
+  useEffect(() => {
+    if (!existingAsaasIntegration) return;
+
+    const creds = existingAsaasIntegration.credentials as Record<string, string> || {};
+    setAccessToken(creds.access_token || '');
+    setEnvironment(creds.environment || 'production');
+
+    const settings = existingAsaasIntegration.settings as Record<string, any> || {};
+    setBillingEnabled(settings.billing_reminders_enabled || false);
+    setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
+
+    if (settings.billing_templates) {
+      setTemplates({ ...DEFAULT_TEMPLATES, ...settings.billing_templates });
     }
-  }, [getIntegration]);
+    if (settings.billing_enabled_types) {
+      setEnabledReminders(prev => ({ ...prev, ...settings.billing_enabled_types }));
+    }
+  }, [existingAsaasIntegration?.id, existingAsaasIntegration?.updated_at]);
 
   // Auto-check template status when Meta number is selected
   useEffect(() => {
