@@ -245,13 +245,19 @@ export const AsaasSettings = () => {
                   <AccordionItem key={type} value={type}>
                     <AccordionTrigger className="text-sm">
                       <div className="flex items-center gap-3">
-                        <Switch
-                          checked={enabledReminders[type]}
-                          onCheckedChange={(checked) => {
-                            setEnabledReminders(prev => ({ ...prev, [type]: checked }));
-                          }}
+                        <div
                           onClick={(e) => e.stopPropagation()}
-                        />
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onPointerUp={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <Switch
+                            checked={enabledReminders[type]}
+                            onCheckedChange={(checked) => {
+                              setEnabledReminders(prev => ({ ...prev, [type]: checked }));
+                            }}
+                          />
+                        </div>
                         <span className={!enabledReminders[type] ? 'text-muted-foreground' : ''}>
                           {label}
                         </span>
