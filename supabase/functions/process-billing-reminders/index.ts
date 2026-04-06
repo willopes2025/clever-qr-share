@@ -173,12 +173,21 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Determine provider from conversation
+          // Determine provider: use configured setting first, then conversation, then fallback
           let useMetaForThis = false;
           let metaPhoneNumberId: string | null = null;
           let evolutionInstanceId: string | null = null;
 
-          if (conversationId) {
+          // If user configured a specific provider in Asaas settings, use that
+          if (useEvolutionByConfig) {
+            if (hasEvolution) {
+              evolutionInstanceId = instances![0].id;
+            }
+          } else if (configuredMetaPhoneNumberId && hasMeta) {
+            useMetaForThis = true;
+            metaPhoneNumberId = configuredMetaPhoneNumberId;
+          } else if (conversationId) {
+            // Fallback to conversation provider
             const { data: conv } = await supabase
               .from('conversations')
               .select('provider, meta_phone_number_id, instance_id')
