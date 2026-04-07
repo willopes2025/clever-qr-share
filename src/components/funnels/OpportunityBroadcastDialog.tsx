@@ -133,6 +133,15 @@ export const OpportunityBroadcastDialog = ({
     t.status === 'approved' && userWabaIds.length > 0 && userWabaIds.includes(t.waba_id || '')
   ) || [];
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === templateId);
+  const uniqueSelectedContacts = useMemo(() => {
+    const seenContactIds = new Set<string>();
+
+    return selectedContacts.filter((contact) => {
+      if (!contact.contactId || seenContactIds.has(contact.contactId)) return false;
+      seenContactIds.add(contact.contactId);
+      return true;
+    });
+  }, [selectedContacts]);
 
   // Detect variables in selected Meta template
   const detectedVariables = useMemo(() => {
@@ -212,7 +221,7 @@ export const OpportunityBroadcastDialog = ({
         .insert({
           user_id: user.id,
           name: `Oportunidades - ${funnelName} - ${new Date().toLocaleString('pt-BR')}`,
-          description: `Lista temporária criada a partir de ${selectedContacts.length} oportunidades selecionadas`,
+          description: `Lista temporária criada a partir de ${uniqueSelectedContacts.length} contatos únicos selecionados`,
           type: 'manual' as const,
         })
         .select()
@@ -220,14 +229,14 @@ export const OpportunityBroadcastDialog = ({
 
       if (listError) throw listError;
 
-      const contactEntries = selectedContacts.map(c => ({
+      const contactEntries = uniqueSelectedContacts.map(c => ({
         list_id: list.id,
         contact_id: c.contactId,
       }));
 
       const { error: contactsError } = await supabase
         .from('broadcast_list_contacts')
-        .insert(contactEntries);
+        .upsert(contactEntries, { onConflict: 'list_id,contact_id', ignoreDuplicates: true });
 
       if (contactsError) throw contactsError;
 
@@ -286,7 +295,7 @@ export const OpportunityBroadcastDialog = ({
           });
           onOpenChange(false);
           queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-          toast.success(`Disparo Meta iniciado para ${selectedContacts.length} contatos!`);
+          toast.success(`Disparo Meta iniciado para ${uniqueSelectedContacts.length} contatos!`);
           setTemplateId('');
         } catch (startError: any) {
           toast.error('Erro ao iniciar disparo: ' + startError.message);
@@ -370,7 +379,7 @@ export const OpportunityBroadcastDialog = ({
       setShowInstanceDialog(false);
       onOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      toast.success(`Disparo iniciado para ${selectedContacts.length} contatos!`);
+      toast.success(`Disparo iniciado para ${uniqueSelectedContacts.length} contatos!`);
 
       setTemplateId('');
       setPendingCampaignId(null);
@@ -389,7 +398,7 @@ export const OpportunityBroadcastDialog = ({
               Disparar Mensagem em Massa
             </DialogTitle>
             <DialogDescription>
-              Enviar mensagem para {selectedContacts.length} oportunidade{selectedContacts.length !== 1 ? 's' : ''} selecionada{selectedContacts.length !== 1 ? 's' : ''}
+              Enviar mensagem para {uniqueSelectedContacts.length} contato{uniqueSelectedContacts.length !== 1 ? 's' : ''} selecionado{uniqueSelectedContacts.length !== 1 ? 's' : ''}
             </DialogDescription>
           </DialogHeader>
 
@@ -605,10 +614,10 @@ export const OpportunityBroadcastDialog = ({
 
             {/* Contacts preview */}
             <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm font-medium">{selectedContacts.length} contatos selecionados</p>
+              <p className="text-sm font-medium">{uniqueSelectedContacts.length} contatos selecionados</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {selectedContacts.slice(0, 5).map(c => c.contactName).join(', ')}
-                {selectedContacts.length > 5 && ` e mais ${selectedContacts.length - 5}...`}
+                {uniqueSelectedContacts.slice(0, 5).map(c => c.contactName).join(', ')}
+                {uniqueSelectedContacts.length > 5 && ` e mais ${uniqueSelectedContacts.length - 5}...`}
               </p>
             </div>
 
