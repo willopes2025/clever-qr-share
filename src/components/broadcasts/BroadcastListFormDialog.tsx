@@ -122,6 +122,8 @@ export const BroadcastListFormDialog = ({
       setStatus("all");
       setExcludeOptedOut(true);
       setAsaasPaymentStatus("all");
+      setAsaasDueDateFrom(undefined);
+      setAsaasDueDateTo(undefined);
       setSource('contacts');
       setSelectedFunnelId("");
       setSelectedStageId("all");
