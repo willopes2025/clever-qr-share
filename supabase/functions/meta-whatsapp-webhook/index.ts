@@ -378,13 +378,37 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              // Find or create conversation
+              // Find or create conversation - prioritize Meta conversation with same phone_number_id
               let { data: conversation } = await supabase
                 .from('conversations')
                 .select('*')
                 .eq('user_id', userId)
                 .eq('contact_id', contact.id)
-                .single();
+                .eq('meta_phone_number_id', webhookPhoneNumberId)
+                .order('last_message_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              // Fallback: any conversation for this contact
+              if (!conversation) {
+                const { data: anyConversation } = await supabase
+                  .from('conversations')
+                  .select('*')
+                  .eq('user_id', userId)
+                  .eq('contact_id', contact.id)
+                  .order('last_message_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                
+                conversation = anyConversation;
+                
+                // Update existing conversation with meta_phone_number_id if missing
+                if (conversation && !conversation.meta_phone_number_id) {
+                  await supabase.from('conversations')
+                    .update({ meta_phone_number_id: webhookPhoneNumberId, provider: 'meta' })
+                    .eq('id', conversation.id);
+                }
+              }
 
               if (!conversation) {
                 const { data: newConversation, error: convError } = await supabase
@@ -436,11 +460,11 @@ Deno.serve(async (req) => {
                     if (autoFunnelId) {
                       console.log('[META-WEBHOOK] Auto-creating lead in funnel:', autoFunnelId);
                       
+                      // Check if ANY active deal exists for this contact (any funnel)
                       const { data: existingDeal } = await supabase
                         .from('funnel_deals')
                         .select('id')
                         .eq('contact_id', contact.id)
-                        .eq('funnel_id', autoFunnelId)
                         .limit(1)
                         .maybeSingle();
 
