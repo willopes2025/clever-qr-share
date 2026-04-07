@@ -460,11 +460,11 @@ Deno.serve(async (req) => {
                     if (autoFunnelId) {
                       console.log('[META-WEBHOOK] Auto-creating lead in funnel:', autoFunnelId);
                       
+                      // Check if ANY active deal exists for this contact (any funnel)
                       const { data: existingDeal } = await supabase
                         .from('funnel_deals')
                         .select('id')
                         .eq('contact_id', contact.id)
-                        .eq('funnel_id', autoFunnelId)
                         .limit(1)
                         .maybeSingle();
 
