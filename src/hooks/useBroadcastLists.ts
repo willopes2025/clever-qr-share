@@ -61,21 +61,61 @@ export interface BroadcastListWithContacts extends BroadcastList {
   contact_count: number;
 }
 
+const ASAAS_SYNC_DEDUP_TTL_MS = 2 * 60 * 1000;
+const asaasSyncInFlight = new Map<string, Promise<void>>();
+const asaasSyncLastRun = new Map<string, number>();
+
+const getAsaasSyncCriteriaKey = (criteria?: FilterCriteria) => {
+  const dueDateFrom = criteria?.asaasDueDateFrom?.slice(0, 10) || "";
+  const dueDateTo = criteria?.asaasDueDateTo?.slice(0, 10) || "";
+
+  return [criteria?.asaasPaymentStatus || "none", dueDateFrom, dueDateTo].join("|");
+};
+
 export const useBroadcastLists = () => {
   const queryClient = useQueryClient();
 
   const syncAsaasContactsForCriteria = async (criteria?: FilterCriteria) => {
     if (!criteria?.asaasPaymentStatus) return;
 
-    const syncBody: Record<string, string> = {};
-    if (criteria.asaasDueDateFrom) syncBody.dueDateFrom = criteria.asaasDueDateFrom;
-    if (criteria.asaasDueDateTo) syncBody.dueDateTo = criteria.asaasDueDateTo;
+    const syncKey = getAsaasSyncCriteriaKey(criteria);
+    const lastRunAt = asaasSyncLastRun.get(syncKey);
+    const now = Date.now();
 
-    const { error } = await supabase.functions.invoke('sync-asaas-contacts', {
-      body: Object.keys(syncBody).length > 0 ? syncBody : undefined,
-    });
+    if (lastRunAt && now - lastRunAt < ASAAS_SYNC_DEDUP_TTL_MS) {
+      return;
+    }
 
-    if (error) throw error;
+    const inFlightSync = asaasSyncInFlight.get(syncKey);
+    if (inFlightSync) {
+      await inFlightSync;
+      return;
+    }
+
+    const dueDateFrom = criteria.asaasDueDateFrom?.slice(0, 10);
+    const dueDateTo = criteria.asaasDueDateTo?.slice(0, 10);
+
+    const syncPromise = (async () => {
+      const syncBody: Record<string, string> = {};
+      if (dueDateFrom) syncBody.dueDateFrom = dueDateFrom;
+      if (dueDateTo) syncBody.dueDateTo = dueDateTo;
+
+      const { error } = await supabase.functions.invoke('sync-asaas-contacts', {
+        body: Object.keys(syncBody).length > 0 ? syncBody : undefined,
+      });
+
+      if (error) throw error;
+
+      asaasSyncLastRun.set(syncKey, Date.now());
+    })();
+
+    asaasSyncInFlight.set(syncKey, syncPromise);
+
+    try {
+      await syncPromise;
+    } finally {
+      asaasSyncInFlight.delete(syncKey);
+    }
   };
 
   // Helper para contar contatos baseado nos critérios de filtro
