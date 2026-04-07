@@ -127,7 +127,17 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let userId: string | null = null;
+    let dueDateFrom: string | null = null;
+    let dueDateTo: string | null = null;
     
+    // Parse body first to get all params
+    let bodyData: any = {};
+    try {
+      bodyData = await req.clone().json();
+    } catch {
+      // No body
+    }
+
     const authHeader = req.headers.get('Authorization');
     if (authHeader) {
       const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
@@ -138,13 +148,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!userId) {
-      try {
-        const body = await req.json();
-        userId = body.userId;
-      } catch {
-        // No body
-      }
+      userId = bodyData.userId || null;
     }
+
+    dueDateFrom = bodyData.dueDateFrom || null;
+    dueDateTo = bodyData.dueDateTo || null;
 
     // Determine which user's integration to use
     let syncUserId: string | null = null;
