@@ -64,8 +64,26 @@ export interface BroadcastListWithContacts extends BroadcastList {
 export const useBroadcastLists = () => {
   const queryClient = useQueryClient();
 
+  const syncAsaasContactsForCriteria = async (criteria?: FilterCriteria) => {
+    if (!criteria?.asaasPaymentStatus) return;
+
+    const syncBody: Record<string, string> = {};
+    if (criteria.asaasDueDateFrom) syncBody.dueDateFrom = criteria.asaasDueDateFrom;
+    if (criteria.asaasDueDateTo) syncBody.dueDateTo = criteria.asaasDueDateTo;
+
+    const { error } = await supabase.functions.invoke('sync-asaas-contacts', {
+      body: Object.keys(syncBody).length > 0 ? syncBody : undefined,
+    });
+
+    if (error) throw error;
+  };
+
   // Helper para contar contatos baseado nos critérios de filtro
   const countContactsByCriteria = async (criteria: FilterCriteria): Promise<number> => {
+    if (criteria.asaasPaymentStatus) {
+      await syncAsaasContactsForCriteria(criteria);
+    }
+
     // Se fonte é funil, buscar contatos via funnel_deals
     if (criteria.source === 'funnel' && criteria.funnelId) {
       let query = supabase
@@ -193,34 +211,34 @@ export const useBroadcastLists = () => {
 
       if (error) throw error;
 
-      // Get contact counts for each list
-      const listsWithCounts: BroadcastListWithContacts[] = await Promise.all(
-        (lists || []).map(async (list) => {
-          if (list.type === "manual") {
-            const { count } = await supabase
-              .from("broadcast_list_contacts")
-              .select("*", { count: "exact", head: true })
-              .eq("list_id", list.id);
-            return { 
-              ...list, 
-              type: list.type as "manual" | "dynamic",
-              filter_criteria: (list.filter_criteria || {}) as FilterCriteria,
-              contact_count: count || 0 
-            };
-          } else {
-            // Para listas dinâmicas, usar helper de contagem
-            const criteria = (list.filter_criteria || {}) as FilterCriteria;
-            const contactCount = await countContactsByCriteria(criteria);
-            
-            return { 
-              ...list, 
-              type: list.type as "manual" | "dynamic",
-              filter_criteria: criteria,
-              contact_count: contactCount 
-            };
-          }
-        })
-      );
+      const listsWithCounts: BroadcastListWithContacts[] = [];
+
+      for (const list of lists || []) {
+        if (list.type === "manual") {
+          const { count } = await supabase
+            .from("broadcast_list_contacts")
+            .select("*", { count: "exact", head: true })
+            .eq("list_id", list.id);
+
+          listsWithCounts.push({
+            ...list,
+            type: list.type as "manual" | "dynamic",
+            filter_criteria: (list.filter_criteria || {}) as FilterCriteria,
+            contact_count: count || 0,
+          });
+          continue;
+        }
+
+        const criteria = (list.filter_criteria || {}) as FilterCriteria;
+        const contactCount = await countContactsByCriteria(criteria);
+
+        listsWithCounts.push({
+          ...list,
+          type: list.type as "manual" | "dynamic",
+          filter_criteria: criteria,
+          contact_count: contactCount,
+        });
+      }
 
       return listsWithCounts;
     },
@@ -236,12 +254,7 @@ export const useBroadcastLists = () => {
           if (filterCriteria?.asaasPaymentStatus) {
             try {
               console.log('[BroadcastList] Triggering Asaas contact sync before loading list...');
-              const syncBody: Record<string, string> = {};
-              if (filterCriteria.asaasDueDateFrom) syncBody.dueDateFrom = filterCriteria.asaasDueDateFrom;
-              if (filterCriteria.asaasDueDateTo) syncBody.dueDateTo = filterCriteria.asaasDueDateTo;
-              await supabase.functions.invoke('sync-asaas-contacts', {
-                body: Object.keys(syncBody).length > 0 ? syncBody : undefined,
-              });
+              await syncAsaasContactsForCriteria(filterCriteria);
               console.log('[BroadcastList] Asaas sync completed');
             } catch (syncError) {
               console.error('[BroadcastList] Asaas sync failed, loading with existing data:', syncError);
