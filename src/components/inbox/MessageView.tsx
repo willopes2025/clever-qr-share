@@ -1023,46 +1023,94 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
               {/* Instance / Meta Number Selector - Primary */}
               {isMetaConversation ? (
                 <Select 
-                  value={selectedMetaNumberId} 
+                  value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
                   onValueChange={async (value) => {
-                    setSelectedMetaNumberId(value);
-                    try {
-                      await supabase
-                        .from('conversations')
-                        .update({ meta_phone_number_id: value })
-                        .eq('id', conversation.id);
-                      toast.success("Número Meta atualizado");
-                    } catch (error) {
-                      toast.error("Erro ao atualizar número");
+                    if (value.startsWith('evo:')) {
+                      const evoId = value.replace('evo:', '');
+                      setSelectedInstanceId(evoId);
+                      setMetaUsingEvoInstance(true);
+                      try {
+                        await supabase
+                          .from('conversations')
+                          .update({ instance_id: evoId })
+                          .eq('id', conversation.id);
+                        toast.success("Número de envio atualizado");
+                      } catch (error) {
+                        toast.error("Erro ao atualizar número");
+                      }
+                    } else {
+                      const metaId = value.replace('meta:', '');
+                      setSelectedMetaNumberId(metaId);
+                      setMetaUsingEvoInstance(false);
+                      try {
+                        await supabase
+                          .from('conversations')
+                          .update({ meta_phone_number_id: metaId })
+                          .eq('id', conversation.id);
+                        toast.success("Número Meta atualizado");
+                      } catch (error) {
+                        toast.error("Erro ao atualizar número");
+                      }
                     }
                   }}
                 >
                   <SelectTrigger className="w-[140px] h-9">
                     <div className="flex items-center min-w-0 flex-1">
-                      <Cloud className="h-4 w-4 mr-1 text-blue-500 shrink-0" />
+                      {metaUsingEvoInstance ? (
+                        <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
+                      ) : (
+                        <Cloud className="h-4 w-4 mr-1 text-blue-500 shrink-0" />
+                      )}
                       <span className="truncate">
-                        <SelectValue placeholder="Número API" />
+                        <SelectValue placeholder="Número" />
                       </span>
                     </div>
                   </SelectTrigger>
                   <SelectContent>
-                    {metaNumbers.length === 0 ? (
+                    {metaNumbers.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">API Oficial</div>
+                        {metaNumbers.map((num) => (
+                          <SelectItem key={`meta:${num.phone_number_id}`} value={`meta:${num.phone_number_id}`}>
+                            <div className="flex items-center gap-1.5">
+                              <Cloud className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                              <div className="flex flex-col items-start">
+                                <span>{num.display_name || num.phone_number_id}</span>
+                                {num.phone_number && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {num.phone_number}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {connectedInstances.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground mt-1">WhatsApp Lite</div>
+                        {connectedInstances.map((instance) => (
+                          <SelectItem key={`evo:${instance.id}`} value={`evo:${instance.id}`}>
+                            <div className="flex items-center gap-1.5">
+                              <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <div className="flex flex-col items-start">
+                                <span>{instance.instance_name}</span>
+                                {instance.phone_number && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {instance.phone_number}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {metaNumbers.length === 0 && connectedInstances.length === 0 && (
                       <div className="p-2 text-sm text-muted-foreground text-center">
-                        Nenhum número Meta ativo
+                        Nenhum número disponível
                       </div>
-                    ) : (
-                      metaNumbers.map((num) => (
-                        <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
-                          <div className="flex flex-col items-start">
-                            <span>{num.display_name || num.phone_number_id}</span>
-                            {num.phone_number && (
-                              <span className="text-xs text-muted-foreground">
-                                {num.phone_number}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))
                     )}
                   </SelectContent>
                 </Select>
