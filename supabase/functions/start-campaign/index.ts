@@ -1146,23 +1146,27 @@ ${availableVariables}`;
       const templateBody = metaTemplate?.body_text || `[Meta Template: ${metaTemplate?.name || campaign.meta_template_id}]`;
       const mappings = campaign.meta_variable_mappings as any[] | null;
 
-      // Pre-fetch deal data if any mapping uses lead_custom_field
-      const needsDealData = mappings?.some((m: any) => m.source === 'lead_custom_field');
-      let dealDataMap: Record<string, Record<string, unknown>> = {};
+      // Pre-fetch deal data if any mapping uses lead_custom_field, deal_value, or deal_name
+      const needsDealData = mappings?.some((m: any) => m.source === 'lead_custom_field' || m.source === 'deal_value' || m.source === 'deal_name');
+      let dealDataMap: Record<string, { custom_fields: Record<string, unknown>; value: number | null; name: string | null }> = {};
       
       if (needsDealData) {
         const contactIds = filteredContacts.map((c: Contact) => c.id);
         // Fetch most recent deal for each contact
         const { data: deals } = await supabase
           .from('funnel_deals')
-          .select('contact_id, custom_fields')
+          .select('contact_id, custom_fields, value, name')
           .in('contact_id', contactIds)
           .order('created_at', { ascending: false });
         
         if (deals) {
           for (const deal of deals) {
             if (deal.contact_id && !dealDataMap[deal.contact_id]) {
-              dealDataMap[deal.contact_id] = (deal.custom_fields as Record<string, unknown>) || {};
+              dealDataMap[deal.contact_id] = {
+                custom_fields: (deal.custom_fields as Record<string, unknown>) || {},
+                value: deal.value,
+                name: deal.name,
+              };
             }
           }
         }
@@ -1192,7 +1196,14 @@ ${availableVariables}`;
                 value = String(contact.custom_fields?.[mapping.field_key] || '');
                 break;
               case 'lead_custom_field':
-                value = String(dealDataMap[contact.id]?.[mapping.field_key] || '');
+                value = String(dealDataMap[contact.id]?.custom_fields?.[mapping.field_key] || '');
+                break;
+              case 'deal_value':
+                const dealVal = dealDataMap[contact.id]?.value;
+                value = dealVal != null ? String(dealVal) : '';
+                break;
+              case 'deal_name':
+                value = dealDataMap[contact.id]?.name || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';

@@ -8,7 +8,7 @@ export type SendingMode = 'sequential' | 'random';
 
 export interface MetaVariableMapping {
   variable_index: number; // 1, 2, 3...
-  source: 'contact_name' | 'contact_phone' | 'contact_email' | 'contact_custom_field' | 'lead_custom_field' | 'fixed_text';
+  source: 'contact_name' | 'contact_phone' | 'contact_email' | 'contact_custom_field' | 'lead_custom_field' | 'deal_value' | 'deal_name' | 'fixed_text';
   field_key?: string; // for custom fields
   fixed_value?: string; // for fixed text
   label?: string; // display label
