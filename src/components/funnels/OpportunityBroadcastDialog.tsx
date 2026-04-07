@@ -234,9 +234,18 @@ export const OpportunityBroadcastDialog = ({
         contact_id: c.contactId,
       }));
 
-      const { error: contactsError } = await supabase
-        .from('broadcast_list_contacts')
-        .upsert(contactEntries, { onConflict: 'list_id,contact_id', ignoreDuplicates: true });
+      // Insert in smaller batches to avoid issues
+      let contactsError = null;
+      for (let i = 0; i < contactEntries.length; i += 500) {
+        const batch = contactEntries.slice(i, i + 500);
+        const { error } = await supabase
+          .from('broadcast_list_contacts')
+          .insert(batch);
+        if (error) {
+          contactsError = error;
+          break;
+        }
+      }
 
       if (contactsError) throw contactsError;
 
