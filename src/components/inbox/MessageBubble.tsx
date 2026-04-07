@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone } from "lucide-react";
