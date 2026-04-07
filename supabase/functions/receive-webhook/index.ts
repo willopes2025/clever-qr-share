@@ -689,6 +689,41 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.log('Detected STICKER message, url:', mediaUrl);
     }
 
+    // Contact/vCard message
+    if (message?.contactMessage || message?.contactsMessage) {
+      messageType = 'contact';
+      const contacts: Array<{ displayName: string; vcard: string }> = [];
+      
+      if (message.contactMessage) {
+        contacts.push({
+          displayName: message.contactMessage.displayName || 'Contato',
+          vcard: message.contactMessage.vcard || '',
+        });
+      }
+      
+      if (message.contactsMessage) {
+        const contactList = message.contactsMessage.contacts || message.contactsMessage.contact || [];
+        const arr = Array.isArray(contactList) ? contactList : [contactList];
+        for (const c of arr) {
+          contacts.push({
+            displayName: c.displayName || 'Contato',
+            vcard: c.vcard || '',
+          });
+        }
+      }
+
+      // Extract phone numbers from vCard
+      const parsedContacts = contacts.map(c => {
+        const phoneMatch = c.vcard.match(/TEL[^:]*:([^\n\r]+)/i);
+        const phone = phoneMatch ? phoneMatch[1].replace(/[^\d+]/g, '') : '';
+        return { name: c.displayName, phone };
+      });
+
+      // Store as JSON in content for frontend rendering
+      content = JSON.stringify({ type: 'vcard', contacts: parsedContacts });
+      console.log('Detected CONTACT message:', parsedContacts);
+    }
+
     // Skip if no content AND no media
     if (!content && !mediaUrl) {
       console.log('No content or media found in message, skipping');
@@ -1014,6 +1049,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       else if (messageType === 'video') preview = '🎬 Vídeo';
       else if (messageType === 'document') preview = '📄 Documento';
       else if (messageType === 'sticker') preview = '🏷️ Figurinha';
+      else if (messageType === 'contact') preview = '👤 Contato compartilhado';
     }
 
     if (!conversation) {
