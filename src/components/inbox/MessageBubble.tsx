@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Phone, Copy } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { cn } from "@/lib/utils";
