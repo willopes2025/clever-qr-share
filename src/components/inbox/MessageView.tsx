@@ -184,6 +184,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
   // Set default instance/meta number when conversation changes
   useEffect(() => {
+    setMetaUsingEvoInstance(false);
     if (isMetaConversation) {
       const metaId = (conversation as any).meta_phone_number_id || "";
       setSelectedMetaNumberId(metaId);
