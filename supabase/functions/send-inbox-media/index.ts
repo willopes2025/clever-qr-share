@@ -61,7 +61,21 @@ Deno.serve(async (req) => {
       throw new Error('Contact not found');
     }
 
-    const isMeta = conversation.provider === 'meta';
+    // Check if user chose an Evolution instance for a Meta conversation
+    let forceEvolution = false;
+    if (instanceId && conversation.provider === 'meta') {
+      const { data: evoInstance } = await supabase
+        .from('whatsapp_instances')
+        .select('id')
+        .eq('id', instanceId)
+        .maybeSingle();
+      if (evoInstance) {
+        forceEvolution = true;
+        console.log(`[SEND-MEDIA] Meta conversation but user chose Evolution instance ${instanceId} — routing to Evolution API`);
+      }
+    }
+
+    const isMeta = conversation.provider === 'meta' && !forceEvolution;
 
     // =========================================
     // META WHATSAPP CLOUD API
