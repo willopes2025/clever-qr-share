@@ -499,11 +499,13 @@ serve(async (req) => {
     ];
 
     // Tool calling loop: non-streaming until final text response
-    const MAX_TOOL_ROUNDS = 5;
+    const MAX_TOOL_ROUNDS = 10;
     let round = 0;
 
     while (round < MAX_TOOL_ROUNDS) {
       round++;
+
+      const isLastRound = round === MAX_TOOL_ROUNDS;
 
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -514,7 +516,8 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "gpt-4.1-nano",
           messages: allMessages,
-          tools,
+          // On last round, don't offer tools so model is forced to respond with text
+          ...(isLastRound ? {} : { tools }),
           stream: false,
         }),
       });
@@ -563,41 +566,24 @@ serve(async (req) => {
             content: result,
           });
         }
-        // Continue loop for next AI response
         continue;
       }
 
-      // No tool calls — stream the final response
-      // Make a streaming request with the full conversation (including tool results)
-      const streamResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-nano",
-          messages: allMessages,
-          stream: true,
-        }),
-      });
-
-      if (!streamResponse.ok) {
-        const errorText = await streamResponse.text();
-        console.error("Stream error:", streamResponse.status, errorText);
-        return new Response(JSON.stringify({ error: "AI streaming error" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(streamResponse.body, {
+      // No tool calls — return the text content directly as SSE stream format
+      const textContent = assistantMessage.content || "Desculpe, não consegui gerar uma resposta.";
+      
+      // Create a synthetic SSE stream from the already-received content
+      const encoder = new TextEncoder();
+      const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: textContent } }] })}\n\ndata: [DONE]\n\n`;
+      
+      return new Response(encoder.encode(sseData), {
         headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
       });
     }
 
-    // If we exhausted tool rounds, return a fallback
+    // Should not reach here since last round forces text response
     return new Response(
-      JSON.stringify({ error: "Too many tool rounds" }),
+      JSON.stringify({ error: "Unexpected error in tool loop" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
