@@ -169,6 +169,8 @@ export const OpportunityBroadcastDialog = ({
       { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
       { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
       { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+      { value: 'deal_value', label: '💰 Valor da Venda', source: 'deal_value' },
+      { value: 'deal_name', label: '📌 Nome do Lead', source: 'deal_name' },
     ];
     contactFieldDefinitions.forEach(f => {
       options.push({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field', field_key: f.field_key });
