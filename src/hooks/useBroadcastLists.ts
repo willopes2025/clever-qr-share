@@ -16,6 +16,8 @@ export interface FilterCriteria {
   status?: string;
   optedOut?: boolean;
   asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
+  asaasDueDateFrom?: string;
+  asaasDueDateTo?: string;
   
   // Novos campos para filtros avançados
   source?: 'contacts' | 'funnel';

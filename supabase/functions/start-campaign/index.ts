@@ -220,6 +220,8 @@ Deno.serve(async (req) => {
         optedOut?: boolean;
         tags?: string[];
         asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
+        asaasDueDateFrom?: string;
+        asaasDueDateTo?: string;
         customFields?: Array<{
           fieldKey: string;
           operator: 'equals' | 'contains' | 'not_empty' | 'empty';
@@ -408,6 +410,27 @@ Deno.serve(async (req) => {
 
           // Apply Asaas payment status filter
           if (filterCriteria.asaasPaymentStatus) {
+            // Sync Asaas contacts with date range before filtering
+            if (filterCriteria.asaasDueDateFrom || filterCriteria.asaasDueDateTo) {
+              console.log(`[start-campaign] Syncing Asaas contacts with date filter: ${filterCriteria.asaasDueDateFrom || '*'} to ${filterCriteria.asaasDueDateTo || '*'}`);
+              try {
+                const syncResponse = await fetch(`${supabaseUrl}/functions/v1/sync-asaas-contacts`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authHeader,
+                  },
+                  body: JSON.stringify({
+                    dueDateFrom: filterCriteria.asaasDueDateFrom,
+                    dueDateTo: filterCriteria.asaasDueDateTo,
+                  }),
+                });
+                const syncResult = await syncResponse.json();
+                console.log(`[start-campaign] Asaas sync result:`, syncResult);
+              } catch (syncError) {
+                console.error(`[start-campaign] Asaas sync error (continuing):`, syncError);
+              }
+            }
             query = query.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
           }
 

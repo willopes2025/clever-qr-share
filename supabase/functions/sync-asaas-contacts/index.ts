@@ -127,7 +127,17 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     let userId: string | null = null;
+    let dueDateFrom: string | null = null;
+    let dueDateTo: string | null = null;
     
+    // Parse body first to get all params
+    let bodyData: any = {};
+    try {
+      bodyData = await req.clone().json();
+    } catch {
+      // No body
+    }
+
     const authHeader = req.headers.get('Authorization');
     if (authHeader) {
       const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
@@ -138,13 +148,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!userId) {
-      try {
-        const body = await req.json();
-        userId = body.userId;
-      } catch {
-        // No body
-      }
+      userId = bodyData.userId || null;
     }
+
+    dueDateFrom = bodyData.dueDateFrom || null;
+    dueDateTo = bodyData.dueDateTo || null;
 
     // Determine which user's integration to use
     let syncUserId: string | null = null;
@@ -207,11 +215,24 @@ Deno.serve(async (req: Request) => {
     const baseUrl = environment === 'sandbox' ? ASAAS_SANDBOX_URL : ASAAS_API_URL;
 
     // STEP 1: Fetch only OVERDUE and PENDING payments (much fewer than all customers)
-    console.log(`[sync-asaas] Fetching overdue and pending payments...`);
+    // Apply optional date range filters
+    let overdueEndpoint = 'payments?status=OVERDUE';
+    let pendingEndpoint = 'payments?status=PENDING';
+    
+    if (dueDateFrom) {
+      overdueEndpoint += `&dueDate[ge]=${dueDateFrom}`;
+      pendingEndpoint += `&dueDate[ge]=${dueDateFrom}`;
+    }
+    if (dueDateTo) {
+      overdueEndpoint += `&dueDate[le]=${dueDateTo}`;
+      pendingEndpoint += `&dueDate[le]=${dueDateTo}`;
+    }
+
+    console.log(`[sync-asaas] Fetching overdue and pending payments${dueDateFrom || dueDateTo ? ` (date filter: ${dueDateFrom || '*'} to ${dueDateTo || '*'})` : ''}...`);
     
     const [overduePayments, pendingPayments] = await Promise.all([
-      fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=OVERDUE', apiKey),
-      fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=PENDING', apiKey),
+      fetchAllPaginated<AsaasPayment>(baseUrl, overdueEndpoint, apiKey),
+      fetchAllPaginated<AsaasPayment>(baseUrl, pendingEndpoint, apiKey),
     ]);
 
     console.log(`[sync-asaas] Found ${overduePayments.length} overdue, ${pendingPayments.length} pending payments`);

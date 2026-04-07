@@ -586,9 +586,24 @@ export const CampaignFormDialog = ({
               </SelectContent>
             </Select>
             {selectedList && (
-              <p className="text-sm text-muted-foreground">
-                {selectedList.contact_count} contatos serão notificados
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  {selectedList.contact_count} contatos serão notificados
+                </p>
+                {selectedList.filter_criteria?.asaasPaymentStatus && (
+                  <div className="flex items-center gap-2 text-xs bg-muted p-2 rounded">
+                    <Tag className="h-3 w-3 text-muted-foreground" />
+                    <span>
+                      Filtro Asaas: <strong>{selectedList.filter_criteria.asaasPaymentStatus === 'overdue' ? 'Vencidos' : selectedList.filter_criteria.asaasPaymentStatus === 'pending' ? 'Pendentes' : 'Em dia'}</strong>
+                      {(selectedList.filter_criteria.asaasDueDateFrom || selectedList.filter_criteria.asaasDueDateTo) && (
+                        <span className="ml-1">
+                          ({selectedList.filter_criteria.asaasDueDateFrom || '...'} até {selectedList.filter_criteria.asaasDueDateTo || '...'})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

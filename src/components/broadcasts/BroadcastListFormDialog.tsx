@@ -9,7 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, AlertCircle, Plus, Users, GitBranch } from "lucide-react";
+import { X, AlertCircle, Plus, Users, GitBranch, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BroadcastList, FilterCriteria, CustomFieldFilter, CustomFieldOperator } from "@/hooks/useBroadcastLists";
 import { Tag } from "@/hooks/useContacts";
 import { Funnel, FunnelStage } from "@/hooks/useFunnels";
@@ -54,6 +59,8 @@ export const BroadcastListFormDialog = ({
   const [status, setStatus] = useState<string>("all");
   const [excludeOptedOut, setExcludeOptedOut] = useState(true);
   const [asaasPaymentStatus, setAsaasPaymentStatus] = useState<string>("all");
+  const [asaasDueDateFrom, setAsaasDueDateFrom] = useState<Date | undefined>(undefined);
+  const [asaasDueDateTo, setAsaasDueDateTo] = useState<Date | undefined>(undefined);
   
   // Novos estados para filtros avançados
   const [source, setSource] = useState<'contacts' | 'funnel'>('contacts');
@@ -89,6 +96,8 @@ export const BroadcastListFormDialog = ({
       setStatus(list.filter_criteria?.status || "all");
       setExcludeOptedOut(list.filter_criteria?.optedOut === false);
       setAsaasPaymentStatus(list.filter_criteria?.asaasPaymentStatus || "all");
+      setAsaasDueDateFrom(list.filter_criteria?.asaasDueDateFrom ? new Date(list.filter_criteria.asaasDueDateFrom) : undefined);
+      setAsaasDueDateTo(list.filter_criteria?.asaasDueDateTo ? new Date(list.filter_criteria.asaasDueDateTo) : undefined);
       setSource(list.filter_criteria?.source || 'contacts');
       setSelectedFunnelId(list.filter_criteria?.funnelId || "");
       setSelectedStageId(list.filter_criteria?.stageId || "all");
@@ -113,6 +122,8 @@ export const BroadcastListFormDialog = ({
       setStatus("all");
       setExcludeOptedOut(true);
       setAsaasPaymentStatus("all");
+      setAsaasDueDateFrom(undefined);
+      setAsaasDueDateTo(undefined);
       setSource('contacts');
       setSelectedFunnelId("");
       setSelectedStageId("all");
@@ -138,6 +149,12 @@ export const BroadcastListFormDialog = ({
       if (excludeOptedOut) filterCriteria.optedOut = false;
       if (asaasPaymentStatus && asaasPaymentStatus !== "all") {
         filterCriteria.asaasPaymentStatus = asaasPaymentStatus as 'overdue' | 'pending' | 'current';
+        if (asaasDueDateFrom) {
+          filterCriteria.asaasDueDateFrom = asaasDueDateFrom.toISOString().split('T')[0];
+        }
+        if (asaasDueDateTo) {
+          filterCriteria.asaasDueDateTo = asaasDueDateTo.toISOString().split('T')[0];
+        }
       }
       
       // Novos campos
@@ -445,6 +462,64 @@ export const BroadcastListFormDialog = ({
                   <p className="text-xs text-muted-foreground">
                     Filtre contatos com base no status de pagamento no Asaas
                   </p>
+
+                  {/* Date range filters for overdue/pending */}
+                  {(asaasPaymentStatus === "overdue" || asaasPaymentStatus === "pending") && (
+                    <div className="grid grid-cols-2 gap-3 mt-3 pl-4 border-l-2 border-primary/30">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Vencimento de</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal h-9 text-xs",
+                                !asaasDueDateFrom && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-3 w-3" />
+                              {asaasDueDateFrom ? format(asaasDueDateFrom, "dd/MM/yyyy") : "Início"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={asaasDueDateFrom}
+                              onSelect={setAsaasDueDateFrom}
+                              locale={ptBR}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Vencimento até</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal h-9 text-xs",
+                                !asaasDueDateTo && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-3 w-3" />
+                              {asaasDueDateTo ? format(asaasDueDateTo, "dd/MM/yyyy") : "Fim"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={asaasDueDateTo}
+                              onSelect={setAsaasDueDateTo}
+                              locale={ptBR}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2">
