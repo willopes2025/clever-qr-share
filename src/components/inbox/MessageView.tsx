@@ -421,7 +421,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     try {
       await sendMediaMessage.mutateAsync({
         conversationId: conversation.id,
-        instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
+        instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
         targetPhone: selectedTargetPhone || undefined,
