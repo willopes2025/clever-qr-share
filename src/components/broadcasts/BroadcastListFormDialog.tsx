@@ -59,6 +59,8 @@ export const BroadcastListFormDialog = ({
   const [status, setStatus] = useState<string>("all");
   const [excludeOptedOut, setExcludeOptedOut] = useState(true);
   const [asaasPaymentStatus, setAsaasPaymentStatus] = useState<string>("all");
+  const [asaasDueDateFrom, setAsaasDueDateFrom] = useState<Date | undefined>(undefined);
+  const [asaasDueDateTo, setAsaasDueDateTo] = useState<Date | undefined>(undefined);
   
   // Novos estados para filtros avançados
   const [source, setSource] = useState<'contacts' | 'funnel'>('contacts');
