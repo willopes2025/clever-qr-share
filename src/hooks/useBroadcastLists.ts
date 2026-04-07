@@ -79,10 +79,8 @@ export const useBroadcastLists = () => {
   };
 
   // Helper para contar contatos baseado nos critérios de filtro
+  // NOTE: NÃO chamar sync aqui — a sync só roda ao abrir os contatos da lista
   const countContactsByCriteria = async (criteria: FilterCriteria): Promise<number> => {
-    if (criteria.asaasPaymentStatus) {
-      await syncAsaasContactsForCriteria(criteria);
-    }
 
     // Se fonte é funil, buscar contatos via funnel_deals
     if (criteria.source === 'funnel' && criteria.funnelId) {
