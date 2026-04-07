@@ -220,6 +220,8 @@ Deno.serve(async (req) => {
         optedOut?: boolean;
         tags?: string[];
         asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
+        asaasDueDateFrom?: string;
+        asaasDueDateTo?: string;
         customFields?: Array<{
           fieldKey: string;
           operator: 'equals' | 'contains' | 'not_empty' | 'empty';
