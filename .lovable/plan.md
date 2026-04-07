@@ -1,47 +1,83 @@
 
 
-## Diagnóstico: Leads com Mesmo Telefone
+## Diagnóstico: Resposta via Meta Criando Novo Lead
 
 ### Problema Identificado
 
-Quando você tenta cadastrar um novo lead com um telefone que já existe, o sistema **falha silenciosamente** e não cria o lead. Isso acontece porque:
+Na Edge Function `meta-whatsapp-webhook`, quando uma mensagem chega (inbound), o sistema busca a conversa existente do contato usando `.single()` (linha 382-387):
 
-1. A tabela `contacts` tem uma constraint `unique_phone_per_user` que impede dois contatos com o mesmo telefone
-2. O fluxo de criação tenta **criar um novo contato** antes de criar o deal/lead
-3. Quando o INSERT do contato falha (telefone duplicado), o `onSuccess` nunca executa → o deal **nunca é criado**
-4. O usuário vê o erro "Este número já está cadastrado" e nada mais acontece
+```typescript
+let { data: conversation } = await supabase
+  .from('conversations')
+  .select('*')
+  .eq('user_id', userId)
+  .eq('contact_id', contact.id)
+  .single();  // ← PROBLEMA AQUI
+```
 
-### O Cenário Real
+**O que acontece:**
+1. Muitos contatos possuem **2 ou mais conversas** (ex: uma via Evolution API e outra via Meta, ou duplicatas criadas pelo próprio bug)
+2. `.single()` retorna **erro** quando encontra mais de 1 resultado → `conversation = null`
+3. O sistema pensa que não existe conversa → **cria uma nova conversa** 
+4. Por ser uma "nova conversa", o bloco de auto-criação de lead executa → **cria um novo lead duplicado**
 
-Pai, mãe e filho podem usar o **mesmo telefone**. Eles devem ser **leads separados** (deals no funil), mas vinculados ao **mesmo contato** (mesmo telefone = mesma conversa no WhatsApp).
+Confirmado: existem múltiplos contatos no banco com 2+ conversas, alimentando esse ciclo.
 
 ### Plano de Correção
 
-**Arquivos a alterar:**
+**Arquivo**: `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-1. **`src/hooks/useContacts.ts`** — Função `createContact`
-   - Quando o INSERT falhar com `unique_phone_per_user`, buscar o contato existente pelo telefone
-   - Atualizar os dados do contato existente (nome, email, campos custom) se fornecidos
-   - Retornar o contato existente em vez de lançar erro, permitindo que o `onSuccess` execute e crie o deal
+1. **Corrigir a busca de conversa** — Substituir `.single()` por uma busca que prioriza a conversa Meta existente e aceita múltiplos resultados:
 
-2. **`src/pages/Contacts.tsx`** — Função `handleCreateContact`
-   - Ajustar o fluxo para que, ao receber um contato existente de volta, ainda crie o deal normalmente
-   - Mostrar toast informativo: "Contato existente atualizado - Lead criado" em vez de erro
+```typescript
+// Prioridade 1: conversa Meta com o mesmo phone_number_id
+let { data: conversation } = await supabase
+  .from('conversations')
+  .select('*')
+  .eq('user_id', userId)
+  .eq('contact_id', contact.id)
+  .eq('meta_phone_number_id', webhookPhoneNumberId)
+  .order('last_message_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
 
-3. **`src/hooks/useFunnels.ts`** — Função `createDeal` (sem mudança, já funciona)
-   - Já permite criar múltiplos deals para o mesmo `contact_id` — não tem restrição
+// Prioridade 2: qualquer conversa do contato
+if (!conversation) {
+  const { data: anyConversation } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contact_id', contact.id)
+    .order('last_message_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  conversation = anyConversation;
+  
+  // Se encontrou conversa mas sem meta_phone_number_id, atualizar
+  if (conversation && !conversation.meta_phone_number_id) {
+    await supabase.from('conversations')
+      .update({ meta_phone_number_id: webhookPhoneNumberId })
+      .eq('id', conversation.id);
+  }
+}
+```
 
-### Comportamento Esperado Após Correção
+2. **Evitar leads duplicados** — No bloco de auto-criação de lead (linha 439-445), remover a restrição de funil na verificação de deal existente para evitar duplicatas em qualquer funil:
 
-- Telefone **novo** → cria contato + cria lead ✅
-- Telefone **existente** → encontra contato existente, atualiza dados se necessário, cria novo lead vinculado ✅
-- Toast informativo diferencia os dois cenários
-- O contato mantém uma única conversa no WhatsApp (mesmo telefone)
-- Múltiplos leads/deals podem existir para o mesmo contato no funil
+```typescript
+// Verificar se já existe QUALQUER deal ativo para este contato
+const { data: existingDeal } = await supabase
+  .from('funnel_deals')
+  .select('id')
+  .eq('contact_id', contact.id)
+  .limit(1)
+  .maybeSingle();
+```
 
-### Pontos que NÃO mudam
+### Resultado Esperado
 
-- A constraint `unique_phone_per_user` permanece (1 contato por telefone é correto para o sistema de conversas)
-- Webhooks, formulários e campanhas continuam funcionando normalmente
-- A deduplicação no `submit-form` e `receive-webhook` já faz o correto (encontra contato existente e cria deal)
+- Mensagens Meta usarão a conversa existente do contato (priorizando a conversa Meta quando disponível)
+- Não serão criadas conversas duplicadas
+- Não serão criados leads duplicados quando uma conversa já existe para o contato
 
