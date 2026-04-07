@@ -9,7 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, AlertCircle, Plus, Users, GitBranch } from "lucide-react";
+import { X, AlertCircle, Plus, Users, GitBranch, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BroadcastList, FilterCriteria, CustomFieldFilter, CustomFieldOperator } from "@/hooks/useBroadcastLists";
 import { Tag } from "@/hooks/useContacts";
 import { Funnel, FunnelStage } from "@/hooks/useFunnels";
