@@ -1049,6 +1049,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       else if (messageType === 'video') preview = '🎬 Vídeo';
       else if (messageType === 'document') preview = '📄 Documento';
       else if (messageType === 'sticker') preview = '🏷️ Figurinha';
+      else if (messageType === 'contact') preview = '👤 Contato compartilhado';
     }
 
     if (!conversation) {
