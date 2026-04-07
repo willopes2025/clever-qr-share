@@ -1,51 +1,53 @@
 
 
-## Campanha de cobrança Asaas com filtro de período de vencimento
+## Diagnóstico
 
-### O que será feito
-Adicionar um fluxo simplificado para criar campanhas de cobrança direcionadas a clientes com faturas vencidas no Asaas, permitindo escolher um período de vencimento e um template Meta — sem precisar criar manualmente uma lista de transmissão.
+A automação "Transferir lead" (`on_scheduled_before_date_field` → `move_stage`) está sendo **detectada e registrada** no log de execução, mas o deal **nunca é movido de etapa**.
 
-### Alterações
+### Causa Raiz
 
-**1. Expandir `FilterCriteria` no `useBroadcastLists.ts`**
-- Adicionar campos `asaasDueDateFrom?: string` e `asaasDueDateTo?: string` à interface `FilterCriteria`
-- Isso permite que listas dinâmicas filtrem por período de vencimento
+O fluxo é:
+1. `process-scheduled-automations` detecta o gatilho temporal e chama `process-funnel-automations` passando `{ dealId, triggerType: 'on_scheduled_before_date_field' }`
+2. `process-funnel-automations` busca as automações correspondentes e, no loop de processamento (linha 151-164), verifica se a automação tem `stage_id` definido
+3. Como a automação TEM `stage_id` (etapa "Pré-venda"), e o trigger NÃO é `on_message_received` nem `on_funnel_enter`, o código entra no bloco `else` (linha 158-163) que compara `automation.stage_id` contra `toStageId` e `fromStageId`
+4. **Problema**: `toStageId` e `fromStageId` são `undefined` (não enviados pelo scheduled trigger), então a condição `automation.stage_id !== undefined` é SEMPRE verdadeira → **automação é SEMPRE ignorada (skip)**
 
-**2. Atualizar `BroadcastListFormDialog.tsx`**
-- Quando `asaasPaymentStatus` for `overdue` ou `pending`, mostrar dois campos de data: "Vencimento de" e "Vencimento até"
-- Usar DatePicker do Shadcn para seleção das datas
-- Salvar as datas no `filter_criteria` da lista
+O log de execução em `automation_execution_log` é gravado pelo `process-scheduled-automations` ANTES de verificar se a ação foi realmente executada, o que mascara o bug.
 
-**3. Atualizar `sync-asaas-contacts` Edge Function**
-- Receber parâmetros opcionais `dueDateFrom` e `dueDateTo` no body da requisição
-- Adicionar filtros `dueDate[ge]` e `dueDate[le]` na query da API do Asaas ao buscar payments overdue/pending
-- Isso garante que só clientes com faturas vencidas dentro do período selecionado sejam sincronizados
+### Plano de Correção
 
-**4. Atualizar `start-campaign` Edge Function**
-- Ao resolver contatos de uma lista dinâmica com filtro `asaasPaymentStatus` + datas, chamar `sync-asaas-contacts` passando `dueDateFrom`/`dueDateTo` antes de buscar os contatos
-- Isso garante que os status estejam atualizados para o período correto no momento do disparo
+**Arquivo**: `supabase/functions/process-funnel-automations/index.ts`
 
-**5. Atualizar `CampaignFormDialog.tsx`**
-- Ao selecionar uma lista dinâmica que tenha filtro de cobrança Asaas, exibir um resumo informativo mostrando o período de vencimento configurado na lista
+1. Adicionar os gatilhos agendados (`on_scheduled_before_date_field`, `on_scheduled_exact_time`, `on_scheduled_daily`, `on_hours_after_last_message`) à lista de triggers que devem comparar com o `deal.stage_id` atual (assim como os message triggers), em vez de comparar com `toStageId`/`fromStageId`:
 
-### Fluxo do usuário
-1. Ir em Listas de Transmissão → Criar lista dinâmica
-2. Selecionar filtro "Status de Pagamento: Vencido"
-3. Definir período: ex. 01/04/2026 a 10/04/2026
-4. Salvar a lista
-5. Ir em Campanhas → Nova campanha
-6. Selecionar Template Meta + número oficial
-7. Selecionar a lista criada
-8. Disparar
+```typescript
+const isScheduledTrigger = [
+  'on_scheduled_before_date_field',
+  'on_scheduled_exact_time', 
+  'on_scheduled_daily',
+  'on_hours_after_last_message'
+].includes(automation.trigger_type);
 
-### Detalhes técnicos
-- A API do Asaas suporta filtros `dueDate[ge]` e `dueDate[le]` no endpoint `/payments`
-- O sync será chamado com esses parâmetros para filtrar apenas pagamentos no intervalo desejado
-- As datas serão armazenadas como strings ISO no `filter_criteria` da broadcast list
+if (automation.stage_id && !isFunnelEnterTrigger) {
+  if (isMessageTrigger || isScheduledTrigger) {
+    // For message/scheduled triggers, check deal's CURRENT stage
+    if (automation.stage_id !== deal.stage_id) {
+      continue;
+    }
+  } else {
+    // For stage-change triggers, check toStageId/fromStageId
+    if (automation.stage_id !== toStageId && automation.stage_id !== fromStageId) {
+      continue;
+    }
+  }
+}
+```
 
-### Arquivos envolvidos
-- `src/hooks/useBroadcastLists.ts` — interface FilterCriteria
-- `src/components/broadcasts/BroadcastListFormDialog.tsx` — campos de data
-- `supabase/functions/sync-asaas-contacts/index.ts` — filtro por período
-- `supabase/functions/start-campaign/index.ts` — passar datas na sincronização pré-disparo
+2. **Mover o log de execução** em `process-scheduled-automations` para DEPOIS da chamada bem-sucedida (já está assim — o problema é só o filtro de stage acima). Basta corrigir a lógica de stage matching.
+
+**Deploy**: Redesplegar a edge function `process-funnel-automations`.
+
+### Resultado Esperado
+
+Automações agendadas com `stage_id` definido passarão a verificar corretamente se o deal está na etapa correta usando `deal.stage_id`, permitindo que a ação `move_stage` execute de fato.
 
