@@ -59,11 +59,23 @@ export const BulkEditFieldDialog = ({
         case "number":
           setFieldValue(0);
           break;
+        case "multi_select":
+          setFieldValue([]);
+          break;
         default:
           setFieldValue("");
       }
     }
   }, [selectedField, selectedFieldDef]);
+
+  const toggleMultiSelectValue = (option: string) => {
+    const currentValues = Array.isArray(fieldValue) ? (fieldValue as string[]) : [];
+    setFieldValue(
+      currentValues.includes(option)
+        ? currentValues.filter((value) => value !== option)
+        : [...currentValues, option]
+    );
+  };
 
   const handleConfirm = () => {
     if (selectedField) {

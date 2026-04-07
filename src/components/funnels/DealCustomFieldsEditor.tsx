@@ -30,6 +30,20 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
     onChange({ ...values, [key]: value });
   };
 
+  const toggleMultiSelectValue = (key: string, option: string) => {
+    const currentValues = Array.isArray(values[key])
+      ? (values[key] as string[])
+      : typeof values[key] === 'string' && values[key]
+        ? [values[key] as string]
+        : [];
+
+    const nextValues = currentValues.includes(option)
+      ? currentValues.filter((value) => value !== option)
+      : [...currentValues, option];
+
+    handleChange(key, nextValues);
+  };
+
   if (!leadFieldDefinitions || leadFieldDefinitions.length === 0) {
     return null;
   }
