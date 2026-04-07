@@ -229,14 +229,32 @@ export const OpportunityBroadcastDialog = ({
 
       if (listError) throw listError;
 
-      const contactEntries = uniqueSelectedContacts.map(c => ({
-        list_id: list.id,
-        contact_id: c.contactId,
-      }));
+      // Extra deduplication safety at entry level
+      const seenIds = new Set<string>();
+      const contactEntries = uniqueSelectedContacts
+        .filter(c => {
+          if (seenIds.has(c.contactId)) return false;
+          seenIds.add(c.contactId);
+          return true;
+        })
+        .map(c => ({
+          list_id: list.id,
+          contact_id: c.contactId,
+        }));
+      console.log(`[Broadcast] ${selectedContacts.length} selected → ${uniqueSelectedContacts.length} unique → ${contactEntries.length} entries`);
 
-      const { error: contactsError } = await supabase
-        .from('broadcast_list_contacts')
-        .upsert(contactEntries, { onConflict: 'list_id,contact_id', ignoreDuplicates: true });
+      // Insert in smaller batches to avoid issues
+      let contactsError = null;
+      for (let i = 0; i < contactEntries.length; i += 500) {
+        const batch = contactEntries.slice(i, i + 500);
+        const { error } = await supabase
+          .from('broadcast_list_contacts')
+          .insert(batch);
+        if (error) {
+          contactsError = error;
+          break;
+        }
+      }
 
       if (contactsError) throw contactsError;
 
