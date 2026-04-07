@@ -354,7 +354,7 @@ export const OpportunityBroadcastDialog = ({
         setShowInstanceDialog(false);
         onOpenChange(false);
         queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-        toast.success(`Disparo IA iniciado! ${data?.messages_generated || selectedContacts.length} mensagens personalizadas criadas.`);
+        toast.success(`Disparo IA iniciado! ${data?.messages_generated || uniqueSelectedContacts.length} mensagens personalizadas criadas.`);
 
         setAiPrompt('');
       } catch (error: any) {
