@@ -1642,7 +1642,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
-            disabled={isMetaConversation ? !selectedMetaNumberId : !selectedInstanceId}
+            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
           
           <Tooltip>
