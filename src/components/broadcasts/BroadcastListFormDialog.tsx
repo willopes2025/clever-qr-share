@@ -96,6 +96,8 @@ export const BroadcastListFormDialog = ({
       setStatus(list.filter_criteria?.status || "all");
       setExcludeOptedOut(list.filter_criteria?.optedOut === false);
       setAsaasPaymentStatus(list.filter_criteria?.asaasPaymentStatus || "all");
+      setAsaasDueDateFrom(list.filter_criteria?.asaasDueDateFrom ? new Date(list.filter_criteria.asaasDueDateFrom) : undefined);
+      setAsaasDueDateTo(list.filter_criteria?.asaasDueDateTo ? new Date(list.filter_criteria.asaasDueDateTo) : undefined);
       setSource(list.filter_criteria?.source || 'contacts');
       setSelectedFunnelId(list.filter_criteria?.funnelId || "");
       setSelectedStageId(list.filter_criteria?.stageId || "all");
