@@ -115,8 +115,8 @@ Deno.serve(async (req) => {
     }
 
     const baseUrl = environment === 'sandbox'
-      ? 'https://sandbox.asaas.com/api/v3'
-      : 'https://api.asaas.com/api/v3';
+      ? 'https://api-sandbox.asaas.com/v3'
+      : 'https://api.asaas.com/v3';
 
     const billingTemplates = settings.billing_templates as Record<string, string> | undefined;
     const billingEnabledTypes = settings.billing_enabled_types as Record<string, boolean> | undefined;
