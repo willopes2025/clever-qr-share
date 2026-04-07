@@ -261,7 +261,7 @@ Notas do vendedor: ${c.userNotes || 'Nenhuma'}
 
     const { error: contactsError } = await supabase
       .from('broadcast_list_contacts')
-      .upsert(contactEntries, { onConflict: 'list_id,contact_id', ignoreDuplicates: true });
+      .insert(contactEntries);
 
     if (contactsError) throw contactsError;
 
