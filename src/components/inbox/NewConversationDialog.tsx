@@ -128,7 +128,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
 
       if (newContact) {
         const result = await createConversation.mutateAsync({ 
-          contactId: newContact.id,
+          contactId: newContact.data.id,
           instanceId: selectedInstanceId 
         });
         

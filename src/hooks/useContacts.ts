@@ -142,7 +142,7 @@ export const useContacts = () => {
       email?: string;
       notes?: string;
       custom_fields?: Record<string, string>;
-    }) => {
+    }): Promise<{ data: any; isExisting: boolean }> => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Usuário não autenticado");
 
@@ -159,18 +159,57 @@ export const useContacts = () => {
         .select()
         .single();
 
-      if (error) throw error;
-      return data;
+      if (error) {
+        // If duplicate phone, find existing contact and return it
+        if (error.message.includes("unique_phone_per_user")) {
+          const { data: existingContact, error: fetchError } = await supabase
+            .from("contacts")
+            .select("*")
+            .eq("phone", normalizedPhone)
+            .eq("user_id", userData.user.id)
+            .single();
+
+          if (fetchError || !existingContact) {
+            throw new Error("Contato existente não encontrado");
+          }
+
+          // Update existing contact with new data if provided
+          const updates: Record<string, any> = {};
+          if (contact.name) updates.name = contact.name;
+          if (contact.email) updates.email = contact.email;
+          if (contact.notes) updates.notes = contact.notes;
+          if (contact.custom_fields && Object.keys(contact.custom_fields).length > 0) {
+            updates.custom_fields = {
+              ...(existingContact.custom_fields as Record<string, any> || {}),
+              ...contact.custom_fields,
+            };
+          }
+
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from("contacts")
+              .update(updates)
+              .eq("id", existingContact.id);
+          }
+
+          return { data: existingContact, isExisting: true };
+        }
+        throw error;
+      }
+
+      return { data, isExisting: false };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      toast.success("Contato criado com sucesso!");
+      if (result.isExisting) {
+        toast.info("Contato já existente — novo lead será vinculado ao contato encontrado.");
+      } else {
+        toast.success("Contato criado com sucesso!");
+      }
     },
     onError: (error: Error) => {
       toast.error("Erro ao criar contato", {
-        description: error.message.includes("unique_phone_per_user")
-          ? "Este número já está cadastrado"
-          : error.message,
+        description: error.message,
       });
     },
   });
