@@ -164,7 +164,46 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: Me
             </div>
           )}
           
-          {message.content && (
+          {/* vCard contact message */}
+          {message.message_type === 'contact' && message.content && (() => {
+            try {
+              const parsed = JSON.parse(message.content);
+              if (parsed?.type === 'vcard' && parsed?.contacts) {
+                return (
+                  <div className="space-y-2">
+                    {parsed.contacts.map((c: { name: string; phone: string }, i: number) => (
+                      <div key={i} className="flex items-center gap-3 p-2.5 bg-background/50 rounded-lg min-w-[200px]">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{c.name}</p>
+                          {c.phone && (
+                            <p className="text-xs text-muted-foreground font-mono">{c.phone}</p>
+                          )}
+                        </div>
+                        {c.phone && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(c.phone);
+                              import('sonner').then(m => m.toast.success('Número copiado!'));
+                            }}
+                            className="h-8 w-8 flex items-center justify-center rounded hover:bg-background/80 shrink-0"
+                            title="Copiar número"
+                          >
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+            } catch {}
+            return null;
+          })()}
+          
+          {message.content && message.message_type !== 'contact' && (
             <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
               {message.content}
             </p>
