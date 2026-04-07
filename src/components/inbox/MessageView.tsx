@@ -104,6 +104,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
     (conversation as any).meta_phone_number_id || ""
   );
+  // For Meta conversations: track if user switched to an Evolution instance
+  const [metaUsingEvoInstance, setMetaUsingEvoInstance] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
@@ -182,6 +184,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
   // Set default instance/meta number when conversation changes
   useEffect(() => {
+    setMetaUsingEvoInstance(false);
     if (isMetaConversation) {
       const metaId = (conversation as any).meta_phone_number_id || "";
       setSelectedMetaNumberId(metaId);
@@ -282,8 +285,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   }, [optimisticMessages.length]);
 
+  // Helper: determine effective sender for Meta conversations that may use Evolution
+  const useMetaSender = isMetaConversation && !metaUsingEvoInstance;
+  const effectiveInstanceId = metaUsingEvoInstance ? selectedInstanceId : (isMetaConversation ? selectedMetaNumberId : selectedInstanceId);
+
   const handleSend = async () => {
-    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!newMessage.trim() || !hasValidSender) return;
 
     let messageContent = newMessage.trim();
@@ -351,7 +358,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
-    sendMessage.mutateAsync(isMetaConversation ? {
+    sendMessage.mutateAsync(useMetaSender ? {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedMetaNumberId,
@@ -375,7 +382,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   };
 
   const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
-    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!hasValidSender) {
       toast.error("Selecione um número primeiro");
       return;
@@ -414,7 +421,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     try {
       await sendMediaMessage.mutateAsync({
         conversationId: conversation.id,
-        instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
+        instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
         mediaUrl,
         mediaType,
         targetPhone: selectedTargetPhone || undefined,
@@ -504,9 +511,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     try {
     // Validate instance first
-    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!hasValidSender) {
-      toast.error(isMetaConversation ? "Selecione um número Meta primeiro" : "Selecione uma instância primeiro");
+      toast.error(useMetaSender ? "Selecione um número Meta primeiro" : "Selecione uma instância primeiro");
       setSlashCommandOpen(false);
       return;
     }
@@ -570,7 +577,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         sendMessage.mutateAsync({
           content: finalText.trim(),
           conversationId: conversation.id,
-          instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
+          instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
         }).catch(() => {
           toast.error("Erro ao enviar texto do template");
           setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
@@ -949,9 +956,14 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     className="text-xs text-muted-foreground"
                   >
                     {conversation.contact?.phone}
-                    {isMetaConversation && selectedMetaNumberId && (
+                    {isMetaConversation && !metaUsingEvoInstance && selectedMetaNumberId && (
                       <span className="ml-1.5 text-blue-500">
                         via {getMetaLabel(selectedMetaNumberId)}
+                      </span>
+                    )}
+                    {isMetaConversation && metaUsingEvoInstance && selectedInstanceId && (
+                      <span className="ml-1.5 text-muted-foreground">
+                        via {connectedInstances.find(i => i.id === selectedInstanceId)?.instance_name || 'Lite'}
                       </span>
                     )}
                   </motion.p>
@@ -1016,46 +1028,94 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
               {/* Instance / Meta Number Selector - Primary */}
               {isMetaConversation ? (
                 <Select 
-                  value={selectedMetaNumberId} 
+                  value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
                   onValueChange={async (value) => {
-                    setSelectedMetaNumberId(value);
-                    try {
-                      await supabase
-                        .from('conversations')
-                        .update({ meta_phone_number_id: value })
-                        .eq('id', conversation.id);
-                      toast.success("Número Meta atualizado");
-                    } catch (error) {
-                      toast.error("Erro ao atualizar número");
+                    if (value.startsWith('evo:')) {
+                      const evoId = value.replace('evo:', '');
+                      setSelectedInstanceId(evoId);
+                      setMetaUsingEvoInstance(true);
+                      try {
+                        await supabase
+                          .from('conversations')
+                          .update({ instance_id: evoId })
+                          .eq('id', conversation.id);
+                        toast.success("Número de envio atualizado");
+                      } catch (error) {
+                        toast.error("Erro ao atualizar número");
+                      }
+                    } else {
+                      const metaId = value.replace('meta:', '');
+                      setSelectedMetaNumberId(metaId);
+                      setMetaUsingEvoInstance(false);
+                      try {
+                        await supabase
+                          .from('conversations')
+                          .update({ meta_phone_number_id: metaId })
+                          .eq('id', conversation.id);
+                        toast.success("Número Meta atualizado");
+                      } catch (error) {
+                        toast.error("Erro ao atualizar número");
+                      }
                     }
                   }}
                 >
                   <SelectTrigger className="w-[140px] h-9">
                     <div className="flex items-center min-w-0 flex-1">
-                      <Cloud className="h-4 w-4 mr-1 text-blue-500 shrink-0" />
+                      {metaUsingEvoInstance ? (
+                        <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
+                      ) : (
+                        <Cloud className="h-4 w-4 mr-1 text-blue-500 shrink-0" />
+                      )}
                       <span className="truncate">
-                        <SelectValue placeholder="Número API" />
+                        <SelectValue placeholder="Número" />
                       </span>
                     </div>
                   </SelectTrigger>
                   <SelectContent>
-                    {metaNumbers.length === 0 ? (
+                    {metaNumbers.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">API Oficial</div>
+                        {metaNumbers.map((num) => (
+                          <SelectItem key={`meta:${num.phone_number_id}`} value={`meta:${num.phone_number_id}`}>
+                            <div className="flex items-center gap-1.5">
+                              <Cloud className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                              <div className="flex flex-col items-start">
+                                <span>{num.display_name || num.phone_number_id}</span>
+                                {num.phone_number && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {num.phone_number}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {connectedInstances.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground mt-1">WhatsApp Lite</div>
+                        {connectedInstances.map((instance) => (
+                          <SelectItem key={`evo:${instance.id}`} value={`evo:${instance.id}`}>
+                            <div className="flex items-center gap-1.5">
+                              <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <div className="flex flex-col items-start">
+                                <span>{instance.instance_name}</span>
+                                {instance.phone_number && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {instance.phone_number}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {metaNumbers.length === 0 && connectedInstances.length === 0 && (
                       <div className="p-2 text-sm text-muted-foreground text-center">
-                        Nenhum número Meta ativo
+                        Nenhum número disponível
                       </div>
-                    ) : (
-                      metaNumbers.map((num) => (
-                        <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
-                          <div className="flex flex-col items-start">
-                            <span>{num.display_name || num.phone_number_id}</span>
-                            {num.phone_number && (
-                              <span className="text-xs text-muted-foreground">
-                                {num.phone_number}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))
                     )}
                   </SelectContent>
                 </Select>
@@ -1375,42 +1435,71 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           <div className="mb-2">
             {isMetaConversation ? (
               <Select 
-                value={selectedMetaNumberId} 
+                value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
                 onValueChange={async (value) => {
-                  setSelectedMetaNumberId(value);
-                  try {
-                    await supabase
-                      .from('conversations')
-                      .update({ meta_phone_number_id: value })
-                      .eq('id', conversation.id);
-                    toast.success("Número Meta atualizado");
-                  } catch (error) {
-                    toast.error("Erro ao atualizar número");
+                  if (value.startsWith('evo:')) {
+                    const evoId = value.replace('evo:', '');
+                    setSelectedInstanceId(evoId);
+                    setMetaUsingEvoInstance(true);
+                    try {
+                      await supabase
+                        .from('conversations')
+                        .update({ instance_id: evoId })
+                        .eq('id', conversation.id);
+                      toast.success("Número atualizado");
+                    } catch (error) {
+                      toast.error("Erro ao atualizar número");
+                    }
+                  } else {
+                    const metaId = value.replace('meta:', '');
+                    setSelectedMetaNumberId(metaId);
+                    setMetaUsingEvoInstance(false);
+                    try {
+                      await supabase
+                        .from('conversations')
+                        .update({ meta_phone_number_id: metaId })
+                        .eq('id', conversation.id);
+                      toast.success("Número Meta atualizado");
+                    } catch (error) {
+                      toast.error("Erro ao atualizar número");
+                    }
                   }
                 }}
               >
                 <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
-                  <Cloud className="h-3.5 w-3.5 mr-2 text-blue-500" />
+                  {metaUsingEvoInstance ? (
+                    <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  ) : (
+                    <Cloud className="h-3.5 w-3.5 mr-2 text-blue-500" />
+                  )}
                   <SelectValue placeholder="Selecionar número" />
                 </SelectTrigger>
                 <SelectContent>
-                  {metaNumbers.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      Nenhum número Meta ativo
-                    </div>
-                  ) : (
-                    metaNumbers.map((num) => (
-                      <SelectItem key={num.phone_number_id} value={num.phone_number_id}>
-                        <div className="flex flex-col items-start">
-                          <span>{num.display_name || num.phone_number_id}</span>
-                          {num.phone_number && (
-                            <span className="text-xs text-muted-foreground">
-                              {num.phone_number}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))
+                  {metaNumbers.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">API Oficial</div>
+                      {metaNumbers.map((num) => (
+                        <SelectItem key={`meta:${num.phone_number_id}`} value={`meta:${num.phone_number_id}`}>
+                          <div className="flex items-center gap-1.5">
+                            <Cloud className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                            <span>{num.display_name || num.phone_number_id}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  {connectedInstances.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-xs font-semibold text-muted-foreground mt-1">WhatsApp Lite</div>
+                      {connectedInstances.map((instance) => (
+                        <SelectItem key={`evo:${instance.id}`} value={`evo:${instance.id}`}>
+                          <div className="flex items-center gap-1.5">
+                            <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span>{instance.instance_name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </>
                   )}
                 </SelectContent>
               </Select>
@@ -1456,7 +1545,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           
           <MediaUploadButton 
             onUpload={(url, type) => handleSendMedia(url, type)} 
-            disabled={isMetaConversation ? !selectedMetaNumberId : !selectedInstanceId}
+            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
 
           <FormLinkButton
@@ -1558,7 +1647,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
-            disabled={isMetaConversation ? !selectedMetaNumberId : !selectedInstanceId}
+            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
           
           <Tooltip>
