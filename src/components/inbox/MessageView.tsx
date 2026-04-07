@@ -358,7 +358,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
-    sendMessage.mutateAsync(isMetaConversation ? {
+    sendMessage.mutateAsync(useMetaSender ? {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedMetaNumberId,
