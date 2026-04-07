@@ -182,23 +182,36 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     );
   }, [activeFlows, slashSearchTerm]);
 
-  // Set default instance/meta number when conversation changes
+  // Set default instance/meta number ONLY when conversation changes (by id)
+  const conversationId = conversation.id;
+  const conversationInstanceId = conversation.instance_id;
+  const conversationMetaPhoneId = (conversation as any).meta_phone_number_id;
+  const conversationProvider = conversation.provider;
+  
   useEffect(() => {
-    setMetaUsingEvoInstance(false);
     if (isMetaConversation) {
-      const metaId = (conversation as any).meta_phone_number_id || "";
-      setSelectedMetaNumberId(metaId);
-      if (!metaId && metaNumbers.length > 0) {
-        setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+      // Check if conversation has an instance_id set (means user previously chose Evo)
+      if (conversationInstanceId && instances?.find(i => i.id === conversationInstanceId && i.status === 'connected')) {
+        setMetaUsingEvoInstance(true);
+        setSelectedInstanceId(conversationInstanceId);
+      } else {
+        setMetaUsingEvoInstance(false);
+        const metaId = conversationMetaPhoneId || "";
+        setSelectedMetaNumberId(metaId);
+        if (!metaId && metaNumbers.length > 0) {
+          setSelectedMetaNumberId(metaNumbers[0].phone_number_id);
+        }
       }
     } else {
-      if (conversation.instance_id) {
-        setSelectedInstanceId(conversation.instance_id);
-      } else if (connectedInstances.length > 0 && !selectedInstanceId) {
+      setMetaUsingEvoInstance(false);
+      if (conversationInstanceId) {
+        setSelectedInstanceId(conversationInstanceId);
+      } else if (connectedInstances.length > 0) {
         setSelectedInstanceId(connectedInstances[0].id);
       }
     }
-  }, [conversation.instance_id, (conversation as any).meta_phone_number_id, conversation.provider, connectedInstances, metaNumbers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
 
   // Persist sender name preference
   useEffect(() => {
