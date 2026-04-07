@@ -577,7 +577,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         sendMessage.mutateAsync({
           content: finalText.trim(),
           conversationId: conversation.id,
-          instanceId: isMetaConversation ? selectedMetaNumberId : selectedInstanceId,
+          instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
         }).catch(() => {
           toast.error("Erro ao enviar texto do template");
           setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
