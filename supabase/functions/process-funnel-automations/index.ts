@@ -147,10 +147,16 @@ Deno.serve(async (req: Request) => {
         // stage-based triggers: compare against toStageId/fromStageId
         const isMessageTrigger = automation.trigger_type === 'on_message_received' || automation.trigger_type === 'on_keyword_received';
         const isFunnelEnterTrigger = automation.trigger_type === 'on_funnel_enter';
+        const isScheduledTrigger = [
+          'on_scheduled_before_date_field',
+          'on_scheduled_exact_time',
+          'on_scheduled_daily',
+          'on_hours_after_last_message'
+        ].includes(automation.trigger_type);
         
         if (automation.stage_id && !isFunnelEnterTrigger) {
-          if (isMessageTrigger) {
-            // For message triggers, check if deal is currently in the specified stage
+          if (isMessageTrigger || isScheduledTrigger) {
+            // For message/scheduled triggers, check deal's CURRENT stage
             if (automation.stage_id !== deal.stage_id) {
               console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - deal not in stage ${automation.stage_id} (current: ${deal.stage_id})`);
               continue;
