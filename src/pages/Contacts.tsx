@@ -250,13 +250,14 @@ const Contacts = () => {
       : undefined;
     
     createContact.mutate({ ...contactData, custom_fields: typedCustomFields }, {
-      onSuccess: (createdContact) => {
+      onSuccess: (result) => {
+        const contactId = result?.data?.id;
         // If funnel and stage were selected, create the deal
-        if (funnel_id && stage_id && createdContact?.id) {
+        if (funnel_id && stage_id && contactId) {
           createDeal.mutate({
             funnel_id,
             stage_id,
-            contact_id: createdContact.id,
+            contact_id: contactId,
             title: data.name || 'Novo Lead',
           });
         }
