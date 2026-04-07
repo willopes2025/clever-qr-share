@@ -236,7 +236,12 @@ export const useBroadcastLists = () => {
           if (filterCriteria?.asaasPaymentStatus) {
             try {
               console.log('[BroadcastList] Triggering Asaas contact sync before loading list...');
-              await supabase.functions.invoke('sync-asaas-contacts');
+              const syncBody: Record<string, string> = {};
+              if (filterCriteria.asaasDueDateFrom) syncBody.dueDateFrom = filterCriteria.asaasDueDateFrom;
+              if (filterCriteria.asaasDueDateTo) syncBody.dueDateTo = filterCriteria.asaasDueDateTo;
+              await supabase.functions.invoke('sync-asaas-contacts', {
+                body: Object.keys(syncBody).length > 0 ? syncBody : undefined,
+              });
               console.log('[BroadcastList] Asaas sync completed');
             } catch (syncError) {
               console.error('[BroadcastList] Asaas sync failed, loading with existing data:', syncError);
