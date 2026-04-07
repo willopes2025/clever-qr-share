@@ -382,7 +382,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   };
 
   const handleSendMedia = async (mediaUrl: string, mediaType: 'image' | 'document' | 'audio' | 'video') => {
-    const hasValidSender = isMetaConversation ? !!selectedMetaNumberId : !!selectedInstanceId;
+    const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
     if (!hasValidSender) {
       toast.error("Selecione um número primeiro");
       return;
