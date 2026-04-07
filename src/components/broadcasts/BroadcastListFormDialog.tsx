@@ -149,6 +149,12 @@ export const BroadcastListFormDialog = ({
       if (excludeOptedOut) filterCriteria.optedOut = false;
       if (asaasPaymentStatus && asaasPaymentStatus !== "all") {
         filterCriteria.asaasPaymentStatus = asaasPaymentStatus as 'overdue' | 'pending' | 'current';
+        if (asaasDueDateFrom) {
+          filterCriteria.asaasDueDateFrom = asaasDueDateFrom.toISOString().split('T')[0];
+        }
+        if (asaasDueDateTo) {
+          filterCriteria.asaasDueDateTo = asaasDueDateTo.toISOString().split('T')[0];
+        }
       }
       
       // Novos campos
