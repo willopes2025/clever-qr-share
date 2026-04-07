@@ -1196,7 +1196,14 @@ ${availableVariables}`;
                 value = String(contact.custom_fields?.[mapping.field_key] || '');
                 break;
               case 'lead_custom_field':
-                value = String(dealDataMap[contact.id]?.[mapping.field_key] || '');
+                value = String(dealDataMap[contact.id]?.custom_fields?.[mapping.field_key] || '');
+                break;
+              case 'deal_value':
+                const dealVal = dealDataMap[contact.id]?.value;
+                value = dealVal != null ? String(dealVal) : '';
+                break;
+              case 'deal_name':
+                value = dealDataMap[contact.id]?.name || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';
