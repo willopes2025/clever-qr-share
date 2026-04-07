@@ -30,6 +30,20 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
     onChange({ ...values, [key]: value });
   };
 
+  const toggleMultiSelectValue = (key: string, option: string) => {
+    const currentValues = Array.isArray(values[key])
+      ? (values[key] as string[])
+      : typeof values[key] === 'string' && values[key]
+        ? [values[key] as string]
+        : [];
+
+    const nextValues = currentValues.includes(option)
+      ? currentValues.filter((value) => value !== option)
+      : [...currentValues, option];
+
+    handleChange(key, nextValues);
+  };
+
   if (!leadFieldDefinitions || leadFieldDefinitions.length === 0) {
     return null;
   }
@@ -123,7 +137,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
             />
           )}
           
-          {(field.field_type === 'select' || field.field_type === 'multi_select') && (
+          {field.field_type === 'select' && (
             <Select
               value={(values[field.field_key] as string) || ''}
               onValueChange={(v) => handleChange(field.field_key, v)}
@@ -139,6 +153,46 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
                 ))}
               </SelectContent>
             </Select>
+          )}
+
+          {field.field_type === 'multi_select' && (
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div className="flex flex-wrap gap-2">
+                {(Array.isArray(values[field.field_key]) ? (values[field.field_key] as string[]) : []).length > 0 ? (
+                  (values[field.field_key] as string[]).map((selected) => (
+                    <span
+                      key={selected}
+                      className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                    >
+                      {selected}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">Nenhuma etapa selecionada</span>
+                )}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(field.options as string[] || []).map((option) => {
+                  const selectedValues = Array.isArray(values[field.field_key])
+                    ? (values[field.field_key] as string[])
+                    : [];
+                  const isSelected = selectedValues.includes(option);
+
+                  return (
+                    <Button
+                      key={option}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      className="justify-start"
+                      onClick={() => toggleMultiSelectValue(field.field_key, option)}
+                    >
+                      {option}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
           )}
           
           {field.field_type === 'boolean' && (

@@ -59,11 +59,23 @@ export const BulkEditFieldDialog = ({
         case "number":
           setFieldValue(0);
           break;
+        case "multi_select":
+          setFieldValue([]);
+          break;
         default:
           setFieldValue("");
       }
     }
   }, [selectedField, selectedFieldDef]);
+
+  const toggleMultiSelectValue = (option: string) => {
+    const currentValues = Array.isArray(fieldValue) ? (fieldValue as string[]) : [];
+    setFieldValue(
+      currentValues.includes(option)
+        ? currentValues.filter((value) => value !== option)
+        : [...currentValues, option]
+    );
+  };
 
   const handleConfirm = () => {
     if (selectedField) {
@@ -154,21 +166,46 @@ export const BulkEditFieldDialog = ({
           </Select>
         );
 
-      case "multi_select":
+      case "multi_select": {
+        const selectedValues = Array.isArray(fieldValue) ? (fieldValue as string[]) : [];
+
         return (
-          <Select value={fieldValue as string} onValueChange={setFieldValue}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione uma opção" />
-            </SelectTrigger>
-            <SelectContent>
-              {(selectedFieldDef.options || []).map((opt) => (
-                <SelectItem key={opt} value={opt}>
-                  {opt}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-3 rounded-md border border-border p-3">
+            <div className="flex flex-wrap gap-2">
+              {selectedValues.length > 0 ? (
+                selectedValues.map((value) => (
+                  <span
+                    key={value}
+                    className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+                  >
+                    {value}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Nenhuma opção selecionada</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(selectedFieldDef.options || []).map((opt) => {
+                const isSelected = selectedValues.includes(opt);
+
+                return (
+                  <Button
+                    key={opt}
+                    type="button"
+                    variant={isSelected ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleMultiSelectValue(opt)}
+                  >
+                    {opt}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
         );
+      }
 
       default:
         return (
