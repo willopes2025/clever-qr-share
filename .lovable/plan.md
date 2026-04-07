@@ -1,53 +1,47 @@
 
 
-## Diagnóstico
+## Diagnóstico: Leads com Mesmo Telefone
 
-A automação "Transferir lead" (`on_scheduled_before_date_field` → `move_stage`) está sendo **detectada e registrada** no log de execução, mas o deal **nunca é movido de etapa**.
+### Problema Identificado
 
-### Causa Raiz
+Quando você tenta cadastrar um novo lead com um telefone que já existe, o sistema **falha silenciosamente** e não cria o lead. Isso acontece porque:
 
-O fluxo é:
-1. `process-scheduled-automations` detecta o gatilho temporal e chama `process-funnel-automations` passando `{ dealId, triggerType: 'on_scheduled_before_date_field' }`
-2. `process-funnel-automations` busca as automações correspondentes e, no loop de processamento (linha 151-164), verifica se a automação tem `stage_id` definido
-3. Como a automação TEM `stage_id` (etapa "Pré-venda"), e o trigger NÃO é `on_message_received` nem `on_funnel_enter`, o código entra no bloco `else` (linha 158-163) que compara `automation.stage_id` contra `toStageId` e `fromStageId`
-4. **Problema**: `toStageId` e `fromStageId` são `undefined` (não enviados pelo scheduled trigger), então a condição `automation.stage_id !== undefined` é SEMPRE verdadeira → **automação é SEMPRE ignorada (skip)**
+1. A tabela `contacts` tem uma constraint `unique_phone_per_user` que impede dois contatos com o mesmo telefone
+2. O fluxo de criação tenta **criar um novo contato** antes de criar o deal/lead
+3. Quando o INSERT do contato falha (telefone duplicado), o `onSuccess` nunca executa → o deal **nunca é criado**
+4. O usuário vê o erro "Este número já está cadastrado" e nada mais acontece
 
-O log de execução em `automation_execution_log` é gravado pelo `process-scheduled-automations` ANTES de verificar se a ação foi realmente executada, o que mascara o bug.
+### O Cenário Real
+
+Pai, mãe e filho podem usar o **mesmo telefone**. Eles devem ser **leads separados** (deals no funil), mas vinculados ao **mesmo contato** (mesmo telefone = mesma conversa no WhatsApp).
 
 ### Plano de Correção
 
-**Arquivo**: `supabase/functions/process-funnel-automations/index.ts`
+**Arquivos a alterar:**
 
-1. Adicionar os gatilhos agendados (`on_scheduled_before_date_field`, `on_scheduled_exact_time`, `on_scheduled_daily`, `on_hours_after_last_message`) à lista de triggers que devem comparar com o `deal.stage_id` atual (assim como os message triggers), em vez de comparar com `toStageId`/`fromStageId`:
+1. **`src/hooks/useContacts.ts`** — Função `createContact`
+   - Quando o INSERT falhar com `unique_phone_per_user`, buscar o contato existente pelo telefone
+   - Atualizar os dados do contato existente (nome, email, campos custom) se fornecidos
+   - Retornar o contato existente em vez de lançar erro, permitindo que o `onSuccess` execute e crie o deal
 
-```typescript
-const isScheduledTrigger = [
-  'on_scheduled_before_date_field',
-  'on_scheduled_exact_time', 
-  'on_scheduled_daily',
-  'on_hours_after_last_message'
-].includes(automation.trigger_type);
+2. **`src/pages/Contacts.tsx`** — Função `handleCreateContact`
+   - Ajustar o fluxo para que, ao receber um contato existente de volta, ainda crie o deal normalmente
+   - Mostrar toast informativo: "Contato existente atualizado - Lead criado" em vez de erro
 
-if (automation.stage_id && !isFunnelEnterTrigger) {
-  if (isMessageTrigger || isScheduledTrigger) {
-    // For message/scheduled triggers, check deal's CURRENT stage
-    if (automation.stage_id !== deal.stage_id) {
-      continue;
-    }
-  } else {
-    // For stage-change triggers, check toStageId/fromStageId
-    if (automation.stage_id !== toStageId && automation.stage_id !== fromStageId) {
-      continue;
-    }
-  }
-}
-```
+3. **`src/hooks/useFunnels.ts`** — Função `createDeal` (sem mudança, já funciona)
+   - Já permite criar múltiplos deals para o mesmo `contact_id` — não tem restrição
 
-2. **Mover o log de execução** em `process-scheduled-automations` para DEPOIS da chamada bem-sucedida (já está assim — o problema é só o filtro de stage acima). Basta corrigir a lógica de stage matching.
+### Comportamento Esperado Após Correção
 
-**Deploy**: Redesplegar a edge function `process-funnel-automations`.
+- Telefone **novo** → cria contato + cria lead ✅
+- Telefone **existente** → encontra contato existente, atualiza dados se necessário, cria novo lead vinculado ✅
+- Toast informativo diferencia os dois cenários
+- O contato mantém uma única conversa no WhatsApp (mesmo telefone)
+- Múltiplos leads/deals podem existir para o mesmo contato no funil
 
-### Resultado Esperado
+### Pontos que NÃO mudam
 
-Automações agendadas com `stage_id` definido passarão a verificar corretamente se o deal está na etapa correta usando `deal.stage_id`, permitindo que a ação `move_stage` execute de fato.
+- A constraint `unique_phone_per_user` permanece (1 contato por telefone é correto para o sistema de conversas)
+- Webhooks, formulários e campanhas continuam funcionando normalmente
+- A deduplicação no `submit-form` e `receive-webhook` já faz o correto (encontra contato existente e cria deal)
 
