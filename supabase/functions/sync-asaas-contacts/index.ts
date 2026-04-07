@@ -215,11 +215,24 @@ Deno.serve(async (req: Request) => {
     const baseUrl = environment === 'sandbox' ? ASAAS_SANDBOX_URL : ASAAS_API_URL;
 
     // STEP 1: Fetch only OVERDUE and PENDING payments (much fewer than all customers)
-    console.log(`[sync-asaas] Fetching overdue and pending payments...`);
+    // Apply optional date range filters
+    let overdueEndpoint = 'payments?status=OVERDUE';
+    let pendingEndpoint = 'payments?status=PENDING';
+    
+    if (dueDateFrom) {
+      overdueEndpoint += `&dueDate[ge]=${dueDateFrom}`;
+      pendingEndpoint += `&dueDate[ge]=${dueDateFrom}`;
+    }
+    if (dueDateTo) {
+      overdueEndpoint += `&dueDate[le]=${dueDateTo}`;
+      pendingEndpoint += `&dueDate[le]=${dueDateTo}`;
+    }
+
+    console.log(`[sync-asaas] Fetching overdue and pending payments${dueDateFrom || dueDateTo ? ` (date filter: ${dueDateFrom || '*'} to ${dueDateTo || '*'})` : ''}...`);
     
     const [overduePayments, pendingPayments] = await Promise.all([
-      fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=OVERDUE', apiKey),
-      fetchAllPaginated<AsaasPayment>(baseUrl, 'payments?status=PENDING', apiKey),
+      fetchAllPaginated<AsaasPayment>(baseUrl, overdueEndpoint, apiKey),
+      fetchAllPaginated<AsaasPayment>(baseUrl, pendingEndpoint, apiKey),
     ]);
 
     console.log(`[sync-asaas] Found ${overduePayments.length} overdue, ${pendingPayments.length} pending payments`);

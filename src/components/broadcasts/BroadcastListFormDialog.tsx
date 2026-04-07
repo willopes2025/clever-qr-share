@@ -462,6 +462,64 @@ export const BroadcastListFormDialog = ({
                   <p className="text-xs text-muted-foreground">
                     Filtre contatos com base no status de pagamento no Asaas
                   </p>
+
+                  {/* Date range filters for overdue/pending */}
+                  {(asaasPaymentStatus === "overdue" || asaasPaymentStatus === "pending") && (
+                    <div className="grid grid-cols-2 gap-3 mt-3 pl-4 border-l-2 border-primary/30">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Vencimento de</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal h-9 text-xs",
+                                !asaasDueDateFrom && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-3 w-3" />
+                              {asaasDueDateFrom ? format(asaasDueDateFrom, "dd/MM/yyyy") : "Início"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={asaasDueDateFrom}
+                              onSelect={setAsaasDueDateFrom}
+                              locale={ptBR}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Vencimento até</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal h-9 text-xs",
+                                !asaasDueDateTo && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-3 w-3" />
+                              {asaasDueDateTo ? format(asaasDueDateTo, "dd/MM/yyyy") : "Fim"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={asaasDueDateTo}
+                              onSelect={setAsaasDueDateTo}
+                              locale={ptBR}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2">
