@@ -442,6 +442,31 @@ export const useMessages = (conversationId: string | null) => {
     },
   });
 
+  const sendReaction = useMutation({
+    mutationFn: async ({ messageId, emoji, conversationId: convId, instanceId: instId }: { messageId: string; emoji: string; conversationId: string; instanceId?: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-inbox-message', {
+        body: {
+          conversationId: convId,
+          action: 'reaction',
+          messageId,
+          emoji,
+          instanceId: instId,
+        },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to send reaction');
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao enviar reação: " + error.message);
+    },
+  });
+
   return {
     messages,
     isLoading,
@@ -449,5 +474,6 @@ export const useMessages = (conversationId: string | null) => {
     sendMessage,
     sendMediaMessage,
     transcribeAudio,
+    sendReaction,
   };
 };
