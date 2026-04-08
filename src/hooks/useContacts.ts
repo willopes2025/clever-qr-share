@@ -305,8 +305,8 @@ export const useContacts = () => {
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
-      const BATCH_SIZE = 10;
-      const BATCH_DELAY_MS = 500; // Delay between batches to avoid connection pool saturation and statement timeouts
+      const BATCH_SIZE = 5;
+      const BATCH_DELAY_MS = 1000; // Delay between batches to avoid connection pool saturation and statement timeouts
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const startedAt = Date.now();
       const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
