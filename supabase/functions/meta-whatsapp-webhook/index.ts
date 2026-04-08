@@ -532,6 +532,54 @@ Deno.serve(async (req) => {
               let mediaUrl = '';
               let messageType = 'text';
 
+              // Handle reaction messages separately
+              if (message.type === 'reaction') {
+                const reactionEmoji = message.reaction?.emoji || '';
+                const reactedMsgId = message.reaction?.message_id;
+                
+                if (reactedMsgId) {
+                  console.log('[META-WEBHOOK] Processing reaction:', reactionEmoji, 'for message:', reactedMsgId);
+                  
+                  const { data: reactedMsg } = await supabase
+                    .from('inbox_messages')
+                    .select('id, conversation_id')
+                    .eq('whatsapp_message_id', reactedMsgId)
+                    .limit(1)
+                    .maybeSingle();
+                  
+                  if (reactedMsg) {
+                    if (reactionEmoji === '') {
+                      // Remove reaction
+                      await supabase
+                        .from('message_reactions')
+                        .delete()
+                        .eq('message_id', reactedMsg.id)
+                        .eq('reacted_by', 'contact');
+                    } else {
+                      // Upsert: remove old, insert new
+                      await supabase
+                        .from('message_reactions')
+                        .delete()
+                        .eq('message_id', reactedMsg.id)
+                        .eq('reacted_by', 'contact');
+                      
+                      await supabase
+                        .from('message_reactions')
+                        .insert({
+                          message_id: reactedMsg.id,
+                          conversation_id: reactedMsg.conversation_id,
+                          emoji: reactionEmoji,
+                          reacted_by: 'contact',
+                          whatsapp_reaction_id: messageId,
+                        });
+                    }
+                  } else {
+                    console.log('[META-WEBHOOK] Could not find reacted message:', reactedMsgId);
+                  }
+                }
+                continue; // Reactions don't create inbox messages
+              }
+
               switch (message.type) {
                 case 'text':
                   content = message.text?.body || '';

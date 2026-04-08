@@ -50,6 +50,14 @@ export interface Conversation {
   deal?: ConversationDeal | null;
 }
 
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  emoji: string;
+  reacted_by: string;
+  created_at: string;
+}
+
 export interface InboxMessage {
   id: string;
   conversation_id: string;
@@ -81,6 +89,8 @@ export interface InboxMessage {
   // Origin tracking
   sent_via_instance_id?: string | null;
   sent_via_meta_number_id?: string | null;
+  // Reactions
+  reactions?: MessageReaction[];
 }
 
 export const useConversations = () => {
@@ -319,12 +329,27 @@ export const useMessages = (conversationId: string | null) => {
         }
       }
       
-      // Map messages with sender info
+      // Fetch reactions for all messages in this conversation
+      const { data: reactionsData } = await supabase
+        .from('message_reactions')
+        .select('*')
+        .eq('conversation_id', conversationId);
+      
+      const reactionsMap: Record<string, MessageReaction[]> = {};
+      if (reactionsData) {
+        for (const r of reactionsData) {
+          if (!reactionsMap[r.message_id]) reactionsMap[r.message_id] = [];
+          reactionsMap[r.message_id].push(r as MessageReaction);
+        }
+      }
+      
+      // Map messages with sender info and reactions
       return messagesData?.map(msg => ({
         ...msg,
         direction: msg.direction as 'inbound' | 'outbound',
         sent_by_user: msg.sent_by_user_id ? profilesMap[msg.sent_by_user_id] || null : null,
-        ai_agent: msg.sent_by_ai_agent_id ? aiAgentsMap[msg.sent_by_ai_agent_id] || null : null
+        ai_agent: msg.sent_by_ai_agent_id ? aiAgentsMap[msg.sent_by_ai_agent_id] || null : null,
+        reactions: reactionsMap[msg.id] || [],
       })) as InboxMessage[];
     },
     enabled: !!conversationId && !!user,
@@ -417,6 +442,31 @@ export const useMessages = (conversationId: string | null) => {
     },
   });
 
+  const sendReaction = useMutation({
+    mutationFn: async ({ messageId, emoji, conversationId: convId, instanceId: instId }: { messageId: string; emoji: string; conversationId: string; instanceId?: string }) => {
+      const { data, error } = await supabase.functions.invoke('send-inbox-message', {
+        body: {
+          conversationId: convId,
+          action: 'reaction',
+          messageId,
+          emoji,
+          instanceId: instId,
+        },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to send reaction');
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao enviar reação: " + error.message);
+    },
+  });
+
   return {
     messages,
     isLoading,
@@ -424,5 +474,6 @@ export const useMessages = (conversationId: string | null) => {
     sendMessage,
     sendMediaMessage,
     transcribeAudio,
+    sendReaction,
   };
 };

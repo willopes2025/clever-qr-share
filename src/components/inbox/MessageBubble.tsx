@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Phone, Copy } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
+import { MessageReactionsDisplay, ReactionPicker } from "./MessageReactions";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,9 +27,11 @@ interface MessageBubbleProps {
   message: InboxMessage;
   isOptimistic?: boolean;
   instancePhoneNumber?: string | null;
+  onReact?: (messageId: string, emoji: string) => void;
 }
 
-export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onReact }: MessageBubbleProps) => {
+  const [isHovered, setIsHovered] = useState(false);
   const isOutbound = message.direction === "outbound";
   const isFailed = message.status === "failed";
   
@@ -129,8 +132,20 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: Me
         </div>
       )}
       
-      {/* Message bubble with tail */}
-      <div className="relative">
+      {/* Message bubble with tail and reaction picker */}
+      <div 
+        className="relative"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Reaction picker on hover */}
+        {isHovered && onReact && !isOptimistic && (
+          <ReactionPicker
+            isOutbound={isOutbound}
+            onReact={(emoji) => onReact(message.id, emoji)}
+          />
+        )}
+
         {/* Tail */}
         <div
           className={cn(
@@ -230,6 +245,12 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber }: Me
           </div>
         </div>
       </div>
+
+      {/* Reactions display */}
+      <MessageReactionsDisplay 
+        reactions={message.reactions || []} 
+        isOutbound={isOutbound} 
+      />
     </div>
   );
 };
