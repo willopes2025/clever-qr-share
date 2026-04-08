@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Bell, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from '@/hooks/useFinancialMetrics';
 
@@ -61,11 +61,13 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
+      const days = differenceInDays(dateRange.end, dateRange.start);
+      const futureEnd = addDays(new Date(), days);
       const { data: reminders, error } = await supabase
         .from('billing_reminders')
         .select('scheduled_for, reminder_type, status, error_message')
         .gte('scheduled_for', dateRange.start.toISOString())
-        .lte('scheduled_for', dateRange.end.toISOString());
+        .lte('scheduled_for', futureEnd.toISOString());
 
       if (!error && reminders) {
         setData(reminders);
@@ -164,6 +166,13 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
               <XAxis dataKey="label" className="text-xs" />
               <YAxis allowDecimals={false} className="text-xs" />
               <ChartTooltip content={<ChartTooltipContent />} />
+              <ReferenceLine
+                x={format(new Date(), 'dd/MM', { locale: ptBR })}
+                stroke="hsl(var(--primary))"
+                strokeDasharray="4 4"
+                strokeWidth={2}
+                label={{ value: 'Hoje', position: 'top', fill: 'hsl(var(--primary))', fontSize: 12 }}
+              />
               {allTypes.map(type => (
                 <Bar
                   key={type}
