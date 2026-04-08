@@ -588,6 +588,46 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {triggerType === 'on_scheduled_after_date_field' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Campo de Data</Label>
+                <Select
+                  value={triggerConfig.date_field_key as string || ''}
+                  onValueChange={(v) => setTriggerConfig({ ...triggerConfig, date_field_key: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar campo de data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">📅 Data de criação do deal</SelectItem>
+                    <SelectItem value="expected_close_date">📅 Data prevista de fechamento</SelectItem>
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'lead').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        🏷️ {field.field_name}
+                      </SelectItem>
+                    ))}
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'contact').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        📇 {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Horas depois</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={triggerConfig.hours_after as number || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, hours_after: Number(e.target.value) })}
+                  placeholder="Ex: 24 (= 1 dia depois)"
+                />
+              </div>
+            </div>
+          )}
+
           {triggerType === 'on_scheduled_exact_time' && (
             <div className="space-y-3">
               <div className="space-y-2">
