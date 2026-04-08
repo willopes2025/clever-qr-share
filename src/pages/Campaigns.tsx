@@ -214,6 +214,14 @@ const Campaigns = () => {
             <SelectItem value="cancelled">Cancelada</SelectItem>
           </SelectContent>
         </Select>
+        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v)} className="border rounded-md">
+          <ToggleGroupItem value="grid" aria-label="Grade" className="px-2">
+            <LayoutGrid className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label="Lista" className="px-2">
+            <List className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {/* Content */}
