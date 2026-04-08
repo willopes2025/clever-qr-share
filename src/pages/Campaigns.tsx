@@ -4,16 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Send, Loader2 } from "lucide-react";
+import { Plus, Search, Send, Loader2, LayoutGrid, List } from "lucide-react";
 import { useCampaigns, useCampaignMutations, Campaign, SendingMode } from "@/hooks/useCampaigns";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignFormDialog } from "@/components/campaigns/CampaignFormDialog";
 import { CampaignTracker } from "@/components/campaigns/CampaignTracker";
+import { CampaignListView } from "@/components/campaigns/CampaignListView";
 import { SelectInstanceDialog } from "@/components/campaigns/SelectInstanceDialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const Campaigns = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<string>('grid');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
@@ -211,6 +214,14 @@ const Campaigns = () => {
             <SelectItem value="cancelled">Cancelada</SelectItem>
           </SelectContent>
         </Select>
+        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v)} className="border rounded-md">
+          <ToggleGroupItem value="grid" aria-label="Grade" className="px-2">
+            <LayoutGrid className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label="Lista" className="px-2">
+            <List className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {/* Content */}
@@ -238,6 +249,16 @@ const Campaigns = () => {
             </Button>
           )}
         </div>
+      ) : viewMode === 'list' ? (
+        <CampaignListView
+          campaigns={filteredCampaigns}
+          onEdit={(c) => setEditingCampaign(c)}
+          onDelete={(c) => setDeletingCampaign(c)}
+          onStart={(c) => handleStart(c)}
+          onCancel={(c) => handleCancel(c)}
+          onTrack={(c) => setTrackingCampaign(c)}
+          onResume={(c) => handleResume(c)}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredCampaigns.map((campaign) => (

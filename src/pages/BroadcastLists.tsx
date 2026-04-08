@@ -5,16 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, List, Loader2 } from "lucide-react";
+import { Plus, Search, List, Loader2, LayoutGrid } from "lucide-react";
 import { useBroadcastLists, BroadcastListWithContacts } from "@/hooks/useBroadcastLists";
 import { useContacts } from "@/hooks/useContacts";
 import { useFunnels } from "@/hooks/useFunnels";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { BroadcastListFormDialog } from "@/components/broadcasts/BroadcastListFormDialog";
 import { BroadcastListCard } from "@/components/broadcasts/BroadcastListCard";
+import { BroadcastListListView } from "@/components/broadcasts/BroadcastListListView";
 import { ListContactsDialog } from "@/components/broadcasts/ListContactsDialog";
 import { AddContactsDialog } from "@/components/broadcasts/AddContactsDialog";
 import { SendHistoryDialog } from "@/components/broadcasts/SendHistoryDialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
 const BroadcastLists = () => {
@@ -37,6 +39,7 @@ const BroadcastLists = () => {
   // UI State
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<string>("grid");
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingList, setEditingList] = useState<BroadcastListWithContacts | null>(null);
   const [viewingList, setViewingList] = useState<BroadcastListWithContacts | null>(null);
@@ -130,6 +133,14 @@ const BroadcastLists = () => {
             <SelectItem value="dynamic">Dinâmica</SelectItem>
           </SelectContent>
         </Select>
+        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v)} className="border rounded-md">
+          <ToggleGroupItem value="grid" aria-label="Grade" className="px-2">
+            <LayoutGrid className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label="Lista" className="px-2">
+            <List className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {/* Content */}
@@ -157,6 +168,17 @@ const BroadcastLists = () => {
             </Button>
           )}
         </div>
+      ) : viewMode === 'list' ? (
+        <BroadcastListListView
+          lists={filteredLists}
+          onView={(list) => setViewingList(list)}
+          onEdit={(list) => {
+            setEditingList(list);
+            setFormDialogOpen(true);
+          }}
+          onDelete={(list) => setDeleteConfirmList(list)}
+          onSend={(list) => handleSendMessage(list)}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredLists.map((list) => (
