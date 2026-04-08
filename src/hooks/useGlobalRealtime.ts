@@ -53,6 +53,18 @@ export const useGlobalRealtime = () => {
           queryClient.invalidateQueries({ queryKey: ['funnels'] });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'message_reactions' },
+        (payload) => {
+          const r = payload.new as { conversation_id?: string } | null;
+          const rOld = payload.old as { conversation_id?: string } | null;
+          const convId = r?.conversation_id || rOld?.conversation_id;
+          if (convId) {
+            queryClient.invalidateQueries({ queryKey: ['messages', convId] });
+          }
+        }
+      )
       .subscribe();
 
     return () => {
