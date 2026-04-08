@@ -61,11 +61,13 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
+      const days = differenceInDays(dateRange.end, dateRange.start);
+      const futureEnd = addDays(new Date(), days);
       const { data: reminders, error } = await supabase
         .from('billing_reminders')
         .select('scheduled_for, reminder_type, status, error_message')
         .gte('scheduled_for', dateRange.start.toISOString())
-        .lte('scheduled_for', dateRange.end.toISOString());
+        .lte('scheduled_for', futureEnd.toISOString());
 
       if (!error && reminders) {
         setData(reminders);
