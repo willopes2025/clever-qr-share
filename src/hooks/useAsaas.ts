@@ -163,8 +163,18 @@ export const useAsaas = () => {
       body: { action, ...params }
     });
 
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
+    if (error) {
+      console.error(`[Asaas API] Error calling ${action}:`, error.message);
+      throw error;
+    }
+    if (data?.error) {
+      // Don't crash on "not configured" - just return null so queries handle gracefully
+      if (typeof data.error === 'string' && data.error.includes('not configured')) {
+        console.warn('[Asaas API] Integration not configured');
+        return null;
+      }
+      throw new Error(data.error);
+    }
     return data;
   };
 
