@@ -72,6 +72,7 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
   const [isSaving, setIsSaving] = useState(false);
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Load saved nodes and edges
   useEffect(() => {
