@@ -166,6 +166,13 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
               <XAxis dataKey="label" className="text-xs" />
               <YAxis allowDecimals={false} className="text-xs" />
               <ChartTooltip content={<ChartTooltipContent />} />
+              <ReferenceLine
+                x={format(new Date(), 'dd/MM', { locale: ptBR })}
+                stroke="hsl(var(--primary))"
+                strokeDasharray="4 4"
+                strokeWidth={2}
+                label={{ value: 'Hoje', position: 'top', fill: 'hsl(var(--primary))', fontSize: 12 }}
+              />
               {allTypes.map(type => (
                 <Bar
                   key={type}
