@@ -50,6 +50,14 @@ export interface Conversation {
   deal?: ConversationDeal | null;
 }
 
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  emoji: string;
+  reacted_by: string;
+  created_at: string;
+}
+
 export interface InboxMessage {
   id: string;
   conversation_id: string;
@@ -81,6 +89,8 @@ export interface InboxMessage {
   // Origin tracking
   sent_via_instance_id?: string | null;
   sent_via_meta_number_id?: string | null;
+  // Reactions
+  reactions?: MessageReaction[];
 }
 
 export const useConversations = () => {
