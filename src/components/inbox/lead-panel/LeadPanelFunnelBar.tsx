@@ -13,7 +13,7 @@ import { useFunnels } from "@/hooks/useFunnels";
 import { DealFormDialog } from "@/components/funnels/DealFormDialog";
 import { MoveDealFunnelDialog } from "@/components/funnels/MoveDealFunnelDialog";
 import { useNavigate } from "react-router-dom";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface LeadPanelFunnelBarProps {
