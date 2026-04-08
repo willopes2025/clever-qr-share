@@ -696,6 +696,7 @@ Deno.serve(async (req: Request) => {
           case 'move_stage': {
             const targetStageId = actionConfig.target_stage_id as string;
             if (targetStageId) {
+              const fromStage = deal.stage_id;
               await supabase
                 .from('funnel_deals')
                 .update({ 
@@ -706,12 +707,34 @@ Deno.serve(async (req: Request) => {
 
               await supabase.from('funnel_deal_history').insert({
                 deal_id: dealId,
-                from_stage_id: deal.stage_id,
+                from_stage_id: fromStage,
                 to_stage_id: targetStageId,
                 notes: `Movido automaticamente por: ${automation.name}`
               });
 
               console.log(`[FUNNEL-AUTOMATIONS] Moved deal to stage: ${targetStageId}`);
+
+              // Trigger on_stage_enter automations for the new stage
+              try {
+                const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+                const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+                await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`,
+                  },
+                  body: JSON.stringify({
+                    dealId,
+                    triggerType: 'on_stage_enter',
+                    toStageId: targetStageId,
+                    fromStageId: fromStage,
+                  }),
+                });
+                console.log(`[FUNNEL-AUTOMATIONS] Triggered on_stage_enter for stage: ${targetStageId}`);
+              } catch (err) {
+                console.error(`[FUNNEL-AUTOMATIONS] Error triggering on_stage_enter:`, err);
+              }
             }
             results.push({ automationId: automation.id, success: true });
             break;
