@@ -132,8 +132,20 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
         </div>
       )}
       
-      {/* Message bubble with tail */}
-      <div className="relative">
+      {/* Message bubble with tail and reaction picker */}
+      <div 
+        className="relative"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Reaction picker on hover */}
+        {isHovered && onReact && !isOptimistic && (
+          <ReactionPicker
+            isOutbound={isOutbound}
+            onReact={(emoji) => onReact(message.id, emoji)}
+          />
+        )}
+
         {/* Tail */}
         <div
           className={cn(
@@ -233,6 +245,12 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
           </div>
         </div>
       </div>
+
+      {/* Reactions display */}
+      <MessageReactionsDisplay 
+        reactions={message.reactions || []} 
+        isOutbound={isOutbound} 
+      />
     </div>
   );
 };
