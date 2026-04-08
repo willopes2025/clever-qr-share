@@ -82,11 +82,12 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
               <span className="text-muted-foreground text-xs shrink-0">{currentFunnel?.name} -</span>
               <Badge 
                 variant="secondary"
-                className="font-medium shrink-0"
+                className="font-medium shrink-0 shadow-sm"
                 style={{ 
-                  backgroundColor: `${currentStage?.color}20`,
-                  color: currentStage?.color,
-                  borderColor: `${currentStage?.color}40`
+                  backgroundColor: currentStage?.color,
+                  color: '#fff',
+                  borderColor: currentStage?.color,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
                 }}
               >
                 {currentStage?.name}
