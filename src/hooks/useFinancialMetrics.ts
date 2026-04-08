@@ -140,13 +140,19 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
     );
     const pendingInPeriod = pendingPayments.reduce((sum, p) => sum + p.value, 0);
     
-    // Vencidos total
-    const overduePayments = payments.filter(p => p.status === 'OVERDUE');
-    const overdueTotal = overduePayments.reduce((sum, p) => sum + p.value, 0);
+    // Todos os vencidos (para aging e top devedores - visão geral)
+    const allOverduePayments = payments.filter(p => p.status === 'OVERDUE');
     
-    // Taxa de inadimplência
-    const totalBilled = receivedInPeriod + overdueTotal;
-    const delinquencyRate = totalBilled > 0 ? (overdueTotal / totalBilled) * 100 : 0;
+    // Cobranças com vencimento no período selecionado (para KPIs filtrados)
+    const billedInPeriod = payments.filter(p => isPaymentInRange(p, dateRange, false));
+    const totalBilledInPeriod = billedInPeriod.reduce((sum, p) => sum + p.value, 0);
+    
+    // Vencidos com dueDate no período selecionado
+    const overdueInPeriod = billedInPeriod.filter(p => p.status === 'OVERDUE');
+    const overdueTotal = overdueInPeriod.reduce((sum, p) => sum + p.value, 0);
+    
+    // Taxa de inadimplência correta: vencidos do período / total faturado no período
+    const delinquencyRate = totalBilledInPeriod > 0 ? (overdueTotal / totalBilledInPeriod) * 100 : 0;
     
     // Aging
     const aging: Aging = {
@@ -156,7 +162,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       days90plus: { count: 0, value: 0, payments: [] },
     };
     
-    overduePayments.forEach(payment => {
+    allOverduePayments.forEach(payment => {
       const daysOverdue = differenceInDays(today, parseISO(payment.dueDate));
       
       if (daysOverdue <= 30) {
@@ -181,7 +187,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
     // Top devedores
     const debtorMap = new Map<string, { value: number; maxDaysOverdue: number; count: number; paymentIds: string[] }>();
     
-    overduePayments.forEach(payment => {
+    allOverduePayments.forEach(payment => {
       const customerId = payment.customer;
       const daysOverdue = differenceInDays(today, parseISO(payment.dueDate));
       
@@ -321,7 +327,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       pendingInPeriod,
       pendingCountInPeriod: pendingPayments.length,
       overdueTotal,
-      overdueCount: overduePayments.length,
+      overdueCount: overdueInPeriod.length,
       receivedPreviousPeriod,
       receivedGrowth,
       delinquencyRate,
@@ -334,8 +340,8 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       forecast30DaysCount: forecast30DaysPayments.length,
       dailyReceived,
       dailyPending,
-      totalPaymentsValue: payments.reduce((sum, p) => sum + p.value, 0),
-      totalPaymentsCount: payments.length,
+      totalPaymentsValue: totalBilledInPeriod,
+      totalPaymentsCount: billedInPeriod.length,
       isLoading: isLoadingBalance || isLoadingPayments || isLoadingSubscriptions || isLoadingCustomers,
     };
   }, [balance, payments, subscriptions, customers, dateRange, isLoadingBalance, isLoadingPayments, isLoadingSubscriptions, isLoadingCustomers]);
