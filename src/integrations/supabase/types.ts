@@ -4103,6 +4103,51 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          emoji: string
+          id: string
+          message_id: string
+          reacted_by: string
+          whatsapp_reaction_id: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          emoji: string
+          id?: string
+          message_id: string
+          reacted_by: string
+          whatsapp_reaction_id?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          emoji?: string
+          id?: string
+          message_id?: string
+          reacted_by?: string
+          whatsapp_reaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "inbox_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_templates: {
         Row: {
           ai_prompt: string | null
