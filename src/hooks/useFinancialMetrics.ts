@@ -327,7 +327,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       pendingInPeriod,
       pendingCountInPeriod: pendingPayments.length,
       overdueTotal,
-      overdueCount: overduePayments.length,
+      overdueCount: overdueInPeriod.length,
       receivedPreviousPeriod,
       receivedGrowth,
       delinquencyRate,
@@ -340,8 +340,8 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       forecast30DaysCount: forecast30DaysPayments.length,
       dailyReceived,
       dailyPending,
-      totalPaymentsValue: payments.reduce((sum, p) => sum + p.value, 0),
-      totalPaymentsCount: payments.length,
+      totalPaymentsValue: totalBilledInPeriod,
+      totalPaymentsCount: billedInPeriod.length,
       isLoading: isLoadingBalance || isLoadingPayments || isLoadingSubscriptions || isLoadingCustomers,
     };
   }, [balance, payments, subscriptions, customers, dateRange, isLoadingBalance, isLoadingPayments, isLoadingSubscriptions, isLoadingCustomers]);
