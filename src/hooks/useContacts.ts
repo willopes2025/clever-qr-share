@@ -599,7 +599,26 @@ export const useContacts = () => {
               await delay(2000); // Wait longer before retry
             }
           }
-          if (lastError) throw lastError;
+          if (lastError) {
+            // Fallback: try inserting one by one
+            console.warn(`Batch ${bi + 1} failed after retries, falling back to individual inserts`);
+            for (const singleContact of dbBatch) {
+              try {
+                await ensureSession();
+                const { data: singleData, error: singleError } = await supabase
+                  .from("contacts")
+                  .upsert([singleContact], {
+                    onConflict: "user_id,phone",
+                    ignoreDuplicates: false,
+                  })
+                  .select("id");
+                if (!singleError && singleData) insertedData.push(...singleData);
+                await delay(300);
+              } catch (e) {
+                console.error("Individual insert failed:", e);
+              }
+            }
+          }
           
           processedWork += batch.length;
           reportProgress('inserting', processedWork, totalWork);
