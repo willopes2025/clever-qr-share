@@ -828,6 +828,7 @@ Deno.serve(async (req: Request) => {
           }
 
           // Wait for user selection
+          await logNodeExecution(node.id, node.type, 'waiting_input');
           await supabase
             .from('chatbot_executions')
             .update({ status: 'waiting_input', current_node_id: node.id })
