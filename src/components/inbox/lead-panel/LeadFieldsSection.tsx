@@ -288,7 +288,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             onClick={() => setEditingField(definition.field_key)}
             className="text-sm text-foreground hover:text-primary hover:bg-primary/5 px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group min-h-[32px]"
           >
-            {formatDisplayValue(value, definition.field_name) || <span className="text-muted-foreground italic">Clique para editar</span>}
+            {value !== null && value !== undefined && value !== '' ? String(value) : <span className="text-muted-foreground italic">Clique para editar</span>}
             <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
           </button>
         );

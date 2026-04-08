@@ -36,7 +36,7 @@ export function isSameDateString(dateString: string | null, day: Date): boolean 
  * Check if a field name suggests it's a date field (used for auto-detection)
  */
 export function isDateLikeFieldName(fieldName: string): boolean {
-  return /\bdata\b|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo|consulta|evento|agendamento/i.test(fieldName);
+  return /\bdata\b|date|vencimento|nascimento|pagamento|data_de_entrada|data_da_entrada|saída|saida|prazo|consulta|evento|agendamento/i.test(fieldName);
 }
 
 /**
