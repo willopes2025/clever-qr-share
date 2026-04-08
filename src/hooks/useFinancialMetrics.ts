@@ -140,13 +140,19 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
     );
     const pendingInPeriod = pendingPayments.reduce((sum, p) => sum + p.value, 0);
     
-    // Vencidos total
-    const overduePayments = payments.filter(p => p.status === 'OVERDUE');
-    const overdueTotal = overduePayments.reduce((sum, p) => sum + p.value, 0);
+    // Todos os vencidos (para aging e top devedores - visão geral)
+    const allOverduePayments = payments.filter(p => p.status === 'OVERDUE');
     
-    // Taxa de inadimplência
-    const totalBilled = receivedInPeriod + overdueTotal;
-    const delinquencyRate = totalBilled > 0 ? (overdueTotal / totalBilled) * 100 : 0;
+    // Cobranças com vencimento no período selecionado (para KPIs filtrados)
+    const billedInPeriod = payments.filter(p => isPaymentInRange(p, dateRange, false));
+    const totalBilledInPeriod = billedInPeriod.reduce((sum, p) => sum + p.value, 0);
+    
+    // Vencidos com dueDate no período selecionado
+    const overdueInPeriod = billedInPeriod.filter(p => p.status === 'OVERDUE');
+    const overdueTotal = overdueInPeriod.reduce((sum, p) => sum + p.value, 0);
+    
+    // Taxa de inadimplência correta: vencidos do período / total faturado no período
+    const delinquencyRate = totalBilledInPeriod > 0 ? (overdueTotal / totalBilledInPeriod) * 100 : 0;
     
     // Aging
     const aging: Aging = {
