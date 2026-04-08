@@ -168,6 +168,17 @@ const BroadcastLists = () => {
             </Button>
           )}
         </div>
+      ) : viewMode === 'list' ? (
+        <BroadcastListListView
+          lists={filteredLists}
+          onView={(list) => setViewingList(list)}
+          onEdit={(list) => {
+            setEditingList(list);
+            setFormDialogOpen(true);
+          }}
+          onDelete={(list) => setDeleteConfirmList(list)}
+          onSend={(list) => handleSendMessage(list)}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredLists.map((list) => (
