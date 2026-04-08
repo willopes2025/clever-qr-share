@@ -41,6 +41,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   on_form_submission: 'Formulário enviado',
   on_responsible_changed: 'Responsável alterado',
   on_scheduled_before_date_field: 'Antes de campo de data',
+  on_scheduled_after_date_field: 'Depois de campo de data',
   on_scheduled_exact_time: 'Em data e hora exata',
   on_scheduled_daily: 'Diariamente às',
   on_conversation_closed: 'Conversa encerrada',

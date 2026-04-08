@@ -6327,6 +6327,7 @@ export type Database = {
         | "on_scheduled_daily"
         | "on_conversation_closed"
         | "on_hours_after_last_message"
+        | "on_scheduled_after_date_field"
       template_category:
         | "promotional"
         | "transactional"
@@ -6507,6 +6508,7 @@ export const Constants = {
         "on_scheduled_daily",
         "on_conversation_closed",
         "on_hours_after_last_message",
+        "on_scheduled_after_date_field",
       ],
       template_category: [
         "promotional",

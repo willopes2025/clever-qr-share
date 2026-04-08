@@ -173,6 +173,47 @@ Deno.serve(async (req: Request) => {
       results.push({ type: 'on_scheduled_before_date_field', processed, errors });
     }
 
+    // ========== 3b. on_scheduled_after_date_field ==========
+    {
+      const { data: automations } = await supabase
+        .from('funnel_automations')
+        .select('*')
+        .eq('is_active', true)
+        .eq('trigger_type', 'on_scheduled_after_date_field');
+
+      let processed = 0, errors = 0;
+      for (const auto of automations || []) {
+        const config = (auto.trigger_config as Record<string, unknown>) || {};
+        const dateFieldKey = config.date_field_key as string;
+        const hoursAfter = config.hours_after as number;
+        if (!dateFieldKey || !hoursAfter) continue;
+
+        const deals = await getDeals(supabase, auto);
+        for (const deal of deals) {
+          const dateValue = await resolveDateField(supabase, deal, dateFieldKey);
+          if (!dateValue) continue;
+
+          const targetDate = parseDateValue(dateValue);
+          if (!targetDate) continue;
+
+          const triggerTime = new Date(targetDate.getTime() + hoursAfter * 3600000);
+          const diffMinutes = Math.abs((now.getTime() - triggerTime.getTime()) / 60000);
+          if (diffMinutes > 1) continue;
+
+          const triggerKey = `after_${dateFieldKey}_${String(dateValue)}`;
+          const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
+          if (alreadyRun) continue;
+
+          try {
+            await invokeFunnelAutomation(supabaseUrl, supabaseKey, deal.id, 'on_scheduled_after_date_field');
+            await logExecution(supabase, auto.id, deal.id, triggerKey);
+            processed++;
+          } catch { errors++; }
+        }
+      }
+      results.push({ type: 'on_scheduled_after_date_field', processed, errors });
+    }
+
     // ========== 4. on_hours_after_last_message ==========
     {
       const { data: automations } = await supabase

@@ -57,8 +57,9 @@ type TriggerType =
   | 'on_webhook'
   | 'on_form_submission'
   | 'on_responsible_changed'
-  | 'on_scheduled_before_date_field'
-  | 'on_scheduled_exact_time'
+   | 'on_scheduled_before_date_field'
+   | 'on_scheduled_after_date_field'
+   | 'on_scheduled_exact_time'
   | 'on_scheduled_daily'
   | 'on_conversation_closed'
   | 'on_hours_after_last_message';
@@ -319,7 +320,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
     }
   };
 
-  const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage', 'on_scheduled_before_date_field', 'on_scheduled_daily'].includes(triggerType);
+  const needsStage = ['on_stage_enter', 'on_stage_exit', 'on_time_in_stage', 'on_scheduled_before_date_field', 'on_scheduled_after_date_field', 'on_scheduled_daily'].includes(triggerType);
 
   const DATE_KEYWORDS = /\bdata\b|date|vencimento|nascimento|data_da_|data_de_|data_do_/i;
   const dateFieldDefinitions = fieldDefinitions?.filter(f => 
@@ -392,6 +393,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 {/* Scheduled triggers */}
                 <SelectItem disabled value="__group_scheduled" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos Programados ──</SelectItem>
                 <SelectItem value="on_scheduled_before_date_field">⏰ X horas antes de campo de data</SelectItem>
+                <SelectItem value="on_scheduled_after_date_field">⏰ X horas depois de campo de data</SelectItem>
                 <SelectItem value="on_scheduled_exact_time">📅 Em data e hora exata</SelectItem>
                 <SelectItem value="on_scheduled_daily">🔄 Diariamente às</SelectItem>
                 <SelectItem value="on_time_in_stage">⏱️ Após X dias na etapa</SelectItem>
@@ -581,6 +583,46 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   value={triggerConfig.hours_before as number || ''}
                   onChange={(e) => setTriggerConfig({ ...triggerConfig, hours_before: Number(e.target.value) })}
                   placeholder="Ex: 24 (= 1 dia antes)"
+                />
+              </div>
+            </div>
+          )}
+
+          {triggerType === 'on_scheduled_after_date_field' && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Campo de Data</Label>
+                <Select
+                  value={triggerConfig.date_field_key as string || ''}
+                  onValueChange={(v) => setTriggerConfig({ ...triggerConfig, date_field_key: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar campo de data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">📅 Data de criação do deal</SelectItem>
+                    <SelectItem value="expected_close_date">📅 Data prevista de fechamento</SelectItem>
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'lead').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        🏷️ {field.field_name}
+                      </SelectItem>
+                    ))}
+                    {dateFieldDefinitions.filter(f => f.entity_type === 'contact').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>
+                        📇 {field.field_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Horas depois</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={triggerConfig.hours_after as number || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, hours_after: Number(e.target.value) })}
+                  placeholder="Ex: 24 (= 1 dia depois)"
                 />
               </div>
             </div>
