@@ -106,6 +106,16 @@ Deno.serve(async (req: Request) => {
           .update({ variables, status: 'running' })
           .eq('id', executionId);
         
+        // Mark the node as responded in analytics
+        if (execution.current_node_id) {
+          await supabase
+            .from('chatbot_node_executions')
+            .update({ status: 'responded', responded_at: new Date().toISOString() })
+            .eq('execution_id', executionId)
+            .eq('node_id', execution.current_node_id)
+            .eq('status', 'waiting_input');
+        }
+
         execution.variables = variables;
       }
     } else {
