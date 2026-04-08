@@ -619,22 +619,40 @@ export const useContacts = () => {
           const batch = updateBatches[bi];
           await ensureSession();
           
-          // Use upsert in batch for much faster updates
           const dbBatch = batch.map(contact => {
             const prepared = prepareForDb(contact);
             return prepared;
           });
           
-          const { data, error } = await supabase
-            .from("contacts")
-            .upsert(dbBatch, {
-              onConflict: "user_id,phone",
-              ignoreDuplicates: false,
-            })
-            .select("id");
+          let retries = 3;
+          let lastError: any = null;
+          let batchSuccess = false;
+          
+          while (retries > 0) {
+            const { data, error } = await supabase
+              .from("contacts")
+              .upsert(dbBatch, {
+                onConflict: "user_id,phone",
+                ignoreDuplicates: false,
+              })
+              .select("id");
 
-          if (error) {
-            console.error("Error updating batch:", error);
+            if (!error) {
+              if (data) updatedData.push(...data);
+              batchSuccess = true;
+              break;
+            }
+            
+            lastError = error;
+            retries--;
+            if (retries > 0) {
+              console.warn(`Update batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
+              await delay(2000);
+            }
+          }
+          
+          if (!batchSuccess) {
+            console.error("Error updating batch after retries:", lastError);
             // Fallback: try individual updates
             for (const contact of batch) {
               const prepared = prepareForDb(contact);
@@ -647,8 +665,6 @@ export const useContacts = () => {
                 .select("id");
               if (singleData) updatedData.push(...singleData);
             }
-          } else if (data) {
-            updatedData.push(...data);
           }
           processedWork += batch.length;
           reportProgress('updating', processedWork, totalWork);
