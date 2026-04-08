@@ -12,9 +12,11 @@ import { useFunnels } from "@/hooks/useFunnels";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { BroadcastListFormDialog } from "@/components/broadcasts/BroadcastListFormDialog";
 import { BroadcastListCard } from "@/components/broadcasts/BroadcastListCard";
+import { BroadcastListListView } from "@/components/broadcasts/BroadcastListListView";
 import { ListContactsDialog } from "@/components/broadcasts/ListContactsDialog";
 import { AddContactsDialog } from "@/components/broadcasts/AddContactsDialog";
 import { SendHistoryDialog } from "@/components/broadcasts/SendHistoryDialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
 const BroadcastLists = () => {
