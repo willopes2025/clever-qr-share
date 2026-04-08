@@ -187,7 +187,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
     // Top devedores
     const debtorMap = new Map<string, { value: number; maxDaysOverdue: number; count: number; paymentIds: string[] }>();
     
-    overduePayments.forEach(payment => {
+    allOverduePayments.forEach(payment => {
       const customerId = payment.customer;
       const daysOverdue = differenceInDays(today, parseISO(payment.dueDate));
       
