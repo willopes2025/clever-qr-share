@@ -1411,6 +1411,14 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                       message={message}
                       isOptimistic={'isOptimistic' in message}
                       instancePhoneNumber={connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
+                      onReact={(messageId, emoji) => {
+                        sendReaction.mutate({
+                          messageId,
+                          emoji,
+                          conversationId: conversation.id,
+                          instanceId: selectedInstanceId,
+                        });
+                      }}
                     />
                   </Fragment>
                 );
