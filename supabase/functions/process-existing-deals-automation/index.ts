@@ -252,7 +252,7 @@ Deno.serve(async (req: Request) => {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${supabaseServiceKey}`,
+                    'Authorization': `Bearer ${supabaseKey}`,
                   },
                   body: JSON.stringify({
                     dealId: deal.id,
