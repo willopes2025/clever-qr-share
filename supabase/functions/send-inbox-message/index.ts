@@ -28,7 +28,128 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone } = await req.json();
+    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone, action, messageId, emoji } = await req.json();
+
+    // =========================================
+    // REACTION ACTION
+    // =========================================
+    if (action === 'reaction' && messageId && emoji !== undefined) {
+      console.log(`[SEND] Sending reaction "${emoji}" to message ${messageId} in conversation ${conversationId}`);
+      
+      // Get the message to react to
+      const { data: targetMessage, error: msgErr } = await supabase
+        .from('inbox_messages')
+        .select('id, conversation_id, whatsapp_message_id, sent_via_instance_id, sent_via_meta_number_id')
+        .eq('id', messageId)
+        .single();
+      
+      if (msgErr || !targetMessage) throw new Error('Message not found');
+      
+      // Get conversation info
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id, user_id, provider, meta_phone_number_id, instance_id, contact:contacts(id, phone, label_id)')
+        .eq('id', conversationId)
+        .single();
+      
+      if (!conv) throw new Error('Conversation not found');
+      
+      const contactInfo = conv.contact as unknown as { id: string; phone: string; label_id: string | null } | null;
+      if (!contactInfo) throw new Error('Contact not found');
+
+      const whatsappMsgId = targetMessage.whatsapp_message_id;
+      
+      // Determine provider
+      const effectiveInstanceId = instanceId || conv.instance_id;
+      const isMeta = conv.provider === 'meta' && !effectiveInstanceId;
+      
+      if (isMeta && whatsappMsgId) {
+        // Send reaction via Meta Cloud API
+        const { data: integration } = await supabase
+          .from('integrations')
+          .select('*')
+          .eq('user_id', conv.user_id)
+          .eq('provider', 'meta_whatsapp')
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        if (integration?.credentials?.access_token) {
+          const phoneNumberId = conv.meta_phone_number_id || integration.credentials?.phone_number_id;
+          const formattedPhone = contactInfo.phone.replace(/[^0-9]/g, '');
+          
+          await fetch(`${META_API_URL}/${phoneNumberId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${integration.credentials.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: formattedPhone,
+              type: 'reaction',
+              reaction: { message_id: whatsappMsgId, emoji: emoji || '' },
+            }),
+          });
+        }
+      } else if (effectiveInstanceId && whatsappMsgId) {
+        // Send reaction via Evolution API
+        const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
+        const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+        
+        const { data: instance } = await supabase
+          .from('whatsapp_instances')
+          .select('evolution_instance_name, instance_name')
+          .eq('id', effectiveInstanceId)
+          .single();
+        
+        if (instance) {
+          const evolutionName = instance.evolution_instance_name || instance.instance_name;
+          let phone = contactInfo.phone.replace(/\D/g, '');
+          const isLid = contactInfo.label_id && phone.length > 13;
+          const remoteJid = isLid ? `${contactInfo.label_id}@lid` : `${phone}@s.whatsapp.net`;
+          
+          await fetch(`${evolutionApiUrl}/message/sendReaction/${evolutionName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+            body: JSON.stringify({
+              key: { remoteJid, fromMe: targetMessage.sent_via_instance_id ? true : false, id: whatsappMsgId },
+              reaction: emoji || '',
+            }),
+          });
+        }
+      }
+      
+      // Save/remove reaction in DB
+      if (emoji === '' || emoji === null) {
+        await supabase
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('reacted_by', senderUserId || 'user');
+      } else {
+        // Remove existing reaction from this user, then insert
+        await supabase
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('reacted_by', senderUserId || 'user');
+        
+        await supabase
+          .from('message_reactions')
+          .insert({
+            message_id: messageId,
+            conversation_id: conversationId,
+            emoji,
+            reacted_by: senderUserId || 'user',
+          });
+      }
+      
+      return new Response(
+        JSON.stringify({ success: true, action: 'reaction' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!conversationId || (!content && messageType !== 'meta_template')) {
       throw new Error('conversationId and content are required');
