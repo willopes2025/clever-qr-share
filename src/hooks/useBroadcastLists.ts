@@ -248,35 +248,40 @@ export const useBroadcastLists = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      if (!lists || lists.length === 0) return [];
 
-      const listsWithCounts: BroadcastListWithContacts[] = [];
-
-      for (const list of lists || []) {
-        if (list.type === "manual") {
-          const { count } = await supabase
-            .from("broadcast_list_contacts")
-            .select("*", { count: "exact", head: true })
-            .eq("list_id", list.id);
-
-          listsWithCounts.push({
-            ...list,
-            type: list.type as "manual" | "dynamic",
-            filter_criteria: (list.filter_criteria || {}) as FilterCriteria,
-            contact_count: count || 0,
-          });
-          continue;
+      // Fetch manual list counts in a single query instead of N+1
+      const manualListIds = lists.filter(l => l.type === "manual").map(l => l.id);
+      
+      let manualCountMap = new Map<string, number>();
+      if (manualListIds.length > 0) {
+        const { data: countData } = await supabase
+          .from("broadcast_list_contacts")
+          .select("list_id", { count: "exact", head: false })
+          .in("list_id", manualListIds);
+        
+        // Count per list_id
+        if (countData) {
+          for (const row of countData) {
+            manualCountMap.set(row.list_id, (manualCountMap.get(row.list_id) || 0) + 1);
+          }
         }
+      }
 
+      // Build results - for dynamic lists, defer count to 0 initially (lazy load)
+      const listsWithCounts: BroadcastListWithContacts[] = lists.map(list => {
         const criteria = (list.filter_criteria || {}) as FilterCriteria;
-        const contactCount = await countContactsByCriteria(criteria);
-
-        listsWithCounts.push({
+        const contactCount = list.type === "manual" 
+          ? (manualCountMap.get(list.id) || 0)
+          : 0; // Dynamic counts loaded lazily when list is opened
+        
+        return {
           ...list,
           type: list.type as "manual" | "dynamic",
           filter_criteria: criteria,
           contact_count: contactCount,
-        });
-      }
+        };
+      });
 
       return listsWithCounts;
     },
