@@ -771,7 +771,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if (val === undefined || val === null) return <span className="text-muted-foreground">-</span>;
           if (typeof val === "boolean") return val ? "Sim" : "Não";
           const isDateField = (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
-            (fieldDef?.field_name && /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldDef.field_name));
+            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name));
           if (isDateField) {
             const formatted = formatCustomFieldDate(val);
             if (formatted) return formatted;
@@ -906,7 +906,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           const fieldKey = columnId.replace("custom_", "");
           const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
           const isDateField = (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
-            (fieldDef?.field_name && /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldDef.field_name));
+            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name));
           
           if (isDateField) {
             return (

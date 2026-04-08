@@ -84,7 +84,7 @@ export const LeadPanelTabContent = ({ conversation, activeTabId }: LeadPanelTabC
   };
 
   const isDateLikeField = (fieldName: string) => {
-    return /data|date|vencimento|nascimento|pagamento|entrada|saída|saida|prazo/i.test(fieldName);
+    return /\bdata\b|date|vencimento|nascimento|pagamento|data_de_entrada|data_da_entrada|saída|saida|prazo|consulta|evento|agendamento/i.test(fieldName);
   };
 
   const formatDisplayValue = (value: any, fieldName: string): string => {
