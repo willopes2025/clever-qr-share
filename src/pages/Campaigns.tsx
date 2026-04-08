@@ -9,7 +9,9 @@ import { useCampaigns, useCampaignMutations, Campaign, SendingMode } from "@/hoo
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignFormDialog } from "@/components/campaigns/CampaignFormDialog";
 import { CampaignTracker } from "@/components/campaigns/CampaignTracker";
+import { CampaignListView } from "@/components/campaigns/CampaignListView";
 import { SelectInstanceDialog } from "@/components/campaigns/SelectInstanceDialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const Campaigns = () => {
   const [search, setSearch] = useState('');
