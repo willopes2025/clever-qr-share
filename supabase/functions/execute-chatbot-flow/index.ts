@@ -217,6 +217,22 @@ Deno.serve(async (req: Request) => {
       }
     };
 
+    // Helper: log node execution for analytics
+    const logNodeExecution = async (nodeId: string, nodeType: string, status: string = 'processed') => {
+      try {
+        await supabase.from('chatbot_node_executions').insert({
+          execution_id: execution.id,
+          flow_id: flowId,
+          node_id: nodeId,
+          node_type: nodeType,
+          user_id: userId,
+          status,
+        });
+      } catch (err) {
+        console.error('[FLOW] Error logging node execution:', err);
+      }
+    };
+
     // Process nodes sequentially
     let currentId: string | null = startNodeId;
     let processedCount = 0;
@@ -237,6 +253,12 @@ Deno.serve(async (req: Request) => {
         .from('chatbot_executions')
         .update({ current_node_id: currentId })
         .eq('id', execution.id);
+
+      // Log node execution for analytics tracking
+      const isInputNode = node.type === 'question' || node.type === 'list_message';
+      if (!isInputNode) {
+        await logNodeExecution(node.id, node.type, 'processed');
+      }
 
       switch (node.type) {
         case 'start':
