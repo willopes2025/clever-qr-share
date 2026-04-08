@@ -1,44 +1,63 @@
 
 
-## Correção dos Números do Dashboard Financeiro
+## Rastreamento de Métricas por Nó do Chatbot (Funil de Conversão)
 
-### Problemas Identificados
+### Problema Atual
+O sistema atual só rastreia a execução geral do fluxo na tabela `chatbot_executions` (com `current_node_id`), mas não registra quais nós foram processados, quantos leads passaram por cada etapa, nem quantos responderam. Isso impossibilita análise de funil.
 
-1. **Taxa de Inadimplência inflada (98.3%)**: O cálculo atual compara o total de cobranças vencidas de **todos os tempos** contra apenas os recebimentos **do período selecionado**. Isso distorce completamente a taxa.
-   - Fórmula atual: `overdueTotal / (receivedInPeriod + overdueTotal)` → mistura períodos diferentes
-   - Exemplo: R$ 151k vencidos (histórico total) vs R$ ~2k recebidos (30 dias) = 98.3%
+### Solução
 
-2. **Aging e Total Vencido sem filtro de período**: O aging e o total vencido consideram **todas** as cobranças OVERDUE da base, independente do período selecionado no filtro de datas, o que pode incluir cobranças muito antigas que já foram renegociadas ou são incobráveis.
+#### 1. Nova tabela: `chatbot_node_executions`
+Registrar cada passagem de nó individualmente durante a execução do fluxo.
 
-3. **"Total de cobranças" e "Valor total" no resumo**: Mostram o total de TODOS os payments da base Asaas, não apenas os do período.
-
-### Correções Propostas
-
-**Arquivo:** `src/hooks/useFinancialMetrics.ts`
-
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Taxa de Inadimplência | `overdueTotal / (received + overdueTotal)` | `overdueNoPeriodo / totalFaturadoNoPeriodo` — considerar apenas cobranças com vencimento no período |
-| Total Vencido | Todos os OVERDUE da base | Cobranças OVERDUE com vencimento dentro do período selecionado |
-| Aging | Todos os OVERDUE | Mantém todos os OVERDUE (faz sentido ser visão geral), mas adicionar label "Visão Geral" |
-| Resumo do Período | Todos os payments | Apenas payments com vencimento ou pagamento dentro do período |
-
-**Detalhes da correção principal (inadimplência):**
-```
-// Cobranças com vencimento no período
-const billedInPeriod = payments.filter(p => 
-  isPaymentInRange(p, dateRange, false) // usa dueDate
+```sql
+CREATE TABLE public.chatbot_node_executions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  execution_id UUID REFERENCES chatbot_executions(id) ON DELETE CASCADE NOT NULL,
+  flow_id UUID REFERENCES chatbot_flows(id) ON DELETE CASCADE NOT NULL,
+  node_id TEXT NOT NULL,
+  node_type TEXT NOT NULL,
+  user_id UUID NOT NULL,
+  status TEXT DEFAULT 'processed', -- 'processed', 'waiting_input', 'responded', 'skipped'
+  responded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
-const totalBilledInPeriod = billedInPeriod.reduce((sum, p) => sum + p.value, 0);
-
-// Vencidas com dueDate no período  
-const overdueInPeriod = billedInPeriod.filter(p => p.status === 'OVERDUE');
-const overdueInPeriodTotal = overdueInPeriod.reduce((sum, p) => sum + p.value, 0);
-
-// Taxa correta
-const delinquencyRate = totalBilledInPeriod > 0 
-  ? (overdueInPeriodTotal / totalBilledInPeriod) * 100 : 0;
+-- RLS + índices
 ```
 
-**KPI "Total Vencido"** passará a mostrar apenas vencidos do período, com subtitle indicando o período. O aging continuará mostrando a visão geral (todos os vencidos) pois é útil para gestão de cobrança.
+Campos-chave:
+- **status = 'processed'**: o nó foi executado (mensagem enviada, ação realizada)
+- **status = 'waiting_input'**: aguardando resposta (pergunta/list_message)
+- **status = 'responded'**: o lead respondeu àquele nó
+
+#### 2. Atualizar Edge Function `execute-chatbot-flow`
+No loop principal de processamento de nós (`while (currentId ...)`), inserir um registro em `chatbot_node_executions` para cada nó processado. Quando o lead responde (input recebido via webhook), atualizar o registro do nó de `waiting_input` → `responded`.
+
+#### 3. Painel de Analytics no Editor de Fluxo
+Adicionar um botão "📊 Métricas" ao header do editor do fluxo que abre um painel lateral/dialog mostrando:
+
+| Etapa (Nó) | Tipo | Alcançados | Responderam | Taxa (%) |
+|-------------|------|-----------|-------------|----------|
+| Mensagem 1  | message | 500 | — | 100% |
+| Pergunta 1  | question | 500 | 120 | 24% |
+| Mensagem 2  | message | 120 | — | 24% |
+| Pergunta 2  | question | 120 | 45 | 37.5% |
+
+- Percentuais calculados: "alcançados / total que iniciou o fluxo"
+- Para nós de pergunta/list_message: mostrar também "responderam / alcançados"
+- Filtro de período (últimos 7/30/90 dias)
+
+#### 4. Badges visuais nos nós (opcional mas valioso)
+Mostrar um pequeno badge no canto dos nós no canvas com o percentual de passagem, para visualização rápida da performance do funil direto no editor visual.
+
+### Arquivos a criar/modificar
+
+| Arquivo | Ação |
+|---------|------|
+| Migração SQL | Criar tabela `chatbot_node_executions` com RLS |
+| `supabase/functions/execute-chatbot-flow/index.ts` | Inserir log por nó processado; atualizar status quando lead responde |
+| `src/components/chatbot-builder/ChatbotFlowAnalytics.tsx` | **Novo** — painel de métricas do funil |
+| `src/hooks/useChatbotFlowAnalytics.ts` | **Novo** — hook para buscar e agregar dados de analytics |
+| `src/components/chatbot-builder/ChatbotFlowEditor.tsx` | Adicionar botão "Métricas" e integrar o painel |
+| Nós visuais (MessageNode, QuestionNode, etc.) | Adicionar badge opcional com % de alcance |
 
