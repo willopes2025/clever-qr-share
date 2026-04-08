@@ -21,7 +21,7 @@ import { ChatbotFlowSidebar } from './ChatbotFlowSidebar';
 import { ChatbotNodeConfig } from './ChatbotNodeConfig';
 import { ChatbotTestDialog } from './ChatbotTestDialog';
 import { Button } from '@/components/ui/button';
-import { Save, Play } from 'lucide-react';
+import { Save, Play, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
