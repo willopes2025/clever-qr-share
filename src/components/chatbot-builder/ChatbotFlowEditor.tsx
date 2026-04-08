@@ -20,6 +20,7 @@ import { ChatbotFlow, useChatbotFlowNodes, useChatbotFlowEdges } from '@/hooks/u
 import { ChatbotFlowSidebar } from './ChatbotFlowSidebar';
 import { ChatbotNodeConfig } from './ChatbotNodeConfig';
 import { ChatbotTestDialog } from './ChatbotTestDialog';
+import { ChatbotFlowAnalytics } from './ChatbotFlowAnalytics';
 import { Button } from '@/components/ui/button';
 import { Save, Play, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
