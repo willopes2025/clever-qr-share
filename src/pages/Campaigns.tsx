@@ -249,6 +249,16 @@ const Campaigns = () => {
             </Button>
           )}
         </div>
+      ) : viewMode === 'list' ? (
+        <CampaignListView
+          campaigns={filteredCampaigns}
+          onEdit={(c) => setEditingCampaign(c)}
+          onDelete={(c) => setDeletingCampaign(c)}
+          onStart={(c) => handleStart(c)}
+          onCancel={(c) => handleCancel(c)}
+          onTrack={(c) => setTrackingCampaign(c)}
+          onResume={(c) => handleResume(c)}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredCampaigns.map((campaign) => (
