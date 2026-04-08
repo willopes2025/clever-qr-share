@@ -689,11 +689,13 @@ export const useContacts = () => {
           tagBatches.push(tagInserts.slice(i, i + BATCH_SIZE * 2));
         }
 
-        for (const tagBatch of tagBatches) {
+        for (let ti = 0; ti < tagBatches.length; ti++) {
+          const tagBatch = tagBatches[ti];
           await ensureSession();
           await supabase
             .from("contact_tags")
             .upsert(tagBatch, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+          if (ti < tagBatches.length - 1) await delay(BATCH_DELAY_MS);
         }
       }
 
