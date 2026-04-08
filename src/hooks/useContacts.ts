@@ -305,8 +305,8 @@ export const useContacts = () => {
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
-      const BATCH_SIZE = 20;
-      const BATCH_DELAY_MS = 300; // Delay between batches to avoid connection pool saturation
+      const BATCH_SIZE = 10;
+      const BATCH_DELAY_MS = 500; // Delay between batches to avoid connection pool saturation and statement timeouts
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const startedAt = Date.now();
       const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
@@ -573,18 +573,34 @@ export const useContacts = () => {
           await ensureSession();
           
           const dbBatch = batch.map(prepareForDb);
-          const { data, error } = await supabase
-            .from("contacts")
-            .upsert(dbBatch, {
-              onConflict: "user_id,phone",
-              ignoreDuplicates: false,
-            })
-            .select("id");
+          
+          // Retry logic for statement timeouts
+          let retries = 3;
+          let lastError: any = null;
+          while (retries > 0) {
+            const { data, error } = await supabase
+              .from("contacts")
+              .upsert(dbBatch, {
+                onConflict: "user_id,phone",
+                ignoreDuplicates: false,
+              })
+              .select("id");
 
-          if (error) throw error;
-          if (data) {
-            insertedData.push(...data);
+            if (!error) {
+              if (data) insertedData.push(...data);
+              lastError = null;
+              break;
+            }
+            
+            lastError = error;
+            retries--;
+            if (retries > 0) {
+              console.warn(`Batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
+              await delay(2000); // Wait longer before retry
+            }
           }
+          if (lastError) throw lastError;
+          
           processedWork += batch.length;
           reportProgress('inserting', processedWork, totalWork);
           if (bi < batches.length - 1) await delay(BATCH_DELAY_MS);
@@ -603,22 +619,40 @@ export const useContacts = () => {
           const batch = updateBatches[bi];
           await ensureSession();
           
-          // Use upsert in batch for much faster updates
           const dbBatch = batch.map(contact => {
             const prepared = prepareForDb(contact);
             return prepared;
           });
           
-          const { data, error } = await supabase
-            .from("contacts")
-            .upsert(dbBatch, {
-              onConflict: "user_id,phone",
-              ignoreDuplicates: false,
-            })
-            .select("id");
+          let retries = 3;
+          let lastError: any = null;
+          let batchSuccess = false;
+          
+          while (retries > 0) {
+            const { data, error } = await supabase
+              .from("contacts")
+              .upsert(dbBatch, {
+                onConflict: "user_id,phone",
+                ignoreDuplicates: false,
+              })
+              .select("id");
 
-          if (error) {
-            console.error("Error updating batch:", error);
+            if (!error) {
+              if (data) updatedData.push(...data);
+              batchSuccess = true;
+              break;
+            }
+            
+            lastError = error;
+            retries--;
+            if (retries > 0) {
+              console.warn(`Update batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
+              await delay(2000);
+            }
+          }
+          
+          if (!batchSuccess) {
+            console.error("Error updating batch after retries:", lastError);
             // Fallback: try individual updates
             for (const contact of batch) {
               const prepared = prepareForDb(contact);
@@ -631,8 +665,6 @@ export const useContacts = () => {
                 .select("id");
               if (singleData) updatedData.push(...singleData);
             }
-          } else if (data) {
-            updatedData.push(...data);
           }
           processedWork += batch.length;
           reportProgress('updating', processedWork, totalWork);
@@ -657,11 +689,13 @@ export const useContacts = () => {
           tagBatches.push(tagInserts.slice(i, i + BATCH_SIZE * 2));
         }
 
-        for (const tagBatch of tagBatches) {
+        for (let ti = 0; ti < tagBatches.length; ti++) {
+          const tagBatch = tagBatches[ti];
           await ensureSession();
           await supabase
             .from("contact_tags")
             .upsert(tagBatch, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+          if (ti < tagBatches.length - 1) await delay(BATCH_DELAY_MS);
         }
       }
 
