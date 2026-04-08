@@ -139,6 +139,9 @@ export const AsaasDashboard = () => {
             description="Evolução diária dos recebimentos"
           />
 
+          {/* Billing Reminders Chart */}
+          <BillingRemindersChart dateRange={dateRange} />
+
           {/* Delinquency Analysis Row */}
           <div className="grid gap-4 lg:grid-cols-3">
             <DelinquencyAnalysis
