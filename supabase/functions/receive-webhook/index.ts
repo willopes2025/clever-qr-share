@@ -724,6 +724,59 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.log('Detected CONTACT message:', parsedContacts);
     }
 
+    // Handle reaction messages
+    if (message?.reactionMessage) {
+      console.log('[REACTION] Detected reaction message:', JSON.stringify(message.reactionMessage));
+      const reactionEmoji = message.reactionMessage.text || '';
+      const reactedMsgKey = message.reactionMessage.key;
+      
+      if (reactedMsgKey?.id) {
+        const reactedWhatsappId = reactedMsgKey.id;
+        
+        // Find the message being reacted to
+        const { data: reactedMsg } = await supabase
+          .from('inbox_messages')
+          .select('id, conversation_id')
+          .eq('whatsapp_message_id', reactedWhatsappId)
+          .limit(1)
+          .maybeSingle();
+        
+        if (reactedMsg) {
+          if (reactionEmoji === '') {
+            // Empty emoji = remove reaction
+            console.log('[REACTION] Removing reaction for message:', reactedMsg.id);
+            await supabase
+              .from('message_reactions')
+              .delete()
+              .eq('message_id', reactedMsg.id)
+              .eq('reacted_by', 'contact');
+          } else {
+            // Upsert reaction
+            console.log('[REACTION] Adding reaction', reactionEmoji, 'to message:', reactedMsg.id);
+            // Remove existing reaction from same contact, then insert new one
+            await supabase
+              .from('message_reactions')
+              .delete()
+              .eq('message_id', reactedMsg.id)
+              .eq('reacted_by', 'contact');
+            
+            await supabase
+              .from('message_reactions')
+              .insert({
+                message_id: reactedMsg.id,
+                conversation_id: reactedMsg.conversation_id,
+                emoji: reactionEmoji,
+                reacted_by: 'contact',
+                whatsapp_reaction_id: key.id,
+              });
+          }
+        } else {
+          console.log('[REACTION] Could not find message with whatsapp_id:', reactedWhatsappId);
+        }
+      }
+      continue; // Reactions don't create new messages
+    }
+
     // Skip if no content AND no media
     if (!content && !mediaUrl) {
       console.log('No content or media found in message, skipping');
