@@ -300,6 +300,13 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
         edges={edges}
         onHighlightNode={setHighlightedNodeId}
       />
+
+      <ChatbotFlowAnalytics
+        open={showAnalytics}
+        onOpenChange={setShowAnalytics}
+        flowId={flow.id}
+        nodes={nodes}
+      />
     </div>
   );
 };
