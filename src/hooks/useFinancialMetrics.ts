@@ -162,7 +162,7 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       days90plus: { count: 0, value: 0, payments: [] },
     };
     
-    overduePayments.forEach(payment => {
+    allOverduePayments.forEach(payment => {
       const daysOverdue = differenceInDays(today, parseISO(payment.dueDate));
       
       if (daysOverdue <= 30) {
