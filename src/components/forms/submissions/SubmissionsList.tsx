@@ -29,6 +29,13 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
     if (rawValue === undefined || rawValue === null) return '-';
     
+    // Format date fields to DD/MM/YYYY
+    if (field.field_type === 'date' && typeof rawValue === 'string' && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const datePart = rawValue.split('T')[0];
+      const [y, m, d] = datePart.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    
     const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
     if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
       const optionMap = new Map(field.options.map(o => [o.value, o.label]));
