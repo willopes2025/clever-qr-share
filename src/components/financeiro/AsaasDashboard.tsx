@@ -8,6 +8,7 @@ import { AgingTable } from './AgingTable';
 import { TopDebtorsTable } from './TopDebtorsTable';
 import { RevenueChart } from './RevenueChart';
 import { PaymentMethodChart } from './PaymentMethodChart';
+import { BillingRemindersChart } from './BillingRemindersChart';
 import { MRRCard } from './MRRCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -137,6 +138,9 @@ export const AsaasDashboard = () => {
             title="Recebimentos no Período"
             description="Evolução diária dos recebimentos"
           />
+
+          {/* Billing Reminders Chart */}
+          <BillingRemindersChart dateRange={dateRange} />
 
           {/* Delinquency Analysis Row */}
           <div className="grid gap-4 lg:grid-cols-3">
