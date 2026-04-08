@@ -30,12 +30,12 @@ export const useChatbotFlowAnalytics = (flowId: string, days: number = 30) => {
 
       const totalExecutions = executions?.length || 0;
 
-      // Get node execution data
-      const { data: nodeExecs } = await supabase
-        .from('chatbot_node_executions' as any)
+      // Get node execution data - cast to any since table types may not be generated yet
+      const { data: nodeExecs } = await (supabase as any)
+        .from('chatbot_node_executions')
         .select('node_id, node_type, status')
         .eq('flow_id', flowId)
-        .gte('created_at', since);
+        .gte('created_at', since) as { data: Array<{ node_id: string; node_type: string; status: string }> | null };
 
       if (!nodeExecs || nodeExecs.length === 0) {
         return { total_executions: totalExecutions, nodes: [] };
