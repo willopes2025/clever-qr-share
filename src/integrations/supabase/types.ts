@@ -1656,6 +1656,57 @@ export type Database = {
           },
         ]
       }
+      chatbot_node_executions: {
+        Row: {
+          created_at: string
+          execution_id: string
+          flow_id: string
+          id: string
+          node_id: string
+          node_type: string
+          responded_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          execution_id: string
+          flow_id: string
+          id?: string
+          node_id: string
+          node_type: string
+          responded_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          execution_id?: string
+          flow_id?: string
+          id?: string
+          node_id?: string
+          node_type?: string
+          responded_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_node_executions_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_node_executions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_activity_log: {
         Row: {
           activity_type: string

@@ -20,8 +20,9 @@ import { ChatbotFlow, useChatbotFlowNodes, useChatbotFlowEdges } from '@/hooks/u
 import { ChatbotFlowSidebar } from './ChatbotFlowSidebar';
 import { ChatbotNodeConfig } from './ChatbotNodeConfig';
 import { ChatbotTestDialog } from './ChatbotTestDialog';
+import { ChatbotFlowAnalytics } from './ChatbotFlowAnalytics';
 import { Button } from '@/components/ui/button';
-import { Save, Play } from 'lucide-react';
+import { Save, Play, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -71,6 +72,7 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
   const [isSaving, setIsSaving] = useState(false);
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Load saved nodes and edges
   useEffect(() => {
@@ -261,6 +263,14 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
             <Button 
               variant="outline" 
               size="sm" 
+              onClick={() => setShowAnalytics(true)}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Métricas
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
               onClick={() => setShowTestDialog(true)}
             >
               <Play className="h-4 w-4 mr-2" />
@@ -289,6 +299,13 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
         nodes={nodes}
         edges={edges}
         onHighlightNode={setHighlightedNodeId}
+      />
+
+      <ChatbotFlowAnalytics
+        open={showAnalytics}
+        onOpenChange={setShowAnalytics}
+        flowId={flow.id}
+        nodes={nodes}
       />
     </div>
   );
