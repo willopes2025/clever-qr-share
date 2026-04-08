@@ -305,8 +305,8 @@ export const useContacts = () => {
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
-      const BATCH_SIZE = 10;
-      const BATCH_DELAY_MS = 500; // Delay between batches to avoid connection pool saturation and statement timeouts
+      const BATCH_SIZE = 5;
+      const BATCH_DELAY_MS = 1000; // Delay between batches to avoid connection pool saturation and statement timeouts
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const startedAt = Date.now();
       const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
@@ -599,7 +599,26 @@ export const useContacts = () => {
               await delay(2000); // Wait longer before retry
             }
           }
-          if (lastError) throw lastError;
+          if (lastError) {
+            // Fallback: try inserting one by one
+            console.warn(`Batch ${bi + 1} failed after retries, falling back to individual inserts`);
+            for (const singleContact of dbBatch) {
+              try {
+                await ensureSession();
+                const { data: singleData, error: singleError } = await supabase
+                  .from("contacts")
+                  .upsert([singleContact], {
+                    onConflict: "user_id,phone",
+                    ignoreDuplicates: false,
+                  })
+                  .select("id");
+                if (!singleError && singleData) insertedData.push(...singleData);
+                await delay(300);
+              } catch (e) {
+                console.error("Individual insert failed:", e);
+              }
+            }
+          }
           
           processedWork += batch.length;
           reportProgress('inserting', processedWork, totalWork);
