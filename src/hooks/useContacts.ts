@@ -573,18 +573,34 @@ export const useContacts = () => {
           await ensureSession();
           
           const dbBatch = batch.map(prepareForDb);
-          const { data, error } = await supabase
-            .from("contacts")
-            .upsert(dbBatch, {
-              onConflict: "user_id,phone",
-              ignoreDuplicates: false,
-            })
-            .select("id");
+          
+          // Retry logic for statement timeouts
+          let retries = 3;
+          let lastError: any = null;
+          while (retries > 0) {
+            const { data, error } = await supabase
+              .from("contacts")
+              .upsert(dbBatch, {
+                onConflict: "user_id,phone",
+                ignoreDuplicates: false,
+              })
+              .select("id");
 
-          if (error) throw error;
-          if (data) {
-            insertedData.push(...data);
+            if (!error) {
+              if (data) insertedData.push(...data);
+              lastError = null;
+              break;
+            }
+            
+            lastError = error;
+            retries--;
+            if (retries > 0) {
+              console.warn(`Batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
+              await delay(2000); // Wait longer before retry
+            }
           }
+          if (lastError) throw lastError;
+          
           processedWork += batch.length;
           reportProgress('inserting', processedWork, totalWork);
           if (bi < batches.length - 1) await delay(BATCH_DELAY_MS);
