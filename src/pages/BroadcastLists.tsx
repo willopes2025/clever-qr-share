@@ -39,6 +39,7 @@ const BroadcastLists = () => {
   // UI State
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<string>("grid");
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingList, setEditingList] = useState<BroadcastListWithContacts | null>(null);
   const [viewingList, setViewingList] = useState<BroadcastListWithContacts | null>(null);
