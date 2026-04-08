@@ -393,6 +393,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 {/* Scheduled triggers */}
                 <SelectItem disabled value="__group_scheduled" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">── Gatilhos Programados ──</SelectItem>
                 <SelectItem value="on_scheduled_before_date_field">⏰ X horas antes de campo de data</SelectItem>
+                <SelectItem value="on_scheduled_after_date_field">⏰ X horas depois de campo de data</SelectItem>
                 <SelectItem value="on_scheduled_exact_time">📅 Em data e hora exata</SelectItem>
                 <SelectItem value="on_scheduled_daily">🔄 Diariamente às</SelectItem>
                 <SelectItem value="on_time_in_stage">⏱️ Após X dias na etapa</SelectItem>
