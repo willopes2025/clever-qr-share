@@ -1,41 +1,44 @@
 
 
-## Destaque Visual da Etapa no Card do Lead
+## Correção dos Números do Dashboard Financeiro
 
-### Problema
-O badge da etapa atual (ex: "Faturado") usa cor de fundo com apenas 20% de opacidade (`${color}20`), ficando muito sutil e fácil de ignorar.
+### Problemas Identificados
 
-### Opções de Destaque
+1. **Taxa de Inadimplência inflada (98.3%)**: O cálculo atual compara o total de cobranças vencidas de **todos os tempos** contra apenas os recebimentos **do período selecionado**. Isso distorce completamente a taxa.
+   - Fórmula atual: `overdueTotal / (receivedInPeriod + overdueTotal)` → mistura períodos diferentes
+   - Exemplo: R$ 151k vencidos (histórico total) vs R$ ~2k recebidos (30 dias) = 98.3%
 
-**Opção A — Fundo sólido com texto branco**
-O badge usa a cor da etapa como fundo sólido (100%) com texto branco. Máximo contraste e visibilidade imediata.
+2. **Aging e Total Vencido sem filtro de período**: O aging e o total vencido consideram **todas** as cobranças OVERDUE da base, independente do período selecionado no filtro de datas, o que pode incluir cobranças muito antigas que já foram renegociadas ou são incobráveis.
 
-```text
-┌──────────────────────────────────┐
-│ Programa Seven - [ Faturado ]   │  ← fundo laranja sólido, texto branco
-│ ⏱ Na etapa há 7 dias            │
-└──────────────────────────────────┘
+3. **"Total de cobranças" e "Valor total" no resumo**: Mostram o total de TODOS os payments da base Asaas, não apenas os do período.
+
+### Correções Propostas
+
+**Arquivo:** `src/hooks/useFinancialMetrics.ts`
+
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Taxa de Inadimplência | `overdueTotal / (received + overdueTotal)` | `overdueNoPeriodo / totalFaturadoNoPeriodo` — considerar apenas cobranças com vencimento no período |
+| Total Vencido | Todos os OVERDUE da base | Cobranças OVERDUE com vencimento dentro do período selecionado |
+| Aging | Todos os OVERDUE | Mantém todos os OVERDUE (faz sentido ser visão geral), mas adicionar label "Visão Geral" |
+| Resumo do Período | Todos os payments | Apenas payments com vencimento ou pagamento dentro do período |
+
+**Detalhes da correção principal (inadimplência):**
+```
+// Cobranças com vencimento no período
+const billedInPeriod = payments.filter(p => 
+  isPaymentInRange(p, dateRange, false) // usa dueDate
+);
+const totalBilledInPeriod = billedInPeriod.reduce((sum, p) => sum + p.value, 0);
+
+// Vencidas com dueDate no período  
+const overdueInPeriod = billedInPeriod.filter(p => p.status === 'OVERDUE');
+const overdueInPeriodTotal = overdueInPeriod.reduce((sum, p) => sum + p.value, 0);
+
+// Taxa correta
+const delinquencyRate = totalBilledInPeriod > 0 
+  ? (overdueInPeriodTotal / totalBilledInPeriod) * 100 : 0;
 ```
 
-**Opção B — Fundo forte (60%) com texto na cor da etapa**
-Aumenta a opacidade do fundo para 60% e usa borda mais marcada. Mantém o estilo atual mas bem mais visível.
-
-```text
-┌──────────────────────────────────┐
-│ Programa Seven - [ Faturado ]   │  ← fundo laranja 60%, texto laranja escuro
-│ ⏱ Na etapa há 7 dias            │
-└──────────────────────────────────┘
-```
-
-**Opção C — Fundo sólido + indicador de tempo com cor de urgência**
-Fundo sólido como Opção A, e o texto "Na etapa há X dias" ganha cor amarela/vermelha conforme o tempo aumenta (>3 dias amarelo, >7 dias vermelho), criando senso de urgência.
-
-### Alteração Técnica
-Arquivo: `src/components/inbox/lead-panel/LeadPanelFunnelBar.tsx` (linhas 83-93)
-
-- Opção A: `backgroundColor: currentStage?.color`, `color: '#fff'`
-- Opção B: `backgroundColor: ${color}99`, `color: currentStage?.color`
-- Opção C: Opção A + lógica de cor dinâmica no texto de tempo
-
-Mesma alteração será replicada em `src/components/inbox/FunnelDealSection.tsx` para consistência.
+**KPI "Total Vencido"** passará a mostrar apenas vencidos do período, com subtitle indicando o período. O aging continuará mostrando a visão geral (todos os vencidos) pois é útil para gestão de cobrança.
 
