@@ -135,12 +135,20 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunne
       </div>
 
       {/* Time in Stage */}
-      {activeDeal.entered_stage_at && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-6">
-          <Clock className="h-3 w-3" />
-          <span>Na etapa há {formatDistanceToNow(new Date(activeDeal.entered_stage_at), { locale: ptBR })}</span>
-        </div>
-      )}
+      {activeDeal.entered_stage_at && (() => {
+        const daysInStage = differenceInDays(new Date(), new Date(activeDeal.entered_stage_at));
+        const urgencyColor = daysInStage > 7 ? 'hsl(0 84% 60%)' : daysInStage > 3 ? 'hsl(38 92% 50%)' : undefined;
+        return (
+          <div 
+            className="flex items-center gap-1.5 text-xs pl-6 font-medium"
+            style={{ color: urgencyColor || 'hsl(var(--muted-foreground))' }}
+          >
+            <Clock className="h-3 w-3" />
+            <span>Na etapa há {formatDistanceToNow(new Date(activeDeal.entered_stage_at), { locale: ptBR })}</span>
+            {daysInStage > 7 && <span className="text-[10px]">⚠️</span>}
+          </div>
+        );
+      })()}
 
       {/* Move to Another Funnel Dialog */}
       <MoveDealFunnelDialog
