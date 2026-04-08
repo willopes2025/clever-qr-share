@@ -53,22 +53,6 @@ export const useChatbotFlowAnalytics = (flowId: string, days: number = 30) => {
         nodeMap.set(exec.node_id, existing);
       }
 
-      // For waiting_input nodes, count unique execution_ids as "reached" and "responded" separately
-      // Re-aggregate properly: reached = total entries (waiting_input + responded + processed), responded = only responded
-      const nodeMapClean = new Map<string, { node_type: string; reached: Set<string>; responded: Set<string> }>();
-
-      for (const exec of nodeExecs as any[]) {
-        if (!nodeMapClean.has(exec.node_id)) {
-          nodeMapClean.set(exec.node_id, { node_type: exec.node_type, reached: new Set(), responded: new Set() });
-        }
-        const entry = nodeMapClean.get(exec.node_id)!;
-        // Each record represents one execution reaching this node
-        // We don't have execution_id in the select, so count records as proxy
-        entry.reached.add(`${exec.node_id}-${entry.reached.size}`);
-        if (exec.status === 'responded') {
-          entry.responded.add(`${exec.node_id}-${entry.responded.size}`);
-        }
-      }
 
       const nodes: NodeAnalytics[] = [];
       for (const [nodeId, data] of nodeMap.entries()) {
