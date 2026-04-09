@@ -269,7 +269,8 @@ Deno.serve(async (req: Request) => {
             }
 
             // Check if automation has a specific instance configured
-            const configuredInstanceId = actionConfig.instance_id as string | null;
+            const rawInstanceId = actionConfig.instance_id as string | null;
+            const configuredInstanceId = rawInstanceId && rawInstanceId !== 'auto' ? rawInstanceId : null;
 
             // Tentar encontrar a conversa e instância
             let conversationId = deal.conversation_id;
