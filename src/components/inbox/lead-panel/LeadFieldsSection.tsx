@@ -61,10 +61,12 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     : leadFieldDefinitions;
   
   // Also detect custom_fields keys that have data but NO lead field definition (orphan data)
+  // Exclude ssotica_* keys — those belong exclusively to the SSotica tab
   const dealCustomFields = (deal?.custom_fields || {}) as Record<string, any>;
   const orphanDataFields: CustomFieldDefinition[] = [];
   if (deal?.custom_fields) {
     for (const key of Object.keys(dealCustomFields)) {
+      if (key.startsWith('ssotica_')) continue; // skip ssotica fields
       const val = dealCustomFields[key];
       if (val === null || val === undefined || val === '') continue;
       if (!leadFieldKeySet.has(key)) {
