@@ -89,11 +89,9 @@ Deno.serve(async (req) => {
         'PAYMENT_CREATED',
         'PAYMENT_CONFIRMED',
         'PAYMENT_RECEIVED',
-        'PAYMENT_RECEIVED_IN_CASH',
         'PAYMENT_OVERDUE',
         'PAYMENT_DELETED',
         'PAYMENT_REFUNDED',
-        'PAYMENT_REFUND_IN_PROGRESS',
         'PAYMENT_UPDATED',
       ],
     };
