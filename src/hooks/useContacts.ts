@@ -305,8 +305,8 @@ export const useContacts = () => {
       phoneNormalization?: { mode: 'none' | 'add_ddi' | 'remove_ddi'; countryCode: string };
       funnelConfig?: { funnel_id: string; stage_id?: string };
     }) => {
-      const BATCH_SIZE = 5;
-      const BATCH_DELAY_MS = 1000; // Delay between batches to avoid connection pool saturation and statement timeouts
+      const BATCH_SIZE = 25;
+      const BATCH_DELAY_MS = 300; // Delay between batches to avoid connection pool saturation
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
       const startedAt = Date.now();
       const reportProgress = (phase: ImportProgress['phase'], current: number, total: number) => {
@@ -596,7 +596,7 @@ export const useContacts = () => {
             retries--;
             if (retries > 0) {
               console.warn(`Batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
-              await delay(2000); // Wait longer before retry
+              await delay(1000); // Wait before retry
             }
           }
           if (lastError) {
@@ -613,7 +613,7 @@ export const useContacts = () => {
                   })
                   .select("id");
                 if (!singleError && singleData) insertedData.push(...singleData);
-                await delay(300);
+                await delay(100);
               } catch (e) {
                 console.error("Individual insert failed:", e);
               }
@@ -666,7 +666,7 @@ export const useContacts = () => {
             retries--;
             if (retries > 0) {
               console.warn(`Update batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
-              await delay(2000);
+              await delay(1000);
             }
           }
           
@@ -704,7 +704,7 @@ export const useContacts = () => {
 
         // Insert tags in batches too
         const tagBatches: typeof tagInserts[] = [];
-        for (let i = 0; i < tagInserts.length; i += BATCH_SIZE * 2) {
+        for (let i = 0; i < tagInserts.length; i += BATCH_SIZE) {
           tagBatches.push(tagInserts.slice(i, i + BATCH_SIZE * 2));
         }
 
