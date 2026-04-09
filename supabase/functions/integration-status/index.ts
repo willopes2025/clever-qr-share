@@ -79,7 +79,7 @@ Deno.serve(async (req): Promise<Response> => {
     const providers = (integrations || []).map((i: { provider: string }) => i.provider);
 
     const result = {
-      asaas: providers.includes('asaas'),
+      asaas: providers.includes('asaas') && memberHasFinancePermission,
       ssotica: providers.includes('ssotica'),
     };
 
