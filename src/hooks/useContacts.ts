@@ -596,7 +596,7 @@ export const useContacts = () => {
             retries--;
             if (retries > 0) {
               console.warn(`Batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
-              await delay(2000); // Wait longer before retry
+              await delay(1000); // Wait before retry
             }
           }
           if (lastError) {
@@ -666,7 +666,7 @@ export const useContacts = () => {
             retries--;
             if (retries > 0) {
               console.warn(`Update batch ${bi + 1} failed, retrying (${retries} left)...`, error.message);
-              await delay(2000);
+              await delay(1000);
             }
           }
           
@@ -704,7 +704,7 @@ export const useContacts = () => {
 
         // Insert tags in batches too
         const tagBatches: typeof tagInserts[] = [];
-        for (let i = 0; i < tagInserts.length; i += BATCH_SIZE * 2) {
+        for (let i = 0; i < tagInserts.length; i += BATCH_SIZE) {
           tagBatches.push(tagInserts.slice(i, i + BATCH_SIZE * 2));
         }
 
