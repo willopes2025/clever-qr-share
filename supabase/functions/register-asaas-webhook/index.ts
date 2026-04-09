@@ -76,22 +76,36 @@ Deno.serve(async (req) => {
       existingWebhook = webhooks.find((w: any) => w.url === webhookUrl);
     }
 
+    const webhookPayload = {
+      name: 'Lovable CRM Webhook',
+      url: webhookUrl,
+      email: user.email || '',
+      enabled: true,
+      interrupted: false,
+      apiVersion: 3,
+      authToken: '',
+      sendType: 'SEQUENTIALLY',
+      events: [
+        'PAYMENT_CREATED',
+        'PAYMENT_CONFIRMED',
+        'PAYMENT_RECEIVED',
+        'PAYMENT_RECEIVED_IN_CASH',
+        'PAYMENT_OVERDUE',
+        'PAYMENT_DELETED',
+        'PAYMENT_REFUNDED',
+        'PAYMENT_REFUND_IN_PROGRESS',
+        'PAYMENT_UPDATED',
+      ],
+    };
+
     if (existingWebhook) {
-      // Update existing webhook to ensure all events are enabled
       const updateRes = await fetch(`${baseUrl}/webhooks/${existingWebhook.id}`, {
         method: 'PUT',
         headers: {
           'access_token': apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          url: webhookUrl,
-          email: user.email || '',
-          enabled: true,
-          interrupted: false,
-          apiVersion: 3,
-          authToken: '',
-        }),
+        body: JSON.stringify(webhookPayload),
       });
 
       if (!updateRes.ok) {
