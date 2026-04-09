@@ -1,49 +1,50 @@
 
 
-## Plano: Tela de Comparação Side-by-Side na Unificação de Conversas
+# Correção do Registro de Webhook Asaas
 
-### Visão Geral
+## Problema
+A API do Asaas está retornando erro dizendo que `name`, `sendType` e `events` estão ausentes, mesmo estando no payload. Isso indica que a API não está recebendo/parseando o corpo JSON corretamente.
 
-Adicionar uma **segunda etapa** ao diálogo de unificação. Após selecionar a conversa duplicada e clicar em "Próximo", o usuário verá os dois contatos lado a lado e poderá escolher, campo a campo, quais dados manter no contato final.
+## Causa Raiz
+O endpoint de webhook do Asaas (`POST /v3/webhooks`) pode estar rejeitando o payload por campos extras como `apiVersion`, `authToken`, `interrupted` que não fazem parte dos parâmetros aceitos na criação/atualização. Esses campos extras podem estar causando a rejeição silenciosa dos campos válidos.
 
-### Fluxo do Usuário
+## Plano
 
-```text
-Etapa 1: Selecionar conversa duplicada (tela atual)
-   ↓ Botão "Próximo"
-Etapa 2: Comparação side-by-side dos campos
-   - Coluna esquerda: Contato atual (conversa principal)
-   - Coluna direita: Contato da conversa selecionada
-   - Cada campo (nome, email, telefone, campos personalizados)
-     tem um radio/checkbox para escolher qual valor manter
-   ↓ Botão "Unificar"
-Execução: Merge com os valores selecionados aplicados ao contato principal
+### 1. Corrigir o payload do webhook na Edge Function `register-asaas-webhook`
+- Remover campos desnecessários: `apiVersion`, `authToken`, `interrupted`
+- Manter apenas os campos documentados pela API do Asaas: `name`, `url`, `email`, `enabled`, `sendType`, `events`
+- Adicionar log do response body para debug caso ocorra erro novamente
+
+### Arquivo Modificado
+- `supabase/functions/register-asaas-webhook/index.ts` - Limpar payload e melhorar tratamento de erros
+
+### Mudança Principal
+```typescript
+// ANTES (campos extras causando rejeição)
+const webhookPayload = {
+  name: 'Lovable CRM Webhook',
+  url: webhookUrl,
+  email: user.email || '',
+  enabled: true,
+  interrupted: false,      // ← campo extra
+  apiVersion: 3,           // ← campo extra
+  authToken: '',           // ← campo extra
+  sendType: 'SEQUENTIALLY',
+  events: [...]
+};
+
+// DEPOIS (apenas campos aceitos pela API)
+const webhookPayload = {
+  name: 'Lovable CRM Webhook',
+  url: webhookUrl,
+  email: user.email || '',
+  enabled: true,
+  sendType: 'SEQUENTIALLY',
+  events: [
+    'PAYMENT_CREATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED',
+    'PAYMENT_RECEIVED_IN_CASH', 'PAYMENT_OVERDUE',
+    'PAYMENT_DELETED', 'PAYMENT_REFUNDED', 'PAYMENT_UPDATED'
+  ]
+};
 ```
-
-### Detalhes Técnicos
-
-**1. Refatorar `MergeConversationsDialog`** com estado de etapa (`step: 'select' | 'compare'`):
-- Etapa 1 permanece como está (lista de duplicatas)
-- Ao selecionar e clicar "Próximo", busca dados completos dos dois contatos (incluindo `custom_fields`)
-
-**2. Novo componente `MergeFieldComparison`**:
-- Renderiza os campos nativos (nome, email, telefone, notas) e todos os campos personalizados em linhas
-- Cada linha mostra o valor do contato A (esquerda) e contato B (direita)
-- O usuário clica no valor que quer manter (highlight visual)
-- Campos onde apenas um contato tem valor são pré-selecionados automaticamente
-- Campos com valores iguais são marcados como "iguais" e pré-selecionados
-
-**3. Atualizar `mergeConversations` no hook `useConversationActions`**:
-- Aceitar um parâmetro opcional `contactUpdates` com os campos escolhidos
-- Antes de deletar a conversa duplicada, aplicar `UPDATE` no contato principal com os valores selecionados
-- Mesclar `custom_fields` do contato secundário (valores selecionados) no contato principal via `jsonb` merge
-
-**4. Largura do dialog**:
-- Expandir para `sm:max-w-3xl` na etapa de comparação para acomodar as duas colunas
-
-### Arquivos Modificados
-
-- `src/components/inbox/MergeConversationsDialog.tsx` — adicionar etapa 2 com comparação
-- `src/components/inbox/MergeFieldComparison.tsx` — novo componente de comparação side-by-side
-- `src/hooks/useConversationActions.ts` — aceitar e aplicar `contactUpdates` no merge
 
