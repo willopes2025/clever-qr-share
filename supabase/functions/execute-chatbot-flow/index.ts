@@ -17,18 +17,63 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { flowId, conversationId, contactId, userId, executionId, currentNodeId, inputValue } = await req.json();
+    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue, dealId } = await req.json();
 
-    if (!flowId || !conversationId || !contactId || !userId) {
+    if (!flowId || !contactId || !userId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // If no conversationId provided, find or create one for this contact
+    let conversationId = inputConversationId;
+    if (!conversationId) {
+      // Try to find an existing conversation for this contact
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('id, instance_id, meta_phone_number_id')
+        .eq('contact_id', contactId)
+        .eq('user_id', userId)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingConv) {
+        conversationId = existingConv.id;
+        console.log(`[FLOW] Found existing conversation ${conversationId} for contact ${contactId}`);
+      } else {
+        // Create a new conversation
+        const { data: newConv, error: convErr } = await supabase
+          .from('conversations')
+          .insert({
+            contact_id: contactId,
+            user_id: userId,
+            status: 'open',
+            provider: 'meta',
+          })
+          .select('id')
+          .single();
+
+        if (convErr || !newConv) {
+          console.error('[FLOW] Error creating conversation:', convErr);
+          return new Response(JSON.stringify({ error: 'Failed to create conversation' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        conversationId = newConv.id;
+        console.log(`[FLOW] Created new conversation ${conversationId} for contact ${contactId}`);
+      }
+
+      // Update the execution record with the conversationId
+      if (executionId) {
+        await supabase.from('chatbot_executions').update({ conversation_id: conversationId }).eq('id', executionId);
+      }
+    }
+
     // Load conversation to get instance info
     const { data: conversation } = await supabase
       .from('conversations')
-      .select('id, instance_id')
+      .select('id, instance_id, meta_phone_number_id')
       .eq('id', conversationId)
       .single();
 
