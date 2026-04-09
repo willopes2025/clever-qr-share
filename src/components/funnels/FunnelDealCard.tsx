@@ -53,13 +53,16 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
   };
 
   const getTimeInStage = () => {
+    if (!deal.entered_stage_at) return 'Hoje';
     const days = Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24));
     if (days === 0) return 'Hoje';
     if (days === 1) return '1 dia';
     return `${days}d`;
   };
 
-  const daysInStage = Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24));
+  const daysInStage = deal.entered_stage_at 
+    ? Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
 
   // Urgency calculation: red if no next action OR overdue task OR >7 days without action
   const getUrgencyStatus = () => {
@@ -80,7 +83,9 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
 
   // Temperature based on activity and value
   const getTemperature = () => {
-    const hoursSinceUpdate = differenceInHours(new Date(), new Date(deal.updated_at || deal.created_at));
+    const refDate = deal.updated_at || deal.created_at;
+    if (!refDate) return 'cold';
+    const hoursSinceUpdate = differenceInHours(new Date(), new Date(refDate));
     const hasHighValue = Number(deal.value) >= 1000;
     
     if (hoursSinceUpdate <= 24 && hasHighValue) return 'hot';
@@ -100,8 +105,9 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
     setShowEdit(true);
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const getInitials = (name?: string | null) => {
+    if (!name) return '??';
+    return name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   const getNextActionDisplay = () => {
