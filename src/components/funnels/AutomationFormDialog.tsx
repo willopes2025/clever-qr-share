@@ -101,7 +101,44 @@ interface IntentMapping {
   target_stage_id: string;
 }
 
-// Webhook trigger config component
+// Instance selector for send_message action
+const SendMessageInstanceSelector = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+  const { data: instances } = useQuery({
+    queryKey: ['whatsapp-instances-for-automation'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, status, phone_number')
+        .eq('status', 'connected')
+        .order('instance_name');
+      return data || [];
+    },
+  });
+
+  return (
+    <div className="space-y-2">
+      <Label>Número de envio (opcional)</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder="Automático (baseado na conversa)" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="auto">Automático (baseado na conversa)</SelectItem>
+          {instances?.map((inst) => (
+            <SelectItem key={inst.id} value={inst.id}>
+              {inst.instance_name} {inst.phone_number ? `(${inst.phone_number})` : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Se não selecionado, usará o número da conversa existente do contato.
+      </p>
+    </div>
+  );
+};
+
+
 const WebhookTriggerConfig = ({ 
   automationId, 
   token, 
