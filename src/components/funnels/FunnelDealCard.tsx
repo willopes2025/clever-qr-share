@@ -53,13 +53,16 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
   };
 
   const getTimeInStage = () => {
+    if (!deal.entered_stage_at) return 'Hoje';
     const days = Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24));
     if (days === 0) return 'Hoje';
     if (days === 1) return '1 dia';
     return `${days}d`;
   };
 
-  const daysInStage = Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24));
+  const daysInStage = deal.entered_stage_at 
+    ? Math.floor((Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
 
   // Urgency calculation: red if no next action OR overdue task OR >7 days without action
   const getUrgencyStatus = () => {
