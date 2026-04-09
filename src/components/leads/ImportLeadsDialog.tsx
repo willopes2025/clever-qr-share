@@ -470,7 +470,7 @@ export const ImportLeadsDialog = ({
                 <div className="bg-muted rounded-lg p-4 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
                       Com telefone
                     </span>
                     <Badge variant="default">{companiesWithPhone.length}</Badge>
@@ -478,7 +478,7 @@ export const ImportLeadsDialog = ({
                   {companiesWithoutPhone.length > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        <AlertCircle className="h-4 w-4 text-muted-foreground" />
                         Sem telefone
                       </span>
                       <Badge variant="secondary">{companiesWithoutPhone.length}</Badge>
@@ -645,6 +645,7 @@ export const ImportLeadsDialog = ({
                     <p>• {Object.values(mappings).filter(m => m.targetType === "existing").length} campos existentes serão usados</p>
                     <p>• {selectedTags.length} tag(s) serão aplicadas</p>
                   </div>
+                </div>
                 </div>
               )}
             </ScrollArea>
