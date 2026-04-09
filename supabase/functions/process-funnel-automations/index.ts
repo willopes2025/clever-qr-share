@@ -162,8 +162,19 @@ Deno.serve(async (req: Request) => {
               continue;
             }
           } else {
-            // For stage-change triggers, check against toStageId/fromStageId
-            if (automation.stage_id !== toStageId && automation.stage_id !== fromStageId) {
+            // For stage-change triggers, match precisely by direction
+            const isEnterTrigger = automation.trigger_type === 'on_stage_enter' || automation.trigger_type === 'on_deal_won' || automation.trigger_type === 'on_deal_lost';
+            const isExitTrigger = automation.trigger_type === 'on_stage_exit';
+            
+            if (isEnterTrigger && automation.stage_id !== toStageId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - on_stage_enter mismatch (expected: ${automation.stage_id}, got toStageId: ${toStageId})`);
+              continue;
+            }
+            if (isExitTrigger && automation.stage_id !== fromStageId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - on_stage_exit mismatch (expected: ${automation.stage_id}, got fromStageId: ${fromStageId})`);
+              continue;
+            }
+            if (!isEnterTrigger && !isExitTrigger && automation.stage_id !== toStageId && automation.stage_id !== fromStageId) {
               console.log(`[FUNNEL-AUTOMATIONS] Skipping automation ${automation.id} - stage mismatch (expected: ${automation.stage_id}, got to: ${toStageId}, from: ${fromStageId})`);
               continue;
             }
