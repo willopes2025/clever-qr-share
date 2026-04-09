@@ -267,8 +267,21 @@ export const AsaasSettings = () => {
         if (saveMetaPhoneNumberId) setMetaPhoneNumberId(saveMetaPhoneNumberId);
       }
 
+      // Auto-register webhook with Asaas API
+      try {
+        const { data: webhookData, error: webhookError } = await supabase.functions.invoke('register-asaas-webhook');
+        if (webhookError) {
+          console.error('Webhook registration error:', webhookError);
+          toast.warning('Configurações salvas, mas não foi possível registrar o webhook automaticamente.');
+        } else {
+          console.log('Webhook registered:', webhookData?.webhookUrl);
+        }
+      } catch (webhookErr) {
+        console.error('Webhook registration failed:', webhookErr);
+      }
+
       toast.success(isFirstConnection 
-        ? 'Asaas conectado! Lembretes de cobrança configurados automaticamente.' 
+        ? 'Asaas conectado! Lembretes de cobrança e webhook configurados automaticamente.' 
         : 'Configurações do Asaas salvas com sucesso!');
     } catch (err) {
       toast.error('Erro ao salvar configurações');
