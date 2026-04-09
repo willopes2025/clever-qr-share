@@ -100,24 +100,7 @@ export function MemberPermissionsDialog({ open, onOpenChange, member }: MemberPe
     onOpenChange(false);
   };
 
-  if (member.role === 'admin') {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Permissões de {member.profile?.full_name || member.email}</DialogTitle>
-            <DialogDescription>
-              Administradores têm acesso completo a todas as funcionalidades.
-              Para restringir permissões, rebaixe este membro para "Membro" primeiro.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => onOpenChange(false)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  // Admins agora também podem ter permissões editadas pelo owner
 
   const permissionsByCategory = getPermissionsByCategory();
   const categoryOrder: PermissionCategory[] = [
@@ -133,7 +116,9 @@ export function MemberPermissionsDialog({ open, onOpenChange, member }: MemberPe
         <DialogHeader>
           <DialogTitle>Permissões de {member.profile?.full_name || member.email}</DialogTitle>
           <DialogDescription>
-            Personalize as permissões deste membro da equipe por categoria.
+            {member.role === 'admin' 
+              ? 'Admins têm todas as permissões por padrão. Desmarque itens específicos para restringir o acesso.'
+              : 'Personalize as permissões deste membro da equipe por categoria.'}
           </DialogDescription>
         </DialogHeader>
 

@@ -210,12 +210,7 @@ export function useOrganization() {
       return false;
     }
     
-    // Admin tem todas as permissões
-    if (currentMember.role === 'admin') {
-      return true;
-    }
-    
-    // Verificar permissões específicas do membro
+    // Verificar permissões específicas do membro (inclusive admins)
     return hasPermission(currentMember.permissions, permission, currentMember.role);
   };
 

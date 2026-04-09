@@ -85,8 +85,9 @@ Deno.serve(async (req) => {
         const memberRole = teamMember.role as string | null;
         const isAdmin = memberRole === 'admin';
 
-        // Check if member has permission to view finances (admins have all permissions)
-        if (!isAdmin && !memberPermissions?.view_finances) {
+        // Check if member has permission to view finances (check saved permissions, fallback to default for role)
+        const hasViewFinances = memberPermissions?.view_finances ?? (memberRole === 'admin');
+        if (!hasViewFinances) {
           console.error('Member does not have view_finances permission');
           return new Response(JSON.stringify({ error: 'Permissão negada: acesso ao financeiro não autorizado' }), {
             status: 403,

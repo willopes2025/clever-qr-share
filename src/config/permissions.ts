@@ -305,10 +305,7 @@ export function hasPermission(
   permission: PermissionKey,
   role: TeamRole
 ): boolean {
-  // Admin always has all permissions
-  if (role === 'admin') return true;
-  
-  // Check custom permissions
+  // Check custom permissions first (saved in DB)
   if (userPermissions && typeof userPermissions[permission] === 'boolean') {
     return userPermissions[permission];
   }
