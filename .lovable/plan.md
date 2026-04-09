@@ -1,29 +1,49 @@
 
 
-# Exibir Motivo Real do Erro nas Mensagens com Falha
+## Plano: Tela de Comparação Side-by-Side na Unificação de Conversas
 
-## Problema
-A edge function `send-inbox-message` já identifica erros específicos (ex: "Número não registrado no WhatsApp", "Instância desconectada"), mas ao atualizar o status da mensagem para `failed`, **não salva o motivo do erro** na coluna `error_message` da tabela `inbox_messages`. O `MessageBubble.tsx` tenta ler esse campo, mas como é sempre `null`, mostra a mensagem genérica.
+### Visão Geral
 
-## Solução
-Salvar o `error_message` junto com o `status: 'failed'` em todos os pontos de falha da edge function.
+Adicionar uma **segunda etapa** ao diálogo de unificação. Após selecionar a conversa duplicada e clicar em "Próximo", o usuário verá os dois contatos lado a lado e poderá escolher, campo a campo, quais dados manter no contato final.
 
-### 1. Atualizar `supabase/functions/send-inbox-message/index.ts`
-Em cada local onde faz `.update({ status: 'failed' })`, incluir também o `error_message`:
+### Fluxo do Usuário
 
-- **Linha 324** (template Meta falha): salvar `result.error?.message`
-- **Linha 403** (mensagem Meta falha): salvar `result.error?.message`
-- **Linha 556** (Evolution API falha): salvar o `errorMessage` já calculado
+```text
+Etapa 1: Selecionar conversa duplicada (tela atual)
+   ↓ Botão "Próximo"
+Etapa 2: Comparação side-by-side dos campos
+   - Coluna esquerda: Contato atual (conversa principal)
+   - Coluna direita: Contato da conversa selecionada
+   - Cada campo (nome, email, telefone, campos personalizados)
+     tem um radio/checkbox para escolher qual valor manter
+   ↓ Botão "Unificar"
+Execução: Merge com os valores selecionados aplicados ao contato principal
+```
 
-Além disso, no bloco `catch` final (linha 560-567), fazer update na mensagem (se o ID existir) com o erro capturado.
+### Detalhes Técnicos
 
-### 2. Atualizar `supabase/functions/send-inbox-media/index.ts`
-Aplicar a mesma lógica para mensagens de mídia que falham.
+**1. Refatorar `MergeConversationsDialog`** com estado de etapa (`step: 'select' | 'compare'`):
+- Etapa 1 permanece como está (lista de duplicatas)
+- Ao selecionar e clicar "Próximo", busca dados completos dos dois contatos (incluindo `custom_fields`)
 
-### Resultado
-Quando uma mensagem falhar, o tooltip/popover no chat mostrará o motivo real (ex: "Número (5527...) não registrado no WhatsApp" ou "Instância desconectada. Reconecte nas configurações") ao invés da mensagem genérica.
+**2. Novo componente `MergeFieldComparison`**:
+- Renderiza os campos nativos (nome, email, telefone, notas) e todos os campos personalizados em linhas
+- Cada linha mostra o valor do contato A (esquerda) e contato B (direita)
+- O usuário clica no valor que quer manter (highlight visual)
+- Campos onde apenas um contato tem valor são pré-selecionados automaticamente
+- Campos com valores iguais são marcados como "iguais" e pré-selecionados
 
-### Arquivos impactados
-- `supabase/functions/send-inbox-message/index.ts`
-- `supabase/functions/send-inbox-media/index.ts` (se aplicável)
+**3. Atualizar `mergeConversations` no hook `useConversationActions`**:
+- Aceitar um parâmetro opcional `contactUpdates` com os campos escolhidos
+- Antes de deletar a conversa duplicada, aplicar `UPDATE` no contato principal com os valores selecionados
+- Mesclar `custom_fields` do contato secundário (valores selecionados) no contato principal via `jsonb` merge
+
+**4. Largura do dialog**:
+- Expandir para `sm:max-w-3xl` na etapa de comparação para acomodar as duas colunas
+
+### Arquivos Modificados
+
+- `src/components/inbox/MergeConversationsDialog.tsx` — adicionar etapa 2 com comparação
+- `src/components/inbox/MergeFieldComparison.tsx` — novo componente de comparação side-by-side
+- `src/hooks/useConversationActions.ts` — aceitar e aplicar `contactUpdates` no merge
 
