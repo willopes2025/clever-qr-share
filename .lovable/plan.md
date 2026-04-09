@@ -1,65 +1,48 @@
 
 
-# Reações a Mensagens no Inbox (WhatsApp Reactions)
+# Acesso Financeiro Configurável por Usuário
 
-## Contexto
-Atualmente o sistema não tem suporte a reações (emoji reactions) em mensagens. Nem recebe reações do webhook, nem permite o usuário reagir. A Evolution API e a Meta API suportam reações nativamente.
+## Problema Identificado
+Atualmente, o sistema trata **todos os admins** como tendo acesso total — incluindo o Financeiro. Na tela de permissões de um admin, aparece apenas a mensagem "Administradores têm acesso completo" sem opção de personalizar. Isso impede que você restrinja o acesso ao Financeiro para admins específicos como a Katia.
 
-## Plano
+Além disso, se a Katia não está vendo o Financeiro no menu, pode ser porque o `hasPermission` retorna `true` genericamente para admins, mas a visualização depende também do `useIntegrationStatus` que consulta a edge function — e pode haver um problema de cache ou timing.
 
-### 1. Criar tabela `message_reactions` (migração)
-```sql
-CREATE TABLE public.message_reactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id UUID NOT NULL REFERENCES inbox_messages(id) ON DELETE CASCADE,
-  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  emoji TEXT NOT NULL,
-  reacted_by TEXT NOT NULL, -- 'contact' ou user_id
-  whatsapp_reaction_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-```
-- RLS usando `get_organization_member_ids` na conversation
-- Habilitar realtime para atualizações instantâneas
+## Plano de Implementação
 
-### 2. Receber reações nos webhooks
+### 1. Permitir edição de permissões para admins (com exceção do owner)
+**Arquivo:** `src/components/settings/MemberPermissionsDialog.tsx`
+- Remover o bloco que bloqueia edição para admins (linhas 103-119)
+- Permitir que o **owner** da organização edite permissões de qualquer membro, inclusive admins
+- Admins continuam com todas as permissões marcadas por padrão, mas o owner pode desmarcar itens específicos (ex: Financeiro)
 
-**Evolution API (`receive-webhook/index.ts`)**:
-- Tratar evento `messages.upsert` quando `message.reactionMessage` está presente
-- Extrair `reactionMessage.key.id` (mensagem reagida) e `reactionMessage.text` (emoji)
-- Inserir/atualizar na tabela `message_reactions`
-- Emoji vazio = remoção da reação
+### 2. Alterar lógica de `checkPermission` para respeitar permissões salvas de admins
+**Arquivo:** `src/hooks/useOrganization.ts` (função `checkPermission`)
+- Manter que o **owner** sempre tem acesso total
+- Para admins que **não são owner**, verificar as permissões salvas no banco ao invés de retornar `true` automaticamente
+- Fallback: se não há permissão salva, usar `defaultForAdmin` (que é `true` para tudo)
 
-**Meta API (`meta-whatsapp-webhook/index.ts`)**:
-- Tratar tipo de mensagem `reaction` no payload
-- Extrair `message.reaction.message_id` e `message.reaction.emoji`
-- Mesma lógica de insert/delete
+### 3. Alterar `hasPermission` no config
+**Arquivo:** `src/config/permissions.ts` (função `hasPermission`)
+- Remover a linha que retorna `true` para todos os admins
+- Tratar admin como role que usa `defaultForAdmin` como fallback quando não há permissão explícita
 
-### 3. Enviar reações (nova edge function ou extensão do `send-inbox-message`)
+### 4. Atualizar edge function `asaas-api` para respeitar permissões individuais
+**Arquivo:** `supabase/functions/asaas-api/index.ts`
+- Atualmente, admins passam direto (linha 86-89)
+- Alterar para verificar permissões salvas do membro, usando `defaultForAdmin` como fallback
 
-- Adicionar action `reaction` no `send-inbox-message`
-- Evolution API: `POST /message/sendReaction/{instance}` com `{ key, reaction: "👍" }`
-- Meta API: enviar tipo `reaction` via Cloud API
-- Inserir na tabela `message_reactions` com `reacted_by = user_id`
-
-### 4. Frontend — Exibir reações no `MessageBubble`
-
-- Buscar reações junto com mensagens no `useConversations` (join ou query separada)
-- Renderizar abaixo do bubble: chips com emoji + contagem
-- Escutar realtime na tabela `message_reactions` para atualizar em tempo real
-
-### 5. Frontend — UI para reagir
-
-- Ao passar o mouse/hover sobre uma mensagem, mostrar botão de emoji (😊)
-- Ao clicar, abrir picker com emojis rápidos (👍❤️😂😮😢🙏) + opção de picker completo
-- Ao selecionar, chamar `send-inbox-message` com action `reaction`
-- Estilo visual similar ao WhatsApp Web (popup flutuante sobre a mensagem)
+### 5. Atualizar edge function `integration-status` para considerar permissão do membro
+**Arquivo:** `supabase/functions/integration-status/index.ts`
+- Verificar se o membro tem `view_finances` ativado nas permissões salvas
+- Se o membro (mesmo admin) tem essa permissão desativada, retornar `asaas: false`
 
 ### Arquivos impactados
-- **Nova migração SQL**: tabela `message_reactions` + RLS + realtime
-- `supabase/functions/receive-webhook/index.ts` — tratar `reactionMessage`
-- `supabase/functions/meta-whatsapp-webhook/index.ts` — tratar reaction
-- `supabase/functions/send-inbox-message/index.ts` — enviar reação via API
-- `src/components/inbox/MessageBubble.tsx` — exibir reações + botão de reagir
-- `src/hooks/useConversations.ts` — incluir reações na query de mensagens
+- `src/components/settings/MemberPermissionsDialog.tsx`
+- `src/hooks/useOrganization.ts`
+- `src/config/permissions.ts`
+- `supabase/functions/asaas-api/index.ts`
+- `supabase/functions/integration-status/index.ts`
+
+### Resultado
+O owner poderá abrir as permissões de qualquer membro (inclusive admins) e ativar/desativar o acesso ao Financeiro individualmente. O menu lateral e as rotas respeitarão essas configurações.
 
