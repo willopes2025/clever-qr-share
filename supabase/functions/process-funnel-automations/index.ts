@@ -433,9 +433,165 @@ Deno.serve(async (req: Request) => {
 
           case 'send_template': {
             const templateId = actionConfig.template_id as string;
-            console.log(`[FUNNEL-AUTOMATIONS] Would send template: ${templateId}`);
-            // TODO: Integrate with template sending
-            results.push({ automationId: automation.id, success: true });
+            const templateInstanceId = actionConfig.instance_id as string | undefined;
+            
+            if (!templateId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send template - no template_id`);
+              results.push({ automationId: automation.id, success: false, error: 'No template selected' });
+              break;
+            }
+
+            // Fetch the message template
+            const { data: template, error: templateError } = await supabase
+              .from('message_templates')
+              .select('name, content')
+              .eq('id', templateId)
+              .single();
+
+            if (templateError || !template) {
+              console.error(`[FUNNEL-AUTOMATIONS] Template not found: ${templateId}`, templateError);
+              results.push({ automationId: automation.id, success: false, error: 'Template not found' });
+              break;
+            }
+
+            // Replace variables in template content
+            const templateMessage = replaceVariables(template.content);
+            console.log(`[FUNNEL-AUTOMATIONS] Sending template "${template.name}" with resolved message`);
+
+            // Resolve instance - same logic as send_message
+            let tplConversationId = deal.conversation_id;
+            let tplInstanceId: string | null = templateInstanceId || null;
+
+            if (!tplConversationId) {
+              const { data: conv } = await supabase
+                .from('conversations')
+                .select('id, instance_id')
+                .eq('contact_id', deal.contact_id)
+                .eq('user_id', deal.user_id)
+                .order('last_message_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (conv) {
+                tplConversationId = conv.id;
+                if (!tplInstanceId) tplInstanceId = conv.instance_id;
+              }
+            } else if (!tplInstanceId) {
+              const { data: existingConv } = await supabase
+                .from('conversations')
+                .select('instance_id')
+                .eq('id', tplConversationId)
+                .single();
+              tplInstanceId = existingConv?.instance_id || null;
+            }
+
+            if (!tplInstanceId) {
+              const { data: defaultInst } = await supabase
+                .from('whatsapp_instances')
+                .select('id')
+                .eq('user_id', deal.user_id)
+                .eq('status', 'connected')
+                .limit(1)
+                .maybeSingle();
+              tplInstanceId = defaultInst?.id || null;
+            }
+
+            if (!tplInstanceId) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send template - no connected WhatsApp instance`);
+              results.push({ automationId: automation.id, success: false, error: 'No connected WhatsApp instance' });
+              break;
+            }
+
+            const { data: tplInstance, error: tplInstanceError } = await supabase
+              .from('whatsapp_instances')
+              .select('instance_name, evolution_instance_name, status')
+              .eq('id', tplInstanceId)
+              .single();
+
+            if (tplInstanceError || !tplInstance || tplInstance.status !== 'connected') {
+              console.log(`[FUNNEL-AUTOMATIONS] Template instance not connected`);
+              results.push({ automationId: automation.id, success: false, error: 'Instance not connected' });
+              break;
+            }
+
+            if (!deal.contact?.phone) {
+              console.log(`[FUNNEL-AUTOMATIONS] Cannot send template - no contact phone`);
+              results.push({ automationId: automation.id, success: false, error: 'Contact has no phone' });
+              break;
+            }
+
+            let tplPhone = deal.contact.phone.replace(/\D/g, '');
+            const tplHasLabelId = !!deal.contact.label_id;
+            const tplIsLabelIdContact = deal.contact.phone.startsWith('LID_');
+
+            let tplRemoteJid: string;
+            if (tplIsLabelIdContact && !tplPhone) {
+              tplRemoteJid = `${deal.contact.label_id}@lid`;
+            } else if (tplHasLabelId && tplPhone) {
+              if (!tplPhone.startsWith('55')) tplPhone = '55' + tplPhone;
+              tplRemoteJid = `${tplPhone}@s.whatsapp.net`;
+            } else {
+              if (!tplPhone.startsWith('55')) tplPhone = '55' + tplPhone;
+              tplRemoteJid = `${tplPhone}@s.whatsapp.net`;
+            }
+
+            const tplEvolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+            const tplEvolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+
+            if (!tplEvolutionApiUrl || !tplEvolutionApiKey) {
+              console.error(`[FUNNEL-AUTOMATIONS] Evolution API not configured for template`);
+              results.push({ automationId: automation.id, success: false, error: 'Evolution API not configured' });
+              break;
+            }
+
+            const tplEvolutionName = tplInstance.evolution_instance_name || tplInstance.instance_name;
+            const tplSendPayload = tplRemoteJid.endsWith('@lid')
+              ? { number: tplRemoteJid.replace('@lid', ''), options: { presence: 'composing' }, text: templateMessage }
+              : { number: tplPhone, text: templateMessage };
+
+            console.log(`[FUNNEL-AUTOMATIONS] Sending template to ${tplPhone} via ${tplEvolutionName}`);
+
+            try {
+              const tplResponse = await fetch(
+                `${tplEvolutionApiUrl}/message/sendText/${encodeURIComponent(tplEvolutionName)}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'apikey': tplEvolutionApiKey },
+                  body: JSON.stringify(tplSendPayload)
+                }
+              );
+
+              const tplResult = await tplResponse.json();
+
+              if (tplResponse.ok && tplResult.key) {
+                if (tplConversationId) {
+                  await supabase.from('inbox_messages').insert({
+                    conversation_id: tplConversationId,
+                    user_id: deal.user_id,
+                    direction: 'outbound',
+                    content: templateMessage,
+                    message_type: 'text',
+                    status: 'sent',
+                    sent_at: new Date().toISOString(),
+                    whatsapp_message_id: tplResult.key.id
+                  });
+
+                  await supabase.from('conversations').update({
+                    last_message_at: new Date().toISOString(),
+                    last_message_preview: templateMessage.substring(0, 100),
+                    last_message_direction: 'outbound'
+                  }).eq('id', tplConversationId);
+                }
+
+                console.log(`[FUNNEL-AUTOMATIONS] Template sent successfully: ${tplResult.key.id}`);
+                results.push({ automationId: automation.id, success: true });
+              } else {
+                console.error(`[FUNNEL-AUTOMATIONS] Failed to send template:`, tplResult);
+                results.push({ automationId: automation.id, success: false, error: tplResult.message || 'Send failed' });
+              }
+            } catch (tplSendError) {
+              console.error(`[FUNNEL-AUTOMATIONS] Error sending template:`, tplSendError);
+              results.push({ automationId: automation.id, success: false, error: tplSendError instanceof Error ? tplSendError.message : 'Send error' });
+            }
             break;
           }
 
