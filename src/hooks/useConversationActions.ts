@@ -184,7 +184,25 @@ export const useConversationActions = () => {
   };
 
   const mergeConversations = useMutation({
-    mutationFn: async ({ keepConversationId, mergeConversationId }: { keepConversationId: string; mergeConversationId: string }) => {
+    mutationFn: async ({ keepConversationId, mergeConversationId, contactUpdates }: { keepConversationId: string; mergeConversationId: string; contactUpdates?: Record<string, any> }) => {
+      // 0. Apply selected field values to the keep contact if provided
+      if (contactUpdates && Object.keys(contactUpdates).length > 0) {
+        const { data: keepConv } = await supabase
+          .from('conversations')
+          .select('contact_id')
+          .eq('id', keepConversationId)
+          .single();
+
+        if (keepConv?.contact_id) {
+          const { error: updateError } = await supabase
+            .from('contacts')
+            .update(contactUpdates)
+            .eq('id', keepConv.contact_id);
+
+          if (updateError) throw updateError;
+        }
+      }
+
       // 1. Count messages before moving to verify later
       const { count: beforeCount } = await supabase
         .from('inbox_messages')
