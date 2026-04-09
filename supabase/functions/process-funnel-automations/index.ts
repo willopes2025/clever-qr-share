@@ -268,9 +268,13 @@ Deno.serve(async (req: Request) => {
               break;
             }
 
+            // Check if automation has a specific instance configured
+            const rawInstanceId = actionConfig.instance_id as string | null;
+            const configuredInstanceId = rawInstanceId && rawInstanceId !== 'auto' ? rawInstanceId : null;
+
             // Tentar encontrar a conversa e instância
             let conversationId = deal.conversation_id;
-            let instanceId: string | null = null;
+            let instanceId: string | null = configuredInstanceId || null;
             
             // Buscar conversa mais recente do contato
             if (!conversationId) {
@@ -285,9 +289,9 @@ Deno.serve(async (req: Request) => {
               
               if (conv) {
                 conversationId = conv.id;
-                instanceId = conv.instance_id;
+                if (!instanceId) instanceId = conv.instance_id;
               }
-            } else {
+            } else if (!instanceId) {
               // Buscar instance_id da conversa existente
               const { data: existingConv } = await supabase
                 .from('conversations')
@@ -330,13 +334,20 @@ Deno.serve(async (req: Request) => {
               break;
             }
 
-            // Formatar telefone
+            // Formatar telefone - para contatos LID que têm telefone real, usar o telefone
             let phone = deal.contact.phone.replace(/\D/g, '');
-            const isLabelIdContact = deal.contact.phone.startsWith('LID_') || deal.contact.label_id;
+            const isLabelIdContact = deal.contact.phone.startsWith('LID_');
+            const hasLabelId = !!deal.contact.label_id;
             
             let remoteJid: string;
-            if (isLabelIdContact) {
-              remoteJid = `${deal.contact.label_id || phone}@lid`;
+            if (isLabelIdContact && !phone) {
+              // Contato só tem LID, sem telefone real
+              remoteJid = `${deal.contact.label_id}@lid`;
+            } else if (hasLabelId && phone) {
+              // Contato tem label_id MAS também tem telefone real - usar telefone
+              if (!phone.startsWith('55')) phone = '55' + phone;
+              remoteJid = `${phone}@s.whatsapp.net`;
+              console.log(`[FUNNEL-AUTOMATIONS] Contact has label_id but using real phone: ${phone}`);
             } else {
               if (!phone.startsWith('55')) phone = '55' + phone;
               remoteJid = `${phone}@s.whatsapp.net`;
