@@ -1,48 +1,29 @@
 
 
-# Acesso Financeiro Configurável por Usuário
+# Exibir Motivo Real do Erro nas Mensagens com Falha
 
-## Problema Identificado
-Atualmente, o sistema trata **todos os admins** como tendo acesso total — incluindo o Financeiro. Na tela de permissões de um admin, aparece apenas a mensagem "Administradores têm acesso completo" sem opção de personalizar. Isso impede que você restrinja o acesso ao Financeiro para admins específicos como a Katia.
+## Problema
+A edge function `send-inbox-message` já identifica erros específicos (ex: "Número não registrado no WhatsApp", "Instância desconectada"), mas ao atualizar o status da mensagem para `failed`, **não salva o motivo do erro** na coluna `error_message` da tabela `inbox_messages`. O `MessageBubble.tsx` tenta ler esse campo, mas como é sempre `null`, mostra a mensagem genérica.
 
-Além disso, se a Katia não está vendo o Financeiro no menu, pode ser porque o `hasPermission` retorna `true` genericamente para admins, mas a visualização depende também do `useIntegrationStatus` que consulta a edge function — e pode haver um problema de cache ou timing.
+## Solução
+Salvar o `error_message` junto com o `status: 'failed'` em todos os pontos de falha da edge function.
 
-## Plano de Implementação
+### 1. Atualizar `supabase/functions/send-inbox-message/index.ts`
+Em cada local onde faz `.update({ status: 'failed' })`, incluir também o `error_message`:
 
-### 1. Permitir edição de permissões para admins (com exceção do owner)
-**Arquivo:** `src/components/settings/MemberPermissionsDialog.tsx`
-- Remover o bloco que bloqueia edição para admins (linhas 103-119)
-- Permitir que o **owner** da organização edite permissões de qualquer membro, inclusive admins
-- Admins continuam com todas as permissões marcadas por padrão, mas o owner pode desmarcar itens específicos (ex: Financeiro)
+- **Linha 324** (template Meta falha): salvar `result.error?.message`
+- **Linha 403** (mensagem Meta falha): salvar `result.error?.message`
+- **Linha 556** (Evolution API falha): salvar o `errorMessage` já calculado
 
-### 2. Alterar lógica de `checkPermission` para respeitar permissões salvas de admins
-**Arquivo:** `src/hooks/useOrganization.ts` (função `checkPermission`)
-- Manter que o **owner** sempre tem acesso total
-- Para admins que **não são owner**, verificar as permissões salvas no banco ao invés de retornar `true` automaticamente
-- Fallback: se não há permissão salva, usar `defaultForAdmin` (que é `true` para tudo)
+Além disso, no bloco `catch` final (linha 560-567), fazer update na mensagem (se o ID existir) com o erro capturado.
 
-### 3. Alterar `hasPermission` no config
-**Arquivo:** `src/config/permissions.ts` (função `hasPermission`)
-- Remover a linha que retorna `true` para todos os admins
-- Tratar admin como role que usa `defaultForAdmin` como fallback quando não há permissão explícita
-
-### 4. Atualizar edge function `asaas-api` para respeitar permissões individuais
-**Arquivo:** `supabase/functions/asaas-api/index.ts`
-- Atualmente, admins passam direto (linha 86-89)
-- Alterar para verificar permissões salvas do membro, usando `defaultForAdmin` como fallback
-
-### 5. Atualizar edge function `integration-status` para considerar permissão do membro
-**Arquivo:** `supabase/functions/integration-status/index.ts`
-- Verificar se o membro tem `view_finances` ativado nas permissões salvas
-- Se o membro (mesmo admin) tem essa permissão desativada, retornar `asaas: false`
-
-### Arquivos impactados
-- `src/components/settings/MemberPermissionsDialog.tsx`
-- `src/hooks/useOrganization.ts`
-- `src/config/permissions.ts`
-- `supabase/functions/asaas-api/index.ts`
-- `supabase/functions/integration-status/index.ts`
+### 2. Atualizar `supabase/functions/send-inbox-media/index.ts`
+Aplicar a mesma lógica para mensagens de mídia que falham.
 
 ### Resultado
-O owner poderá abrir as permissões de qualquer membro (inclusive admins) e ativar/desativar o acesso ao Financeiro individualmente. O menu lateral e as rotas respeitarão essas configurações.
+Quando uma mensagem falhar, o tooltip/popover no chat mostrará o motivo real (ex: "Número (5527...) não registrado no WhatsApp" ou "Instância desconectada. Reconecte nas configurações") ao invés da mensagem genérica.
+
+### Arquivos impactados
+- `supabase/functions/send-inbox-message/index.ts`
+- `supabase/functions/send-inbox-media/index.ts` (se aplicável)
 
