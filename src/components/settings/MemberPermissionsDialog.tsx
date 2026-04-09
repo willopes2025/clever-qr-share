@@ -116,7 +116,9 @@ export function MemberPermissionsDialog({ open, onOpenChange, member }: MemberPe
         <DialogHeader>
           <DialogTitle>Permissões de {member.profile?.full_name || member.email}</DialogTitle>
           <DialogDescription>
-            Personalize as permissões deste membro da equipe por categoria.
+            {member.role === 'admin' 
+              ? 'Admins têm todas as permissões por padrão. Desmarque itens específicos para restringir o acesso.'
+              : 'Personalize as permissões deste membro da equipe por categoria.'}
           </DialogDescription>
         </DialogHeader>
 

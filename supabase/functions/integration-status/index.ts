@@ -32,16 +32,24 @@ Deno.serve(async (req): Promise<Response> => {
       .in('provider', ['asaas', 'ssotica'])
       .limit(1);
 
+    let memberHasFinancePermission = true; // default for owner
+
     if (!ownIntegration || ownIntegration.length === 0) {
       // User doesn't have their own integrations, check if they're a team member
       const { data: teamMember } = await supabaseAdmin
         .from('team_members')
-        .select('organization_id, permissions')
+        .select('organization_id, permissions, role')
         .eq('user_id', userId)
         .eq('status', 'active')
         .single();
 
       if (teamMember?.organization_id) {
+        const memberPermissions = teamMember.permissions as Record<string, boolean> | null;
+        const memberRole = teamMember.role as string;
+        
+        // Check view_finances permission: use saved value, fallback to default for role
+        memberHasFinancePermission = memberPermissions?.view_finances ?? (memberRole === 'admin');
+
         // Get the organization owner
         const { data: org } = await supabaseAdmin
           .from('organizations')
