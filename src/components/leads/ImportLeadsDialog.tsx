@@ -53,7 +53,11 @@ const SOURCE_FIELDS: SourceField[] = [
   }, suggestedType: "text" },
   { key: "socios", label: "Sócio(s)", icon: "👤", getValue: (c) => {
     if (!c.socios || c.socios.length === 0) return null;
-    return c.socios.map(s => s.nome).filter(Boolean).join(', ');
+    return c.socios.map(s => {
+      if (!s.nome) return null;
+      const firstName = s.nome.split(' ')[0];
+      return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+    }).filter(Boolean).join(', ');
   }, suggestedType: "text" },
 ];
 
