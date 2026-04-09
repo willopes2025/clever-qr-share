@@ -81,14 +81,12 @@ Deno.serve(async (req) => {
       url: webhookUrl,
       email: user.email || '',
       enabled: true,
-      interrupted: false,
-      apiVersion: 3,
-      authToken: '',
       sendType: 'SEQUENTIALLY',
       events: [
         'PAYMENT_CREATED',
         'PAYMENT_CONFIRMED',
         'PAYMENT_RECEIVED',
+        'PAYMENT_RECEIVED_IN_CASH',
         'PAYMENT_OVERDUE',
         'PAYMENT_DELETED',
         'PAYMENT_REFUNDED',
@@ -107,9 +105,9 @@ Deno.serve(async (req) => {
       });
 
       if (!updateRes.ok) {
-        const errText = await updateRes.text();
-        console.error('Error updating webhook:', errText);
-        throw new Error(`Erro ao atualizar webhook: ${errText}`);
+        const errBody = await updateRes.text();
+        console.error('Error updating webhook:', updateRes.status, errBody);
+        throw new Error(`Erro ao atualizar webhook (${updateRes.status}): ${errBody}`);
       }
 
       console.log(`Updated existing webhook ${existingWebhook.id}`);
@@ -125,9 +123,9 @@ Deno.serve(async (req) => {
       });
 
       if (!createRes.ok) {
-        const errText = await createRes.text();
-        console.error('Error creating webhook:', errText);
-        throw new Error(`Erro ao criar webhook: ${errText}`);
+        const errBody = await createRes.text();
+        console.error('Error creating webhook:', createRes.status, errBody);
+        throw new Error(`Erro ao criar webhook (${createRes.status}): ${errBody}`);
       }
 
       const createData = await createRes.json();
