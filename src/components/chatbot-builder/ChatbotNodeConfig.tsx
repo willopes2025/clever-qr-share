@@ -552,10 +552,12 @@ const MetaTemplateActionConfig = ({
               <SelectItem value="empty" disabled>Nenhum número configurado</SelectItem>
             ) : (
               metaNumbers?.filter(n => n.is_active).map((number) => (
-                <SelectItem key={number.phone_number_id} value={number.phone_number_id}>
-                  <div className="flex items-center gap-2">
-                    <Send className="h-3 w-3" />
-                    {number.display_name || number.phone_number || number.phone_number_id}
+                 <SelectItem key={number.phone_number_id} value={number.phone_number_id}>
+                   <div className="flex items-center gap-2">
+                     <Send className="h-3 w-3" />
+                     {number.display_name && number.phone_number 
+                       ? `${number.display_name} (${number.phone_number})`
+                       : number.display_name || number.phone_number || number.phone_number_id}
                   </div>
                 </SelectItem>
               ))
@@ -762,7 +764,9 @@ const MessageNodeConfig = ({
                     <SelectItem key={number.phone_number_id} value={number.phone_number_id}>
                       <div className="flex items-center gap-2">
                         <Send className="h-3 w-3" />
-                        {number.display_name || number.phone_number || number.phone_number_id}
+                        {number.display_name && number.phone_number 
+                          ? `${number.display_name} (${number.phone_number})`
+                          : number.display_name || number.phone_number || number.phone_number_id}
                       </div>
                     </SelectItem>
                   ))
