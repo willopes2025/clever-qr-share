@@ -83,7 +83,9 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
 
   // Temperature based on activity and value
   const getTemperature = () => {
-    const hoursSinceUpdate = differenceInHours(new Date(), new Date(deal.updated_at || deal.created_at));
+    const refDate = deal.updated_at || deal.created_at;
+    if (!refDate) return 'cold';
+    const hoursSinceUpdate = differenceInHours(new Date(), new Date(refDate));
     const hasHighValue = Number(deal.value) >= 1000;
     
     if (hoursSinceUpdate <= 24 && hasHighValue) return 'hot';
