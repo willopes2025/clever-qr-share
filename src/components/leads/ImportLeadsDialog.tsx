@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Tag, AlertCircle, CheckCircle2, ArrowLeft, ArrowRight, Plus, Settings2 } from "lucide-react";
+import { Download, Tag, AlertCircle, CheckCircle2, ArrowLeft, ArrowRight, Plus, Settings2, Loader2, Clock } from "lucide-react";
 import { useContacts } from "@/hooks/useContacts";
 import { useCustomFields, CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { CreateFieldInlineDialog, NewFieldConfig } from "@/components/contacts/CreateFieldInlineDialog";
@@ -69,14 +70,40 @@ interface FieldMapping {
   newFieldConfig?: NewFieldConfig; // for fields to be created
 }
 
+const PHASE_LABELS = {
+  preparing: "Preparando dados...",
+  deduplicating: "Verificando duplicatas...",
+  inserting: "Importando contatos...",
+  updating: "Atualizando contatos existentes...",
+  tagging: "Aplicando tags...",
+  deals: "Criando leads no funil...",
+  done: "Finalizando...",
+} as const;
+
+const getETA = (startedAt: number, current: number, total: number, phase: keyof typeof PHASE_LABELS) => {
+  if (current <= 0 || total <= 0 || phase === "done") return "—";
+
+  const elapsedSeconds = (Date.now() - startedAt) / 1000;
+  const itemsPerSecond = current / elapsedSeconds;
+
+  if (!Number.isFinite(itemsPerSecond) || itemsPerSecond <= 0) return "Calculando...";
+
+  const remainingSeconds = Math.max(0, Math.round((total - current) / itemsPerSecond));
+  if (remainingSeconds < 60) return `${remainingSeconds}s restantes`;
+
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  return `${minutes}m ${seconds}s restantes`;
+};
+
 export const ImportLeadsDialog = ({
   open,
   onOpenChange,
   companies,
   onSuccess,
 }: ImportLeadsDialogProps) => {
-  const { tags, importContacts, createTag } = useContacts();
-  const { fieldDefinitions, createField } = useCustomFields();
+  const { tags, importContacts, createTag, importProgress } = useContacts();
+  const { fieldDefinitions } = useCustomFields();
   
   const [step, setStep] = useState<ImportStep>("summary");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -218,12 +245,10 @@ export const ImportLeadsDialog = ({
     setIsImporting(true);
     
     try {
-      // First, create all new fields
       const fieldsToCreate = Object.values(mappings)
         .filter(m => m.targetType === "new" && m.newFieldConfig)
         .map(m => m.newFieldConfig!);
       
-      // Dedupe and create fields
       const uniqueFields = fieldsToCreate.reduce((acc, field) => {
         if (!acc.find(f => f.field_key === field.field_key)) {
           acc.push(field);
@@ -231,21 +256,9 @@ export const ImportLeadsDialog = ({
         return acc;
       }, [] as NewFieldConfig[]);
 
-      for (const field of uniqueFields) {
-        // Check if field already exists
-        const exists = fieldDefinitions?.find(f => f.field_key === field.field_key);
-        if (!exists) {
-          await createField.mutateAsync({
-            field_name: field.field_name,
-            field_key: field.field_key,
-            field_type: field.field_type,
-            options: field.options || [],
-            is_required: field.is_required || false,
-            display_order: (fieldDefinitions?.length || 0) + 1,
-            entity_type: 'contact',
-          });
-        }
-      }
+      const fieldsMissingInDatabase = uniqueFields.filter(
+        (field) => !fieldDefinitions?.some((existingField) => existingField.field_key === field.field_key)
+      );
 
       // Filter companies based on settings
       const toImport = skipWithoutPhone ? companiesWithPhone : companies;
@@ -330,6 +343,14 @@ export const ImportLeadsDialog = ({
       const result = await importContacts.mutateAsync({
         contacts,
         tagIds: selectedTags.length > 0 ? selectedTags : undefined,
+        newFields: fieldsMissingInDatabase.map((field) => ({
+          field_name: field.field_name,
+          field_key: field.field_key,
+          field_type: field.field_type,
+          options: field.options || [],
+          is_required: field.is_required || false,
+          entity_type: 'contact' as const,
+        })),
       });
 
       const importedCount = (result?.new || 0) + (result?.updated || 0);
@@ -343,7 +364,9 @@ export const ImportLeadsDialog = ({
       setNewFieldsToCreate([]);
     } catch (error) {
       console.error('Import error:', error);
-      toast.error('Erro ao importar contatos');
+      toast.error('Erro ao importar contatos', {
+        description: error instanceof Error ? error.message : 'Não foi possível concluir a importação.',
+      });
     } finally {
       setIsImporting(false);
     }
@@ -367,6 +390,7 @@ export const ImportLeadsDialog = ({
   };
 
   const handleClose = () => {
+    if (isImporting) return;
     setStep("summary");
     setMappings({});
     setSelectedTags([]);
@@ -401,14 +425,52 @@ export const ImportLeadsDialog = ({
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0 pr-2">
-            {/* Step 1: Summary */}
-            {step === "summary" && (
-              <div className="space-y-4 py-4 pr-2">
+          {isImporting && importProgress ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-10 gap-6">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+
+              <div className="w-full space-y-3">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>{PHASE_LABELS[importProgress.phase]}</span>
+                  <span>
+                    {importProgress.current.toLocaleString('pt-BR')} / {importProgress.total.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+
+                <Progress
+                  value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}
+                  className="h-3"
+                />
+
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>
+                    {Math.round(importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0)}%
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {getETA(
+                      importProgress.startedAt,
+                      importProgress.current,
+                      importProgress.total,
+                      importProgress.phase
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center">
+                A importação roda em lotes para evitar falhas; agora o progresso fica visível até concluir.
+              </p>
+            </div>
+          ) : (
+            <ScrollArea className="flex-1 min-h-0 pr-2">
+              {/* Step 1: Summary */}
+              {step === "summary" && (
+                <div className="space-y-4 py-4 pr-2">
                 <div className="bg-muted rounded-lg p-4 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
                       Com telefone
                     </span>
                     <Badge variant="default">{companiesWithPhone.length}</Badge>
@@ -416,7 +478,7 @@ export const ImportLeadsDialog = ({
                   {companiesWithoutPhone.length > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="h-4 w-4 text-yellow-500" />
+                        <AlertCircle className="h-4 w-4 text-muted-foreground" />
                         Sem telefone
                       </span>
                       <Badge variant="secondary">{companiesWithoutPhone.length}</Badge>
@@ -456,12 +518,12 @@ export const ImportLeadsDialog = ({
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Step 2: Mapping */}
-            {step === "mapping" && (
-              <div className="space-y-3 py-4 pr-2 max-h-[50vh] overflow-y-auto">
+              {/* Step 2: Mapping */}
+              {step === "mapping" && (
+                <div className="space-y-3 py-4 pr-2 max-h-[50vh] overflow-y-auto">
                 <p className="text-sm text-muted-foreground mb-4">
                   Para cada campo, escolha como deseja importar os dados: ignorar, adicionar às notas, usar campo existente ou criar novo campo.
                 </p>
@@ -528,12 +590,12 @@ export const ImportLeadsDialog = ({
                     </div>
                   );
                 })}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Step 3: Tags */}
-            {step === "tags" && (
-              <div className="space-y-4 py-4 pr-2">
+              {/* Step 3: Tags */}
+              {step === "tags" && (
+                <div className="space-y-4 py-4 pr-2">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Tag className="h-4 w-4" />
@@ -584,20 +646,21 @@ export const ImportLeadsDialog = ({
                     <p>• {selectedTags.length} tag(s) serão aplicadas</p>
                   </div>
                 </div>
-              </div>
-            )}
-          </ScrollArea>
+                </div>
+              )}
+            </ScrollArea>
+          )}
 
           <DialogFooter className="gap-2 flex-shrink-0 border-t pt-4 mt-2">
             {step !== "summary" && (
-              <Button variant="outline" onClick={handleBack}>
+              <Button variant="outline" onClick={handleBack} disabled={isImporting}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar
               </Button>
             )}
             
             {step === "summary" && (
-              <Button variant="outline" onClick={handleClose}>
+              <Button variant="outline" onClick={handleClose} disabled={isImporting}>
                 Cancelar
               </Button>
             )}
