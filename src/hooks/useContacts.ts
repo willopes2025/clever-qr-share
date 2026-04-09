@@ -613,7 +613,7 @@ export const useContacts = () => {
                   })
                   .select("id");
                 if (!singleError && singleData) insertedData.push(...singleData);
-                await delay(300);
+                await delay(100);
               } catch (e) {
                 console.error("Individual insert failed:", e);
               }
