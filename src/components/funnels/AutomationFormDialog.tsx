@@ -814,13 +814,19 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
           </div>
 
           {actionType === 'send_message' && (
-            <div className="space-y-2">
-              <Label>Mensagem</Label>
-              <Textarea
-                value={actionConfig.message as string || ''}
-                onChange={(e) => setActionConfig({ ...actionConfig, message: e.target.value })}
-                placeholder="Use {{nome}}, {{telefone}} para variáveis"
-                rows={3}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Mensagem</Label>
+                <Textarea
+                  value={actionConfig.message as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, message: e.target.value })}
+                  placeholder="Use {{nome}}, {{telefone}} para variáveis"
+                  rows={3}
+                />
+              </div>
+              <SendMessageInstanceSelector
+                value={actionConfig.instance_id as string || ''}
+                onChange={(v) => setActionConfig({ ...actionConfig, instance_id: v || undefined })}
               />
             </div>
           )}
