@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ import {
   FileSpreadsheet,
   Loader2,
   Send,
+  MessageSquare,
 } from "lucide-react";
 import {
   Table,
@@ -108,6 +110,7 @@ const normalizeText = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "");
 
 export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
+  const navigate = useNavigate();
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
@@ -1150,6 +1153,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            if (deal.conversation_id) {
+                              navigate(`/inbox?conversationId=${deal.conversation_id}`);
+                            } else if (deal.contact_id) {
+                              navigate(`/inbox?contactId=${deal.contact_id}`);
+                            }
+                          }}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Abrir Conversa
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => setEditingDeal(deal)}>
                           Editar
                         </DropdownMenuItem>
