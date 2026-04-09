@@ -100,8 +100,9 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
     setShowEdit(true);
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const getInitials = (name?: string | null) => {
+    if (!name) return '??';
+    return name.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   const getNextActionDisplay = () => {
