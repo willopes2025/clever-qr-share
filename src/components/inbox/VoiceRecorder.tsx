@@ -100,26 +100,33 @@ export const VoiceRecorder = ({ onSend, disabled }: VoiceRecorderProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      const fileName = `${user.id}/${Date.now()}-voice.webm`;
+      // Convert webm to ogg for better WhatsApp compatibility
+      const fileName = `${user.id}/${Date.now()}-voice.ogg`;
 
       const { error: uploadError } = await supabase.storage
         .from('inbox-media')
         .upload(fileName, audioBlob, {
-          contentType: 'audio/webm'
+          contentType: 'audio/ogg; codecs=opus'
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("[VoiceRecorder] Upload error:", uploadError);
+        toast.error(`Erro no upload: ${uploadError.message}`);
+        return;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('inbox-media')
         .getPublicUrl(fileName);
 
+      console.log("[VoiceRecorder] Audio uploaded successfully:", publicUrl);
       onSend(publicUrl);
       cancelRecording();
       toast.success("Áudio enviado");
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Erro ao enviar áudio");
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Erro desconhecido';
+      console.error("[VoiceRecorder] Error:", errorMsg, error);
+      toast.error(`Erro ao enviar áudio: ${errorMsg}`);
     } finally {
       setUploading(false);
     }
