@@ -9,6 +9,7 @@ import { TopDebtorsTable } from './TopDebtorsTable';
 import { RevenueChart } from './RevenueChart';
 import { PaymentMethodChart } from './PaymentMethodChart';
 import { BillingRemindersChart } from './BillingRemindersChart';
+import { TodayDuePayments } from './TodayDuePayments';
 import { MRRCard } from './MRRCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
