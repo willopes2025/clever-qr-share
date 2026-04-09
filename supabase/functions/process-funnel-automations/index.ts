@@ -268,9 +268,12 @@ Deno.serve(async (req: Request) => {
               break;
             }
 
+            // Check if automation has a specific instance configured
+            const configuredInstanceId = actionConfig.instance_id as string | null;
+
             // Tentar encontrar a conversa e instância
             let conversationId = deal.conversation_id;
-            let instanceId: string | null = null;
+            let instanceId: string | null = configuredInstanceId || null;
             
             // Buscar conversa mais recente do contato
             if (!conversationId) {
@@ -285,9 +288,9 @@ Deno.serve(async (req: Request) => {
               
               if (conv) {
                 conversationId = conv.id;
-                instanceId = conv.instance_id;
+                if (!instanceId) instanceId = conv.instance_id;
               }
-            } else {
+            } else if (!instanceId) {
               // Buscar instance_id da conversa existente
               const { data: existingConv } = await supabase
                 .from('conversations')
