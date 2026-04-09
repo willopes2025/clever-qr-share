@@ -123,14 +123,7 @@ Deno.serve(async (req) => {
           'access_token': apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          url: webhookUrl,
-          email: user.email || '',
-          enabled: true,
-          interrupted: false,
-          apiVersion: 3,
-          authToken: '',
-        }),
+        body: JSON.stringify(webhookPayload),
       });
 
       if (!createRes.ok) {
