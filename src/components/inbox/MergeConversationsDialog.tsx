@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Merge, MessageCircle, Calendar } from "lucide-react";
+import { Merge, Calendar } from "lucide-react";
 import { useConversationActions } from "@/hooks/useConversationActions";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -26,6 +26,27 @@ interface MergeConversationsDialogProps {
   contactPhone: string;
   onMerged?: () => void;
 }
+
+// Normalize string for comparison: lowercase, collapse whitespace, trim
+const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Normalize phone: keep only digits, remove country code variations
+const normalizePhone = (p: string) => {
+  const digits = p.replace(/\D/g, '');
+  // Remove leading 55 (Brazil) for comparison
+  return digits.startsWith('55') ? digits.slice(2) : digits;
+};
+
+// Check if two phones likely belong to the same person
+const phonesMatch = (a: string, b: string) => {
+  const na = normalizePhone(a);
+  const nb = normalizePhone(b);
+  if (na === nb) return true;
+  // Handle 8-digit vs 9-digit (missing leading 9 in mobile)
+  if (na.length === nb.length + 1 && na.startsWith(nb.slice(0, 2)) && na.slice(2) === '9' + nb.slice(2)) return true;
+  if (nb.length === na.length + 1 && nb.startsWith(na.slice(0, 2)) && nb.slice(2) === '9' + na.slice(2)) return true;
+  return false;
+};
 
 export const MergeConversationsDialog = ({
   open,
@@ -45,7 +66,10 @@ export const MergeConversationsDialog = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
 
-      // Search by phone (exact) or name (similar)
+      // Extract first name for server-side search to reduce results
+      const firstName = contactName.trim().split(/\s+/)[0];
+      
+      // Server-side filter by name to avoid 1000 row limit
       const { data: conversations, error } = await supabase
         .from('conversations')
         .select(`
@@ -53,20 +77,50 @@ export const MergeConversationsDialog = ({
           contact:contacts!inner(id, name, phone)
         `)
         .neq('id', conversationId)
-        .order('last_message_at', { ascending: false });
+        .ilike('contacts.name', `%${firstName}%`)
+        .order('last_message_at', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
 
-      // Filter for matching contacts
-      return (conversations || []).filter((conv: any) => {
-        const name = conv.contact?.name?.toLowerCase() || '';
+      // Also search by phone (different query since OR with joins is tricky)
+      const phoneDigits = contactPhone.replace(/\D/g, '');
+      // Search with last 8 digits to catch variations
+      const phoneSuffix = phoneDigits.slice(-8);
+      
+      const { data: phoneConversations, error: phoneError } = await supabase
+        .from('conversations')
+        .select(`
+          id, status, created_at, last_message_at, unread_count, provider,
+          contact:contacts!inner(id, name, phone)
+        `)
+        .neq('id', conversationId)
+        .ilike('contacts.phone', `%${phoneSuffix}%`)
+        .order('last_message_at', { ascending: false })
+        .limit(50);
+
+      if (phoneError) throw phoneError;
+
+      // Merge and deduplicate results
+      const allConversations = [...(conversations || [])];
+      const existingIds = new Set(allConversations.map((c: any) => c.id));
+      for (const conv of (phoneConversations || [])) {
+        if (!existingIds.has((conv as any).id)) {
+          allConversations.push(conv);
+        }
+      }
+
+      const searchNameNorm = normalize(contactName);
+
+      // Filter for matching contacts with normalized comparison
+      return allConversations.filter((conv: any) => {
+        const name = normalize(conv.contact?.name || '');
         const phone = conv.contact?.phone || '';
-        const searchName = contactName.toLowerCase();
         
-        // Match by phone or similar name
-        return phone === contactPhone || 
-               (searchName.length > 3 && name.includes(searchName)) ||
-               (name.length > 3 && searchName.includes(name));
+        // Match by phone (flexible) or similar name (normalized)
+        return phonesMatch(phone, contactPhone) || 
+               (searchNameNorm.length > 3 && name.includes(searchNameNorm)) ||
+               (name.length > 3 && searchNameNorm.includes(name));
       });
     },
     enabled: open,
