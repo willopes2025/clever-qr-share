@@ -9,6 +9,7 @@ import { TopDebtorsTable } from './TopDebtorsTable';
 import { RevenueChart } from './RevenueChart';
 import { PaymentMethodChart } from './PaymentMethodChart';
 import { BillingRemindersChart } from './BillingRemindersChart';
+import { TodayDuePayments } from './TodayDuePayments';
 import { MRRCard } from './MRRCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +96,10 @@ export const AsaasDashboard = () => {
 
       {!metrics.isLoading && metrics.totalPaymentsCount > 0 && (
         <>
+          {/* KPI Cards */}
+          {/* Today's Due Payments */}
+          <TodayDuePayments />
+
           {/* KPI Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <FinancialKPICard
