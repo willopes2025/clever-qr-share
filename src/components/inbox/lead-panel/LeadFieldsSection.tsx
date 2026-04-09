@@ -53,12 +53,13 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     (tabs || []).flatMap(t => t.field_keys || []).filter(k => leadFieldKeySet.has(k))
   );
   
-  // Show tab-specific fields + unassigned fields (orphans)
-  const filteredLeadFields = tabFieldKeys.length > 0
+  // Show tab-specific fields + unassigned fields (orphans), excluding ssotica fields
+  const filteredLeadFields = (tabFieldKeys.length > 0
     ? leadFieldDefinitions.filter(f => 
         tabFieldKeys.includes(f.field_key) || !allAssignedFieldKeys.has(f.field_key)
       )
-    : leadFieldDefinitions;
+    : leadFieldDefinitions
+  ).filter(f => !f.field_key.startsWith('ssotica_'));
   
   // Also detect custom_fields keys that have data but NO lead field definition (orphan data)
   // Exclude ssotica_* keys — those belong exclusively to the SSotica tab
