@@ -200,8 +200,9 @@ Deno.serve(async (req) => {
       console.log('[SEND-MEDIA-META] API response:', JSON.stringify(result));
 
       if (!response.ok) {
-        await supabase.from('inbox_messages').update({ status: 'failed' }).eq('id', message.id);
-        throw new Error(result.error?.message || 'Erro ao enviar mídia via Meta API');
+        const failReason = result.error?.message || 'Erro ao enviar mídia via Meta API';
+        await supabase.from('inbox_messages').update({ status: 'failed', error_message: failReason }).eq('id', message.id);
+        throw new Error(failReason);
       }
 
       const whatsappMessageId = result.messages?.[0]?.id;
@@ -448,7 +449,7 @@ Deno.serve(async (req) => {
       
       await supabase
         .from('inbox_messages')
-        .update({ status: 'failed' })
+        .update({ status: 'failed', error_message: errorMessage })
         .eq('id', message.id);
       
       throw new Error(errorMessage);
