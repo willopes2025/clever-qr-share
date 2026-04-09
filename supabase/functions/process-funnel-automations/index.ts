@@ -997,7 +997,7 @@ Deno.serve(async (req: Request) => {
                 break;
               }
 
-              const { error: execError } = await supabase.from('chatbot_executions').insert({
+              const { data: newExec, error: execError } = await supabase.from('chatbot_executions').insert({
                 flow_id: flowId,
                 contact_id: deal.contact_id,
                 deal_id: dealId,
@@ -1014,12 +1014,34 @@ Deno.serve(async (req: Request) => {
                   funnel_name: deal.funnel?.name,
                   stage_name: deal.stage?.name
                 }
-              });
+              }).select('id').single();
 
-              if (execError) {
+              if (execError || !newExec) {
                 console.error(`[FUNNEL-AUTOMATIONS] Error creating chatbot execution:`, execError);
-                results.push({ automationId: automation.id, success: false, error: execError.message });
+                results.push({ automationId: automation.id, success: false, error: execError?.message || 'Failed to create execution' });
               } else {
+                // Actually call the execute-chatbot-flow function to start the flow
+                try {
+                  const execResponse = await fetch(`${supabaseUrl}/functions/v1/execute-chatbot-flow`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseKey}`,
+                    },
+                    body: JSON.stringify({
+                      flowId: flowId,
+                      contactId: deal.contact_id,
+                      conversationId: deal.conversation_id || null,
+                      userId: deal.user_id,
+                      executionId: newExec.id,
+                      dealId: dealId,
+                    }),
+                  });
+                  const execResult = await execResponse.json();
+                  console.log(`[FUNNEL-AUTOMATIONS] Chatbot flow execution result:`, JSON.stringify(execResult));
+                } catch (flowExecErr) {
+                  console.error(`[FUNNEL-AUTOMATIONS] Error calling execute-chatbot-flow:`, flowExecErr);
+                }
                 console.log(`[FUNNEL-AUTOMATIONS] Triggered chatbot flow: ${chatbotFlow.name} for contact ${deal.contact_id}`);
                 results.push({ automationId: automation.id, success: true });
               }
