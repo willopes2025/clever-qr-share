@@ -135,6 +135,7 @@ export const DealFormDialog = ({
           .eq('id', deal.contact_id);
       }
 
+      const targetStage = stages.find(s => s.id === selectedStageId);
       await updateDeal.mutateAsync({ 
         id: deal.id, 
         title: title || null,
@@ -142,7 +143,8 @@ export const DealFormDialog = ({
         expected_close_date: expectedCloseDate || null,
         notes: notes || null,
         stage_id: selectedStageId,
-        custom_fields: customFields
+        custom_fields: customFields,
+        ...(targetStage?.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
       });
     } else {
       // Create deal
