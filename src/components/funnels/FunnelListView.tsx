@@ -733,12 +733,52 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         );
       case "stage":
         return (
-          <Badge
-            variant="secondary"
-            style={{ backgroundColor: `${deal.stageColor}20`, color: deal.stageColor }}
+          <Select
+            value={deal.stage_id}
+            onValueChange={async (newStageId) => {
+              if (newStageId === deal.stage_id) return;
+              const targetStage = funnel.stages?.find(s => s.id === newStageId);
+              await updateDeal.mutateAsync({
+                id: deal.id,
+                stage_id: newStageId,
+                ...(targetStage?.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+              });
+            }}
           >
-            {deal.stageName}
-          </Badge>
+            <SelectTrigger className="h-7 w-auto min-w-[120px] border-none bg-transparent p-1 focus:ring-0">
+              <Badge
+                variant="secondary"
+                style={{ backgroundColor: `${deal.stageColor}20`, color: deal.stageColor }}
+              >
+                {deal.stageName}
+              </Badge>
+            </SelectTrigger>
+            <SelectContent>
+              {funnel.stages?.filter(s => !s.is_final).map((stage) => (
+                <SelectItem key={stage.id} value={stage.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                    {stage.name}
+                  </div>
+                </SelectItem>
+              ))}
+              {funnel.stages?.some(s => s.is_final) && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-1">
+                    Fechar como
+                  </div>
+                  {funnel.stages?.filter(s => s.is_final).map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                        {stage.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
         );
       case "value":
         return (
