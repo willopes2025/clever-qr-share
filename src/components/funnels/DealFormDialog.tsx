@@ -266,6 +266,23 @@ export const DealFormDialog = ({
                         </div>
                       </SelectItem>
                     ))}
+                  {stages.some(s => s.is_final) && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-1">
+                        Fechar como
+                      </div>
+                      {stages
+                        .filter((s) => s.is_final)
+                        .map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id}>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                              {stage.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
