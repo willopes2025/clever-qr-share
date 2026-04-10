@@ -86,6 +86,8 @@ Deno.serve(async (req: Request) => {
     // Get instance info for sending messages
     let instanceName = '';
     let resolvedInstanceId = conversation.instance_id;
+    let metaPhoneNumberId = conversation.meta_phone_number_id || null;
+    let metaAccessToken: string | null = null;
     
     if (resolvedInstanceId) {
       const { data: instance } = await supabase
@@ -115,6 +117,62 @@ Deno.serve(async (req: Request) => {
         await supabase.from('conversations').update({ instance_id: resolvedInstanceId }).eq('id', conversationId);
       } else {
         console.log('[FLOW] No connected WhatsApp instance found for user');
+      }
+    }
+
+    // If no Evolution instance but we have a Meta phone number, prepare Meta sending
+    if (!instanceName && metaPhoneNumberId) {
+      console.log(`[FLOW] No Evolution instance, will use Meta phone_number_id: ${metaPhoneNumberId}`);
+      const { data: metaCfg } = await supabase
+        .from('meta_whatsapp_config')
+        .select('credentials')
+        .eq('user_id', userId)
+        .single();
+      metaAccessToken = (metaCfg?.credentials as any)?.access_token || null;
+      if (!metaAccessToken) {
+        // Try org members
+        const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+        if (orgMemberIds && orgMemberIds.length > 0) {
+          for (const memberId of orgMemberIds) {
+            if (memberId === userId) continue;
+            const { data: memberCfg } = await supabase
+              .from('meta_whatsapp_config')
+              .select('credentials')
+              .eq('user_id', memberId)
+              .single();
+            if ((memberCfg?.credentials as any)?.access_token) {
+              metaAccessToken = (memberCfg?.credentials as any)?.access_token;
+              console.log(`[FLOW] Using Meta access token from org member: ${memberId}`);
+              break;
+            }
+          }
+        }
+      }
+      if (metaAccessToken) {
+        console.log('[FLOW] Meta access token found, ready to send via Meta Cloud API');
+      } else {
+        console.log('[FLOW] No Meta access token found');
+      }
+    }
+
+    // If no Meta phone number from conversation, try to find one for this user
+    if (!instanceName && !metaPhoneNumberId) {
+      const { data: metaNumber } = await supabase
+        .from('meta_whatsapp_numbers')
+        .select('phone_number_id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      if (metaNumber) {
+        metaPhoneNumberId = metaNumber.phone_number_id;
+        console.log(`[FLOW] Found Meta number for user: ${metaPhoneNumberId}`);
+        const { data: metaCfg } = await supabase
+          .from('meta_whatsapp_config')
+          .select('credentials')
+          .eq('user_id', userId)
+          .single();
+        metaAccessToken = (metaCfg?.credentials as any)?.access_token || null;
       }
     }
 
