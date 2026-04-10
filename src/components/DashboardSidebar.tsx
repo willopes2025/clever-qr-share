@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useSubscription, PLANS } from "@/hooks/useSubscription";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
+import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebarContext } from "@/contexts/SidebarContext";
@@ -61,7 +62,7 @@ const navGroups: NavGroup[] = [
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
       { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox", showBadge: true, badgeKey: "internal-chat" },
-      { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox" },
+      { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox", showBadge: true, badgeKey: "tasks" },
     ],
   },
   {
@@ -101,6 +102,7 @@ export const DashboardSidebar = () => {
   const { currentPlan, isSubscribed } = useSubscription();
   const { data: totalUnread = 0 } = useUnreadCount();
   const { data: internalChatUnread = 0 } = useInternalChatUnread();
+  const { data: pendingTasksCount = 0 } = usePendingTasksCount();
   const { isCollapsed, toggle } = useSidebarContext();
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   const { checkPermission, organization, isLoading: isLoadingOrg, isAdmin: isOrgAdmin } = useOrganization();
