@@ -85,13 +85,37 @@ Deno.serve(async (req: Request) => {
 
     // Get instance info for sending messages
     let instanceName = '';
-    if (conversation.instance_id) {
+    let resolvedInstanceId = conversation.instance_id;
+    
+    if (resolvedInstanceId) {
       const { data: instance } = await supabase
         .from('whatsapp_instances')
         .select('instance_name, evolution_instance_name')
-        .eq('id', conversation.instance_id)
+        .eq('id', resolvedInstanceId)
         .single();
       instanceName = instance?.evolution_instance_name || instance?.instance_name || '';
+    }
+    
+    // Fallback: if conversation has no instance, find a connected instance for this user
+    if (!instanceName) {
+      const { data: defaultInstance } = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, evolution_instance_name')
+        .eq('user_id', userId)
+        .eq('status', 'connected')
+        .limit(1)
+        .maybeSingle();
+      
+      if (defaultInstance) {
+        resolvedInstanceId = defaultInstance.id;
+        instanceName = defaultInstance.evolution_instance_name || defaultInstance.instance_name || '';
+        console.log(`[FLOW] Using fallback instance: ${instanceName} (${resolvedInstanceId})`);
+        
+        // Update conversation with the resolved instance
+        await supabase.from('conversations').update({ instance_id: resolvedInstanceId }).eq('id', conversationId);
+      } else {
+        console.log('[FLOW] No connected WhatsApp instance found for user');
+      }
     }
 
     // Load contact info for variable substitution
