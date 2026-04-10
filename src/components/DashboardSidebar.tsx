@@ -192,7 +192,7 @@ export const DashboardSidebar = () => {
           <>
             <span className="flex-1">{item.label}</span>
             {item.showBadge && (() => {
-              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : item.badgeKey === 'tasks' ? pendingTasksCount : totalUnread;
               return count > 0 ? (
                 <Badge 
                   variant="destructive" 
@@ -205,7 +205,7 @@ export const DashboardSidebar = () => {
           </>
         )}
         {isCollapsed && item.showBadge && (() => {
-          const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+          const count = item.badgeKey === 'internal-chat' ? internalChatUnread : item.badgeKey === 'tasks' ? pendingTasksCount : totalUnread;
           return count > 0 ? (
             <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
               {count > 99 ? '99+' : count}
@@ -224,7 +224,7 @@ export const DashboardSidebar = () => {
           <TooltipContent side="right" className="flex items-center gap-2">
             {item.label}
             {item.showBadge && (() => {
-              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+              const count = item.badgeKey === 'internal-chat' ? internalChatUnread : item.badgeKey === 'tasks' ? pendingTasksCount : totalUnread;
               return count > 0 ? (
                 <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
                   {count > 99 ? '99+' : count}
