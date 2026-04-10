@@ -1,5 +1,6 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useInternalChatUnread } from "@/hooks/useInternalChatUnread";
+import { usePendingTasksCount } from "@/hooks/usePendingTasksCount";
 import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, BarChart3, Target, Building2, CalendarDays, X, Bot, User, Wallet, Glasses, Instagram, MessagesSquare, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -58,7 +59,7 @@ const navGroups: NavGroup[] = [
       { icon: CalendarDays, label: "Calendário", path: "/calendar", permission: "view_calendar" },
       { icon: BarChart3, label: "Análise", path: "/analysis", permission: "view_analysis", premiumOnly: true },
       { icon: MessagesSquare, label: "Chat Interno", path: "/internal-chat", permission: "view_inbox", showBadge: true, badgeKey: "internal-chat" },
-      { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox" },
+      { icon: CheckSquare, label: "Tarefas", path: "/tasks", permission: "view_inbox", showBadge: true, badgeKey: "tasks" },
     ],
   },
   {
@@ -102,6 +103,7 @@ export const MobileSidebarDrawer = () => {
   
   const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
   const { data: internalChatUnread = 0 } = useInternalChatUnread();
+  const { data: pendingTasksCount = 0 } = usePendingTasksCount();
 
   // Build dynamic nav groups with Financeiro/ssOtica if connected
   // For organization members: show these items based on permissions (even if integration isn't connected yet)
@@ -202,7 +204,7 @@ export const MobileSidebarDrawer = () => {
                           <item.icon className="h-5 w-5 shrink-0" />
                           <span className="flex-1 text-left">{item.label}</span>
                           {item.showBadge && (() => {
-                            const count = item.badgeKey === 'internal-chat' ? internalChatUnread : totalUnread;
+                            const count = item.badgeKey === 'internal-chat' ? internalChatUnread : item.badgeKey === 'tasks' ? pendingTasksCount : totalUnread;
                             return count > 0 ? (
                               <Badge 
                                 variant="destructive" 
