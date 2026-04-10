@@ -86,6 +86,8 @@ Deno.serve(async (req: Request) => {
     // Get instance info for sending messages
     let instanceName = '';
     let resolvedInstanceId = conversation.instance_id;
+    let metaPhoneNumberId = conversation.meta_phone_number_id || null;
+    let metaAccessToken: string | null = null;
     
     if (resolvedInstanceId) {
       const { data: instance } = await supabase
@@ -115,6 +117,62 @@ Deno.serve(async (req: Request) => {
         await supabase.from('conversations').update({ instance_id: resolvedInstanceId }).eq('id', conversationId);
       } else {
         console.log('[FLOW] No connected WhatsApp instance found for user');
+      }
+    }
+
+    // If no Evolution instance but we have a Meta phone number, prepare Meta sending
+    if (!instanceName && metaPhoneNumberId) {
+      console.log(`[FLOW] No Evolution instance, will use Meta phone_number_id: ${metaPhoneNumberId}`);
+      const { data: metaCfg } = await supabase
+        .from('meta_whatsapp_config')
+        .select('credentials')
+        .eq('user_id', userId)
+        .single();
+      metaAccessToken = (metaCfg?.credentials as any)?.access_token || null;
+      if (!metaAccessToken) {
+        // Try org members
+        const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+        if (orgMemberIds && orgMemberIds.length > 0) {
+          for (const memberId of orgMemberIds) {
+            if (memberId === userId) continue;
+            const { data: memberCfg } = await supabase
+              .from('meta_whatsapp_config')
+              .select('credentials')
+              .eq('user_id', memberId)
+              .single();
+            if ((memberCfg?.credentials as any)?.access_token) {
+              metaAccessToken = (memberCfg?.credentials as any)?.access_token;
+              console.log(`[FLOW] Using Meta access token from org member: ${memberId}`);
+              break;
+            }
+          }
+        }
+      }
+      if (metaAccessToken) {
+        console.log('[FLOW] Meta access token found, ready to send via Meta Cloud API');
+      } else {
+        console.log('[FLOW] No Meta access token found');
+      }
+    }
+
+    // If no Meta phone number from conversation, try to find one for this user
+    if (!instanceName && !metaPhoneNumberId) {
+      const { data: metaNumber } = await supabase
+        .from('meta_whatsapp_numbers')
+        .select('phone_number_id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      if (metaNumber) {
+        metaPhoneNumberId = metaNumber.phone_number_id;
+        console.log(`[FLOW] Found Meta number for user: ${metaPhoneNumberId}`);
+        const { data: metaCfg } = await supabase
+          .from('meta_whatsapp_config')
+          .select('credentials')
+          .eq('user_id', userId)
+          .single();
+        metaAccessToken = (metaCfg?.credentials as any)?.access_token || null;
       }
     }
 
@@ -244,55 +302,92 @@ Deno.serve(async (req: Request) => {
       return edge?.target_node_id || null;
     };
 
-    // Helper: send WhatsApp message
+    // Helper: send WhatsApp message (supports both Evolution API and Meta Cloud API)
+    const META_API_URL = 'https://graph.facebook.com/v21.0';
     const sendMessage = async (text: string) => {
-      if (!instanceName || !contact?.phone) {
-        console.log('[FLOW] Cannot send message - no instance or phone');
+      if (!contact?.phone) {
+        console.log('[FLOW] Cannot send message - no phone');
         return;
       }
 
-      try {
-        // Send via Evolution API
-        const response = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': evolutionApiKey,
-          },
-          body: JSON.stringify({
-            number: contact.phone,
-            text: text,
-          }),
-        });
+      // Prefer Evolution API if available, otherwise use Meta Cloud API
+      if (instanceName) {
+        try {
+          const response = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': evolutionApiKey,
+            },
+            body: JSON.stringify({
+              number: contact.phone,
+              text: text,
+            }),
+          });
 
-        const result = await response.json();
-        const whatsappMessageId = result?.key?.id || null;
+          const result = await response.json();
+          const whatsappMessageId = result?.key?.id || null;
 
-        // Save message to inbox
-        await supabase.from('inbox_messages').insert({
-          user_id: userId,
-          conversation_id: conversationId,
-          content: text,
-          direction: 'outbound',
-          status: 'sent',
-          message_type: 'text',
-          whatsapp_message_id: whatsappMessageId,
-          sent_at: new Date().toISOString(),
-        });
+          await supabase.from('inbox_messages').insert({
+            user_id: userId, conversation_id: conversationId,
+            content: text, direction: 'outbound', status: 'sent',
+            message_type: 'text', whatsapp_message_id: whatsappMessageId,
+            sent_at: new Date().toISOString(),
+          });
 
-        // Update conversation preview
-        await supabase
-          .from('conversations')
-          .update({
+          await supabase.from('conversations').update({
             last_message_at: new Date().toISOString(),
             last_message_preview: text.substring(0, 100),
             last_message_direction: 'outbound',
-          })
-          .eq('id', conversationId);
+          }).eq('id', conversationId);
 
-        console.log('[FLOW] Message sent:', text.substring(0, 50));
-      } catch (err) {
-        console.error('[FLOW] Error sending message:', err);
+          console.log('[FLOW] Message sent via Evolution:', text.substring(0, 50));
+        } catch (err) {
+          console.error('[FLOW] Error sending message via Evolution:', err);
+        }
+      } else if (metaPhoneNumberId && metaAccessToken) {
+        try {
+          const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+          const response = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${metaAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: formattedPhone,
+              type: 'text',
+              text: { body: text },
+            }),
+          });
+
+          const result = await response.json();
+          const whatsappMessageId = result?.messages?.[0]?.id || null;
+          console.log('[FLOW] Meta API response:', JSON.stringify(result));
+
+          await supabase.from('inbox_messages').insert({
+            user_id: userId, conversation_id: conversationId,
+            content: text, direction: 'outbound', status: 'sent',
+            message_type: 'text', whatsapp_message_id: whatsappMessageId,
+            sent_at: new Date().toISOString(),
+            sent_via_meta_number_id: metaPhoneNumberId,
+          });
+
+          await supabase.from('conversations').update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: text.substring(0, 100),
+            last_message_direction: 'outbound',
+            meta_phone_number_id: metaPhoneNumberId,
+          }).eq('id', conversationId);
+
+          console.log('[FLOW] Message sent via Meta Cloud API:', text.substring(0, 50));
+        } catch (err) {
+          console.error('[FLOW] Error sending message via Meta:', err);
+        }
+      } else {
+        console.log('[FLOW] Cannot send message - no instance and no Meta phone configured');
       }
     };
 
