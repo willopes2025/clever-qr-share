@@ -4,6 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
+import { LocationMessage } from "./LocationMessage";
 import { MessageReactionsDisplay, ReactionPicker } from "./MessageReactions";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
