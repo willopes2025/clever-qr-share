@@ -1,50 +1,31 @@
 
 
-# Correção do Registro de Webhook Asaas
+## Plano: Melhorar visualização de mensagens de localização no WhatsApp
 
-## Problema
-A API do Asaas está retornando erro dizendo que `name`, `sendType` e `events` estão ausentes, mesmo estando no payload. Isso indica que a API não está recebendo/parseando o corpo JSON corretamente.
+### Problema
+Quando um contato envia uma localização pelo WhatsApp, o sistema salva apenas o texto `[Localização: -23.xxx, -46.xxx]` e exibe como texto simples. Não há visualização amigável.
 
-## Causa Raiz
-O endpoint de webhook do Asaas (`POST /v3/webhooks`) pode estar rejeitando o payload por campos extras como `apiVersion`, `authToken`, `interrupted` que não fazem parte dos parâmetros aceitos na criação/atualização. Esses campos extras podem estar causando a rejeição silenciosa dos campos válidos.
+### Solução
+Transformar mensagens de localização em um componente visual com miniatura de mapa (Google Static Maps ou OpenStreetMap) e link clicável para abrir no Google Maps, além de exibir o endereço quando disponível.
 
-## Plano
+### Alterações
 
-### 1. Corrigir o payload do webhook na Edge Function `register-asaas-webhook`
-- Remover campos desnecessários: `apiVersion`, `authToken`, `interrupted`
-- Manter apenas os campos documentados pela API do Asaas: `name`, `url`, `email`, `enabled`, `sendType`, `events`
-- Adicionar log do response body para debug caso ocorra erro novamente
+**1. Edge Function `meta-whatsapp-webhook/index.ts`**
+- Enriquecer o conteúdo da mensagem de localização para incluir JSON com latitude, longitude, nome e endereço (dados já fornecidos pela API do WhatsApp)
+- Formato: `{"type":"location","latitude":-23.5,"longitude":-46.6,"name":"Local","address":"Rua X"}`
 
-### Arquivo Modificado
-- `supabase/functions/register-asaas-webhook/index.ts` - Limpar payload e melhorar tratamento de erros
+**2. Componente `MessageBubble.tsx`**
+- Adicionar tratamento para `message_type === 'location'`, similar ao que já existe para `contact`
+- Parsear o conteúdo JSON da localização
+- Renderizar:
+  - Miniatura do mapa via imagem estática do OpenStreetMap (sem API key)
+  - Nome do local e endereço (quando disponíveis)
+  - Botão "Abrir no Google Maps" clicável
+- Fallback: para mensagens antigas com formato texto `[Localização: lat, lng]`, extrair coordenadas via regex e exibir o mesmo componente
 
-### Mudança Principal
-```typescript
-// ANTES (campos extras causando rejeição)
-const webhookPayload = {
-  name: 'Lovable CRM Webhook',
-  url: webhookUrl,
-  email: user.email || '',
-  enabled: true,
-  interrupted: false,      // ← campo extra
-  apiVersion: 3,           // ← campo extra
-  authToken: '',           // ← campo extra
-  sendType: 'SEQUENTIALLY',
-  events: [...]
-};
-
-// DEPOIS (apenas campos aceitos pela API)
-const webhookPayload = {
-  name: 'Lovable CRM Webhook',
-  url: webhookUrl,
-  email: user.email || '',
-  enabled: true,
-  sendType: 'SEQUENTIALLY',
-  events: [
-    'PAYMENT_CREATED', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED',
-    'PAYMENT_RECEIVED_IN_CASH', 'PAYMENT_OVERDUE',
-    'PAYMENT_DELETED', 'PAYMENT_REFUNDED', 'PAYMENT_UPDATED'
-  ]
-};
-```
+### Detalhes técnicos
+- Miniatura via `https://staticmap.openstreetmap.de/staticmap.php?center=LAT,LNG&zoom=15&size=300x200&markers=LAT,LNG,red-pushpin`
+- Link: `https://www.google.com/maps?q=LAT,LNG`
+- Sem necessidade de API key externa
+- Sem alteração de schema do banco
 
