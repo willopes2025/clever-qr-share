@@ -219,7 +219,14 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
             return null;
           })()}
           
-          {message.content && message.message_type !== 'contact' && (
+          {/* Location message */}
+          {message.message_type === 'location' && message.content && (
+            <div className="mb-1">
+              <LocationMessage content={message.content} />
+            </div>
+          )}
+          
+          {message.content && message.message_type !== 'contact' && message.message_type !== 'location' && (
             <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
               {message.content}
             </p>
