@@ -4,6 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
+import { LocationMessage } from "./LocationMessage";
 import { MessageReactionsDisplay, ReactionPicker } from "./MessageReactions";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -218,7 +219,14 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
             return null;
           })()}
           
-          {message.content && message.message_type !== 'contact' && (
+          {/* Location message */}
+          {message.message_type === 'location' && message.content && (
+            <div className="mb-1">
+              <LocationMessage content={message.content} />
+            </div>
+          )}
+          
+          {message.content && message.message_type !== 'contact' && message.message_type !== 'location' && (
             <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
               {message.content}
             </p>

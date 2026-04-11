@@ -610,7 +610,13 @@ Deno.serve(async (req) => {
                   messageType = 'sticker';
                   break;
                 case 'location':
-                  content = `[Localização: ${message.location?.latitude}, ${message.location?.longitude}]`;
+                  content = JSON.stringify({
+                    type: 'location',
+                    latitude: message.location?.latitude,
+                    longitude: message.location?.longitude,
+                    name: message.location?.name || null,
+                    address: message.location?.address || null,
+                  });
                   messageType = 'location';
                   break;
                 case 'contacts':
