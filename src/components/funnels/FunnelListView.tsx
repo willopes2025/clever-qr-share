@@ -992,16 +992,41 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
     setIsBulkEditing(true);
     try {
-      await bulkUpdateDeals.mutateAsync({
-        dealIds: selectedIds,
-        updates: {
-          value: updates.value,
-          stage_id: updates.stage_id,
-          responsible_id: updates.responsible_id,
-          expected_close_date: updates.expected_close_date,
-          custom_field: updates.custom_field,
-        },
-      });
+      // Handle standard deal updates
+      const hasStandardUpdates = updates.value !== undefined || updates.stage_id || 
+        updates.responsible_id !== undefined || updates.expected_close_date !== undefined || 
+        updates.custom_field;
+      
+      if (hasStandardUpdates) {
+        await bulkUpdateDeals.mutateAsync({
+          dealIds: selectedIds,
+          updates: {
+            value: updates.value,
+            stage_id: updates.stage_id,
+            responsible_id: updates.responsible_id,
+            expected_close_date: updates.expected_close_date,
+            custom_field: updates.custom_field,
+          },
+        });
+      }
+
+      // Handle tag assignment
+      if (updates.tag_ids && updates.tag_ids.length > 0) {
+        // Get contact_ids from selected deals
+        const selectedDeals = allDeals.filter(d => selectedIds.includes(d.id));
+        const contactIds = [...new Set(selectedDeals.map(d => d.contact_id).filter(Boolean))];
+        
+        if (contactIds.length > 0) {
+          const inserts = contactIds.flatMap(contactId =>
+            updates.tag_ids!.map(tagId => ({ contact_id: contactId, tag_id: tagId }))
+          );
+          
+          await supabase
+            .from("contact_tags")
+            .upsert(inserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+        }
+      }
+
       setBulkEditDialogOpen(false);
       setSelectedIds([]);
     } finally {
