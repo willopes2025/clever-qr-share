@@ -22,6 +22,7 @@ import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ProviderBadge } from "./ProviderBadge";
 import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
+import { formatMessageTimeBR } from "@/lib/date-utils";
 
 interface ConversationWithTags extends Conversation {
   tag_assignments?: { tag_id: string }[];
@@ -44,15 +45,7 @@ interface ConversationListProps {
 
 const formatMessageTime = (dateString: string | null) => {
   if (!dateString) return "";
-  const date = new Date(dateString);
-  
-  if (isToday(date)) {
-    return format(date, "HH:mm");
-  }
-  if (isYesterday(date)) {
-    return "Ontem";
-  }
-  return format(date, "dd/MM", { locale: ptBR });
+  return formatMessageTimeBR(dateString);
 };
 
 const normalizeText = (value: string) =>
