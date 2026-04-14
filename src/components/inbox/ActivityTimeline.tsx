@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toBrazilTime } from "@/lib/date-utils";
 import { 
   User, 
   Bot, 
@@ -148,7 +149,7 @@ const ActivityItem = ({ activity }: { activity: ContactActivity }) => {
         {getMetadataDetails()}
         
         <span className="text-[10px] text-muted-foreground mt-1 block">
-          {format(new Date(activity.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+          {format(toBrazilTime(new Date(activity.created_at)), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
         </span>
       </div>
     </div>

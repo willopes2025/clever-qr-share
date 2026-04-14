@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { format } from "date-fns";
+import { toBrazilTime } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import { Conversation } from "@/hooks/useConversations";
@@ -176,7 +177,7 @@ export const ContactInfoPanel = ({ conversation, isOpen, onClose }: ContactInfoP
               <p className="text-xs text-muted-foreground">Última mensagem</p>
               <p className="text-sm font-medium">
                 {conversation.last_message_at 
-                  ? format(new Date(conversation.last_message_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                  ? format(toBrazilTime(new Date(conversation.last_message_at)), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
                   : "Nenhuma"}
               </p>
             </div>

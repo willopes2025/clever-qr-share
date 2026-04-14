@@ -2,6 +2,7 @@ import { Phone, Calendar, MessageSquare, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toBrazilTime } from "@/lib/date-utils";
 import { Conversation } from "@/hooks/useConversations";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { AdditionalPhonesManager } from "../AdditionalPhonesManager";
@@ -42,7 +43,7 @@ export const LeadPanelContactInfo = ({ conversation }: LeadPanelContactInfoProps
       {/* First Conversation */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Calendar className="h-3 w-3" />
-        <span>Primeira conversa: {format(new Date(conversation.created_at), "dd/MM/yyyy", { locale: ptBR })}</span>
+        <span>Primeira conversa: {format(toBrazilTime(new Date(conversation.created_at)), "dd/MM/yyyy", { locale: ptBR })}</span>
       </div>
 
       {/* Last Message */}
@@ -50,7 +51,7 @@ export const LeadPanelContactInfo = ({ conversation }: LeadPanelContactInfoProps
         <MessageSquare className="h-3 w-3" />
         <span>
           Última mensagem: {conversation.last_message_at 
-            ? format(new Date(conversation.last_message_at), "dd/MM 'às' HH:mm", { locale: ptBR })
+            ? format(toBrazilTime(new Date(conversation.last_message_at)), "dd/MM 'às' HH:mm", { locale: ptBR })
             : "Nenhuma"}
         </span>
       </div>
