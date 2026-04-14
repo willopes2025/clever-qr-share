@@ -166,7 +166,7 @@ export const BulkEditDialog = ({
     setSelectedFunnelStageId("");
   }, [selectedFunnelId]);
 
-  const hasAnySelection = editValue || editStage || editResponsible || editExpectedDate || editCustomField || editFunnelAssignment;
+  const hasAnySelection = editValue || editStage || editResponsible || editExpectedDate || editCustomField || editFunnelAssignment || editTags;
 
   const canSubmit = () => {
     if (!hasAnySelection) return false;
@@ -174,6 +174,7 @@ export const BulkEditDialog = ({
     if (editStage && !selectedStageId) return false;
     if (editCustomField && (!selectedFieldKey || customFieldValue === "")) return false;
     if (editFunnelAssignment && (!selectedFunnelId || !selectedFunnelStageId)) return false;
+    if (editTags && selectedTagIds.length === 0) return false;
     return true;
   };
 
