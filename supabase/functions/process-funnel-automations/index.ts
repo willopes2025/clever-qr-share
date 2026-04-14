@@ -19,6 +19,7 @@ interface AutomationPayload {
   isNewDeal?: boolean;
   oldResponsible?: string;
   newResponsible?: string;
+  skipDelay?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
