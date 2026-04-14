@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, isToday, isYesterday } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
@@ -13,15 +13,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { formatBubbleTimeBR, formatFullDateTimeBR } from "@/lib/date-utils";
 
 const formatMessageTime = (message: InboxMessage) => {
-  const date = new Date(message.created_at);
-  if (isToday(date)) {
-    return format(date, "HH:mm", { locale: ptBR });
-  } else if (isYesterday(date)) {
-    return `Ontem ${format(date, "HH:mm", { locale: ptBR })}`;
-  }
-  return format(date, "dd/MM HH:mm", { locale: ptBR });
+  return formatBubbleTimeBR(message.created_at);
 };
 
 interface MessageBubbleProps {
@@ -58,7 +53,7 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
                 {message.error_message || 'Não foi possível enviar esta mensagem. O servidor retornou um erro desconhecido.'}
               </p>
               <p className="text-[10px] text-muted-foreground/70">
-                {format(new Date(message.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                {formatFullDateTimeBR(message.created_at)}
               </p>
             </div>
           </PopoverContent>
