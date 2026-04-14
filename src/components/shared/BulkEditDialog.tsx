@@ -199,6 +199,9 @@ export const BulkEditDialog = ({
     if (editFunnelAssignment && selectedFunnelId && selectedFunnelStageId) {
       updates.funnel_assignment = { funnel_id: selectedFunnelId, stage_id: selectedFunnelStageId };
     }
+    if (editTags && selectedTagIds.length > 0) {
+      updates.tag_ids = selectedTagIds;
+    }
 
     await onConfirm(updates);
   };
