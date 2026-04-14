@@ -95,6 +95,7 @@ export const BulkEditDialog = ({
   const [customFieldValue, setCustomFieldValue] = useState<unknown>("");
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [selectedFunnelStageId, setSelectedFunnelStageId] = useState<string>("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
   // Filter field definitions by entity type
   const relevantFieldDefinitions = useMemo(() => {
