@@ -156,8 +156,9 @@ Deno.serve(async (req: Request) => {
           if (!targetDate) continue;
 
           const triggerTime = new Date(targetDate.getTime() - hoursBefore * 3600000);
-          const diffMinutes = Math.abs((now.getTime() - triggerTime.getTime()) / 60000);
-          if (diffMinutes > 1) continue;
+          // Trigger if time has passed - rely on execution log to prevent duplicates
+          const diffMs = now.getTime() - triggerTime.getTime();
+          if (diffMs < 0) continue; // Not yet time
 
           const triggerKey = `before_${dateFieldKey}_${String(dateValue)}`;
           const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
@@ -197,8 +198,9 @@ Deno.serve(async (req: Request) => {
           if (!targetDate) continue;
 
           const triggerTime = new Date(targetDate.getTime() + hoursAfter * 3600000);
-          const diffMinutes = Math.abs((now.getTime() - triggerTime.getTime()) / 60000);
-          if (diffMinutes > 1) continue;
+          // Trigger if time has passed - rely on execution log to prevent duplicates
+          const diffMs = now.getTime() - triggerTime.getTime();
+          if (diffMs < 0) continue; // Not yet time
 
           const triggerKey = `after_${dateFieldKey}_${String(dateValue)}`;
           const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
