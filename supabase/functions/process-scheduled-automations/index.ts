@@ -262,6 +262,59 @@ Deno.serve(async (req: Request) => {
       results.push({ type: 'on_hours_after_last_message', processed, errors });
     }
 
+
+    // ========== 6. Process delayed automation executions (on_message_received with delay) ==========
+    {
+      const { data: pendingExecs, error: pendingError } = await supabase
+        .from('scheduled_automation_executions')
+        .select('id, automation_id, deal_id, user_id, trigger_data')
+        .eq('status', 'pending')
+        .lte('execute_at', now.toISOString())
+        .limit(50);
+
+      let processed = 0, errors = 0;
+
+      if (!pendingError && pendingExecs && pendingExecs.length > 0) {
+        console.log(`[SCHEDULED-AUTOMATIONS] Found ${pendingExecs.length} delayed automation executions to process`);
+
+        for (const exec of pendingExecs) {
+          try {
+            const response = await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                dealId: exec.deal_id,
+                triggerType: 'on_message_received',
+                messageContent: (exec.trigger_data as Record<string, unknown>)?.messageContent || '',
+                skipDelay: true,
+              }),
+            });
+
+            const result = await response.json();
+            console.log(`[SCHEDULED-AUTOMATIONS] Delayed exec ${exec.id} result:`, JSON.stringify(result));
+
+            await supabase
+              .from('scheduled_automation_executions')
+              .update({ status: 'executed', executed_at: now.toISOString() })
+              .eq('id', exec.id);
+
+            processed++;
+          } catch (err) {
+            console.error(`[SCHEDULED-AUTOMATIONS] Error processing delayed exec ${exec.id}:`, err);
+            await supabase
+              .from('scheduled_automation_executions')
+              .update({ status: 'error' })
+              .eq('id', exec.id);
+            errors++;
+          }
+        }
+      }
+      results.push({ type: 'delayed_message_automations', processed, errors });
+    }
+
     console.log("[SCHEDULED-AUTOMATIONS] Results:", JSON.stringify(results));
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
