@@ -4625,6 +4625,57 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_automation_executions: {
+        Row: {
+          automation_id: string
+          created_at: string
+          deal_id: string
+          execute_at: string
+          executed_at: string | null
+          id: string
+          status: string
+          trigger_data: Json | null
+          user_id: string
+        }
+        Insert: {
+          automation_id: string
+          created_at?: string
+          deal_id: string
+          execute_at: string
+          executed_at?: string | null
+          id?: string
+          status?: string
+          trigger_data?: Json | null
+          user_id: string
+        }
+        Update: {
+          automation_id?: string
+          created_at?: string
+          deal_id?: string
+          execute_at?: string
+          executed_at?: string | null
+          id?: string
+          status?: string
+          trigger_data?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_automation_executions_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_automation_executions_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_task_messages: {
         Row: {
           contact_id: string
