@@ -268,12 +268,30 @@ export const useBroadcastLists = () => {
         }
       }
 
-      // Build results - for dynamic lists, defer count to 0 initially (lazy load)
+      // Build results with counts
+      const dynamicLists = lists.filter(l => l.type === "dynamic");
+      
+      // Fetch dynamic list counts in parallel using lightweight head queries
+      const dynamicCountMap = new Map<string, number>();
+      if (dynamicLists.length > 0) {
+        const countPromises = dynamicLists.map(async (list) => {
+          const criteria = (list.filter_criteria || {}) as FilterCriteria;
+          try {
+            const count = await countContactsByCriteria(criteria);
+            return { id: list.id, count };
+          } catch {
+            return { id: list.id, count: 0 };
+          }
+        });
+        const counts = await Promise.all(countPromises);
+        counts.forEach(({ id, count }) => dynamicCountMap.set(id, count));
+      }
+
       const listsWithCounts: BroadcastListWithContacts[] = lists.map(list => {
         const criteria = (list.filter_criteria || {}) as FilterCriteria;
         const contactCount = list.type === "manual" 
           ? (manualCountMap.get(list.id) || 0)
-          : 0; // Dynamic counts loaded lazily when list is opened
+          : (dynamicCountMap.get(list.id) || 0);
         
         return {
           ...list,
