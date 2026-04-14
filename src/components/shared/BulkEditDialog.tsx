@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Tag } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +42,7 @@ export interface BulkEditUpdates {
   expected_close_date?: string | null;
   custom_field?: { key: string; value: unknown };
   funnel_assignment?: { funnel_id: string; stage_id: string };
+  tag_ids?: string[];
 }
 
 interface TeamMember {
@@ -81,6 +84,7 @@ export const BulkEditDialog = ({
   const [editExpectedDate, setEditExpectedDate] = useState(false);
   const [editCustomField, setEditCustomField] = useState(false);
   const [editFunnelAssignment, setEditFunnelAssignment] = useState(false);
+  const [editTags, setEditTags] = useState(false);
 
   // Values
   const [valueAmount, setValueAmount] = useState<string>("");
@@ -91,8 +95,18 @@ export const BulkEditDialog = ({
   const [customFieldValue, setCustomFieldValue] = useState<unknown>("");
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [selectedFunnelStageId, setSelectedFunnelStageId] = useState<string>("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
-  // Filter field definitions by entity type
+  // Fetch tags for deals mode
+  const { data: availableTags = [] } = useQuery({
+    queryKey: ['tags-for-bulk-edit'],
+    queryFn: async () => {
+      const { data } = await supabase.from('tags').select('*').order('name');
+      return data || [];
+    },
+    enabled: open && mode === 'deals',
+  });
+
   const relevantFieldDefinitions = useMemo(() => {
     return fieldDefinitions.filter(f => 
       mode === 'deals' ? f.entity_type === 'lead' : f.entity_type === 'contact'
@@ -117,6 +131,7 @@ export const BulkEditDialog = ({
       setEditExpectedDate(false);
       setEditCustomField(false);
       setEditFunnelAssignment(false);
+      setEditTags(false);
       setValueAmount("");
       setSelectedStageId("");
       setSelectedResponsibleId("");
@@ -125,6 +140,7 @@ export const BulkEditDialog = ({
       setCustomFieldValue("");
       setSelectedFunnelId("");
       setSelectedFunnelStageId("");
+      setSelectedTagIds([]);
     }
   }, [open]);
 
@@ -150,7 +166,7 @@ export const BulkEditDialog = ({
     setSelectedFunnelStageId("");
   }, [selectedFunnelId]);
 
-  const hasAnySelection = editValue || editStage || editResponsible || editExpectedDate || editCustomField || editFunnelAssignment;
+  const hasAnySelection = editValue || editStage || editResponsible || editExpectedDate || editCustomField || editFunnelAssignment || editTags;
 
   const canSubmit = () => {
     if (!hasAnySelection) return false;
@@ -158,6 +174,7 @@ export const BulkEditDialog = ({
     if (editStage && !selectedStageId) return false;
     if (editCustomField && (!selectedFieldKey || customFieldValue === "")) return false;
     if (editFunnelAssignment && (!selectedFunnelId || !selectedFunnelStageId)) return false;
+    if (editTags && selectedTagIds.length === 0) return false;
     return true;
   };
 
@@ -181,6 +198,9 @@ export const BulkEditDialog = ({
     }
     if (editFunnelAssignment && selectedFunnelId && selectedFunnelStageId) {
       updates.funnel_assignment = { funnel_id: selectedFunnelId, stage_id: selectedFunnelStageId };
+    }
+    if (editTags && selectedTagIds.length > 0) {
+      updates.tag_ids = selectedTagIds;
     }
 
     await onConfirm(updates);
@@ -438,6 +458,49 @@ export const BulkEditDialog = ({
                     </div>
                   )}
                 </div>
+
+                {/* Tags */}
+                {availableTags.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="edit-tags"
+                        checked={editTags}
+                        onCheckedChange={(c) => setEditTags(!!c)}
+                      />
+                      <Label htmlFor="edit-tags" className="font-medium cursor-pointer flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        Tags
+                      </Label>
+                    </div>
+                    {editTags && (
+                      <div className="ml-7 space-y-2 max-h-[200px] overflow-y-auto">
+                        {availableTags.map((tag: any) => (
+                          <label
+                            key={tag.id}
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={selectedTagIds.includes(tag.id)}
+                              onCheckedChange={() => {
+                                setSelectedTagIds(prev =>
+                                  prev.includes(tag.id)
+                                    ? prev.filter(id => id !== tag.id)
+                                    : [...prev, tag.id]
+                                );
+                              }}
+                            />
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                            <span className="text-sm">{tag.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
