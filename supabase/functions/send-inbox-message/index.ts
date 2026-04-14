@@ -7,6 +7,20 @@ const corsHeaders = {
 
 const META_API_URL = 'https://graph.facebook.com/v19.0';
 
+async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+    const ids = (data || [])
+      .map((row: string | { get_organization_member_ids?: string }) => typeof row === 'string' ? row : row?.get_organization_member_ids)
+      .filter(Boolean);
+
+    return ids.length ? Array.from(new Set(ids)) : [userId];
+  } catch (error) {
+    console.error('[SEND] Error fetching organization members:', error);
+    return [userId];
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -204,14 +218,54 @@ Deno.serve(async (req) => {
     if (isMeta) {
       console.log('[SEND] Routing to Meta WhatsApp Cloud API');
       
-      // Get Meta integration for this user
-      const { data: integration } = await supabase
+      // Get Meta integration for this conversation owner or another active org member
+      let { data: integration } = await supabase
         .from('integrations')
         .select('*')
         .eq('user_id', conversation.user_id)
         .eq('provider', 'meta_whatsapp')
         .eq('is_active', true)
         .maybeSingle();
+
+      if (!integration?.credentials?.access_token) {
+        const organizationMemberIds = await getOrganizationMemberIds(supabase, conversation.user_id);
+
+        if (conversation.meta_phone_number_id) {
+          const { data: metaNumberOwner } = await supabase
+            .from('meta_whatsapp_numbers')
+            .select('user_id')
+            .in('user_id', organizationMemberIds)
+            .eq('phone_number_id', conversation.meta_phone_number_id)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+          if (metaNumberOwner?.user_id) {
+            const { data: orgIntegration } = await supabase
+              .from('integrations')
+              .select('*')
+              .eq('user_id', metaNumberOwner.user_id)
+              .eq('provider', 'meta_whatsapp')
+              .eq('is_active', true)
+              .maybeSingle();
+
+            integration = orgIntegration;
+          }
+        }
+
+        if (!integration?.credentials?.access_token) {
+          const { data: fallbackIntegration } = await supabase
+            .from('integrations')
+            .select('*')
+            .in('user_id', organizationMemberIds)
+            .eq('provider', 'meta_whatsapp')
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+          integration = fallbackIntegration;
+        }
+      }
 
       if (!integration?.credentials?.access_token) {
         throw new Error('Integração Meta WhatsApp não configurada ou sem access_token');
