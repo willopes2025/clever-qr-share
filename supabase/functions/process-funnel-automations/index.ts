@@ -268,7 +268,7 @@ Deno.serve(async (req: Request) => {
         }
 
         // Check if on_message_received has a delay configured
-        if (automation.trigger_type === 'on_message_received' && triggerConfig.delay_value) {
+        if (automation.trigger_type === 'on_message_received' && triggerConfig.delay_value && !skipDelay) {
           const delayValue = Number(triggerConfig.delay_value);
           const delayUnit = (triggerConfig.delay_unit as string) || 'minutes';
           if (delayValue > 0) {
