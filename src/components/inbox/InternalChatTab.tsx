@@ -7,7 +7,8 @@ import { useInternalMessages, InternalMessage } from "@/hooks/useInternalMessage
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { Send, Users, Trash2, ChevronDown, User } from "lucide-react";
-import { format, isToday, isYesterday } from "date-fns";
+import { format } from "date-fns";
+import { formatBubbleTimeBR } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import {
@@ -79,14 +80,7 @@ export const InternalChatTab = ({ conversationId, contactId }: InternalChatTabPr
   };
 
   const formatMessageDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (isToday(date)) {
-      return format(date, "HH:mm", { locale: ptBR });
-    }
-    if (isYesterday(date)) {
-      return `Ontem ${format(date, "HH:mm", { locale: ptBR })}`;
-    }
-    return format(date, "dd/MM HH:mm", { locale: ptBR });
+    return formatBubbleTimeBR(dateStr);
   };
 
   const getInitials = (name: string | null) => {
