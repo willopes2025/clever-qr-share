@@ -1,31 +1,30 @@
 
 
-## Plano: Melhorar visualização de mensagens de localização no WhatsApp
+## Plano: Corrigir contagem de contatos em listas dinâmicas
 
-### Problema
-Quando um contato envia uma localização pelo WhatsApp, o sistema salva apenas o texto `[Localização: -23.xxx, -46.xxx]` e exibe como texto simples. Não há visualização amigável.
+### Problema identificado
+
+A lista "Disparos WIll" foi criada corretamente com a tag "igrejass" (99 contatos com essa tag existem no banco). Porém, **o card da lista mostra "0 contatos"** porque o sistema define `contact_count = 0` para todas as listas dinâmicas na listagem inicial (lazy loading).
+
+Quando o usuário abre a lista para visualizar, os contatos devem aparecer normalmente. Mas o "0" no card dá a impressão de que a lista está vazia.
 
 ### Solução
-Transformar mensagens de localização em um componente visual com miniatura de mapa (Google Static Maps ou OpenStreetMap) e link clicável para abrir no Google Maps, além de exibir o endereço quando disponível.
+
+1. **Calcular a contagem real para listas dinâmicas** — Ao carregar as listas, executar a mesma query de contatos para listas dinâmicas (com tags/filtros), mas usando `count: 'exact', head: true` para obter apenas a contagem sem carregar todos os dados
+2. **Cache da contagem** — Armazenar a contagem no state para evitar recalcular a cada render
 
 ### Alterações
 
-**1. Edge Function `meta-whatsapp-webhook/index.ts`**
-- Enriquecer o conteúdo da mensagem de localização para incluir JSON com latitude, longitude, nome e endereço (dados já fornecidos pela API do WhatsApp)
-- Formato: `{"type":"location","latitude":-23.5,"longitude":-46.6,"name":"Local","address":"Rua X"}`
+**`src/hooks/useBroadcastLists.ts`**:
+- Na função `useBroadcastLists`, após carregar as listas, executar queries de contagem para listas dinâmicas
+- Para listas com tags: `SELECT count(*) FROM contacts JOIN contact_tags ON ... WHERE tag_id IN (...)`
+- Para listas com source=funnel: contar via `funnel_deals`
+- Atualizar `contact_count` com o valor real
 
-**2. Componente `MessageBubble.tsx`**
-- Adicionar tratamento para `message_type === 'location'`, similar ao que já existe para `contact`
-- Parsear o conteúdo JSON da localização
-- Renderizar:
-  - Miniatura do mapa via imagem estática do OpenStreetMap (sem API key)
-  - Nome do local e endereço (quando disponíveis)
-  - Botão "Abrir no Google Maps" clicável
-- Fallback: para mensagens antigas com formato texto `[Localização: lat, lng]`, extrair coordenadas via regex e exibir o mesmo componente
+**Secundário** — O filtro `source: "funnel"` sem `funnelId` é um cenário válido? Se não, adicionar validação no formulário `BroadcastListFormDialog.tsx` para exigir seleção de funil quando source="funnel".
 
 ### Detalhes técnicos
-- Miniatura via `https://staticmap.openstreetmap.de/staticmap.php?center=LAT,LNG&zoom=15&size=300x200&markers=LAT,LNG,red-pushpin`
-- Link: `https://www.google.com/maps?q=LAT,LNG`
-- Sem necessidade de API key externa
-- Sem alteração de schema do banco
+- A query de contagem usa `{ count: 'exact', head: true }` do Supabase para ser leve (não traz dados, só contagem)
+- As 99 contacts com tag "igrejass" pertencem ao mesmo `user_id` que criou a lista — sem problema de RLS
+- Sem alterações de banco de dados necessárias
 
