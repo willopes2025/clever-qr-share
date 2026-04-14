@@ -201,9 +201,9 @@ Deno.serve(async (req: Request) => {
           if (!targetDate) continue;
 
           const triggerTime = new Date(targetDate.getTime() + hoursAfter * 3600000);
-          // Trigger if time has passed (up to 7 days ago) - rely on execution log to prevent duplicates
+          // Trigger if time has passed - rely on execution log to prevent duplicates
           const diffMs = now.getTime() - triggerTime.getTime();
-          if (diffMs < 0 || diffMs > 7 * 24 * 3600000) continue;
+          if (diffMs < 0) continue; // Not yet time
 
           const triggerKey = `after_${dateFieldKey}_${String(dateValue)}`;
           const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
