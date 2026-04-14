@@ -772,7 +772,7 @@ Deno.serve(async (req) => {
           ] : []),
         ].join('\n');
 
-        const BATCH_SIZE = 10;
+        const BATCH_SIZE = 5;
         const dynamicMessageRecords: Array<{
           campaign_id: string;
           contact_id: string;
