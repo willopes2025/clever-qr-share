@@ -488,6 +488,37 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
             </div>
           )}
 
+          {triggerType === 'on_message_received' && (
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+              <Label className="text-sm font-medium">Atraso antes de executar (opcional)</Label>
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="number"
+                  min={0}
+                  className="w-24"
+                  value={triggerConfig.delay_value as number || ''}
+                  onChange={(e) => setTriggerConfig({ ...triggerConfig, delay_value: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="0"
+                />
+                <Select 
+                  value={(triggerConfig.delay_unit as string) || 'minutes'} 
+                  onValueChange={(v) => setTriggerConfig({ ...triggerConfig, delay_unit: v })}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minutes">Minutos</SelectItem>
+                    <SelectItem value="hours">Horas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Se configurado, a ação será executada X minutos/horas após receber a mensagem. Deixe vazio para executar imediatamente.
+              </p>
+            </div>
+          )}
+
           {triggerType === 'on_keyword_received' && (
             <div className="space-y-2">
               <Label>Palavras-chave (separadas por vírgula)</Label>
