@@ -245,6 +245,14 @@ export const useConversationActions = () => {
 
       if (tasksError) throw tasksError;
 
+      // 5.1 Move funnel deals linked to the merged conversation
+      const { error: dealsError } = await supabase
+        .from('funnel_deals')
+        .update({ conversation_id: keepConversationId })
+        .eq('conversation_id', mergeConversationId);
+
+      if (dealsError) throw dealsError;
+
       // 6. Move voip calls
       await supabase
         .from('voip_calls')

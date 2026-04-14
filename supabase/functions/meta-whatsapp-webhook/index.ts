@@ -9,6 +9,34 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+function normalizePhoneDigits(phone: string | undefined | null): string {
+  return (phone || '').replace(/\D/g, '');
+}
+
+function phonesMatch(a: string | undefined | null, b: string | undefined | null): boolean {
+  const na = normalizePhoneDigits(a);
+  const nb = normalizePhoneDigits(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.startsWith('55') && na.slice(2) === nb) return true;
+  if (nb.startsWith('55') && nb.slice(2) === na) return true;
+  return false;
+}
+
+async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+    const ids = (data || [])
+      .map((row: string | { get_organization_member_ids?: string }) => typeof row === 'string' ? row : row?.get_organization_member_ids)
+      .filter(Boolean);
+
+    return ids.length ? Array.from(new Set(ids)) : [userId];
+  } catch (error) {
+    console.error('[META-WEBHOOK] Error fetching organization members:', error);
+    return [userId];
+  }
+}
+
 function verifySignature(payload: string, signature: string, appSecret: string): boolean {
   if (!appSecret || !signature) return false;
   
@@ -330,21 +358,50 @@ Deno.serve(async (req) => {
 
               console.log('[META-WEBHOOK] Searching contact with phone variations:', phoneVariations);
 
-              let { data: contact } = await supabase
-                .from('contacts')
-                .select('*')
-                .eq('user_id', userId)
-                .in('phone', phoneVariations)
-                .limit(1)
-                .maybeSingle();
+              const organizationMemberIds = await getOrganizationMemberIds(supabase, userId);
+
+              let conversation = null;
+              let contact = null;
+
+              const { data: orgConversations } = await supabase
+                .from('conversations')
+                .select('id, user_id, contact_id, status, last_message_at, last_message_direction, meta_phone_number_id, contact:contacts!inner(id, phone, label_id, name)')
+                .in('user_id', organizationMemberIds)
+                .eq('meta_phone_number_id', webhookPhoneNumberId)
+                .order('last_message_at', { ascending: false })
+                .limit(50);
+
+              const matchedOrgConversation = (orgConversations || []).find((conv: any) =>
+                phoneVariations.some((variation) => phonesMatch(conv.contact?.phone, variation))
+              );
+
+              if (matchedOrgConversation) {
+                conversation = matchedOrgConversation;
+                contact = matchedOrgConversation.contact;
+                console.log('[META-WEBHOOK] Reusing org conversation:', conversation.id);
+              }
+
+              if (!contact) {
+                const { data: existingContact } = await supabase
+                  .from('contacts')
+                  .select('*')
+                  .in('user_id', organizationMemberIds)
+                  .in('phone', phoneVariations)
+                  .order('updated_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+
+                contact = existingContact;
+              }
 
               if (!contact) {
                 // Also try matching stored phones that may have formatting
                 const { data: formattedContact } = await supabase
                   .from('contacts')
                   .select('*')
-                  .eq('user_id', userId)
+                  .in('user_id', organizationMemberIds)
                   .or(phoneVariations.map(p => `phone.ilike.%${p.slice(-10)}%`).slice(0, 1).join(','))
+                  .order('updated_at', { ascending: false })
                   .limit(1)
                   .maybeSingle();
                 
@@ -379,22 +436,26 @@ Deno.serve(async (req) => {
               }
 
               // Find or create conversation - prioritize Meta conversation with same phone_number_id
-              let { data: conversation } = await supabase
-                .from('conversations')
-                .select('*')
-                .eq('user_id', userId)
-                .eq('contact_id', contact.id)
-                .eq('meta_phone_number_id', webhookPhoneNumberId)
-                .order('last_message_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+              if (!conversation) {
+                const { data: existingConversation } = await supabase
+                  .from('conversations')
+                  .select('*')
+                  .in('user_id', organizationMemberIds)
+                  .eq('contact_id', contact.id)
+                  .eq('meta_phone_number_id', webhookPhoneNumberId)
+                  .order('last_message_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+
+                conversation = existingConversation;
+              }
 
               // Fallback: any conversation for this contact
               if (!conversation) {
                 const { data: anyConversation } = await supabase
                   .from('conversations')
                   .select('*')
-                  .eq('user_id', userId)
+                  .in('user_id', organizationMemberIds)
                   .eq('contact_id', contact.id)
                   .order('last_message_at', { ascending: false })
                   .limit(1)

@@ -47,6 +47,34 @@ function getMimeType(messageType: string): string {
   }
 }
 
+function normalizePhoneDigits(phone: string | undefined | null): string {
+  return (phone || '').replace(/\D/g, '');
+}
+
+function phonesMatch(a: string | undefined | null, b: string | undefined | null): boolean {
+  const na = normalizePhoneDigits(a);
+  const nb = normalizePhoneDigits(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.startsWith('55') && na.slice(2) === nb) return true;
+  if (nb.startsWith('55') && nb.slice(2) === na) return true;
+  return false;
+}
+
+async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+    const ids = (data || [])
+      .map((row: string | { get_organization_member_ids?: string }) => typeof row === 'string' ? row : row?.get_organization_member_ids)
+      .filter(Boolean);
+
+    return ids.length ? Array.from(new Set(ids)) : [userId];
+  } catch (error) {
+    console.error('[ORG] Error fetching organization member ids:', error);
+    return [userId];
+  }
+}
+
 // Helper function to check if a message is a reply to internal chat notification
 async function checkAndHandleInternalChatReply(
   // deno-lint-ignore no-explicit-any
@@ -873,33 +901,60 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     
     console.log(`Processing: phone=${phone}, labelId=${labelId}, useLidAsIdentifier=${useLidAsIdentifier}, fromMe=${isFromMe}, type=${messageType}, hasMedia=${!!mediaUrl}, content=${content.substring(0, 50)}...`);
 
+    // Reuse existing conversation/contact across the organization first
+    // to avoid duplicate leads with the same phone in shared inboxes.
+    const organizationMemberIds = await getOrganizationMemberIds(supabase, userId);
+    const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
+
+    let contact = null;
+    let conversation = null;
+
+    const { data: orgConversations } = await supabase
+      .from('conversations')
+      .select('id, user_id, contact_id, unread_count, first_response_at, created_at, assigned_to, instance_id, last_message_at, last_message_direction, contact:contacts!inner(id, phone, label_id, name)')
+      .in('user_id', organizationMemberIds)
+      .eq('instance_id', instanceId)
+      .order('last_message_at', { ascending: false })
+      .limit(50);
+
+    const matchedOrgConversation = (orgConversations || []).find((conv: any) => {
+      const convContact = conv.contact;
+      return (labelId && convContact?.label_id === labelId) || phonesMatch(convContact?.phone, phone) || phonesMatch(convContact?.phone, phoneWithoutCountry);
+    });
+
+    if (matchedOrgConversation) {
+      conversation = matchedOrgConversation;
+      contact = matchedOrgConversation.contact;
+      console.log(`[CONVERSATION] Reusing org conversation ${conversation.id} for phone ${phone}`);
+    }
+
     // Find contact by phone OR by label_id (to prevent duplicates)
     // Also search for phone without country code to handle legacy data
-    let contact = null;
     
-    if (useLidAsIdentifier) {
+    if (!contact && useLidAsIdentifier) {
       // For LID identifiers, search primarily by label_id
       console.log('[LID] Searching contact by label_id:', labelId);
       const { data: contactByLabel } = await supabase
         .from('contacts')
         .select('id, phone, label_id, name')
-        .eq('user_id', userId)
+        .in('user_id', organizationMemberIds)
         .eq('label_id', labelId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .single();
       
       if (contactByLabel) {
         contact = contactByLabel;
         console.log('[LID] Found existing contact by label_id:', contact.id);
       }
-    } else {
+    } else if (!contact) {
       // Normal phone search
-      const phoneWithoutCountry = phone.startsWith('55') ? phone.substring(2) : phone;
-      
       const { data: contactByPhone } = await supabase
         .from('contacts')
         .select('id, label_id, phone, name')
-        .eq('user_id', userId)
+        .in('user_id', organizationMemberIds)
         .or(`phone.eq.${phone},phone.eq.${phoneWithoutCountry}`)
+        .order('updated_at', { ascending: false })
         .limit(1)
         .single();
       
@@ -910,8 +965,10 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         const { data: contactByLabel } = await supabase
           .from('contacts')
           .select('id, phone, label_id, name')
-          .eq('user_id', userId)
+            .in('user_id', organizationMemberIds)
           .eq('label_id', labelId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
           .single();
         
         if (contactByLabel) {
@@ -1059,15 +1116,19 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
-    // Find or create conversation - buscar por contact_id independente da instância
-    let { data: conversation } = await supabase
-      .from('conversations')
-      .select('id, unread_count, first_response_at, created_at, assigned_to, instance_id')
-      .eq('user_id', userId)
-      .eq('contact_id', contact.id)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Find or create conversation - reuse org conversation before creating a new one
+    if (!conversation) {
+      const { data: existingConversation } = await supabase
+        .from('conversations')
+        .select('id, user_id, contact_id, unread_count, first_response_at, created_at, assigned_to, instance_id')
+        .in('user_id', organizationMemberIds)
+        .eq('contact_id', contact.id)
+        .order('last_message_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      conversation = existingConversation;
+    }
 
     // Se a conversa existe mas com instância diferente, atualizar instance_id
     if (conversation && conversation.instance_id !== instanceId) {
@@ -1176,7 +1237,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         const { data: existingConv } = await supabase
           .from('conversations')
           .select('id, unread_count, first_response_at, created_at, assigned_to, instance_id')
-          .eq('user_id', userId)
+          .in('user_id', organizationMemberIds)
           .eq('contact_id', contact.id)
           .single();
           
