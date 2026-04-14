@@ -84,6 +84,7 @@ export const BulkEditDialog = ({
   const [editExpectedDate, setEditExpectedDate] = useState(false);
   const [editCustomField, setEditCustomField] = useState(false);
   const [editFunnelAssignment, setEditFunnelAssignment] = useState(false);
+  const [editTags, setEditTags] = useState(false);
 
   // Values
   const [valueAmount, setValueAmount] = useState<string>("");
