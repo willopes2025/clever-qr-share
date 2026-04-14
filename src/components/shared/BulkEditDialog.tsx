@@ -458,6 +458,49 @@ export const BulkEditDialog = ({
                     </div>
                   )}
                 </div>
+
+                {/* Tags */}
+                {availableTags.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="edit-tags"
+                        checked={editTags}
+                        onCheckedChange={(c) => setEditTags(!!c)}
+                      />
+                      <Label htmlFor="edit-tags" className="font-medium cursor-pointer flex items-center gap-2">
+                        <Tag className="h-4 w-4" />
+                        Tags
+                      </Label>
+                    </div>
+                    {editTags && (
+                      <div className="ml-7 space-y-2 max-h-[200px] overflow-y-auto">
+                        {availableTags.map((tag: any) => (
+                          <label
+                            key={tag.id}
+                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={selectedTagIds.includes(tag.id)}
+                              onCheckedChange={() => {
+                                setSelectedTagIds(prev =>
+                                  prev.includes(tag.id)
+                                    ? prev.filter(id => id !== tag.id)
+                                    : [...prev, tag.id]
+                                );
+                              }}
+                            />
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                            <span className="text-sm">{tag.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
