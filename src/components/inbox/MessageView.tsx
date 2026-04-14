@@ -543,6 +543,52 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
     
     const slashStart = textBeforeCursor.lastIndexOf(slashMatch[1]);
+
+    // Handle AI dynamic templates
+    if (template.ai_prompt) {
+      setSlashCommandOpen(false);
+      setSlashSearchTerm("");
+      setNewMessage("");
+      
+      toast.info("Gerando mensagem com IA...");
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('generate-template-ai-message', {
+          body: {
+            ai_prompt: template.ai_prompt,
+            contact_id: conversation.contact_id,
+            conversation_id: conversation.id,
+          },
+        });
+
+        if (error || data?.error) {
+          throw new Error(data?.error || error?.message || 'Erro ao gerar mensagem');
+        }
+
+        const generatedMessage = data?.message;
+        if (!generatedMessage) {
+          throw new Error('Nenhuma mensagem gerada');
+        }
+
+        const prefixText = textBeforeCursor.substring(0, slashStart);
+        const finalAiText = prefixText + generatedMessage + textAfterCursor;
+
+        setNewMessage(finalAiText);
+        toast.success("Mensagem gerada! Revise e envie.");
+        
+        textareaRef.current?.focus();
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+          }
+        }, 0);
+      } catch (aiError: any) {
+        console.error('AI template generation error:', aiError);
+        toast.error(aiError.message || 'Erro ao gerar mensagem com IA');
+      }
+      return;
+    }
     
     // Replace variables with contact data
     let processedContent = template.content
