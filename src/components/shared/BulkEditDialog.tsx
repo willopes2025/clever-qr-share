@@ -42,6 +42,7 @@ export interface BulkEditUpdates {
   expected_close_date?: string | null;
   custom_field?: { key: string; value: unknown };
   funnel_assignment?: { funnel_id: string; stage_id: string };
+  tag_ids?: string[];
 }
 
 interface TeamMember {
