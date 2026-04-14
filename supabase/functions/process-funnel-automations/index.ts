@@ -266,6 +266,49 @@ Deno.serve(async (req: Request) => {
           console.log(`[FUNNEL-AUTOMATIONS] All ${automationConditions.length} conditions met`);
         }
 
+        // Check if on_message_received has a delay configured
+        if (automation.trigger_type === 'on_message_received' && triggerConfig.delay_value) {
+          const delayValue = Number(triggerConfig.delay_value);
+          const delayUnit = (triggerConfig.delay_unit as string) || 'minutes';
+          if (delayValue > 0) {
+            const delayMs = delayUnit === 'hours' ? delayValue * 3600000 : delayValue * 60000;
+            const executeAt = new Date(Date.now() + delayMs).toISOString();
+            
+            // Check if there's already a pending execution for this automation+deal
+            const { data: existing } = await supabase
+              .from('scheduled_automation_executions')
+              .select('id')
+              .eq('automation_id', automation.id)
+              .eq('deal_id', dealId)
+              .eq('status', 'pending')
+              .maybeSingle();
+            
+            if (existing) {
+              // Update the schedule (reset timer on new message)
+              await supabase
+                .from('scheduled_automation_executions')
+                .update({ execute_at: executeAt, trigger_data: { messageContent, conversationId: deal.conversation_id } })
+                .eq('id', existing.id);
+              console.log(`[FUNNEL-AUTOMATIONS] Updated scheduled execution ${existing.id} for automation ${automation.id} to ${executeAt}`);
+            } else {
+              await supabase
+                .from('scheduled_automation_executions')
+                .insert({
+                  automation_id: automation.id,
+                  deal_id: dealId,
+                  user_id: deal.user_id,
+                  execute_at: executeAt,
+                  trigger_data: { messageContent, conversationId: deal.conversation_id },
+                  status: 'pending',
+                });
+              console.log(`[FUNNEL-AUTOMATIONS] Scheduled automation ${automation.id} for deal ${dealId} at ${executeAt}`);
+            }
+            
+            results.push({ automationId: automation.id, success: true, scheduled: true, executeAt });
+            continue; // Don't execute immediately
+          }
+        }
+
         const actionConfig = automation.action_config as Record<string, unknown> || {};
 
         switch (automation.action_type) {
