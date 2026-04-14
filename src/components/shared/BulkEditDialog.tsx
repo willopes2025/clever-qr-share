@@ -97,7 +97,16 @@ export const BulkEditDialog = ({
   const [selectedFunnelStageId, setSelectedFunnelStageId] = useState<string>("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
-  // Filter field definitions by entity type
+  // Fetch tags for deals mode
+  const { data: availableTags = [] } = useQuery({
+    queryKey: ['tags-for-bulk-edit'],
+    queryFn: async () => {
+      const { data } = await supabase.from('tags').select('*').order('name');
+      return data || [];
+    },
+    enabled: open && mode === 'deals',
+  });
+
   const relevantFieldDefinitions = useMemo(() => {
     return fieldDefinitions.filter(f => 
       mode === 'deals' ? f.entity_type === 'lead' : f.entity_type === 'contact'
