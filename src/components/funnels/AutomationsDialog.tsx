@@ -29,7 +29,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   on_deal_won: 'Deal ganho',
   on_deal_lost: 'Deal perdido',
   on_time_in_stage: 'Tempo na etapa',
-  on_message_received: 'Receber mensagem',
+  on_message_received: 'Receber mensagem (com delay opcional)',
   on_keyword_received: 'Palavra-chave recebida',
   on_contact_created: 'Contato criado',
   on_tag_added: 'Tag adicionada',
