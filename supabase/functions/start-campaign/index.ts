@@ -1054,6 +1054,23 @@ ${availableVariables}`;
                 // Validate: ensure the message uses the correct contact name
                 let finalMessage = generated?.message?.trim() || `Olá ${cc.contact.name || ''}! Entramos em contato sobre seu cadastro.`;
                 
+                // Cross-contamination check: detect if another contact's name leaked into this message
+                if (finalMessage && cc.contact.name) {
+                  const otherContacts = contactContexts.filter(other => other.contact.id !== cc.contact.id && other.contact.name);
+                  for (const other of otherContacts) {
+                    const otherName = other.contact.name!;
+                    const otherFirstName = otherName.split(' ')[0];
+                    // If another contact's name appears in this message AND the correct name doesn't
+                    if (otherFirstName.length > 2 && finalMessage.includes(otherFirstName) && !finalMessage.includes(cc.contact.name.split(' ')[0])) {
+                      console.warn(`[AI] Name contamination detected: message for ${cc.contact.name} contains "${otherFirstName}". Replacing.`);
+                      // Replace wrong name with correct name
+                      finalMessage = finalMessage.replace(new RegExp(escapeRegex(otherName), 'gi'), cc.contact.name);
+                      finalMessage = finalMessage.replace(new RegExp(escapeRegex(otherFirstName), 'gi'), cc.contact.name.split(' ')[0]);
+                      break;
+                    }
+                  }
+                }
+                
                 dynamicMessageRecords.push({
                   campaign_id: campaignId,
                   contact_id: cc.contact.id,
