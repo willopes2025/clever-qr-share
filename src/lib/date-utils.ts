@@ -1,4 +1,92 @@
-import { format, isSameDay as dateFnsIsSameDay } from "date-fns";
+import { format, isSameDay as dateFnsIsSameDay, isToday as dateFnsIsToday, isYesterday as dateFnsIsYesterday } from "date-fns";
+
+const BRAZIL_TZ = 'America/Sao_Paulo';
+
+/**
+ * Convert a UTC date to Brazil timezone (America/Sao_Paulo)
+ * Returns a new Date object adjusted to display Brazil time when used with date-fns format()
+ */
+export function toBrazilTime(date: Date): Date {
+  const brString = date.toLocaleString('en-US', { timeZone: BRAZIL_TZ });
+  return new Date(brString);
+}
+
+/**
+ * Format a date string (ISO/UTC) to HH:mm in Brazil timezone
+ */
+export function formatTimeBR(dateString: string): string {
+  const date = toBrazilTime(new Date(dateString));
+  return format(date, "HH:mm");
+}
+
+/**
+ * Check if a date string is today in Brazil timezone
+ */
+export function isTodayBR(dateString: string): boolean {
+  const date = toBrazilTime(new Date(dateString));
+  const now = toBrazilTime(new Date());
+  return dateFnsIsToday(date) || (date.toDateString() === now.toDateString());
+}
+
+/**
+ * Check if a date string is yesterday in Brazil timezone
+ */
+export function isYesterdayBR(dateString: string): boolean {
+  const date = toBrazilTime(new Date(dateString));
+  const now = toBrazilTime(new Date());
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return date.toDateString() === yesterday.toDateString();
+}
+
+/**
+ * Smart format for message/conversation timestamps in Brazil timezone
+ */
+export function formatMessageTimeBR(dateString: string | null): string {
+  if (!dateString) return "";
+  const brDate = toBrazilTime(new Date(dateString));
+  if (isTodayBR(dateString)) {
+    return format(brDate, "HH:mm");
+  }
+  if (isYesterdayBR(dateString)) {
+    return "Ontem";
+  }
+  return format(brDate, "dd/MM");
+}
+
+/**
+ * Full format for message bubbles in Brazil timezone: "dd/MM/yyyy 'às' HH:mm"
+ */
+export function formatFullDateTimeBR(dateString: string): string {
+  const brDate = toBrazilTime(new Date(dateString));
+  return format(brDate, "dd/MM/yyyy 'às' HH:mm");
+}
+
+/**
+ * Format for message bubble time display in Brazil timezone
+ */
+export function formatBubbleTimeBR(dateString: string): string {
+  const brDate = toBrazilTime(new Date(dateString));
+  if (isTodayBR(dateString)) {
+    return format(brDate, "HH:mm");
+  }
+  if (isYesterdayBR(dateString)) {
+    return `Ontem ${format(brDate, "HH:mm")}`;
+  }
+  return format(brDate, "dd/MM HH:mm");
+}
+
+/**
+ * Get the date label for DateSeparator in Brazil timezone
+ */
+export function getDateLabelBR(dateString: string): string {
+  const brDate = toBrazilTime(new Date(dateString));
+  if (isTodayBR(dateString)) return "Hoje";
+  if (isYesterdayBR(dateString)) return "Ontem";
+  
+  const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  return `${brDate.getDate().toString().padStart(2,'0')} de ${months[brDate.getMonth()]} de ${brDate.getFullYear()}`;
+}
 
 /**
  * Parse a date string (YYYY-MM-DD) without timezone issues
