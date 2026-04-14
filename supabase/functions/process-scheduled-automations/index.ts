@@ -141,12 +141,10 @@ Deno.serve(async (req: Request) => {
         .eq('trigger_type', 'on_scheduled_before_date_field');
 
       let processed = 0, errors = 0;
-      console.log(`[SCHEDULED] Found ${(automations || []).length} on_scheduled_before_date_field automations`);
       for (const auto of automations || []) {
         const config = (auto.trigger_config as Record<string, unknown>) || {};
         const dateFieldKey = config.date_field_key as string;
         const hoursBefore = config.hours_before as number;
-        console.log(`[SCHEDULED] Auto ${auto.id}: dateFieldKey=${dateFieldKey}, hoursBefore=${hoursBefore}, stageId=${auto.stage_id}`);
         if (!dateFieldKey || !hoursBefore) continue;
 
         const deals = await getDeals(supabase, auto);
