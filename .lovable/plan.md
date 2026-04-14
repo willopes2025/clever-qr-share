@@ -1,30 +1,66 @@
 
 
-## Plano: Corrigir contagem de contatos em listas dinâmicas
+## Plano: Liberar RLS para membros da organização (admins)
 
-### Problema identificado
+### Problema
 
-A lista "Disparos WIll" foi criada corretamente com a tag "igrejass" (99 contatos com essa tag existem no banco). Porém, **o card da lista mostra "0 contatos"** porque o sistema define `contact_count = 0` para todas as listas dinâmicas na listagem inicial (lazy loading).
+Muitas tabelas têm políticas de UPDATE, DELETE e INSERT restritas apenas ao `user_id` do criador (`auth.uid() = user_id`). Quando dois admins estão na mesma organização, um não consegue editar, excluir ou gerenciar dados criados pelo outro, mesmo sendo admin.
 
-Quando o usuário abre a lista para visualizar, os contatos devem aparecer normalmente. Mas o "0" no card dá a impressão de que a lista está vazia.
+### Tabelas que precisam de correção
+
+Identificamos **~25 tabelas** onde as políticas de escrita (UPDATE/DELETE/INSERT) não incluem acesso organizacional via `get_organization_member_ids()`. As principais:
+
+| Tabela | Operações restritas |
+|--------|-------------------|
+| `broadcast_lists` | UPDATE, DELETE |
+| `broadcast_list_contacts` | todas (via join) |
+| `broadcast_sends` | SELECT, UPDATE, DELETE |
+| `tags` | UPDATE, DELETE |
+| `conversation_tags` | UPDATE, DELETE |
+| `conversation_tag_assignments` | todas (via join com conversations) |
+| `conversation_notes` | UPDATE, DELETE |
+| `conversation_stage_data` | todas (via join) |
+| `custom_field_definitions` | UPDATE, DELETE |
+| `funnels` | UPDATE, DELETE |
+| `chatbot_flows/nodes/edges` | UPDATE, DELETE |
+| `inbox_messages` | UPDATE |
+| `meta_templates` | todas |
+| `meta_whatsapp_numbers` | UPDATE, DELETE |
+| `template_variations` | todas (via join) |
+| `task_types` | UPDATE, DELETE |
+| `ai_agent_stages/variables` | todas |
+| `voip_calls` | UPDATE, DELETE |
+| `instagram_scrape_results` | UPDATE, DELETE |
+| `conversation_analysis_reports` | todas |
 
 ### Solução
 
-1. **Calcular a contagem real para listas dinâmicas** — Ao carregar as listas, executar a mesma query de contatos para listas dinâmicas (com tags/filtros), mas usando `count: 'exact', head: true` para obter apenas a contagem sem carregar todos os dados
-2. **Cache da contagem** — Armazenar a contagem no state para evitar recalcular a cada render
+Uma **migração SQL única** que atualiza todas as políticas restritivas, mudando de:
+```sql
+-- Antes
+USING (auth.uid() = user_id)
+```
+Para:
+```sql
+-- Depois
+USING (
+  auth.uid() = user_id 
+  OR user_id IN (SELECT get_organization_member_ids(auth.uid()))
+)
+```
 
-### Alterações
+Para tabelas com join (como `broadcast_list_contacts`, `conversation_tag_assignments`, `template_variations`), a lógica será atualizada na tabela pai referenciada.
 
-**`src/hooks/useBroadcastLists.ts`**:
-- Na função `useBroadcastLists`, após carregar as listas, executar queries de contagem para listas dinâmicas
-- Para listas com tags: `SELECT count(*) FROM contacts JOIN contact_tags ON ... WHERE tag_id IN (...)`
-- Para listas com source=funnel: contar via `funnel_deals`
-- Atualizar `contact_count` com o valor real
-
-**Secundário** — O filtro `source: "funnel"` sem `funnelId` é um cenário válido? Se não, adicionar validação no formulário `BroadcastListFormDialog.tsx` para exigir seleção de funil quando source="funnel".
+### Tabelas excluídas (pessoais)
+- `dashboard_configs` (configuração pessoal do dashboard)
+- `wil_chat_sessions` (sessões pessoais do assistente)
+- `user_settings`, `user_ai_tokens` (dados pessoais)
+- `notification_preferences` (preferências pessoais)
+- `lead_panel_tabs` (tabs pessoais)
 
 ### Detalhes técnicos
-- A query de contagem usa `{ count: 'exact', head: true }` do Supabase para ser leve (não traz dados, só contagem)
-- As 99 contacts com tag "igrejass" pertencem ao mesmo `user_id` que criou a lista — sem problema de RLS
-- Sem alterações de banco de dados necessárias
+- Usa `DROP POLICY IF EXISTS` + `CREATE POLICY` para cada política
+- Mantém `get_organization_member_ids()` (função `SECURITY DEFINER` já existente) para evitar recursão
+- Sem alteração de schema, apenas políticas RLS
+- INSERT policies que usam `auth.uid() = user_id` serão mantidas na maioria dos casos (o registro é criado pelo usuário atual)
 
