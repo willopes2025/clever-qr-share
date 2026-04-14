@@ -26,10 +26,10 @@ export const useConversationTags = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // RLS already filters by org membership, no need to filter by user_id
       const { data, error } = await supabase
         .from('conversation_tags')
         .select('*')
-        .eq('user_id', user.id)
         .order('name');
 
       if (error) throw error;
