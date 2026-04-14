@@ -21,7 +21,8 @@ export const QuickReplyButton = ({ onSelect, contactName }: QuickReplyButtonProp
   const [search, setSearch] = useState("");
   const { templates, isLoading } = useMessageTemplates();
 
-  const activeTemplates = templates?.filter(t => t.is_active) || [];
+  // Filter out AI dynamic templates - they require AI generation and should be used via slash commands
+  const activeTemplates = templates?.filter(t => t.is_active && !t.ai_prompt) || [];
   
   const filteredTemplates = activeTemplates.filter(template =>
     template.name.toLowerCase().includes(search.toLowerCase()) ||
