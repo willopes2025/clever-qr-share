@@ -131,6 +131,7 @@ export const BulkEditDialog = ({
       setEditExpectedDate(false);
       setEditCustomField(false);
       setEditFunnelAssignment(false);
+      setEditTags(false);
       setValueAmount("");
       setSelectedStageId("");
       setSelectedResponsibleId("");
@@ -139,6 +140,7 @@ export const BulkEditDialog = ({
       setCustomFieldValue("");
       setSelectedFunnelId("");
       setSelectedFunnelStageId("");
+      setSelectedTagIds([]);
     }
   }, [open]);
 
