@@ -159,10 +159,9 @@ Deno.serve(async (req: Request) => {
           if (!targetDate) { console.log(`[SCHEDULED] Deal ${deal.id}: could not parse date ${dateValue}`); continue; }
 
           const triggerTime = new Date(targetDate.getTime() - hoursBefore * 3600000);
-          // Trigger if time has passed (up to 7 days ago) - rely on execution log to prevent duplicates
+          // Trigger if time has passed - rely on execution log to prevent duplicates
           const diffMs = now.getTime() - triggerTime.getTime();
-          console.log(`[SCHEDULED] Deal ${deal.id}: dateValue=${dateValue}, targetDate=${targetDate.toISOString()}, triggerTime=${triggerTime.toISOString()}, diffMs=${diffMs}`);
-          if (diffMs < 0 || diffMs > 7 * 24 * 3600000) continue;
+          if (diffMs < 0) continue; // Not yet time
 
           const triggerKey = `before_${dateFieldKey}_${String(dateValue)}`;
           const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
