@@ -148,13 +148,12 @@ Deno.serve(async (req: Request) => {
         if (!dateFieldKey || !hoursBefore) continue;
 
         const deals = await getDeals(supabase, auto);
-        console.log(`[SCHEDULED] Auto ${auto.id}: found ${deals.length} deals`);
         for (const deal of deals) {
           const dateValue = await resolveDateField(supabase, deal, dateFieldKey);
-          if (!dateValue) { console.log(`[SCHEDULED] Deal ${deal.id}: no dateValue for ${dateFieldKey}`); continue; }
+          if (!dateValue) continue;
 
           const targetDate = parseDateValue(dateValue);
-          if (!targetDate) { console.log(`[SCHEDULED] Deal ${deal.id}: could not parse date ${dateValue}`); continue; }
+          if (!targetDate) continue;
 
           const triggerTime = new Date(targetDate.getTime() - hoursBefore * 3600000);
           // Trigger if time has passed - rely on execution log to prevent duplicates
@@ -163,7 +162,7 @@ Deno.serve(async (req: Request) => {
 
           const triggerKey = `before_${dateFieldKey}_${String(dateValue)}`;
           const alreadyRun = await checkExecutionLog(supabase, auto.id, deal.id, triggerKey);
-          if (alreadyRun) { console.log(`[SCHEDULED] Deal ${deal.id}: already run`); continue; }
+          if (alreadyRun) continue;
 
           try {
             await invokeFunnelAutomation(supabaseUrl, supabaseKey, deal.id, 'on_scheduled_before_date_field');
