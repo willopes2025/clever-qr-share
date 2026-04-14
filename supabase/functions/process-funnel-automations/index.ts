@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const payload: AutomationPayload = await req.json();
-    const { dealId, fromStageId, toStageId, triggerType, messageContent, tagName, customFieldKey, customFieldValue, isNewDeal, oldResponsible, newResponsible } = payload;
+    const { dealId, fromStageId, toStageId, triggerType, messageContent, tagName, customFieldKey, customFieldValue, isNewDeal, oldResponsible, newResponsible, skipDelay } = payload;
 
     console.log("[FUNNEL-AUTOMATIONS] Processing automation", payload);
 
