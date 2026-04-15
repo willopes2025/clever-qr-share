@@ -258,6 +258,7 @@ export const AsaasSettings = () => {
           billing_meta_phone_number_id: saveMetaPhoneNumberId,
           billing_templates: saveTemplates,
           billing_enabled_types: saveEnabledReminders,
+          auto_charge_enabled: autoChargeEnabled,
         },
       });
 
