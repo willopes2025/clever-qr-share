@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronRight, User, FileText, Target } from "lucide-react";
+import { ChevronRight, User, FileText, Target, DollarSign } from "lucide-react";
 import { useCustomFields } from "@/hooks/useCustomFields";
 
 interface VariableChipsSelectorProps {
@@ -15,6 +15,12 @@ export const VariableChipsSelector = ({ onInsert, compact = false }: VariableChi
     { key: 'nome', label: 'Nome do contato' },
     { key: 'telefone', label: 'Telefone do contato' },
     { key: 'email', label: 'Email do contato' },
+  ];
+
+  const dealVariables = [
+    { key: 'valor', label: 'Valor da venda' },
+    { key: 'etapa', label: 'Etapa atual' },
+    { key: 'funil', label: 'Nome do funil' },
   ];
 
   const contactCustomVars = contactFieldDefinitions?.map(f => ({
