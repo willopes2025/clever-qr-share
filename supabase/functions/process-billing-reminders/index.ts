@@ -248,18 +248,26 @@ Deno.serve(async (req) => {
           if (!contactPhone && asaasApiKey) {
             try {
               let custData: any = null;
+              const asaasWideApiKey = Deno.env.get('ASAAS_WIDE_API_KEY');
+              const asaasApiKeys = [
+                { key: asaasApiKey, label: 'primary' },
+                ...(asaasWideApiKey ? [{ key: asaasWideApiKey, label: 'wide' }] : []),
+              ];
 
-              // Strategy 1: Try fetching customer directly
+              // Strategy 1: Try fetching customer directly (try all API keys)
               if (reminder.asaas_customer_id) {
-                const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
-                  headers: { 'access_token': asaasApiKey },
-                });
-                if (custResp.ok) {
-                  custData = await custResp.json();
-                  console.log(`[AUTO-CREATE] Got customer data from customer endpoint for ${reminder.asaas_customer_id}`);
-                } else {
-                  console.log(`[AUTO-CREATE] Customer ${reminder.asaas_customer_id} returned ${custResp.status}, trying via payment...`);
-                  await custResp.text(); // consume body
+                for (const { key, label } of asaasApiKeys) {
+                  const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
+                    headers: { 'access_token': key },
+                  });
+                  if (custResp.ok) {
+                    custData = await custResp.json();
+                    console.log(`[AUTO-CREATE] Got customer data from ${label} key for ${reminder.asaas_customer_id}`);
+                    break;
+                  } else {
+                    console.log(`[AUTO-CREATE] Customer ${reminder.asaas_customer_id} returned ${custResp.status} with ${label} key`);
+                    await custResp.text();
+                  }
                 }
               }
 
