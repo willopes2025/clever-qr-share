@@ -119,6 +119,22 @@ export const AsaasSettings = () => {
     enabled: !!targetUserId,
   });
 
+  // Fetch funnels and stages for auto-charge config
+  const { data: funnelsList = [] } = useQuery({
+    queryKey: ['funnels-for-asaas', targetUserId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('funnels')
+        .select('id, name, funnel_stages(id, name, position)')
+        .order('name', { ascending: true });
+      return (data || []).map((f: any) => ({
+        ...f,
+        stages: (f.funnel_stages || []).sort((a: any, b: any) => a.position - b.position),
+      }));
+    },
+    enabled: !!targetUserId,
+  });
+
   // Check if a Meta number is selected (not evolution)
   const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
   const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
