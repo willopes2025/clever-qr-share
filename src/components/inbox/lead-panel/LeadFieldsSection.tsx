@@ -98,6 +98,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   // Estado para edição do título do lead
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [localTitle, setLocalTitle] = useState(deal?.title || '');
+  
+  // Estado para edição do valor da venda
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [localValue, setLocalValue] = useState(deal?.value?.toString() || '');
 
   useEffect(() => {
     setLocalFields(customFields);
@@ -106,6 +110,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   useEffect(() => {
     setLocalTitle(deal?.title || '');
   }, [deal?.title]);
+
+  useEffect(() => {
+    setLocalValue(deal?.value?.toString() || '');
+  }, [deal?.value]);
 
   const handleSaveTitle = async () => {
     if (!deal) return;
