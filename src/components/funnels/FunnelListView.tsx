@@ -1038,6 +1038,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         }
       }
 
+      // Invalidate funnels if deals were moved to another funnel
+      if (updates.funnel_assignment) {
+        queryClient.invalidateQueries({ queryKey: ['funnels'] });
+        queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
+      }
+
       setBulkEditDialogOpen(false);
       setSelectedIds([]);
     } finally {
