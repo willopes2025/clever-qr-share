@@ -111,7 +111,7 @@ const normalizeText = (value: string) =>
 
 export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
   const navigate = useNavigate();
-  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const { fieldDefinitions } = useCustomFields();
