@@ -89,6 +89,7 @@ export const AsaasSettings = () => {
 
   // Billing reminder settings
   const [billingEnabled, setBillingEnabled] = useState(false);
+  const [autoChargeEnabled, setAutoChargeEnabled] = useState(false);
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [templates, setTemplates] = useState<Record<string, string>>({ ...DEFAULT_TEMPLATES });
   const [enabledReminders, setEnabledReminders] = useState<Record<string, boolean>>({
