@@ -253,7 +253,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
     }
     
     // Prevent re-initialization if already initialized for this open cycle
-    if (initRef.current && prevOpenRef.current === open) {
+    if (initRef.current && prevOpenRef.current === open && !automation) {
       return;
     }
     
@@ -281,7 +281,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setActionConfig({});
       setSelectedAgentId('');
     }
-  }, [open]);
+  }, [open, automation]);
 
   const handleGenerateIntents = async () => {
     if (!selectedAgentId) {
@@ -901,23 +901,29 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
           )}
 
           {actionType === 'send_template' && (
-            <div className="space-y-2">
-              <Label>Template</Label>
-              <Select 
-                value={actionConfig.template_id as string || ''} 
-                onValueChange={(v) => setActionConfig({ ...actionConfig, template_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar template" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates?.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      {template.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Template</Label>
+                <Select 
+                  value={actionConfig.template_id as string || ''} 
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, template_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates?.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <SendMessageInstanceSelector
+                value={actionConfig.instance_id as string || ''}
+                onChange={(v) => setActionConfig({ ...actionConfig, instance_id: v || undefined })}
+              />
             </div>
           )}
 
