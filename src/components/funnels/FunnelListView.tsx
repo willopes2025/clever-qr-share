@@ -1260,7 +1260,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                             Alterar Etapa
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            {(funnel.stages || []).map((stage) => (
+                            {activeStages.map((stage) => (
                               <DropdownMenuItem
                                 key={stage.id}
                                 disabled={stage.id === deal.stage_id}
