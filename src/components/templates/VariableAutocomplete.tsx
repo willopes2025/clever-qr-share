@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { useCustomFields } from '@/hooks/useCustomFields';
-import { User, FileText, AtSign, Phone, Mail, Loader2 } from 'lucide-react';
+import { User, FileText, AtSign, Phone, Mail, Loader2, DollarSign, Layers, GitBranch } from 'lucide-react';
 
 interface VariableAutocompleteProps {
   value: string;
@@ -23,6 +23,12 @@ const DEFAULT_VARIABLES: VariableOption[] = [
   { key: 'nome', label: 'Nome do contato', icon: <User className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
   { key: 'telefone', label: 'Telefone', icon: <Phone className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
   { key: 'email', label: 'Email', icon: <Mail className="h-3.5 w-3.5" />, group: 'Dados do Contato' },
+];
+
+const DEAL_VARIABLES: VariableOption[] = [
+  { key: 'valor', label: 'Valor da venda', icon: <DollarSign className="h-3.5 w-3.5" />, group: 'Dados do Lead' },
+  { key: 'etapa', label: 'Etapa atual', icon: <Layers className="h-3.5 w-3.5" />, group: 'Dados do Lead' },
+  { key: 'funil', label: 'Nome do funil', icon: <GitBranch className="h-3.5 w-3.5" />, group: 'Dados do Lead' },
 ];
 
 export const VariableAutocomplete = ({
