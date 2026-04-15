@@ -1724,7 +1724,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <Select value={actionConfig.value_field as string || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, value_field: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecionar campo..." /></SelectTrigger>
                   <SelectContent>
-                    {leadFieldDefinitions?.filter(f => f.field_type === 'number').map((field) => (
+                    {fieldDefinitions?.filter(f => f.field_type === 'number').map((field) => (
                       <SelectItem key={field.id} value={field.field_key}>{field.field_name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1735,7 +1735,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <Select value={actionConfig.group_field as string || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, group_field: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecionar campo..." /></SelectTrigger>
                   <SelectContent>
-                    {leadFieldDefinitions?.filter(f => f.field_type === 'text' || f.field_type === 'select').map((field) => (
+                    {fieldDefinitions?.filter(f => f.field_type === 'text' || f.field_type === 'select').map((field) => (
                       <SelectItem key={field.id} value={field.field_key}>{field.field_name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1747,7 +1747,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <Select value={actionConfig.due_date_field as string || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, due_date_field: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecionar campo de data..." /></SelectTrigger>
                   <SelectContent>
-                    {leadFieldDefinitions?.filter(f => f.field_type === 'date').map((field) => (
+                    {fieldDefinitions?.filter(f => f.field_type === 'date').map((field) => (
                       <SelectItem key={field.id} value={field.field_key}>{field.field_name}</SelectItem>
                     ))}
                   </SelectContent>
