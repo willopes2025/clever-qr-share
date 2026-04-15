@@ -244,15 +244,55 @@ Deno.serve(async (req) => {
             }
           }
 
-          // If still no contact, try to fetch phone from Asaas customer and auto-create contact
-          if (!contactPhone && reminder.asaas_customer_id && asaasApiKey) {
+          // If still no contact, try to fetch phone from Asaas and auto-create contact
+          if (!contactPhone && asaasApiKey) {
             try {
-              console.log(`[AUTO-CREATE] Fetching Asaas customer ${reminder.asaas_customer_id} to auto-create contact`);
-              const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
-                headers: { 'access_token': asaasApiKey },
-              });
-              if (custResp.ok) {
-                const custData = await custResp.json();
+              let custData: any = null;
+
+              // Strategy 1: Try fetching customer directly
+              if (reminder.asaas_customer_id) {
+                const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
+                  headers: { 'access_token': asaasApiKey },
+                });
+                if (custResp.ok) {
+                  custData = await custResp.json();
+                  console.log(`[AUTO-CREATE] Got customer data from customer endpoint for ${reminder.asaas_customer_id}`);
+                } else {
+                  console.log(`[AUTO-CREATE] Customer ${reminder.asaas_customer_id} returned ${custResp.status}, trying via payment...`);
+                  await custResp.text(); // consume body
+                }
+              }
+
+              // Strategy 2: If customer fetch failed, try via payment endpoint
+              if (!custData && reminder.asaas_payment_id) {
+                const payResp = await fetch(`${asaasApiUrl}/payments/${reminder.asaas_payment_id}`, {
+                  headers: { 'access_token': asaasApiKey },
+                });
+                if (payResp.ok) {
+                  const payData = await payResp.json();
+                  if (payData.customer) {
+                    // Fetch the customer using the ID from the payment (may be from same account)
+                    const custResp2 = await fetch(`${asaasApiUrl}/customers/${payData.customer}`, {
+                      headers: { 'access_token': asaasApiKey },
+                    });
+                    if (custResp2.ok) {
+                      custData = await custResp2.json();
+                      console.log(`[AUTO-CREATE] Got customer data via payment ${reminder.asaas_payment_id} -> customer ${payData.customer}`);
+                    } else {
+                      // Use payment data as fallback (has customer name at least)
+                      console.log(`[AUTO-CREATE] Customer from payment also failed (${custResp2.status}), using payment name`);
+                      await custResp2.text();
+                      // Payment doesn't have phone, but we can try to match by name
+                      custData = { name: payData.customerName || payData.description, noPhone: true };
+                    }
+                  }
+                } else {
+                  console.log(`[AUTO-CREATE] Payment ${reminder.asaas_payment_id} returned ${payResp.status}`);
+                  await payResp.text();
+                }
+              }
+
+              if (custData && !custData.noPhone) {
                 const asaasPhone = (custData.mobilePhone || custData.phone || '').replace(/\D/g, '');
                 if (asaasPhone && asaasPhone.length >= 10) {
                   // Normalize phone with country code 55
@@ -270,7 +310,6 @@ Deno.serve(async (req) => {
                     .limit(1);
 
                   if (existingContacts && existingContacts.length > 0) {
-                    // Link existing contact
                     contactPhone = existingContacts[0].phone;
                     contactName = existingContacts[0].name;
                     contactLabelId = existingContacts[0].label_id;
@@ -278,13 +317,14 @@ Deno.serve(async (req) => {
                       .from('billing_reminders')
                       .update({ contact_id: existingContacts[0].id })
                       .eq('id', reminder.id);
-                    await supabase
-                      .from('contacts')
-                      .update({ asaas_customer_id: reminder.asaas_customer_id })
-                      .eq('id', existingContacts[0].id);
+                    if (reminder.asaas_customer_id) {
+                      await supabase
+                        .from('contacts')
+                        .update({ asaas_customer_id: reminder.asaas_customer_id })
+                        .eq('id', existingContacts[0].id);
+                    }
                     console.log(`[AUTO-CREATE] Linked existing contact ${existingContacts[0].id} (${contactName}) to Asaas customer`);
                   } else {
-                    // Create new contact
                     const newContactName = custData.name || 'Cliente Asaas';
                     const { data: newContact, error: createErr } = await supabase
                       .from('contacts')
@@ -293,7 +333,7 @@ Deno.serve(async (req) => {
                         phone: normalizedPhone,
                         name: newContactName,
                         email: custData.email || null,
-                        asaas_customer_id: reminder.asaas_customer_id,
+                        asaas_customer_id: reminder.asaas_customer_id || null,
                         custom_fields: custData.cpfCnpj ? { cpf: custData.cpfCnpj } : null,
                       })
                       .select('id, phone, name, label_id')
@@ -307,18 +347,17 @@ Deno.serve(async (req) => {
                         .from('billing_reminders')
                         .update({ contact_id: newContact.id })
                         .eq('id', reminder.id);
-                      // Update reminder reference for conversation lookup
                       reminder.contact_id = newContact.id;
-                      console.log(`[AUTO-CREATE] Created new contact ${newContact.id} (${newContactName}, ${normalizedPhone}) from Asaas customer`);
+                      console.log(`[AUTO-CREATE] Created new contact ${newContact.id} (${newContactName}, ${normalizedPhone}) from Asaas`);
                     } else {
                       console.error(`[AUTO-CREATE] Failed to create contact:`, createErr);
                     }
                   }
                 } else {
-                  console.log(`[AUTO-CREATE] Asaas customer ${reminder.asaas_customer_id} has no valid phone: "${asaasPhone}"`);
+                  console.log(`[AUTO-CREATE] Asaas customer has no valid phone: "${asaasPhone}"`);
                 }
-              } else {
-                console.error(`[AUTO-CREATE] Failed to fetch Asaas customer ${reminder.asaas_customer_id}: ${custResp.status}`);
+              } else if (custData?.noPhone) {
+                console.log(`[AUTO-CREATE] Customer data available (${custData.name}) but no phone accessible`);
               }
             } catch (e) {
               console.error(`[AUTO-CREATE] Error auto-creating contact for reminder ${reminder.id}:`, e);
