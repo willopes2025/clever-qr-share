@@ -879,6 +879,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="close_deal_lost">Fechar como perdido</SelectItem>
                 <SelectItem value="ai_analyze_and_move">🤖 IA Analisa e Move</SelectItem>
                 <SelectItem value="activate_ai">🧠 Acionar Agente de IA</SelectItem>
+                <SelectItem value="generate_asaas_pix">💰 Gerar cobrança PIX (Asaas)</SelectItem>
               </SelectContent>
             </Select>
           </div>
