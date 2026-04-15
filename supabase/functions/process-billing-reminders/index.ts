@@ -64,16 +64,45 @@ Deno.serve(async (req) => {
     }
 
     for (const [userId, userReminders] of byUser) {
-      // Get Asaas integration settings to find configured Meta phone number
+      // Get Asaas integration settings and credentials
       const { data: asaasIntegration } = await supabase
         .from('integrations')
-        .select('settings')
+        .select('settings, credentials')
         .eq('user_id', userId)
         .eq('provider', 'asaas')
         .eq('is_active', true)
         .maybeSingle();
 
       const asaasSettings = (asaasIntegration?.settings as Record<string, any>) || {};
+      const asaasCredentials = (asaasIntegration?.credentials as Record<string, any>) || {};
+      const asaasApiKey = asaasCredentials.api_key as string | undefined;
+      const asaasApiUrl = asaasCredentials.sandbox
+        ? 'https://sandbox.asaas.com/api/v3'
+        : 'https://api.asaas.com/api/v3';
+
+      // Helper: check if Asaas payment is already paid
+      const checkPaymentPaid = async (paymentId: string): Promise<boolean> => {
+        if (!asaasApiKey || !paymentId) return false;
+        try {
+          const resp = await fetch(`${asaasApiUrl}/payments/${paymentId}`, {
+            headers: { 'access_token': asaasApiKey },
+          });
+          if (!resp.ok) {
+            console.error(`[ASAAS-CHECK] Failed to fetch payment ${paymentId}: ${resp.status}`);
+            return false;
+          }
+          const data = await resp.json();
+          const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+          const isPaid = paidStatuses.includes(data.status);
+          if (isPaid) {
+            console.log(`[ASAAS-CHECK] Payment ${paymentId} already paid (status: ${data.status})`);
+          }
+          return isPaid;
+        } catch (e) {
+          console.error(`[ASAAS-CHECK] Error checking payment ${paymentId}:`, e);
+          return false;
+        }
+      };
       const configuredMetaPhoneNumberId = asaasSettings.billing_meta_phone_number_id as string | undefined;
       const useEvolutionByConfig = configuredMetaPhoneNumberId === 'evolution';
 
