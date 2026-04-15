@@ -56,6 +56,23 @@ export const VariableChipsSelector = ({ onInsert, compact = false }: VariableChi
         ))}
       </div>
 
+      <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 mt-2">
+        <DollarSign className="h-3 w-3" /> Lead
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {dealVariables.map((v) => (
+          <Badge
+            key={v.key}
+            variant="secondary"
+            className={`bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/25 hover:bg-orange-500/25 ${chipClass}`}
+            title={v.label}
+            onClick={() => onInsert(`{{${v.key}}}`)}
+          >
+            {`{{${v.key}}}`}
+          </Badge>
+        ))}
+      </div>
+
       {contactCustomVars.length > 0 && (
         <Collapsible>
           <CollapsibleTrigger className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors w-full group">
