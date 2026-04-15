@@ -741,7 +741,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             value={deal.stage_id}
             onValueChange={async (newStageId) => {
               if (newStageId === deal.stage_id) return;
-              const targetStage = funnel.stages?.find(s => s.id === newStageId);
+              const targetStage = activeStages.find(s => s.id === newStageId);
               await updateDeal.mutateAsync({
                 id: deal.id,
                 stage_id: newStageId,
