@@ -125,18 +125,6 @@ export const AsaasSettings = () => {
 
   const existingAsaasIntegration = getIntegration('asaas');
 
-  // Fetch Asaas customer groups
-  const { data: asaasGroups = [], isLoading: isLoadingGroups } = useQuery({
-    queryKey: ['asaas-customer-groups', targetUserId],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('asaas-api', {
-        body: { action: 'list-customer-groups', limit: 100 }
-      });
-      if (error) throw error;
-      return data?.data || [];
-    },
-    enabled: !!targetUserId && !!existingAsaasIntegration,
-  });
 
   // Load existing config only when the saved integration actually changes
   useEffect(() => {
