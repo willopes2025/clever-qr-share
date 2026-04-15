@@ -440,6 +440,17 @@ export const useFunnels = () => {
         .select()
         .single();
       if (error) throw error;
+
+      // Trigger stage automations AFTER the update so the deal is in the new stage
+      if (stageChanged && currentDeal) {
+        try {
+          await supabase.functions.invoke('process-funnel-automations', {
+            body: { dealId: id, fromStageId: currentDeal.stage_id, toStageId: data.stage_id }
+          });
+        } catch (e) {
+          console.error('Error triggering automations:', e);
+        }
+      }
       
       return { 
         deal: updatedDeal, 
