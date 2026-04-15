@@ -1754,7 +1754,11 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             }
             
             // Format phone: remove country code for CPF/CNPJ-less customers
-            const cleanPhone = contactPhone.replace(/\D/g, '');
+            let cleanPhone = contactPhone.replace(/\D/g, '');
+            // Asaas aceita apenas DDD + número (sem DDI 55)
+            if (cleanPhone.startsWith('55') && cleanPhone.length > 11) {
+              cleanPhone = cleanPhone.slice(2);
+            }
             
             // Check if customer exists by phone, or create
             let asaasCustomerId = deal.contact?.asaas_customer_id;
