@@ -133,6 +133,25 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     setIsEditingTitle(false);
   };
 
+  const handleSaveValue = async () => {
+    if (!deal) return;
+    
+    const { error } = await supabase
+      .from('funnel_deals')
+      .update({ value: Number(localValue) || 0 })
+      .eq('id', deal.id);
+    
+    if (error) {
+      toast.error("Erro ao atualizar valor");
+      return;
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+    queryClient.invalidateQueries({ queryKey: ['funnels'] });
+    toast.success("Valor atualizado");
+    setIsEditingValue(false);
+  };
+
   const handleSave = async (fieldKey: string, value: any) => {
     if (!deal) return;
     
