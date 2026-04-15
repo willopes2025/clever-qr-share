@@ -997,6 +997,18 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         updates.responsible_id !== undefined || updates.expected_close_date !== undefined || 
         updates.custom_field;
       
+      // Handle funnel change (move deals to another funnel)
+      if (updates.funnel_assignment) {
+        const { funnel_id, stage_id } = updates.funnel_assignment;
+        for (const dealId of selectedIds) {
+          await updateDeal.mutateAsync({
+            id: dealId,
+            funnel_id: funnel_id,
+            stage_id: stage_id,
+          });
+        }
+      }
+
       if (hasStandardUpdates) {
         await bulkUpdateDeals.mutateAsync({
           dealIds: selectedIds,
