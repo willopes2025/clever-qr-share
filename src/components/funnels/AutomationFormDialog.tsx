@@ -253,7 +253,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
     }
     
     // Prevent re-initialization if already initialized for this open cycle
-    if (initRef.current && prevOpenRef.current === open) {
+    if (initRef.current && prevOpenRef.current === open && !automation) {
       return;
     }
     
@@ -281,7 +281,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
       setActionConfig({});
       setSelectedAgentId('');
     }
-  }, [open]);
+  }, [open, automation]);
 
   const handleGenerateIntents = async () => {
     if (!selectedAgentId) {
