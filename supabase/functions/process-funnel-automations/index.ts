@@ -1640,13 +1640,27 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             const valueField = actionConfig.value_field as string;
             const groupField = actionConfig.group_field as string;
             const dueDateField = actionConfig.due_date_field as string;
+            const cpfField = actionConfig.cpf_field as string || '';
             const chargeDescription = replaceVariables((actionConfig.description as string) || `Cobrança - ${deal.contact?.name || 'Cliente'}`);
             
             // Get values from deal custom_fields
             const dealCustomFields = (deal.custom_fields || {}) as Record<string, unknown>;
             const chargeValue = parseFloat(String(dealCustomFields[valueField] || '0'));
-            const groupName = String(dealCustomFields[groupField] || '');
+            let groupNameRaw = dealCustomFields[groupField];
+            // Handle array values from select fields (e.g. ["Pix"])
+            const groupName = Array.isArray(groupNameRaw) ? String(groupNameRaw[0] || '') : String(groupNameRaw || '');
             let dueDate = dealCustomFields[dueDateField] as string;
+            
+            // Get CPF/CNPJ from contact custom_fields
+            const contactCustomFields = (deal.contact?.custom_fields || {}) as Record<string, unknown>;
+            let cpfCnpj = '';
+            if (cpfField) {
+              cpfCnpj = String(contactCustomFields[cpfField] || '').replace(/\D/g, '');
+            }
+            // Fallback: try common field names
+            if (!cpfCnpj) {
+              cpfCnpj = String(contactCustomFields['cpf'] || contactCustomFields['cpfcnpj'] || contactCustomFields['cnpj'] || '').replace(/\D/g, '');
+            }
             
             if (!chargeValue || chargeValue <= 0) {
               console.error(`[FUNNEL-AUTOMATIONS] Invalid charge value from field ${valueField}: ${chargeValue}`);
