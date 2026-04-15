@@ -1645,7 +1645,10 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             
             // Get values from deal custom_fields
             const dealCustomFields = (deal.custom_fields || {}) as Record<string, unknown>;
-            const chargeValue = parseFloat(String(dealCustomFields[valueField] || '0'));
+            let rawValue = dealCustomFields[valueField];
+            if (Array.isArray(rawValue)) rawValue = rawValue[0];
+            // Remove formatação BR (ex: "1.250,00" → "1250.00")
+            const chargeValue = parseFloat(String(rawValue || '0').replace(/\./g, '').replace(',', '.'));
             let groupNameRaw = dealCustomFields[groupField];
             // Handle array values from select fields (e.g. ["Pix"])
             const groupName = Array.isArray(groupNameRaw) ? String(groupNameRaw[0] || '') : String(groupNameRaw || '');
