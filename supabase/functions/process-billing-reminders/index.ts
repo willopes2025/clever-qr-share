@@ -171,6 +171,36 @@ Deno.serve(async (req) => {
 
       for (const reminder of userReminders) {
         try {
+          // CHECK: Verify payment status with Asaas API before sending
+          if (asaasApiKey && reminder.asaas_payment_id) {
+            const isPaid = await checkPaymentPaid(reminder.asaas_payment_id);
+            if (isPaid) {
+              // Cancel this reminder AND all other pending reminders for this payment
+              const { error: cancelError } = await supabase
+                .from('billing_reminders')
+                .update({ status: 'cancelled', error_message: 'Payment already confirmed in Asaas' })
+                .eq('asaas_payment_id', reminder.asaas_payment_id)
+                .eq('status', 'pending');
+
+              if (cancelError) {
+                console.error(`Error cancelling reminders for paid payment ${reminder.asaas_payment_id}:`, cancelError);
+              } else {
+                console.log(`[ASAAS-CHECK] Cancelled all pending reminders for paid payment ${reminder.asaas_payment_id}`);
+              }
+
+              // Also update contact payment status
+              if (reminder.asaas_customer_id) {
+                await supabase
+                  .from('contacts')
+                  .update({ asaas_payment_status: 'current' })
+                  .eq('asaas_customer_id', reminder.asaas_customer_id);
+              }
+
+              skipped++;
+              continue;
+            }
+          }
+
           // Get contact phone
           let contactPhone: string | null = null;
           let contactName: string | null = null;
