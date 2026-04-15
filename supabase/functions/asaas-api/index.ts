@@ -371,11 +371,6 @@ Deno.serve(async (req) => {
         result = await asaasRequest('GET', `/negativations/${params.id}`);
         break;
 
-      // Customer Groups
-      case 'list-customer-groups':
-        result = await asaasRequest('GET', `/customerGroups?limit=${params.limit || 100}&offset=${params.offset || 0}`);
-        break;
-
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
