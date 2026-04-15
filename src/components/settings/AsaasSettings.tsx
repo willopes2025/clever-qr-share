@@ -133,6 +133,7 @@ export const AsaasSettings = () => {
 
     const settings = existingAsaasIntegration.settings as Record<string, any> || {};
     setBillingEnabled(settings.billing_reminders_enabled || false);
+    setAutoChargeEnabled(settings.auto_charge_enabled || false);
     setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
 
     if (settings.billing_templates) {
