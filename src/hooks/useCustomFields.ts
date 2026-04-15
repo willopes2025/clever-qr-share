@@ -90,7 +90,11 @@ export const useCustomFields = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['custom-field-definitions'] });
+      queryClient.invalidateQueries({ queryKey: ['custom-field-definitions'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+      queryClient.invalidateQueries({ queryKey: ['funnels'] });
       toast.success("Campo atualizado");
     },
     onError: (error: Error) => {
