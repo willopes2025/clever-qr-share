@@ -1389,6 +1389,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         selectedCount={selectedIds.length}
         fieldDefinitions={fieldDefinitions || []}
         stages={funnel.stages || []}
+        funnels={(allFunnels || []).filter(f => f.id !== funnel.id)}
         members={members || []}
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}
