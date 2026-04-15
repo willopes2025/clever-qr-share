@@ -1678,7 +1678,7 @@ async function createDealFromNewConversation(supabase: any, userId: string, funn
           body: JSON.stringify({
             dealId: newDeal?.id,
             toStageId: stageId,
-            triggerType: 'on_stage_enter',
+            isNewDeal: true,
           }),
         });
         
@@ -1775,7 +1775,7 @@ async function ensureDealExistsForConversation(supabase: any, userId: string, fu
           body: JSON.stringify({
             dealId: newDeal?.id,
             toStageId: stageId,
-            triggerType: 'on_stage_enter',
+            isNewDeal: true,
           }),
         });
         

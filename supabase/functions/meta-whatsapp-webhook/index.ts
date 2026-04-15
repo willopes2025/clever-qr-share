@@ -568,7 +568,7 @@ Deno.serve(async (req) => {
                               await fetch(`${fnUrl}/functions/v1/process-funnel-automations`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${fnKey}` },
-                                body: JSON.stringify({ dealId: newDeal?.id, toStageId: dealStageId, triggerType: 'on_stage_enter' }),
+                                body: JSON.stringify({ dealId: newDeal?.id, toStageId: dealStageId, isNewDeal: true }),
                               });
                             } catch (autoErr) {
                               console.error('[META-WEBHOOK] Error triggering automations:', autoErr);
