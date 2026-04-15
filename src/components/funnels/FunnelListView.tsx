@@ -1001,11 +1001,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       if (updates.funnel_assignment) {
         const { funnel_id, stage_id } = updates.funnel_assignment;
         for (const dealId of selectedIds) {
-          await updateDeal.mutateAsync({
-            id: dealId,
-            funnel_id: funnel_id,
-            stage_id: stage_id,
-          });
+          await supabase
+            .from('funnel_deals')
+            .update({ funnel_id: funnel_id, stage_id: stage_id })
+            .eq('id', dealId);
         }
       }
 
