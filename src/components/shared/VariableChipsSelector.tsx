@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronRight, User, FileText, Target } from "lucide-react";
+import { ChevronRight, User, FileText, Target, DollarSign } from "lucide-react";
 import { useCustomFields } from "@/hooks/useCustomFields";
 
 interface VariableChipsSelectorProps {
@@ -15,6 +15,12 @@ export const VariableChipsSelector = ({ onInsert, compact = false }: VariableChi
     { key: 'nome', label: 'Nome do contato' },
     { key: 'telefone', label: 'Telefone do contato' },
     { key: 'email', label: 'Email do contato' },
+  ];
+
+  const dealVariables = [
+    { key: 'valor', label: 'Valor da venda' },
+    { key: 'etapa', label: 'Etapa atual' },
+    { key: 'funil', label: 'Nome do funil' },
   ];
 
   const contactCustomVars = contactFieldDefinitions?.map(f => ({
@@ -42,6 +48,23 @@ export const VariableChipsSelector = ({ onInsert, compact = false }: VariableChi
             key={v.key}
             variant="secondary"
             className={`bg-primary/15 text-primary border-primary/25 hover:bg-primary/25 ${chipClass}`}
+            title={v.label}
+            onClick={() => onInsert(`{{${v.key}}}`)}
+          >
+            {`{{${v.key}}}`}
+          </Badge>
+        ))}
+      </div>
+
+      <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 mt-2">
+        <DollarSign className="h-3 w-3" /> Lead
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {dealVariables.map((v) => (
+          <Badge
+            key={v.key}
+            variant="secondary"
+            className={`bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/25 hover:bg-orange-500/25 ${chipClass}`}
             title={v.label}
             onClick={() => onInsert(`{{${v.key}}}`)}
           >
