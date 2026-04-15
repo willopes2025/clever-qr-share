@@ -288,8 +288,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
   // Flatten all deals from all stages
+  // Use allFunnels from query cache directly (more reactive to optimistic updates)
+  const activeFunnel = allFunnels?.find(f => f.id === funnel.id) || funnel;
+  const activeStages = activeFunnel.stages || funnel.stages || [];
+  
   const allDeals = useMemo(() => {
-    return (funnel.stages || []).flatMap((stage) =>
+    return (activeStages).flatMap((stage) =>
       (stage.deals || []).map((deal) => ({
         ...deal,
         stageName: stage.name,
@@ -298,7 +302,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         stage_id: stage.id,
       }))
     );
-  }, [funnel.stages]);
+  }, [activeStages]);
 
   // Open deal from global search - fetch from server if not loaded locally
   useEffect(() => {
