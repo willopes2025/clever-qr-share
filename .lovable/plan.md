@@ -1,38 +1,32 @@
 
 
-## Plano: Edição de Campos Personalizados + Aprimoramentos
+# Plano: Transferir "Valor da Venda" (campo personalizado) → campo `value` oficial
 
-### Problema atual
-O `CustomFieldsManager` só permite **criar** e **excluir** campos. Não existe opção de editar nome, tipo, obrigatoriedade ou opções de um campo existente.
+## Diagnóstico
 
-### O que será implementado
+- O campo personalizado `valor_da_venda` (key: `valor_da_venda`) existe em `funnel_deals.custom_fields` com **87 registros** preenchidos.
+- Desses, **27 deals** têm o campo `value` oficial zerado ou nulo — são os que precisam de atualização.
+- Alguns valores usam vírgula como separador decimal (ex: `"420,00"`), será necessário tratar isso na conversão.
 
-**1. Botão de editar em cada campo existente**
-- Ícone de edição (Pencil) ao lado do botão de excluir em cada campo listado no `CustomFieldsManager`
-- Ao clicar, abre um formulário inline (ou substitui o item) com os dados pré-preenchidos
+## Plano de Execução
 
-**2. Formulário de edição completo**
-- Permite alterar: nome do campo, tipo, obrigatoriedade (switch), opções (para select/multi_select), e entity_type
-- Usa `updateField` mutation já existente no `useCustomFields` hook
-- Ao salvar, invalida queries de `custom-field-definitions`, `contacts`, `conversations` e `funnel-deals` para atualizar todas as interfaces
+### Passo único: Script SQL de migração de dados
 
-**3. Aprimoramentos sugeridos**
-- **Mais tipos no manager**: O dialog atual só mostra 5 tipos (text, number, boolean, date, select). Adicionar todos os tipos suportados: email, phone, url, time, datetime, switch, multi_select
-- **Validação de obrigatoriedade**: Nos editores de campos (ContactFormDialog, DealCustomFieldsEditor, CustomFieldsEditor), bloquear submit se campos obrigatórios estiverem vazios
-- **Indicador visual melhorado**: Mostrar asterisco vermelho mais consistente em todas as interfaces
+Executar um UPDATE direto via ferramenta de inserção/atualização:
 
-### Arquivos a modificar
+1. **Converter** `custom_fields->>'valor_da_venda'` para numérico (substituindo `,` por `.`)
+2. **Filtrar** apenas registros onde o valor convertido é > 1
+3. **Atualizar** o campo `value` oficial do deal com esse valor
+4. **Condição de segurança**: Só atualiza deals onde `value` é NULL ou 0 (para não sobrescrever valores já preenchidos corretamente)
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/inbox/CustomFieldsManager.tsx` | Adicionar modo edição por campo, expandir tipos disponíveis |
-| `src/hooks/useCustomFields.ts` | Ajustar `updateField.onSuccess` para invalidar também `funnel-deals` e `funnels` |
-| `src/components/funnels/DealCustomFieldsEditor.tsx` | Validação de campos obrigatórios |
-| `src/components/inbox/CustomFieldsEditor.tsx` | Validação de campos obrigatórios |
+```sql
+UPDATE funnel_deals
+SET value = REPLACE(custom_fields->>'valor_da_venda', ',', '.')::numeric
+WHERE custom_fields->>'valor_da_venda' IS NOT NULL
+  AND custom_fields->>'valor_da_venda' != ''
+  AND REPLACE(custom_fields->>'valor_da_venda', ',', '.')::numeric > 1
+  AND (value IS NULL OR value = 0);
+```
 
-### Detalhes técnicos
-- O hook `useCustomFields` já tem `updateField` implementado — só precisa ser chamado na UI
-- A invalidação de queries no `updateField.onSuccess` será expandida para incluir `funnel-deals`, `funnels`, `contacts` e `conversations`
-- O `SelectContent` do tipo será atualizado para incluir todos os 12 tipos do `FieldType`
-- Nenhuma mudança de schema no banco — apenas UI e lógica de invalidação
+**Resultado esperado**: ~27 deals atualizados. Nenhum dado será perdido — o campo personalizado permanece intacto.
 
