@@ -248,47 +248,55 @@ Deno.serve(async (req) => {
           if (!contactPhone && asaasApiKey) {
             try {
               let custData: any = null;
+              const asaasWideApiKey = Deno.env.get('ASAAS_WIDE_API_KEY');
+              const asaasApiKeys = [
+                { key: asaasApiKey, label: 'primary' },
+                ...(asaasWideApiKey ? [{ key: asaasWideApiKey, label: 'wide' }] : []),
+              ];
 
-              // Strategy 1: Try fetching customer directly
+              // Strategy 1: Try fetching customer directly (try all API keys)
               if (reminder.asaas_customer_id) {
-                const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
-                  headers: { 'access_token': asaasApiKey },
-                });
-                if (custResp.ok) {
-                  custData = await custResp.json();
-                  console.log(`[AUTO-CREATE] Got customer data from customer endpoint for ${reminder.asaas_customer_id}`);
-                } else {
-                  console.log(`[AUTO-CREATE] Customer ${reminder.asaas_customer_id} returned ${custResp.status}, trying via payment...`);
-                  await custResp.text(); // consume body
+                for (const { key, label } of asaasApiKeys) {
+                  const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
+                    headers: { 'access_token': key },
+                  });
+                  if (custResp.ok) {
+                    custData = await custResp.json();
+                    console.log(`[AUTO-CREATE] Got customer data from ${label} key for ${reminder.asaas_customer_id}`);
+                    break;
+                  } else {
+                    console.log(`[AUTO-CREATE] Customer ${reminder.asaas_customer_id} returned ${custResp.status} with ${label} key`);
+                    await custResp.text();
+                  }
                 }
               }
 
-              // Strategy 2: If customer fetch failed, try via payment endpoint
+              // Strategy 2: If customer fetch failed, try via payment endpoint (try all API keys)
               if (!custData && reminder.asaas_payment_id) {
-                const payResp = await fetch(`${asaasApiUrl}/payments/${reminder.asaas_payment_id}`, {
-                  headers: { 'access_token': asaasApiKey },
-                });
-                if (payResp.ok) {
-                  const payData = await payResp.json();
-                  if (payData.customer) {
-                    // Fetch the customer using the ID from the payment (may be from same account)
-                    const custResp2 = await fetch(`${asaasApiUrl}/customers/${payData.customer}`, {
-                      headers: { 'access_token': asaasApiKey },
-                    });
-                    if (custResp2.ok) {
-                      custData = await custResp2.json();
-                      console.log(`[AUTO-CREATE] Got customer data via payment ${reminder.asaas_payment_id} -> customer ${payData.customer}`);
-                    } else {
-                      // Use payment data as fallback (has customer name at least)
-                      console.log(`[AUTO-CREATE] Customer from payment also failed (${custResp2.status}), using payment name`);
-                      await custResp2.text();
-                      // Payment doesn't have phone, but we can try to match by name
-                      custData = { name: payData.customerName || payData.description, noPhone: true };
+                for (const { key, label } of asaasApiKeys) {
+                  const payResp = await fetch(`${asaasApiUrl}/payments/${reminder.asaas_payment_id}`, {
+                    headers: { 'access_token': key },
+                  });
+                  if (payResp.ok) {
+                    const payData = await payResp.json();
+                    if (payData.customer) {
+                      const custResp2 = await fetch(`${asaasApiUrl}/customers/${payData.customer}`, {
+                        headers: { 'access_token': key },
+                      });
+                      if (custResp2.ok) {
+                        custData = await custResp2.json();
+                        console.log(`[AUTO-CREATE] Got customer data via ${label} payment ${reminder.asaas_payment_id} -> customer ${payData.customer}`);
+                      } else {
+                        console.log(`[AUTO-CREATE] Customer from ${label} payment also failed (${custResp2.status}), using payment name`);
+                        await custResp2.text();
+                        custData = { name: payData.customerName || payData.description, noPhone: true };
+                      }
                     }
+                    break;
+                  } else {
+                    console.log(`[AUTO-CREATE] Payment ${reminder.asaas_payment_id} returned ${payResp.status} with ${label} key`);
+                    await payResp.text();
                   }
-                } else {
-                  console.log(`[AUTO-CREATE] Payment ${reminder.asaas_payment_id} returned ${payResp.status}`);
-                  await payResp.text();
                 }
               }
 
