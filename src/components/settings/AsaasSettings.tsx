@@ -276,8 +276,7 @@ export const AsaasSettings = () => {
           billing_templates: saveTemplates,
           billing_enabled_types: saveEnabledReminders,
           auto_charge_enabled: autoChargeEnabled,
-          auto_charge_funnel_id: autoChargeFunnelId,
-          auto_charge_stage_id: autoChargeStageId,
+          auto_charge_group_id: autoChargeGroupId,
           auto_charge_value: autoChargeValue,
         },
       });
