@@ -65,7 +65,8 @@ const ACTION_LABELS: Record<string, string> = {
   close_deal_won: 'Fechar como ganho',
   close_deal_lost: 'Fechar como perdido',
   ai_analyze_and_move: 'IA analisa e move',
-  activate_ai: 'Acionar agente de IA'
+  activate_ai: 'Acionar agente de IA',
+  generate_asaas_pix: 'Gerar cobrança PIX (Asaas)',
 };
 
 export const AutomationsDialog = ({ open, onOpenChange, funnelId }: AutomationsDialogProps) => {
