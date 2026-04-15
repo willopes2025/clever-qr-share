@@ -90,8 +90,7 @@ export const AsaasSettings = () => {
   // Billing reminder settings
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [autoChargeEnabled, setAutoChargeEnabled] = useState(false);
-  const [autoChargeFunnelId, setAutoChargeFunnelId] = useState('');
-  const [autoChargeStageId, setAutoChargeStageId] = useState('');
+  const [autoChargeGroupId, setAutoChargeGroupId] = useState('');
   const [autoChargeValue, setAutoChargeValue] = useState('');
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [templates, setTemplates] = useState<Record<string, string>>({ ...DEFAULT_TEMPLATES });
@@ -119,28 +118,25 @@ export const AsaasSettings = () => {
     enabled: !!targetUserId,
   });
 
-  // Fetch funnels and stages for auto-charge config
-  const { data: funnelsList = [] } = useQuery({
-    queryKey: ['funnels-for-asaas', targetUserId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('funnels')
-        .select('id, name, funnel_stages(id, name, position)')
-        .order('name', { ascending: true });
-      return (data || []).map((f: any) => ({
-        ...f,
-        stages: (f.funnel_stages || []).sort((a: any, b: any) => a.position - b.position),
-      }));
-    },
-    enabled: !!targetUserId,
-  });
-
   // Check if a Meta number is selected (not evolution)
   const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
   const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
   const selectedWabaId = selectedMetaNumber?.waba_id;
 
   const existingAsaasIntegration = getIntegration('asaas');
+
+  // Fetch Asaas customer groups
+  const { data: asaasGroups = [], isLoading: isLoadingGroups } = useQuery({
+    queryKey: ['asaas-customer-groups', targetUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('asaas-api', {
+        body: { action: 'list-customer-groups', limit: 100 }
+      });
+      if (error) throw error;
+      return data?.data || [];
+    },
+    enabled: !!targetUserId && !!existingAsaasIntegration,
+  });
 
   // Load existing config only when the saved integration actually changes
   useEffect(() => {
@@ -153,8 +149,7 @@ export const AsaasSettings = () => {
     const settings = existingAsaasIntegration.settings as Record<string, any> || {};
     setBillingEnabled(settings.billing_reminders_enabled || false);
     setAutoChargeEnabled(settings.auto_charge_enabled || false);
-    setAutoChargeFunnelId(settings.auto_charge_funnel_id || '');
-    setAutoChargeStageId(settings.auto_charge_stage_id || '');
+    setAutoChargeGroupId(settings.auto_charge_group_id || '');
     setAutoChargeValue(settings.auto_charge_value || '');
     setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
 
@@ -281,8 +276,7 @@ export const AsaasSettings = () => {
           billing_templates: saveTemplates,
           billing_enabled_types: saveEnabledReminders,
           auto_charge_enabled: autoChargeEnabled,
-          auto_charge_funnel_id: autoChargeFunnelId,
-          auto_charge_stage_id: autoChargeStageId,
+          auto_charge_group_id: autoChargeGroupId,
           auto_charge_value: autoChargeValue,
         },
       });
@@ -476,36 +470,24 @@ export const AsaasSettings = () => {
               </div>
             </div>
 
-            {/* Auto Charge Config - Funnel, Stage, Value */}
+            {/* Auto Charge Config - Asaas Group + Value */}
             {autoChargeEnabled && (
               <div className="px-4 py-3 space-y-3 bg-muted/20 border-t">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Funil</Label>
-                    <Select value={autoChargeFunnelId} onValueChange={(v) => { setAutoChargeFunnelId(v); setAutoChargeStageId(''); }}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecione o funil" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {funnelsList.map((f: any) => (
-                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Etapa (grupo)</Label>
-                    <Select value={autoChargeStageId} onValueChange={setAutoChargeStageId} disabled={!autoChargeFunnelId}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecione a etapa" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(funnelsList.find((f: any) => f.id === autoChargeFunnelId)?.stages || []).map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Grupo do Asaas</Label>
+                  <Select value={autoChargeGroupId} onValueChange={setAutoChargeGroupId}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder={isLoadingGroups ? "Carregando grupos..." : "Selecione o grupo"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {asaasGroups.map((g: any) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    O cliente será adicionado a este grupo no Asaas ao gerar a cobrança
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Valor da cobrança (R$)</Label>
@@ -517,7 +499,7 @@ export const AsaasSettings = () => {
                     className="h-9"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Valor da entrada PIX que será gerada automaticamente ao criar o lead nesta etapa
+                    Valor da entrada PIX que será gerada automaticamente ao criar o lead
                   </p>
                 </div>
               </div>
