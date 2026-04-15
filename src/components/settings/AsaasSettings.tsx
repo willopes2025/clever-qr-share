@@ -470,36 +470,24 @@ export const AsaasSettings = () => {
               </div>
             </div>
 
-            {/* Auto Charge Config - Funnel, Stage, Value */}
+            {/* Auto Charge Config - Asaas Group + Value */}
             {autoChargeEnabled && (
               <div className="px-4 py-3 space-y-3 bg-muted/20 border-t">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Funil</Label>
-                    <Select value={autoChargeFunnelId} onValueChange={(v) => { setAutoChargeFunnelId(v); setAutoChargeStageId(''); }}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecione o funil" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {funnelsList.map((f: any) => (
-                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Etapa (grupo)</Label>
-                    <Select value={autoChargeStageId} onValueChange={setAutoChargeStageId} disabled={!autoChargeFunnelId}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecione a etapa" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(funnelsList.find((f: any) => f.id === autoChargeFunnelId)?.stages || []).map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Grupo do Asaas</Label>
+                  <Select value={autoChargeGroupId} onValueChange={setAutoChargeGroupId}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder={isLoadingGroups ? "Carregando grupos..." : "Selecione o grupo"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {asaasGroups.map((g: any) => (
+                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    O cliente será adicionado a este grupo no Asaas ao gerar a cobrança
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Valor da cobrança (R$)</Label>
@@ -511,7 +499,7 @@ export const AsaasSettings = () => {
                     className="h-9"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Valor da entrada PIX que será gerada automaticamente ao criar o lead nesta etapa
+                    Valor da entrada PIX que será gerada automaticamente ao criar o lead
                   </p>
                 </div>
               </div>
