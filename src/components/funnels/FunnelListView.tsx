@@ -288,8 +288,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
   // Flatten all deals from all stages
+  // Use allFunnels from query cache directly (more reactive to optimistic updates)
+  const activeFunnel = allFunnels?.find(f => f.id === funnel.id) || funnel;
+  const activeStages = activeFunnel.stages || funnel.stages || [];
+  
   const allDeals = useMemo(() => {
-    return (funnel.stages || []).flatMap((stage) =>
+    return (activeStages).flatMap((stage) =>
       (stage.deals || []).map((deal) => ({
         ...deal,
         stageName: stage.name,
@@ -298,7 +302,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         stage_id: stage.id,
       }))
     );
-  }, [funnel.stages]);
+  }, [activeStages]);
 
   // Open deal from global search - fetch from server if not loaded locally
   useEffect(() => {
@@ -737,7 +741,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             value={deal.stage_id}
             onValueChange={async (newStageId) => {
               if (newStageId === deal.stage_id) return;
-              const targetStage = funnel.stages?.find(s => s.id === newStageId);
+              const targetStage = activeStages.find(s => s.id === newStageId);
               await updateDeal.mutateAsync({
                 id: deal.id,
                 stage_id: newStageId,
@@ -754,7 +758,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
               </Badge>
             </SelectTrigger>
             <SelectContent>
-              {funnel.stages?.filter(s => !s.is_final).map((stage) => (
+              {activeStages.filter(s => !s.is_final).map((stage) => (
                 <SelectItem key={stage.id} value={stage.id}>
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
@@ -762,12 +766,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                   </div>
                 </SelectItem>
               ))}
-              {funnel.stages?.some(s => s.is_final) && (
+              {activeStages.some(s => s.is_final) && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-1">
                     Fechar como
                   </div>
-                  {funnel.stages?.filter(s => s.is_final).map((stage) => (
+                  {activeStages.filter(s => s.is_final).map((stage) => (
                     <SelectItem key={stage.id} value={stage.id}>
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
@@ -1256,7 +1260,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                             Alterar Etapa
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            {(funnel.stages || []).map((stage) => (
+                            {activeStages.map((stage) => (
                               <DropdownMenuItem
                                 key={stage.id}
                                 disabled={stage.id === deal.stage_id}
