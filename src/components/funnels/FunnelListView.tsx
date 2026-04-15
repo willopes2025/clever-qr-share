@@ -111,7 +111,7 @@ const normalizeText = (value: string) =>
 
 export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
   const navigate = useNavigate();
-  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const { fieldDefinitions } = useCustomFields();
@@ -997,6 +997,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         updates.responsible_id !== undefined || updates.expected_close_date !== undefined || 
         updates.custom_field;
       
+      // Handle funnel change (move deals to another funnel)
+      if (updates.funnel_assignment) {
+        const { funnel_id, stage_id } = updates.funnel_assignment;
+        for (const dealId of selectedIds) {
+          await supabase
+            .from('funnel_deals')
+            .update({ funnel_id: funnel_id, stage_id: stage_id })
+            .eq('id', dealId);
+        }
+      }
+
       if (hasStandardUpdates) {
         await bulkUpdateDeals.mutateAsync({
           dealIds: selectedIds,
@@ -1025,6 +1036,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             .from("contact_tags")
             .upsert(inserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
         }
+      }
+
+      // Invalidate funnels if deals were moved to another funnel
+      if (updates.funnel_assignment) {
+        queryClient.invalidateQueries({ queryKey: ['funnels'] });
+        queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
       }
 
       setBulkEditDialogOpen(false);
@@ -1389,6 +1406,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         selectedCount={selectedIds.length}
         fieldDefinitions={fieldDefinitions || []}
         stages={funnel.stages || []}
+        funnels={(allFunnels || []).filter(f => f.id !== funnel.id)}
         members={members || []}
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}

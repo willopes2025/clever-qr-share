@@ -504,8 +504,8 @@ export const BulkEditDialog = ({
               </>
             )}
 
-            {/* Contact-specific: Funnel Assignment */}
-            {mode === 'contacts' && funnels.length > 0 && (
+            {/* Funnel Assignment - Both modes */}
+            {funnels.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Checkbox
@@ -513,9 +513,9 @@ export const BulkEditDialog = ({
                     checked={editFunnelAssignment}
                     onCheckedChange={(c) => setEditFunnelAssignment(!!c)}
                   />
-                  <Label htmlFor="edit-funnel" className="font-medium cursor-pointer">
-                    Associar a Funil
-                  </Label>
+                   <Label htmlFor="edit-funnel" className="font-medium cursor-pointer">
+                     {mode === 'deals' ? 'Alterar Funil' : 'Associar a Funil'}
+                   </Label>
                 </div>
                 {editFunnelAssignment && (
                   <div className="ml-7 space-y-3">
