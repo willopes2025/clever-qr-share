@@ -149,8 +149,7 @@ export const AsaasSettings = () => {
     const settings = existingAsaasIntegration.settings as Record<string, any> || {};
     setBillingEnabled(settings.billing_reminders_enabled || false);
     setAutoChargeEnabled(settings.auto_charge_enabled || false);
-    setAutoChargeFunnelId(settings.auto_charge_funnel_id || '');
-    setAutoChargeStageId(settings.auto_charge_stage_id || '');
+    setAutoChargeGroupId(settings.auto_charge_group_id || '');
     setAutoChargeValue(settings.auto_charge_value || '');
     setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
 
