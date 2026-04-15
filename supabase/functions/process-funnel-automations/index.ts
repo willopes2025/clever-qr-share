@@ -1645,7 +1645,10 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             
             // Get values from deal custom_fields
             const dealCustomFields = (deal.custom_fields || {}) as Record<string, unknown>;
-            const chargeValue = parseFloat(String(dealCustomFields[valueField] || '0'));
+            let rawValue = dealCustomFields[valueField];
+            if (Array.isArray(rawValue)) rawValue = rawValue[0];
+            // Remove formatação BR (ex: "1.250,00" → "1250.00")
+            const chargeValue = parseFloat(String(rawValue || '0').replace(/\./g, '').replace(',', '.'));
             let groupNameRaw = dealCustomFields[groupField];
             // Handle array values from select fields (e.g. ["Pix"])
             const groupName = Array.isArray(groupNameRaw) ? String(groupNameRaw[0] || '') : String(groupNameRaw || '');
@@ -1674,8 +1677,14 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
               d.setDate(d.getDate() + 3);
               dueDate = d.toISOString().split('T')[0];
             } else {
-              // Ensure YYYY-MM-DD format
-              dueDate = new Date(dueDate).toISOString().split('T')[0];
+              const dueDateStr = String(dueDate);
+              // Detectar formato dd/mm/yyyy
+              if (/^\d{2}\/\d{2}\/\d{4}$/.test(dueDateStr)) {
+                const [dd, mm, yyyy] = dueDateStr.split('/');
+                dueDate = `${yyyy}-${mm}-${dd}`;
+              } else {
+                dueDate = new Date(dueDateStr).toISOString().split('T')[0];
+              }
             }
             
             const contactPhone = deal.contact?.phone;
@@ -1745,7 +1754,11 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
             }
             
             // Format phone: remove country code for CPF/CNPJ-less customers
-            const cleanPhone = contactPhone.replace(/\D/g, '');
+            let cleanPhone = contactPhone.replace(/\D/g, '');
+            // Asaas aceita apenas DDD + número (sem DDI 55)
+            if (cleanPhone.startsWith('55') && cleanPhone.length > 11) {
+              cleanPhone = cleanPhone.slice(2);
+            }
             
             // Check if customer exists by phone, or create
             let asaasCustomerId = deal.contact?.asaas_customer_id;
