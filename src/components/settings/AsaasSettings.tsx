@@ -645,10 +645,9 @@ export const AsaasSettings = () => {
                   </AccordionItem>
                 ))}
               </Accordion>
-            </>
-          )}
         </CardContent>
       </Card>
+      )}
 
       {/* Save Button */}
       <div className="flex justify-end">
