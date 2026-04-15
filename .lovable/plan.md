@@ -1,32 +1,44 @@
 
 
-# Plano: Transferir "Valor da Venda" (campo personalizado) → campo `value` oficial
+# Plano: Painel de Automações Asaas com Switches Individuais
 
-## Diagnóstico
+## Contexto
 
-- O campo personalizado `valor_da_venda` (key: `valor_da_venda`) existe em `funnel_deals.custom_fields` com **87 registros** preenchidos.
-- Desses, **27 deals** têm o campo `value` oficial zerado ou nulo — são os que precisam de atualização.
-- Alguns valores usam vírgula como separador decimal (ex: `"420,00"`), será necessário tratar isso na conversão.
+O sistema já possui switches individuais para os **lembretes de cobrança** (emitido, 5 dias antes, dia do vencimento, etc.). O pedido é criar um painel unificado que mostre **todas as automações do Asaas** — incluindo a nova geração de cobrança PIX — com um switch para cada uma.
 
-## Plano de Execução
+## O que será feito
 
-### Passo único: Script SQL de migração de dados
+### Novo Card "Automações Asaas" no `AsaasSettings.tsx`
 
-Executar um UPDATE direto via ferramenta de inserção/atualização:
+Adicionar um card acima (ou substituindo) o card de "Lembretes de Cobrança" que agrupe todas as automações Asaas em uma lista visual com switches:
 
-1. **Converter** `custom_fields->>'valor_da_venda'` para numérico (substituindo `,` por `.`)
-2. **Filtrar** apenas registros onde o valor convertido é > 1
-3. **Atualizar** o campo `value` oficial do deal com esse valor
-4. **Condição de segurança**: Só atualiza deals onde `value` é NULL ou 0 (para não sobrescrever valores já preenchidos corretamente)
+| Automação | Descrição | Switch |
+|-----------|-----------|--------|
+| Lembretes de cobrança | Envia mensagens automáticas sobre cobranças | ✅/❌ |
+| ├ Boleto emitido | Ao criar cobrança | ✅/❌ |
+| ├ 5 dias antes | Lembrete pré-vencimento | ✅/❌ |
+| ├ Dia do vencimento | No dia | ✅/❌ |
+| ├ 1 dia após | Atraso 1 dia | ✅/❌ |
+| ├ 3 dias após | Atraso 3 dias | ✅/❌ |
+| └ 5 dias após | Atraso 5 dias | ✅/❌ |
+| Gerar cobrança PIX automática | Cria cobrança ao entrar no funil com pagamento PIX | ✅/❌ |
 
-```sql
-UPDATE funnel_deals
-SET value = REPLACE(custom_fields->>'valor_da_venda', ',', '.')::numeric
-WHERE custom_fields->>'valor_da_venda' IS NOT NULL
-  AND custom_fields->>'valor_da_venda' != ''
-  AND REPLACE(custom_fields->>'valor_da_venda', ',', '.')::numeric > 1
-  AND (value IS NULL OR value = 0);
-```
+### Detalhes técnicos
 
-**Resultado esperado**: ~27 deals atualizados. Nenhum dado será perdido — o campo personalizado permanece intacto.
+- **Arquivo**: `src/components/settings/AsaasSettings.tsx`
+- O switch master de "Lembretes de cobrança" já existe (`billingEnabled`) — será mantido
+- Os switches individuais por tipo de lembrete já existem (`enabledReminders`) — serão mantidos
+- Novo estado: `autoChargeEnabled` para a automação de geração de cobrança PIX
+- Tudo salvo no campo `settings` da integração Asaas (já existente), adicionando a key `auto_charge_enabled`
+- A lógica no backend (`process-funnel-automations`) checará esse flag antes de executar a geração de cobrança
+
+### Layout
+
+O card terá um design de lista com bordas entre itens, cada linha com:
+- Ícone + nome da automação
+- Descrição curta em texto menor
+- Switch no lado direito
+- Itens-filhos (sub-lembretes) com indentação visual
+
+Isso mantém o padrão visual já usado no accordion atual, mas mais compacto e direto.
 
