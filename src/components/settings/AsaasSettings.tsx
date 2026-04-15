@@ -20,7 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Download } from "lucide-react";
+import { Loader2, Save, CreditCard, Bell, MessageSquare, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Download, Zap, Receipt } from "lucide-react";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -89,6 +89,7 @@ export const AsaasSettings = () => {
 
   // Billing reminder settings
   const [billingEnabled, setBillingEnabled] = useState(false);
+  const [autoChargeEnabled, setAutoChargeEnabled] = useState(false);
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [templates, setTemplates] = useState<Record<string, string>>({ ...DEFAULT_TEMPLATES });
   const [enabledReminders, setEnabledReminders] = useState<Record<string, boolean>>({
@@ -132,6 +133,7 @@ export const AsaasSettings = () => {
 
     const settings = existingAsaasIntegration.settings as Record<string, any> || {};
     setBillingEnabled(settings.billing_reminders_enabled || false);
+    setAutoChargeEnabled(settings.auto_charge_enabled || false);
     setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
 
     if (settings.billing_templates) {
@@ -256,6 +258,7 @@ export const AsaasSettings = () => {
           billing_meta_phone_number_id: saveMetaPhoneNumberId,
           billing_templates: saveTemplates,
           billing_enabled_types: saveEnabledReminders,
+          auto_charge_enabled: autoChargeEnabled,
         },
       });
 
@@ -354,48 +357,117 @@ export const AsaasSettings = () => {
         </CardContent>
       </Card>
 
-      {/* Billing Reminders */}
+      {/* Automações Asaas - Unified Panel */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5" />
+            Automações Asaas
+          </CardTitle>
+          <CardDescription>
+            Controle individualmente cada automação integrada ao Asaas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border divide-y">
+            {/* Billing Reminders Master Toggle */}
+            <div
+              className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+              role="button"
+              tabIndex={0}
+              onClick={handleToggleBillingEnabled}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleToggleBillingEnabled();
+                }
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <Bell className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Lembretes de cobrança</p>
+                  <p className="text-xs text-muted-foreground">Envia mensagens automáticas sobre cobranças do Asaas</p>
+                </div>
+              </div>
+              <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                <Switch checked={billingEnabled} onCheckedChange={handleBillingEnabledChange} />
+              </div>
+            </div>
+
+            {/* Sub-reminders (indented) */}
+            {billingEnabled && Object.entries(REMINDER_LABELS).map(([type, label]) => (
+              <div
+                key={type}
+                className="flex items-center justify-between px-4 py-2.5 pl-12 cursor-pointer hover:bg-muted/30 transition-colors"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setHasUserTouchedBilling(true);
+                  setEnabledReminders(prev => ({ ...prev, [type]: !prev[type] }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setEnabledReminders(prev => ({ ...prev, [type]: !prev[type] }));
+                  }
+                }}
+              >
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={enabledReminders[type]}
+                    onCheckedChange={(checked) => {
+                      setHasUserTouchedBilling(true);
+                      setEnabledReminders(prev => ({ ...prev, [type]: checked }));
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Auto PIX Charge Toggle */}
+            <div
+              className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
+              role="button"
+              tabIndex={0}
+              onClick={() => setAutoChargeEnabled(prev => !prev)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setAutoChargeEnabled(prev => !prev);
+                }
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Gerar cobrança PIX automática</p>
+                  <p className="text-xs text-muted-foreground">Cria cobrança no Asaas ao entrar no funil com pagamento PIX</p>
+                </div>
+              </div>
+              <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                <Switch checked={autoChargeEnabled} onCheckedChange={setAutoChargeEnabled} />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Billing Reminders - Detailed Config (only when billing enabled) */}
+      {billingEnabled && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
-            Lembretes de Cobrança via WhatsApp
+            Configuração dos Lembretes
           </CardTitle>
           <CardDescription>
-            Envie mensagens automáticas para clientes sobre cobranças do Asaas
+            Configure número de envio e templates dos lembretes de cobrança
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div
-            className="flex items-center justify-between rounded-md"
-            role="button"
-            tabIndex={0}
-            onClick={handleToggleBillingEnabled}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleToggleBillingEnabled();
-              }
-            }}
-          >
-            <div>
-              <Label className="text-sm font-medium">Ativar lembretes automáticos</Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Envia mensagens no WhatsApp quando cobranças são criadas e próximas do vencimento
-              </p>
-            </div>
-            <div
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              <Switch checked={billingEnabled} onCheckedChange={handleBillingEnabledChange} />
-            </div>
-          </div>
 
-          {billingEnabled && (
-            <>
               {/* Sync existing payments button */}
               {existingAsaasIntegration && (
                 <div className="flex items-center justify-between p-3 rounded-md border bg-muted/30">
@@ -573,10 +645,9 @@ export const AsaasSettings = () => {
                   </AccordionItem>
                 ))}
               </Accordion>
-            </>
-          )}
         </CardContent>
       </Card>
+      )}
 
       {/* Save Button */}
       <div className="flex justify-end">
