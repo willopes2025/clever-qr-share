@@ -462,19 +462,15 @@ export const AsaasSettings = () => {
             {autoChargeEnabled && (
               <div className="px-4 py-3 space-y-3 bg-muted/20 border-t">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Grupo do Asaas</Label>
-                  <Select value={autoChargeGroupId} onValueChange={setAutoChargeGroupId}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder={isLoadingGroups ? "Carregando grupos..." : "Selecione o grupo"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {asaasGroups.map((g: any) => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">Nome do grupo no Asaas</Label>
+                  <Input
+                    placeholder="Ex: Programa Seven - Entrada"
+                    value={autoChargeGroupId}
+                    onChange={(e) => setAutoChargeGroupId(e.target.value)}
+                    className="h-9"
+                  />
                   <p className="text-[11px] text-muted-foreground">
-                    O cliente será adicionado a este grupo no Asaas ao gerar a cobrança
+                    O cliente será associado a este grupo (groupName) no Asaas ao gerar a cobrança
                   </p>
                 </div>
                 <div className="space-y-1.5">
