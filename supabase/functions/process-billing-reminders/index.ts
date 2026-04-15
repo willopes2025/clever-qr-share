@@ -561,6 +561,39 @@ Deno.serve(async (req) => {
           }
 
           if (sendSuccess) {
+            // Create conversation if it doesn't exist
+            if (!conversationId && reminder.contact_id) {
+              const convData: Record<string, any> = {
+                contact_id: reminder.contact_id,
+                user_id: userId,
+                status: 'open',
+                last_message_at: new Date().toISOString(),
+                last_message_preview: messageContent.substring(0, 100),
+                last_message_direction: 'outbound',
+              };
+              if (useMetaForThis && metaPhoneNumberId) {
+                convData.provider = 'meta';
+                convData.meta_phone_number_id = metaPhoneNumberId;
+              } else if (evolutionInstanceId) {
+                convData.provider = 'evolution';
+                convData.instance_id = evolutionInstanceId;
+              }
+              const { data: newConv } = await supabase
+                .from('conversations')
+                .insert(convData)
+                .select('id')
+                .single();
+              if (newConv) {
+                conversationId = newConv.id;
+                // Update reminder with conversation_id
+                await supabase
+                  .from('billing_reminders')
+                  .update({ conversation_id: newConv.id })
+                  .eq('id', reminder.id);
+                console.log(`[CONV] Created conversation ${newConv.id} for contact ${reminder.contact_id}`);
+              }
+            }
+
             if (conversationId) {
               await supabase
                 .from('inbox_messages')
