@@ -75,8 +75,9 @@ Deno.serve(async (req) => {
 
       const asaasSettings = (asaasIntegration?.settings as Record<string, any>) || {};
       const asaasCredentials = (asaasIntegration?.credentials as Record<string, any>) || {};
-      const asaasApiKey = asaasCredentials.api_key as string | undefined;
-      const asaasApiUrl = asaasCredentials.sandbox
+      const asaasApiKey = (asaasCredentials.access_token || asaasCredentials.api_key) as string | undefined;
+      const isSandbox = asaasCredentials.environment === 'sandbox' || asaasCredentials.sandbox === true;
+      const asaasApiUrl = isSandbox
         ? 'https://sandbox.asaas.com/api/v3'
         : 'https://api.asaas.com/api/v3';
 
