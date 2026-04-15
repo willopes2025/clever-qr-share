@@ -49,11 +49,12 @@ export const VariableAutocomplete = ({
   // Build all available variables with useMemo for proper reactivity
   const allVariables = useMemo<VariableOption[]>(() => [
     ...DEFAULT_VARIABLES,
+    ...DEAL_VARIABLES,
     ...(fieldDefinitions || []).map(field => ({
       key: field.field_key,
       label: field.field_name,
       icon: <FileText className="h-3.5 w-3.5" />,
-      group: 'Campos Personalizados'
+      group: field.entity_type === 'lead' ? 'Campos do Lead' : 'Campos Personalizados'
     }))
   ], [fieldDefinitions]);
 
