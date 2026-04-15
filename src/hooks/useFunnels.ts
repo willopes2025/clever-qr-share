@@ -426,15 +426,6 @@ export const useFunnels = () => {
           .eq('id', data.stage_id)
           .single();
         newStageName = stageData?.name || null;
-
-        // Trigger automations
-        try {
-          await supabase.functions.invoke('process-funnel-automations', {
-            body: { dealId: id, fromStageId: currentDeal.stage_id, toStageId: data.stage_id }
-          });
-        } catch (e) {
-          console.error('Error triggering automations:', e);
-        }
       }
       
       // Check if responsible changed
