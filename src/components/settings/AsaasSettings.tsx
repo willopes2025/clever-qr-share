@@ -118,6 +118,13 @@ export const AsaasSettings = () => {
     enabled: !!targetUserId,
   });
 
+  // Check if a Meta number is selected (not evolution)
+  const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
+  const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
+  const selectedWabaId = selectedMetaNumber?.waba_id;
+
+  const existingAsaasIntegration = getIntegration('asaas');
+
   // Fetch Asaas customer groups
   const { data: asaasGroups = [], isLoading: isLoadingGroups } = useQuery({
     queryKey: ['asaas-customer-groups', targetUserId],
@@ -130,13 +137,6 @@ export const AsaasSettings = () => {
     },
     enabled: !!targetUserId && !!existingAsaasIntegration,
   });
-
-  // Check if a Meta number is selected (not evolution)
-  const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
-  const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
-  const selectedWabaId = selectedMetaNumber?.waba_id;
-
-  const existingAsaasIntegration = getIntegration('asaas');
 
   // Load existing config only when the saved integration actually changes
   useEffect(() => {
