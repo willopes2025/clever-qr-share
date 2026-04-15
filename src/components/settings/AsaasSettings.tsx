@@ -118,20 +118,17 @@ export const AsaasSettings = () => {
     enabled: !!targetUserId,
   });
 
-  // Fetch funnels and stages for auto-charge config
-  const { data: funnelsList = [] } = useQuery({
-    queryKey: ['funnels-for-asaas', targetUserId],
+  // Fetch Asaas customer groups
+  const { data: asaasGroups = [], isLoading: isLoadingGroups } = useQuery({
+    queryKey: ['asaas-customer-groups', targetUserId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('funnels')
-        .select('id, name, funnel_stages(id, name, position)')
-        .order('name', { ascending: true });
-      return (data || []).map((f: any) => ({
-        ...f,
-        stages: (f.funnel_stages || []).sort((a: any, b: any) => a.position - b.position),
-      }));
+      const { data, error } = await supabase.functions.invoke('asaas-api', {
+        body: { action: 'list-customer-groups', limit: 100 }
+      });
+      if (error) throw error;
+      return data?.data || [];
     },
-    enabled: !!targetUserId,
+    enabled: !!targetUserId && !!existingAsaasIntegration,
   });
 
   // Check if a Meta number is selected (not evolution)
