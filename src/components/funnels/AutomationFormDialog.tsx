@@ -84,7 +84,8 @@ type ActionType =
   | 'close_deal_won'
   | 'close_deal_lost'
   | 'ai_analyze_and_move'
-  | 'activate_ai';
+  | 'activate_ai'
+  | 'generate_asaas_pix';
 
 interface AutomationCondition {
   field: string;
@@ -878,6 +879,7 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                 <SelectItem value="close_deal_lost">Fechar como perdido</SelectItem>
                 <SelectItem value="ai_analyze_and_move">🤖 IA Analisa e Move</SelectItem>
                 <SelectItem value="activate_ai">🧠 Acionar Agente de IA</SelectItem>
+                <SelectItem value="generate_asaas_pix">💰 Gerar cobrança PIX (Asaas)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1707,6 +1709,60 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {actionType === 'generate_asaas_pix' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  💰 Cria ou atualiza o cliente no Asaas (com o grupo configurado) e gera uma cobrança PIX com o valor do campo personalizado selecionado.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Campo do valor da cobrança</Label>
+                <Select value={actionConfig.value_field as string || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, value_field: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar campo..." /></SelectTrigger>
+                  <SelectContent>
+                    {fieldDefinitions?.filter(f => f.field_type === 'number').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>{field.field_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Campo do nome do grupo Asaas</Label>
+                <Select value={actionConfig.group_field as string || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, group_field: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar campo..." /></SelectTrigger>
+                  <SelectContent>
+                    {fieldDefinitions?.filter(f => f.field_type === 'text' || f.field_type === 'select').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>{field.field_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">O valor deste campo será usado como groupName no Asaas</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Campo da data de vencimento</Label>
+                <Select value={actionConfig.due_date_field as string || ''} onValueChange={(v) => setActionConfig({ ...actionConfig, due_date_field: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar campo de data..." /></SelectTrigger>
+                  <SelectContent>
+                    {fieldDefinitions?.filter(f => f.field_type === 'date').map((field) => (
+                      <SelectItem key={field.id} value={field.field_key}>{field.field_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Se não preenchido, usará a data de hoje + 3 dias</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição da cobrança (opcional)</Label>
+                <Input
+                  value={actionConfig.description as string || ''}
+                  onChange={(e) => setActionConfig({ ...actionConfig, description: e.target.value })}
+                  placeholder="Ex: Entrada - {{nome}}"
+                />
+                <p className="text-xs text-muted-foreground">Use {'{{nome}}'}, {'{{telefone}}'} para variáveis</p>
+              </div>
             </div>
           )}
 
