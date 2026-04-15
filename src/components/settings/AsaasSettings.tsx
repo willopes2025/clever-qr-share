@@ -77,6 +77,7 @@ export const AsaasSettings = () => {
   const { user } = useAuth();
   const { organization } = useOrganization();
   const { getIntegration, connectIntegration } = useIntegrations();
+  const { leadFieldDefinitions } = useCustomFields();
   const [isSaving, setIsSaving] = useState(false);
   const [isCreatingTemplates, setIsCreatingTemplates] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
