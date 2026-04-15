@@ -1677,8 +1677,14 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
               d.setDate(d.getDate() + 3);
               dueDate = d.toISOString().split('T')[0];
             } else {
-              // Ensure YYYY-MM-DD format
-              dueDate = new Date(dueDate).toISOString().split('T')[0];
+              const dueDateStr = String(dueDate);
+              // Detectar formato dd/mm/yyyy
+              if (/^\d{2}\/\d{2}\/\d{4}$/.test(dueDateStr)) {
+                const [dd, mm, yyyy] = dueDateStr.split('/');
+                dueDate = `${yyyy}-${mm}-${dd}`;
+              } else {
+                dueDate = new Date(dueDateStr).toISOString().split('T')[0];
+              }
             }
             
             const contactPhone = deal.contact?.phone;
