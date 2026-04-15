@@ -1771,6 +1771,7 @@ Retorne APENAS a mensagem, sem explicações ou aspas.`;
               };
               if (contactEmail) customerPayload.email = contactEmail;
               if (groupName) customerPayload.groupName = groupName;
+              if (cpfCnpj) customerPayload.cpfCnpj = cpfCnpj;
               
               const createRes = await fetch(`${asaasBaseUrl}/customers`, {
                 method: 'POST',
