@@ -464,28 +464,39 @@ export const AsaasSettings = () => {
             {autoChargeEnabled && (
               <div className="px-4 py-3 space-y-3 bg-muted/20 border-t">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Nome do grupo no Asaas</Label>
-                  <Input
-                    placeholder="Ex: Programa Seven - Entrada"
-                    value={autoChargeGroupId}
-                    onChange={(e) => setAutoChargeGroupId(e.target.value)}
-                    className="h-9"
-                  />
+                  <Label className="text-xs">Campo do nome do grupo no Asaas</Label>
+                  <Select value={autoChargeGroupId} onValueChange={setAutoChargeGroupId}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Selecione um campo personalizado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leadFieldDefinitions?.map((field) => (
+                        <SelectItem key={field.id} value={field.field_key}>
+                          {field.field_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-[11px] text-muted-foreground">
-                    O cliente será associado a este grupo (groupName) no Asaas ao gerar a cobrança
+                    O valor deste campo será usado como groupName do cliente no Asaas
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Valor da cobrança (R$)</Label>
-                  <Input
-                    type="number"
-                    placeholder="Ex: 297.00"
-                    value={autoChargeValue}
-                    onChange={(e) => setAutoChargeValue(e.target.value)}
-                    className="h-9"
-                  />
+                  <Label className="text-xs">Campo do valor da cobrança</Label>
+                  <Select value={autoChargeValue} onValueChange={setAutoChargeValue}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Selecione um campo personalizado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leadFieldDefinitions?.map((field) => (
+                        <SelectItem key={field.id} value={field.field_key}>
+                          {field.field_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-[11px] text-muted-foreground">
-                    Valor da entrada PIX que será gerada automaticamente ao criar o lead
+                    O valor deste campo será usado como valor da cobrança PIX ao criar o lead
                   </p>
                 </div>
               </div>
