@@ -90,6 +90,9 @@ export const AsaasSettings = () => {
   // Billing reminder settings
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [autoChargeEnabled, setAutoChargeEnabled] = useState(false);
+  const [autoChargeFunnelId, setAutoChargeFunnelId] = useState('');
+  const [autoChargeStageId, setAutoChargeStageId] = useState('');
+  const [autoChargeValue, setAutoChargeValue] = useState('');
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [templates, setTemplates] = useState<Record<string, string>>({ ...DEFAULT_TEMPLATES });
   const [enabledReminders, setEnabledReminders] = useState<Record<string, boolean>>({
@@ -116,6 +119,22 @@ export const AsaasSettings = () => {
     enabled: !!targetUserId,
   });
 
+  // Fetch funnels and stages for auto-charge config
+  const { data: funnelsList = [] } = useQuery({
+    queryKey: ['funnels-for-asaas', targetUserId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('funnels')
+        .select('id, name, funnel_stages(id, name, position)')
+        .order('name', { ascending: true });
+      return (data || []).map((f: any) => ({
+        ...f,
+        stages: (f.funnel_stages || []).sort((a: any, b: any) => a.position - b.position),
+      }));
+    },
+    enabled: !!targetUserId,
+  });
+
   // Check if a Meta number is selected (not evolution)
   const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
   const selectedMetaNumber = metaNumbers.find((n: any) => n.phone_number_id === metaPhoneNumberId);
@@ -134,6 +153,9 @@ export const AsaasSettings = () => {
     const settings = existingAsaasIntegration.settings as Record<string, any> || {};
     setBillingEnabled(settings.billing_reminders_enabled || false);
     setAutoChargeEnabled(settings.auto_charge_enabled || false);
+    setAutoChargeFunnelId(settings.auto_charge_funnel_id || '');
+    setAutoChargeStageId(settings.auto_charge_stage_id || '');
+    setAutoChargeValue(settings.auto_charge_value || '');
     setMetaPhoneNumberId(settings.billing_meta_phone_number_id || '');
 
     if (settings.billing_templates) {
@@ -259,6 +281,9 @@ export const AsaasSettings = () => {
           billing_templates: saveTemplates,
           billing_enabled_types: saveEnabledReminders,
           auto_charge_enabled: autoChargeEnabled,
+          auto_charge_funnel_id: autoChargeFunnelId,
+          auto_charge_stage_id: autoChargeStageId,
+          auto_charge_value: autoChargeValue,
         },
       });
 
@@ -450,6 +475,53 @@ export const AsaasSettings = () => {
                 <Switch checked={autoChargeEnabled} onCheckedChange={setAutoChargeEnabled} />
               </div>
             </div>
+
+            {/* Auto Charge Config - Funnel, Stage, Value */}
+            {autoChargeEnabled && (
+              <div className="px-4 py-3 space-y-3 bg-muted/20 border-t">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Funil</Label>
+                    <Select value={autoChargeFunnelId} onValueChange={(v) => { setAutoChargeFunnelId(v); setAutoChargeStageId(''); }}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecione o funil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {funnelsList.map((f: any) => (
+                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Etapa (grupo)</Label>
+                    <Select value={autoChargeStageId} onValueChange={setAutoChargeStageId} disabled={!autoChargeFunnelId}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecione a etapa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(funnelsList.find((f: any) => f.id === autoChargeFunnelId)?.stages || []).map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Valor da cobrança (R$)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Ex: 297.00"
+                    value={autoChargeValue}
+                    onChange={(e) => setAutoChargeValue(e.target.value)}
+                    className="h-9"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Valor da entrada PIX que será gerada automaticamente ao criar o lead nesta etapa
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
