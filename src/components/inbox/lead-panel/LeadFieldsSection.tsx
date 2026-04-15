@@ -98,6 +98,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   // Estado para edição do título do lead
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [localTitle, setLocalTitle] = useState(deal?.title || '');
+  
+  // Estado para edição do valor da venda
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [localValue, setLocalValue] = useState(deal?.value?.toString() || '');
 
   useEffect(() => {
     setLocalFields(customFields);
@@ -106,6 +110,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
   useEffect(() => {
     setLocalTitle(deal?.title || '');
   }, [deal?.title]);
+
+  useEffect(() => {
+    setLocalValue(deal?.value?.toString() || '');
+  }, [deal?.value]);
 
   const handleSaveTitle = async () => {
     if (!deal) return;
@@ -123,6 +131,25 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
     toast.success("Título atualizado");
     setIsEditingTitle(false);
+  };
+
+  const handleSaveValue = async () => {
+    if (!deal) return;
+    
+    const { error } = await supabase
+      .from('funnel_deals')
+      .update({ value: Number(localValue) || 0 })
+      .eq('id', deal.id);
+    
+    if (error) {
+      toast.error("Erro ao atualizar valor");
+      return;
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+    queryClient.invalidateQueries({ queryKey: ['funnels'] });
+    toast.success("Valor atualizado");
+    setIsEditingValue(false);
   };
 
   const handleSave = async (fieldKey: string, value: any) => {
@@ -385,12 +412,43 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         )}
       </div>
 
-      {/* Valor da Venda (native deal.value) */}
+      {/* Valor da Venda (native deal.value) - editable */}
       <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
         <span className="text-xs font-medium text-foreground/70 shrink-0">Valor da Venda</span>
-        <span className="text-sm text-foreground font-medium">
-          {deal?.value != null ? `R$ ${Number(deal.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : <span className="text-muted-foreground italic">—</span>}
-        </span>
+        {isEditingValue ? (
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={localValue}
+              onChange={(e) => setLocalValue(e.target.value)}
+              className="h-8 w-32 text-sm text-right"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveValue();
+                if (e.key === 'Escape') { setLocalValue(deal?.value?.toString() || ''); setIsEditingValue(false); }
+              }}
+            />
+            <Button size="icon" variant="default" className="h-7 w-7" onClick={handleSaveValue}>
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => { setLocalValue(deal?.value?.toString() || ''); setIsEditingValue(false); }}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsEditingValue(true)}
+            className="text-sm text-foreground font-medium hover:text-primary hover:bg-primary/5 px-2 py-1 rounded-md transition-all flex items-center gap-1.5 group"
+          >
+            {deal?.value != null && Number(deal.value) > 0
+              ? `R$ ${Number(deal.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+              : <span className="text-muted-foreground italic">R$ 0,00</span>
+            }
+            <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+          </button>
+        )}
       </div>
       {(() => {
         const isFieldFilled = (field: CustomFieldDefinition) => {
