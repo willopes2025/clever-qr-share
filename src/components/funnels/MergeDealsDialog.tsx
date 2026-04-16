@@ -317,8 +317,8 @@ export const MergeDealsDialog = ({ dealId, open, onOpenChange, onMerged }: Merge
       // 2. Transfer deal_tasks
       await supabase.from('deal_tasks').update({ deal_id: primaryDeal.id }).eq('deal_id', selectedDeal.id);
 
-      // 3. Transfer deal_stage_history
-      await supabase.from('deal_stage_history').update({ deal_id: primaryDeal.id }).eq('deal_id', selectedDeal.id);
+      // 3. Transfer funnel_deal_history
+      await supabase.from('funnel_deal_history').update({ deal_id: primaryDeal.id }).eq('deal_id', selectedDeal.id);
 
       // 4. Update contact if different
       if (primaryDeal.contact_id !== selectedDeal.contact_id && Object.keys(contactUpdate).length > 0) {
