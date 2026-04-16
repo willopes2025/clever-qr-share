@@ -1,44 +1,30 @@
 
 
-# Unificar Leads no Funil (Merge Deals)
+# Adicionar Campos Personalizados no Formulário de Deal (Funil)
 
 ## Problema
-Atualmente, a unificação só existe para conversas no Inbox. Quando um contato tem múltiplos leads (deals) em funis diferentes, não há como unificá-los pela interface do funil.
+O formulário "Editar Deal" no funil mostra apenas campos personalizados já existentes (via `DealCustomFieldsEditor`), mas **não oferece opção de adicionar novos campos** — diferente do formulário de contatos que tem o botão "Adicionar campo" com `FieldSelector` e `InlineFieldCreator`.
 
 ## Solução
-Adicionar uma opção "Unificar com outro lead" no menu de contexto do card do lead (Kanban e ListView). Ao clicar, abre um dialog com:
+Adicionar ao `DealCustomFieldsEditor` a mesma mecânica de seleção e criação de campos que existe no `ContactFormDialog`:
 
-1. **Etapa 1 — Busca**: Campo de busca por nome/telefone que lista todos os deals encontrados, mostrando o nome do contato, funil e etapa de cada um. O usuário seleciona o lead duplicado.
+1. **Botão "Adicionar campo"** com dropdown listando campos do tipo `lead` ainda não adicionados
+2. **Opção "Criar novo campo..."** inline para criar campos personalizados diretamente
+3. Campos adicionados aparecem dinamicamente no formulário
 
-2. **Etapa 2 — Comparação de campos**: Reutiliza o componente `MergeFieldComparison` existente, mas adaptado para comparar os campos do **deal** (título, valor, notas, responsável, custom_fields do deal) além dos campos do contato. O usuário clica no valor que quer manter.
+## Alterações
 
-3. **Unificação**: O lead mantido recebe os campos selecionados. O lead duplicado é excluído. Se os contatos forem diferentes, os dados do contato também são mesclados (como já funciona no Inbox). Tarefas e histórico de movimentação do lead excluído são transferidos para o lead mantido.
+### `DealCustomFieldsEditor.tsx`
+- Importar `FieldSelector` e `InlineFieldCreator` de `@/components/contacts/`
+- Manter estado `addedFieldIds` (campos visíveis) e `showCreateField`
+- Inicializar `addedFieldIds` com os campos que já têm valor em `values`
+- Renderizar `FieldSelector` com `availableFields` filtrado por `entity_type === 'lead'`
+- Renderizar `InlineFieldCreator` com `defaultEntityType='lead'` quando o usuário clicar "Criar novo campo"
+- Ao criar campo, chamar `createFieldDefinition` do hook `useCustomFields` e adicionar ao `addedFieldIds`
 
-## Componentes
+### `DealFormDialog.tsx`
+- Nenhuma alteração necessária — o `DealCustomFieldsEditor` já está integrado na linha 349
 
-### Novo: `MergeDealsDialog.tsx`
-- Props: `dealId`, `open`, `onOpenChange`, `onMerged`
-- Etapa "select": input de busca que consulta `funnel_deals` com join em `contacts` e `funnel_stages`/`funnels`. Exibe cards com nome, telefone, funil e etapa.
-- Etapa "compare": mostra campos do deal (título, valor, fonte, notas, responsável, custom_fields) + campos do contato. Reutiliza lógica de `buildFieldRows`/`getAutoSelections`.
-- Ao confirmar: atualiza o deal mantido com os campos selecionados, transfere tarefas (`deal_tasks`) e histórico (`deal_stage_history`), deleta o deal duplicado. Se contatos diferentes, mescla dados do contato.
-
-### Modificado: `FunnelDealCard.tsx`
-- Adiciona item "Unificar com outro lead" no DropdownMenu (com ícone `Merge`)
-- Renderiza `MergeDealsDialog`
-
-### Modificado: `FunnelListView.tsx`
-- Adiciona a mesma opção de unificação no menu de contexto da listagem
-
-## Fluxo técnico da unificação
-
-```text
-1. Atualiza deal mantido com campos selecionados (título, valor, notas, custom_fields, etc.)
-2. UPDATE deal_tasks SET deal_id = keepDealId WHERE deal_id = mergeDealId
-3. UPDATE deal_stage_history SET deal_id = keepDealId WHERE deal_id = mergeDealId
-4. Se contatos diferentes: atualiza contato mantido com campos selecionados
-5. DELETE funnel_deals WHERE id = mergeDealId
-6. Invalida queries do React Query
-```
-
-Nenhuma migração de banco é necessária — tudo usa tabelas e campos já existentes.
+## Resultado
+O usuário poderá adicionar e criar campos personalizados do tipo "lead" diretamente ao editar ou criar um deal no funil, com a mesma experiência que já existe no formulário de contatos.
 
