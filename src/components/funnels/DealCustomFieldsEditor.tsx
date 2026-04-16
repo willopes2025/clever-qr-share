@@ -85,7 +85,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
     <div className="space-y-4 border-t pt-4">
       <Label className="text-sm font-medium text-muted-foreground">Campos do Lead</Label>
       
-      {leadFieldDefinitions.map((field) => (
+      {visibleFields.map((field) => (
         <div key={field.id} className="space-y-2">
           <Label htmlFor={field.field_key} className="text-sm">
             {field.field_name}
