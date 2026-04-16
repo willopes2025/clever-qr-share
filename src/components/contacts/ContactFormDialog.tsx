@@ -444,8 +444,8 @@ export const ContactFormDialog = ({
               {/* Add Field Button */}
               {!showCreateField && (
                 <FieldSelector
-                  availableFields={fieldDefinitions || []}
-                  addedFieldIds={addedFieldIds}
+                    availableFields={fieldDefinitions?.filter(f => f.entity_type === 'contact') || []}
+                    addedFieldIds={addedFieldIds}
                   onSelectField={handleSelectField}
                   onCreateNew={() => setShowCreateField(true)}
                 >
