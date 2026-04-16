@@ -1,63 +1,44 @@
 
 
-# Correções na Geração de Cobrança PIX (Asaas)
+# Unificar Leads no Funil (Merge Deals)
 
-## Problemas Identificados
+## Problema
+Atualmente, a unificação só existe para conversas no Inbox. Quando um contato tem múltiplos leads (deals) em funis diferentes, não há como unificá-los pela interface do funil.
 
-1. **Telefone com DDI**: O código envia o telefone com o código do país (55). O Asaas aceita apenas DDD + número (ex: `27999315235`, não `5527999315235`).
-2. **Valor não resolvido**: Se o campo personalizado retorna array (campos tipo select), o `parseFloat` falha.
-3. **Data de vencimento ausente**: O campo de data pode estar em formato brasileiro (`dd/mm/yyyy`) ou ISO, e o parsing não trata ambos.
+## Solução
+Adicionar uma opção "Unificar com outro lead" no menu de contexto do card do lead (Kanban e ListView). Ao clicar, abre um dialog com:
 
-## Correções no Edge Function
+1. **Etapa 1 — Busca**: Campo de busca por nome/telefone que lista todos os deals encontrados, mostrando o nome do contato, funil e etapa de cada um. O usuário seleciona o lead duplicado.
 
-**Arquivo**: `supabase/functions/process-funnel-automations/index.ts`
+2. **Etapa 2 — Comparação de campos**: Reutiliza o componente `MergeFieldComparison` existente, mas adaptado para comparar os campos do **deal** (título, valor, notas, responsável, custom_fields do deal) além dos campos do contato. O usuário clica no valor que quer manter.
 
-### 1. Telefone -- remover DDI antes de enviar ao Asaas
-Na linha 1748-1769, após limpar o telefone, remover o prefixo `55` se presente:
-```typescript
-let cleanPhone = contactPhone.replace(/\D/g, '');
-// Asaas aceita apenas DDD + número (sem DDI 55)
-if (cleanPhone.startsWith('55') && cleanPhone.length > 11) {
-  cleanPhone = cleanPhone.slice(2);
-}
+3. **Unificação**: O lead mantido recebe os campos selecionados. O lead duplicado é excluído. Se os contatos forem diferentes, os dados do contato também são mesclados (como já funciona no Inbox). Tarefas e histórico de movimentação do lead excluído são transferidos para o lead mantido.
+
+## Componentes
+
+### Novo: `MergeDealsDialog.tsx`
+- Props: `dealId`, `open`, `onOpenChange`, `onMerged`
+- Etapa "select": input de busca que consulta `funnel_deals` com join em `contacts` e `funnel_stages`/`funnels`. Exibe cards com nome, telefone, funil e etapa.
+- Etapa "compare": mostra campos do deal (título, valor, fonte, notas, responsável, custom_fields) + campos do contato. Reutiliza lógica de `buildFieldRows`/`getAutoSelections`.
+- Ao confirmar: atualiza o deal mantido com os campos selecionados, transfere tarefas (`deal_tasks`) e histórico (`deal_stage_history`), deleta o deal duplicado. Se contatos diferentes, mescla dados do contato.
+
+### Modificado: `FunnelDealCard.tsx`
+- Adiciona item "Unificar com outro lead" no DropdownMenu (com ícone `Merge`)
+- Renderiza `MergeDealsDialog`
+
+### Modificado: `FunnelListView.tsx`
+- Adiciona a mesma opção de unificação no menu de contexto da listagem
+
+## Fluxo técnico da unificação
+
+```text
+1. Atualiza deal mantido com campos selecionados (título, valor, notas, custom_fields, etc.)
+2. UPDATE deal_tasks SET deal_id = keepDealId WHERE deal_id = mergeDealId
+3. UPDATE deal_stage_history SET deal_id = keepDealId WHERE deal_id = mergeDealId
+4. Se contatos diferentes: atualiza contato mantido com campos selecionados
+5. DELETE funnel_deals WHERE id = mergeDealId
+6. Invalida queries do React Query
 ```
 
-### 2. Valor -- tratar arrays e strings formatadas
-Na linha 1648, melhorar o parsing do valor:
-```typescript
-let rawValue = dealCustomFields[valueField];
-if (Array.isArray(rawValue)) rawValue = rawValue[0];
-// Remove formatação BR (ex: "1.250,00" → "1250.00")
-const chargeValue = parseFloat(
-  String(rawValue || '0').replace(/\./g, '').replace(',', '.')
-);
-```
-
-### 3. Data de vencimento -- tratar formato BR
-Na linha 1677-1678, detectar e converter formato brasileiro:
-```typescript
-if (!dueDate) {
-  const d = new Date();
-  d.setDate(d.getDate() + 3);
-  dueDate = d.toISOString().split('T')[0];
-} else {
-  const dueDateStr = String(dueDate);
-  // Detectar formato dd/mm/yyyy
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dueDateStr)) {
-    const [dd, mm, yyyy] = dueDateStr.split('/');
-    dueDate = `${yyyy}-${mm}-${dd}`;
-  } else {
-    dueDate = new Date(dueDateStr).toISOString().split('T')[0];
-  }
-}
-```
-
-### 4. Deploy e re-teste
-- Redeployar o edge function `process-funnel-automations`
-- Executar novamente a automação para a Tatiana para validar que valor, telefone e data são enviados corretamente
-
-## Resultado Esperado
-- Telefone enviado como `27999XXXXXX` (sem DDI)
-- Valor da cobrança preenchido corretamente (ex: R$ 250,00)
-- Data de vencimento no formato `YYYY-MM-DD` aceito pelo Asaas
+Nenhuma migração de banco é necessária — tudo usa tabelas e campos já existentes.
 
