@@ -123,6 +123,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageSize, setPageSize] = useState<number>(50);
+  const [mergingDealId, setMergingDealId] = useState<string | null>(null);
 
   // Drag-to-scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
