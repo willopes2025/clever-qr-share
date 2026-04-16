@@ -1289,6 +1289,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                         <DropdownMenuItem onClick={() => setEditingFieldDeal(deal)}>
                           Alterar Campo
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setMergingDealId(deal.id)}>
+                          <Merge className="h-4 w-4 mr-2" />
+                          Unificar com outro lead
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {!deal.isFinal && (
                           <DropdownMenuItem onClick={() => setClosingDeal(deal)}>
@@ -1470,6 +1474,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {mergingDealId && (
+        <MergeDealsDialog
+          dealId={mergingDealId}
+          open={!!mergingDealId}
+          onOpenChange={(open) => !open && setMergingDealId(null)}
+        />
+      )}
     </div>
   );
 };
