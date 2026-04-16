@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format, parse } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { FieldSelector } from "@/components/contacts/FieldSelector";
+import { InlineFieldCreator } from "@/components/contacts/InlineFieldCreator";
 
 interface DealCustomFieldsEditorProps {
   values: Record<string, unknown>;
@@ -24,7 +26,28 @@ interface DealCustomFieldsEditorProps {
 }
 
 export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEditorProps) => {
-  const { leadFieldDefinitions } = useCustomFields();
+  const { leadFieldDefinitions, createField } = useCustomFields();
+  const [addedFieldIds, setAddedFieldIds] = useState<string[]>([]);
+  const [showCreateField, setShowCreateField] = useState(false);
+
+  // Initialize addedFieldIds with fields that already have values
+  useEffect(() => {
+    if (leadFieldDefinitions && leadFieldDefinitions.length > 0) {
+      const idsWithValues = leadFieldDefinitions
+        .filter((f) => values[f.field_key] !== undefined && values[f.field_key] !== '' && values[f.field_key] !== null)
+        .map((f) => f.id);
+      if (idsWithValues.length > 0) {
+        setAddedFieldIds((prev) => {
+          const merged = new Set([...prev, ...idsWithValues]);
+          return Array.from(merged);
+        });
+      }
+    }
+  }, [leadFieldDefinitions]);
+
+  const visibleFields = useMemo(() => {
+    return (leadFieldDefinitions || []).filter((f) => addedFieldIds.includes(f.id));
+  }, [leadFieldDefinitions, addedFieldIds]);
 
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...values, [key]: value });
@@ -44,15 +67,25 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
     handleChange(key, nextValues);
   };
 
-  if (!leadFieldDefinitions || leadFieldDefinitions.length === 0) {
-    return null;
-  }
+  const handleSelectField = (fieldId: string) => {
+    setAddedFieldIds((prev) => [...prev, fieldId]);
+  };
+
+  const handleCreateField = async (fieldData: Parameters<typeof createField.mutateAsync>[0]) => {
+    try {
+      const newField = await createField.mutateAsync(fieldData);
+      setAddedFieldIds((prev) => [...prev, newField.id]);
+      setShowCreateField(false);
+    } catch {
+      // error handled by mutation
+    }
+  };
 
   return (
     <div className="space-y-4 border-t pt-4">
       <Label className="text-sm font-medium text-muted-foreground">Campos do Lead</Label>
       
-      {leadFieldDefinitions.map((field) => (
+      {visibleFields.map((field) => (
         <div key={field.id} className="space-y-2">
           <Label htmlFor={field.field_key} className="text-sm">
             {field.field_name}
@@ -222,6 +255,22 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
           )}
         </div>
       ))}
+
+      {showCreateField && (
+        <InlineFieldCreator
+          onSave={handleCreateField}
+          onCancel={() => setShowCreateField(false)}
+          isLoading={createField.isPending}
+          defaultEntityType="lead"
+        />
+      )}
+
+      <FieldSelector
+        availableFields={leadFieldDefinitions || []}
+        addedFieldIds={addedFieldIds}
+        onSelectField={handleSelectField}
+        onCreateNew={() => setShowCreateField(true)}
+      />
     </div>
   );
 };
