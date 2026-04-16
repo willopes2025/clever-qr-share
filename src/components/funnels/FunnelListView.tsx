@@ -79,6 +79,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
+import { MergeDealsDialog } from "./MergeDealsDialog";
 
 /**
  * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
