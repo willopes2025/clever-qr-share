@@ -103,6 +103,7 @@ export const ContactFormDialog = ({
     },
   });
 
+  // Reset form when contact changes (not when fieldDefinitions changes)
   useEffect(() => {
     form.reset({
       phone: contact?.phone || "",
@@ -116,15 +117,17 @@ export const ContactFormDialog = ({
     setCustomFieldValues(existingCustomFields);
     
     // When editing, add fields that have values
-    if (contact && fieldDefinitions) {
-      const fieldsWithValues = fieldDefinitions
+    if (contact) {
+      const defs = fieldDefinitions || [];
+      const fieldsWithValues = defs
         .filter((def) => existingCustomFields[def.field_key] !== undefined)
         .map((def) => def.id);
       setAddedFieldIds(fieldsWithValues);
     } else {
       setAddedFieldIds([]);
     }
-  }, [contact, form, fieldDefinitions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contact, form]);
 
   // Reset states when dialog closes or load current deal when editing
   useEffect(() => {
@@ -441,8 +444,8 @@ export const ContactFormDialog = ({
               {/* Add Field Button */}
               {!showCreateField && (
                 <FieldSelector
-                  availableFields={fieldDefinitions || []}
-                  addedFieldIds={addedFieldIds}
+                    availableFields={fieldDefinitions?.filter(f => f.entity_type === 'contact') || []}
+                    addedFieldIds={addedFieldIds}
                   onSelectField={handleSelectField}
                   onCreateNew={() => setShowCreateField(true)}
                 >
