@@ -20,6 +20,7 @@ import {
   Loader2,
   Send,
   MessageSquare,
+  Merge,
 } from "lucide-react";
 import {
   Table,
@@ -78,6 +79,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
+import { MergeDealsDialog } from "./MergeDealsDialog";
 
 /**
  * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
@@ -121,6 +123,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageSize, setPageSize] = useState<number>(50);
+  const [mergingDealId, setMergingDealId] = useState<string | null>(null);
 
   // Drag-to-scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1286,6 +1289,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                         <DropdownMenuItem onClick={() => setEditingFieldDeal(deal)}>
                           Alterar Campo
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setMergingDealId(deal.id)}>
+                          <Merge className="h-4 w-4 mr-2" />
+                          Unificar com outro lead
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {!deal.isFinal && (
                           <DropdownMenuItem onClick={() => setClosingDeal(deal)}>
@@ -1467,6 +1474,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {mergingDealId && (
+        <MergeDealsDialog
+          dealId={mergingDealId}
+          open={!!mergingDealId}
+          onOpenChange={(open) => !open && setMergingDealId(null)}
+        />
+      )}
     </div>
   );
 };
