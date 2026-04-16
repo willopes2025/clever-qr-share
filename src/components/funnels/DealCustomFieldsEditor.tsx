@@ -255,6 +255,22 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
           )}
         </div>
       ))}
+
+      {showCreateField && (
+        <InlineFieldCreator
+          onSave={handleCreateField}
+          onCancel={() => setShowCreateField(false)}
+          isLoading={createField.isPending}
+          defaultEntityType="lead"
+        />
+      )}
+
+      <FieldSelector
+        availableFields={leadFieldDefinitions || []}
+        addedFieldIds={addedFieldIds}
+        onSelectField={handleSelectField}
+        onCreateNew={() => setShowCreateField(true)}
+      />
     </div>
   );
 };
