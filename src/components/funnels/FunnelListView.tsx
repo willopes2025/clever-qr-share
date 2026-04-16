@@ -20,6 +20,7 @@ import {
   Loader2,
   Send,
   MessageSquare,
+  Merge,
 } from "lucide-react";
 import {
   Table,
