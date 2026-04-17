@@ -1,80 +1,71 @@
 
-Objetivo: eliminar o looping infinito de login em todos os ambientes atacando o problema pela raiz, não só o `signOut()` do plano anterior.
+Objetivo: continuar a investigação com base no código e nos logs atuais e atacar o que ainda pode causar o looping.
 
-Diagnóstico mais provável:
-- O app ainda tem várias consultas/automações autenticadas disparando cedo demais no primeiro render pós-login.
-- Hoje `AuthProvider` e `SubscriptionProvider` envolvem o app inteiro em `App.tsx`, inclusive rotas públicas.
-- Após o login, várias partes dependentes de auth podem montar quase ao mesmo tempo:
-  - `SubscriptionContext.checkSubscription()`
-  - `useOrganization()` / `PermissionGate`
-  - layouts laterais/mobile que usam `useOrganization`, `useAdmin`, `useConversations`, `useActivitySession`
-- Essas queries ainda são habilitadas principalmente por `user?.id`, não por um estado forte de “auth realmente pronto + token disponível”.
-- Isso combina com o padrão clássico de hidratação parcial de sessão: o usuário existe/está mudando, mas o token ainda não está estável para todas as queries RLS/edge functions.
+Diagnóstico atualizado:
+- Os logs disponíveis não apontam para uma queda geral do backend de autenticação:
+  - há respostas `200` em `/user`;
+  - a função `check-subscription` está autenticando usuários e retornando plano normalmente;
+  - não apareceu evidência de 401 em cascata nem de falha geral do backend.
+- Isso enfraquece a hipótese de “problema global da plataforma” como causa principal deste projeto.
+- O padrão restante no código é outro: ainda existem muitos hooks e subsistemas autenticados disparando só com `!!user`, sem exigir `authReady + session.access_token`.
+- Depois do login, a rota `/instances` já monta layout completo, sidebar, notificações, realtime e vários hooks que consultam banco/RLS cedo demais. Isso ainda pode gerar estado inconsistente e redirecionamento aparente em loop.
 
-Plano de implementação:
-1. Fortalecer o estado global de auth
-- Expandir `AuthContext` para expor um sinal explícito de prontidão, algo como `initialized` / `authReady`.
-- Considerar auth pronto só quando a sessão inicial tiver sido resolvida de forma definitiva.
-- Evitar qualquer lógica assíncrona extra dentro de `onAuthStateChange`.
+Pontos concretos encontrados:
+- `useConversations`, `useUnreadCount`, `useProfile`, `NotificationProvider`, `useGlobalRealtime` e vários outros hooks ainda usam `enabled: !!user` ou `!!user?.id`.
+- `DashboardLayout` e `MobileAppLayout` montam `ActivityTracker`, sidebars e componentes que puxam muitos hooks logo no primeiro render protegido.
+- `Login.tsx` ainda manda direto para `/instances`, que é uma tela pesada para o primeiro render pós-login.
+- Os logs do backend mostram usuários autenticados chegando até `check-subscription`, então o gargalo mais provável está no shell autenticado do app, não no login em si.
 
-2. Travar queries autenticadas até auth estar realmente pronto
-- Atualizar hooks críticos para usar `enabled: authReady && !!user && !!session?.access_token`:
-  - `useOrganization`
-  - `useAdmin`
-  - `useActivitySession`
-  - hooks de navegação/layout que dependem de tabelas com RLS
-- Onde houver `supabase.from(...)` ou `rpc(...)` iniciado só por `user?.id`, trocar para depender de `authReady`.
+Plano de correção:
+1. Criar um gate central único de sessão estável
+- Consolidar em um sinal único, por exemplo `isAuthenticatedStable = authReady && !!user && !!session?.access_token`.
+- Todo código autenticado passa a depender desse sinal, não apenas de `user`.
 
-3. Parar de inicializar assinatura em rotas públicas
-- Tirar `SubscriptionProvider` do escopo global e movê-lo para a área protegida, ou
-- manter global, mas deixá-lo completamente inerte enquanto não estiver em área autenticada e com `authReady`.
-- Isso reduz chamadas prematuras para `check-subscription` no handshake.
+2. Adicionar uma rota/página de pós-login leve
+- Em vez de mandar o usuário direto para `/instances`, criar um “bootstrap” pós-login.
+- Essa página só espera a sessão estabilizar e então redireciona para a área interna.
+- Isso evita montar sidebar, realtime e queries pesadas no mesmo frame do login.
 
-4. Blindar guards e telas de entrada
-- `ProtectedRoute` deve esperar `authReady`, não apenas `loading`.
-- `Login.tsx` deve navegar somente quando `authReady && user && session`.
-- Se o login for bem-sucedido mas a sessão ainda estiver hidratando, mostrar loading curto em vez de navegar/voltar.
+3. Blindar o shell autenticado
+- Fazer `AuthenticatedRoute`, `DashboardLayout` e `MobileAppLayout` só montarem sidebar, tracker, notificações e realtime quando a sessão estiver estável.
+- Se não estiver estável: spinner único.
+- Se estiver estável sem sessão: `/login`.
+- Se estiver estável com sessão: liberar app.
 
-5. Remover loaders infinitos causados por dependências circulares
-- Revisar `PermissionGate` + `useOrganization` para não prender a tela em loading se a query nem deveria rodar ainda.
-- Garantir fallback controlado:
-  - auth não pronto => spinner
-  - auth pronto sem usuário => `/login`
-  - auth pronto com usuário, mas query falhou => erro claro, não loop
+4. Corrigir os hooks que ainda disparam cedo
+- Trocar os casos críticos de `enabled: !!user` para `enabled: isAuthenticatedStable`, começando por:
+  - `useConversations`
+  - `useUnreadCount`
+  - `useProfile`
+  - `NotificationProvider`
+  - `useGlobalRealtime`
+  - hooks de badges/unread e demais hooks usados nas sidebars/layouts
 
-6. Instrumentar diagnóstico temporário
-- Adicionar logs de frontend em pontos-chave:
-  - auth inicializado
-  - signIn sucesso
-  - session disponível
-  - ProtectedRoute liberou/bloqueou
-  - useOrganization iniciou/finalizou
-  - check-subscription iniciou/finalizou
-- Isso permite confirmar se o loop é:
-  - redirect prematuro
-  - query RLS cedo demais
-  - falha de token no primeiro render
+5. Reduzir efeitos colaterais no primeiro render
+- Evitar criação automática de perfil ou outras escritas logo no primeiro paint autenticado.
+- Deixar o primeiro acesso protegido o mais passivo possível: validar sessão primeiro, carregar shell depois.
 
-Validação após aplicar:
-- Testar login por senha em `zap.wideic.com`, publicado e preview.
-- Confirmar sequência esperada:
-  ```text
-  signIn -> authReady=true -> session ok -> route protegida -> queries habilitadas
-  ```
-- Verificar que aparecem requests reais de login e que não há retorno imediato para `/login`.
-- Testar desktop e mobile.
+6. Instrumentar para fechar o diagnóstico
+- Adicionar logs temporários na sequência:
+  `signIn -> session set -> auth stable -> bootstrap ok -> shell montado -> hooks habilitados`
+- Isso vai mostrar exatamente em que ponto o loop reaparece caso ainda exista.
 
-Arquivos mais prováveis de ajuste:
+Arquivos mais prováveis:
 - `src/contexts/AuthContext.tsx`
-- `src/contexts/SubscriptionContext.tsx`
-- `src/components/ProtectedRoute.tsx`
 - `src/pages/Login.tsx`
-- `src/hooks/useOrganization.ts`
-- `src/hooks/useAdmin.ts`
-- `src/hooks/useActivitySession.ts`
-- possivelmente `src/App.tsx` para reescopo do `SubscriptionProvider`
+- `src/App.tsx`
+- `src/components/ProtectedRoute.tsx`
+- `src/layouts/AppLayout.tsx`
+- `src/components/DashboardLayout.tsx`
+- `src/mobile/layouts/MobileAppLayout.tsx`
+- `src/components/NotificationProvider.tsx`
+- `src/hooks/useConversations.ts`
+- `src/hooks/useUnreadCount.ts`
+- `src/hooks/useProfile.ts`
+- possivelmente outros hooks hoje habilitados apenas por `!!user`
 
-Detalhes técnicos:
-- O problema atual parece menos “credencial inválida” e mais “queries autenticadas disparando antes da sessão estar estável”.
-- O código já melhorou o logout forçado, mas ainda não centralizou um `authReady` forte para todo o app.
-- Sem esse gate único, cada hook tenta adivinhar sozinho quando a auth está pronta, e isso costuma gerar loop/intermitência.
+Resultado esperado:
+- o login deixa de cair diretamente numa tela pesada;
+- o app só monta infraestrutura autenticada depois da sessão estar realmente pronta;
+- some o looping visual entre login e área interna;
+- se ainda restar problema, os logs temporários vão isolar o ponto exato em vez de continuar “às cegas”.
