@@ -2,25 +2,33 @@ import { useState, useMemo } from "react";
 import { useFormSubmissions, FormField } from "@/hooks/useForms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Download, Filter, Pencil } from "lucide-react";
+import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { EditSubmissionDialog } from "./EditSubmissionDialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface SubmissionsListProps {
   formId: string;
   fields: FormField[];
 }
 
+interface ColumnFilter {
+  id: string;
+  column: string;
+  values: string[];
+}
+
 export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const { submissions, isLoading, updateSubmission } = useFormSubmissions(formId);
-  const [filterColumn, setFilterColumn] = useState<string>("none");
-  const [filterValue, setFilterValue] = useState("");
+  const [filters, setFilters] = useState<ColumnFilter[]>([]);
   const [editingSubmission, setEditingSubmission] = useState<any>(null);
 
   const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
@@ -28,23 +36,22 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   // Resolve option values (e.g. "option1") to their display labels
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
     if (rawValue === undefined || rawValue === null) return '-';
-    
+
     // Format date fields to DD/MM/YYYY
     if (field.field_type === 'date' && typeof rawValue === 'string' && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
       const datePart = rawValue.split('T')[0];
       const [y, m, d] = datePart.split('-');
       return `${d}/${m}/${y}`;
     }
-    
+
     const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
     if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
       const optionMap = new Map(field.options.map(o => [o.value, o.label]));
-      
+
       if (Array.isArray(rawValue)) {
         return rawValue.map(v => optionMap.get(v) || v).join(', ');
       }
       if (typeof rawValue === 'string') {
-        // Try parsing as JSON array
         if (rawValue.startsWith('[')) {
           try {
             const arr = JSON.parse(rawValue);
@@ -56,7 +63,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         return optionMap.get(rawValue) || rawValue;
       }
     }
-    
+
     if (typeof rawValue === 'object') return JSON.stringify(rawValue);
     return String(rawValue);
   };
@@ -71,44 +78,60 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     return opts;
   }, [visibleFields]);
 
-  // Get unique values for the selected column
-  const uniqueValues = useMemo(() => {
-    if (!submissions || filterColumn === "none") return [];
+  // Compute the displayed value for a submission/column
+  const getCellValue = (sub: any, column: string): string => {
+    if (column === "date") return format(new Date(sub.created_at), "dd/MM/yyyy");
+    if (column === "contact") return sub.contacts?.name || sub.contacts?.phone || "Anônimo";
+    const field = visibleFields.find(f => f.id === column);
+    const raw = sub.data[column] ?? "";
+    return field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
+  };
+
+  // Get unique values for a given column
+  const getUniqueValues = (column: string): string[] => {
+    if (!submissions) return [];
     const vals = new Set<string>();
     submissions.forEach(sub => {
-      let val = "";
-      if (filterColumn === "date") {
-        val = format(new Date(sub.created_at), "dd/MM/yyyy");
-      } else if (filterColumn === "contact") {
-        val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
-      } else {
-        const field = visibleFields.find(f => f.id === filterColumn);
-        const raw = sub.data[filterColumn] ?? "";
-        val = field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
-      }
-      if (val && val !== "-") vals.add(val);
+      const v = getCellValue(sub, column);
+      if (v && v !== "-") vals.add(v);
     });
     return Array.from(vals).sort();
-  }, [submissions, filterColumn]);
+  };
 
-  // Filtered submissions
+  // Filtered submissions: a submission must match ALL filters; within a filter, ANY of the selected values
   const filteredSubmissions = useMemo(() => {
     if (!submissions) return [];
-    if (filterColumn === "none" || !filterValue) return submissions;
-    return submissions.filter(sub => {
-      let val = "";
-      if (filterColumn === "date") {
-        val = format(new Date(sub.created_at), "dd/MM/yyyy");
-      } else if (filterColumn === "contact") {
-        val = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
-      } else {
-        const field = visibleFields.find(f => f.id === filterColumn);
-        const raw = sub.data[filterColumn] ?? "";
-        val = field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
-      }
-      return val.toLowerCase().includes(filterValue.toLowerCase());
-    });
-  }, [submissions, filterColumn, filterValue]);
+    const active = filters.filter(f => f.column && f.values.length > 0);
+    if (active.length === 0) return submissions;
+    return submissions.filter(sub =>
+      active.every(f => {
+        const v = getCellValue(sub, f.column);
+        return f.values.includes(v);
+      })
+    );
+  }, [submissions, filters, visibleFields]);
+
+  const addFilter = () => {
+    setFilters(prev => [...prev, { id: crypto.randomUUID(), column: "", values: [] }]);
+  };
+
+  const updateFilterColumn = (id: string, column: string) => {
+    setFilters(prev => prev.map(f => f.id === id ? { ...f, column, values: [] } : f));
+  };
+
+  const toggleFilterValue = (id: string, value: string) => {
+    setFilters(prev => prev.map(f => {
+      if (f.id !== id) return f;
+      const exists = f.values.includes(value);
+      return { ...f, values: exists ? f.values.filter(v => v !== value) : [...f.values, value] };
+    }));
+  };
+
+  const removeFilter = (id: string) => {
+    setFilters(prev => prev.filter(f => f.id !== id));
+  };
+
+  const clearAll = () => setFilters([]);
 
   const handleExportCSV = () => {
     if (!filteredSubmissions || filteredSubmissions.length === 0) return;
@@ -127,7 +150,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     });
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
     ].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -174,44 +197,97 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={filterColumn} onValueChange={(v) => { setFilterColumn(v); setFilterValue(""); }}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Filtrar por coluna..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Sem filtro</SelectItem>
-            {columnOptions.map(opt => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-start gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 h-9">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Filtros:</span>
+        </div>
 
-        {filterColumn !== "none" && (
-          uniqueValues.length <= 20 ? (
-            <Select value={filterValue} onValueChange={setFilterValue}>
-              <SelectTrigger className="w-[250px]">
-                <SelectValue placeholder="Selecione o valor..." />
-              </SelectTrigger>
-              <SelectContent>
-                {uniqueValues.map(v => (
-                  <SelectItem key={v} value={v}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              placeholder="Digite para filtrar..."
-              value={filterValue}
-              onChange={(e) => setFilterValue(e.target.value)}
-              className="w-[250px]"
-            />
-          )
-        )}
+        {filters.map((filter) => {
+          const uniqueValues = filter.column ? getUniqueValues(filter.column) : [];
+          const columnLabel = columnOptions.find(c => c.value === filter.column)?.label;
+          return (
+            <div key={filter.id} className="flex items-center gap-1 bg-muted/50 rounded-md p-1 border">
+              <Select value={filter.column} onValueChange={(v) => updateFilterColumn(filter.id, v)}>
+                <SelectTrigger className="w-[180px] h-8 border-0 bg-transparent">
+                  <SelectValue placeholder="Coluna..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {columnOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-        {filterValue && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterColumn("none"); setFilterValue(""); }}>
+              {filter.column && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 min-w-[200px] justify-between"
+                    >
+                      <span className="truncate text-left">
+                        {filter.values.length === 0
+                          ? `Selecione ${columnLabel?.toLowerCase()}...`
+                          : filter.values.length === 1
+                            ? filter.values[0]
+                            : `${filter.values.length} selecionados`}
+                      </span>
+                      <ChevronsUpDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum valor encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {uniqueValues.map(v => {
+                            const checked = filter.values.includes(v);
+                            return (
+                              <CommandItem
+                                key={v}
+                                onSelect={() => toggleFilterValue(filter.id, v)}
+                                className="cursor-pointer"
+                              >
+                                <div className={cn(
+                                  "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                  checked ? "bg-primary text-primary-foreground" : "opacity-50"
+                                )}>
+                                  {checked && <Check className="h-3 w-3" />}
+                                </div>
+                                <span className="flex-1 truncate">{v}</span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => removeFilter(filter.id)}
+                title="Remover filtro"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          );
+        })}
+
+        <Button variant="outline" size="sm" onClick={addFilter} className="h-9">
+          <Plus className="h-4 w-4 mr-1" />
+          Adicionar filtro
+        </Button>
+
+        {filters.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearAll} className="h-9">
             Limpar
           </Button>
         )}
