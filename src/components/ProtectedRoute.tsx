@@ -6,9 +6,10 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, session, loading } = useAuth();
+  const { user, session, loading, authReady } = useAuth();
 
-  if (loading || (!!session && !user)) {
+  // Wait for auth to be fully ready before deciding anything
+  if (!authReady || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
@@ -16,7 +17,8 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  if (!user) {
+  // Auth is ready: if no user OR no session token, redirect to login
+  if (!user || !session?.access_token) {
     return <Navigate to="/login" replace />;
   }
 

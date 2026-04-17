@@ -22,7 +22,7 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, session, loading: authLoading, authReady } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,15 +38,17 @@ const Login = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    // Defer navigation out of the render cycle to avoid flicker-driven redirects.
+    // Only navigate when auth is fully ready AND we have both a user and a token
+    if (!authReady || authLoading) return;
+    if (!user || !session?.access_token) return;
+    console.log('[Login] Auth ready, redirecting to /instances');
     const t = window.setTimeout(() => {
       navigate('/instances', { replace: true });
     }, 0);
     return () => window.clearTimeout(t);
-  }, [user, authLoading, navigate]);
+  }, [user, session?.access_token, authLoading, authReady, navigate]);
 
-  if (authLoading) {
+  if (!authReady || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -54,7 +56,7 @@ const Login = () => {
     );
   }
 
-  if (user) {
+  if (user && session?.access_token) {
     return null;
   }
 
