@@ -38,7 +38,7 @@ const ForgotPasswordDialog = ({ open, onOpenChange }: ForgotPasswordDialogProps)
     setLoading(false);
 
     if (error) {
-      toast.error('Erro ao enviar email de recuperação');
+      toast.error(error.message || 'Erro ao enviar email de recuperação');
       return;
     }
 
