@@ -38,9 +38,12 @@ const Login = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (authLoading || !user) return;
+    // Defer navigation out of the render cycle to avoid flicker-driven redirects.
+    const t = window.setTimeout(() => {
       navigate('/instances', { replace: true });
-    }
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [user, authLoading, navigate]);
 
   if (authLoading) {
@@ -67,17 +70,35 @@ const Login = () => {
 
     setLoading(true);
     const { error } = await signIn(normalizedEmail, password);
-    setLoading(false);
 
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
+      setLoading(false);
+      const msg = error.message || '';
+      if (msg.includes('Invalid login credentials')) {
         toast.error('Email ou senha incorretos');
+      } else if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+        toast.error('Falha de conexão. Verifique sua internet, VPN ou extensões do navegador e tente novamente.');
       } else {
-        toast.error(error.message);
+        toast.error(msg);
       }
       return;
     }
 
+    // Explicit fallback: confirm session is hydrated, then navigate ourselves.
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) {
+        toast.success('Login realizado com sucesso!');
+        setLoading(false);
+        navigate('/instances', { replace: true });
+        return;
+      }
+    } catch (e) {
+      console.warn('[Login] getSession fallback failed:', e);
+    }
+
+    setLoading(false);
     toast.success('Login realizado com sucesso!');
   };
 

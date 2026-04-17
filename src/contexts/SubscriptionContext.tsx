@@ -67,10 +67,10 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       if (error) {
         const message = (error as any)?.message ?? '';
         const status = (error as any)?.status ?? (error as any)?.context?.status;
-        
+
         // Check if it's a network/timeout error (NOT an auth error)
         const isNetworkError = /timeout|network|fetch|500|502|503|504|ECONNREFUSED|context canceled/i.test(message);
-        
+
         if (isNetworkError) {
           console.warn('[SubscriptionContext] Network/timeout error, keeping current state:', message);
           // If we have no subscription data yet, schedule a retry with backoff
@@ -83,27 +83,30 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
           }
           return;
         }
-        
-        const isAuthError = status === 401 || /auth|session|jwt|unauthorized|401/i.test(message);
+
+        const isAuthError = status === 401;
 
         if (isAuthError) {
-          // Try refreshing the session once
+          // Try refreshing the session once - but DO NOT force logout if refresh fails for any reason
+          // other than an explicit invalid_grant / refresh_token_not_found.
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-          
+
           if (refreshError) {
-            // Check if refresh error is also a network error
             const refreshMsg = refreshError.message ?? '';
-            if (/timeout|network|fetch|500|502|503|504/i.test(refreshMsg)) {
-              console.warn('[SubscriptionContext] Refresh failed due to network, keeping state:', refreshMsg);
+            const isInvalidGrant = /invalid_grant|refresh_token_not_found|refresh_token_already_used/i.test(refreshMsg);
+
+            if (isInvalidGrant) {
+              console.warn('[SubscriptionContext] Refresh token invalid, signing out:', refreshMsg);
+              await supabase.auth.signOut();
+              setSubscription(null);
               return;
             }
-            // Refresh failed - session is completely invalid, force logout
-            console.warn('Session refresh failed, forcing logout:', refreshError.message);
-            await supabase.auth.signOut();
-            setSubscription(null);
+
+            // Any other refresh failure (network, 500, etc.) — keep user logged in.
+            console.warn('[SubscriptionContext] Refresh failed but not invalid_grant, keeping session:', refreshMsg);
             return;
           }
-          
+
           if (refreshData?.session) {
             // Retry with refreshed token
             const { data: retryData, error: retryError } = await supabase.functions.invoke('check-subscription', {
@@ -113,16 +116,17 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
             });
             if (!retryError) {
               setSubscription(retryData);
+              hasLoadedRef.current = true;
               return;
             }
+            console.warn('[SubscriptionContext] Retry after refresh failed, keeping session:', (retryError as any)?.message);
+            return;
           }
-          
-          // If we get here, both attempts failed - but only logout if it's truly an auth error
-          console.warn('Subscription check auth error after refresh attempt, forcing logout');
-          await supabase.auth.signOut();
-          setSubscription(null);
+
+          // No refresh data and no error: keep session, do not force logout.
+          console.warn('[SubscriptionContext] Refresh returned no session, keeping current auth state.');
         } else {
-          console.error('Error checking subscription:', error);
+          console.warn('[SubscriptionContext] Non-auth error checking subscription, keeping session:', message, status);
         }
       } else {
         setSubscription(data);
