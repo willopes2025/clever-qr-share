@@ -1,64 +1,80 @@
 
+Objetivo: eliminar o looping infinito de login em todos os ambientes atacando o problema pela raiz, não só o `signOut()` do plano anterior.
 
-## Diagnóstico aprofundado
+Diagnóstico mais provável:
+- O app ainda tem várias consultas/automações autenticadas disparando cedo demais no primeiro render pós-login.
+- Hoje `AuthProvider` e `SubscriptionProvider` envolvem o app inteiro em `App.tsx`, inclusive rotas públicas.
+- Após o login, várias partes dependentes de auth podem montar quase ao mesmo tempo:
+  - `SubscriptionContext.checkSubscription()`
+  - `useOrganization()` / `PermissionGate`
+  - layouts laterais/mobile que usam `useOrganization`, `useAdmin`, `useConversations`, `useActivitySession`
+- Essas queries ainda são habilitadas principalmente por `user?.id`, não por um estado forte de “auth realmente pronto + token disponível”.
+- Isso combina com o padrão clássico de hidratação parcial de sessão: o usuário existe/está mudando, mas o token ainda não está estável para todas as queries RLS/edge functions.
 
-**Evidências do backend (logs auth, últimos 90 min):**
-- Apenas **1 login real** em `auth.users.last_sign_in_at` em 2h (`studiogalacha.adm` 12:16). O "Login" aparente nos logs é **token refresh** (`grant_type=refresh_token`) de sessões antigas — não um login novo com senha.
-- **Não há nenhum `POST /token?grant_type=password` chegando ao backend** vindo dos usuários afetados. Isso significa que a requisição de login está sendo **abortada/encaminhada errado no cliente**, não rejeitada pelo Supabase.
-- Auth, edge functions e DB estão saudáveis.
+Plano de implementação:
+1. Fortalecer o estado global de auth
+- Expandir `AuthContext` para expor um sinal explícito de prontidão, algo como `initialized` / `authReady`.
+- Considerar auth pronto só quando a sessão inicial tiver sido resolvida de forma definitiva.
+- Evitar qualquer lógica assíncrona extra dentro de `onAuthStateChange`.
 
-**Causa raiz mais provável (no código):**
+2. Travar queries autenticadas até auth estar realmente pronto
+- Atualizar hooks críticos para usar `enabled: authReady && !!user && !!session?.access_token`:
+  - `useOrganization`
+  - `useAdmin`
+  - `useActivitySession`
+  - hooks de navegação/layout que dependem de tabelas com RLS
+- Onde houver `supabase.from(...)` ou `rpc(...)` iniciado só por `user?.id`, trocar para depender de `authReady`.
 
-Existe uma **cadeia de logout em loop** disparada pelo `SubscriptionContext`. Quando um usuário entra (mesmo no domínio próprio), o fluxo é:
+3. Parar de inicializar assinatura em rotas públicas
+- Tirar `SubscriptionProvider` do escopo global e movê-lo para a área protegida, ou
+- manter global, mas deixá-lo completamente inerte enquanto não estiver em área autenticada e com `authReady`.
+- Isso reduz chamadas prematuras para `check-subscription` no handshake.
 
-1. `signIn` ok → `AuthContext` seta sessão.
-2. `Login.tsx` redireciona para `/instances`.
-3. `SubscriptionContext` chama `check-subscription` edge function.
-4. Se a função retorna **qualquer 401 OU qualquer string contendo "auth", "session", "jwt"** (regex em `SubscriptionContext.tsx:87`), tenta refresh; se refresh também falha por motivo qualquer não-rede → **`supabase.auth.signOut()` força logout global**.
-5. `ProtectedRoute` detecta `!user` → manda de volta para `/login`.
-6. Usuário vê "loop infinito".
+4. Blindar guards e telas de entrada
+- `ProtectedRoute` deve esperar `authReady`, não apenas `loading`.
+- `Login.tsx` deve navegar somente quando `authReady && user && session`.
+- Se o login for bem-sucedido mas a sessão ainda estiver hidratando, mostrar loading curto em vez de navegar/voltar.
 
-Isso explica por que **alguns usuários conseguem (sessão antiga via cookie/refresh) e outros não** (login novo cai no signOut forçado por `check-subscription`).
+5. Remover loaders infinitos causados por dependências circulares
+- Revisar `PermissionGate` + `useOrganization` para não prender a tela em loading se a query nem deveria rodar ainda.
+- Garantir fallback controlado:
+  - auth não pronto => spinner
+  - auth pronto sem usuário => `/login`
+  - auth pronto com usuário, mas query falhou => erro claro, não loop
 
-**Causas adicionais que agravam:**
-- `Login.tsx` redireciona com `replace: true` no `useEffect` mesmo durante o handshake — qualquer flicker em `user` causa navegação.
-- `ResetPassword.tsx` redireciona pra `/login` se a sessão demora a hidratar (mobile costuma ser >800ms).
-- `signIn` faz `setLoading(true)` mas só desliga em caso de erro — o sucesso depende do `onAuthStateChange` rodar antes do redirect.
+6. Instrumentar diagnóstico temporário
+- Adicionar logs de frontend em pontos-chave:
+  - auth inicializado
+  - signIn sucesso
+  - session disponível
+  - ProtectedRoute liberou/bloqueou
+  - useOrganization iniciou/finalizou
+  - check-subscription iniciou/finalizou
+- Isso permite confirmar se o loop é:
+  - redirect prematuro
+  - query RLS cedo demais
+  - falha de token no primeiro render
 
-## Plano de correção
+Validação após aplicar:
+- Testar login por senha em `zap.wideic.com`, publicado e preview.
+- Confirmar sequência esperada:
+  ```text
+  signIn -> authReady=true -> session ok -> route protegida -> queries habilitadas
+  ```
+- Verificar que aparecem requests reais de login e que não há retorno imediato para `/login`.
+- Testar desktop e mobile.
 
-### 1. Parar o `signOut()` automático do `SubscriptionContext`
-Trocar a regra atual (qualquer erro com palavra "auth" → logout) por:
-- Só fazer logout quando o erro for **especificamente** `status === 401` **E** o refresh real falhar com erro do tipo `invalid_grant`/`refresh_token_not_found`.
-- Em qualquer outra falha (erro de rede, 500, edge function offline, RLS), **manter usuário logado** e apenas exibir um aviso silencioso.
-- Adicionar `console.warn` detalhado pra investigar futuros casos sem deslogar.
+Arquivos mais prováveis de ajuste:
+- `src/contexts/AuthContext.tsx`
+- `src/contexts/SubscriptionContext.tsx`
+- `src/components/ProtectedRoute.tsx`
+- `src/pages/Login.tsx`
+- `src/hooks/useOrganization.ts`
+- `src/hooks/useAdmin.ts`
+- `src/hooks/useActivitySession.ts`
+- possivelmente `src/App.tsx` para reescopo do `SubscriptionProvider`
 
-### 2. Tornar `Login.tsx` resiliente ao handshake
-- Aguardar tanto `!authLoading` **quanto** `user` antes do `navigate`, e usar `setTimeout(0)` pra evitar redirect durante render.
-- Após `signIn` bem-sucedido, fazer fallback explícito: chamar `getSession()` e só então navegar, em vez de depender só do `useEffect`.
-
-### 3. Estender retry no `ResetPassword.tsx`
-- Aumentar timeout de 800 ms para ~3 s e tentar 3 vezes antes de declarar link inválido (mobile/Safari demora).
-
-### 4. Endurecer mensagens
-- Mostrar mensagem real quando "Failed to fetch" acontecer no login, sugerindo trocar de rede/extensões.
-
-### 5. Validar
-- Após deploy, testar login com 2 contas diferentes em `zap.wideic.com` (desktop + mobile).
-- Conferir nos logs se aparecem `POST /token grant_type=password status:200` para os e-mails testados.
-
-## Arquivos afetados
-- `src/contexts/SubscriptionContext.tsx` — remover signOut automático.
-- `src/pages/Login.tsx` — redirecionamento robusto.
-- `src/pages/ResetPassword.tsx` — retries mais longos.
-- `src/contexts/AuthContext.tsx` — garantir `setLoading(false)` após signIn bem-sucedido (não esperar só o evento).
-
-## Risco
-Baixo. Todas as mudanças são conservadoras (param de deslogar onde não devem). Não tocam em RLS, edge functions, schema ou config de auth.
-
-<lov-actions>
-<lov-suggestion message="Aprovado. Aplique as correções do plano (parar signOut automático no SubscriptionContext, tornar o Login.tsx resiliente ao handshake e estender retries no ResetPassword) e me avise quando estiver no ar pra eu testar.">Aplicar correções</lov-suggestion>
-<lov-suggestion message="Antes de mexer no código, me mostre exatamente quais usuários tentaram logar nos últimos 60 minutos e quais erros apareceram, pra confirmar 100% o diagnóstico.">Aprofundar diagnóstico antes</lov-suggestion>
-<lov-suggestion message="Aplique só a correção mais crítica: parar o signOut() automático do SubscriptionContext. Deixe os outros ajustes pra depois.">Só a correção crítica</lov-suggestion>
-</lov-actions>
-
+Detalhes técnicos:
+- O problema atual parece menos “credencial inválida” e mais “queries autenticadas disparando antes da sessão estar estável”.
+- O código já melhorou o logout forçado, mas ainda não centralizou um `authReady` forte para todo o app.
+- Sem esse gate único, cada hook tenta adivinhar sozinho quando a auth está pronta, e isso costuma gerar loop/intermitência.
