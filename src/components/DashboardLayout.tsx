@@ -3,8 +3,6 @@ import { SidebarProvider, useSidebarContext } from "@/contexts/SidebarContext";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { ActivityTracker } from "@/components/productivity/ActivityTracker";
 import { WilAssistant } from "@/components/WilAssistant";
-import { PageLoader } from "@/components/PageLoader";
-import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
@@ -18,11 +16,6 @@ interface DashboardLayoutProps {
  */
 const LayoutContent = ({ children, className }: DashboardLayoutProps) => {
   const { isCollapsed } = useSidebarContext();
-  const { isAuthenticatedStable } = useAuth();
-
-  if (!isAuthenticatedStable) {
-    return <PageLoader />;
-  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -22,7 +22,7 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signUp, signInWithGoogle, user, session, loading: authLoading, authReady } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,89 +38,52 @@ const Login = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    // Only navigate when auth is fully ready AND we have both a user and a token
-    if (!authReady || authLoading) return;
-    if (!user || !session?.access_token) return;
-    console.log('[Login] auth stable, redirecting to /auth/bootstrap');
-    const t = window.setTimeout(() => {
-      navigate('/auth/bootstrap', { replace: true });
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [user, session?.access_token, authLoading, authReady, navigate]);
+    if (user) {
+      navigate('/instances');
+    }
+  }, [user, navigate]);
 
-  if (!authReady || authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (user && session?.access_token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+  if (user) {
+    return null;
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const validation = authSchema.safeParse({ email: normalizedEmail, password });
+    
+    const validation = authSchema.safeParse({ email, password });
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       return;
     }
 
     setLoading(true);
-    const { error } = await signIn(normalizedEmail, password);
+    const { error } = await signIn(email, password);
+    setLoading(false);
 
     if (error) {
-      setLoading(false);
-      const msg = error.message || '';
-      if (msg.includes('Invalid login credentials')) {
+      if (error.message.includes('Invalid login credentials')) {
         toast.error('Email ou senha incorretos');
-      } else if (/failed to fetch|networkerror|load failed/i.test(msg)) {
-        toast.error('Falha de conexão. Verifique sua internet, VPN ou extensões do navegador e tente novamente.');
       } else {
-        toast.error(msg);
+        toast.error(error.message);
       }
       return;
     }
 
-    // Explicit fallback: confirm session is hydrated, then navigate ourselves.
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase.auth.getSession();
-      if (data?.session) {
-        console.log('[Login] signIn success, session hydrated -> /auth/bootstrap');
-        toast.success('Login realizado com sucesso!');
-        setLoading(false);
-        navigate('/auth/bootstrap', { replace: true });
-        return;
-      }
-    } catch (e) {
-      console.warn('[Login] getSession fallback failed:', e);
-    }
-
-    setLoading(false);
     toast.success('Login realizado com sucesso!');
+    navigate('/instances');
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const normalizedEmail = email.trim().toLowerCase();
-    const validation = authSchema.safeParse({ email: normalizedEmail, password });
+    
+    const validation = authSchema.safeParse({ email, password });
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       return;
     }
 
     setLoading(true);
-    const { error } = await signUp(normalizedEmail, password);
+    const { error } = await signUp(email, password);
     setLoading(false);
 
     if (error) {
@@ -133,7 +96,7 @@ const Login = () => {
     }
 
     toast.success('Conta criada com sucesso! Você já pode fazer login.');
-    navigate('/login', { replace: true });
+    navigate('/instances');
   };
 
   return (

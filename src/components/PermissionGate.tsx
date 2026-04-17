@@ -1,14 +1,9 @@
 import { useOrganization } from "@/hooks/useOrganization";
 import { PermissionKey } from "@/config/permissions";
+import { AppLayout } from "@/layouts/AppLayout";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const PermissionGateShell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-background flex items-center justify-center p-4">
-    {children}
-  </div>
-);
 
 interface PermissionGateProps {
   permission: PermissionKey;
@@ -23,9 +18,9 @@ export const PermissionGate = ({ permission, children, fallback }: PermissionGat
   // Enquanto carrega, mostrar loading
   if (isLoading) {
     return (
-      <PermissionGateShell>
+      <AppLayout className="flex items-center justify-center min-h-[60vh]">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </PermissionGateShell>
+      </AppLayout>
     );
   }
 
@@ -42,7 +37,7 @@ export const PermissionGate = ({ permission, children, fallback }: PermissionGat
   // Se tem organização mas não tem membro carregado (situação de erro), bloquear
   if (!currentMember) {
     return (
-      <PermissionGateShell>
+      <AppLayout className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center max-w-md p-8 bg-card/50 rounded-2xl border border-border/50">
           <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <ShieldAlert className="h-8 w-8 text-destructive" />
@@ -56,7 +51,7 @@ export const PermissionGate = ({ permission, children, fallback }: PermissionGat
             Voltar ao Dashboard
           </Button>
         </div>
-      </PermissionGateShell>
+      </AppLayout>
     );
   }
 
@@ -73,7 +68,7 @@ export const PermissionGate = ({ permission, children, fallback }: PermissionGat
   }
 
   return (
-    <PermissionGateShell>
+    <AppLayout className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center max-w-md p-8 bg-card/50 rounded-2xl border border-border/50">
         <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-6">
           <ShieldAlert className="h-8 w-8 text-destructive" />
@@ -87,6 +82,6 @@ export const PermissionGate = ({ permission, children, fallback }: PermissionGat
           Voltar ao Dashboard
         </Button>
       </div>
-    </PermissionGateShell>
+    </AppLayout>
   );
 };

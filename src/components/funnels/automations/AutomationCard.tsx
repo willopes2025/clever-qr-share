@@ -100,7 +100,6 @@ const actionIcons: Record<string, React.ReactNode> = {
   close_deal_lost: <XCircle className="h-3 w-3" />,
   ai_analyze_and_move: <Bot className="h-3 w-3" />,
   activate_ai: <Bot className="h-3 w-3" />,
-  generate_asaas_pix: <DollarSign className="h-3 w-3" />,
 };
 
 const actionLabels: Record<string, string> = {
@@ -121,7 +120,6 @@ const actionLabels: Record<string, string> = {
   close_deal_lost: "Fechar perdido",
   ai_analyze_and_move: "IA analisa e move",
   activate_ai: "Acionar IA",
-  generate_asaas_pix: "Cobrança PIX",
 };
 
 const triggerColors: Record<string, string> = {

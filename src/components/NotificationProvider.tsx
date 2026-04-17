@@ -13,7 +13,7 @@ interface NotificationProviderProps {
 }
 
 export const NotificationProvider = ({ children }: NotificationProviderProps) => {
-  const { user, session, isAuthenticatedStable } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { permission, requestPermission, sendBrowserNotification, playNotificationSound } = useNotifications();
@@ -36,7 +36,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
       if (error) throw error;
       return data?.map(i => i.id) || [];
     },
-    enabled: isAuthenticatedStable && !!user?.id && !!session?.access_token,
+    enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutes - these rarely change
   });
 
@@ -45,15 +45,13 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Request notification permission on first load
   useEffect(() => {
-    if (!isAuthenticatedStable) return;
-
     if (permission === 'default') {
       const timeout = setTimeout(() => {
         requestPermission();
       }, 2000);
       return () => clearTimeout(timeout);
     }
-  }, [isAuthenticatedStable, permission, requestPermission]);
+  }, [permission, requestPermission]);
 
   // Get contact name from cached data or fetch
   const getContactName = useCallback(async (conversationId: string): Promise<string> => {
@@ -83,9 +81,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Listen for inbound messages for browser notifications only
   useEffect(() => {
-    if (!isAuthenticatedStable || !user?.id || !session?.access_token) return;
-
-    console.log('[NotificationProvider] enabled');
+    if (!user?.id) return;
 
     const channel = supabase
       .channel('notification-inbound-messages')
@@ -149,7 +145,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticatedStable, user?.id, session?.access_token, getContactName, playNotificationSound, sendBrowserNotification, navigate, queryClient, notificationInstanceIds]);
+  }, [user?.id, getContactName, playNotificationSound, sendBrowserNotification, navigate, queryClient, notificationInstanceIds]);
 
   return <>{children}</>;
 };

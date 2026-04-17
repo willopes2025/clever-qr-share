@@ -21,7 +21,7 @@ interface SubscriptionContextType {
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
-  const { user, session, loading: authLoading, authReady, isAuthenticatedStable } = useAuthContext();
+  const { user, session, loading: authLoading } = useAuthContext();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const checkInFlightRef = useRef(false);
@@ -33,7 +33,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const checkSubscription = useCallback(async (isInitial = false) => {
     // Prevent concurrent checks
     if (checkInFlightRef.current) return;
-    if (authLoading || !authReady || !isAuthenticatedStable) return;
+    if (authLoading) return;
 
     checkInFlightRef.current = true;
     // Only show loading spinner on initial check, not on re-checks
@@ -67,10 +67,10 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       if (error) {
         const message = (error as any)?.message ?? '';
         const status = (error as any)?.status ?? (error as any)?.context?.status;
-
+        
         // Check if it's a network/timeout error (NOT an auth error)
         const isNetworkError = /timeout|network|fetch|500|502|503|504|ECONNREFUSED|context canceled/i.test(message);
-
+        
         if (isNetworkError) {
           console.warn('[SubscriptionContext] Network/timeout error, keeping current state:', message);
           // If we have no subscription data yet, schedule a retry with backoff
@@ -83,30 +83,27 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
           }
           return;
         }
-
-        const isAuthError = status === 401;
+        
+        const isAuthError = status === 401 || /auth|session|jwt|unauthorized|401/i.test(message);
 
         if (isAuthError) {
-          // Try refreshing the session once - but DO NOT force logout if refresh fails for any reason
-          // other than an explicit invalid_grant / refresh_token_not_found.
+          // Try refreshing the session once
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-
+          
           if (refreshError) {
+            // Check if refresh error is also a network error
             const refreshMsg = refreshError.message ?? '';
-            const isInvalidGrant = /invalid_grant|refresh_token_not_found|refresh_token_already_used/i.test(refreshMsg);
-
-            if (isInvalidGrant) {
-              console.warn('[SubscriptionContext] Refresh token invalid, signing out:', refreshMsg);
-              await supabase.auth.signOut();
-              setSubscription(null);
+            if (/timeout|network|fetch|500|502|503|504/i.test(refreshMsg)) {
+              console.warn('[SubscriptionContext] Refresh failed due to network, keeping state:', refreshMsg);
               return;
             }
-
-            // Any other refresh failure (network, 500, etc.) — keep user logged in.
-            console.warn('[SubscriptionContext] Refresh failed but not invalid_grant, keeping session:', refreshMsg);
+            // Refresh failed - session is completely invalid, force logout
+            console.warn('Session refresh failed, forcing logout:', refreshError.message);
+            await supabase.auth.signOut();
+            setSubscription(null);
             return;
           }
-
+          
           if (refreshData?.session) {
             // Retry with refreshed token
             const { data: retryData, error: retryError } = await supabase.functions.invoke('check-subscription', {
@@ -116,17 +113,16 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
             });
             if (!retryError) {
               setSubscription(retryData);
-              hasLoadedRef.current = true;
               return;
             }
-            console.warn('[SubscriptionContext] Retry after refresh failed, keeping session:', (retryError as any)?.message);
-            return;
           }
-
-          // No refresh data and no error: keep session, do not force logout.
-          console.warn('[SubscriptionContext] Refresh returned no session, keeping current auth state.');
+          
+          // If we get here, both attempts failed - but only logout if it's truly an auth error
+          console.warn('Subscription check auth error after refresh attempt, forcing logout');
+          await supabase.auth.signOut();
+          setSubscription(null);
         } else {
-          console.warn('[SubscriptionContext] Non-auth error checking subscription, keeping session:', message, status);
+          console.error('Error checking subscription:', error);
         }
       } else {
         setSubscription(data);
@@ -139,25 +135,24 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       checkInFlightRef.current = false;
     }
-  }, [authLoading, authReady, isAuthenticatedStable]);
+  }, [authLoading]);
 
-  // Check subscription only when auth is fully ready and we have a real session
+  // Check subscription when user and session are ready
   useEffect(() => {
-    if (!authReady || authLoading) return;
+    if (authLoading) return;
 
-    if (isAuthenticatedStable && user && session?.access_token) {
-      console.log('[SubscriptionContext] Auth ready, scheduling checkSubscription');
+    if (user && session?.access_token) {
       checkSubscription(!subscription);
     } else if (!user) {
       setSubscription(null);
       setLoading(false);
       hasLoadedRef.current = false;
     }
-  }, [user, session?.access_token, authLoading, authReady, isAuthenticatedStable, checkSubscription]);
+  }, [user, session?.access_token, authLoading, checkSubscription]);
 
   // Single interval for the entire app - refresh every 5 minutes
   useEffect(() => {
-    if (!user || !isAuthenticatedStable) {
+    if (!user) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -180,7 +175,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         intervalRef.current = null;
       }
     };
-  }, [user, isAuthenticatedStable, checkSubscription]);
+  }, [user, checkSubscription]);
 
   const createCheckout = useCallback(async (plan: PlanKey) => {
     if (!session?.access_token) {

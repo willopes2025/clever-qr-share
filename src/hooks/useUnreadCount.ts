@@ -3,12 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 export const useUnreadCount = () => {
-  const { user, session, isAuthenticatedStable } = useAuth();
+  const { user } = useAuth();
 
   return useQuery({
     queryKey: ['unread-count', user?.id],
     queryFn: async () => {
-      if (!user?.id || !session?.access_token) return 0;
+      if (!user?.id) return 0;
       
       const { data, error } = await supabase
         .from('conversations')
@@ -19,7 +19,7 @@ export const useUnreadCount = () => {
       if (error) throw error;
       return data?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
     },
-    enabled: isAuthenticatedStable,
+    enabled: !!user?.id,
     staleTime: 30000,
   });
 };

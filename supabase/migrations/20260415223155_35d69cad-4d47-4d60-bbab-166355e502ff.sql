@@ -1,1 +1,0 @@
-ALTER TYPE funnel_action_type ADD VALUE IF NOT EXISTS 'generate_asaas_pix';

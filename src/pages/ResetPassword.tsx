@@ -25,95 +25,21 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [checkingLink, setCheckingLink] = useState(true);
-  const [recoveryReady, setRecoveryReady] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    const setInvalidLink = () => {
-      if (!mounted) return;
-      setCheckingLink(false);
-      setRecoveryReady(false);
-      toast.error('Link de recuperação inválido ou expirado');
-      navigate('/login', { replace: true });
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-
-      if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
-        setRecoveryReady(true);
-        setCheckingLink(false);
-      }
-    });
-
-    const initializeRecovery = async () => {
-      const searchParams = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-
-      const hasRecoveryParams =
-        searchParams.has('code') ||
-        hashParams.has('access_token') ||
-        hashParams.get('type') === 'recovery';
-
-      if (!hasRecoveryParams) {
-        setInvalidLink();
-        return;
-      }
-
-      const code = searchParams.get('code');
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setInvalidLink();
-          return;
-        }
-      }
-
+    // Check if we have a valid session from the reset link
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      if (session) {
-        setRecoveryReady(true);
-        setCheckingLink(false);
-        return;
+      if (!session) {
+        toast.error('Link de recuperação inválido ou expirado');
+        navigate('/login');
       }
-
-      // Retry up to 3 times with ~1s gap (mobile/Safari can take >800ms to hydrate)
-      for (let attempt = 0; attempt < 3; attempt++) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
-        if (!mounted) return;
-
-        const { data: { session: retrySession } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (retrySession) {
-          setRecoveryReady(true);
-          setCheckingLink(false);
-          return;
-        }
-      }
-
-      setInvalidLink();
     };
-
-    initializeRecovery();
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    checkSession();
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!recoveryReady) {
-      toast.error('Aguarde a validação do link de recuperação');
-      return;
-    }
 
     const validation = passwordSchema.safeParse({ password, confirmPassword });
     if (!validation.success) {
@@ -155,26 +81,6 @@ const ResetPassword = () => {
               <p className="text-center text-sm text-muted-foreground">
                 Sua senha foi alterada com sucesso. Você será redirecionado para a tela de login.
               </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (checkingLink) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md shadow-elevated">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center gap-4 py-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-semibold">Validando link</h2>
-                <p className="text-sm text-muted-foreground">
-                  Estamos preparando a redefinição da sua senha.
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>

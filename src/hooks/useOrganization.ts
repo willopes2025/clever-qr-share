@@ -31,11 +31,10 @@ export interface TeamMember {
 
 export function useOrganization() {
   const queryClient = useQueryClient();
-  const { user, session, authReady } = useAuth();
-
+  const { user } = useAuth();
+  
   const userId = user?.id;
   const userEmail = user?.email;
-  const hasToken = !!session?.access_token;
 
   // Buscar organização do usuário
   const { data: organization, isLoading: isLoadingOrg } = useQuery({
@@ -71,7 +70,7 @@ export function useOrganization() {
 
       return ownedOrg as Organization | null;
     },
-    enabled: authReady && !!userId && hasToken,
+    enabled: !!userId,
   });
 
   // Buscar dados do membro atual
@@ -110,7 +109,7 @@ export function useOrganization() {
 
       return data as TeamMember | null;
     },
-    enabled: authReady && !!userId && hasToken && !!organizationId,
+    enabled: !!userId && !!organizationId,
   });
 
   // Criar organização
@@ -218,14 +217,10 @@ export function useOrganization() {
   const isOwner = organizationOwnerId === userId;
   const isAdmin = currentMember?.role === 'admin' || isOwner;
 
-  // While auth is not yet ready, do not report loading=true forever — we have no real query running.
-  const queriesEnabled = authReady && !!userId && hasToken;
-  const isLoading = queriesEnabled && (isLoadingOrg || isLoadingMember);
-
   return {
     organization,
     currentMember,
-    isLoading,
+    isLoading: isLoadingOrg || isLoadingMember,
     isOwner,
     isAdmin,
     checkPermission,

@@ -20,7 +20,6 @@ import {
   Loader2,
   Send,
   MessageSquare,
-  Merge,
 } from "lucide-react";
 import {
   Table,
@@ -79,7 +78,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
-import { MergeDealsDialog } from "./MergeDealsDialog";
 
 /**
  * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
@@ -113,7 +111,7 @@ const normalizeText = (value: string) =>
 
 export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
   const navigate = useNavigate();
-  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const { fieldDefinitions } = useCustomFields();
@@ -123,7 +121,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageSize, setPageSize] = useState<number>(50);
-  const [mergingDealId, setMergingDealId] = useState<string | null>(null);
 
   // Drag-to-scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -291,12 +288,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
   // Flatten all deals from all stages
-  // Use allFunnels from query cache directly (more reactive to optimistic updates)
-  const activeFunnel = allFunnels?.find(f => f.id === funnel.id) || funnel;
-  const activeStages = activeFunnel.stages || funnel.stages || [];
-  
   const allDeals = useMemo(() => {
-    return (activeStages).flatMap((stage) =>
+    return (funnel.stages || []).flatMap((stage) =>
       (stage.deals || []).map((deal) => ({
         ...deal,
         stageName: stage.name,
@@ -305,7 +298,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         stage_id: stage.id,
       }))
     );
-  }, [activeStages]);
+  }, [funnel.stages]);
 
   // Open deal from global search - fetch from server if not loaded locally
   useEffect(() => {
@@ -744,7 +737,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             value={deal.stage_id}
             onValueChange={async (newStageId) => {
               if (newStageId === deal.stage_id) return;
-              const targetStage = activeStages.find(s => s.id === newStageId);
+              const targetStage = funnel.stages?.find(s => s.id === newStageId);
               await updateDeal.mutateAsync({
                 id: deal.id,
                 stage_id: newStageId,
@@ -761,7 +754,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
               </Badge>
             </SelectTrigger>
             <SelectContent>
-              {activeStages.filter(s => !s.is_final).map((stage) => (
+              {funnel.stages?.filter(s => !s.is_final).map((stage) => (
                 <SelectItem key={stage.id} value={stage.id}>
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
@@ -769,12 +762,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                   </div>
                 </SelectItem>
               ))}
-              {activeStages.some(s => s.is_final) && (
+              {funnel.stages?.some(s => s.is_final) && (
                 <>
                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1 pt-1">
                     Fechar como
                   </div>
-                  {activeStages.filter(s => s.is_final).map((stage) => (
+                  {funnel.stages?.filter(s => s.is_final).map((stage) => (
                     <SelectItem key={stage.id} value={stage.id}>
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
@@ -1004,17 +997,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         updates.responsible_id !== undefined || updates.expected_close_date !== undefined || 
         updates.custom_field;
       
-      // Handle funnel change (move deals to another funnel)
-      if (updates.funnel_assignment) {
-        const { funnel_id, stage_id } = updates.funnel_assignment;
-        for (const dealId of selectedIds) {
-          await supabase
-            .from('funnel_deals')
-            .update({ funnel_id: funnel_id, stage_id: stage_id })
-            .eq('id', dealId);
-        }
-      }
-
       if (hasStandardUpdates) {
         await bulkUpdateDeals.mutateAsync({
           dealIds: selectedIds,
@@ -1043,12 +1025,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             .from("contact_tags")
             .upsert(inserts, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
         }
-      }
-
-      // Invalidate funnels if deals were moved to another funnel
-      if (updates.funnel_assignment) {
-        queryClient.invalidateQueries({ queryKey: ['funnels'] });
-        queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
       }
 
       setBulkEditDialogOpen(false);
@@ -1263,7 +1239,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                             Alterar Etapa
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            {activeStages.map((stage) => (
+                            {(funnel.stages || []).map((stage) => (
                               <DropdownMenuItem
                                 key={stage.id}
                                 disabled={stage.id === deal.stage_id}
@@ -1288,10 +1264,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                         </DropdownMenuSub>
                         <DropdownMenuItem onClick={() => setEditingFieldDeal(deal)}>
                           Alterar Campo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setMergingDealId(deal.id)}>
-                          <Merge className="h-4 w-4 mr-2" />
-                          Unificar com outro lead
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {!deal.isFinal && (
@@ -1417,7 +1389,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         selectedCount={selectedIds.length}
         fieldDefinitions={fieldDefinitions || []}
         stages={funnel.stages || []}
-        funnels={(allFunnels || []).filter(f => f.id !== funnel.id)}
         members={members || []}
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}
@@ -1474,14 +1445,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {mergingDealId && (
-        <MergeDealsDialog
-          dealId={mergingDealId}
-          open={!!mergingDealId}
-          onOpenChange={(open) => !open && setMergingDealId(null)}
-        />
-      )}
     </div>
   );
 };

@@ -13,9 +13,8 @@ export interface Profile {
 }
 
 export function useProfile() {
-  const { user, session, isAuthenticatedStable } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canQueryProfile = isAuthenticatedStable && !!user?.id && !!session?.access_token;
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile', user?.id],
@@ -29,16 +28,26 @@ export function useProfile() {
         .single();
 
       if (error) {
+        // Se não existir perfil, criar um
         if (error.code === 'PGRST116') {
-          console.log('[useProfile] profile not found yet, skipping auto-create');
-          return null;
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              full_name: user.email?.split('@')[0] || null,
+            })
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          return newProfile as Profile;
         }
         throw error;
       }
 
       return data as Profile;
     },
-    enabled: canQueryProfile,
+    enabled: !!user,
   });
 
   const updateProfile = useMutation({
@@ -47,10 +56,8 @@ export function useProfile() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          ...updates,
-        }, { onConflict: 'id' })
+        .update(updates)
+        .eq('id', user.id)
         .select()
         .single();
 

@@ -565,9 +565,6 @@ export const useFunnels = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
-      queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['funnel-metrics'] });
-      queryClient.invalidateQueries({ queryKey: ['funnel-server-search'] });
     }
   });
 

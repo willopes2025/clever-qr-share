@@ -9,25 +9,15 @@ createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
-// Remove legacy service workers/caches to avoid stale auth flows on mobile.
+// Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    Promise.all([
-      navigator.serviceWorker.getRegistrations(),
-      'caches' in window ? caches.keys() : Promise.resolve([]),
-    ])
-      .then(async ([registrations, cacheKeys]) => {
-        await Promise.all([
-          ...registrations.map((registration) => registration.unregister()),
-          ...cacheKeys.map((cacheKey) => caches.delete(cacheKey)),
-        ]);
-
-        if (registrations.length > 0 || cacheKeys.length > 0) {
-          console.log('Legacy offline cache cleared');
-        }
+    navigator.serviceWorker.register('/service-worker.js')
+      .then((registration) => {
+        console.log('SW registered:', registration.scope);
       })
       .catch((error) => {
-        console.warn('Failed to clear legacy offline cache:', error);
+        console.log('SW registration failed:', error);
       });
   });
 }

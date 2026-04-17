@@ -6,8 +6,6 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  authReady: boolean;
-  isAuthenticatedStable: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
@@ -20,49 +18,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authReady, setAuthReady] = useState(false);
-  const hasSessionToken = !!session?.access_token;
-  const isAuthenticatedStable = authReady && !!user && hasSessionToken;
-
-  useEffect(() => {
-    console.log('[AuthContext] state:', {
-      authReady,
-      loading,
-      hasUser: !!user,
-      hasToken: hasSessionToken,
-      isAuthenticatedStable,
-    });
-  }, [authReady, loading, user, hasSessionToken, isAuthenticatedStable]);
 
   useEffect(() => {
     let mounted = true;
 
-    // 1) Set up auth state listener FIRST. Keep it fully synchronous.
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, nextSession) => {
-        if (!mounted) return;
-        console.log('[AuthContext] onAuthStateChange:', event, !!nextSession?.access_token);
-        setSession(nextSession);
-        setUser(nextSession?.user ?? null);
-        // Once we've heard from the listener at least once, auth is ready
-        setAuthReady(true);
-        setLoading(false);
+      (event, session) => {
+        if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
       }
     );
 
-    // 2) THEN check existing session
-    supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
-      if (!mounted) return;
-      console.log('[AuthContext] getSession resolved, hasSession=', !!nextSession?.access_token);
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setAuthReady(true);
-      setLoading(false);
-    }).catch((err) => {
-      console.warn('[AuthContext] getSession failed:', err);
-      if (!mounted) return;
-      setAuthReady(true);
-      setLoading(false);
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
     return () => {
@@ -72,32 +49,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
       password,
     });
-
-    if (error) {
-      return { error };
-    }
-
-    // Apply session immediately so dependent code doesn't have to wait
-    // for the onAuthStateChange event.
-    if (data?.session) {
-      setSession(data.session);
-      setUser(data.session.user);
-      setAuthReady(true);
-      setLoading(false);
-    }
-
-    return { error: null };
+    return { error };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
-
+    
     const { error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
+      email,
       password,
       options: {
         emailRedirectTo: redirectUrl
@@ -115,14 +78,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}/instances`,
       }
     });
     return { error: error as Error | null };
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, authReady, isAuthenticatedStable, signIn, signUp, signOut, signInWithGoogle }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );

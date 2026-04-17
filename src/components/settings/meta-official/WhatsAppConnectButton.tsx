@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useFacebookLogin } from "@/hooks/useFacebookLogin";
 import { useMetaWhatsAppNumbers } from "@/hooks/useMetaWhatsAppNumbers";
 
-const DEFAULT_CONFIG_ID = "1572663701532321";
+const DEFAULT_CONFIG_ID = "25553459117680213";
 
 interface WhatsAppConnectButtonProps {
   onConnected?: () => void;

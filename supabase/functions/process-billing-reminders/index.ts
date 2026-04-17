@@ -78,8 +78,8 @@ Deno.serve(async (req) => {
       const asaasApiKey = (asaasCredentials.access_token || asaasCredentials.api_key) as string | undefined;
       const isSandbox = asaasCredentials.environment === 'sandbox' || asaasCredentials.sandbox === true;
       const asaasApiUrl = isSandbox
-        ? 'https://api-sandbox.asaas.com/v3'
-        : 'https://api.asaas.com/v3';
+        ? 'https://sandbox.asaas.com/api/v3'
+        : 'https://api.asaas.com/api/v3';
 
       // Helper: check if Asaas payment is already paid
       const checkPaymentPaid = async (paymentId: string): Promise<boolean> => {
@@ -241,134 +241,6 @@ Deno.serve(async (req) => {
                   .update({ contact_id: contacts[0].id })
                   .eq('id', reminder.id);
               }
-            }
-          }
-
-          // If still no contact, try to fetch phone from Asaas and auto-create contact
-          if (!contactPhone && asaasApiKey) {
-            try {
-              let custData: any = null;
-              const asaasWideApiKey = Deno.env.get('ASAAS_WIDE_API_KEY');
-              const asaasApiKeys = [
-                { key: asaasApiKey, label: 'primary' },
-                ...(asaasWideApiKey ? [{ key: asaasWideApiKey, label: 'wide' }] : []),
-              ];
-
-              // Strategy 1: Try fetching customer directly (try all API keys)
-              if (reminder.asaas_customer_id) {
-                for (const { key, label } of asaasApiKeys) {
-                  const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
-                    headers: { 'access_token': key },
-                  });
-                  if (custResp.ok) {
-                    custData = await custResp.json();
-                    console.log(`[AUTO-CREATE] Got customer data from ${label} key for ${reminder.asaas_customer_id}`);
-                    break;
-                  } else {
-                    console.log(`[AUTO-CREATE] Customer ${reminder.asaas_customer_id} returned ${custResp.status} with ${label} key`);
-                    await custResp.text();
-                  }
-                }
-              }
-
-              // Strategy 2: If customer fetch failed, try via payment endpoint (try all API keys)
-              if (!custData && reminder.asaas_payment_id) {
-                for (const { key, label } of asaasApiKeys) {
-                  const payResp = await fetch(`${asaasApiUrl}/payments/${reminder.asaas_payment_id}`, {
-                    headers: { 'access_token': key },
-                  });
-                  if (payResp.ok) {
-                    const payData = await payResp.json();
-                    if (payData.customer) {
-                      const custResp2 = await fetch(`${asaasApiUrl}/customers/${payData.customer}`, {
-                        headers: { 'access_token': key },
-                      });
-                      if (custResp2.ok) {
-                        custData = await custResp2.json();
-                        console.log(`[AUTO-CREATE] Got customer data via ${label} payment ${reminder.asaas_payment_id} -> customer ${payData.customer}`);
-                      } else {
-                        console.log(`[AUTO-CREATE] Customer from ${label} payment also failed (${custResp2.status}), using payment name`);
-                        await custResp2.text();
-                        custData = { name: payData.customerName || payData.description, noPhone: true };
-                      }
-                    }
-                    break;
-                  } else {
-                    console.log(`[AUTO-CREATE] Payment ${reminder.asaas_payment_id} returned ${payResp.status} with ${label} key`);
-                    await payResp.text();
-                  }
-                }
-              }
-
-              if (custData && !custData.noPhone) {
-                const asaasPhone = (custData.mobilePhone || custData.phone || '').replace(/\D/g, '');
-                if (asaasPhone && asaasPhone.length >= 10) {
-                  // Normalize phone with country code 55
-                  let normalizedPhone = asaasPhone;
-                  if (!normalizedPhone.startsWith('55')) {
-                    normalizedPhone = '55' + normalizedPhone;
-                  }
-
-                  // Check if contact with this phone already exists
-                  const { data: existingContacts } = await supabase
-                    .from('contacts')
-                    .select('id, phone, name, label_id')
-                    .eq('user_id', userId)
-                    .eq('phone', normalizedPhone)
-                    .limit(1);
-
-                  if (existingContacts && existingContacts.length > 0) {
-                    contactPhone = existingContacts[0].phone;
-                    contactName = existingContacts[0].name;
-                    contactLabelId = existingContacts[0].label_id;
-                    await supabase
-                      .from('billing_reminders')
-                      .update({ contact_id: existingContacts[0].id })
-                      .eq('id', reminder.id);
-                    if (reminder.asaas_customer_id) {
-                      await supabase
-                        .from('contacts')
-                        .update({ asaas_customer_id: reminder.asaas_customer_id })
-                        .eq('id', existingContacts[0].id);
-                    }
-                    console.log(`[AUTO-CREATE] Linked existing contact ${existingContacts[0].id} (${contactName}) to Asaas customer`);
-                  } else {
-                    const newContactName = custData.name || 'Cliente Asaas';
-                    const { data: newContact, error: createErr } = await supabase
-                      .from('contacts')
-                      .insert({
-                        user_id: userId,
-                        phone: normalizedPhone,
-                        name: newContactName,
-                        email: custData.email || null,
-                        asaas_customer_id: reminder.asaas_customer_id || null,
-                        custom_fields: custData.cpfCnpj ? { cpf: custData.cpfCnpj } : null,
-                      })
-                      .select('id, phone, name, label_id')
-                      .single();
-
-                    if (newContact && !createErr) {
-                      contactPhone = newContact.phone;
-                      contactName = newContact.name;
-                      contactLabelId = newContact.label_id;
-                      await supabase
-                        .from('billing_reminders')
-                        .update({ contact_id: newContact.id })
-                        .eq('id', reminder.id);
-                      reminder.contact_id = newContact.id;
-                      console.log(`[AUTO-CREATE] Created new contact ${newContact.id} (${newContactName}, ${normalizedPhone}) from Asaas`);
-                    } else {
-                      console.error(`[AUTO-CREATE] Failed to create contact:`, createErr);
-                    }
-                  }
-                } else {
-                  console.log(`[AUTO-CREATE] Asaas customer has no valid phone: "${asaasPhone}"`);
-                }
-              } else if (custData?.noPhone) {
-                console.log(`[AUTO-CREATE] Customer data available (${custData.name}) but no phone accessible`);
-              }
-            } catch (e) {
-              console.error(`[AUTO-CREATE] Error auto-creating contact for reminder ${reminder.id}:`, e);
             }
           }
 
@@ -569,39 +441,6 @@ Deno.serve(async (req) => {
           }
 
           if (sendSuccess) {
-            // Create conversation if it doesn't exist
-            if (!conversationId && reminder.contact_id) {
-              const convData: Record<string, any> = {
-                contact_id: reminder.contact_id,
-                user_id: userId,
-                status: 'open',
-                last_message_at: new Date().toISOString(),
-                last_message_preview: messageContent.substring(0, 100),
-                last_message_direction: 'outbound',
-              };
-              if (useMetaForThis && metaPhoneNumberId) {
-                convData.provider = 'meta';
-                convData.meta_phone_number_id = metaPhoneNumberId;
-              } else if (evolutionInstanceId) {
-                convData.provider = 'evolution';
-                convData.instance_id = evolutionInstanceId;
-              }
-              const { data: newConv } = await supabase
-                .from('conversations')
-                .insert(convData)
-                .select('id')
-                .single();
-              if (newConv) {
-                conversationId = newConv.id;
-                // Update reminder with conversation_id
-                await supabase
-                  .from('billing_reminders')
-                  .update({ conversation_id: newConv.id })
-                  .eq('id', reminder.id);
-                console.log(`[CONV] Created conversation ${newConv.id} for contact ${reminder.contact_id}`);
-              }
-            }
-
             if (conversationId) {
               await supabase
                 .from('inbox_messages')

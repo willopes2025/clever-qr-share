@@ -5,9 +5,7 @@ import { SidebarProvider } from "@/contexts/SidebarContext";
 import { MobileHeader } from "@/mobile/components/MobileHeader";
 import { MobileBottomNav } from "@/mobile/components/MobileBottomNav";
 import { MobileSidebarDrawer } from "@/components/MobileSidebarDrawer";
-import { PageLoader } from "@/components/PageLoader";
 import { ActivityTracker } from "@/components/productivity/ActivityTracker";
-import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 interface MobileAppLayoutProps {
@@ -30,11 +28,6 @@ const pageTransition = {
 
 const MobileLayoutContent = ({ children, pageTitle, className }: MobileAppLayoutProps) => {
   const location = useLocation();
-  const { isAuthenticatedStable } = useAuth();
-
-  if (!isAuthenticatedStable) {
-    return <PageLoader />;
-  }
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">

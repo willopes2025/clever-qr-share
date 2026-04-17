@@ -43,7 +43,7 @@ const cacheSession = (session: ActivitySession | null) => {
 };
 
 export const useActivitySession = () => {
-  const { user, session, authReady, isAuthenticatedStable } = useAuth();
+  const { user } = useAuth();
   const { organization } = useOrganization();
   
   // Initialize with cached session for instant display
@@ -63,13 +63,7 @@ export const useActivitySession = () => {
 
   // Fetch current active session
   const fetchCurrentSession = useCallback(async () => {
-    if (!authReady) return;
-    if (!isAuthenticatedStable) {
-      setLoading(false);
-      setIsInitialized(false);
-      return;
-    }
-    if (!user || !session?.access_token) {
+    if (!user) {
       setLoading(false);
       setIsInitialized(true);
       return;
@@ -102,11 +96,11 @@ export const useActivitySession = () => {
       setLoading(false);
       setIsInitialized(true);
     }
-  }, [user?.id, session?.access_token, authReady, isAuthenticatedStable, updateSession]);
+  }, [user?.id, updateSession]);
 
   // Start a new session
   const startSession = useCallback(async (sessionType: SessionType = 'work') => {
-    if (!isAuthenticatedStable || !user) return null;
+    if (!user) return null;
 
     // Prevent duplicate calls
     if (startSessionCalledRef.current) return null;
@@ -152,11 +146,11 @@ export const useActivitySession = () => {
     } finally {
       startSessionCalledRef.current = false;
     }
-  }, [isAuthenticatedStable, user, organization, currentSession, updateSession]);
+  }, [user, organization, currentSession, updateSession]);
 
   // End current session
   const endSession = useCallback(async () => {
-    if (!isAuthenticatedStable || !user || !currentSession) return;
+    if (!user || !currentSession) return;
 
     try {
       const endedAt = new Date();
@@ -176,7 +170,7 @@ export const useActivitySession = () => {
     } catch (err) {
       console.error('Error ending session:', err);
     }
-  }, [isAuthenticatedStable, user, currentSession, updateSession]);
+  }, [user, currentSession, updateSession]);
 
   // Switch session type
   const switchSession = useCallback(async (newType: SessionType) => {

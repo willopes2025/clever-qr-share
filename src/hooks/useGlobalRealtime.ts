@@ -9,12 +9,10 @@ import { useAuth } from "@/hooks/useAuth";
  */
 export const useGlobalRealtime = () => {
   const queryClient = useQueryClient();
-  const { user, session, isAuthenticatedStable } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!isAuthenticatedStable || !user?.id || !session?.access_token) return;
-
-    console.log('[Realtime] enabled global realtime');
+    if (!user?.id) return;
 
     const channel = supabase
       .channel('global-realtime-updates')
@@ -72,5 +70,5 @@ export const useGlobalRealtime = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticatedStable, user?.id, session?.access_token, queryClient]);
+  }, [user?.id, queryClient]);
 };

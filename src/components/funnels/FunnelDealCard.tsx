@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Clock, DollarSign, MoreHorizontal, User, Calendar, CheckSquare, 
-  AlertCircle, MessageCircle, Flame, Phone, ListTodo, ArrowRight, ArrowRightLeft, Merge
+  AlertCircle, MessageCircle, Flame, Phone, ListTodo, ArrowRight, ArrowRightLeft
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import {
 import { FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { DealFormDialog } from "./DealFormDialog";
 import { MoveDealFunnelDialog } from "./MoveDealFunnelDialog";
-import { MergeDealsDialog } from "./MergeDealsDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
 import { useDealTasks } from "@/hooks/useDealTasks";
@@ -39,7 +38,6 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
   const { deleteDeal } = useFunnels();
   const [showEdit, setShowEdit] = useState(false);
   const [showMoveFunnel, setShowMoveFunnel] = useState(false);
-  const [showMerge, setShowMerge] = useState(false);
   const { pendingCount, overdueCount, nextTask } = useDealTasks(deal.id);
   const { members } = useTeamMembers();
 
@@ -215,10 +213,6 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
                       <ArrowRightLeft className="h-4 w-4 mr-2" />
                       Mover para outro funil
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowMerge(true)}>
-                      <Merge className="h-4 w-4 mr-2" />
-                      Unificar com outro lead
-                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       className="text-destructive"
@@ -304,12 +298,6 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
         currentFunnelId={deal.funnel_id}
         open={showMoveFunnel}
         onOpenChange={setShowMoveFunnel}
-      />
-
-      <MergeDealsDialog
-        dealId={deal.id}
-        open={showMerge}
-        onOpenChange={setShowMerge}
       />
     </>
   );
