@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   authReady: boolean;
+  isAuthenticatedStable: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<{ error: Error | null }>;
@@ -20,6 +21,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const hasSessionToken = !!session?.access_token;
+  const isAuthenticatedStable = authReady && !!user && hasSessionToken;
+
+  useEffect(() => {
+    console.log('[AuthContext] state:', {
+      authReady,
+      loading,
+      hasUser: !!user,
+      hasToken: hasSessionToken,
+      isAuthenticatedStable,
+    });
+  }, [authReady, loading, user, hasSessionToken, isAuthenticatedStable]);
 
   useEffect(() => {
     let mounted = true;
@@ -109,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, authReady, signIn, signUp, signOut, signInWithGoogle }}>
+    <AuthContext.Provider value={{ user, session, loading, authReady, isAuthenticatedStable, signIn, signUp, signOut, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   );

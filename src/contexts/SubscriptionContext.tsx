@@ -21,7 +21,7 @@ interface SubscriptionContextType {
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
-  const { user, session, loading: authLoading, authReady } = useAuthContext();
+  const { user, session, loading: authLoading, authReady, isAuthenticatedStable } = useAuthContext();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const checkInFlightRef = useRef(false);
@@ -33,7 +33,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const checkSubscription = useCallback(async (isInitial = false) => {
     // Prevent concurrent checks
     if (checkInFlightRef.current) return;
-    if (authLoading || !authReady) return;
+    if (authLoading || !authReady || !isAuthenticatedStable) return;
 
     checkInFlightRef.current = true;
     // Only show loading spinner on initial check, not on re-checks
@@ -139,13 +139,13 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       checkInFlightRef.current = false;
     }
-  }, [authLoading, authReady]);
+  }, [authLoading, authReady, isAuthenticatedStable]);
 
   // Check subscription only when auth is fully ready and we have a real session
   useEffect(() => {
     if (!authReady || authLoading) return;
 
-    if (user && session?.access_token) {
+    if (isAuthenticatedStable && user && session?.access_token) {
       console.log('[SubscriptionContext] Auth ready, scheduling checkSubscription');
       checkSubscription(!subscription);
     } else if (!user) {
@@ -153,11 +153,11 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       hasLoadedRef.current = false;
     }
-  }, [user, session?.access_token, authLoading, authReady, checkSubscription]);
+  }, [user, session?.access_token, authLoading, authReady, isAuthenticatedStable, checkSubscription]);
 
   // Single interval for the entire app - refresh every 5 minutes
   useEffect(() => {
-    if (!user) {
+    if (!user || !isAuthenticatedStable) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -180,7 +180,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
         intervalRef.current = null;
       }
     };
-  }, [user, checkSubscription]);
+  }, [user, isAuthenticatedStable, checkSubscription]);
 
   const createCheckout = useCallback(async (plan: PlanKey) => {
     if (!session?.access_token) {

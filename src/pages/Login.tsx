@@ -41,9 +41,9 @@ const Login = () => {
     // Only navigate when auth is fully ready AND we have both a user and a token
     if (!authReady || authLoading) return;
     if (!user || !session?.access_token) return;
-    console.log('[Login] Auth ready, redirecting to /instances');
+    console.log('[Login] auth stable, redirecting to /auth/bootstrap');
     const t = window.setTimeout(() => {
-      navigate('/instances', { replace: true });
+      navigate('/auth/bootstrap', { replace: true });
     }, 0);
     return () => window.clearTimeout(t);
   }, [user, session?.access_token, authLoading, authReady, navigate]);
@@ -57,7 +57,11 @@ const Login = () => {
   }
 
   if (user && session?.access_token) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -91,9 +95,10 @@ const Login = () => {
       const { supabase } = await import('@/integrations/supabase/client');
       const { data } = await supabase.auth.getSession();
       if (data?.session) {
+        console.log('[Login] signIn success, session hydrated -> /auth/bootstrap');
         toast.success('Login realizado com sucesso!');
         setLoading(false);
-        navigate('/instances', { replace: true });
+        navigate('/auth/bootstrap', { replace: true });
         return;
       }
     } catch (e) {
@@ -128,7 +133,7 @@ const Login = () => {
     }
 
     toast.success('Conta criada com sucesso! Você já pode fazer login.');
-    navigate('/instances');
+    navigate('/login', { replace: true });
   };
 
   return (
