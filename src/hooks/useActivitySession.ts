@@ -43,7 +43,7 @@ const cacheSession = (session: ActivitySession | null) => {
 };
 
 export const useActivitySession = () => {
-  const { user } = useAuth();
+  const { user, session, authReady } = useAuth();
   const { organization } = useOrganization();
   
   // Initialize with cached session for instant display
@@ -63,7 +63,8 @@ export const useActivitySession = () => {
 
   // Fetch current active session
   const fetchCurrentSession = useCallback(async () => {
-    if (!user) {
+    if (!authReady) return;
+    if (!user || !session?.access_token) {
       setLoading(false);
       setIsInitialized(true);
       return;
@@ -96,7 +97,7 @@ export const useActivitySession = () => {
       setLoading(false);
       setIsInitialized(true);
     }
-  }, [user?.id, updateSession]);
+  }, [user?.id, session?.access_token, authReady, updateSession]);
 
   // Start a new session
   const startSession = useCallback(async (sessionType: SessionType = 'work') => {
