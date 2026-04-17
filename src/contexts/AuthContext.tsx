@@ -112,14 +112,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
 
     if (error) {
       setLoading(false);
+      return { error };
     }
+
+    // Apply session immediately so the rest of the app doesn't have to wait
+    // for the onAuthStateChange event (which can be racy).
+    if (data?.session) {
+      setSession(data.session);
+      setUser(data.session.user);
+    }
+    setLoading(false);
 
     return { error };
   }, []);

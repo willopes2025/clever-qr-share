@@ -81,11 +81,12 @@ const ResetPassword = () => {
         return;
       }
 
-      window.setTimeout(async () => {
+      // Retry up to 3 times with ~1s gap (mobile/Safari can take >800ms to hydrate)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
         if (!mounted) return;
 
         const { data: { session: retrySession } } = await supabase.auth.getSession();
-
         if (!mounted) return;
 
         if (retrySession) {
@@ -93,9 +94,9 @@ const ResetPassword = () => {
           setCheckingLink(false);
           return;
         }
+      }
 
-        setInvalidLink();
-      }, 800);
+      setInvalidLink();
     };
 
     initializeRecovery();
