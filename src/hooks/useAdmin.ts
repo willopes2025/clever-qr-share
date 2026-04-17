@@ -3,7 +3,7 @@ import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useAdmin = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading, authReady } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const retryCountRef = useRef(0);
@@ -14,9 +14,9 @@ export const useAdmin = () => {
     retryCountRef.current = 0;
 
     const checkAdmin = async () => {
-      if (authLoading) return;
+      if (!authReady || authLoading) return;
 
-      if (!user) {
+      if (!user || !session?.access_token) {
         setIsAdmin(false);
         setLoading(false);
         return;
@@ -62,7 +62,7 @@ export const useAdmin = () => {
     checkAdmin();
 
     return () => { cancelled = true; };
-  }, [user, authLoading]);
+  }, [user, session?.access_token, authLoading, authReady]);
 
   return { isAdmin, loading };
 };

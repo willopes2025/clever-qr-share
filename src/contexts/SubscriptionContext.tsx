@@ -21,7 +21,7 @@ interface SubscriptionContextType {
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
-  const { user, session, loading: authLoading } = useAuthContext();
+  const { user, session, loading: authLoading, authReady } = useAuthContext();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const checkInFlightRef = useRef(false);
@@ -33,7 +33,7 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const checkSubscription = useCallback(async (isInitial = false) => {
     // Prevent concurrent checks
     if (checkInFlightRef.current) return;
-    if (authLoading) return;
+    if (authLoading || !authReady) return;
 
     checkInFlightRef.current = true;
     // Only show loading spinner on initial check, not on re-checks
@@ -139,20 +139,21 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
       checkInFlightRef.current = false;
     }
-  }, [authLoading]);
+  }, [authLoading, authReady]);
 
-  // Check subscription when user and session are ready
+  // Check subscription only when auth is fully ready and we have a real session
   useEffect(() => {
-    if (authLoading) return;
+    if (!authReady || authLoading) return;
 
     if (user && session?.access_token) {
+      console.log('[SubscriptionContext] Auth ready, scheduling checkSubscription');
       checkSubscription(!subscription);
     } else if (!user) {
       setSubscription(null);
       setLoading(false);
       hasLoadedRef.current = false;
     }
-  }, [user, session?.access_token, authLoading, checkSubscription]);
+  }, [user, session?.access_token, authLoading, authReady, checkSubscription]);
 
   // Single interval for the entire app - refresh every 5 minutes
   useEffect(() => {
