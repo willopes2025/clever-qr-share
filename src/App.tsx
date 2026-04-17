@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,11 +11,13 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { PageLoader } from "@/components/PageLoader";
+import { useAuth } from "@/hooks/useAuth";
 
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
+const AuthBootstrap = lazy(() => import("./pages/AuthBootstrap"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Instances = lazy(() => import("./pages/Instances"));
 const Campaigns = lazy(() => import("./pages/Campaigns"));
@@ -57,6 +59,22 @@ interface AuthenticatedRouteProps {
   permission?: React.ComponentProps<typeof PermissionGate>["permission"];
 }
 
+const AuthenticatedShell = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticatedStable } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticatedStable) {
+      console.log('[AuthShell] shell mounted');
+    }
+  }, [isAuthenticatedStable]);
+
+  if (!isAuthenticatedStable) {
+    return <PageLoader />;
+  }
+
+  return <>{children}</>;
+};
+
 const AuthenticatedRoute = ({ children, permission }: AuthenticatedRouteProps) => {
   const content = permission ? (
     <PermissionGate permission={permission}>{children}</PermissionGate>
@@ -66,9 +84,11 @@ const AuthenticatedRoute = ({ children, permission }: AuthenticatedRouteProps) =
 
   return (
     <ProtectedRoute>
-      <SubscriptionProvider>
-        <NotificationProvider>{content}</NotificationProvider>
-      </SubscriptionProvider>
+      <AuthenticatedShell>
+        <SubscriptionProvider>
+          <NotificationProvider>{content}</NotificationProvider>
+        </SubscriptionProvider>
+      </AuthenticatedShell>
     </ProtectedRoute>
   );
 };
@@ -96,6 +116,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/auth/bootstrap" element={<AuthBootstrap />} />
                 <Route path="/dashboard" element={<AuthenticatedRoute permission="view_dashboard"><Dashboard /></AuthenticatedRoute>} />
                 <Route path="/instances" element={<AuthenticatedRoute permission="view_instances"><Instances /></AuthenticatedRoute>} />
                 <Route path="/inbox" element={<AuthenticatedRoute permission="view_inbox"><Inbox /></AuthenticatedRoute>} />

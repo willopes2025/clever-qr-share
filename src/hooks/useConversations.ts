@@ -94,8 +94,9 @@ export interface InboxMessage {
 }
 
 export const useConversations = () => {
-  const { user } = useAuth();
+  const { user, session, isAuthenticatedStable } = useAuth();
   const queryClient = useQueryClient();
+  const canRunProtectedQueries = isAuthenticatedStable && !!user?.id && !!session?.access_token;
 
   // Check if current user has instance restrictions
   const { data: hasInstanceRestriction } = useQuery({
@@ -107,7 +108,7 @@ export const useConversations = () => {
       if (error) throw error;
       return data as boolean;
     },
-    enabled: !!user,
+    enabled: canRunProtectedQueries,
   });
 
   // Get member's allowed instance IDs directly
@@ -120,7 +121,7 @@ export const useConversations = () => {
       if (error) throw error;
       return data as string[];
     },
-    enabled: !!user && hasInstanceRestriction === true,
+    enabled: canRunProtectedQueries && hasInstanceRestriction === true,
   });
 
   // Get notification-only instance IDs to exclude from inbox
@@ -135,7 +136,7 @@ export const useConversations = () => {
       if (error) throw error;
       return data?.map(i => i.id) || [];
     },
-    enabled: !!user,
+    enabled: canRunProtectedQueries,
   });
 
   const { data: conversations, isLoading, refetch } = useQuery({
@@ -213,7 +214,7 @@ export const useConversations = () => {
         deal: dealsMap[conv.contact_id] || null,
       })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
-    enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
+    enabled: canRunProtectedQueries && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
   });
 
   const createConversation = useMutation({
@@ -264,7 +265,7 @@ export const useConversations = () => {
 };
 
 export const useMessages = (conversationId: string | null) => {
-  const { user } = useAuth();
+  const { user, session, isAuthenticatedStable } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: messages, isLoading, refetch } = useQuery({
@@ -352,7 +353,7 @@ export const useMessages = (conversationId: string | null) => {
         reactions: reactionsMap[msg.id] || [],
       })) as InboxMessage[];
     },
-    enabled: !!conversationId && !!user,
+    enabled: !!conversationId && isAuthenticatedStable && !!user?.id && !!session?.access_token,
   });
 
   const sendMessage = useMutation({
