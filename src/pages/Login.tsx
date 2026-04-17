@@ -22,7 +22,7 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signUp, signInWithGoogle, user } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,10 +38,18 @@ const Login = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (user) {
-      navigate('/instances');
+    if (!authLoading && user) {
+      navigate('/instances', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (user) {
     return null;
@@ -49,15 +57,16 @@ const Login = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const validation = authSchema.safeParse({ email, password });
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const validation = authSchema.safeParse({ email: normalizedEmail, password });
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       return;
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(normalizedEmail, password);
     setLoading(false);
 
     if (error) {
@@ -70,20 +79,20 @@ const Login = () => {
     }
 
     toast.success('Login realizado com sucesso!');
-    navigate('/instances');
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const validation = authSchema.safeParse({ email, password });
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const validation = authSchema.safeParse({ email: normalizedEmail, password });
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
       return;
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(normalizedEmail, password);
     setLoading(false);
 
     if (error) {
