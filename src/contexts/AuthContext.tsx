@@ -22,37 +22,86 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
     let initialSessionResolved = false;
+    let sessionEstablishedFromEvent = false;
+
+    const hasPendingAuthParams = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+      return searchParams.has('code') || hashParams.has('access_token') || hashParams.get('type') === 'recovery';
+    };
 
     const applySession = (nextSession: Session | null) => {
       if (!mounted) return;
 
+      if (nextSession?.access_token) {
+        sessionEstablishedFromEvent = true;
+      }
+
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
+    };
 
-      if (initialSessionResolved) {
+    const finishLoading = () => {
+      if (mounted) {
         setLoading(false);
       }
     };
 
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
         applySession(nextSession);
+
+        if (initialSessionResolved) {
+          finishLoading();
+        }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession()
-      .then(({ data: { session: nextSession } }) => {
-        initialSessionResolved = true;
-        applySession(nextSession);
-      })
-      .catch(() => {
-        initialSessionResolved = true;
-        if (mounted) {
-          setLoading(false);
+    const resolveInitialSession = async () => {
+      const shouldRetryForCallback = hasPendingAuthParams();
+      const maxAttempts = shouldRetryForCallback ? 6 : 1;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const { data: { session: nextSession }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          break;
         }
-      });
+
+        if (nextSession?.access_token) {
+          initialSessionResolved = true;
+          applySession(nextSession);
+          finishLoading();
+          return;
+        }
+
+        if (sessionEstablishedFromEvent) {
+          initialSessionResolved = true;
+          finishLoading();
+          return;
+        }
+
+        if (!shouldRetryForCallback || attempt === maxAttempts - 1) {
+          break;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+
+      initialSessionResolved = true;
+
+      if (!sessionEstablishedFromEvent) {
+        applySession(null);
+      }
+
+      finishLoading();
+    };
+
+    resolveInitialSession().catch(() => {
+      initialSessionResolved = true;
+      finishLoading();
+    });
 
     return () => {
       mounted = false;
@@ -62,13 +111,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
+
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
 
     if (error) {
-        setLoading(false);
+      setLoading(false);
     }
 
     return { error };
@@ -76,9 +126,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = useCallback(async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       options: {
         emailRedirectTo: redirectUrl
@@ -96,7 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/instances`,
+        redirectTo: `${window.location.origin}/login`,
       }
     });
     return { error: error as Error | null };
