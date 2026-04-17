@@ -52,6 +52,27 @@ const Webhooks = lazy(() => import("./pages/Webhooks"));
 const InternalChat = lazy(() => import("./pages/InternalChat"));
 const Tasks = lazy(() => import("./pages/Tasks"));
 
+interface AuthenticatedRouteProps {
+  children: React.ReactNode;
+  permission?: React.ComponentProps<typeof PermissionGate>["permission"];
+}
+
+const AuthenticatedRoute = ({ children, permission }: AuthenticatedRouteProps) => {
+  const content = permission ? (
+    <PermissionGate permission={permission}>{children}</PermissionGate>
+  ) : (
+    children
+  );
+
+  return (
+    <ProtectedRoute>
+      <SubscriptionProvider>
+        <NotificationProvider>{content}</NotificationProvider>
+      </SubscriptionProvider>
+    </ProtectedRoute>
+  );
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -67,258 +88,56 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <SubscriptionProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_dashboard">
-                          <Dashboard />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/instances" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_instances">
-                          <Instances />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/inbox" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_inbox">
-                          <Inbox />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/campaigns" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_campaigns">
-                          <Campaigns />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/contacts" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_contacts">
-                          <Contacts />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/broadcast-lists" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_lists">
-                          <BroadcastLists />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/templates" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_templates">
-                          <Templates />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <Settings />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/subscription" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="manage_subscription">
-                          <Subscription />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/admin" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <Admin />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/warming" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_warming">
-                          <Warming />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/analysis" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_analysis">
-                          <Analysis />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/funnels" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_funnels">
-                          <Funnels />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/calendar" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_calendar">
-                          <Calendar />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/lead-search" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="search_leads">
-                          <LeadSearch />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/instagram-scraper" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="search_leads">
-                          <InstagramScraper />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/chatbots" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_chatbots">
-                          <Chatbots />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/forms" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_forms">
-                          <Forms />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/forms/:id" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_forms">
-                          <FormBuilder />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/ai-agents" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_ai_agents">
-                          <AIAgents />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/financeiro" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_finances">
-                          <Financeiro />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/financeiro/devedores" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_finances">
-                          <DebtorsManagement />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/ssotica" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="view_ssotica">
-                          <Ssotica />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/dashboard" element={<AuthenticatedRoute permission="view_dashboard"><Dashboard /></AuthenticatedRoute>} />
+                <Route path="/instances" element={<AuthenticatedRoute permission="view_instances"><Instances /></AuthenticatedRoute>} />
+                <Route path="/inbox" element={<AuthenticatedRoute permission="view_inbox"><Inbox /></AuthenticatedRoute>} />
+                <Route path="/campaigns" element={<AuthenticatedRoute permission="view_campaigns"><Campaigns /></AuthenticatedRoute>} />
+                <Route path="/contacts" element={<AuthenticatedRoute permission="view_contacts"><Contacts /></AuthenticatedRoute>} />
+                <Route path="/broadcast-lists" element={<AuthenticatedRoute permission="view_lists"><BroadcastLists /></AuthenticatedRoute>} />
+                <Route path="/templates" element={<AuthenticatedRoute permission="view_templates"><Templates /></AuthenticatedRoute>} />
+                <Route path="/settings" element={<AuthenticatedRoute><Settings /></AuthenticatedRoute>} />
+                <Route path="/subscription" element={<AuthenticatedRoute permission="manage_subscription"><Subscription /></AuthenticatedRoute>} />
+                <Route path="/admin" element={<AuthenticatedRoute><Admin /></AuthenticatedRoute>} />
+                <Route path="/warming" element={<AuthenticatedRoute permission="view_warming"><Warming /></AuthenticatedRoute>} />
+                <Route path="/analysis" element={<AuthenticatedRoute permission="view_analysis"><Analysis /></AuthenticatedRoute>} />
+                <Route path="/funnels" element={<AuthenticatedRoute permission="view_funnels"><Funnels /></AuthenticatedRoute>} />
+                <Route path="/calendar" element={<AuthenticatedRoute permission="view_calendar"><Calendar /></AuthenticatedRoute>} />
+                <Route path="/lead-search" element={<AuthenticatedRoute permission="search_leads"><LeadSearch /></AuthenticatedRoute>} />
+                <Route path="/instagram-scraper" element={<AuthenticatedRoute permission="search_leads"><InstagramScraper /></AuthenticatedRoute>} />
+                <Route path="/chatbots" element={<AuthenticatedRoute permission="view_chatbots"><Chatbots /></AuthenticatedRoute>} />
+                <Route path="/forms" element={<AuthenticatedRoute permission="view_forms"><Forms /></AuthenticatedRoute>} />
+                <Route path="/forms/:id" element={<AuthenticatedRoute permission="view_forms"><FormBuilder /></AuthenticatedRoute>} />
+                <Route path="/ai-agents" element={<AuthenticatedRoute permission="view_ai_agents"><AIAgents /></AuthenticatedRoute>} />
+                <Route path="/financeiro" element={<AuthenticatedRoute permission="view_finances"><Financeiro /></AuthenticatedRoute>} />
+                <Route path="/financeiro/devedores" element={<AuthenticatedRoute permission="view_finances"><DebtorsManagement /></AuthenticatedRoute>} />
+                <Route path="/ssotica" element={<AuthenticatedRoute permission="view_ssotica"><Ssotica /></AuthenticatedRoute>} />
                   {/* Public pages for Meta compliance */}
-                  <Route path="/privacy" element={<PrivacyPolicy />} />
-                  <Route path="/terms" element={<TermsOfService />} />
-                  <Route path="/data-deletion" element={<DataDeletion />} />
-                  <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
-                  <Route path="/f/:slug/*" element={<PublicFormPage />} />
-                  <Route path="/form/:slug/*" element={<PublicFormPage />} />
-                  <Route path="/ajuda" element={<Ajuda />} />
-                  <Route path="/webhooks" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <PermissionGate permission="manage_settings">
-                          <Webhooks />
-                        </PermissionGate>
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/internal-chat" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <InternalChat />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/tasks" element={
-                    <ProtectedRoute>
-                      <NotificationProvider>
-                        <Tasks />
-                      </NotificationProvider>
-                    </ProtectedRoute>
-                  } />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/data-deletion" element={<DataDeletion />} />
+                <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
+                <Route path="/f/:slug/*" element={<PublicFormPage />} />
+                <Route path="/form/:slug/*" element={<PublicFormPage />} />
+                <Route path="/ajuda" element={<Ajuda />} />
+                <Route path="/webhooks" element={<AuthenticatedRoute permission="manage_settings"><Webhooks /></AuthenticatedRoute>} />
+                <Route path="/internal-chat" element={<AuthenticatedRoute><InternalChat /></AuthenticatedRoute>} />
+                <Route path="/tasks" element={<AuthenticatedRoute><Tasks /></AuthenticatedRoute>} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
             </Suspense>
-            </BrowserRouter>
-          </TooltipProvider>
-        </SubscriptionProvider>
+          </BrowserRouter>
+        </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
   </ErrorBoundary>
