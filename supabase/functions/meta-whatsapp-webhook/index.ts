@@ -439,8 +439,14 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              // Find or create conversation - MUST match this Meta phone_number_id
-              // to avoid routing the reply into an Evolution or different-Meta conversation.
+              // Find or create conversation.
+              // Strategy:
+              //   1. Prefer an existing Meta conversation bound to this exact phone_number_id.
+              //   2. Otherwise, reuse ANY existing Meta conversation of the same contact and
+              //      retarget it to the current phone_number_id (the system uses 1 conversation
+              //      per contact, so creating a new one would violate UNIQUE(user_id, contact_id)).
+              //   3. Never hijack Evolution conversations here.
+              //   4. Only insert a brand new conversation when no Meta conversation exists.
               if (!conversation) {
                 const { data: existingConversation } = await supabase
                   .from('conversations')
@@ -455,8 +461,42 @@ Deno.serve(async (req) => {
                 conversation = existingConversation;
               }
 
-              // No fallback to "any conversation" — that hijacks Evolution conversations
-              // and causes replies to land on the wrong lead. If none matches, create one.
+              // Fallback: reuse any Meta conversation of this contact and retarget it
+              // to the current Meta phone_number_id. This prevents UNIQUE(user_id, contact_id)
+              // conflicts when the contact previously talked through another Meta number.
+              if (!conversation) {
+                const { data: anyMetaConversation } = await supabase
+                  .from('conversations')
+                  .select('*')
+                  .in('user_id', organizationMemberIds)
+                  .eq('contact_id', contact.id)
+                  .eq('provider', 'meta')
+                  .order('last_message_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+
+                if (anyMetaConversation) {
+                  const { data: retargeted, error: retargetError } = await supabase
+                    .from('conversations')
+                    .update({
+                      meta_phone_number_id: webhookPhoneNumberId,
+                      provider: 'meta',
+                      instance_id: null,
+                    })
+                    .eq('id', anyMetaConversation.id)
+                    .select()
+                    .single();
+
+                  if (!retargetError && retargeted) {
+                    conversation = retargeted;
+                    console.log(
+                      '[META-WEBHOOK] Reused existing Meta conversation and retargeted to phone_number_id:',
+                      webhookPhoneNumberId,
+                      'conv:', conversation.id
+                    );
+                  }
+                }
+              }
 
               if (!conversation) {
                 const { data: newConversation, error: convError } = await supabase
@@ -471,13 +511,54 @@ Deno.serve(async (req) => {
                   })
                   .select()
                   .single();
-                
+
                 if (convError) {
-                  console.error('[META-WEBHOOK] Error creating conversation:', convError);
-                  continue;
+                  // Handle UNIQUE(user_id, contact_id) conflict by recovering the
+                  // existing conversation, retargeting it to Meta + this phone_number_id,
+                  // and continuing instead of dropping the message.
+                  const isUniqueViolation =
+                    (convError as any)?.code === '23505' ||
+                    /duplicate key|unique constraint/i.test(convError.message || '');
+
+                  if (isUniqueViolation) {
+                    console.warn('[META-WEBHOOK] UNIQUE conflict on conversations insert, recovering existing row');
+
+                    const { data: conflictingConv } = await supabase
+                      .from('conversations')
+                      .select('*')
+                      .eq('contact_id', contact.id)
+                      .in('user_id', organizationMemberIds)
+                      .order('last_message_at', { ascending: false })
+                      .limit(1)
+                      .maybeSingle();
+
+                    if (conflictingConv) {
+                      const { data: recovered } = await supabase
+                        .from('conversations')
+                        .update({
+                          provider: 'meta',
+                          meta_phone_number_id: webhookPhoneNumberId,
+                          instance_id: null,
+                          status: conflictingConv.status === 'archived' ? 'open' : conflictingConv.status,
+                        })
+                        .eq('id', conflictingConv.id)
+                        .select()
+                        .single();
+
+                      conversation = recovered || conflictingConv;
+                      console.log('[META-WEBHOOK] Recovered conversation after conflict:', conversation?.id);
+                    } else {
+                      console.error('[META-WEBHOOK] Could not recover conversation after UNIQUE conflict');
+                      continue;
+                    }
+                  } else {
+                    console.error('[META-WEBHOOK] Error creating conversation:', convError);
+                    continue;
+                  }
+                } else {
+                  conversation = newConversation;
+                  console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
                 }
-                conversation = newConversation;
-                console.log('[META-WEBHOOK] Created new conversation:', conversation?.id);
 
                 // Auto-create lead for new conversations
                 // Priority: 1) Meta number's default funnel, 2) User settings auto-lead funnel
