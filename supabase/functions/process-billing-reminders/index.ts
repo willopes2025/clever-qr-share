@@ -244,11 +244,96 @@ Deno.serve(async (req) => {
             }
           }
 
+          // FALLBACK: If still no contact, fetch customer data from Asaas API and auto-create
+          if (!contactPhone && reminder.asaas_customer_id && asaasApiKey) {
+            try {
+              console.log(`[ASAAS-AUTO] Contact not found locally, fetching customer ${reminder.asaas_customer_id} from Asaas`);
+              const custResp = await fetch(`${asaasApiUrl}/customers/${reminder.asaas_customer_id}`, {
+                headers: { 'access_token': asaasApiKey },
+              });
+
+              if (custResp.ok) {
+                const customer = await custResp.json();
+                const rawPhone = (customer.mobilePhone || customer.phone || '').replace(/\D/g, '');
+                
+                if (rawPhone && rawPhone.length >= 10) {
+                  // Normalize Brazilian phone (ensure 55 prefix)
+                  const normalizedPhone = rawPhone.startsWith('55') ? rawPhone : `55${rawPhone}`;
+                  const customerName = customer.name || 'Cliente Asaas';
+
+                  // Check if contact exists with this phone (avoid duplicates)
+                  const { data: existingByPhone } = await supabase
+                    .from('contacts')
+                    .select('id, phone, name, label_id')
+                    .eq('user_id', userId)
+                    .or(`phone.eq.${normalizedPhone},phone.like.%${normalizedPhone.slice(-10)}`)
+                    .limit(1);
+
+                  let createdContactId: string | null = null;
+
+                  if (existingByPhone && existingByPhone.length > 0) {
+                    // Link asaas_customer_id to existing contact
+                    createdContactId = existingByPhone[0].id;
+                    contactPhone = existingByPhone[0].phone;
+                    contactName = existingByPhone[0].name || customerName;
+                    contactLabelId = existingByPhone[0].label_id;
+                    
+                    await supabase
+                      .from('contacts')
+                      .update({ asaas_customer_id: reminder.asaas_customer_id })
+                      .eq('id', createdContactId);
+                    
+                    console.log(`[ASAAS-AUTO] Linked existing contact ${createdContactId} to Asaas customer`);
+                  } else {
+                    // Create new contact
+                    const { data: newContact, error: createErr } = await supabase
+                      .from('contacts')
+                      .insert({
+                        user_id: userId,
+                        phone: normalizedPhone,
+                        name: customerName,
+                        email: customer.email || null,
+                        asaas_customer_id: reminder.asaas_customer_id,
+                        asaas_payment_status: 'pending',
+                      })
+                      .select('id, phone, name, label_id')
+                      .single();
+
+                    if (createErr) {
+                      console.error(`[ASAAS-AUTO] Failed to create contact:`, createErr);
+                    } else if (newContact) {
+                      createdContactId = newContact.id;
+                      contactPhone = newContact.phone;
+                      contactName = newContact.name;
+                      contactLabelId = newContact.label_id;
+                      console.log(`[ASAAS-AUTO] Created new contact ${createdContactId} for ${customerName} (${normalizedPhone})`);
+                    }
+                  }
+
+                  // Update reminder with the contact_id
+                  if (createdContactId) {
+                    await supabase
+                      .from('billing_reminders')
+                      .update({ contact_id: createdContactId })
+                      .eq('id', reminder.id);
+                    reminder.contact_id = createdContactId;
+                  }
+                } else {
+                  console.log(`[ASAAS-AUTO] Customer ${reminder.asaas_customer_id} has no valid phone in Asaas`);
+                }
+              } else {
+                console.error(`[ASAAS-AUTO] Failed to fetch customer ${reminder.asaas_customer_id}: ${custResp.status}`);
+              }
+            } catch (e) {
+              console.error(`[ASAAS-AUTO] Error fetching Asaas customer:`, e);
+            }
+          }
+
           if (!contactPhone) {
             console.log(`No contact phone found for reminder ${reminder.id}, skipping`);
             await supabase
               .from('billing_reminders')
-              .update({ status: 'skipped', error_message: 'Contact phone not found' })
+              .update({ status: 'skipped', error_message: 'Contact phone not found (não foi possível obter telefone do Asaas)' })
               .eq('id', reminder.id);
             skipped++;
             continue;
