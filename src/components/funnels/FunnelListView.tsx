@@ -111,7 +111,7 @@ const normalizeText = (value: string) =>
 
 export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListViewProps) => {
   const navigate = useNavigate();
-  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals } = useFunnels();
+  const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const { fieldDefinitions } = useCustomFields();
@@ -1027,6 +1027,50 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         }
       }
 
+      // Handle funnel assignment (move deals to another funnel + stage)
+      if (updates.funnel_assignment) {
+        const { funnel_id: targetFunnelId, stage_id: targetStageId } = updates.funnel_assignment;
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < selectedIds.length; i += BATCH_SIZE) {
+          const batch = selectedIds.slice(i, i + BATCH_SIZE);
+          // Insert history entries for each deal
+          const historyEntries = batch.map(dealId => ({
+            deal_id: dealId,
+            from_stage_id: null as string | null,
+            to_stage_id: targetStageId,
+          }));
+          // Fetch current stage_ids for history
+          const { data: currentDeals } = await supabase
+            .from('funnel_deals')
+            .select('id, stage_id')
+            .in('id', batch);
+          if (currentDeals) {
+            const histInserts = currentDeals
+              .filter(d => d.stage_id !== targetStageId)
+              .map(d => ({
+                deal_id: d.id,
+                from_stage_id: d.stage_id,
+                to_stage_id: targetStageId,
+              }));
+            if (histInserts.length > 0) {
+              await supabase.from('funnel_deal_history').insert(histInserts);
+            }
+          }
+          await supabase
+            .from('funnel_deals')
+            .update({
+              funnel_id: targetFunnelId,
+              stage_id: targetStageId,
+              entered_stage_at: new Date().toISOString(),
+            })
+            .in('id', batch);
+        }
+        queryClient.invalidateQueries({ queryKey: ['funnels'] });
+        queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
+        const toast = (await import("sonner")).toast;
+        toast.success(`${selectedIds.length} lead(s) movido(s) para outro funil`);
+      }
+
       setBulkEditDialogOpen(false);
       setSelectedIds([]);
     } finally {
@@ -1389,6 +1433,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         selectedCount={selectedIds.length}
         fieldDefinitions={fieldDefinitions || []}
         stages={funnel.stages || []}
+        funnels={(allFunnels || []).filter(f => f.id !== funnel.id)}
         members={members || []}
         onConfirm={handleBulkEdit}
         isLoading={isBulkEditing}
