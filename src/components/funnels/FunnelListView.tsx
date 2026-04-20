@@ -20,6 +20,7 @@ import {
   Loader2,
   Send,
   MessageSquare,
+  Merge,
 } from "lucide-react";
 import {
   Table,
@@ -78,6 +79,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { OpportunityBroadcastDialog } from "./OpportunityBroadcastDialog";
+import { MergeDealsDialog } from "./MergeDealsDialog";
 
 /**
  * Convert Excel serial date number to a formatted date string (dd/MM/yyyy).
@@ -197,6 +199,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   // Calculate total deals vs loaded deals
   const totalDealsCount = useMemo(() => {
@@ -1170,6 +1173,16 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                 <Send className="h-4 w-4 mr-2" />
                 Disparar ({selectedIds.length})
               </Button>
+              {selectedIds.length >= 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMergeDialogOpen(true)}
+                >
+                  <Merge className="h-4 w-4 mr-2" />
+                  Unir Leads
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="sm"
