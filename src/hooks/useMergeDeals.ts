@@ -9,7 +9,7 @@ export interface MergeDealsPayload {
   fields: {
     title?: string | null;
     value?: number | null;
-    assigned_to?: string | null;
+    responsible_id?: string | null;
     stage_id: string;
     custom_fields?: Record<string, unknown>;
     contact_custom_fields?: Record<string, unknown>;
@@ -53,8 +53,8 @@ export const useMergeDeals = () => {
       if (stageChanged) updatePayload.entered_stage_at = new Date().toISOString();
       if (fields.title !== undefined) updatePayload.title = fields.title;
       if (fields.value !== undefined) updatePayload.value = fields.value;
-      if (fields.assigned_to !== undefined) updatePayload.assigned_to = fields.assigned_to;
-      if (fields.custom_fields !== undefined) updatePayload.custom_fields = fields.custom_fields;
+      if (fields.responsible_id !== undefined) updatePayload.responsible_id = fields.responsible_id;
+      if (fields.custom_fields !== undefined) updatePayload.custom_fields = fields.custom_fields as never;
 
       const { error: updErr } = await supabase
         .from('funnel_deals')
@@ -72,7 +72,7 @@ export const useMergeDeals = () => {
         const merged = { ...(contact?.custom_fields as Record<string, unknown> || {}), ...fields.contact_custom_fields };
         await supabase
           .from('contacts')
-          .update({ custom_fields: merged })
+          .update({ custom_fields: merged as never })
           .eq('id', masterContactId);
       }
 
