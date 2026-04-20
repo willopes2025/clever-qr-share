@@ -102,6 +102,9 @@ export const useMetaWhatsAppNumbers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers'] });
+      queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers-map'] });
+      queryClient.invalidateQueries({ queryKey: ['my-meta-number-ids'] });
+      queryClient.invalidateQueries({ queryKey: ['has-meta-restriction'] });
       toast.success("Número Meta adicionado com sucesso");
     },
     onError: (error: Error) => {
@@ -130,6 +133,7 @@ export const useMetaWhatsAppNumbers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers'] });
+      queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers-map'] });
     },
   });
 
@@ -144,6 +148,7 @@ export const useMetaWhatsAppNumbers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers'] });
+      queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers-map'] });
       toast.success("Número removido");
     },
   });

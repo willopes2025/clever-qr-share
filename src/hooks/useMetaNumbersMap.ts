@@ -26,7 +26,9 @@ export const useMetaNumbersMap = () => {
       return data as MetaNumberInfo[];
     },
     enabled: !!user,
-    staleTime: 60000,
+    staleTime: 10000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   const numbersMap = useMemo(() => {
