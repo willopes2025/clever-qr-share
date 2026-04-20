@@ -91,10 +91,36 @@ Deno.serve(async (req: Request) => {
     const automationConditions = (triggerConfig.conditions as Array<{ field: string; operator: string; value: string }>) || [];
 
     // Helper function to evaluate conditions
-    const evaluateConditions = (deal: any): boolean => {
+    // For "lead_source_instance" we need to look up the contact's most recent conversation.
+    // For "message_text" we have no message context in mass execution → only "not_empty" returns false; other operators are ignored (treated as match) to avoid blocking mass runs.
+    const evaluateConditions = async (deal: any): Promise<boolean> => {
       if (automationConditions.length === 0) return true;
-      
+
+      let leadSourceCache: string | null | undefined = undefined;
+      const resolveLeadSource = async (): Promise<string | null> => {
+        if (leadSourceCache !== undefined) return leadSourceCache;
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('instance_id, meta_phone_number_id')
+          .eq('contact_id', deal.contact_id)
+          .eq('user_id', deal.user_id)
+          .order('last_message_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (conv?.meta_phone_number_id) leadSourceCache = `meta:${conv.meta_phone_number_id}`;
+        else if (conv?.instance_id) leadSourceCache = `evo:${conv.instance_id}`;
+        else leadSourceCache = null;
+        return leadSourceCache;
+      };
+
       for (const condition of automationConditions) {
+        // message_text has no context in mass run → ignore (treat as match) unless operator is "not_empty"/"empty"
+        if (condition.field === 'message_text') {
+          if (condition.operator === 'not_empty') return false;
+          if (condition.operator === 'empty') continue;
+          continue; // ignore equals/contains in mass mode
+        }
+
         let fieldValue: string | undefined;
         
         if (condition.field === 'contact_name') {
@@ -105,6 +131,8 @@ Deno.serve(async (req: Request) => {
           fieldValue = deal.value?.toString() || '';
         } else if (condition.field === 'deal_title') {
           fieldValue = deal.title || '';
+        } else if (condition.field === 'lead_source_instance') {
+          fieldValue = (await resolveLeadSource()) || '';
         } else if (condition.field.startsWith('custom:')) {
           const key = condition.field.replace('custom:', '');
           const customFields = (deal.custom_fields || {}) as Record<string, unknown>;
