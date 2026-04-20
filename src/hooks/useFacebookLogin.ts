@@ -57,6 +57,7 @@ interface EmbeddedSignupSessionData {
 }
 
 export const useFacebookLogin = () => {
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [connectedAccount, setConnectedAccount] = useState<{
@@ -211,6 +212,15 @@ export const useFacebookLogin = () => {
       }
 
       toast.success('WhatsApp Business conectado com sucesso!');
+      
+      // Force refresh of all Meta number caches across the app
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers'] }),
+        queryClient.invalidateQueries({ queryKey: ['meta-whatsapp-numbers-map'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-meta-number-ids'] }),
+        queryClient.invalidateQueries({ queryKey: ['has-meta-restriction'] }),
+        queryClient.invalidateQueries({ queryKey: ['conversations'] }),
+      ]);
       
       return {
         success: true,
