@@ -937,25 +937,23 @@ Deno.serve(async (req: Request) => {
           failed: (campaign.failed || 0) + 1,
         }).eq('id', campaignId);
 
-        // Also persist failed message in inbox for visibility
+      // Also persist failed message in inbox for visibility
         try {
+          // CRITICAL: Match conversation by (contact, meta_phone_number_id) to avoid
+          // hijacking Evolution conversations and routing replies to the wrong lead.
           const { data: existingConv } = await supabase
             .from('conversations')
             .select('id')
             .eq('contact_id', message.contact_id)
             .eq('user_id', campaign.user_id)
+            .eq('provider', 'meta')
+            .eq('meta_phone_number_id', phoneNumberId)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
 
           let failConvId = existingConv?.id;
-          if (failConvId) {
-            // Update provider to meta so replies route correctly
-            await supabase.from('conversations').update({
-              provider: 'meta',
-              meta_phone_number_id: phoneNumberId,
-            }).eq('id', failConvId);
-          } else {
+          if (!failConvId) {
             const { data: newConv } = await supabase
               .from('conversations')
               .insert({
@@ -1003,22 +1001,21 @@ Deno.serve(async (req: Request) => {
       // Persist in conversations
       let conversationId: string | null = null;
       try {
+        // CRITICAL: Match conversation by (contact, meta_phone_number_id) to avoid
+        // hijacking Evolution conversations and routing replies to the wrong lead.
         const { data: existingConv } = await supabase
           .from('conversations')
           .select('id')
           .eq('contact_id', message.contact_id)
           .eq('user_id', campaign.user_id)
+          .eq('provider', 'meta')
+          .eq('meta_phone_number_id', phoneNumberId)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (existingConv) {
           conversationId = existingConv.id;
-          // Update provider to meta so replies route correctly
-          await supabase.from('conversations').update({
-            provider: 'meta',
-            meta_phone_number_id: phoneNumberId,
-          }).eq('id', conversationId);
         } else {
           const { data: newConv } = await supabase
             .from('conversations')
