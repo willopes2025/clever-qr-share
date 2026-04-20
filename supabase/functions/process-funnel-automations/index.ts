@@ -220,6 +220,26 @@ Deno.serve(async (req: Request) => {
         const automationConditions = (triggerConfig.conditions as Array<{ field: string; operator: string; value: string }>) || [];
         if (automationConditions.length > 0) {
           let allConditionsMet = true;
+
+          // Lazy-resolve the lead's source instance (Evolution instance_id or Meta phone_number_id)
+          // Format expected in condition.value: "evo:<instance_id>" or "meta:<phone_number_id>"
+          let leadSourceCache: string | null | undefined = undefined;
+          const resolveLeadSource = async (): Promise<string | null> => {
+            if (leadSourceCache !== undefined) return leadSourceCache;
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('instance_id, meta_phone_number_id')
+              .eq('contact_id', deal.contact_id)
+              .eq('user_id', deal.user_id)
+              .order('last_message_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (conv?.meta_phone_number_id) leadSourceCache = `meta:${conv.meta_phone_number_id}`;
+            else if (conv?.instance_id) leadSourceCache = `evo:${conv.instance_id}`;
+            else leadSourceCache = null;
+            return leadSourceCache;
+          };
+
           for (const condition of automationConditions) {
             let fieldValue: string | undefined;
             
@@ -231,6 +251,10 @@ Deno.serve(async (req: Request) => {
               fieldValue = deal.value?.toString() || '';
             } else if (condition.field === 'deal_title') {
               fieldValue = deal.title || '';
+            } else if (condition.field === 'lead_source_instance') {
+              fieldValue = (await resolveLeadSource()) || '';
+            } else if (condition.field === 'message_text') {
+              fieldValue = messageContent || '';
             } else if (condition.field.startsWith('custom:')) {
               const key = condition.field.replace('custom:', '');
               const customFields = (deal.custom_fields || {}) as Record<string, unknown>;
