@@ -40,7 +40,7 @@ type FieldSourceMap = Record<string, string>; // fieldKey -> dealId
 const FIELD_KEYS = {
   title: 'title',
   value: 'value',
-  assigned_to: 'assigned_to',
+  responsible_id: 'responsible_id',
 } as const;
 
 export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }: MergeDealsDialogProps) => {
@@ -64,7 +64,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
     const defaults: FieldSourceMap = {};
     defaults[FIELD_KEYS.title] = defaultMaster.id;
     defaults[FIELD_KEYS.value] = defaultMaster.id;
-    defaults[FIELD_KEYS.assigned_to] = defaultMaster.id;
+    defaults[FIELD_KEYS.responsible_id] = defaultMaster.id;
 
     // Custom field defaults: prefer the first deal that has a non-empty value
     const leadFields = fieldDefinitions?.filter(f => f.entity_type === 'lead') || [];
@@ -109,9 +109,9 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
     if (fieldKey === FIELD_KEYS.value) {
       return deal.value != null ? `R$ ${deal.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
     }
-    if (fieldKey === FIELD_KEYS.assigned_to) {
-      const mem = members?.find(m => m.user_id === deal.assigned_to);
-      return mem?.full_name || (deal.assigned_to ? 'Atribuído' : 'Sem responsável');
+    if (fieldKey === FIELD_KEYS.responsible_id) {
+      const mem = members?.find(m => m.user_id === deal.responsible_id);
+      return mem?.profile?.full_name || (deal.responsible_id ? 'Atribuído' : 'Sem responsável');
     }
     if (fieldKey.startsWith('custom:')) {
       const k = fieldKey.replace('custom:', '');
@@ -136,7 +136,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
     // Resolve final values from field sources
     const titleSourceDeal = deals.find(d => d.id === fieldSources[FIELD_KEYS.title]);
     const valueSourceDeal = deals.find(d => d.id === fieldSources[FIELD_KEYS.value]);
-    const assignedSourceDeal = deals.find(d => d.id === fieldSources[FIELD_KEYS.assigned_to]);
+    const responsibleSourceDeal = deals.find(d => d.id === fieldSources[FIELD_KEYS.responsible_id]);
 
     const customFields: Record<string, unknown> = { ...(masterDeal.custom_fields as Record<string, unknown> || {}) };
     leadFieldDefs.forEach((f) => {
@@ -158,7 +158,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
       fields: {
         title: titleSourceDeal?.title ?? null,
         value: valueSourceDeal?.value ?? null,
-        assigned_to: assignedSourceDeal?.assigned_to ?? null,
+        responsible_id: responsibleSourceDeal?.responsible_id ?? null,
         stage_id: stageId,
         custom_fields: customFields,
         contact_custom_fields: contactCustomFields,
@@ -249,7 +249,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
               <div className="rounded-lg border px-3">
                 {renderFieldRow('Título do deal', FIELD_KEYS.title)}
                 {renderFieldRow('Valor', FIELD_KEYS.value)}
-                {renderFieldRow('Responsável', FIELD_KEYS.assigned_to)}
+                {renderFieldRow('Responsável', FIELD_KEYS.responsible_id)}
                 {leadFieldDefs.map(f => renderFieldRow(f.field_name, `custom:${f.field_key}`))}
                 {contactFieldDefs.map(f => renderFieldRow(`📇 ${f.field_name}`, `contact_custom:${f.field_key}`))}
               </div>
