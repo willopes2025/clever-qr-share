@@ -395,17 +395,21 @@ Deno.serve(async (req) => {
               }
 
               if (!contact) {
-                // Also try matching stored phones that may have formatting
-                const { data: formattedContact } = await supabase
-                  .from('contacts')
-                  .select('*')
-                  .in('user_id', organizationMemberIds)
-                  .or(phoneVariations.map(p => `phone.ilike.%${p.slice(-10)}%`).slice(0, 1).join(','))
-                  .order('updated_at', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-                
-                contact = formattedContact;
+                // Stricter LIKE match: only allow when stored phone ENDS with the
+                // last 10 digits of the inbound number AND is the same length-ish.
+                // Avoid generic %digits% match that can collide with other contacts.
+                const last10 = rawPhone.slice(-10);
+                if (last10.length === 10) {
+                  const { data: formattedContact } = await supabase
+                    .from('contacts')
+                    .select('*')
+                    .in('user_id', organizationMemberIds)
+                    .like('phone', `%${last10}`)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  contact = formattedContact;
+                }
               }
 
               if (!contact) {
@@ -435,7 +439,8 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              // Find or create conversation - prioritize Meta conversation with same phone_number_id
+              // Find or create conversation - MUST match this Meta phone_number_id
+              // to avoid routing the reply into an Evolution or different-Meta conversation.
               if (!conversation) {
                 const { data: existingConversation } = await supabase
                   .from('conversations')
@@ -450,26 +455,8 @@ Deno.serve(async (req) => {
                 conversation = existingConversation;
               }
 
-              // Fallback: any conversation for this contact
-              if (!conversation) {
-                const { data: anyConversation } = await supabase
-                  .from('conversations')
-                  .select('*')
-                  .in('user_id', organizationMemberIds)
-                  .eq('contact_id', contact.id)
-                  .order('last_message_at', { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-                
-                conversation = anyConversation;
-                
-                // Update existing conversation with meta_phone_number_id if missing
-                if (conversation && !conversation.meta_phone_number_id) {
-                  await supabase.from('conversations')
-                    .update({ meta_phone_number_id: webhookPhoneNumberId, provider: 'meta' })
-                    .eq('id', conversation.id);
-                }
-              }
+              // No fallback to "any conversation" — that hijacks Evolution conversations
+              // and causes replies to land on the wrong lead. If none matches, create one.
 
               if (!conversation) {
                 const { data: newConversation, error: convError } = await supabase
