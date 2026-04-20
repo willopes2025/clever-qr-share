@@ -1,44 +1,75 @@
 
+## Corrigir a visibilidade das mensagens do telefone 6204
 
-## Adicionar condições de "Origem (número)" e "Palavra na mensagem"
+### Diagnóstico confirmado
+O número **6204** está ativo no backend e os webhooks dele estão chegando normalmente. O problema não é a conexão do número.
 
-Vou adicionar dois novos tipos de condição no formulário de **Automação de funil** (disponíveis para qualquer funil), e ensinar o motor de execução a avaliá-los.
+O bloqueio atual acontece assim:
+1. chega uma mensagem nova do **phone_number_id 1094594580394816** (telefone 6204);
+2. o webhook procura uma conversa Meta já vinculada a esse mesmo número;
+3. para alguns contatos, só existe uma conversa antiga do mesmo contato ligada a outro número Meta;
+4. o código tenta criar uma nova conversa;
+5. o banco rejeita a criação por causa da restrição **`UNIQUE(user_id, contact_id)`**;
+6. a função interrompe o fluxo e a mensagem não é salva no Inbox.
 
-### O que muda na interface (criar/editar automação)
+Foi exatamente isso que aconteceu com o contato **Wil Lopes / 5527999400707**: o webhook recebeu a mensagem do 6204, encontrou o contato, mas falhou ao criar a conversa por conflito de chave única.
 
-No bloco **"Condições (opcional)"** do `AutomationFormDialog`, dois novos campos no dropdown "Campo":
+### O que vou ajustar
+#### 1. Corrigir o roteamento no webhook da Meta
+Arquivo:
+- `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-1. **📱 Origem (número de envio)** — operadores: `igual a`, `diferente de`. O valor é selecionado em uma lista com todos os números conectados:
-   - Instâncias Evolution (rótulo: nome + telefone da instância)
-   - Números oficiais Meta (rótulo: display name + telefone)
-   
-2. **💬 Texto da mensagem** — operadores: `contém`, `não contém`, `igual a`, `não está vazio`. Campo de texto livre. Útil em conjunto com gatilhos `Receber mensagem` ou `Palavra-chave recebida`, mas também avaliado se houver `messageContent` no payload.
+Mudança:
+- manter a busca prioritária por conversa Meta com o mesmo `meta_phone_number_id`;
+- se não existir, procurar uma **conversa Meta já existente do mesmo contato**;
+- se encontrar, **reaproveitar essa conversa** e atualizar o `meta_phone_number_id` para o número que realmente recebeu a mensagem (6204);
+- **não** reutilizar conversa Evolution;
+- só criar conversa nova quando realmente não existir nenhuma conversa Meta/contato compatível.
 
-Ambas opções aparecem **para todos os funis**, sem nenhuma amarração ao funil "Programa Seven".
+Isso resolve o erro sem quebrar o modelo atual do sistema, que hoje trabalha com **uma conversa por contato**.
 
-### O que muda no backend (motor)
+#### 2. Tratar o erro de duplicidade sem perder a mensagem
+Ainda no mesmo webhook:
+- quando ocorrer erro `duplicate key value violates unique constraint "conversations_user_id_contact_id_key"`, fazer fallback automático:
+  - recarregar a conversa existente do contato;
+  - atualizar `provider = 'meta'` e `meta_phone_number_id` com o número recebido;
+  - continuar salvando a mensagem em vez de abortar.
 
-Em `supabase/functions/process-funnel-automations/index.ts`, dentro do bloco que avalia `automationConditions` (linhas 219-268), adicionar dois novos casos:
+Assim, mesmo que o conflito aconteça, a mensagem não some mais.
 
-- **`condition.field === 'lead_source_instance'`**  
-  Resolve o `instance_id` (ou `meta_phone_number_id`) da conversa atual do `deal.contact_id`/`user_id` e compara com o valor configurado. Suportará:
-  - `evo:<instance_id>` para instâncias Evolution
-  - `meta:<phone_number_id>` para números Meta
-  
-- **`condition.field === 'message_text'`**  
-  Compara o `messageContent` recebido no payload (já disponível para gatilhos de mensagem). Em outros gatilhos sem mensagem, a condição com operador `contains`/`equals` simplesmente falha (sem texto = sem match), e `not_empty` também.
+#### 3. Sincronizar a conversa com o número Meta correto
+Quando a mensagem inbound vier da Meta:
+- garantir que a conversa fique com o `meta_phone_number_id` correto;
+- limpar `instance_id` quando necessário para evitar a conversa continuar “presa” a um envio Evolution antigo;
+- manter `provider: 'meta'`.
 
-Mesma lógica replicada em `supabase/functions/process-existing-deals-automation/index.ts` para que o botão **"Executar em todos os leads do funil"** respeite as novas condições (no caso de `lead_source_instance` consulta a conversa do contato; `message_text` é ignorado nesse contexto pois não há mensagem associada à execução em massa).
+Isso ajuda a interface a mostrar a conversa com o número certo e evita a sensação de que “o número não aparece”.
 
-### Arquivos afetados
+#### 4. Validar a exibição no Inbox
+Depois do ajuste:
+- verificar que novas mensagens do **6204** entram normalmente no Inbox;
+- confirmar que o rótulo `via Programa Seven / 6204` aparece na lista e na conversa;
+- validar especificamente o caso do contato **Wil Lopes**;
+- confirmar que conversas Evolution não são sequestradas pelo webhook da Meta.
 
-- `src/components/funnels/AutomationFormDialog.tsx` — adicionar 2 itens no `<Select>` de campo, e um seletor dinâmico de instâncias/números Meta quando o campo for `lead_source_instance`.
-- `supabase/functions/process-funnel-automations/index.ts` — avaliação das novas condições.
-- `supabase/functions/process-existing-deals-automation/index.ts` — mesma avaliação (com fallback para `message_text`).
+### Arquivo principal afetado
+- `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-### Comportamento garantido
+### Resultado esperado
+Após a correção:
+- mensagens recebidas pelo telefone **6204** voltarão a aparecer;
+- a conversa passará a refletir o número Meta correto;
+- o sistema deixará de perder mensagens por conflito de conversa duplicada;
+- o problema continuará resolvido mesmo após desconectar e reconectar o número.
 
-- Disponível em **qualquer funil** criado no sistema (não há nenhum filtro por nome/ID de funil — o dropdown de condições é compartilhado).
-- Funciona com a ação `add_tag` para taguear automaticamente leads cuja origem seja um número específico ou cuja primeira mensagem contenha uma palavra-chave.
-- Combinável com outras condições já existentes (lógica "E").
+### Detalhe técnico
+O bug está na incompatibilidade entre:
+- a regra atual do banco: `UNIQUE(user_id, contact_id)`
+- e a lógica nova do webhook, que tenta separar a conversa por `meta_phone_number_id`.
 
+Como o sistema hoje ainda é “1 conversa por contato”, a correção mais segura é:
+- **reusar a conversa Meta existente do contato**,
+- atualizar o número Meta dela,
+- e salvar a nova mensagem normalmente.
+
+Isso corrige o 6204 agora sem exigir refatoração estrutural no banco.
