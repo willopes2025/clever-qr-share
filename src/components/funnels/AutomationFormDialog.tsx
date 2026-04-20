@@ -102,6 +102,59 @@ interface IntentMapping {
   target_stage_id: string;
 }
 
+// Source selector for the "lead_source_instance" condition
+// Lists Evolution instances + Meta numbers, value format: "evo:<id>" | "meta:<phone_number_id>"
+const LeadSourceConditionSelector = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+  const { data: instances } = useQuery({
+    queryKey: ['whatsapp-instances-for-condition'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, phone_number')
+        .order('instance_name');
+      return data || [];
+    },
+  });
+
+  const { data: metaNumbers } = useQuery({
+    queryKey: ['meta-numbers-for-condition'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('meta_whatsapp_numbers')
+        .select('phone_number_id, phone_number, display_name')
+        .eq('is_active', true)
+        .order('display_name');
+      return data || [];
+    },
+  });
+
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-[200px] h-9 text-sm">
+        <SelectValue placeholder="Selecionar número" />
+      </SelectTrigger>
+      <SelectContent>
+        {instances && instances.length > 0 && (
+          <SelectItem disabled value="__group_evo" className="text-xs font-semibold text-muted-foreground">── Evolution ──</SelectItem>
+        )}
+        {instances?.map((inst) => (
+          <SelectItem key={`evo:${inst.id}`} value={`evo:${inst.id}`}>
+            {inst.instance_name}{inst.phone_number ? ` (${inst.phone_number})` : ''}
+          </SelectItem>
+        ))}
+        {metaNumbers && metaNumbers.length > 0 && (
+          <SelectItem disabled value="__group_meta" className="text-xs font-semibold text-muted-foreground">── Meta (Oficial) ──</SelectItem>
+        )}
+        {metaNumbers?.map((m) => (
+          <SelectItem key={`meta:${m.phone_number_id}`} value={`meta:${m.phone_number_id}`}>
+            {m.display_name || m.phone_number || m.phone_number_id}{m.phone_number && m.display_name ? ` (${m.phone_number})` : ''}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
 // Instance selector for send_message action
 const SendMessageInstanceSelector = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
   const { data: instances } = useQuery({
@@ -788,6 +841,8 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                     <SelectItem value="contact_email">Email</SelectItem>
                     <SelectItem value="deal_value">Valor do deal</SelectItem>
                     <SelectItem value="deal_title">Título do deal</SelectItem>
+                    <SelectItem value="lead_source_instance">📱 Origem (número de envio)</SelectItem>
+                    <SelectItem value="message_text">💬 Texto da mensagem</SelectItem>
                     {fieldDefinitions?.filter(f => f.entity_type === 'lead').map((field) => (
                       <SelectItem key={field.id} value={`custom:${field.field_key}`}>
                         {field.field_name}
@@ -815,13 +870,22 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   <SelectContent>
                     <SelectItem value="equals">Igual a</SelectItem>
                     <SelectItem value="not_equals">Diferente de</SelectItem>
-                    <SelectItem value="contains">Contém</SelectItem>
+                    {cond.field !== 'lead_source_instance' && <SelectItem value="contains">Contém</SelectItem>}
                     <SelectItem value="not_empty">Não está vazio</SelectItem>
-                    <SelectItem value="empty">Está vazio</SelectItem>
+                    {cond.field !== 'lead_source_instance' && <SelectItem value="empty">Está vazio</SelectItem>}
                   </SelectContent>
                 </Select>
 
-                {(cond.operator === 'equals' || cond.operator === 'not_equals' || cond.operator === 'contains') && (
+                {cond.field === 'lead_source_instance' && (cond.operator === 'equals' || cond.operator === 'not_equals') ? (
+                  <LeadSourceConditionSelector
+                    value={cond.value}
+                    onChange={(v) => {
+                      const updated = [...conditions];
+                      updated[index] = { ...updated[index], value: v };
+                      setConditions(updated);
+                    }}
+                  />
+                ) : (cond.operator === 'equals' || cond.operator === 'not_equals' || cond.operator === 'contains') && (
                   <Input
                     value={cond.value}
                     onChange={(e) => {
@@ -829,8 +893,8 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                       updated[index] = { ...updated[index], value: e.target.value };
                       setConditions(updated);
                     }}
-                    placeholder="Valor"
-                    className="w-[120px] h-9 text-sm"
+                    placeholder={cond.field === 'message_text' ? 'Palavra ou frase' : 'Valor'}
+                    className="w-[160px] h-9 text-sm"
                   />
                 )}
 
