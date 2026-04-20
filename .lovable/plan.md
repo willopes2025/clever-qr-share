@@ -1,38 +1,44 @@
 
 
-## Plano: Edição de Campos Personalizados + Aprimoramentos
+## Adicionar condições de "Origem (número)" e "Palavra na mensagem"
 
-### Problema atual
-O `CustomFieldsManager` só permite **criar** e **excluir** campos. Não existe opção de editar nome, tipo, obrigatoriedade ou opções de um campo existente.
+Vou adicionar dois novos tipos de condição no formulário de **Automação de funil** (disponíveis para qualquer funil), e ensinar o motor de execução a avaliá-los.
 
-### O que será implementado
+### O que muda na interface (criar/editar automação)
 
-**1. Botão de editar em cada campo existente**
-- Ícone de edição (Pencil) ao lado do botão de excluir em cada campo listado no `CustomFieldsManager`
-- Ao clicar, abre um formulário inline (ou substitui o item) com os dados pré-preenchidos
+No bloco **"Condições (opcional)"** do `AutomationFormDialog`, dois novos campos no dropdown "Campo":
 
-**2. Formulário de edição completo**
-- Permite alterar: nome do campo, tipo, obrigatoriedade (switch), opções (para select/multi_select), e entity_type
-- Usa `updateField` mutation já existente no `useCustomFields` hook
-- Ao salvar, invalida queries de `custom-field-definitions`, `contacts`, `conversations` e `funnel-deals` para atualizar todas as interfaces
+1. **📱 Origem (número de envio)** — operadores: `igual a`, `diferente de`. O valor é selecionado em uma lista com todos os números conectados:
+   - Instâncias Evolution (rótulo: nome + telefone da instância)
+   - Números oficiais Meta (rótulo: display name + telefone)
+   
+2. **💬 Texto da mensagem** — operadores: `contém`, `não contém`, `igual a`, `não está vazio`. Campo de texto livre. Útil em conjunto com gatilhos `Receber mensagem` ou `Palavra-chave recebida`, mas também avaliado se houver `messageContent` no payload.
 
-**3. Aprimoramentos sugeridos**
-- **Mais tipos no manager**: O dialog atual só mostra 5 tipos (text, number, boolean, date, select). Adicionar todos os tipos suportados: email, phone, url, time, datetime, switch, multi_select
-- **Validação de obrigatoriedade**: Nos editores de campos (ContactFormDialog, DealCustomFieldsEditor, CustomFieldsEditor), bloquear submit se campos obrigatórios estiverem vazios
-- **Indicador visual melhorado**: Mostrar asterisco vermelho mais consistente em todas as interfaces
+Ambas opções aparecem **para todos os funis**, sem nenhuma amarração ao funil "Programa Seven".
 
-### Arquivos a modificar
+### O que muda no backend (motor)
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/inbox/CustomFieldsManager.tsx` | Adicionar modo edição por campo, expandir tipos disponíveis |
-| `src/hooks/useCustomFields.ts` | Ajustar `updateField.onSuccess` para invalidar também `funnel-deals` e `funnels` |
-| `src/components/funnels/DealCustomFieldsEditor.tsx` | Validação de campos obrigatórios |
-| `src/components/inbox/CustomFieldsEditor.tsx` | Validação de campos obrigatórios |
+Em `supabase/functions/process-funnel-automations/index.ts`, dentro do bloco que avalia `automationConditions` (linhas 219-268), adicionar dois novos casos:
 
-### Detalhes técnicos
-- O hook `useCustomFields` já tem `updateField` implementado — só precisa ser chamado na UI
-- A invalidação de queries no `updateField.onSuccess` será expandida para incluir `funnel-deals`, `funnels`, `contacts` e `conversations`
-- O `SelectContent` do tipo será atualizado para incluir todos os 12 tipos do `FieldType`
-- Nenhuma mudança de schema no banco — apenas UI e lógica de invalidação
+- **`condition.field === 'lead_source_instance'`**  
+  Resolve o `instance_id` (ou `meta_phone_number_id`) da conversa atual do `deal.contact_id`/`user_id` e compara com o valor configurado. Suportará:
+  - `evo:<instance_id>` para instâncias Evolution
+  - `meta:<phone_number_id>` para números Meta
+  
+- **`condition.field === 'message_text'`**  
+  Compara o `messageContent` recebido no payload (já disponível para gatilhos de mensagem). Em outros gatilhos sem mensagem, a condição com operador `contains`/`equals` simplesmente falha (sem texto = sem match), e `not_empty` também.
+
+Mesma lógica replicada em `supabase/functions/process-existing-deals-automation/index.ts` para que o botão **"Executar em todos os leads do funil"** respeite as novas condições (no caso de `lead_source_instance` consulta a conversa do contato; `message_text` é ignorado nesse contexto pois não há mensagem associada à execução em massa).
+
+### Arquivos afetados
+
+- `src/components/funnels/AutomationFormDialog.tsx` — adicionar 2 itens no `<Select>` de campo, e um seletor dinâmico de instâncias/números Meta quando o campo for `lead_source_instance`.
+- `supabase/functions/process-funnel-automations/index.ts` — avaliação das novas condições.
+- `supabase/functions/process-existing-deals-automation/index.ts` — mesma avaliação (com fallback para `message_text`).
+
+### Comportamento garantido
+
+- Disponível em **qualquer funil** criado no sistema (não há nenhum filtro por nome/ID de funil — o dropdown de condições é compartilhado).
+- Funciona com a ação `add_tag` para taguear automaticamente leads cuja origem seja um número específico ou cuja primeira mensagem contenha uma palavra-chave.
+- Combinável com outras condições já existentes (lógica "E").
 
