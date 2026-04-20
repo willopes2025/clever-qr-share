@@ -175,8 +175,9 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{titulo\}\}/g, deal.title || '');
     };
 
-    // Filter deals by conditions
-    const filteredDeals = (deals || []).filter(evaluateConditions);
+    // Filter deals by conditions (async because lead_source_instance requires DB lookup)
+    const evaluations = await Promise.all((deals || []).map(async (d) => ({ deal: d, ok: await evaluateConditions(d) })));
+    const filteredDeals = evaluations.filter(e => e.ok).map(e => e.deal);
     console.log(`[EXISTING-DEALS-AUTOMATION] ${filteredDeals.length} deals match conditions`);
 
     // Process each deal
