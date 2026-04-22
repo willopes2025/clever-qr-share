@@ -38,9 +38,32 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
   const hasInitialized = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Organização (para filtrar apenas os números originais do assinante/dono)
-  const { organization } = useOrganization();
-  const ownerId = organization?.owner_id;
+  // Buscar TODOS os user_ids da organização do membro sendo editado
+  // (owner + membros ativos da equipe), independente de quem está logado
+  const { data: orgUserIds, isLoading: isLoadingOrgUsers } = useQuery({
+    queryKey: ['org-user-ids', member.organization_id],
+    queryFn: async () => {
+      if (!member.organization_id) return [];
+      const ids = new Set<string>();
+
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('owner_id')
+        .eq('id', member.organization_id)
+        .maybeSingle();
+      if (org?.owner_id) ids.add(org.owner_id);
+
+      const { data: tms } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('organization_id', member.organization_id)
+        .eq('status', 'active');
+      tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
+
+      return Array.from(ids);
+    },
+    enabled: open && !!member.organization_id,
+  });
 
   // Evolution hooks
   const { instances: allInstances, isLoading: isLoadingInstances } = useWhatsAppInstances();
@@ -50,9 +73,14 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
   const { metaNumbers, isLoading: isLoadingMetaNumbers } = useMetaWhatsAppNumbers();
   const { memberMetaNumberIds, isLoading: isLoadingMemberMeta, updateMemberMetaNumbers } = useMemberMetaNumbers(member.id);
 
-  // Filter instances — apenas instâncias pertencentes ao dono da organização (assinante)
-  const instances = allInstances?.filter(i => !i.is_notification_only && (!ownerId || i.user_id === ownerId)) || [];
-  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && (!ownerId || n.user_id === ownerId)) || [];
+  // Filter — somente instâncias/números pertencentes a usuários da organização do membro
+  const orgUserIdSet = orgUserIds ? new Set(orgUserIds) : null;
+  const instances = (orgUserIdSet && allInstances)
+    ? allInstances.filter(i => !i.is_notification_only && i.user_id && orgUserIdSet.has(i.user_id))
+    : [];
+  const activeMetaNumbers = (orgUserIdSet && metaNumbers)
+    ? metaNumbers.filter(n => n.is_active && n.user_id && orgUserIdSet.has(n.user_id))
+    : [];
 
   const hasEvolutionInstances = instances.length > 0;
   const hasMetaNumbers = activeMetaNumbers.length > 0;
