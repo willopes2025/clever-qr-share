@@ -47,8 +47,58 @@ export const useMetaWhatsAppNumbers = () => {
     enabled: !!user,
   });
 
+  // Buscar TODOS os user_ids da organização do usuário logado (owner + membros ativos).
+  // Necessário porque o RLS concede ao admin do sistema acesso a TODOS os números —
+  // o filtro no frontend garante que cada assinatura veja apenas o que é seu.
+  const { data: orgUserIds } = useQuery({
+    queryKey: ['my-org-user-ids', user?.id],
+    queryFn: async () => {
+      const ids = new Set<string>();
+      ids.add(user!.id);
+
+      // Organização onde o usuário é membro ativo
+      const { data: myMembership } = await supabase
+        .from('team_members')
+        .select('organization_id')
+        .eq('user_id', user!.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      let orgId = myMembership?.organization_id as string | undefined;
+
+      // Caso seja owner sem registro em team_members, busca a org dele
+      if (!orgId) {
+        const { data: ownedOrg } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('owner_id', user!.id)
+          .maybeSingle();
+        orgId = ownedOrg?.id;
+      }
+
+      if (orgId) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('owner_id')
+          .eq('id', orgId)
+          .maybeSingle();
+        if (org?.owner_id) ids.add(org.owner_id);
+
+        const { data: tms } = await supabase
+          .from('team_members')
+          .select('user_id')
+          .eq('organization_id', orgId)
+          .eq('status', 'active');
+        tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
+      }
+
+      return Array.from(ids);
+    },
+    enabled: !!user,
+  });
+
   const { data: metaNumbers, isLoading, refetch } = useQuery({
-    queryKey: ['meta-whatsapp-numbers', user?.id, myMetaNumberIds, hasMetaRestriction],
+    queryKey: ['meta-whatsapp-numbers', user?.id, myMetaNumberIds, hasMetaRestriction, orgUserIds],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
@@ -58,15 +108,22 @@ export const useMetaWhatsAppNumbers = () => {
       if (error) throw error;
       
       let numbers = data as MetaWhatsAppNumber[];
-      
-      // If user has meta restriction, filter to only allowed numbers
+
+      // Filtro por organização: somente números pertencentes a usuários da própria assinatura.
+      // Evita vazamento causado pela política RLS "System owners can view all meta numbers".
+      if (orgUserIds && orgUserIds.length > 0) {
+        const orgSet = new Set(orgUserIds);
+        numbers = numbers.filter(n => n.user_id && orgSet.has(n.user_id));
+      }
+
+      // Se o usuário tiver restrição (membro com números específicos), filtrar adicionalmente
       if (hasMetaRestriction && myMetaNumberIds && myMetaNumberIds.length > 0) {
         numbers = numbers.filter(n => myMetaNumberIds.includes(n.id));
       }
       
       return numbers;
     },
-    enabled: !!user && hasMetaRestriction !== undefined,
+    enabled: !!user && hasMetaRestriction !== undefined && orgUserIds !== undefined,
   });
 
   const addNumber = useMutation({
