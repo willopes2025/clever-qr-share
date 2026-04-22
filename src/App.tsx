@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { SdrRoute } from "@/components/SdrRoute";
 import { PermissionGate } from "@/components/PermissionGate";
 import { NotificationProvider } from "@/components/NotificationProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -51,6 +52,7 @@ const Ajuda = lazy(() => import("./pages/Ajuda"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
 const InternalChat = lazy(() => import("./pages/InternalChat"));
 const Tasks = lazy(() => import("./pages/Tasks"));
+const SdrInbox = lazy(() => import("./pages/SdrInbox"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -311,6 +313,11 @@ const App = () => (
                         <Tasks />
                       </NotificationProvider>
                     </ProtectedRoute>
+                  } />
+                  <Route path="/sdr" element={
+                    <SdrRoute>
+                      <SdrInbox />
+                    </SdrRoute>
                   } />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
