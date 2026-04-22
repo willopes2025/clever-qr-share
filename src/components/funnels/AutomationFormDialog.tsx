@@ -30,6 +30,8 @@ import { useForms } from "@/hooks/useForms";
 import { useContacts } from "@/hooks/useContacts";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
+import { useMetaWhatsAppNumbers } from "@/hooks/useMetaWhatsAppNumbers";
 
 interface AutomationFormDialogProps {
   open: boolean;
@@ -105,28 +107,19 @@ interface IntentMapping {
 // Source selector for the "lead_source_instance" condition
 // Lists Evolution instances + Meta numbers, value format: "evo:<id>" | "meta:<phone_number_id>"
 const LeadSourceConditionSelector = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
-  const { data: instances } = useQuery({
-    queryKey: ['whatsapp-instances-for-condition'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('whatsapp_instances')
-        .select('id, instance_name, phone_number')
-        .order('instance_name');
-      return data || [];
-    },
-  });
+  // Usa hooks com escopo de organização + restrição por membro para evitar
+  // listar canais de outras assinaturas.
+  const { instances: scopedInstances } = useWhatsAppInstances();
+  const { metaNumbers: scopedMetaNumbers } = useMetaWhatsAppNumbers();
 
-  const { data: metaNumbers } = useQuery({
-    queryKey: ['meta-numbers-for-condition'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('meta_whatsapp_numbers')
-        .select('phone_number_id, phone_number, display_name')
-        .eq('is_active', true)
-        .order('display_name');
-      return data || [];
-    },
-  });
+  const instances = (scopedInstances || [])
+    .map((i) => ({ id: i.id, instance_name: i.instance_name, phone_number: i.phone_number }))
+    .sort((a, b) => (a.instance_name || '').localeCompare(b.instance_name || ''));
+
+  const metaNumbers = (scopedMetaNumbers || [])
+    .filter((m) => m.is_active)
+    .map((m) => ({ phone_number_id: m.phone_number_id, phone_number: m.phone_number, display_name: m.display_name }))
+    .sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
 
   return (
     <Select value={value} onValueChange={onChange}>
