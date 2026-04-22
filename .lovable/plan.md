@@ -1,40 +1,81 @@
 
+## Corrigir 3 problemas de uma vez: lista de funis, datas do popup e números no “Nova Conversa”
 
-## Corrigir vazamento de instâncias e números nos filtros do Inbox e demais telas
+### 1) Coluna Telefone no formato de lista dos funis
+Ajustar a tabela de `FunnelListView` para o campo telefone ter largura mínima própria e não ficar cortado quando houver muitas colunas.
 
-### Diagnóstico
+**O que será feito**
+- Criar largura específica por coluna na listagem, principalmente:
+  - `contact`: largura flexível maior
+  - `phone`: `min-width` fixa suficiente para o número completo
+- Renderizar o telefone com:
+  - `font-mono`/alinhamento estável
+  - `title` com o valor completo
+  - conteúdo sem corte indevido
+- Manter o scroll horizontal da tabela, mas sem “espremer” a coluna de telefone.
 
-Mesmo após as correções anteriores em `useMetaWhatsAppNumbers` e `useMetaNumbersMap`, os filtros do Inbox ainda mostram instâncias/números de outras assinaturas para alguns usuários. Causa:
+**Arquivo**
+- `src/components/funnels/FunnelListView.tsx`
 
-1. **`useWhatsAppInstances`** (usado em 16 arquivos: `ConversationFilters`, `MessageView`, `NewConversationDialog`, `Instances`, `Warming`, `TeamSettings`, `ApiSettings`, `SelectInstanceDialog` etc.) **não tem filtro por organização** — depende 100% do RLS. Quando o RLS concede acesso amplo (admin do sistema, política herdada), TODAS as instâncias do sistema vazam.
-2. **`MemberMetaNumbersDialog`** (standalone) ainda filtra pela org do **usuário logado**, não pela org do **membro sendo editado** — então admins gerenciando outras orgs veem números errados.
+---
 
-### O que vou ajustar
+### 2) Popup de edição mostrando datas em `YYYY-MM-DD`
+O problema não parece ser só no campo padrão do deal, mas principalmente em campos personalizados que chegam como texto/data ISO e hoje são renderizados cruamente em alguns casos.
 
-#### 1. `src/hooks/useWhatsAppInstances.ts` — filtrar por organização do logado
-- Adicionar query `orgUserIds` (mesmo padrão de `useMetaWhatsAppNumbers` / `useMetaNumbersMap`):
-  - `owner_id` da organização do usuário logado + todos os `team_members` ativos.
-- Filtrar `instances` por `i.user_id ∈ orgUserIds`.
-- Habilitar a query principal apenas quando `orgUserIds !== undefined` (evita flash com lista global).
-- Invalidar cache nas mutations existentes (já existe).
+**O que será feito**
+- Alinhar `DealCustomFieldsEditor` com o mesmo padrão já usado em outras áreas do sistema:
+  - detectar campos de data por tipo (`date` / `datetime`)
+  - detectar também campos `text` com nome de data (ex.: “Data da Entrada”, “Data da Consulta”)
+- Usar os utilitários já existentes para:
+  - interpretar `YYYY-MM-DD`, ISO e outros formatos válidos
+  - exibir sempre em `dd/MM/yyyy`
+- Salvar datas normalizadas no formato correto (`yyyy-MM-dd` para data simples), evitando voltar a aparecer em ISO bruto no popup.
+- Revisar também o campo padrão de previsão/fechamento para manter consistência visual.
 
-Isso elimina o vazamento em **todas as 16 telas** que consomem o hook (Inbox filters, Inbox MessageView, NewConversation, Instances, Warming, TeamSettings, ApiSettings, SelectInstance de campanhas, automações etc.).
+**Arquivos**
+- `src/components/funnels/DealCustomFieldsEditor.tsx`
+- `src/lib/date-utils.ts` (se precisar complementar helper reutilizável)
 
-#### 2. `src/components/settings/MemberMetaNumbersDialog.tsx` — usar org do membro editado
-- Adicionar `useQuery(['org-user-ids', member.organization_id])` que resolve `owner_id` + membros ativos da `member.organization_id`.
-- Filtrar `activeNumbers` por `n.user_id ∈ orgUserIdSet`.
-- Bloquear renderização da lista enquanto `orgUserIds` não carregar.
+---
 
-### Arquivos afetados
+### 3) “Iniciar Nova Conversa” ainda mostrando números de outros assinantes
+A correção precisa ser feita na origem do dado, não só no componente. Hoje a origem mais frágil é a resolução da organização do usuário nos hooks de canais.
 
-- `src/hooks/useWhatsAppInstances.ts` — adicionar resolução de `orgUserIds` e filtro defensivo na query principal.
-- `src/components/settings/MemberMetaNumbersDialog.tsx` — buscar org do membro editado e filtrar números Meta.
+**O que será feito**
+- Refatorar a resolução de escopo organizacional para ficar determinística:
+  - evitar depender de consultas soltas com `maybeSingle()` em vários hooks
+  - centralizar a resolução da organização ativa do usuário em um único fluxo reutilizável
+- Em `useWhatsAppInstances`:
+  - priorizar filtro por `organization_id` da instância quando disponível
+  - manter filtro adicional por permissões do membro (`allowedInstanceIds`) quando houver restrição individual
+  - retornar lista vazia enquanto o escopo ainda não estiver resolvido, evitando qualquer “flash” com números errados
+- Aplicar a mesma lógica de escopo aos hooks de números oficiais para deixar todos os seletores consistentes:
+  - `useMetaNumbersMap`
+  - `useMetaWhatsAppNumbers`
+- Ajustar `NewConversationDialog` para:
+  - só popular o select depois que a lista já vier filtrada
+  - só auto-selecionar instância após o carregamento do escopo correto
+  - mostrar estado vazio/carregando de forma segura
 
-### Resultado esperado
+**Arquivos**
+- `src/hooks/useChannelAccessScope.ts`
+- `src/hooks/useWhatsAppInstances.ts`
+- `src/hooks/useMetaNumbersMap.ts`
+- `src/hooks/useMetaWhatsAppNumbers.ts`
+- `src/components/inbox/NewConversationDialog.tsx`
 
-- **Filtros do Inbox** (`ConversationFilters`): cada usuário verá apenas as instâncias e números Meta da própria organização.
-- **MessageView, NewConversationDialog, SelectInstanceDialog**: idem — sem instâncias de outras assinaturas no seletor de remetente, novo contato ou campanhas.
-- **Instances, Warming, TeamSettings, ApiSettings**: páginas administrativas mostram apenas instâncias da própria assinatura.
-- **MemberMetaNumbersDialog**: ao configurar acesso de um membro, mostra somente os números Meta da organização daquele membro (não da org do admin logado).
-- Comportamento consistente para owners, admins de organização e admin do sistema (William continua vendo só os seus, mesmo com RLS amplo).
+---
 
+### Validação final esperada
+Depois da implementação:
+
+1. No **Funil > Lista**, o telefone aparecerá completo.
+2. No **popup de editar deal**, datas aparecerão em `dd/MM/yyyy`, inclusive nos campos personalizados de data.
+3. Em **Iniciar Nova Conversa**, o usuário verá somente os números/instâncias autorizados da própria assinatura/organização.
+4. A mesma regra de escopo ficará consistente nos demais seletores de canais do Inbox, reduzindo novos vazamentos parecidos.
+
+### Detalhes técnicos
+- Reaproveitar os helpers já existentes em `date-utils` em vez de criar parsing novo espalhado.
+- Tratar carregamento de escopo antes do render dos selects para evitar vazamento visual temporário.
+- Preferir escopo por organização real da instância (`organization_id`) quando existir; usar `user_id` apenas como fallback legado.
+- Manter a camada de restrição individual por membro (`team_member_instances` / `team_member_meta_numbers`) por cima do escopo da organização.
