@@ -17,6 +17,7 @@ import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useMemberInstances } from '@/hooks/useMemberInstances';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useMemberMetaNumbers } from '@/hooks/useMemberMetaNumbers';
+import { useOrganization } from '@/hooks/useOrganization';
 
 interface MemberInstancesDialogProps {
   open: boolean;
@@ -36,6 +37,10 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
   const hasInitialized = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Organização (para filtrar apenas os números originais do assinante/dono)
+  const { organization } = useOrganization();
+  const ownerId = organization?.owner_id;
+
   // Evolution hooks
   const { instances: allInstances, isLoading: isLoadingInstances } = useWhatsAppInstances();
   const { memberInstanceIds, isLoading: isLoadingMemberInstances, updateMemberInstances } = useMemberInstances(member.id);
@@ -44,9 +49,9 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
   const { metaNumbers, isLoading: isLoadingMetaNumbers } = useMetaWhatsAppNumbers();
   const { memberMetaNumberIds, isLoading: isLoadingMemberMeta, updateMemberMetaNumbers } = useMemberMetaNumbers(member.id);
 
-  // Filter instances
-  const instances = allInstances?.filter(i => !i.is_notification_only) || [];
-  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active) || [];
+  // Filter instances — apenas instâncias pertencentes ao dono da organização (assinante)
+  const instances = allInstances?.filter(i => !i.is_notification_only && (!ownerId || i.user_id === ownerId)) || [];
+  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && (!ownerId || n.user_id === ownerId)) || [];
 
   const hasEvolutionInstances = instances.length > 0;
   const hasMetaNumbers = activeMetaNumbers.length > 0;
