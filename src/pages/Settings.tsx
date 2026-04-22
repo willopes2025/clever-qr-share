@@ -25,6 +25,7 @@ interface SettingsTab {
   icon: LucideIcon;
   permission?: PermissionKey;
   adminOnly?: boolean;
+  systemOwnerOnly?: boolean;
   component: React.ComponentType;
 }
 
@@ -34,6 +35,7 @@ const allTabs: SettingsTab[] = [
   { value: "leads", label: "Leads", icon: Zap, component: AutoLeadSettings },
   { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
+  { value: "sdr-management", label: "SDRs Multi-Empresa", icon: UserCog, systemOwnerOnly: true, component: SdrManagement },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
   { value: "whatsapp-business", label: "WhatsApp Business", icon: MessageSquare, permission: "manage_settings", adminOnly: true, component: MetaWhatsAppSettings },
   { value: "sip-calls", label: "Chamadas IA", icon: Phone, permission: "manage_settings", adminOnly: true, component: ElevenLabsSIPSettings },
