@@ -51,7 +51,7 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
 
   // Filter instances — apenas instâncias pertencentes ao dono da organização (assinante)
   const instances = allInstances?.filter(i => !i.is_notification_only && (!ownerId || i.user_id === ownerId)) || [];
-  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && (!ownerId || (n as any).user_id === ownerId || !(n as any).user_id)) || [];
+  const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && (!ownerId || n.user_id === ownerId)) || [];
 
   const hasEvolutionInstances = instances.length > 0;
   const hasMetaNumbers = activeMetaNumbers.length > 0;
