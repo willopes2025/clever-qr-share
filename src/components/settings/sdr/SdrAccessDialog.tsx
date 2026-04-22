@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ export const SdrAccessDialog = ({ sdrUserId, sdrLabel, open, onOpenChange, onSav
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [allOrgs, setAllOrgs] = useState<{ id: string; name: string }[]>([]);
   const [newOrgId, setNewOrgId] = useState("");
 
   const load = async () => {
@@ -80,7 +81,14 @@ export const SdrAccessDialog = ({ sdrUserId, sdrLabel, open, onOpenChange, onSav
   };
 
   useEffect(() => {
-    if (open) load();
+    if (open) {
+      load();
+      supabase
+        .from("organizations")
+        .select("id, name")
+        .order("name")
+        .then(({ data }) => setAllOrgs((data as any[]) || []));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sdrUserId]);
 
@@ -226,14 +234,23 @@ export const SdrAccessDialog = ({ sdrUserId, sdrLabel, open, onOpenChange, onSav
           ))}
 
           <div className="border-t pt-3 space-y-2">
-            <Label>Adicionar outra empresa (Organization ID)</Label>
+            <Label>Adicionar outra empresa</Label>
             <div className="flex gap-2">
-              <Input
-                value={newOrgId}
-                onChange={(e) => setNewOrgId(e.target.value)}
-                placeholder="uuid da empresa"
-              />
-              <Button onClick={addOrganization} variant="outline">
+              <Select value={newOrgId} onValueChange={setNewOrgId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Selecione uma empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allOrgs
+                    .filter((o) => !assignments.some((a) => a.organization_id === o.id))
+                    .map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={addOrganization} variant="outline" disabled={!newOrgId}>
                 <Plus className="h-4 w-4 mr-1" /> Adicionar
               </Button>
             </div>

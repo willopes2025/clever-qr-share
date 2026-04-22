@@ -11,8 +11,10 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
 import { AutoLeadSettings } from "@/components/settings/AutoLeadSettings";
-import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, LucideIcon } from "lucide-react";
+import { SdrManagement } from "@/components/settings/SdrManagement";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, UserCog, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAdmin } from "@/hooks/useAdmin";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -23,6 +25,7 @@ interface SettingsTab {
   icon: LucideIcon;
   permission?: PermissionKey;
   adminOnly?: boolean;
+  systemOwnerOnly?: boolean;
   component: React.ComponentType;
 }
 
@@ -32,6 +35,7 @@ const allTabs: SettingsTab[] = [
   { value: "leads", label: "Leads", icon: Zap, component: AutoLeadSettings },
   { value: "notifications", label: "Notificações", icon: Bell, permission: "manage_notification_settings", component: NotificationSettings },
   { value: "team", label: "Equipe", icon: Users, permission: "invite_members", adminOnly: true, component: TeamSettings },
+  { value: "sdr-management", label: "SDRs Multi-Empresa", icon: UserCog, systemOwnerOnly: true, component: SdrManagement },
   { value: "whatsapp", label: "WhatsApp", icon: Smartphone, permission: "view_instances", component: WhatsAppSettings },
   { value: "whatsapp-business", label: "WhatsApp Business", icon: MessageSquare, permission: "manage_settings", adminOnly: true, component: MetaWhatsAppSettings },
   { value: "sip-calls", label: "Chamadas IA", icon: Phone, permission: "manage_settings", adminOnly: true, component: ElevenLabsSIPSettings },
@@ -42,6 +46,7 @@ const allTabs: SettingsTab[] = [
 
 const Settings = () => {
   const { isAdmin, checkPermission, organization, isLoading } = useOrganization();
+  const { isAdmin: isSystemOwner, loading: ownerLoading } = useAdmin();
   const [searchParams] = useSearchParams();
 
   // Filtrar abas baseado em permissões
@@ -51,6 +56,12 @@ const Settings = () => {
     return allTabs.filter(tab => {
       // Perfil, ai-tokens e leads sempre visível
       if (tab.value === "profile" || tab.value === "ai-tokens" || tab.value === "leads") return true;
+      
+      // System-owner-only tab (gerenciamento de SDR multi-empresa)
+      if (tab.systemOwnerOnly) {
+        if (ownerLoading) return false;
+        return isSystemOwner;
+      }
       
       // Se não tem organização, mostra tudo (legado)
       if (!organization) return true;
@@ -68,7 +79,7 @@ const Settings = () => {
       
       return true;
     });
-  }, [isLoading, organization, isAdmin, checkPermission]);
+  }, [isLoading, organization, isAdmin, checkPermission, isSystemOwner, ownerLoading]);
 
   // Determinar aba padrão (do URL ou primeira visível)
   const tabFromUrl = searchParams.get('tab');
