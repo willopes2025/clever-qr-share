@@ -61,13 +61,20 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
           </Label>
           
           {field.field_type === 'text' && (
-            <Input
-              id={field.field_key}
-              value={(values[field.field_key] as string) || ''}
-              onChange={(e) => handleChange(field.field_key, e.target.value)}
-              placeholder={`Digite ${field.field_name.toLowerCase()}`}
-              required={field.is_required || false}
-            />
+            isDateLikeFieldName(field.field_name) ? (
+              <DateFieldPicker
+                value={normalizeDateLikeValue((values[field.field_key] as string) || '')}
+                onChange={(v) => handleChange(field.field_key, v)}
+              />
+            ) : (
+              <Input
+                id={field.field_key}
+                value={(values[field.field_key] as string) || ''}
+                onChange={(e) => handleChange(field.field_key, e.target.value)}
+                placeholder={`Digite ${field.field_name.toLowerCase()}`}
+                required={field.is_required || false}
+              />
+            )
           )}
 
           {field.field_type === 'url' && (
