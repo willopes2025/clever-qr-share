@@ -17,6 +17,7 @@ import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useMemberInstances } from '@/hooks/useMemberInstances';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useMemberMetaNumbers } from '@/hooks/useMemberMetaNumbers';
+import { useOrganization } from '@/hooks/useOrganization';
 
 interface MemberInstancesDialogProps {
   open: boolean;
