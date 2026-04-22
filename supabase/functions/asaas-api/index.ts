@@ -189,41 +189,64 @@ Deno.serve(async (req) => {
       return responseData;
     };
 
-    // Função para buscar todas as páginas de uma entidade
+    // Função para buscar todas as páginas de uma entidade (em paralelo, por lotes)
     const fetchAllPages = async (endpoint: string, filters: string = '') => {
-      const allData: unknown[] = [];
-      let offset = 0;
-      let hasMore = true;
       const pageLimit = 100;
-      let totalFetched = 0;
-      
-      console.log(`Starting full pagination for ${endpoint}${filters}`);
-      
-      while (hasMore) {
-        const response = await asaasRequest('GET', 
-          `${endpoint}?limit=${pageLimit}&offset=${offset}${filters}`);
-        
-        const pageData = response.data || [];
-        allData.push(...pageData);
-        totalFetched += pageData.length;
-        hasMore = response.hasMore === true;
-        offset += pageLimit;
-        
-        console.log(`Fetched ${totalFetched} records from ${endpoint}...`);
-        
-        // Safety: evitar loops infinitos (máximo 50 páginas = 5000 registros)
-        if (offset >= 5000) {
-          console.log(`Reached safety limit of 5000 records for ${endpoint}`);
+      const maxRecords = 5000; // safety cap
+      const batchSize = 10;    // 10 páginas em paralelo = 1000 registros por batch
+      const allData: unknown[] = [];
+
+      console.log(`Starting parallel pagination for ${endpoint}${filters}`);
+
+      // Primeira página para descobrir se há mais
+      const firstResp = await asaasRequest('GET',
+        `${endpoint}?limit=${pageLimit}&offset=0${filters}`);
+      const firstData = firstResp.data || [];
+      allData.push(...firstData);
+
+      let hasMore = firstResp.hasMore === true && firstData.length === pageLimit;
+      let nextOffset = pageLimit;
+
+      while (hasMore && allData.length < maxRecords) {
+        const offsets: number[] = [];
+        for (let i = 0; i < batchSize && nextOffset < maxRecords; i++) {
+          offsets.push(nextOffset);
+          nextOffset += pageLimit;
+        }
+
+        const responses = await Promise.all(
+          offsets.map((off) =>
+            asaasRequest('GET', `${endpoint}?limit=${pageLimit}&offset=${off}${filters}`)
+          )
+        );
+
+        let lastFull = true;
+        for (const resp of responses) {
+          const pageData = resp.data || [];
+          allData.push(...pageData);
+          if (pageData.length < pageLimit || resp.hasMore !== true) {
+            lastFull = false;
+          }
+        }
+
+        console.log(`Fetched ${allData.length} records from ${endpoint}...`);
+
+        if (!lastFull) {
+          hasMore = false;
           break;
         }
       }
-      
+
+      if (allData.length >= maxRecords) {
+        console.log(`Reached safety limit of ${maxRecords} records for ${endpoint}`);
+      }
+
       console.log(`Finished fetching ${allData.length} total records from ${endpoint}`);
-      
-      return { 
-        data: allData, 
+
+      return {
+        data: allData,
         totalCount: allData.length,
-        fetchedAt: new Date().toISOString()
+        fetchedAt: new Date().toISOString(),
       };
     };
 
