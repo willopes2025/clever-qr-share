@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +32,36 @@ export function MemberMetaNumbersDialog({ open, onOpenChange, member }: MemberMe
   const { metaNumbers, isLoading: isLoadingNumbers } = useMetaWhatsAppNumbers();
   const { memberMetaNumberIds, isLoading: isLoadingMember, updateMemberMetaNumbers } = useMemberMetaNumbers(member.id);
 
-  const activeNumbers = metaNumbers?.filter(n => n.is_active) || [];
+  // Resolver user_ids da organização do MEMBRO sendo editado (não do logado).
+  // Garante que admins gerenciando outras orgs vejam apenas os números daquela org.
+  const { data: orgUserIds, isLoading: isLoadingOrgUsers } = useQuery({
+    queryKey: ['member-org-user-ids', member.organization_id],
+    queryFn: async () => {
+      const ids = new Set<string>();
+
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('owner_id')
+        .eq('id', member.organization_id)
+        .maybeSingle();
+      if (org?.owner_id) ids.add(org.owner_id);
+
+      const { data: tms } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('organization_id', member.organization_id)
+        .eq('status', 'active');
+      tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
+
+      return Array.from(ids);
+    },
+    enabled: open && !!member.organization_id,
+  });
+
+  const orgUserIdSet = orgUserIds ? new Set(orgUserIds) : null;
+  const activeNumbers = (metaNumbers || []).filter(n =>
+    n.is_active && (!orgUserIdSet || (n.user_id && orgUserIdSet.has(n.user_id)))
+  );
 
   useEffect(() => {
     if (open && memberMetaNumberIds !== undefined && !hasInitialized.current) {
