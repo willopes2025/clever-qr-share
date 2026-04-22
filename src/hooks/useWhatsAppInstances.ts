@@ -40,7 +40,7 @@ export const WARMING_LEVELS = [
 export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
   const { session, user } = useAuth();
-  const { orgUserIds, hasInstanceRestriction, allowedInstanceIds } = useChannelAccessScope();
+  const { orgUserIds, hasInstanceRestriction, allowedInstanceIds, isScopeReady } = useChannelAccessScope();
 
   const requireAuthHeaders = async () => {
     // Get fresh session to ensure token is valid
@@ -87,7 +87,9 @@ export const useWhatsAppInstances = () => {
 
       return list;
     },
-    enabled: !!user && orgUserIds !== undefined && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
+    // Só executa após o escopo organizacional estar 100% resolvido para evitar
+    // qualquer "flash" momentâneo com instâncias de outras assinaturas.
+    enabled: isScopeReady,
   });
 
   // Criar nova instância
