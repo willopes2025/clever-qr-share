@@ -293,6 +293,10 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
                   </div>
                 ))}
               </div>
+            ) : isLoadingInstances ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Carregando instâncias autorizadas...
+              </div>
             ) : connectedInstances.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 Conecte uma instância do WhatsApp primeiro
