@@ -171,7 +171,7 @@ export function MemberInstancesDialog({ open, onOpenChange, member }: MemberInst
     }
   };
 
-  const isLoading = isLoadingInstances || isLoadingMemberInstances || isLoadingMetaNumbers || isLoadingMemberMeta;
+  const isLoading = isLoadingInstances || isLoadingMemberInstances || isLoadingMetaNumbers || isLoadingMemberMeta || isLoadingOrgUsers || !orgUserIds;
   const canSave = allInstancesSelected || selectedInstances.length > 0;
 
   return (
