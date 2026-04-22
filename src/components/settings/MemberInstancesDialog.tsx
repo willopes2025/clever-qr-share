@@ -17,7 +17,8 @@ import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useMemberInstances } from '@/hooks/useMemberInstances';
 import { useMetaWhatsAppNumbers } from '@/hooks/useMetaWhatsAppNumbers';
 import { useMemberMetaNumbers } from '@/hooks/useMemberMetaNumbers';
-import { useOrganization } from '@/hooks/useOrganization';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MemberInstancesDialogProps {
   open: boolean;
