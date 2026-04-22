@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from './useAuth';
+import { useChannelAccessScope } from './useChannelAccessScope';
 
 export interface WhatsAppInstance {
   id: string;
@@ -39,54 +40,7 @@ export const WARMING_LEVELS = [
 export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
   const { session, user } = useAuth();
-
-  // Buscar TODOS os user_ids da organização do usuário logado (owner + membros ativos).
-  // Necessário porque o RLS pode conceder acesso amplo (admin do sistema) — o filtro
-  // no frontend garante que cada assinatura veja apenas suas próprias instâncias.
-  const { data: orgUserIds } = useQuery({
-    queryKey: ['my-org-user-ids', user?.id],
-    queryFn: async () => {
-      const ids = new Set<string>();
-      ids.add(user!.id);
-
-      const { data: myMembership } = await supabase
-        .from('team_members')
-        .select('organization_id')
-        .eq('user_id', user!.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      let orgId = myMembership?.organization_id as string | undefined;
-
-      if (!orgId) {
-        const { data: ownedOrg } = await supabase
-          .from('organizations')
-          .select('id')
-          .eq('owner_id', user!.id)
-          .maybeSingle();
-        orgId = ownedOrg?.id;
-      }
-
-      if (orgId) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('owner_id')
-          .eq('id', orgId)
-          .maybeSingle();
-        if (org?.owner_id) ids.add(org.owner_id);
-
-        const { data: tms } = await supabase
-          .from('team_members')
-          .select('user_id')
-          .eq('organization_id', orgId)
-          .eq('status', 'active');
-        tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
-      }
-
-      return Array.from(ids);
-    },
-    enabled: !!user,
-  });
+  const { orgUserIds, hasInstanceRestriction, allowedInstanceIds } = useChannelAccessScope();
 
   const requireAuthHeaders = async () => {
     // Get fresh session to ensure token is valid
@@ -105,7 +59,7 @@ export const useWhatsAppInstances = () => {
     return { Authorization: `Bearer ${token}` };
   };
   const { data: instances, isLoading, refetch } = useQuery({
-    queryKey: ['whatsapp-instances', orgUserIds],
+    queryKey: ['whatsapp-instances', user?.id, orgUserIds, hasInstanceRestriction, allowedInstanceIds],
     queryFn: async () => {
       // Filtro defensivo no servidor: restringe explicitamente aos user_ids da org.
       // Se orgUserIds estiver vazio (caso anômalo), retorna lista vazia em vez de tudo.
@@ -120,13 +74,20 @@ export const useWhatsAppInstances = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      const list = (data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[]) || [];
+      let list = (data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[]) || [];
 
       // Defesa em camadas: reaplica filtro local mesmo após .in().
       const orgSet = new Set(orgUserIds);
-      return list.filter(i => i.user_id && orgSet.has(i.user_id));
+      list = list.filter(i => i.user_id && orgSet.has(i.user_id));
+
+      if (hasInstanceRestriction && allowedInstanceIds) {
+        const allowedSet = new Set(allowedInstanceIds);
+        list = list.filter((instance) => allowedSet.has(instance.id));
+      }
+
+      return list;
     },
-    enabled: orgUserIds !== undefined,
+    enabled: !!user && orgUserIds !== undefined && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
   });
 
   // Criar nova instância
