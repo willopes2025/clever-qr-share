@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings, Download, Smartphone, Calendar, Pencil } from "lucide-react";
+import { QrCode, Trash2, Power, Check, Minus, Plus, GitBranch, Settings, Download, Smartphone, Calendar, Pencil, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { WARMING_LEVELS } from "@/hooks/useWhatsAppInstances";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -29,6 +29,8 @@ interface InstanceCardProps {
   onConfigureFunnel: () => void;
   onSyncHistory: () => void;
   onEditDevice?: () => void;
+  onRefreshSession?: () => void;
+  isRefreshingSession?: boolean;
 }
 
 export const InstanceCard = ({ 
@@ -51,6 +53,8 @@ export const InstanceCard = ({
   onConfigureFunnel,
   onSyncHistory,
   onEditDevice,
+  onRefreshSession,
+  isRefreshingSession,
 }: InstanceCardProps) => {
   const statusConfig = {
     connected: { color: "bg-accent", text: "Conectado", icon: Check },
@@ -274,6 +278,26 @@ export const InstanceCard = ({
               <p>Sincronizar histórico de mensagens</p>
             </TooltipContent>
           </Tooltip>
+          {onRefreshSession && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRefreshSession}
+                  disabled={status !== "connected" || isRefreshingSession}
+                  className="relative z-50 rounded-xl"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshingSession ? 'animate-spin' : ''}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[260px]">
+                <p className="text-xs">
+                  Recarregar sessão (resolve "aguardando mensagem" no destinatário)
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Button
             variant="destructive"
             size="sm"
