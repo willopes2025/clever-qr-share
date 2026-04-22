@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMemo } from "react";
+import { useChannelAccessScope } from "@/hooks/useChannelAccessScope";
 
 export interface MetaNumberInfo {
   phone_number_id: string;
@@ -12,56 +13,10 @@ export interface MetaNumberInfo {
 
 export const useMetaNumbersMap = () => {
   const { user } = useAuth();
-
-  // Resolver user_ids da organização do usuário logado para evitar vazamento
-  // quando o RLS concede acesso amplo (ex.: admin do sistema).
-  const { data: orgUserIds } = useQuery({
-    queryKey: ['my-org-user-ids', user?.id],
-    queryFn: async () => {
-      const ids = new Set<string>();
-      ids.add(user!.id);
-
-      const { data: myMembership } = await supabase
-        .from('team_members')
-        .select('organization_id')
-        .eq('user_id', user!.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      let orgId = myMembership?.organization_id as string | undefined;
-
-      if (!orgId) {
-        const { data: ownedOrg } = await supabase
-          .from('organizations')
-          .select('id')
-          .eq('owner_id', user!.id)
-          .maybeSingle();
-        orgId = ownedOrg?.id;
-      }
-
-      if (orgId) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('owner_id')
-          .eq('id', orgId)
-          .maybeSingle();
-        if (org?.owner_id) ids.add(org.owner_id);
-
-        const { data: tms } = await supabase
-          .from('team_members')
-          .select('user_id')
-          .eq('organization_id', orgId)
-          .eq('status', 'active');
-        tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
-      }
-
-      return Array.from(ids);
-    },
-    enabled: !!user,
-  });
+  const { orgUserIds, hasMetaRestriction, allowedMetaNumberIds } = useChannelAccessScope();
 
   const { data: metaNumbers = [], isLoading } = useQuery({
-    queryKey: ['meta-whatsapp-numbers-map', user?.id, orgUserIds],
+    queryKey: ['meta-whatsapp-numbers-map', user?.id, orgUserIds, hasMetaRestriction, allowedMetaNumberIds],
     queryFn: async () => {
       // Filtro defensivo no servidor: limita explicitamente a usuários da própria org.
       // Se orgUserIds estiver vazio (caso anômalo), retorna lista vazia em vez de tudo.
@@ -78,14 +33,19 @@ export const useMetaNumbersMap = () => {
 
       if (error) throw error;
 
-      const rows = (data as (MetaNumberInfo & { user_id: string | null })[]) || [];
+      let rows = (data as (MetaNumberInfo & { id: string; user_id: string | null })[]) || [];
       // Defesa em camadas: mesmo com .in(), reaplica filtro local.
       const orgSet = new Set(orgUserIds);
-      return rows
-        .filter(r => r.user_id && orgSet.has(r.user_id))
-        .map(({ user_id, ...rest }) => rest) as MetaNumberInfo[];
+      rows = rows.filter(r => r.user_id && orgSet.has(r.user_id));
+
+      if (hasMetaRestriction && allowedMetaNumberIds) {
+        const allowedSet = new Set(allowedMetaNumberIds);
+        rows = rows.filter((row) => allowedSet.has(row.id));
+      }
+
+      return rows.map(({ id: _id, user_id, ...rest }) => rest) as MetaNumberInfo[];
     },
-    enabled: !!user && orgUserIds !== undefined,
+    enabled: !!user && orgUserIds !== undefined && (hasMetaRestriction === false || allowedMetaNumberIds !== undefined),
     staleTime: 10000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
