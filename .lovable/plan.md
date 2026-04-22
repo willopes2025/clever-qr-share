@@ -1,50 +1,40 @@
 
 
-## Corrigir vazamento de instâncias no diálogo "Instâncias de Acesso"
+## Corrigir vazamento de instâncias e números nos filtros do Inbox e demais telas
 
-### Diagnóstico confirmado
+### Diagnóstico
 
-O diálogo está mostrando instâncias de outras organizações (ex.: Goncalves Dias, Lucas, Aline, Matheus, Pedro) ao configurar acesso da membro **Weslaine Borel** (membro do William em "Equipe Grupo Wil").
+Mesmo após as correções anteriores em `useMetaWhatsAppNumbers` e `useMetaNumbersMap`, os filtros do Inbox ainda mostram instâncias/números de outras assinaturas para alguns usuários. Causa:
 
-Causa raiz: o filtro atual usa `useOrganization()`, que retorna a **organização do usuário logado**, não a **organização do membro sendo editado**. Resultado:
-
-- Se quem está abrindo o diálogo é um administrador do sistema (com RLS amplo) ou alguém de outra organização, `ownerId` não bate com o dono real da organização do membro.
-- A condição `(!ownerId || i.user_id === ownerId)` então:
-  - se `ownerId` existir mas for de OUTRA org → as instâncias do dono certo somem;
-  - se o conjunto de instâncias retornadas pelo RLS contiver instâncias de várias orgs (ex.: super admin), todas vazam.
-
-Além disso, mesmo quando o owner da org bate, ainda há outro problema: instâncias criadas por **membros da equipe** ficam com `user_id = membro` (não o owner), então elas seriam **erroneamente ocultadas**.
+1. **`useWhatsAppInstances`** (usado em 16 arquivos: `ConversationFilters`, `MessageView`, `NewConversationDialog`, `Instances`, `Warming`, `TeamSettings`, `ApiSettings`, `SelectInstanceDialog` etc.) **não tem filtro por organização** — depende 100% do RLS. Quando o RLS concede acesso amplo (admin do sistema, política herdada), TODAS as instâncias do sistema vazam.
+2. **`MemberMetaNumbersDialog`** (standalone) ainda filtra pela org do **usuário logado**, não pela org do **membro sendo editado** — então admins gerenciando outras orgs veem números errados.
 
 ### O que vou ajustar
 
-#### 1. Resolver o owner correto a partir do próprio membro
-Arquivo: `src/components/settings/MemberInstancesDialog.tsx`
+#### 1. `src/hooks/useWhatsAppInstances.ts` — filtrar por organização do logado
+- Adicionar query `orgUserIds` (mesmo padrão de `useMetaWhatsAppNumbers` / `useMetaNumbersMap`):
+  - `owner_id` da organização do usuário logado + todos os `team_members` ativos.
+- Filtrar `instances` por `i.user_id ∈ orgUserIds`.
+- Habilitar a query principal apenas quando `orgUserIds !== undefined` (evita flash com lista global).
+- Invalidar cache nas mutations existentes (já existe).
 
-- Remover o uso de `useOrganization()` para definir `ownerId`.
-- Buscar a organização diretamente pelo `member.organization_id` (que já vem na prop `member`) e obter o `owner_id` real dessa organização.
-- Cache via React Query (`['organization', member.organization_id]`).
+Isso elimina o vazamento em **todas as 16 telas** que consomem o hook (Inbox filters, Inbox MessageView, NewConversation, Instances, Warming, TeamSettings, ApiSettings, SelectInstance de campanhas, automações etc.).
 
-#### 2. Considerar TODOS os user_ids da organização do membro
-- Buscar via `team_members` todos os `user_id` ativos da `member.organization_id` + o `owner_id` da organização.
-- Filtrar instâncias e números Meta por `instance.user_id ∈ orgUserIds`.
-
-Isso garante que apareçam tanto as instâncias criadas pelo dono (assinante) quanto as criadas por membros da própria equipe — e nada de fora da organização.
-
-#### 3. Mesmo tratamento para os números Meta
-- Aplicar a mesma checagem `n.user_id ∈ orgUserIds` em `activeMetaNumbers`.
-
-#### 4. Estado de carregamento seguro
-- Enquanto os `orgUserIds` estiverem carregando, **não renderizar a lista** (evita flash de "todas as instâncias do sistema") — mostrar o spinner já existente.
-- Se a busca falhar, exibir lista vazia em vez de cair no fallback permissivo.
+#### 2. `src/components/settings/MemberMetaNumbersDialog.tsx` — usar org do membro editado
+- Adicionar `useQuery(['org-user-ids', member.organization_id])` que resolve `owner_id` + membros ativos da `member.organization_id`.
+- Filtrar `activeNumbers` por `n.user_id ∈ orgUserIdSet`.
+- Bloquear renderização da lista enquanto `orgUserIds` não carregar.
 
 ### Arquivos afetados
 
-- `src/components/settings/MemberInstancesDialog.tsx` — buscar owner + user_ids da org do **membro** e filtrar por esse conjunto.
+- `src/hooks/useWhatsAppInstances.ts` — adicionar resolução de `orgUserIds` e filtro defensivo na query principal.
+- `src/components/settings/MemberMetaNumbersDialog.tsx` — buscar org do membro editado e filtrar números Meta.
 
 ### Resultado esperado
 
-- Ao configurar acesso de Weslaine Borel (org "Equipe Grupo Wil"), aparecerão apenas as 7 instâncias dessa organização (Brasil Visão Cidadã, Centro de Saúde Visual, Centro de Saúde Visual 2, James & Jesse's, Notificação, Seven 7685, Seven Cobrança) — nada de Lucas, Aline, Matheus, Pedro etc.
-- Mesmo comportamento aplicado aos números Meta.
-- Funciona corretamente independentemente de quem está logado (admin do sistema, dono da org ou outro membro com permissão).
-- Instâncias criadas por membros da equipe continuam visíveis para a própria equipe (não somem mais).
+- **Filtros do Inbox** (`ConversationFilters`): cada usuário verá apenas as instâncias e números Meta da própria organização.
+- **MessageView, NewConversationDialog, SelectInstanceDialog**: idem — sem instâncias de outras assinaturas no seletor de remetente, novo contato ou campanhas.
+- **Instances, Warming, TeamSettings, ApiSettings**: páginas administrativas mostram apenas instâncias da própria assinatura.
+- **MemberMetaNumbersDialog**: ao configurar acesso de um membro, mostra somente os números Meta da organização daquele membro (não da org do admin logado).
+- Comportamento consistente para owners, admins de organização e admin do sistema (William continua vendo só os seus, mesmo com RLS amplo).
 
