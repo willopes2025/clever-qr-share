@@ -727,13 +727,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <p className="font-medium">{deal.title || deal.contact?.name || "Sem nome"}</p>
         );
-      case "phone":
+      case "phone": {
+        const phoneValue = deal.contact?.phone || "";
+        const formatted = formatForDisplay(phoneValue);
         return (
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            <Phone className="h-3 w-3" />
-            {formatForDisplay(deal.contact?.phone || "")}
+          <p
+            className="text-sm text-muted-foreground flex items-center gap-1 font-mono tabular-nums whitespace-nowrap"
+            title={formatted || phoneValue}
+          >
+            <Phone className="h-3 w-3 shrink-0" />
+            <span className="whitespace-nowrap">{formatted}</span>
           </p>
         );
+      }
       case "stage":
         return (
           <Select
@@ -1227,11 +1233,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                   {...(isSomeSelected ? { "data-state": "indeterminate" } : {})}
                 />
               </TableHead>
-              {orderedVisibleColumns.map((colId) => (
-                <TableHead key={colId} className="whitespace-nowrap">
-                  {renderColumnHeader(colId)}
-                </TableHead>
-              ))}
+              {orderedVisibleColumns.map((colId) => {
+                const widthClass =
+                  colId === "phone"
+                    ? "min-w-[180px]"
+                    : colId === "contact"
+                      ? "min-w-[220px]"
+                      : "";
+                return (
+                  <TableHead key={colId} className={`whitespace-nowrap ${widthClass}`}>
+                    {renderColumnHeader(colId)}
+                  </TableHead>
+                );
+              })}
               <TableHead className="w-[50px] sticky right-0 bg-card z-10"></TableHead>
             </TableRow>
           </TableHeader>
@@ -1262,11 +1276,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                       aria-label={`Selecionar ${deal.title || deal.contact?.name}`}
                     />
                   </TableCell>
-                  {orderedVisibleColumns.map((colId) => (
-                    <TableCell key={colId} className="whitespace-nowrap">
-                      {renderCellContent(deal, colId)}
-                    </TableCell>
-                  ))}
+                  {orderedVisibleColumns.map((colId) => {
+                    const widthClass =
+                      colId === "phone"
+                        ? "min-w-[180px]"
+                        : colId === "contact"
+                          ? "min-w-[220px]"
+                          : "";
+                    return (
+                      <TableCell key={colId} className={`whitespace-nowrap ${widthClass}`}>
+                        {renderCellContent(deal, colId)}
+                      </TableCell>
+                    );
+                  })}
                   <TableCell className="sticky right-0 bg-card z-10">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

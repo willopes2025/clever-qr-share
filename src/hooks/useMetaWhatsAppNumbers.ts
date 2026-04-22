@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useChannelAccessScope } from "@/hooks/useChannelAccessScope";
 import { toast } from "sonner";
 
 export interface MetaWhatsAppNumber {
@@ -23,82 +24,15 @@ export interface MetaWhatsAppNumber {
 export const useMetaWhatsAppNumbers = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  // Check if current user has meta number restriction
-  const { data: myMetaNumberIds } = useQuery({
-    queryKey: ['my-meta-number-ids', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_member_meta_number_ids', { _user_id: user!.id });
-      if (error) throw error;
-      return data as string[];
-    },
-    enabled: !!user,
-  });
-
-  const { data: hasMetaRestriction } = useQuery({
-    queryKey: ['has-meta-restriction', user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('member_has_meta_restriction', { _user_id: user!.id });
-      if (error) throw error;
-      return data as boolean;
-    },
-    enabled: !!user,
-  });
-
-  // Buscar TODOS os user_ids da organização do usuário logado (owner + membros ativos).
-  // Necessário porque o RLS concede ao admin do sistema acesso a TODOS os números —
-  // o filtro no frontend garante que cada assinatura veja apenas o que é seu.
-  const { data: orgUserIds } = useQuery({
-    queryKey: ['my-org-user-ids', user?.id],
-    queryFn: async () => {
-      const ids = new Set<string>();
-      ids.add(user!.id);
-
-      // Organização onde o usuário é membro ativo
-      const { data: myMembership } = await supabase
-        .from('team_members')
-        .select('organization_id')
-        .eq('user_id', user!.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      let orgId = myMembership?.organization_id as string | undefined;
-
-      // Caso seja owner sem registro em team_members, busca a org dele
-      if (!orgId) {
-        const { data: ownedOrg } = await supabase
-          .from('organizations')
-          .select('id')
-          .eq('owner_id', user!.id)
-          .maybeSingle();
-        orgId = ownedOrg?.id;
-      }
-
-      if (orgId) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('owner_id')
-          .eq('id', orgId)
-          .maybeSingle();
-        if (org?.owner_id) ids.add(org.owner_id);
-
-        const { data: tms } = await supabase
-          .from('team_members')
-          .select('user_id')
-          .eq('organization_id', orgId)
-          .eq('status', 'active');
-        tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
-      }
-
-      return Array.from(ids);
-    },
-    enabled: !!user,
-  });
+  const {
+    orgUserIds,
+    hasMetaRestriction,
+    allowedMetaNumberIds,
+    isScopeReady,
+  } = useChannelAccessScope();
 
   const { data: metaNumbers, isLoading, refetch } = useQuery({
-    queryKey: ['meta-whatsapp-numbers', user?.id, myMetaNumberIds, hasMetaRestriction, orgUserIds],
+    queryKey: ['meta-whatsapp-numbers', user?.id, orgUserIds, hasMetaRestriction, allowedMetaNumberIds],
     queryFn: async () => {
       // Filtro defensivo no servidor: restringe explicitamente aos user_ids da org.
       // Se orgUserIds estiver vazio (caso anômalo), retorna lista vazia em vez de tudo.
@@ -113,7 +47,7 @@ export const useMetaWhatsAppNumbers = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
+
       let numbers = (data as MetaWhatsAppNumber[]) || [];
 
       // Defesa em camadas: reaplica filtro local mesmo após .in().
@@ -121,13 +55,14 @@ export const useMetaWhatsAppNumbers = () => {
       numbers = numbers.filter(n => n.user_id && orgSet.has(n.user_id));
 
       // Se o usuário tiver restrição (membro com números específicos), filtrar adicionalmente
-      if (hasMetaRestriction && myMetaNumberIds && myMetaNumberIds.length > 0) {
-        numbers = numbers.filter(n => myMetaNumberIds.includes(n.id));
+      if (hasMetaRestriction && allowedMetaNumberIds && allowedMetaNumberIds.length > 0) {
+        numbers = numbers.filter(n => allowedMetaNumberIds.includes(n.id));
       }
-      
+
       return numbers;
     },
-    enabled: !!user && hasMetaRestriction !== undefined && orgUserIds !== undefined,
+    // Só executa quando o escopo organizacional está totalmente resolvido.
+    enabled: isScopeReady,
   });
 
   const addNumber = useMutation({

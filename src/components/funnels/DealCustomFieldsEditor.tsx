@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { isDateLikeFieldName, parseAnyDateValue } from "@/lib/date-utils";
 
 interface DealCustomFieldsEditorProps {
   values: Record<string, unknown>;
@@ -60,13 +61,20 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
           </Label>
           
           {field.field_type === 'text' && (
-            <Input
-              id={field.field_key}
-              value={(values[field.field_key] as string) || ''}
-              onChange={(e) => handleChange(field.field_key, e.target.value)}
-              placeholder={`Digite ${field.field_name.toLowerCase()}`}
-              required={field.is_required || false}
-            />
+            isDateLikeFieldName(field.field_name) ? (
+              <DateFieldPicker
+                value={normalizeDateLikeValue((values[field.field_key] as string) || '')}
+                onChange={(v) => handleChange(field.field_key, v)}
+              />
+            ) : (
+              <Input
+                id={field.field_key}
+                value={(values[field.field_key] as string) || ''}
+                onChange={(e) => handleChange(field.field_key, e.target.value)}
+                placeholder={`Digite ${field.field_name.toLowerCase()}`}
+                required={field.is_required || false}
+              />
+            )
           )}
 
           {field.field_type === 'url' && (
@@ -226,14 +234,24 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
   );
 };
 
+function normalizeDateLikeValue(raw: string): string {
+  if (!raw) return '';
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = parseAnyDateValue(raw);
+  if (!parsed) return '';
+  return format(parsed, 'yyyy-MM-dd');
+}
+
 function DateFieldPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const selected = value ? parse(value, 'yyyy-MM-dd', new Date()) : undefined;
+  const normalized = value ? (/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : (parseAnyDateValue(value) ? format(parseAnyDateValue(value)!, 'yyyy-MM-dd') : '')) : '';
+  const selected = normalized ? parse(normalized, 'yyyy-MM-dd', new Date()) : undefined;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !value && "text-muted-foreground")}>
+        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !normalized && "text-muted-foreground")}>
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(parse(value, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy') : "Selecione uma data"}
+          {normalized ? format(parse(normalized, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy') : "Selecione uma data"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
