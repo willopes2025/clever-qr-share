@@ -100,21 +100,25 @@ export const useMetaWhatsAppNumbers = () => {
   const { data: metaNumbers, isLoading, refetch } = useQuery({
     queryKey: ['meta-whatsapp-numbers', user?.id, myMetaNumberIds, hasMetaRestriction, orgUserIds],
     queryFn: async () => {
+      // Filtro defensivo no servidor: restringe explicitamente aos user_ids da org.
+      // Se orgUserIds estiver vazio (caso anômalo), retorna lista vazia em vez de tudo.
+      if (!orgUserIds || orgUserIds.length === 0) {
+        return [] as MetaWhatsAppNumber[];
+      }
+
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
         .select('*')
+        .in('user_id', orgUserIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      let numbers = data as MetaWhatsAppNumber[];
+      let numbers = (data as MetaWhatsAppNumber[]) || [];
 
-      // Filtro por organização: somente números pertencentes a usuários da própria assinatura.
-      // Evita vazamento causado pela política RLS "System owners can view all meta numbers".
-      if (orgUserIds && orgUserIds.length > 0) {
-        const orgSet = new Set(orgUserIds);
-        numbers = numbers.filter(n => n.user_id && orgSet.has(n.user_id));
-      }
+      // Defesa em camadas: reaplica filtro local mesmo após .in().
+      const orgSet = new Set(orgUserIds);
+      numbers = numbers.filter(n => n.user_id && orgSet.has(n.user_id));
 
       // Se o usuário tiver restrição (membro com números específicos), filtrar adicionalmente
       if (hasMetaRestriction && myMetaNumberIds && myMetaNumberIds.length > 0) {
