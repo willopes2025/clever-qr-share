@@ -4831,6 +4831,110 @@ export type Database = {
         }
         Relationships: []
       }
+      sdr_assignments: {
+        Row: {
+          created_at: string
+          granted_by_owner_id: string
+          id: string
+          organization_id: string
+          sdr_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by_owner_id: string
+          id?: string
+          organization_id: string
+          sdr_user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by_owner_id?: string
+          id?: string
+          organization_id?: string
+          sdr_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_instance_access: {
+        Row: {
+          created_at: string
+          id: string
+          instance_id: string
+          sdr_assignment_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_id: string
+          sdr_assignment_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_id?: string
+          sdr_assignment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_instance_access_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_instance_access_sdr_assignment_id_fkey"
+            columns: ["sdr_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_meta_number_access: {
+        Row: {
+          created_at: string
+          id: string
+          meta_number_id: string
+          sdr_assignment_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_number_id: string
+          sdr_assignment_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_number_id?: string
+          sdr_assignment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_meta_number_access_meta_number_id_fkey"
+            columns: ["meta_number_id"]
+            isOneToOne: false
+            referencedRelation: "meta_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_meta_number_access_sdr_assignment_id_fkey"
+            columns: ["sdr_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "sdr_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sla_metrics: {
         Row: {
           avg_first_response_seconds: number | null
@@ -6337,6 +6441,17 @@ export type Database = {
         Args: { _user_id: string }
         Returns: string[]
       }
+      get_sdr_instance_ids: { Args: { _user_id: string }; Returns: string[] }
+      get_sdr_meta_number_ids: { Args: { _user_id: string }; Returns: string[] }
+      get_sdr_meta_phone_number_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
+      get_sdr_organization_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
+      get_sdr_user_ids_scope: { Args: { _user_id: string }; Returns: string[] }
       get_stage_deal_counts: {
         Args: { p_funnel_id: string }
         Returns: {
@@ -6361,6 +6476,8 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
+      is_sdr: { Args: { _user_id: string }; Returns: boolean }
+      is_system_owner: { Args: { _user_id: string }; Returns: boolean }
       member_has_instance_restriction: {
         Args: { _user_id: string }
         Returns: boolean
