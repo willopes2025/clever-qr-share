@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useIsSdr } from '@/hooks/useIsSdr';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +23,6 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { signIn, signUp, signInWithGoogle, user } = useAuth();
-  const { isSdr, loading: sdrLoading } = useIsSdr();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,10 +38,10 @@ const Login = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (user && !sdrLoading) {
-      navigate(isSdr ? '/sdr' : '/instances');
+    if (user) {
+      navigate('/instances');
     }
-  }, [user, isSdr, sdrLoading, navigate]);
+  }, [user, navigate]);
 
   if (user) {
     return null;
@@ -72,7 +70,7 @@ const Login = () => {
     }
 
     toast.success('Login realizado com sucesso!');
-    // Redirect handled by the useEffect once isSdr resolves
+    navigate('/instances');
   };
 
   const handleSignUp = async (e: React.FormEvent) => {

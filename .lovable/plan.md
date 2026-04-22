@@ -1,122 +1,78 @@
 
 
-## Inbox unificado para SDR multi-empresas (`/sdr`) — controle exclusivo do owner
+## Corrigir exclusão de instância e mensagens "aguardando mensagem" — cliente Gonçalves Dias
 
-### Mudança de regra (em relação ao plano anterior)
-Apenas **o dono do sistema** (super admin / owner do Widezap) pode:
-- marcar um usuário como **SDR multi-empresa**;
-- vincular esse SDR a **qualquer organização** do sistema;
-- escolher **quais instâncias Evolution e números Meta** de cada empresa o SDR poderá usar.
+### Diagnóstico confirmado
 
-Admins comuns (donos de cada empresa-cliente) **não** veem nem configuram essa opção. Eles continuam gerenciando só a própria equipe.
+**1. Não consegue excluir "Disparo Fevereiro 2026"**
+A função `delete-instance` está falhando por **chave estrangeira não tratada**:
+```
+update or delete on table "whatsapp_instances" violates foreign key constraint
+"inbox_messages_sent_via_instance_id_fkey" on table "inbox_messages"
+```
+A instância tem **429 mensagens** em `inbox_messages` apontando para ela. O código atual só limpa `campaigns` e `organizations`, mas não limpa as outras tabelas que referenciam `whatsapp_instances`:
+- `inbox_messages.sent_via_instance_id` (429 registros)
+- `conversations.instance_id`
+- `chatbot_flows.instance_id`
+- `team_member_instances.instance_id`
+- `warming_activities`, `warming_pool`, `warming_schedules`
+- `notification_preferences.notification_instance_id`
 
-### Como vai funcionar
+Além disso, na Evolution API a instância **já não existe** (`404 Not Found`), então sobrou só lixo no banco.
 
-**Painel do owner (novo)**
-1. Nova área **Configurações → SDRs Multi-Empresa** (visível apenas para `has_role(user, 'admin')` no nível global do sistema, não admin de organização).
-2. Lista de SDRs cadastrados, com:
-   - Email do SDR.
-   - Empresas vinculadas (chips coloridos).
-   - Números liberados em cada empresa (Evolution + Meta).
-   - Botões: **Adicionar empresa**, **Editar números**, **Remover acesso**.
-3. Botão **"Cadastrar novo SDR"** — busca usuário por email e cria o vínculo.
-4. Ao adicionar uma empresa ao SDR, abre seletor de:
-   - Instâncias Evolution daquela empresa (multi-seleção).
-   - Números Meta daquela empresa (multi-seleção).
+**2. "Aguardando mensagem. Essa ação pode levar alguns instantes"**
+Essa mensagem aparece no celular do **destinatário** quando o WhatsApp dele recebe um pacote criptografado mas **não consegue descriptografar** porque a sessão Signal/Baileys do remetente está quebrada ou as pré-chaves se esgotaram. Sintomas que confirmam:
+- A Evolution responde "instância não existe" para "Disparo Fevereiro 2026", mas mensagens recentes ainda foram marcadas como `sent` por outras instâncias.
+- As instâncias `Kollaborah mkt01/02/03` aparecem como `connected` no banco mas **sem `phone_number`** — sinal de sessão dessincronizada.
+- Mensagens saem do CRM com sucesso (status `sent`), mas o destinatário recebe o placeholder de criptografia.
 
-**Fluxo do SDR**
-1. SDR faz login normalmente.
-2. Sistema detecta que ele tem registros em `sdr_assignments` → redireciona para `/sdr`.
-3. Tela `/sdr` é um **Inbox enxuto** (sem sidebar de funis/campanhas/configurações):
-   - Lista unificada de conversas de todas as empresas/números liberados.
-   - Filtro no topo: **Empresa** e **Número de origem**.
-   - Badge colorido por empresa em cada conversa.
-   - Painel direito de lead (somente leitura + notas + tarefas).
-   - Campo de envio com seletor de remetente limitado aos números liberados.
-4. SDR **não enxerga** Funis, Campanhas, Configurações, Instâncias, Chatbots, Warming, métricas administrativas.
-5. SDR não pode acessar `/dashboard`, `/funnels`, etc. — qualquer rota fora de `/sdr` redireciona de volta.
+### O que vou ajustar
 
-### Mudanças no banco
+#### Parte 1 — Corrigir `delete-instance` (resolve a exclusão de vez)
 
-**Nova tabela `sdr_assignments`** — vínculo SDR ↔ empresa, criado **só pelo owner**:
-- `id`, `sdr_user_id`, `organization_id`, `granted_by_owner_id`, `created_at`.
-- RLS:
-  - INSERT/UPDATE/DELETE: apenas usuários com `has_role(auth.uid(), 'admin')` global.
-  - SELECT: o próprio SDR pode ler suas linhas + admin global pode ler todas.
+Arquivo: `supabase/functions/delete-instance/index.ts`
 
-**Nova tabela `sdr_instance_access`** — quais instâncias Evolution o SDR vê em cada empresa:
-- `id`, `sdr_assignment_id`, `instance_id`, `created_at`.
+Antes do `DELETE` da `whatsapp_instances`, limpar **todas** as referências:
 
-**Nova tabela `sdr_meta_number_access`** — quais números Meta o SDR vê em cada empresa:
-- `id`, `sdr_assignment_id`, `meta_number_id`, `created_at`.
+1. `inbox_messages` → `UPDATE SET sent_via_instance_id = NULL WHERE sent_via_instance_id = :id` (preserva o histórico das mensagens, só desvincula)
+2. `conversations` → `UPDATE SET instance_id = NULL WHERE instance_id = :id`
+3. `chatbot_flows` → `UPDATE SET instance_id = NULL WHERE instance_id = :id`
+4. `team_member_instances` → `DELETE WHERE instance_id = :id`
+5. `warming_activities`, `warming_pool`, `warming_schedules` → `DELETE WHERE instance_id = :id`
+6. `notification_preferences` → `UPDATE SET notification_instance_id = NULL WHERE notification_instance_id = :id`
+7. Já existentes (manter): `campaigns.instance_id`, `campaigns.instance_ids[]`, `organizations.notification_instance_id`
 
-**Novas funções auxiliares (security definer)**:
-- `is_sdr(_user_id)` → existe linha em `sdr_assignments`.
-- `get_sdr_organization_ids(_user_id)` → todas as orgs vinculadas.
-- `get_sdr_instance_ids(_user_id)` → todas as instâncias Evolution liberadas (união entre empresas).
-- `get_sdr_meta_number_ids(_user_id)` → todos os números Meta liberados.
-- `is_system_owner(_user_id)` → wrapper de `has_role(_user_id, 'admin')` para clareza.
+Tratar Evolution API `404` como sucesso (instância já não existe lá).
 
-**Ajustes de RLS**:
-- `conversations`, `inbox_messages`, `contacts`, `funnel_deals` (somente leitura para SDR): aceitar o caminho `is_sdr(auth.uid()) AND <conversa pertence a número liberado para esse SDR>`.
-- SDR **não** pode editar funil, campanhas, configurações ou instâncias de nenhuma empresa.
+#### Parte 2 — Forçar limpeza imediata da instância "Disparo Fevereiro 2026"
 
-### Mudanças no app
+Executar manualmente as mesmas limpezas + delete para destravar o cliente agora:
+- 429 `inbox_messages` desvinculadas (histórico preservado)
+- demais referências limpas
+- registro de `whatsapp_instances` removido
 
-**Roteamento (`src/App.tsx`)**
-- Nova rota `/sdr` protegida por `ProtectedRoute` + novo `SdrRoute` (verifica `is_sdr`).
-- Hook `useAuthRedirect`: se SDR puro → manda para `/sdr`; senão fluxo atual.
-- SDR tentando acessar qualquer outra rota → redirect para `/sdr`.
+#### Parte 3 — Tratar o "aguardando mensagem" do destinatário
 
-**Novos componentes**
-- `src/pages/SdrInbox.tsx` — Inbox unificado, layout próprio sem `DashboardLayout`.
-- `src/components/SdrRoute.tsx` — guarda de rota.
-- `src/hooks/useIsSdr.ts` — flag `isSdr` no client.
-- `src/hooks/useSdrConversations.ts` — busca cross-org das conversas permitidas.
-- `src/components/inbox/SdrConversationList.tsx` — lista com badge de empresa.
-- `src/components/inbox/SdrMessageView.tsx` — banner "Respondendo como Empresa X via número Y".
+Causa raiz: sessão Signal das instâncias `Kollaborah mkt01/02/03` está com pré-chaves dessincronizadas (instâncias marcadas `connected` mas sem `phone_number` no banco — webhook `connection.update` nunca confirmou o número).
 
-**Painel do owner**
-- `src/pages/Settings.tsx` — nova aba **"SDRs Multi-Empresa"**, visível só se `useAdmin().isAdmin === true` (admin global do sistema).
-- `src/components/settings/SdrManagement.tsx` — lista, criação e edição de SDRs.
-- `src/components/settings/sdr/AddSdrDialog.tsx` — busca usuário por email + cria assignment.
-- `src/components/settings/sdr/SdrAccessDialog.tsx` — seleciona empresas + instâncias + números Meta.
+Plano operacional (ações que o cliente precisa executar no aparelho + apoio técnico):
 
-### Sugestões de melhorias (mantidas)
-1. **Cor por empresa** — badge colorido em cada conversa.
-2. **Banner de contexto** — "Respondendo como Empresa X via número Y" antes de cada envio.
-3. **Templates segmentados por empresa** — quick-replies só da empresa da conversa ativa.
-4. **Notificação desktop unificada** — uma única origem para todas as empresas.
-5. **Métricas do SDR** — mensagens enviadas hoje, tempo médio de resposta, conversas pendentes.
-6. **Atalho `Ctrl+1..9`** — alterna rápido entre filtros de empresa.
-7. **Auditoria** — toda ação do SDR registrada com `organization_id` para o admin daquela empresa visualizar.
-8. **Limite opcional de mensagens/hora por SDR** — proteção anti-bloqueio.
+1. **Recarregar pré-chaves via Evolution API** — chamar `POST /chat/updateSessions/<instance>` (endpoint da Evolution que regenera pré-chaves Signal) para cada uma das três instâncias. Vou criar uma Edge Function utilitária `refresh-instance-session` para disparar isso pela UI.
+2. **Botão "Recarregar sessão" no card da instância** — no `WhatsAppInstanceCard`, ao lado de "Ver QR Code"/lixeira, adicionar ação que chama essa nova função. Útil sempre que o cliente reportar "aguardando mensagem".
+3. **Forçar atualização de `phone_number` e `profile_name`** — após `refresh`, chamar `GET /instance/fetchInstances` da Evolution e gravar `phone_number`/`profile_name` no banco. Hoje esses campos estão `NULL`, o que confirma sessão parcialmente quebrada.
+4. **Recomendação ao cliente**: se após o "Recarregar sessão" o destinatário ainda ver "aguardando mensagem", desconectar o WhatsApp do aparelho (Aparelhos conectados → Sair) e ler o QR novamente. Isso recria a sessão Signal do zero e elimina o problema de descriptografia.
 
 ### Arquivos afetados
 
-**Banco (migração SQL)**
-- Tabelas: `sdr_assignments`, `sdr_instance_access`, `sdr_meta_number_access`.
-- Funções: `is_sdr`, `is_system_owner`, `get_sdr_organization_ids`, `get_sdr_instance_ids`, `get_sdr_meta_number_ids`.
-- RLS: nova policy de leitura SDR em `conversations`, `inbox_messages`, `contacts`, `funnel_deals`.
-
-**Frontend**
-- `src/App.tsx`
-- `src/pages/SdrInbox.tsx` (novo)
-- `src/pages/Settings.tsx`
-- `src/components/SdrRoute.tsx` (novo)
-- `src/components/settings/SdrManagement.tsx` (novo)
-- `src/components/settings/sdr/AddSdrDialog.tsx` (novo)
-- `src/components/settings/sdr/SdrAccessDialog.tsx` (novo)
-- `src/components/inbox/SdrConversationList.tsx` (novo)
-- `src/components/inbox/SdrMessageView.tsx` (novo)
-- `src/hooks/useIsSdr.ts` (novo)
-- `src/hooks/useSdrConversations.ts` (novo)
+- `supabase/functions/delete-instance/index.ts` — limpeza completa de FKs antes do delete
+- `supabase/functions/refresh-instance-session/index.ts` — **novo**, regenera sessão Signal e atualiza metadados
+- `src/components/whatsapp/WhatsAppInstanceCard.tsx` (ou equivalente) — botão "Recarregar sessão"
+- Operação manual no banco para destravar a instância "Disparo Fevereiro 2026" agora
 
 ### Resultado esperado
-- **Só você (owner do Widezap)** controla a criação e os acessos de SDRs multi-empresa.
-- Admins de cada empresa-cliente **não veem** essa configuração e não podem mexer.
-- O SDR usa **uma única aba** (`/sdr`), com Inbox unificado das empresas e números que você liberar.
-- SDR não acessa nenhuma área administrativa de nenhuma empresa.
-- Empresas continuam isoladas entre si — só o SDR transita entre elas, com o escopo exato que você definir.
-- Zero impacto para clientes que não usam SDR multi-empresa.
+
+- Cliente conseguirá excluir qualquer instância sem erro 23503, mesmo com milhares de mensagens no histórico.
+- A instância "Disparo Fevereiro 2026" será removida imediatamente.
+- O cliente terá um botão para recarregar a sessão Signal das instâncias `Kollaborah` e parar de gerar o "aguardando mensagem" no destinatário.
+- Caso a sessão esteja completamente perdida, o caminho de reconexão (sair do aparelho + ler QR de novo) está documentado.
 
