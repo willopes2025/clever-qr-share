@@ -46,6 +46,7 @@ const allTabs: SettingsTab[] = [
 
 const Settings = () => {
   const { isAdmin, checkPermission, organization, isLoading } = useOrganization();
+  const { isAdmin: isSystemOwner, loading: ownerLoading } = useAdmin();
   const [searchParams] = useSearchParams();
 
   // Filtrar abas baseado em permissões
@@ -55,6 +56,12 @@ const Settings = () => {
     return allTabs.filter(tab => {
       // Perfil, ai-tokens e leads sempre visível
       if (tab.value === "profile" || tab.value === "ai-tokens" || tab.value === "leads") return true;
+      
+      // System-owner-only tab (gerenciamento de SDR multi-empresa)
+      if (tab.systemOwnerOnly) {
+        if (ownerLoading) return false;
+        return isSystemOwner;
+      }
       
       // Se não tem organização, mostra tudo (legado)
       if (!organization) return true;
@@ -72,7 +79,7 @@ const Settings = () => {
       
       return true;
     });
-  }, [isLoading, organization, isAdmin, checkPermission]);
+  }, [isLoading, organization, isAdmin, checkPermission, isSystemOwner, ownerLoading]);
 
   // Determinar aba padrão (do URL ou primeira visível)
   const tabFromUrl = searchParams.get('tab');
