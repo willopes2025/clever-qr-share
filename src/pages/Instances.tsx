@@ -36,6 +36,7 @@ const Instances = () => {
     configureWebhook,
     updateDefaultFunnel,
     updateInstanceDetails,
+    refreshSession,
   } = useWhatsAppInstances();
   
   const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
@@ -398,6 +399,8 @@ const Instances = () => {
                     setDeviceDialogInstance(instance);
                     setDeviceDialogOpen(true);
                   }}
+                  onRefreshSession={() => refreshSession.mutate(instance.instance_name)}
+                  isRefreshingSession={refreshSession.isPending && refreshSession.variables === instance.instance_name}
                 />
               </motion.div>
             ))}
