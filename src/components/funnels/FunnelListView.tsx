@@ -1276,11 +1276,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                       aria-label={`Selecionar ${deal.title || deal.contact?.name}`}
                     />
                   </TableCell>
-                  {orderedVisibleColumns.map((colId) => (
-                    <TableCell key={colId} className="whitespace-nowrap">
-                      {renderCellContent(deal, colId)}
-                    </TableCell>
-                  ))}
+                  {orderedVisibleColumns.map((colId) => {
+                    const widthClass =
+                      colId === "phone"
+                        ? "min-w-[180px]"
+                        : colId === "contact"
+                          ? "min-w-[220px]"
+                          : "";
+                    return (
+                      <TableCell key={colId} className={`whitespace-nowrap ${widthClass}`}>
+                        {renderCellContent(deal, colId)}
+                      </TableCell>
+                    );
+                  })}
                   <TableCell className="sticky right-0 bg-card z-10">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
