@@ -38,7 +38,55 @@ export const WARMING_LEVELS = [
 
 export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
+
+  // Buscar TODOS os user_ids da organização do usuário logado (owner + membros ativos).
+  // Necessário porque o RLS pode conceder acesso amplo (admin do sistema) — o filtro
+  // no frontend garante que cada assinatura veja apenas suas próprias instâncias.
+  const { data: orgUserIds } = useQuery({
+    queryKey: ['my-org-user-ids', user?.id],
+    queryFn: async () => {
+      const ids = new Set<string>();
+      ids.add(user!.id);
+
+      const { data: myMembership } = await supabase
+        .from('team_members')
+        .select('organization_id')
+        .eq('user_id', user!.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      let orgId = myMembership?.organization_id as string | undefined;
+
+      if (!orgId) {
+        const { data: ownedOrg } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('owner_id', user!.id)
+          .maybeSingle();
+        orgId = ownedOrg?.id;
+      }
+
+      if (orgId) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('owner_id')
+          .eq('id', orgId)
+          .maybeSingle();
+        if (org?.owner_id) ids.add(org.owner_id);
+
+        const { data: tms } = await supabase
+          .from('team_members')
+          .select('user_id')
+          .eq('organization_id', orgId)
+          .eq('status', 'active');
+        tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
+      }
+
+      return Array.from(ids);
+    },
+    enabled: !!user,
+  });
 
   const requireAuthHeaders = async () => {
     // Get fresh session to ensure token is valid
