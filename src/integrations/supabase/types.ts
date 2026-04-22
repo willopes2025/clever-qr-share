@@ -6419,6 +6419,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_conversation: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_access_conversation_channel: {
+        Args: {
+          _conversation_user_id: string
+          _instance_id: string
+          _meta_phone_number_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       close_abandoned_sessions: { Args: never; Returns: number }
       get_funnel_metrics: {
         Args: { p_funnel_id: string }
@@ -6434,6 +6447,10 @@ export type Database = {
       }
       get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
       get_member_meta_number_ids: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
+      get_member_meta_phone_number_ids: {
         Args: { _user_id: string }
         Returns: string[]
       }
