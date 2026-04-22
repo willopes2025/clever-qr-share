@@ -38,17 +38,25 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const { contacts, isLoading, createContact } = useContacts();
   const { createConversation } = useConversations();
-  const { instances } = useWhatsAppInstances();
+  const { instances, isLoading: isLoadingInstances } = useWhatsAppInstances();
 
-  // Get connected instances only
-  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
+  // Get connected instances only — sempre derivado da lista já filtrada por escopo
+  // organizacional/restrições de membro pelo hook `useWhatsAppInstances`.
+  const connectedInstances = (instances ?? []).filter(i => i.status === 'connected');
 
-  // Set default instance when instances load
+  // Set default instance only AFTER the scoped list has finished loading,
+  // garantindo que nunca selecionamos uma instância que não pertence ao usuário.
   useEffect(() => {
-    if (connectedInstances.length > 0 && !selectedInstanceId) {
+    if (isLoadingInstances) return;
+    if (connectedInstances.length === 0) {
+      if (selectedInstanceId) setSelectedInstanceId("");
+      return;
+    }
+    const stillValid = connectedInstances.some(i => i.id === selectedInstanceId);
+    if (!stillValid) {
       setSelectedInstanceId(connectedInstances[0].id);
     }
-  }, [connectedInstances, selectedInstanceId]);
+  }, [isLoadingInstances, connectedInstances, selectedInstanceId]);
 
   const filteredContacts = contacts?.filter(contact => {
     const name = contact.name || "";
