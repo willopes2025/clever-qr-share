@@ -206,7 +206,11 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
                 </div>
               </SelectTrigger>
               <SelectContent className="w-[var(--radix-select-trigger-width)]">
-                {connectedInstances.length === 0 ? (
+                {isLoadingInstances ? (
+                  <div className="p-2 text-sm text-muted-foreground text-center">
+                    Carregando instâncias...
+                  </div>
+                ) : connectedInstances.length === 0 ? (
                   <div className="p-2 text-sm text-muted-foreground text-center">
                     Nenhuma instância conectada
                   </div>
