@@ -26,7 +26,7 @@ export const useMetaNumbersMap = () => {
 
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
-        .select('phone_number_id, phone_number, display_name, waba_id, user_id')
+        .select('id, phone_number_id, phone_number, display_name, waba_id, user_id')
         .eq('is_active', true)
         .in('user_id', orgUserIds)
         .order('created_at', { ascending: false });
