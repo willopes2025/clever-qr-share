@@ -13,7 +13,7 @@ export interface MetaNumberInfo {
 
 export const useMetaNumbersMap = () => {
   const { user } = useAuth();
-  const { orgUserIds, hasMetaRestriction, allowedMetaNumberIds } = useChannelAccessScope();
+  const { orgUserIds, hasMetaRestriction, allowedMetaNumberIds, isScopeReady } = useChannelAccessScope();
 
   const { data: metaNumbers = [], isLoading } = useQuery({
     queryKey: ['meta-whatsapp-numbers-map', user?.id, orgUserIds, hasMetaRestriction, allowedMetaNumberIds],
@@ -45,7 +45,8 @@ export const useMetaNumbersMap = () => {
 
       return rows.map(({ id: _id, user_id, ...rest }) => rest) as MetaNumberInfo[];
     },
-    enabled: !!user && orgUserIds !== undefined && (hasMetaRestriction === false || allowedMetaNumberIds !== undefined),
+    // Só executa quando o escopo da organização está totalmente resolvido.
+    enabled: isScopeReady,
     staleTime: 10000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
