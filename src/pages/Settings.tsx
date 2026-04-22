@@ -11,8 +11,10 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { ElevenLabsSIPSettings } from "@/components/settings/ElevenLabsSIPSettings";
 import { AITokensSettings } from "@/components/ai-tokens/AITokensSettings";
 import { AutoLeadSettings } from "@/components/settings/AutoLeadSettings";
-import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, LucideIcon } from "lucide-react";
+import { SdrManagement } from "@/components/settings/SdrManagement";
+import { User, Server, Database, Users, Plug, Smartphone, Bell, Phone, Coins, MessageSquare, Zap, UserCog, LucideIcon } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useAdmin } from "@/hooks/useAdmin";
 import { PermissionKey } from "@/config/permissions";
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
