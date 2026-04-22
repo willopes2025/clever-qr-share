@@ -150,17 +150,11 @@ const LeadSourceConditionSelector = ({ value, onChange }: { value: string; onCha
 
 // Instance selector for send_message action
 const SendMessageInstanceSelector = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
-  const { data: instances } = useQuery({
-    queryKey: ['whatsapp-instances-for-automation'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('whatsapp_instances')
-        .select('id, instance_name, status, phone_number')
-        .eq('status', 'connected')
-        .order('instance_name');
-      return data || [];
-    },
-  });
+  const { instances: scopedInstances } = useWhatsAppInstances();
+  const instances = (scopedInstances || [])
+    .filter((i) => i.status === 'connected')
+    .map((i) => ({ id: i.id, instance_name: i.instance_name, status: i.status, phone_number: i.phone_number }))
+    .sort((a, b) => (a.instance_name || '').localeCompare(b.instance_name || ''));
 
   return (
     <div className="space-y-2">
