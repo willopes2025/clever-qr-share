@@ -107,22 +107,24 @@ export const useWhatsAppInstances = () => {
   const { data: instances, isLoading, refetch } = useQuery({
     queryKey: ['whatsapp-instances', orgUserIds],
     queryFn: async () => {
+      // Filtro defensivo no servidor: restringe explicitamente aos user_ids da org.
+      // Se orgUserIds estiver vazio (caso anômalo), retorna lista vazia em vez de tudo.
+      if (!orgUserIds || orgUserIds.length === 0) {
+        return [] as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
+      }
+
       const { data, error } = await supabase
         .from('whatsapp_instances')
         .select('*, funnel:funnels(id, name, color)')
+        .in('user_id', orgUserIds)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
-      let list = data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
+      const list = (data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[]) || [];
 
-      // Filtro por organização: apenas instâncias pertencentes a usuários da própria assinatura.
-      // Evita vazamento causado por políticas RLS amplas (ex.: admin do sistema).
-      if (orgUserIds && orgUserIds.length > 0) {
-        const orgSet = new Set(orgUserIds);
-        list = list.filter(i => i.user_id && orgSet.has(i.user_id));
-      }
-
-      return list;
+      // Defesa em camadas: reaplica filtro local mesmo após .in().
+      const orgSet = new Set(orgUserIds);
+      return list.filter(i => i.user_id && orgSet.has(i.user_id));
     },
     enabled: orgUserIds !== undefined,
   });
