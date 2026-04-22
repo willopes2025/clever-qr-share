@@ -727,13 +727,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <p className="font-medium">{deal.title || deal.contact?.name || "Sem nome"}</p>
         );
-      case "phone":
+      case "phone": {
+        const phoneValue = deal.contact?.phone || "";
+        const formatted = formatForDisplay(phoneValue);
         return (
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            <Phone className="h-3 w-3" />
-            {formatForDisplay(deal.contact?.phone || "")}
+          <p
+            className="text-sm text-muted-foreground flex items-center gap-1 font-mono tabular-nums whitespace-nowrap"
+            title={formatted || phoneValue}
+          >
+            <Phone className="h-3 w-3 shrink-0" />
+            <span className="whitespace-nowrap">{formatted}</span>
           </p>
         );
+      }
       case "stage":
         return (
           <Select
