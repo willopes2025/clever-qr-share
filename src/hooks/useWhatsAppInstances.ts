@@ -265,6 +265,26 @@ export const useWhatsAppInstances = () => {
     },
   });
 
+  // Recarregar sessão Signal (resolve "aguardando mensagem" no destinatário)
+  const refreshSession = useMutation({
+    mutationFn: async (instanceName: string) => {
+      const { data, error } = await supabase.functions.invoke('refresh-instance-session', {
+        body: { instanceName },
+        headers: await requireAuthHeaders(),
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+      toast.success(data?.message || 'Sessão recarregada com sucesso!', { duration: 7000 });
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao recarregar sessão: ${error.message}`);
+    },
+  });
+
   return {
     instances,
     isLoading,
@@ -278,5 +298,6 @@ export const useWhatsAppInstances = () => {
     updateDefaultFunnel,
     updateDeviceLabel,
     updateInstanceDetails,
+    refreshSession,
   };
 };
