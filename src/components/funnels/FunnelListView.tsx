@@ -1233,11 +1233,19 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                   {...(isSomeSelected ? { "data-state": "indeterminate" } : {})}
                 />
               </TableHead>
-              {orderedVisibleColumns.map((colId) => (
-                <TableHead key={colId} className="whitespace-nowrap">
-                  {renderColumnHeader(colId)}
-                </TableHead>
-              ))}
+              {orderedVisibleColumns.map((colId) => {
+                const widthClass =
+                  colId === "phone"
+                    ? "min-w-[180px]"
+                    : colId === "contact"
+                      ? "min-w-[220px]"
+                      : "";
+                return (
+                  <TableHead key={colId} className={`whitespace-nowrap ${widthClass}`}>
+                    {renderColumnHeader(colId)}
+                  </TableHead>
+                );
+              })}
               <TableHead className="w-[50px] sticky right-0 bg-card z-10"></TableHead>
             </TableRow>
           </TableHeader>
