@@ -63,20 +63,27 @@ export const useMetaNumbersMap = () => {
   const { data: metaNumbers = [], isLoading } = useQuery({
     queryKey: ['meta-whatsapp-numbers-map', user?.id, orgUserIds],
     queryFn: async () => {
+      // Filtro defensivo no servidor: limita explicitamente a usuários da própria org.
+      // Se orgUserIds estiver vazio (caso anômalo), retorna lista vazia em vez de tudo.
+      if (!orgUserIds || orgUserIds.length === 0) {
+        return [] as MetaNumberInfo[];
+      }
+
       const { data, error } = await supabase
         .from('meta_whatsapp_numbers')
         .select('phone_number_id, phone_number, display_name, waba_id, user_id')
         .eq('is_active', true)
+        .in('user_id', orgUserIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      let rows = data as (MetaNumberInfo & { user_id: string | null })[];
-      if (orgUserIds && orgUserIds.length > 0) {
-        const orgSet = new Set(orgUserIds);
-        rows = rows.filter(r => r.user_id && orgSet.has(r.user_id));
-      }
-      return rows.map(({ user_id, ...rest }) => rest) as MetaNumberInfo[];
+      const rows = (data as (MetaNumberInfo & { user_id: string | null })[]) || [];
+      // Defesa em camadas: mesmo com .in(), reaplica filtro local.
+      const orgSet = new Set(orgUserIds);
+      return rows
+        .filter(r => r.user_id && orgSet.has(r.user_id))
+        .map(({ user_id, ...rest }) => rest) as MetaNumberInfo[];
     },
     enabled: !!user && orgUserIds !== undefined,
     staleTime: 10000,
