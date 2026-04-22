@@ -27,6 +27,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { useMetaWhatsAppNumbers } from "@/hooks/useMetaWhatsAppNumbers";
 
 const DEFAULT_TEMPLATES: Record<string, string> = {
   emitted: 'Olá {nome}! 😊 Sua cobrança de R${valor} foi gerada.\n\n📅 Vencimento: {data}\n🔗 Link para pagamento: {url}',
@@ -102,18 +103,18 @@ export const AsaasSettings = () => {
 
   const targetUserId = organization?.owner_id || user?.id;
 
-  // Fetch Meta WhatsApp numbers
-  const { data: metaNumbers = [] } = useQuery({
-    queryKey: ['meta-numbers-for-asaas', targetUserId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('meta_whatsapp_numbers')
-        .select('id, display_name, phone_number, phone_number_id, waba_id')
-        .eq('is_active', true);
-      return data || [];
-    },
-    enabled: !!targetUserId,
-  });
+  // Fetch Meta WhatsApp numbers respeitando escopo de organização e
+  // restrições por membro (evita listar números de outras assinaturas).
+  const { metaNumbers: scopedMetaNumbers = [] } = useMetaWhatsAppNumbers();
+  const metaNumbers = scopedMetaNumbers
+    .filter((n) => n.is_active)
+    .map((n) => ({
+      id: n.id,
+      display_name: n.display_name,
+      phone_number: n.phone_number,
+      phone_number_id: n.phone_number_id,
+      waba_id: n.waba_id,
+    }));
 
   // Check if a Meta number is selected (not evolution)
   const isMetaSelected = metaPhoneNumberId && metaPhoneNumberId !== 'evolution';
