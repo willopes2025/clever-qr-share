@@ -105,7 +105,7 @@ export function MemberMetaNumbersDialog({ open, onOpenChange, member }: MemberMe
     onOpenChange(false);
   };
 
-  const isLoading = isLoadingNumbers || isLoadingMember;
+  const isLoading = isLoadingNumbers || isLoadingMember || isLoadingOrgUsers;
   const canSave = allNumbersSelected || selectedNumbers.length > 0;
 
   return (
