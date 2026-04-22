@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { isDateLikeFieldName, parseAnyDateValue } from "@/lib/date-utils";
 
 interface DealCustomFieldsEditorProps {
   values: Record<string, unknown>;
