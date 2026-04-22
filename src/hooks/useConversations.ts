@@ -207,8 +207,20 @@ export const useConversations = () => {
         });
       }
       
+      // Filter out "ghost" conversations: no message preview, no direction,
+      // and no real contact name. These are typically dialogs that were opened
+      // via "Nova Conversa" but never had a message sent or received.
+      const cleaned = (data || []).filter((conv: any) => {
+        const hasPreview = !!conv.last_message_preview;
+        const hasDirection = !!conv.last_message_direction;
+        const contactName = (conv.contact?.name || '').trim();
+        const hasRealName = contactName.length > 0;
+        // Keep if there's any sign of activity OR a real contact name
+        return hasPreview || hasDirection || hasRealName;
+      });
+
       // Map deals to conversations
-      return data?.map(conv => ({
+      return cleaned.map((conv: any) => ({
         ...conv,
         deal: dealsMap[conv.contact_id] || null,
       })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
