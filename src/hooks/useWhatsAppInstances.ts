@@ -38,7 +38,55 @@ export const WARMING_LEVELS = [
 
 export const useWhatsAppInstances = () => {
   const queryClient = useQueryClient();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
+
+  // Buscar TODOS os user_ids da organização do usuário logado (owner + membros ativos).
+  // Necessário porque o RLS pode conceder acesso amplo (admin do sistema) — o filtro
+  // no frontend garante que cada assinatura veja apenas suas próprias instâncias.
+  const { data: orgUserIds } = useQuery({
+    queryKey: ['my-org-user-ids', user?.id],
+    queryFn: async () => {
+      const ids = new Set<string>();
+      ids.add(user!.id);
+
+      const { data: myMembership } = await supabase
+        .from('team_members')
+        .select('organization_id')
+        .eq('user_id', user!.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      let orgId = myMembership?.organization_id as string | undefined;
+
+      if (!orgId) {
+        const { data: ownedOrg } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('owner_id', user!.id)
+          .maybeSingle();
+        orgId = ownedOrg?.id;
+      }
+
+      if (orgId) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('owner_id')
+          .eq('id', orgId)
+          .maybeSingle();
+        if (org?.owner_id) ids.add(org.owner_id);
+
+        const { data: tms } = await supabase
+          .from('team_members')
+          .select('user_id')
+          .eq('organization_id', orgId)
+          .eq('status', 'active');
+        tms?.forEach(tm => { if (tm.user_id) ids.add(tm.user_id); });
+      }
+
+      return Array.from(ids);
+    },
+    enabled: !!user,
+  });
 
   const requireAuthHeaders = async () => {
     // Get fresh session to ensure token is valid
@@ -57,7 +105,7 @@ export const useWhatsAppInstances = () => {
     return { Authorization: `Bearer ${token}` };
   };
   const { data: instances, isLoading, refetch } = useQuery({
-    queryKey: ['whatsapp-instances'],
+    queryKey: ['whatsapp-instances', orgUserIds],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('whatsapp_instances')
@@ -65,8 +113,18 @@ export const useWhatsAppInstances = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
+      let list = data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
+
+      // Filtro por organização: apenas instâncias pertencentes a usuários da própria assinatura.
+      // Evita vazamento causado por políticas RLS amplas (ex.: admin do sistema).
+      if (orgUserIds && orgUserIds.length > 0) {
+        const orgSet = new Set(orgUserIds);
+        list = list.filter(i => i.user_id && orgSet.has(i.user_id));
+      }
+
+      return list;
     },
+    enabled: orgUserIds !== undefined,
   });
 
   // Criar nova instância
