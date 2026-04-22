@@ -105,7 +105,7 @@ export const useWhatsAppInstances = () => {
     return { Authorization: `Bearer ${token}` };
   };
   const { data: instances, isLoading, refetch } = useQuery({
-    queryKey: ['whatsapp-instances'],
+    queryKey: ['whatsapp-instances', orgUserIds],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('whatsapp_instances')
@@ -113,8 +113,18 @@ export const useWhatsAppInstances = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
+      let list = data as (WhatsAppInstance & { funnel?: { id: string; name: string; color: string } | null })[];
+
+      // Filtro por organização: apenas instâncias pertencentes a usuários da própria assinatura.
+      // Evita vazamento causado por políticas RLS amplas (ex.: admin do sistema).
+      if (orgUserIds && orgUserIds.length > 0) {
+        const orgSet = new Set(orgUserIds);
+        list = list.filter(i => i.user_id && orgSet.has(i.user_id));
+      }
+
+      return list;
     },
+    enabled: orgUserIds !== undefined,
   });
 
   // Criar nova instância
