@@ -1,75 +1,78 @@
 
-## Corrigir a visibilidade das mensagens do telefone 6204
+
+## Corrigir exclusão de instância e mensagens "aguardando mensagem" — cliente Gonçalves Dias
 
 ### Diagnóstico confirmado
-O número **6204** está ativo no backend e os webhooks dele estão chegando normalmente. O problema não é a conexão do número.
 
-O bloqueio atual acontece assim:
-1. chega uma mensagem nova do **phone_number_id 1094594580394816** (telefone 6204);
-2. o webhook procura uma conversa Meta já vinculada a esse mesmo número;
-3. para alguns contatos, só existe uma conversa antiga do mesmo contato ligada a outro número Meta;
-4. o código tenta criar uma nova conversa;
-5. o banco rejeita a criação por causa da restrição **`UNIQUE(user_id, contact_id)`**;
-6. a função interrompe o fluxo e a mensagem não é salva no Inbox.
+**1. Não consegue excluir "Disparo Fevereiro 2026"**
+A função `delete-instance` está falhando por **chave estrangeira não tratada**:
+```
+update or delete on table "whatsapp_instances" violates foreign key constraint
+"inbox_messages_sent_via_instance_id_fkey" on table "inbox_messages"
+```
+A instância tem **429 mensagens** em `inbox_messages` apontando para ela. O código atual só limpa `campaigns` e `organizations`, mas não limpa as outras tabelas que referenciam `whatsapp_instances`:
+- `inbox_messages.sent_via_instance_id` (429 registros)
+- `conversations.instance_id`
+- `chatbot_flows.instance_id`
+- `team_member_instances.instance_id`
+- `warming_activities`, `warming_pool`, `warming_schedules`
+- `notification_preferences.notification_instance_id`
 
-Foi exatamente isso que aconteceu com o contato **Wil Lopes / 5527999400707**: o webhook recebeu a mensagem do 6204, encontrou o contato, mas falhou ao criar a conversa por conflito de chave única.
+Além disso, na Evolution API a instância **já não existe** (`404 Not Found`), então sobrou só lixo no banco.
+
+**2. "Aguardando mensagem. Essa ação pode levar alguns instantes"**
+Essa mensagem aparece no celular do **destinatário** quando o WhatsApp dele recebe um pacote criptografado mas **não consegue descriptografar** porque a sessão Signal/Baileys do remetente está quebrada ou as pré-chaves se esgotaram. Sintomas que confirmam:
+- A Evolution responde "instância não existe" para "Disparo Fevereiro 2026", mas mensagens recentes ainda foram marcadas como `sent` por outras instâncias.
+- As instâncias `Kollaborah mkt01/02/03` aparecem como `connected` no banco mas **sem `phone_number`** — sinal de sessão dessincronizada.
+- Mensagens saem do CRM com sucesso (status `sent`), mas o destinatário recebe o placeholder de criptografia.
 
 ### O que vou ajustar
-#### 1. Corrigir o roteamento no webhook da Meta
-Arquivo:
-- `supabase/functions/meta-whatsapp-webhook/index.ts`
 
-Mudança:
-- manter a busca prioritária por conversa Meta com o mesmo `meta_phone_number_id`;
-- se não existir, procurar uma **conversa Meta já existente do mesmo contato**;
-- se encontrar, **reaproveitar essa conversa** e atualizar o `meta_phone_number_id` para o número que realmente recebeu a mensagem (6204);
-- **não** reutilizar conversa Evolution;
-- só criar conversa nova quando realmente não existir nenhuma conversa Meta/contato compatível.
+#### Parte 1 — Corrigir `delete-instance` (resolve a exclusão de vez)
 
-Isso resolve o erro sem quebrar o modelo atual do sistema, que hoje trabalha com **uma conversa por contato**.
+Arquivo: `supabase/functions/delete-instance/index.ts`
 
-#### 2. Tratar o erro de duplicidade sem perder a mensagem
-Ainda no mesmo webhook:
-- quando ocorrer erro `duplicate key value violates unique constraint "conversations_user_id_contact_id_key"`, fazer fallback automático:
-  - recarregar a conversa existente do contato;
-  - atualizar `provider = 'meta'` e `meta_phone_number_id` com o número recebido;
-  - continuar salvando a mensagem em vez de abortar.
+Antes do `DELETE` da `whatsapp_instances`, limpar **todas** as referências:
 
-Assim, mesmo que o conflito aconteça, a mensagem não some mais.
+1. `inbox_messages` → `UPDATE SET sent_via_instance_id = NULL WHERE sent_via_instance_id = :id` (preserva o histórico das mensagens, só desvincula)
+2. `conversations` → `UPDATE SET instance_id = NULL WHERE instance_id = :id`
+3. `chatbot_flows` → `UPDATE SET instance_id = NULL WHERE instance_id = :id`
+4. `team_member_instances` → `DELETE WHERE instance_id = :id`
+5. `warming_activities`, `warming_pool`, `warming_schedules` → `DELETE WHERE instance_id = :id`
+6. `notification_preferences` → `UPDATE SET notification_instance_id = NULL WHERE notification_instance_id = :id`
+7. Já existentes (manter): `campaigns.instance_id`, `campaigns.instance_ids[]`, `organizations.notification_instance_id`
 
-#### 3. Sincronizar a conversa com o número Meta correto
-Quando a mensagem inbound vier da Meta:
-- garantir que a conversa fique com o `meta_phone_number_id` correto;
-- limpar `instance_id` quando necessário para evitar a conversa continuar “presa” a um envio Evolution antigo;
-- manter `provider: 'meta'`.
+Tratar Evolution API `404` como sucesso (instância já não existe lá).
 
-Isso ajuda a interface a mostrar a conversa com o número certo e evita a sensação de que “o número não aparece”.
+#### Parte 2 — Forçar limpeza imediata da instância "Disparo Fevereiro 2026"
 
-#### 4. Validar a exibição no Inbox
-Depois do ajuste:
-- verificar que novas mensagens do **6204** entram normalmente no Inbox;
-- confirmar que o rótulo `via Programa Seven / 6204` aparece na lista e na conversa;
-- validar especificamente o caso do contato **Wil Lopes**;
-- confirmar que conversas Evolution não são sequestradas pelo webhook da Meta.
+Executar manualmente as mesmas limpezas + delete para destravar o cliente agora:
+- 429 `inbox_messages` desvinculadas (histórico preservado)
+- demais referências limpas
+- registro de `whatsapp_instances` removido
 
-### Arquivo principal afetado
-- `supabase/functions/meta-whatsapp-webhook/index.ts`
+#### Parte 3 — Tratar o "aguardando mensagem" do destinatário
+
+Causa raiz: sessão Signal das instâncias `Kollaborah mkt01/02/03` está com pré-chaves dessincronizadas (instâncias marcadas `connected` mas sem `phone_number` no banco — webhook `connection.update` nunca confirmou o número).
+
+Plano operacional (ações que o cliente precisa executar no aparelho + apoio técnico):
+
+1. **Recarregar pré-chaves via Evolution API** — chamar `POST /chat/updateSessions/<instance>` (endpoint da Evolution que regenera pré-chaves Signal) para cada uma das três instâncias. Vou criar uma Edge Function utilitária `refresh-instance-session` para disparar isso pela UI.
+2. **Botão "Recarregar sessão" no card da instância** — no `WhatsAppInstanceCard`, ao lado de "Ver QR Code"/lixeira, adicionar ação que chama essa nova função. Útil sempre que o cliente reportar "aguardando mensagem".
+3. **Forçar atualização de `phone_number` e `profile_name`** — após `refresh`, chamar `GET /instance/fetchInstances` da Evolution e gravar `phone_number`/`profile_name` no banco. Hoje esses campos estão `NULL`, o que confirma sessão parcialmente quebrada.
+4. **Recomendação ao cliente**: se após o "Recarregar sessão" o destinatário ainda ver "aguardando mensagem", desconectar o WhatsApp do aparelho (Aparelhos conectados → Sair) e ler o QR novamente. Isso recria a sessão Signal do zero e elimina o problema de descriptografia.
+
+### Arquivos afetados
+
+- `supabase/functions/delete-instance/index.ts` — limpeza completa de FKs antes do delete
+- `supabase/functions/refresh-instance-session/index.ts` — **novo**, regenera sessão Signal e atualiza metadados
+- `src/components/whatsapp/WhatsAppInstanceCard.tsx` (ou equivalente) — botão "Recarregar sessão"
+- Operação manual no banco para destravar a instância "Disparo Fevereiro 2026" agora
 
 ### Resultado esperado
-Após a correção:
-- mensagens recebidas pelo telefone **6204** voltarão a aparecer;
-- a conversa passará a refletir o número Meta correto;
-- o sistema deixará de perder mensagens por conflito de conversa duplicada;
-- o problema continuará resolvido mesmo após desconectar e reconectar o número.
 
-### Detalhe técnico
-O bug está na incompatibilidade entre:
-- a regra atual do banco: `UNIQUE(user_id, contact_id)`
-- e a lógica nova do webhook, que tenta separar a conversa por `meta_phone_number_id`.
+- Cliente conseguirá excluir qualquer instância sem erro 23503, mesmo com milhares de mensagens no histórico.
+- A instância "Disparo Fevereiro 2026" será removida imediatamente.
+- O cliente terá um botão para recarregar a sessão Signal das instâncias `Kollaborah` e parar de gerar o "aguardando mensagem" no destinatário.
+- Caso a sessão esteja completamente perdida, o caminho de reconexão (sair do aparelho + ler QR de novo) está documentado.
 
-Como o sistema hoje ainda é “1 conversa por contato”, a correção mais segura é:
-- **reusar a conversa Meta existente do contato**,
-- atualizar o número Meta dela,
-- e salvar a nova mensagem normalmente.
-
-Isso corrige o 6204 agora sem exigir refatoração estrutural no banco.
