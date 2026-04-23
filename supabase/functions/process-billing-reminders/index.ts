@@ -78,8 +78,8 @@ Deno.serve(async (req) => {
       const asaasApiKey = (asaasCredentials.access_token || asaasCredentials.api_key) as string | undefined;
       const isSandbox = asaasCredentials.environment === 'sandbox' || asaasCredentials.sandbox === true;
       const asaasApiUrl = isSandbox
-        ? 'https://sandbox.asaas.com/api/v3'
-        : 'https://api.asaas.com/api/v3';
+        ? 'https://sandbox.asaas.com/v3'
+        : 'https://api.asaas.com/v3';
 
       // Helper: check if Asaas payment is already paid
       const checkPaymentPaid = async (paymentId: string): Promise<boolean> => {
