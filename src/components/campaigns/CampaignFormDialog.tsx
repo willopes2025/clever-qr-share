@@ -405,25 +405,60 @@ export const CampaignFormDialog = ({
             <Tabs
               value={messageMode}
               onValueChange={(value) => {
-                const nextMode = value as 'template' | 'meta_template';
+                const nextMode = value as 'template' | 'meta_template' | 'chatbot';
                 setMessageMode(nextMode);
                 setTemplateId('');
                 if (nextMode !== 'meta_template') {
                   setSelectedMetaPhoneNumberId('');
                 }
+                if (nextMode !== 'chatbot') {
+                  setChatbotFlowId('');
+                }
               }}
             >
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="template">Template Interno</TabsTrigger>
                 <TabsTrigger value="meta_template" className="gap-2">
                   <Cloud className="h-4 w-4" />
                   Template Meta
                 </TabsTrigger>
+                <TabsTrigger value="chatbot" className="gap-2">
+                  <Workflow className="h-4 w-4" />
+                  Chatbot
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
-          {messageMode === 'template' ? (
+          {messageMode === 'chatbot' ? (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Workflow className="h-4 w-4" />
+                Fluxo do Chatbot *
+              </Label>
+              <Select value={chatbotFlowId} onValueChange={setChatbotFlowId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um fluxo de chatbot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeChatbotFlows.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      Nenhum fluxo ativo. Crie um em Chatbots.
+                    </div>
+                  ) : (
+                    activeChatbotFlows.map((flow) => (
+                      <SelectItem key={flow.id} value={flow.id}>
+                        {flow.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O fluxo será disparado para cada contato da lista, respeitando os intervalos e janelas de envio. Requer instâncias do WhatsApp conectadas.
+              </p>
+            </div>
+          ) : messageMode === 'template' ? (
             <div className="space-y-2">
               <Label>Template de Mensagem</Label>
               <Select value={templateId} onValueChange={setTemplateId}>
