@@ -83,7 +83,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
         <div key={field.id} className="space-y-2">
           <Label htmlFor={field.field_key} className="text-sm">
             {field.field_name}
-            {field.is_required && <span className="text-destructive ml-1">*</span>}
+            {isFieldRequired(field) && <span className="text-destructive ml-1">*</span>}
           </Label>
           
           {field.field_type === 'text' && (
@@ -98,7 +98,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
                 value={(values[field.field_key] as string) || ''}
                 onChange={(e) => handleChange(field.field_key, e.target.value)}
                 placeholder={`Digite ${field.field_name.toLowerCase()}`}
-                required={field.is_required || false}
+                required={isFieldRequired(field)}
               />
             )
           )}
@@ -110,7 +110,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
               placeholder="https://exemplo.com"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
 
@@ -121,7 +121,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
               placeholder="(00) 00000-0000"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
 
@@ -132,7 +132,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
               placeholder="email@exemplo.com"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
           
@@ -143,7 +143,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
               value={(values[field.field_key] as number) || ''}
               onChange={(e) => handleChange(field.field_key, Number(e.target.value))}
               placeholder="0"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
           
@@ -160,7 +160,7 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
               type="time"
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
 
