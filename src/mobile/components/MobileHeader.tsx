@@ -2,7 +2,7 @@ import { Menu, Bell, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSidebarContext } from "@/contexts/SidebarContext";
 import wideLogo from "@/assets/wide-logo.png";
-import { useConversations } from "@/hooks/useConversations";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useLocation } from "react-router-dom";
 import { SessionStatusBadge } from "@/components/productivity/SessionStatusBadge";
@@ -25,11 +25,9 @@ const pageTitles: Record<string, string> = {
 
 export const MobileHeader = ({ pageTitle }: MobileHeaderProps) => {
   const { openMobile } = useSidebarContext();
-  const { conversations } = useConversations();
+  const { data: totalUnread = 0 } = useUnreadCount();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
   
   // Get dynamic page title
   const currentTitle = pageTitle || pageTitles[location.pathname] || "";
