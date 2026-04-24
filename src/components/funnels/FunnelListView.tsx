@@ -121,13 +121,58 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
-  const { fieldDefinitions, deleteField } = useCustomFields();
+  const { fieldDefinitions, leadFieldDefinitions, deleteField } = useCustomFields();
+  const { rules: requiredRules } = useFieldRequiredRules();
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
   const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageSize, setPageSize] = useState<number>(50);
+
+  // Validação de campos obrigatórios ao mover etapa
+  const [pendingMove, setPendingMove] = useState<{
+    deal: FunnelDeal;
+    targetStageId: string;
+    targetStageName: string;
+    isFinal: boolean;
+    missing: CustomFieldDefinition[];
+  } | null>(null);
+
+  /**
+   * Tenta mover um deal para outra etapa. Se houver campos obrigatórios faltantes,
+   * abre o dialog de validação. Caso contrário, faz o update direto.
+   */
+  const requestStageChange = (deal: FunnelDeal, targetStageId: string) => {
+    const targetStage = funnel.stages?.find((s) => s.id === targetStageId);
+    if (!targetStage) return;
+    const missing = leadFieldDefinitions
+      ? getMissingRequiredFields({
+          funnelId: funnel.id,
+          stageId: targetStageId,
+          stages: funnel.stages || [],
+          fieldDefinitions: leadFieldDefinitions,
+          rules: requiredRules || [],
+          values: (deal.custom_fields as Record<string, unknown>) || {},
+        })
+      : [];
+
+    if (missing.length > 0) {
+      setPendingMove({
+        deal,
+        targetStageId,
+        targetStageName: targetStage.name,
+        isFinal: !!targetStage.is_final,
+        missing,
+      });
+      return;
+    }
+    updateDeal.mutate({
+      id: deal.id,
+      stage_id: targetStageId,
+      ...(targetStage.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+    });
+  };
 
   // Drag-to-scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
