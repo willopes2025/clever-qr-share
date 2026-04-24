@@ -1597,6 +1597,28 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {pendingMove && (
+        <RequiredFieldsCheckDialog
+          open={!!pendingMove}
+          onOpenChange={(o) => { if (!o) setPendingMove(null); }}
+          stageName={pendingMove.targetStageName}
+          missingFields={pendingMove.missing}
+          initialValues={(pendingMove.deal.custom_fields as Record<string, unknown>) || {}}
+          isSubmitting={updateDeal.isPending}
+          onConfirm={async (values) => {
+            const merged = { ...((pendingMove.deal.custom_fields as Record<string, unknown>) || {}) };
+            for (const f of pendingMove.missing) merged[f.field_key] = values[f.field_key];
+            await updateDeal.mutateAsync({
+              id: pendingMove.deal.id,
+              stage_id: pendingMove.targetStageId,
+              custom_fields: merged,
+              ...(pendingMove.isFinal ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+            });
+            setPendingMove(null);
+          }}
+        />
+      )}
     </div>
   );
 };
