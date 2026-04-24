@@ -297,12 +297,12 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
       // Cancel outgoing queries
       await queryClient.cancelQueries({ queryKey: ['funnels'] });
       
-      // Snapshot current data
-      const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
+      // Snapshot all variants of the funnels cache (with/without deals)
+      const previousFunnels = queryClient.getQueriesData({ queryKey: ['funnels', user?.id] });
       
-      // Optimistic update
+      // Optimistic update across all funnels cache variants
       if (data.display_order !== undefined) {
-        queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
+        queryClient.setQueriesData({ queryKey: ['funnels', user?.id] }, (old: Funnel[] | undefined) => {
           if (!old) return old;
           return old.map(funnel => ({
             ...funnel,
@@ -317,7 +317,9 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     },
     onError: (err, variables, context) => {
       if (context?.previousFunnels) {
-        queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
+        context.previousFunnels.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
       }
     },
     onSettled: () => {
