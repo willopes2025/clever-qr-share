@@ -281,6 +281,8 @@ export const useCampaignMutations = () => {
           ai_active_hours_start: data.ai_active_hours_start,
           ai_active_hours_end: data.ai_active_hours_end,
           meta_variable_mappings: data.meta_variable_mappings || null,
+          dispatch_mode: data.dispatch_mode || 'template',
+          chatbot_flow_id: data.chatbot_flow_id || null,
       };
 
       const { data: campaign, error } = await supabase
