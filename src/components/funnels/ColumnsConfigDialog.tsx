@@ -146,8 +146,30 @@ export const ColumnsConfigDialog = ({
                   onCheckedChange={() => toggleColumn(col.id)}
                   disabled={col.fixed}
                 />
-                <span className="flex-1 text-sm">{col.label}</span>
+                <span className="flex-1 text-sm truncate">{col.label}</span>
                 <div className="flex gap-1">
+                  {col.customFieldId && onEditCustomField && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      title="Editar campo"
+                      onClick={() => onEditCustomField(col.customFieldId!)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {col.customFieldId && onDeleteCustomField && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      title="Excluir campo"
+                      onClick={() => setPendingDelete({ id: col.customFieldId!, label: col.label })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
