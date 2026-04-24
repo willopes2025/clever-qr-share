@@ -17,11 +17,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { useFunnels } from "@/hooks/useFunnels";
+import { getRequiredFieldsForStage } from "@/lib/required-fields";
 import { isDateLikeFieldName, parseAnyDateValue } from "@/lib/date-utils";
 
 interface DealCustomFieldsEditorProps {
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
+  /** Quando informado, calcula obrigatoriedade condicional por etapa do funil. */
+  funnelId?: string;
+  stageId?: string;
 }
 
 export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEditorProps) => {
