@@ -1154,6 +1154,59 @@ ${availableVariables}`;
       );
     }
 
+    // ===== CHATBOT DISPATCH MODE =====
+    if (campaign.dispatch_mode === 'chatbot') {
+      if (!campaign.chatbot_flow_id) {
+        throw new Error('Modo chatbot selecionado mas nenhum fluxo configurado');
+      }
+      if (validInstances.length === 0) {
+        throw new Error('Modo chatbot requer ao menos uma instância WhatsApp conectada');
+      }
+      // Validate flow exists and belongs to org
+      const { data: flow } = await supabase
+        .from('chatbot_flows')
+        .select('id, name, is_active')
+        .eq('id', campaign.chatbot_flow_id)
+        .maybeSingle();
+      if (!flow || !flow.is_active) {
+        throw new Error('Fluxo de chatbot não encontrado ou inativo');
+      }
+
+      const chatbotMessageRecords = filteredContacts.map((contact: Contact) => ({
+        campaign_id: campaignId,
+        contact_id: contact.id,
+        phone: normalizePhone(contact.phone),
+        contact_name: contact.name,
+        message_content: `[Chatbot: ${flow.name}]`,
+        status: 'queued'
+      }));
+
+      const { error: insertError } = await supabase
+        .from('campaign_messages')
+        .insert(chatbotMessageRecords);
+
+      if (insertError) {
+        console.error('Chatbot message records insert error:', insertError);
+        throw new Error('Failed to create chatbot dispatch records');
+      }
+
+      console.log(`Created ${chatbotMessageRecords.length} chatbot dispatch records`);
+      enqueueSendCampaignMessages();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Campanha de chatbot iniciada',
+          totalContacts: filteredContacts.length,
+          skippedContacts: skippedCount,
+          instanceCount: validInstances.length,
+          sendingMode,
+          dispatchMode: 'chatbot'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Build message records
     let messageRecords;
 
