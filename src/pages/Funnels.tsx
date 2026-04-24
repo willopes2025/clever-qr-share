@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles, ListChecks } from "lucide-react";
 import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAu
 import { ImportContactsToFunnelDialog } from "@/components/funnels/ImportContactsToFunnelDialog";
 import { FunnelOpportunitiesView } from "@/components/funnels/FunnelOpportunitiesView";
 import { FunnelGlobalSearch } from "@/components/funnels/FunnelGlobalSearch";
+import { CustomFieldsManager } from "@/components/inbox/CustomFieldsManager";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
@@ -46,6 +47,7 @@ const Funnels = () => {
   const [showAutomations, setShowAutomations] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showImportContacts, setShowImportContacts] = useState(false);
+  const [showFieldsManager, setShowFieldsManager] = useState(false);
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
   const [selectedDealIdFromSearch, setSelectedDealIdFromSearch] = useState<string | null>(null);
 
@@ -91,6 +93,10 @@ const Funnels = () => {
             <Button variant="outline" size="sm" onClick={() => setShowCloseReasons(true)}>
               <Settings2 className="h-4 w-4 mr-2" />
               Motivos
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowFieldsManager(true)}>
+              <ListChecks className="h-4 w-4 mr-2" />
+              Campos
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowAutomations(true)}>
               <Zap className="h-4 w-4 mr-2" />
@@ -252,6 +258,7 @@ const Funnels = () => {
         funnel={editingFunnel || undefined}
       />
       <CloseReasonsManager open={showCloseReasons} onOpenChange={setShowCloseReasons} />
+      <CustomFieldsManager open={showFieldsManager} onOpenChange={setShowFieldsManager} />
       <AutomationsDialog 
         open={showAutomations} 
         onOpenChange={setShowAutomations} 

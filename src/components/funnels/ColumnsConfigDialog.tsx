@@ -9,14 +9,26 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronUp, ChevronDown, GripVertical, Users, Save, Loader2 } from "lucide-react";
+import { ChevronUp, ChevronDown, GripVertical, Users, Save, Loader2, Pencil, Trash2 } from "lucide-react";
 import { TeamMember } from "@/hooks/useOrganization";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export interface ColumnDefinition {
   id: string;
   label: string;
   type: string;
   fixed?: boolean;
+  /** ID do custom_field_definitions, presente quando a coluna é um campo personalizado */
+  customFieldId?: string;
 }
 
 interface ColumnsConfigDialogProps {
@@ -28,6 +40,10 @@ interface ColumnsConfigDialogProps {
   onSave: (visibleColumns: string[], columnOrder: string[], applyToMemberIds?: string[]) => void;
   teamMembers?: TeamMember[];
   isSaving?: boolean;
+  /** Chamado ao clicar em editar campo personalizado (recebe o customFieldId) */
+  onEditCustomField?: (customFieldId: string) => void;
+  /** Chamado ao confirmar exclusão do campo personalizado */
+  onDeleteCustomField?: (customFieldId: string) => Promise<void> | void;
 }
 
 export const ColumnsConfigDialog = ({
@@ -39,11 +55,15 @@ export const ColumnsConfigDialog = ({
   onSave,
   teamMembers = [],
   isSaving = false,
+  onEditCustomField,
+  onDeleteCustomField,
 }: ColumnsConfigDialogProps) => {
   const [localVisible, setLocalVisible] = useState<string[]>(visibleColumns);
   const [localOrder, setLocalOrder] = useState<string[]>(columnOrder);
   const [showTeamShare, setShowTeamShare] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -126,8 +146,30 @@ export const ColumnsConfigDialog = ({
                   onCheckedChange={() => toggleColumn(col.id)}
                   disabled={col.fixed}
                 />
-                <span className="flex-1 text-sm">{col.label}</span>
+                <span className="flex-1 text-sm truncate">{col.label}</span>
                 <div className="flex gap-1">
+                  {col.customFieldId && onEditCustomField && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      title="Editar campo"
+                      onClick={() => onEditCustomField(col.customFieldId!)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {col.customFieldId && onDeleteCustomField && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      title="Excluir campo"
+                      onClick={() => setPendingDelete({ id: col.customFieldId!, label: col.label })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -223,6 +265,40 @@ export const ColumnsConfigDialog = ({
           </Button>
         </div>
       </DialogContent>
+
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir campo personalizado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O campo <strong>{pendingDelete?.label}</strong> será removido permanentemente, e os dados
+              já preenchidos para esse campo deixarão de ser exibidos. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!pendingDelete || !onDeleteCustomField) return;
+                setIsDeleting(true);
+                try {
+                  await onDeleteCustomField(pendingDelete.id);
+                  setPendingDelete(null);
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

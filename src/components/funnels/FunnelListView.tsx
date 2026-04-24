@@ -65,6 +65,7 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { DealFormDialog } from "./DealFormDialog";
 import { CloseDealDialog } from "./CloseDealDialog";
 import { ColumnsConfigDialog, ColumnDefinition } from "./ColumnsConfigDialog";
+import { CustomFieldsManager } from "@/components/inbox/CustomFieldsManager";
 import { BulkEditDialog, BulkEditUpdates } from "@/components/shared/BulkEditDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import {
@@ -116,7 +117,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
-  const { fieldDefinitions } = useCustomFields();
+  const { fieldDefinitions, deleteField } = useCustomFields();
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
@@ -165,6 +166,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const [fieldsManagerOpen, setFieldsManagerOpen] = useState(false);
+  const [fieldsManagerInitialId, setFieldsManagerInitialId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Load saved column config from DB
@@ -275,6 +278,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       id: `custom_${field.field_key}`,
       label: field.field_name,
       type: field.field_type,
+      customFieldId: field.id,
     }));
 
     return [...defaultCols, ...customCols];
@@ -1148,6 +1152,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             <Settings2 className="h-4 w-4 mr-2" />
             Colunas
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFieldsManagerInitialId(null);
+              setFieldsManagerOpen(true);
+            }}
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Gerenciar Campos
+          </Button>
 
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearAllFilters}>
@@ -1459,6 +1474,22 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         onSave={handleColumnsConfigSave}
         teamMembers={members}
         isSaving={isSavingColumns}
+        onEditCustomField={(id) => {
+          setFieldsManagerInitialId(id);
+          setFieldsManagerOpen(true);
+        }}
+        onDeleteCustomField={async (id) => {
+          await deleteField.mutateAsync(id);
+        }}
+      />
+
+      <CustomFieldsManager
+        open={fieldsManagerOpen}
+        onOpenChange={(o) => {
+          setFieldsManagerOpen(o);
+          if (!o) setFieldsManagerInitialId(null);
+        }}
+        initialEditFieldId={fieldsManagerInitialId}
       />
 
       <BulkEditDialog
