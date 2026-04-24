@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { LayoutDashboard, MessageSquare, Users, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useConversations } from "@/hooks/useConversations";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { Badge } from "@/components/ui/badge";
 import { useSidebarContext } from "@/contexts/SidebarContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -26,11 +26,9 @@ const navItems: NavItem[] = [
 
 export const MobileBottomNav = () => {
   const location = useLocation();
-  const { conversations } = useConversations();
+  const { data: totalUnread = 0 } = useUnreadCount();
   const { openMobile } = useSidebarContext();
   const { checkPermission, organization, isLoading } = useOrganization();
-  
-  const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
 
   // Filter items by permission
   const filteredItems = navItems.filter(item => {

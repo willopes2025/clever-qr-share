@@ -10,7 +10,7 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSubscription, PLANS, hasFeatureAccess } from "@/hooks/useSubscription";
-import { useConversations } from "@/hooks/useConversations";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { Badge } from "@/components/ui/badge";
 import { useSidebarContext } from "@/contexts/SidebarContext";
 import wideLogo from "@/assets/wide-logo.png";
@@ -94,14 +94,14 @@ export const MobileSidebarDrawer = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
-  const { conversations } = useConversations();
+  const { conversations: _ignored } = { conversations: undefined as any };
   const { isMobileOpen, closeMobile } = useSidebarContext();
   const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
   const { profile } = useProfile();
   const { hasAsaas } = useAsaas();
   const { hasSsotica } = useSsotica();
   
-  const totalUnread = conversations?.reduce((sum, c) => sum + c.unread_count, 0) || 0;
+  const { data: totalUnread = 0 } = useUnreadCount();
   const { data: internalChatUnread = 0 } = useInternalChatUnread();
   const { data: pendingTasksCount = 0 } = usePendingTasksCount();
 
