@@ -53,7 +53,133 @@ function similarity(a: string, b: string): number {
   return (2 * inter) / (A.size + B.size);
 }
 
-interface CustomFieldsManagerProps {
+interface RequiredRulesEditorProps {
+  fieldId: string;
+}
+
+const RequiredRulesEditor = ({ fieldId }: RequiredRulesEditorProps) => {
+  const { funnels } = useFunnels();
+  const { rules, upsertRule, deleteRule } = useFieldRequiredRules();
+
+  const fieldRules = (rules || []).filter((r) => r.field_definition_id === fieldId);
+
+  const [draftFunnelId, setDraftFunnelId] = useState<string>("");
+  const [draftStageId, setDraftStageId] = useState<string>("");
+
+  const draftFunnel = funnels?.find((f) => f.id === draftFunnelId);
+  const draftStages = (draftFunnel?.stages || []).slice().sort(
+    (a, b) => a.display_order - b.display_order,
+  );
+
+  // Funis que ainda não têm regra para este campo
+  const availableFunnels = (funnels || []).filter(
+    (f) => !fieldRules.some((r) => r.funnel_id === f.id),
+  );
+
+  const handleAdd = async () => {
+    if (!draftFunnelId || !draftStageId) return;
+    await upsertRule.mutateAsync({
+      field_definition_id: fieldId,
+      funnel_id: draftFunnelId,
+      from_stage_id: draftStageId,
+    });
+    setDraftFunnelId("");
+    setDraftStageId("");
+  };
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border/60">
+      <Label className="text-xs text-muted-foreground">
+        Regras de obrigatoriedade por etapa
+      </Label>
+      <p className="text-[11px] text-muted-foreground -mt-1">
+        Torne o campo obrigatório a partir de uma etapa específica de um funil.
+      </p>
+
+      {fieldRules.length > 0 && (
+        <div className="space-y-1.5">
+          {fieldRules.map((rule) => {
+            const f = funnels?.find((x) => x.id === rule.funnel_id);
+            const s = f?.stages?.find((x) => x.id === rule.from_stage_id);
+            return (
+              <div
+                key={rule.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 border border-border/60 text-xs"
+              >
+                <span className="font-medium truncate flex-1">
+                  {f?.name || "Funil removido"}
+                </span>
+                <span className="text-muted-foreground">a partir de</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {s?.name || "Etapa removida"}
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-destructive hover:text-destructive"
+                  onClick={() => deleteRule.mutate(rule.id)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {availableFunnels.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Select
+            value={draftFunnelId}
+            onValueChange={(v) => {
+              setDraftFunnelId(v);
+              setDraftStageId("");
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Funil" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableFunnels.map((f) => (
+                <SelectItem key={f.id} value={f.id} className="text-xs">
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={draftStageId}
+            onValueChange={setDraftStageId}
+            disabled={!draftFunnelId}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="A partir da etapa" />
+            </SelectTrigger>
+            <SelectContent>
+              {draftStages.map((s) => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={handleAdd}
+            disabled={!draftFunnelId || !draftStageId || upsertRule.isPending}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
   /** Quando provido, o componente vira controlado e não renderiza o botão trigger. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
