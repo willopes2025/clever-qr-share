@@ -10,7 +10,7 @@ import { RightSidePanel } from "@/components/inbox/RightSidePanel";
 import { SoftphoneWidget } from "@/components/softphone/SoftphoneWidget";
 import { Conversation, useConversations } from "@/hooks/useConversations";
 import { useFusionPBXConfig } from "@/hooks/useFusionPBXConfig";
-import { supabase } from "@/integrations/supabase/client";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
