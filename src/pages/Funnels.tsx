@@ -34,6 +34,7 @@ import { FunnelAutomationsView } from "@/components/funnels/automations/FunnelAu
 import { ImportContactsToFunnelDialog } from "@/components/funnels/ImportContactsToFunnelDialog";
 import { FunnelOpportunitiesView } from "@/components/funnels/FunnelOpportunitiesView";
 import { FunnelGlobalSearch } from "@/components/funnels/FunnelGlobalSearch";
+import { CustomFieldsManager } from "@/components/inbox/CustomFieldsManager";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Funnels = () => {
