@@ -180,9 +180,6 @@ export const useCustomFields = () => {
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
       queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
     },
-    onError: (error: Error) => {
-      toast.error("Erro ao atualizar campos do lead: " + error.message);
-    },
   });
 
   return {
