@@ -276,6 +276,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       id: `custom_${field.field_key}`,
       label: field.field_name,
       type: field.field_type,
+      customFieldId: field.id,
     }));
 
     return [...defaultCols, ...customCols];
