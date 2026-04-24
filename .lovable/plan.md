@@ -1,104 +1,50 @@
-## Problema confirmado
-O gargalo agora é a consulta principal do Inbox, não mais os deals do funil.
+## Objetivo
+Eliminar o timeout que ainda impede o Inbox de abrir rapidamente.
 
-Evidências encontradas:
-- A requisição do Inbox para `conversations` está retornando `500` com `canceling statement due to statement timeout`.
-- Hoje o hook `src/hooks/useConversations.ts` ainda busca a lista completa de conversas com embed de `contact` e `tag_assignments`, sem paginação.
-- A base atual tem cerca de `8.464` conversas e `9.172` deals abertos, então abrir tudo de uma vez ficou caro demais.
-- O perfil do navegador indica que o frontend não é o principal problema; a espera está concentrada no carregamento de dados.
+## Diagnóstico
+O problema continua no backend, não no layout. A requisição principal do Inbox ainda falha com `statement timeout` ao buscar `conversations`.
 
-## O que vou implementar
+Evidências já confirmadas:
+- A chamada que falha é `GET /rest/v1/conversations ... order=is_pinned.desc,last_message_at.desc&limit=300`.
+- O erro retornado é `57014: canceling statement due to statement timeout`.
+- A base está grande o suficiente para expor isso: cerca de `8.475 conversations`, `143.855 inbox_messages`, `19.898 contacts` e `9.176 funnel_deals` abertos.
+- Hoje a tabela `conversations` só tem índices simples em `user_id`, `last_message_at`, `campaign_id`, `assigned_to`, `first_response_at` e `provider`. Não há índice cobrindo a ordenação/filtros usados pelo Inbox.
+- A política atual de acesso do Inbox usa a função `can_access_conversation_channel(...)`, que é mais pesada do que a política anterior e pode agravar o custo da leitura em listas grandes.
 
-### 1. Paginar a lista do Inbox na origem
-Atualizar `src/hooks/useConversations.ts` para carregar apenas a primeira página da lista de conversas ao abrir o Inbox, em vez de puxar tudo.
+## Plano
+1. Ajustar a consulta principal do hook `useConversations` para reduzir custo antes do restante do pipeline.
+   - Remover o `or(instance_id.is.null,instance_id.not.in(...))` quando não for necessário e substituir por uma estratégia mais indexável.
+   - Separar o caso “instâncias notificacionais” para não degradar a query principal.
+   - Reduzir a primeira carga para uma janela menor e previsível, com paginação incremental.
 
-Planejamento técnico:
-- aplicar `range/limit` na query principal
-- manter ordenação por `is_pinned` + `last_message_at`
-- carregar os deals apenas para os contatos visíveis na página atual
-- preparar o hook para `page` / `pageSize` ou `useInfiniteQuery`
+2. Corrigir o gargalo estrutural no banco via migration.
+   - Criar índices compostos/parciais voltados ao Inbox, cobrindo ordenação e filtros reais (`user/org scope`, `status`, `is_pinned`, `last_message_at`, `instance_id`, `meta_phone_number_id` conforme aplicável).
+   - Priorizar índices que ajudem tanto a query da lista quanto os cenários de filtros básicos (todas, não lidas, arquivadas).
 
-Resultado esperado: a barra lateral abre rápido mesmo com milhares de conversas.
+3. Revisar a política/função de acesso usada por `conversations`.
+   - Simplificar `can_access_conversation_channel(...)` ou trocar a policy para uma forma mais barata de execução em leitura massiva.
+   - Preservar o comportamento de organização e restrições por instância/número, sem relaxar segurança.
 
-### 2. Separar “lista leve” de “detalhe pesado”
-Hoje a query base já traz campos que não precisam existir no primeiro paint da lista.
+4. Alinhar consultas auxiliares que ainda podem piorar a percepção de lentidão.
+   - Tornar a busca de conversas faltantes em `ConversationList.tsx` compatível com o novo modelo leve, evitando `select *` com joins embutidos para IDs ausentes da busca.
+   - Revisar `useUnreadCount` para garantir que não amplifique carga desnecessária em paralelo.
 
-Vou dividir em duas camadas:
-- **Lista leve:** id, contato básico, preview, unread, flags de IA, responsável, provider, etapa/deal visível
-- **Detalhe sob demanda:** `notes`, `custom_fields`, dados completos do contato e demais informações do painel lateral
-
-Arquivos envolvidos:
-- `src/hooks/useConversations.ts`
-- `src/components/inbox/RightSidePanel.tsx`
-- componentes do painel lateral do lead/contato
-
-Resultado esperado: o Inbox abre primeiro, e os detalhes carregam quando a conversa é selecionada.
-
-### 3. Remover dependências pesadas fora da tela principal
-Existem componentes usando `useConversations()` só para coisas simples, como badge de não lidas ou mutação de criar conversa.
-
-Vou trocar isso por hooks leves:
-- `src/mobile/components/MobileHeader.tsx` → usar `useUnreadCount`
-- `src/mobile/components/MobileBottomNav.tsx` → usar `useUnreadCount`
-- `src/components/MobileSidebarDrawer.tsx` → usar `useUnreadCount`
-- `src/components/inbox/NewConversationDialog.tsx` → extrair mutações para um hook menor, sem disparar a query completa
-
-Resultado esperado: menos montagem desnecessária da query pesada.
-
-### 4. Ajustar backend para a nova estratégia
-Se a query paginada ainda sofrer com o volume e com as regras de acesso, vou reforçar o backend com uma das opções abaixo:
-- adicionar índices compostos voltados ao padrão real do Inbox
-- e, se necessário, substituir a leitura REST atual por uma função paginada no backend que já devolva a lista enxuta do Inbox
-
-Arquivos envolvidos:
-- nova migration em `supabase/migrations/...sql`
-
-Resultado esperado: evitar `statement timeout` mesmo com a base crescendo.
-
-### 5. Refinar realtime e cache da lista paginada
-Depois da paginação, o realtime não pode continuar “refazendo tudo”.
-
-Vou ajustar para:
-- atualizar apenas a página ativa
-- mover a conversa alterada para o topo localmente quando chegar mensagem nova
-- evitar refetch global completo da lista a cada evento
-
-Arquivos envolvidos:
-- `src/hooks/useGlobalRealtime.ts`
-- `src/hooks/useConversations.ts`
-
-## Validação
-Vou considerar resolvido quando:
-- a requisição principal do Inbox deixar de retornar timeout
-- a primeira abertura do Inbox ocorrer rapidamente
-- abrir uma conversa não travar a tela
-- o painel lateral continuar mostrando dados corretos após seleção
-- badges de não lidas e criação de conversa continuarem funcionando
+5. Validar o resultado após a correção.
+   - Confirmar que a chamada principal do Inbox deixa de retornar 500/timeout.
+   - Verificar abertura inicial, troca entre abas e busca sem regressão funcional.
 
 ## Detalhes técnicos
-```text
-Antes:
-Inbox open
-  -> busca todas as conversas
-  -> embute contato + tags
-  -> busca deals dos contatos retornados
-  -> timeout / atraso grande
+- Arquivos principais a alterar:
+  - `src/hooks/useConversations.ts`
+  - `src/components/inbox/ConversationList.tsx`
+  - `src/hooks/useUnreadCount.ts`
+  - nova migration em `supabase/migrations/`
+- Mudanças esperadas no banco:
+  - índices compostos/parciais para `conversations`
+  - possível ajuste em função/policy relacionada a acesso organizacional do Inbox
+- Segurança:
+  - manter RLS e restrições por organização/instância/número
+  - não relaxar acesso para “resolver performance”
 
-Depois:
-Inbox open
-  -> busca só a 1ª página da lista leve
-  -> renderiza imediatamente
-  -> ao selecionar conversa, busca detalhes sob demanda
-  -> realtime atualiza apenas o necessário
-```
-
-## Arquivos mais prováveis de mudança
-- `src/hooks/useConversations.ts`
-- `src/hooks/useGlobalRealtime.ts`
-- `src/components/inbox/ConversationList.tsx`
-- `src/components/inbox/RightSidePanel.tsx`
-- `src/components/inbox/NewConversationDialog.tsx`
-- `src/mobile/components/MobileHeader.tsx`
-- `src/mobile/components/MobileBottomNav.tsx`
-- `src/components/MobileSidebarDrawer.tsx`
-- `supabase/migrations/...sql`
+## Resultado esperado
+O Inbox volta a abrir sem timeout, com primeira carga rápida e sem depender de uma consulta cara demais para listar conversas.
