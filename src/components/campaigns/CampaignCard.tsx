@@ -17,7 +17,8 @@ import {
   Calendar,
   RotateCcw,
   Send,
-  Ban
+  Ban,
+  Bot
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
