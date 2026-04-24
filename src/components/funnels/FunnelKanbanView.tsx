@@ -285,6 +285,23 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
         onOpenChange={setShowStageForm}
         funnelId={funnel.id}
       />
+
+      {pendingMove && (
+        <RequiredFieldsCheckDialog
+          open={!!pendingMove}
+          onOpenChange={(o) => { if (!o) setPendingMove(null); }}
+          stageName={pendingMove.targetStage.name}
+          missingFields={pendingMove.missing}
+          initialValues={(pendingMove.deal.custom_fields as Record<string, unknown>) || {}}
+          isSubmitting={updateDeal.isPending}
+          onConfirm={async (values) => {
+            const extra: Record<string, unknown> = {};
+            for (const f of pendingMove.missing) extra[f.field_key] = values[f.field_key];
+            await Promise.resolve(moveDealToStage(pendingMove.deal, pendingMove.targetStage, extra));
+            setPendingMove(null);
+          }}
+        />
+      )}
     </>
   );
 };
