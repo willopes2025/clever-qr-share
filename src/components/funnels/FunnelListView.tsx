@@ -797,14 +797,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Select
             value={deal.stage_id}
-            onValueChange={async (newStageId) => {
+            onValueChange={(newStageId) => {
               if (newStageId === deal.stage_id) return;
-              const targetStage = funnel.stages?.find(s => s.id === newStageId);
-              await updateDeal.mutateAsync({
-                id: deal.id,
-                stage_id: newStageId,
-                ...(targetStage?.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
-              });
+              requestStageChange(deal, newStageId);
             }}
           >
             <SelectTrigger className="h-7 w-auto min-w-[120px] border-none bg-transparent p-1 focus:ring-0">
