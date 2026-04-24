@@ -2,14 +2,24 @@ import { Handle, Position, NodeProps } from "@xyflow/react";
 import { Clock, Trash2 } from "lucide-react";
 
 export const DelayNode = ({ data, selected }: NodeProps) => {
+  const waitMode = (data?.waitMode as string) || "time";
   const duration = (data?.duration as number) || 5;
   const unit = (data?.unit as string) || "seconds";
-  
+  const timeoutMin = data?.messageTimeoutMinutes as number | null | undefined;
+
   const unitLabels: Record<string, string> = {
     seconds: "s",
     minutes: "min",
     hours: "h",
   };
+
+  const label = waitMode === "message" ? "Aguardar mensagem" : "Aguardar";
+  const subtitle =
+    waitMode === "message"
+      ? timeoutMin
+        ? `até resposta · timeout ${timeoutMin}min`
+        : "até receber mensagem"
+      : `${duration} ${unitLabels[unit]}`;
 
   return (
     <div

@@ -922,37 +922,89 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
           </div>
         );
 
-      case "delay":
+      case "delay": {
+        const waitMode = (data?.waitMode as string) || "time";
         return (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="duration">Duração</Label>
-              <Input
-                id="duration"
-                type="number"
-                min={1}
-                value={data?.duration || 5}
-                onChange={(e) => handleChange("duration", parseInt(e.target.value) || 5)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unidade</Label>
+              <Label htmlFor="waitMode">Tipo de espera</Label>
               <Select
-                value={data?.unit || "seconds"}
-                onValueChange={(v) => handleChange("unit", v)}
+                value={waitMode}
+                onValueChange={(v) => handleChange("waitMode", v)}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="seconds">Segundos</SelectItem>
-                  <SelectItem value="minutes">Minutos</SelectItem>
-                  <SelectItem value="hours">Horas</SelectItem>
+                  <SelectItem value="time">Aguardar tempo determinado</SelectItem>
+                  <SelectItem value="message">Aguardar até receber mensagem</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {waitMode === "message"
+                  ? "O fluxo pausa até o contato enviar qualquer mensagem."
+                  : "O fluxo pausa pelo tempo configurado e segue automaticamente."}
+              </p>
             </div>
+
+            {waitMode === "time" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Duração</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    min={1}
+                    value={data?.duration || 5}
+                    onChange={(e) => handleChange("duration", parseInt(e.target.value) || 5)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="unit">Unidade</Label>
+                  <Select
+                    value={data?.unit || "seconds"}
+                    onValueChange={(v) => handleChange("unit", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="seconds">Segundos</SelectItem>
+                      <SelectItem value="minutes">Minutos</SelectItem>
+                      <SelectItem value="hours">Horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {waitMode === "message" && (
+              <div className="space-y-2">
+                <Label htmlFor="messageTimeoutMinutes">
+                  Timeout (minutos, opcional)
+                </Label>
+                <Input
+                  id="messageTimeoutMinutes"
+                  type="number"
+                  min={0}
+                  placeholder="Sem timeout"
+                  value={data?.messageTimeoutMinutes ?? ""}
+                  onChange={(e) =>
+                    handleChange(
+                      "messageTimeoutMinutes",
+                      e.target.value === "" ? null : parseInt(e.target.value) || 0
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se preenchido, o fluxo continua automaticamente caso o contato
+                  não responda nesse tempo.
+                </p>
+              </div>
+            )}
           </div>
         );
+      }
 
       case "ai_response":
         return <AIResponseConfig data={data} handleChange={handleChange} />;
