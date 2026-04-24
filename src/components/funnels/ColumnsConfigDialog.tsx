@@ -9,14 +9,26 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronUp, ChevronDown, GripVertical, Users, Save, Loader2 } from "lucide-react";
+import { ChevronUp, ChevronDown, GripVertical, Users, Save, Loader2, Pencil, Trash2 } from "lucide-react";
 import { TeamMember } from "@/hooks/useOrganization";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export interface ColumnDefinition {
   id: string;
   label: string;
   type: string;
   fixed?: boolean;
+  /** ID do custom_field_definitions, presente quando a coluna é um campo personalizado */
+  customFieldId?: string;
 }
 
 interface ColumnsConfigDialogProps {
@@ -28,6 +40,10 @@ interface ColumnsConfigDialogProps {
   onSave: (visibleColumns: string[], columnOrder: string[], applyToMemberIds?: string[]) => void;
   teamMembers?: TeamMember[];
   isSaving?: boolean;
+  /** Chamado ao clicar em editar campo personalizado (recebe o customFieldId) */
+  onEditCustomField?: (customFieldId: string) => void;
+  /** Chamado ao confirmar exclusão do campo personalizado */
+  onDeleteCustomField?: (customFieldId: string) => Promise<void> | void;
 }
 
 export const ColumnsConfigDialog = ({
