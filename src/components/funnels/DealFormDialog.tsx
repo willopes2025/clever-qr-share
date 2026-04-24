@@ -123,11 +123,30 @@ export const DealFormDialog = ({
 
   const isNextActionValid = !deal ? (nextAction.title && nextAction.due_date) : true;
 
+  const { leadFieldDefinitions } = useCustomFields();
+  const { rules: requiredRules } = useFieldRequiredRules();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Next action is optional now
-    
+
+    // Validar campos obrigatórios condicionais para a etapa selecionada
+    if (selectedFunnelId && selectedStageId && leadFieldDefinitions) {
+      const missing = getMissingRequiredFields({
+        funnelId: selectedFunnelId,
+        stageId: selectedStageId,
+        stages,
+        fieldDefinitions: leadFieldDefinitions,
+        rules: requiredRules || [],
+        values: customFields,
+      });
+      if (missing.length > 0) {
+        toast.error(
+          `Preencha os campos obrigatórios: ${missing.map((f) => f.field_name).join(", ")}`,
+        );
+        return;
+      }
+    }
+
     if (deal) {
       // Update contact name if changed
       const trimmedName = contactName.trim() || null;
