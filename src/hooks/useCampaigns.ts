@@ -78,6 +78,10 @@ export interface Campaign {
     id: string;
     name: string;
   } | null;
+  chatbot_flow?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface CampaignMessage {
