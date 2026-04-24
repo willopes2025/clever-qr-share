@@ -66,6 +66,10 @@ import { DealFormDialog } from "./DealFormDialog";
 import { CloseDealDialog } from "./CloseDealDialog";
 import { ColumnsConfigDialog, ColumnDefinition } from "./ColumnsConfigDialog";
 import { CustomFieldsManager } from "@/components/inbox/CustomFieldsManager";
+import { RequiredFieldsCheckDialog } from "./RequiredFieldsCheckDialog";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { getMissingRequiredFields } from "@/lib/required-fields";
+import type { CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { BulkEditDialog, BulkEditUpdates } from "@/components/shared/BulkEditDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import {
