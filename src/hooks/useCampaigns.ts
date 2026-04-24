@@ -231,6 +231,8 @@ export const useCampaignMutations = () => {
       ai_active_hours_start?: number;
       ai_active_hours_end?: number;
       meta_variable_mappings?: MetaVariableMapping[] | null;
+      dispatch_mode?: 'template' | 'chatbot';
+      chatbot_flow_id?: string | null;
     }) => {
       if (!user?.id) throw new Error('User not authenticated');
 
