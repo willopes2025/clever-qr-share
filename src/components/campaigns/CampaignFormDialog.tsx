@@ -15,13 +15,14 @@ import { useContacts } from '@/hooks/useContacts';
 import { Campaign, MetaVariableMapping } from '@/hooks/useCampaigns';
 import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
 import { useCustomFields } from '@/hooks/useCustomFields';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone, Variable } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone, Variable, Workflow } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
+import { useChatbotFlows } from '@/hooks/useChatbotFlows';
 interface CampaignFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,6 +59,8 @@ interface CampaignFormDialogProps {
     batch_size: number;
     batch_pause_minutes: number;
     meta_variable_mappings?: MetaVariableMapping[] | null;
+    dispatch_mode?: 'template' | 'chatbot';
+    chatbot_flow_id?: string | null;
   }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
@@ -83,9 +86,10 @@ export const CampaignFormDialog = ({
 }: CampaignFormDialogProps) => {
   const navigate = useNavigate();
   const [name, setName] = useState('');
-  const [messageMode, setMessageMode] = useState<'template' | 'meta_template'>('template');
+  const [messageMode, setMessageMode] = useState<'template' | 'meta_template' | 'chatbot'>('template');
   const [templateId, setTemplateId] = useState<string>('');
   const [selectedMetaPhoneNumberId, setSelectedMetaPhoneNumberId] = useState('');
+  const [chatbotFlowId, setChatbotFlowId] = useState<string>('');
   const [listId, setListId] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
@@ -131,6 +135,8 @@ export const CampaignFormDialog = ({
   const { user } = useAuth();
   const { createTag } = useContacts();
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
+  const { flows: chatbotFlows } = useChatbotFlows();
+  const activeChatbotFlows = chatbotFlows?.filter(f => f.is_active) || [];
 
   const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   
@@ -208,11 +214,13 @@ export const CampaignFormDialog = ({
 
   useEffect(() => {
     if (campaign) {
+      const isChatbotCampaign = campaign.dispatch_mode === 'chatbot';
       const isMetaCampaign = !!campaign.meta_template_id;
       setName(campaign.name);
-      setMessageMode(isMetaCampaign ? 'meta_template' : 'template');
+      setMessageMode(isChatbotCampaign ? 'chatbot' : isMetaCampaign ? 'meta_template' : 'template');
       setTemplateId(campaign.meta_template_id || campaign.template_id || '');
       setSelectedMetaPhoneNumberId(campaign.meta_phone_number_id || '');
+      setChatbotFlowId(campaign.chatbot_flow_id || '');
       setListId(campaign.list_id || '');
       if (campaign.scheduled_at) {
         setIsScheduled(true);
@@ -245,6 +253,7 @@ export const CampaignFormDialog = ({
       setMessageMode('template');
       setTemplateId('');
       setSelectedMetaPhoneNumberId('');
+      setChatbotFlowId('');
       setListId('');
       setIsScheduled(false);
       setScheduledDate('');
@@ -299,6 +308,7 @@ export const CampaignFormDialog = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isMetaMode = messageMode === 'meta_template';
+    const isChatbotMode = messageMode === 'chatbot';
     
     let scheduledAt: string | null = null;
     if (isScheduled && scheduledDate && scheduledTime) {
@@ -307,7 +317,7 @@ export const CampaignFormDialog = ({
 
     const result = await onSubmit({
       name,
-      template_id: isMetaMode ? null : templateId || null,
+      template_id: isMetaMode || isChatbotMode ? null : templateId || null,
       meta_template_id: isMetaMode ? templateId || null : null,
       meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId || null : null,
       list_id: listId || null,
@@ -337,6 +347,8 @@ export const CampaignFormDialog = ({
       batch_size: batchSize,
       batch_pause_minutes: batchPauseMinutes,
       meta_variable_mappings: messageMode === 'meta_template' && variableMappings.length > 0 ? variableMappings : null,
+      dispatch_mode: isChatbotMode ? 'chatbot' : 'template',
+      chatbot_flow_id: isChatbotMode ? chatbotFlowId || null : null,
     });
 
     // For new campaigns with AI enabled: link selected agent to the new campaign
@@ -393,25 +405,60 @@ export const CampaignFormDialog = ({
             <Tabs
               value={messageMode}
               onValueChange={(value) => {
-                const nextMode = value as 'template' | 'meta_template';
+                const nextMode = value as 'template' | 'meta_template' | 'chatbot';
                 setMessageMode(nextMode);
                 setTemplateId('');
                 if (nextMode !== 'meta_template') {
                   setSelectedMetaPhoneNumberId('');
                 }
+                if (nextMode !== 'chatbot') {
+                  setChatbotFlowId('');
+                }
               }}
             >
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="template">Template Interno</TabsTrigger>
                 <TabsTrigger value="meta_template" className="gap-2">
                   <Cloud className="h-4 w-4" />
                   Template Meta
                 </TabsTrigger>
+                <TabsTrigger value="chatbot" className="gap-2">
+                  <Workflow className="h-4 w-4" />
+                  Chatbot
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
-          {messageMode === 'template' ? (
+          {messageMode === 'chatbot' ? (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Workflow className="h-4 w-4" />
+                Fluxo do Chatbot *
+              </Label>
+              <Select value={chatbotFlowId} onValueChange={setChatbotFlowId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um fluxo de chatbot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeChatbotFlows.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      Nenhum fluxo ativo. Crie um em Chatbots.
+                    </div>
+                  ) : (
+                    activeChatbotFlows.map((flow) => (
+                      <SelectItem key={flow.id} value={flow.id}>
+                        {flow.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O fluxo será disparado para cada contato da lista, respeitando os intervalos e janelas de envio. Requer instâncias do WhatsApp conectadas.
+              </p>
+            </div>
+          ) : messageMode === 'template' ? (
             <div className="space-y-2">
               <Label>Template de Mensagem</Label>
               <Select value={templateId} onValueChange={setTemplateId}>
@@ -1029,7 +1076,7 @@ export const CampaignFormDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading || !name || (isMetaMode && (!templateId || !selectedMetaPhoneNumberId))}>
+            <Button type="submit" disabled={isLoading || !name || (isMetaMode && (!templateId || !selectedMetaPhoneNumberId)) || (messageMode === 'chatbot' && !chatbotFlowId)}>
               {campaign ? 'Salvar' : 'Criar Campanha'}
             </Button>
           </div>

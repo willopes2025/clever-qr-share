@@ -516,7 +516,8 @@ Deno.serve(async (req: Request) => {
         message_interval_min, message_interval_max, daily_limit,
         allowed_start_hour, allowed_end_hour, allowed_days, timezone, retry_at,
         tag_on_delivery_id, template_id, meta_template_id, meta_phone_number_id,
-        batch_enabled, batch_size, batch_pause_minutes, meta_variable_mappings
+        batch_enabled, batch_size, batch_pause_minutes, meta_variable_mappings,
+        dispatch_mode, chatbot_flow_id
       `)
       .eq('id', campaignId)
       .single();
@@ -754,6 +755,128 @@ Deno.serve(async (req: Request) => {
       .update({ status: 'sending' })
       .eq('id', message.id);
 
+    // ===== CHATBOT DISPATCH MODE =====
+    if ((campaign as any).dispatch_mode === 'chatbot' && (campaign as any).chatbot_flow_id) {
+      // Format phone for chatbot
+      let chatbotPhone = message.phone.replace(/\D/g, '');
+      if (!chatbotPhone.startsWith('55')) chatbotPhone = '55' + chatbotPhone;
+
+      try {
+        // Skip if there's already an active execution for this contact in this campaign
+        const { data: existingExec } = await supabase
+          .from('chatbot_executions')
+          .select('id, status')
+          .eq('flow_id', (campaign as any).chatbot_flow_id)
+          .eq('contact_id', message.contact_id)
+          .eq('trigger_campaign_id', campaignId)
+          .in('status', ['running', 'waiting_input'])
+          .maybeSingle();
+
+        if (existingExec) {
+          console.log(`[CHATBOT-CAMPAIGN] Skipping ${chatbotPhone} - active execution exists`);
+          await supabase.from('campaign_messages').update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            error_message: 'Execução já em andamento (skipped)'
+          }).eq('id', message.id);
+        } else {
+          // Find or create conversation tied to selected instance
+          let conversationId: string | null = null;
+          const { data: existingConv } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('contact_id', message.contact_id)
+            .eq('user_id', campaign.user_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (existingConv) {
+            conversationId = existingConv.id;
+          } else if (selectedInstance) {
+            const { data: newConv } = await supabase
+              .from('conversations')
+              .insert({
+                contact_id: message.contact_id,
+                user_id: campaign.user_id,
+                status: 'open',
+                instance_id: selectedInstance.id,
+                campaign_id: campaignId,
+                provider: 'evolution',
+              })
+              .select('id')
+              .single();
+            if (newConv) conversationId = newConv.id;
+          }
+
+          // Create chatbot execution record with trigger_campaign_id
+          const { data: execution, error: execError } = await supabase
+            .from('chatbot_executions')
+            .insert({
+              flow_id: (campaign as any).chatbot_flow_id,
+              conversation_id: conversationId,
+              contact_id: message.contact_id,
+              user_id: campaign.user_id,
+              status: 'running',
+              started_at: new Date().toISOString(),
+              trigger_source: 'campaign',
+              trigger_campaign_id: campaignId,
+              variables: {},
+            })
+            .select()
+            .single();
+
+          if (execError || !execution) {
+            throw new Error(`Failed to create execution: ${execError?.message}`);
+          }
+
+          // Invoke the flow runtime
+          const flowResponse = await fetch(`${supabaseUrl}/functions/v1/execute-chatbot-flow`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              flowId: (campaign as any).chatbot_flow_id,
+              conversationId,
+              contactId: message.contact_id,
+              userId: campaign.user_id,
+              executionId: execution.id,
+            }),
+          });
+
+          if (!flowResponse.ok) {
+            const errText = await flowResponse.text();
+            console.error(`[CHATBOT-CAMPAIGN] Flow execution failed: ${errText}`);
+            throw new Error(`Flow execution failed: ${flowResponse.status}`);
+          }
+
+          await supabase.from('campaign_messages').update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+          }).eq('id', message.id);
+
+          await supabase.from('campaigns').update({
+            sent: (campaign.sent || 0) + 1,
+            delivered: (campaign.delivered || 0) + 1,
+          }).eq('id', campaignId);
+
+          console.log(`[CHATBOT-CAMPAIGN] Flow ${(campaign as any).chatbot_flow_id} dispatched for contact ${message.contact_id}`);
+        }
+      } catch (chatbotError) {
+        console.error('[CHATBOT-CAMPAIGN] Error:', chatbotError);
+        await supabase.from('campaign_messages').update({
+          status: 'failed',
+          error_message: chatbotError instanceof Error ? chatbotError.message : 'Chatbot dispatch failed'
+        }).eq('id', message.id);
+        await supabase.from('campaigns').update({
+          failed: (campaign.failed || 0) + 1
+        }).eq('id', campaignId);
+      }
+
+      // Skip the rest of normal sending logic and continue to next message scheduling
+    } else {
     // Format phone number (ensure it has country code)
     let formattedPhone = message.phone.replace(/\D/g, '');
     if (!formattedPhone.startsWith('55')) {

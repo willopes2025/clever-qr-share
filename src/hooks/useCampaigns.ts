@@ -66,6 +66,9 @@ export interface Campaign {
   ai_handoff_keywords: string[] | null;
   ai_active_hours_start: number | null;
   ai_active_hours_end: number | null;
+  // Dispatch mode (template vs chatbot flow)
+  dispatch_mode?: 'template' | 'chatbot' | null;
+  chatbot_flow_id?: string | null;
   template?: {
     id: string;
     name: string;
@@ -228,6 +231,8 @@ export const useCampaignMutations = () => {
       ai_active_hours_start?: number;
       ai_active_hours_end?: number;
       meta_variable_mappings?: MetaVariableMapping[] | null;
+      dispatch_mode?: 'template' | 'chatbot';
+      chatbot_flow_id?: string | null;
     }) => {
       if (!user?.id) throw new Error('User not authenticated');
 
@@ -276,6 +281,8 @@ export const useCampaignMutations = () => {
           ai_active_hours_start: data.ai_active_hours_start,
           ai_active_hours_end: data.ai_active_hours_end,
           meta_variable_mappings: data.meta_variable_mappings || null,
+          dispatch_mode: data.dispatch_mode || 'template',
+          chatbot_flow_id: data.chatbot_flow_id || null,
       };
 
       const { data: campaign, error } = await supabase
@@ -331,6 +338,8 @@ export const useCampaignMutations = () => {
       ai_active_hours_start?: number;
       ai_active_hours_end?: number;
       meta_variable_mappings?: MetaVariableMapping[] | null;
+      dispatch_mode?: 'template' | 'chatbot';
+      chatbot_flow_id?: string | null;
     }) => {
       const updateData: Record<string, unknown> = { ...data };
       
