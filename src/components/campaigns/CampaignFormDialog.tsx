@@ -135,6 +135,8 @@ export const CampaignFormDialog = ({
   const { user } = useAuth();
   const { createTag } = useContacts();
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
+  const { flows: chatbotFlows } = useChatbotFlows();
+  const activeChatbotFlows = chatbotFlows?.filter(f => f.is_active) || [];
 
   const activeMetaNumbers = metaNumbers?.filter(n => n.is_active && n.status === 'connected') || [];
   
