@@ -12,7 +12,8 @@ export const VariableChipsSelector = ({ onInsert, compact = false }: VariableChi
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
 
   const staticVariables = [
-    { key: 'nome', label: 'Nome do contato' },
+    { key: 'nome', label: 'Nome completo do contato' },
+    { key: 'primeiro_nome', label: 'Primeiro nome do contato' },
     { key: 'telefone', label: 'Telefone do contato' },
     { key: 'email', label: 'Email do contato' },
   ];
