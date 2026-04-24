@@ -1076,7 +1076,7 @@ export const CampaignFormDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading || !name || (isMetaMode && (!templateId || !selectedMetaPhoneNumberId))}>
+            <Button type="submit" disabled={isLoading || !name || (isMetaMode && (!templateId || !selectedMetaPhoneNumberId)) || (messageMode === 'chatbot' && !chatbotFlowId)}>
               {campaign ? 'Salvar' : 'Criar Campanha'}
             </Button>
           </div>
