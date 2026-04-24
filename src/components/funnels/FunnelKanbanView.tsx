@@ -89,16 +89,57 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
     setDragOverStageId(null);
   }, []);
 
+  const moveDealToStage = useCallback((deal: FunnelDeal, targetStage: FunnelStage, extraFields?: Record<string, unknown>) => {
+    const merged = { ...(deal.custom_fields as Record<string, unknown> || {}), ...(extraFields || {}) };
+    updateDeal.mutate({
+      id: deal.id,
+      stage_id: targetStage.id,
+      ...(extraFields ? { custom_fields: merged } : {}),
+      ...(targetStage.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+    });
+  }, [updateDeal]);
+
   const handleDrop = useCallback((e: React.DragEvent, stageId: string) => {
     e.preventDefault();
     setDragOverStageId(null);
-    
-    if (draggedDealId) {
-      // Fire and forget - optimistic update handles UI
-      updateDeal.mutate({ id: draggedDealId, stage_id: stageId });
+
+    if (!draggedDealId) return;
+    const targetStage = stages.find(s => s.id === stageId);
+    if (!targetStage) {
       setDraggedDealId(null);
+      return;
     }
-  }, [draggedDealId, updateDeal]);
+    // Localiza o deal sendo arrastado
+    let draggedDeal: FunnelDeal | undefined;
+    for (const s of stages) {
+      const d = (s.deals || []).find(x => x.id === draggedDealId);
+      if (d) { draggedDeal = d; break; }
+    }
+
+    if (draggedDeal && leadFieldDefinitions) {
+      const missing = getMissingRequiredFields({
+        funnelId: funnel.id,
+        stageId: targetStage.id,
+        stages,
+        fieldDefinitions: leadFieldDefinitions,
+        rules: requiredRules || [],
+        values: (draggedDeal.custom_fields as Record<string, unknown>) || {},
+      });
+      if (missing.length > 0) {
+        setPendingMove({ deal: draggedDeal, targetStage, missing });
+        setDraggedDealId(null);
+        return;
+      }
+    }
+
+    if (draggedDeal) {
+      moveDealToStage(draggedDeal, targetStage);
+    } else {
+      // Fallback otimista (caso não consigamos localizar o objeto)
+      updateDeal.mutate({ id: draggedDealId, stage_id: stageId });
+    }
+    setDraggedDealId(null);
+  }, [draggedDealId, stages, funnel.id, leadFieldDefinitions, requiredRules, moveDealToStage, updateDeal]);
 
   const handleAddDeal = (stageId: string) => {
     setSelectedStageId(stageId);
