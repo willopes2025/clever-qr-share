@@ -1,62 +1,56 @@
-# Plano: Corrigir variável `{{primeiro_nome}}` + envio de áudio no chatbot
+## Diagnóstico
 
-## Problemas identificados
+A campanha gera mensagens com placeholders vazios — `{{consultor}}`, `{{valor_da_entrada}}`, `{{data_da_entrada}}`, `{{forma_de_pagamento}}` aparecem literalmente no WhatsApp ou viram texto vazio — porque a Edge Function `start-campaign` (linhas 1320–1345 de `supabase/functions/start-campaign/index.ts`) faz a substituição olhando **apenas** para `contacts.custom_fields`.
 
-### 1. Variável `{{primeiro_nome}}` não funciona
-A função `substituteVars` em `supabase/functions/execute-chatbot-flow/index.ts` (linhas 283-293) só suporta `{{nome}}`, `{{name}}`, `{{telefone}}`, `{{phone}}`, `{{email}}`. Não há nenhum tratamento para extrair o **primeiro nome** do contato.
+Confirmei no banco:
+- `consultor`, `valor_da_entrada`, `data_da_entrada`, `forma_de_pagamento` → entity_type = **`lead`** (ficam em `funnel_deals.custom_fields`)
+- `primeiro_nome` → entity_type = `contact`, mas é virtual (derivado do `name`), não está em `custom_fields`
 
-### 2. Áudio não é enviado (segunda mensagem do fluxo)
-Na linha **482-498**, todo template com mídia usa o endpoint genérico `sendMedia`, inclusive áudios `.ogg`. A Evolution API exige o endpoint específico **`sendWhatsAppAudio`** para notas de voz. Por isso a mensagem fica salva como `sent` no banco mas com `whatsapp_message_id = NULL` (falha silenciosa).
+Como nada disso é resolvido, o regex final de limpeza (`messageContent.replace(/\{\{[^}]+\}\}/g, '')`) acaba apagando os placeholders, gerando a mensagem incompleta vista no print.
 
-Além disso, o código **não valida `response.ok`** — qualquer erro do provedor é ignorado e a mensagem é marcada como enviada mesmo quando falha.
+Observação: a função `execute-chatbot-flow` **já** trata `primeiro_nome` e campos de lead corretamente (corrigido em loop anterior). Esta correção é necessária apenas no caminho de campanhas tradicionais (template + variações).
 
-### 3. Sem fallback para Meta API em mídias
-Quando o número de origem é Meta (não Evolution), templates com mídia simplesmente são pulados — não há código para enviar mídia via Meta Cloud API dentro do fluxo de chatbot.
+## Mudanças
 
----
+**Arquivo:** `supabase/functions/start-campaign/index.ts`
 
-## Correções a implementar
+No bloco `messageRecords = filteredContacts.map(...)` (linhas ~1320–1345):
 
-### A) `supabase/functions/execute-chatbot-flow/index.ts`
+1. **Antes do `.map`**, fazer um único batch fetch dos deals dos contatos filtrados:
+   ```ts
+   const contactIds = filteredContacts.map(c => c.id);
+   const { data: deals } = await supabase
+     .from('funnel_deals')
+     .select('contact_id, custom_fields, value, name, stage:funnel_stages(name), funnel:funnels(name)')
+     .in('contact_id', contactIds)
+     .order('created_at', { ascending: false });
+   const dealByContact = new Map<string, any>();
+   for (const d of deals || []) {
+     if (!dealByContact.has(d.contact_id)) dealByContact.set(d.contact_id, d);
+   }
+   ```
 
-**1. `substituteVars` (linhas 283-293)** — adicionar suporte a primeiro nome:
-```ts
-const fullName = (contact?.name || '').trim();
-const firstName = fullName.split(/\s+/)[0] || '';
-// adicionar substituições:
-.replace(/\{\{primeiro_nome\}\}/gi, firstName)
-.replace(/\{\{primeiroNome\}\}/gi, firstName)
-.replace(/\{\{first_name\}\}/gi, firstName)
-.replace(/\{\{firstName\}\}/gi, firstName)
-```
+2. **Dentro do `.map`**, expandir a substituição:
+   - `{{primeiro_nome}}` / `{{first_name}}` → primeira palavra de `contact.name`
+   - `{{nome}}` / `{{name}}`, `{{telefone}}` / `{{phone}}`, `{{email}}` (já existem)
+   - `{{valor}}` → `deal.value`
+   - `{{etapa}}` → `deal.stage?.name`
+   - `{{funil}}` → `deal.funnel?.name`
+   - Loop em `contact.custom_fields` (campos de contato — já existe)
+   - **Novo:** loop em `deal.custom_fields` (campos de lead)
+   - Manter o regex final que limpa placeholders restantes
 
-**2. Bloco de envio de mídia em template (linhas 478-506)** — refatorar:
-- Detectar se `tpl.media_type === 'audio'` → usar `${evolutionApiUrl}/message/sendWhatsAppAudio/${instanceName}` com payload `{ number, audio: media_url }`.
-- Para `image | video | document` → manter `sendMedia` com `mediatype` correto.
-- **Validar `response.ok`** e capturar `result.key.id`. Se falhar, marcar mensagem como `failed` e gravar `error_message` em `inbox_messages` (alinhado a `mem://tech/inbox/detailed-error-reporting`).
-- **Enviar texto antes da mídia** (não como caption) com 2s de delay, conforme `mem://features/campaigns/envio-midia-templates`.
+3. Aplicar a mesma lógica também no bloco anterior (linhas ~1083–1108) onde mensagens IA caem no fallback de texto fixo, garantindo consistência.
 
-**3. Fallback Meta API para mídia em templates** — quando `instanceName` não existe mas `metaPhoneNumberId + metaAccessToken` existem:
-- Para áudio: enviar via `${META_API_URL}/${metaPhoneNumberId}/messages` com `type: 'audio', audio: { link: media_url }`.
-- Para imagem/vídeo/documento: usar tipo correspondente com `link` e `caption`.
-- Validar resposta e persistir `whatsapp_message_id` ou `error_message`.
+## Detalhes técnicos
 
-### B) `src/components/chatbot-builder/nodes/ChatbotNodeConfig.tsx` (ou arquivo de sugestões de variáveis)
+- A consulta de deals é feita uma única vez (em batch via `.in('contact_id', ...)`) para não impactar performance em campanhas grandes (a campanha "Receitas Vencidas" tem 7.878 contatos).
+- Para campanhas que já estão `sending` com `campaign_messages` enfileiradas (como a do print), os registros já gravados no banco têm `message_content` corrompido. **Não vou regravá-los automaticamente** para evitar efeito colateral; após o deploy as próximas campanhas (e a campanha "teste" da Ingrid mencionada antes) serão enviadas corretamente. Se quiser regerar uma campanha já em andamento, posso adicionar um botão "Regerar mensagens" no card da campanha em um próximo passo.
+- Manter compatibilidade com a substituição existente para não quebrar campanhas em curso.
 
-- Adicionar `{{primeiro_nome}}` à lista de variáveis sugeridas exibidas no editor de mensagens do chatbot, junto às já existentes (`{{nome}}`, `{{telefone}}`, `{{email}}`).
+## Fora de escopo
 
-### C) Memória (`mem://tech/inbox/voice-message-format-compatibility`)
+- UI do CampaignCard (estimativa de conclusão / aviso de daily_limit) — fica para outro loop.
+- Mostrar fuso horário no card da campanha — fica para outro loop.
 
-- Reforçar que o roteamento de áudio dentro do chatbot também segue a regra `.ogg + sendWhatsAppAudio`.
-
----
-
-## Arquivos afetados
-- `supabase/functions/execute-chatbot-flow/index.ts` (correção principal)
-- `src/components/chatbot-builder/nodes/ChatbotNodeConfig.tsx` (UI de variáveis)
-- Atualização de memória sobre roteamento de áudio no chatbot
-
-## Validação pós-deploy
-1. Verificar logs da função `execute-chatbot-flow` no próximo disparo da campanha "FGTS / CLT" (ou re-teste com Wil Lopes 5527999400707).
-2. Confirmar que o áudio chega ao destinatário (segunda mensagem do "Primeiro Disparo").
-3. Confirmar que `{{primeiro_nome}}` é substituído pelo primeiro nome em mensagens do chatbot.
+Pronto para aplicar?

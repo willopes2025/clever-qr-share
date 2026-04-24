@@ -1317,21 +1317,57 @@ ${availableVariables}`;
 
       console.log(`Using ${messageOptions.length} message variations (1 original + ${variations?.length || 0} variations)`);
 
+      // Batch fetch deal data (lead custom fields, value, stage, funnel) for all filtered contacts
+      const contactIdsForDeals = filteredContacts.map((c: Contact) => c.id);
+      const dealByContact = new Map<string, any>();
+      if (contactIdsForDeals.length > 0) {
+        const { data: dealsForVars } = await supabase
+          .from('funnel_deals')
+          .select('contact_id, custom_fields, value, name, stage:funnel_stages(name), funnel:funnels(name), created_at')
+          .in('contact_id', contactIdsForDeals)
+          .order('created_at', { ascending: false });
+        for (const d of dealsForVars || []) {
+          if (!dealByContact.has(d.contact_id)) dealByContact.set(d.contact_id, d);
+        }
+      }
+
       messageRecords = filteredContacts.map((contact: Contact) => {
         const randomIndex = Math.floor(Math.random() * messageOptions.length);
         let messageContent = messageOptions[randomIndex];
 
-        messageContent = messageContent.replace(/\{\{nome\}\}/gi, contact.name || '');
-        messageContent = messageContent.replace(/\{\{name\}\}/gi, contact.name || '');
+        const fullName = (contact.name || '').trim();
+        const firstName = fullName.split(/\s+/)[0] || '';
+
+        // Static contact variables
+        messageContent = messageContent.replace(/\{\{nome\}\}/gi, fullName);
+        messageContent = messageContent.replace(/\{\{name\}\}/gi, fullName);
+        messageContent = messageContent.replace(/\{\{primeiro_nome\}\}/gi, firstName);
+        messageContent = messageContent.replace(/\{\{first_name\}\}/gi, firstName);
         messageContent = messageContent.replace(/\{\{phone\}\}/gi, contact.phone || '');
         messageContent = messageContent.replace(/\{\{telefone\}\}/gi, contact.phone || '');
         messageContent = messageContent.replace(/\{\{email\}\}/gi, contact.email || '');
 
+        // Deal-level static variables
+        const deal = dealByContact.get(contact.id);
+        messageContent = messageContent.replace(/\{\{valor\}\}/gi, deal?.value != null ? String(deal.value) : '');
+        messageContent = messageContent.replace(/\{\{etapa\}\}/gi, deal?.stage?.name || '');
+        messageContent = messageContent.replace(/\{\{funil\}\}/gi, deal?.funnel?.name || '');
+
+        // Contact custom fields
         const customFields = contact.custom_fields || {};
         for (const [key, value] of Object.entries(customFields)) {
           const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
-          messageContent = messageContent.replace(regex, value || '');
+          messageContent = messageContent.replace(regex, value != null ? String(value) : '');
         }
+
+        // Lead (deal) custom fields
+        const dealCustomFields = (deal?.custom_fields as Record<string, unknown>) || {};
+        for (const [key, value] of Object.entries(dealCustomFields)) {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+          messageContent = messageContent.replace(regex, value != null ? String(value) : '');
+        }
+
+        // Strip any remaining unresolved placeholders
         messageContent = messageContent.replace(/\{\{[^}]+\}\}/g, '');
 
         return {
