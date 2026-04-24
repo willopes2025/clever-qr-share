@@ -166,6 +166,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const [fieldsManagerOpen, setFieldsManagerOpen] = useState(false);
+  const [fieldsManagerInitialId, setFieldsManagerInitialId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Load saved column config from DB
