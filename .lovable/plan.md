@@ -1,56 +1,87 @@
-## Diagnóstico
+## Objetivo
 
-Investiguei o banco e o código. São **três problemas separados**:
+Hoje o switch "Campo obrigatório" é global — ou o campo é obrigatório em todos os lugares ou em nenhum. Você precisa que ele seja obrigatório **apenas a partir de uma etapa específica de um funil específico**.
 
-### 1. Duplicatas reais encontradas (apenas 1 caso para `williamminguta@gmail.com`)
-- `Forma de Pg Saldo` (`forma_de_pg_saldo`) **vs** `Forma Pg Saldo` (`forma_pg_saldo`) → ambos do tipo `lead`, criados em 26/03 quase no mesmo segundo. É duplicata real.
-- "Modelo de Lente - Dependente 1" e "Modelo de Lente - Dependente 2" **NÃO são duplicatas** — são dois campos diferentes (um por dependente). Mesma coisa para "Tipo de Lente" e "Ref. Armação". Vou deixá-los intactos.
-- Para `andressamartins@oticamarins.com.br` não há nenhuma duplicata.
-
-### 2. Não existe gerenciamento de campos no Funil
-O diálogo "Configurar Colunas" (mostrado no print) só permite **mostrar/ocultar e reordenar** colunas. Não tem botão de **excluir / editar / tornar obrigatório**.
-Hoje, a única tela com essas ações é o `CustomFieldsManager` no painel lateral do Inbox (ícone de engrenagem). Por isso o usuário não consegue gerenciar os campos pelo Funil.
-
-### 3. Excluir/Editar funcionam pela RLS, mas a UX está escondida
-As policies de `custom_field_definitions` permitem `UPDATE` e `DELETE` para o dono e qualquer membro ativo da organização. O hook `useCustomFields` está correto. O problema é puramente de UI (não há botão na tela do Funil).
+Exemplo do seu caso: no funil "Centro de Saúde Visual", o campo "Data da consulta" só passa a ser obrigatório quando o lead é movido para a etapa "Exame agendado" (ou qualquer etapa posterior). Antes dela, o campo continua opcional.
 
 ---
 
-## Plano de correção
+## Como vai funcionar (visão do usuário)
 
-### Passo 1 — Limpar duplicata real existente (migration)
-Remover o campo `forma_pg_saldo` (id `625af5bc-81f3-419f-ab6c-4af220331339`) pois é cópia de `forma_de_pg_saldo`.
-Antes de excluir, copiar qualquer valor existente em `funnel_deals.custom_fields->>'forma_pg_saldo'` para a chave canônica `forma_de_pg_saldo` quando esta estiver vazia, para não perder dados.
+### 1. Configurar a obrigatoriedade
+No gerenciador de campos personalizados (botão **"Campos"** no Funil), ao editar um campo do tipo **Lead**, além do switch "Campo obrigatório" atual aparecerá uma nova seção:
 
-### Passo 2 — Adicionar botão "Gerenciar Campos" no Funil (Lista e Kanban)
-No header do `FunnelListView` (e também no `FunnelKanbanView`), adicionar um botão ao lado de "Colunas" que abre o componente `CustomFieldsManager` já existente. Esse componente já tem:
-- Listagem de todos os campos personalizados (Contato + Lead)
-- Botão de **editar** (nome, tipo, opções, **obrigatório** via switch)
-- Botão de **excluir**
-- Botão de **adicionar** novo campo
+> **Regras de obrigatoriedade por etapa**  
+> [+ Adicionar regra]
 
-Como o `CustomFieldsManager` está hoje com seu próprio `DialogTrigger` (ícone de engrenagem), vou refatorá-lo levemente para aceitar `open`/`onOpenChange` controlados, permitindo que o Funil dispare o mesmo dialog.
+Cada regra terá:
+- **Funil** (select) — qual funil
+- **A partir da etapa** (select com as etapas do funil escolhido, em ordem)
 
-### Passo 3 — Reaproveitar a mesma ação no `ColumnsConfigDialog`
-Em cada linha de coluna **personalizada** (id começando com `custom_`), exibir dois ícones extras à direita:
-- ✏️ "Editar campo" → abre o editor inline do `CustomFieldsManager` direto naquele campo
-- 🗑️ "Excluir campo" → confirma e chama `deleteField`
-Isso resolve o caso prático mostrado no print: o usuário identifica a coluna duplicada e a remove sem precisar trocar de tela.
+Você pode adicionar várias regras (ex.: obrigatório a partir de "Exame agendado" no funil de Saúde Visual **e** a partir de "Proposta enviada" no funil Comercial).
 
-### Passo 4 — Indicador visual de duplicatas
-No `CustomFieldsManager`, marcar com badge "Possível duplicata" quando dois campos da mesma `entity_type` tiverem similaridade > 0.85 no `field_name` (cálculo no client). Apenas visual; não exclui automaticamente.
+### 2. Validação ao mover o lead
+Quando o usuário tentar mover um lead para uma etapa onde o campo se tornou obrigatório (via drag-and-drop no Kanban, dropdown na Lista, ou edição no formulário do deal):
 
-### Passo 5 — Validação ao criar campo novo
-Em `CustomFieldsManager.handleAddField`, antes de chamar `createField`, verificar se já existe um campo com o mesmo `field_key` na mesma `entity_type`. Se existir, exibir toast de erro e não criar — evita gerar novas duplicatas no futuro.
+- Se o valor estiver preenchido → move normalmente
+- Se estiver vazio → bloqueia, mostra um diálogo "Preencha os campos obrigatórios para esta etapa" listando os campos faltantes, com inputs inline para preencher e botão **"Preencher e mover"**
+
+Vai funcionar nos 3 fluxos: Kanban (drag), Lista (dropdown da etapa) e DealFormDialog (salvar).
+
+### 3. Indicação visual
+- No editor de campos do lead (`DealCustomFieldsEditor`), o asterisco vermelho aparece dinamicamente baseado na etapa atual do deal
+- O switch global "Campo obrigatório" continua existindo (= obrigatório sempre, em todos os funis) e tem precedência
 
 ---
 
-## Arquivos afetados
+## Detalhes técnicos
 
-- **Migration SQL** (nova): consolidar `forma_pg_saldo` em `forma_de_pg_saldo` e remover a definição duplicada
-- `src/components/inbox/CustomFieldsManager.tsx`: aceitar props `open`/`onOpenChange` opcionais; adicionar validação anti-duplicata; badge de "possível duplicata"
-- `src/components/funnels/ColumnsConfigDialog.tsx`: novos botões editar/excluir por linha de coluna personalizada; novas props `onEditField` e `onDeleteField`
-- `src/components/funnels/FunnelListView.tsx`: adicionar botão "Gerenciar Campos" no header e wirar callbacks editar/excluir do `ColumnsConfigDialog` ao `useCustomFields`
-- `src/components/funnels/FunnelKanbanView.tsx`: adicionar mesmo botão "Gerenciar Campos" no header
+### Migração de banco
+Nova tabela:
+```sql
+CREATE TABLE custom_field_required_rules (
+  id uuid PK,
+  field_definition_id uuid REFERENCES custom_field_definitions ON DELETE CASCADE,
+  funnel_id uuid REFERENCES funnels ON DELETE CASCADE,
+  from_stage_id uuid REFERENCES funnel_stages ON DELETE CASCADE,
+  -- "from_stage_id" = a partir desta etapa em diante (usa display_order da etapa)
+  user_id uuid,
+  created_at timestamptz default now(),
+  UNIQUE(field_definition_id, funnel_id)
+);
+```
+RLS espelhando as policies de `custom_field_definitions` (owner + membros da org).
 
-Posso aplicar este plano?
+Nova função `is_field_required_at_stage(field_id, funnel_id, stage_id)` para resolver server-side se necessário (opcional; validação principal será client-side para UX rápida).
+
+### Frontend
+- **Novo hook** `useFieldRequiredRules.ts`: CRUD das regras por campo
+- **`CustomFieldsManager.tsx`**: nova seção "Regras de obrigatoriedade por etapa" no editor de cada campo do tipo Lead (lista de regras + adicionar/remover)
+- **Novo helper** `getRequiredFieldsForStage(stageId, funnelId, fieldDefs, rules)`: retorna lista de field_keys obrigatórios para uma etapa específica (considera display_order ≥ from_stage)
+- **Novo componente** `RequiredFieldsCheckDialog.tsx`: modal de bloqueio que lista campos faltantes com inputs inline e botão "Preencher e mover"
+- **`FunnelKanbanView.tsx`** (linha 84): antes de `updateDeal.mutate`, validar e abrir o dialog se faltar algo
+- **`FunnelListView.tsx`** (linhas 752, 1341): mesma validação no dropdown de mudança de etapa e no menu de contexto
+- **`DealFormDialog.tsx`**: validar no submit quando `selectedStageId` for diferente de `deal.stage_id`
+- **`DealCustomFieldsEditor.tsx`**: aceitar prop `currentStageId` e `funnelId` para mostrar asterisco condicional
+
+### Arquivos afetados
+- Nova migration SQL (criar tabela + RLS)
+- `src/hooks/useFieldRequiredRules.ts` (novo)
+- `src/lib/required-fields.ts` (novo helper)
+- `src/components/funnels/RequiredFieldsCheckDialog.tsx` (novo)
+- `src/components/inbox/CustomFieldsManager.tsx`
+- `src/components/funnels/DealCustomFieldsEditor.tsx`
+- `src/components/funnels/FunnelKanbanView.tsx`
+- `src/components/funnels/FunnelListView.tsx`
+- `src/components/funnels/DealFormDialog.tsx`
+
+---
+
+## Pontos de atenção
+
+1. **Compatibilidade**: o switch global `is_required` continua funcionando como hoje. As regras por etapa são **adicionais** e só se aplicam quando configuradas. Nenhum dado existente é afetado.
+2. **Campos de Contato** vs **Campos de Lead**: regras por etapa só fazem sentido para campos do tipo **Lead** (que vivem dentro do funil). Para campos do tipo Contato, a seção fica oculta.
+3. **Ordem das etapas**: "a partir de X" usa o `display_order` da etapa. Se o usuário reordenar etapas depois, a regra continua apontando para a etapa pelo ID, então a faixa de obrigatoriedade acompanha a nova ordem automaticamente.
+4. **Etapas finais (won/lost)**: serão incluídas na obrigatoriedade se estiverem após a etapa-gatilho na ordem do funil — comportamento esperado, pois normalmente você quer dados completos antes de fechar.
+
+Posso aplicar?

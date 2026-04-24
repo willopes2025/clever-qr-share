@@ -17,15 +17,41 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { useFunnels } from "@/hooks/useFunnels";
+import { getRequiredFieldsForStage } from "@/lib/required-fields";
 import { isDateLikeFieldName, parseAnyDateValue } from "@/lib/date-utils";
 
 interface DealCustomFieldsEditorProps {
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
+  /** Quando informado, calcula obrigatoriedade condicional por etapa do funil. */
+  funnelId?: string;
+  stageId?: string;
 }
 
-export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEditorProps) => {
+export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: DealCustomFieldsEditorProps) => {
   const { leadFieldDefinitions } = useCustomFields();
+  const { rules } = useFieldRequiredRules();
+  const { funnels } = useFunnels();
+
+  // Calcula quais field_keys são obrigatórios na etapa atual
+  const requiredKeys = (() => {
+    if (!funnelId || !stageId || !leadFieldDefinitions) return new Set<string>();
+    const funnel = funnels?.find((f) => f.id === funnelId);
+    if (!funnel) return new Set<string>();
+    const required = getRequiredFieldsForStage({
+      funnelId,
+      stageId,
+      stages: funnel.stages || [],
+      fieldDefinitions: leadFieldDefinitions,
+      rules: rules || [],
+    });
+    return new Set(required.map((f) => f.field_key));
+  })();
+
+  const isFieldRequired = (field: { field_key: string; is_required: boolean }) =>
+    field.is_required || requiredKeys.has(field.field_key);
 
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...values, [key]: value });
@@ -57,7 +83,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
         <div key={field.id} className="space-y-2">
           <Label htmlFor={field.field_key} className="text-sm">
             {field.field_name}
-            {field.is_required && <span className="text-destructive ml-1">*</span>}
+            {isFieldRequired(field) && <span className="text-destructive ml-1">*</span>}
           </Label>
           
           {field.field_type === 'text' && (
@@ -72,7 +98,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
                 value={(values[field.field_key] as string) || ''}
                 onChange={(e) => handleChange(field.field_key, e.target.value)}
                 placeholder={`Digite ${field.field_name.toLowerCase()}`}
-                required={field.is_required || false}
+                required={isFieldRequired(field)}
               />
             )
           )}
@@ -84,7 +110,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
               placeholder="https://exemplo.com"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
 
@@ -95,7 +121,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
               placeholder="(00) 00000-0000"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
 
@@ -106,7 +132,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
               placeholder="email@exemplo.com"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
           
@@ -117,7 +143,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
               value={(values[field.field_key] as number) || ''}
               onChange={(e) => handleChange(field.field_key, Number(e.target.value))}
               placeholder="0"
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
           
@@ -134,7 +160,7 @@ export const DealCustomFieldsEditor = ({ values, onChange }: DealCustomFieldsEdi
               type="time"
               value={(values[field.field_key] as string) || ''}
               onChange={(e) => handleChange(field.field_key, e.target.value)}
-              required={field.is_required || false}
+              required={isFieldRequired(field)}
             />
           )}
 

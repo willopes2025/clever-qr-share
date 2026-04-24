@@ -66,6 +66,10 @@ import { DealFormDialog } from "./DealFormDialog";
 import { CloseDealDialog } from "./CloseDealDialog";
 import { ColumnsConfigDialog, ColumnDefinition } from "./ColumnsConfigDialog";
 import { CustomFieldsManager } from "@/components/inbox/CustomFieldsManager";
+import { RequiredFieldsCheckDialog } from "./RequiredFieldsCheckDialog";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { getMissingRequiredFields } from "@/lib/required-fields";
+import type { CustomFieldDefinition } from "@/hooks/useCustomFields";
 import { BulkEditDialog, BulkEditUpdates } from "@/components/shared/BulkEditDialog";
 import { formatForDisplay } from "@/lib/phone-utils";
 import {
@@ -117,13 +121,58 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
-  const { fieldDefinitions, deleteField } = useCustomFields();
+  const { fieldDefinitions, leadFieldDefinitions, deleteField } = useCustomFields();
+  const { rules: requiredRules } = useFieldRequiredRules();
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
   const [editingFieldDeal, setEditingFieldDeal] = useState<DealWithStage | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pageSize, setPageSize] = useState<number>(50);
+
+  // Validação de campos obrigatórios ao mover etapa
+  const [pendingMove, setPendingMove] = useState<{
+    deal: FunnelDeal;
+    targetStageId: string;
+    targetStageName: string;
+    isFinal: boolean;
+    missing: CustomFieldDefinition[];
+  } | null>(null);
+
+  /**
+   * Tenta mover um deal para outra etapa. Se houver campos obrigatórios faltantes,
+   * abre o dialog de validação. Caso contrário, faz o update direto.
+   */
+  const requestStageChange = (deal: FunnelDeal, targetStageId: string) => {
+    const targetStage = funnel.stages?.find((s) => s.id === targetStageId);
+    if (!targetStage) return;
+    const missing = leadFieldDefinitions
+      ? getMissingRequiredFields({
+          funnelId: funnel.id,
+          stageId: targetStageId,
+          stages: funnel.stages || [],
+          fieldDefinitions: leadFieldDefinitions,
+          rules: requiredRules || [],
+          values: (deal.custom_fields as Record<string, unknown>) || {},
+        })
+      : [];
+
+    if (missing.length > 0) {
+      setPendingMove({
+        deal,
+        targetStageId,
+        targetStageName: targetStage.name,
+        isFinal: !!targetStage.is_final,
+        missing,
+      });
+      return;
+    }
+    updateDeal.mutate({
+      id: deal.id,
+      stage_id: targetStageId,
+      ...(targetStage.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+    });
+  };
 
   // Drag-to-scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -748,14 +797,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Select
             value={deal.stage_id}
-            onValueChange={async (newStageId) => {
+            onValueChange={(newStageId) => {
               if (newStageId === deal.stage_id) return;
-              const targetStage = funnel.stages?.find(s => s.id === newStageId);
-              await updateDeal.mutateAsync({
-                id: deal.id,
-                stage_id: newStageId,
-                ...(targetStage?.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
-              });
+              requestStageChange(deal, newStageId);
             }}
           >
             <SelectTrigger className="h-7 w-auto min-w-[120px] border-none bg-transparent p-1 focus:ring-0">
@@ -1338,10 +1382,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                                 key={stage.id}
                                 disabled={stage.id === deal.stage_id}
                                 onClick={() => {
-                                  updateDeal.mutate({
-                                    id: deal.id,
-                                    stage_id: stage.id,
-                                  });
+                                  requestStageChange(deal, stage.id);
                                 }}
                               >
                                 <div
@@ -1556,6 +1597,28 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {pendingMove && (
+        <RequiredFieldsCheckDialog
+          open={!!pendingMove}
+          onOpenChange={(o) => { if (!o) setPendingMove(null); }}
+          stageName={pendingMove.targetStageName}
+          missingFields={pendingMove.missing}
+          initialValues={(pendingMove.deal.custom_fields as Record<string, unknown>) || {}}
+          isSubmitting={updateDeal.isPending}
+          onConfirm={async (values) => {
+            const merged = { ...((pendingMove.deal.custom_fields as Record<string, unknown>) || {}) };
+            for (const f of pendingMove.missing) merged[f.field_key] = values[f.field_key];
+            await updateDeal.mutateAsync({
+              id: pendingMove.deal.id,
+              stage_id: pendingMove.targetStageId,
+              custom_fields: merged,
+              ...(pendingMove.isFinal ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+            });
+            setPendingMove(null);
+          }}
+        />
+      )}
     </div>
   );
 };
