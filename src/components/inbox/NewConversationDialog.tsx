@@ -20,7 +20,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useContacts } from "@/hooks/useContacts";
-import { useConversations } from "@/hooks/useConversations";
+import { useCreateConversation } from "@/hooks/useCreateConversation";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { formatPhoneNumber, validateBrazilianPhone, extractDigits } from "@/lib/phone-utils";
 import { toast } from "sonner";
@@ -37,7 +37,7 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   const [countryCode, setCountryCode] = useState("55");
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const { contacts, isLoading, createContact } = useContacts();
-  const { createConversation } = useConversations();
+  const createConversation = useCreateConversation();
   const { instances, isLoading: isLoadingInstances } = useWhatsAppInstances();
 
   // Get connected instances only — sempre derivado da lista já filtrada por escopo
