@@ -1100,9 +1100,11 @@ Deno.serve(async (req: Request) => {
 
           // ----- Mode: wait until contact sends a message -----
           if (waitMode === 'message') {
-            // If we're already resuming because a message arrived, just continue
-            if (resumingFromSchedule || incomingMessage) {
-              console.log('[FLOW] Delay(message): incoming message received, continuing');
+            const isResumingHere = execution.current_node_id === node.id &&
+              (resumingFromSchedule || inputValue !== undefined);
+            // If we're already resuming because a message arrived (or timeout fired), continue
+            if (isResumingHere) {
+              console.log('[FLOW] Delay(message): resume signal received, continuing');
               resumingFromSchedule = false;
               currentId = getNextNode(node.id);
               break;
