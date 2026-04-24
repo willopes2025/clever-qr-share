@@ -6512,6 +6512,10 @@ export type Database = {
         Args: { _instance_user_id: string; _user_id: string }
         Returns: boolean
       }
+      is_internal_chat_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
