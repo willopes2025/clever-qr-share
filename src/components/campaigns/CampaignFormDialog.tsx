@@ -308,6 +308,7 @@ export const CampaignFormDialog = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isMetaMode = messageMode === 'meta_template';
+    const isChatbotMode = messageMode === 'chatbot';
     
     let scheduledAt: string | null = null;
     if (isScheduled && scheduledDate && scheduledTime) {
@@ -316,7 +317,7 @@ export const CampaignFormDialog = ({
 
     const result = await onSubmit({
       name,
-      template_id: isMetaMode ? null : templateId || null,
+      template_id: isMetaMode || isChatbotMode ? null : templateId || null,
       meta_template_id: isMetaMode ? templateId || null : null,
       meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId || null : null,
       list_id: listId || null,
@@ -346,6 +347,8 @@ export const CampaignFormDialog = ({
       batch_size: batchSize,
       batch_pause_minutes: batchPauseMinutes,
       meta_variable_mappings: messageMode === 'meta_template' && variableMappings.length > 0 ? variableMappings : null,
+      dispatch_mode: isChatbotMode ? 'chatbot' : 'template',
+      chatbot_flow_id: isChatbotMode ? chatbotFlowId || null : null,
     });
 
     // For new campaigns with AI enabled: link selected agent to the new campaign
