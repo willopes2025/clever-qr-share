@@ -258,6 +258,7 @@ const Funnels = () => {
         funnel={editingFunnel || undefined}
       />
       <CloseReasonsManager open={showCloseReasons} onOpenChange={setShowCloseReasons} />
+      <CustomFieldsManager open={showFieldsManager} onOpenChange={setShowFieldsManager} />
       <AutomationsDialog 
         open={showAutomations} 
         onOpenChange={setShowAutomations} 
