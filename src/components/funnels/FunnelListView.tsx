@@ -1152,6 +1152,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             <Settings2 className="h-4 w-4 mr-2" />
             Colunas
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setFieldsManagerInitialId(null);
+              setFieldsManagerOpen(true);
+            }}
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Gerenciar Campos
+          </Button>
 
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearAllFilters}>
