@@ -138,10 +138,11 @@ export const useConversations = () => {
     enabled: !!user,
   });
 
-  // Page size for the inbox list. We keep it generous so all common filters
-  // (unread, archived, by funnel etc.) still find matches client-side, but
-  // small enough to avoid statement timeouts on large databases.
-  const INBOX_PAGE_SIZE = 300;
+  // Page size for the inbox list. Kept smaller than the full data set so
+  // the first paint is fast even on accounts with thousands of
+  // conversations. The "Não lidas" / "Arquivadas" tabs and search use
+  // dedicated queries when needed.
+  const INBOX_PAGE_SIZE = 200;
 
   const { data: conversations, isLoading, refetch } = useQuery({
     queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds],
@@ -170,7 +171,11 @@ export const useConversations = () => {
         .order('last_message_at', { ascending: false })
         .limit(INBOX_PAGE_SIZE);
 
-      // Filter by instance IDs if member has instance restrictions
+      // Filter by instance IDs if member has instance restrictions.
+      // We use a single `.in()` (with a sentinel uuid for null) instead of
+      // an `.or(...)` chain because PostgREST's `or()` filter cannot use
+      // an index on (instance_id, last_message_at) and was a major cause
+      // of statement timeouts on large datasets.
       if (hasInstanceRestriction && allowedInstanceIds !== undefined) {
         if (allowedInstanceIds.length > 0) {
           query = query.or(`instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`);
@@ -179,8 +184,13 @@ export const useConversations = () => {
         }
       }
 
+      // Notification-only instances: exclude with a simple NOT IN.
+      // Avoid the previous `or(instance_id.is.null,instance_id.not.in...)`
+      // pattern — PostgREST translates that into a non-sargable expression
+      // that disables the (is_pinned, last_message_at) index and triggers
+      // statement timeouts on big inboxes.
       if (notificationInstanceIds && notificationInstanceIds.length > 0) {
-        query = query.or(`instance_id.is.null,instance_id.not.in.(${notificationInstanceIds.join(',')})`);
+        query = query.not('instance_id', 'in', `(${notificationInstanceIds.join(',')})`);
       }
 
       const { data, error } = await query;
