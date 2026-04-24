@@ -330,7 +330,7 @@ export const CustomFieldsManager = ({ open: openProp, onOpenChange, initialEditF
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Campos Personalizados</DialogTitle>
         </DialogHeader>
