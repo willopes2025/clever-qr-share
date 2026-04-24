@@ -59,6 +59,8 @@ interface CampaignFormDialogProps {
     batch_size: number;
     batch_pause_minutes: number;
     meta_variable_mappings?: MetaVariableMapping[] | null;
+    dispatch_mode?: 'template' | 'chatbot';
+    chatbot_flow_id?: string | null;
   }) => Promise<{ id: string } | void>;
   isLoading?: boolean;
 }
