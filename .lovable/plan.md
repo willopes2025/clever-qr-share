@@ -1,34 +1,75 @@
-# Atualização instantânea ao editar dados do lead
+## Diagnóstico — por que o funil no Inbox está lento
 
-## Problema
+Ao abrir uma conversa no Inbox, o painel lateral (`RightSidePanel`) carrega o `useFunnels()`, que executa um padrão **N+1 muito pesado**:
 
-Quando você edita um campo do lead (título, valor, ou campos personalizados de lead/contato) no painel lateral do Inbox ou no Kanban, o valor é salvo no banco mas o painel exibe o valor antigo até apertar F5. O motivo é que as mutations de salvamento invalidam apenas algumas chaves de cache do React Query, deixando outras (que alimentam o painel) com dados desatualizados.
+### O que acontece hoje (`src/hooks/useFunnels.ts`, linhas 100–153)
 
-Especificamente:
-- O painel lateral lê os dados via a query `['contact-deal', contactId]` (`useContactDeal`).
-- As mutations atuais invalidam apenas `['funnels']` e `['funnel-deals']`, **nunca** `['contact-deal']`.
-- O mesmo acontece com edições de nome/campos do contato (não invalidam `['contact-deal']` nem `['funnels']`).
+```text
+1 query  → busca todos os funis + stages
++ N queries → para CADA stage, faz uma query separada buscando até 50 deals
+              (com JOIN em contacts e funnel_close_reasons)
+```
 
-## Mudanças
+Para um usuário com muitos funis, isso significa **dezenas a centenas de requests sequenciais ao Postgres** só para abrir uma conversa. Exemplos reais no banco:
 
-### 1. `src/hooks/useCustomFields.ts`
-- Em `updateDealCustomFields.onSuccess`: adicionar `invalidateQueries({ queryKey: ['contact-deal'] })`.
-- Em `updateContactCustomFields.onSuccess`: adicionar `invalidateQueries({ queryKey: ['contact-deal'] })` e `invalidateQueries({ queryKey: ['funnels'] })` (o Kanban exibe nome/campos do contato no card).
+- 1 usuário com 49 stages → **50 queries** por carregamento
+- 1 usuário com 22 stages → **23 queries** por carregamento
+- Total no banco: 9.238 deals, 126 stages, 18 funis
 
-### 2. `src/components/inbox/lead-panel/LeadFieldsSection.tsx`
-- Em `handleSaveTitle` e `handleSaveValue`: adicionar `invalidateQueries({ queryKey: ['contact-deal'] })` para refletir alterações imediatamente no painel.
-- Aplicar atualização otimista local imediata em `localTitle`/`localValue` (já feito), mas garantir que a invalidação dispare também `['conversations']` (o título do deal aparece no header do painel via `LeadPanelHeader`).
+E o pior: **o Inbox não precisa da lista de deals por stage** — só usa `funnels[].stages[]` para popular o dropdown de etapas no `LeadPanelFunnelBar`. Os deals só são consumidos pela página do Funil (`/funnels`).
 
-### 3. `src/components/inbox/lead-panel/ContactFieldsSection.tsx`
-- Em `handleSaveName` (edição do nome do contato): além de invalidar `contacts`/`conversations`, invalidar `['contact-deal']` e `['funnels']` para que o cartão e o painel reflitam o novo nome sem F5.
+Além disso:
+- `useGlobalRealtime` invalida `['funnels']` em **qualquer** mudança em `funnel_deals` (toda mensagem nova que move um lead refaz todas as N+1 queries)
+- A tela do Inbox monta o `useFunnels` em vários componentes (LeadPanelFunnelBar, RightSidePanel) — cada um dispara o pipeline pesado
 
-### 4. (Opcional, mas recomendado) Atualização otimista do cache `contact-deal`
-Para feedback ainda mais instantâneo (sem aguardar refetch), na mutation `updateDealCustomFields` podemos aplicar um `setQueryData` otimista que mescla `customFields` no cache `['contact-deal', contactId]` antes do servidor responder. Isso elimina o "flicker" entre clicar e ver o valor novo.
+### Erro adicional observado nos logs
 
-## Resultado esperado
+```text
+GET /internal_chat_group_members → 500
+"infinite recursion detected in policy for relation internal_chat_group_members"
+```
 
-- Editar título, valor ou qualquer campo personalizado do lead atualiza o painel lateral instantaneamente.
-- Editar o nome ou campos personalizados do contato também atualiza o painel e o card no Kanban sem reload.
-- Nenhuma necessidade de F5.
+Não causa a lentidão do funil, mas é um bug de RLS que está retornando 500 a cada navegação. Vou corrigir no mesmo passe.
 
-Posso aplicar?
+---
+
+## Plano de correção
+
+### 1. Tornar a query `['funnels']` leve por padrão
+
+Alterar `useFunnels` em `src/hooks/useFunnels.ts` para **não** carregar deals por stage no fetch base. A query passa a retornar apenas funis + stages (1 única query, sem N+1). Os locais que precisam dos deals já usam hooks dedicados:
+
+- Página do Funil → `useStageDealCounts` + `useLoadMoreDeals` (já existem em `useFunnelDeals.ts`)
+- Inbox → só precisa de `stages[]` para o dropdown
+
+Resultado: abrir uma conversa passa de ~50 queries para 1.
+
+### 2. Ajustar a página do Funil para carregar deals sob demanda
+
+Verificar `src/pages/Funnels.tsx` e componentes de Kanban. Onde ainda dependerem de `funnel.stages[].deals` no payload inicial, trocar por `useLoadMoreDeals` (paginação que já existe). Manter a mesma UX — apenas garantindo que os deals da primeira página sejam carregados ao abrir a tela do funil, não ao abrir o Inbox.
+
+### 3. Refinar a invalidação do realtime
+
+Em `src/hooks/useGlobalRealtime.ts`, parar de invalidar `['funnels']` em mudanças de `funnel_deals`. Manter apenas:
+- `['contact-deal']` (painel do Inbox)
+- `['funnel-deals']` e `['stage-deal-counts']` (Kanban)
+
+`['funnels']` só precisa invalidar quando muda funil/stage em si.
+
+### 4. Corrigir recursão de RLS em `internal_chat_group_members`
+
+Criar migration que substitui a policy recursiva por uma versão usando função `SECURITY DEFINER` (padrão já adotado no projeto com `has_role`, `get_organization_member_ids`, etc.).
+
+---
+
+## Detalhes técnicos
+
+**Arquivos editados:**
+- `src/hooks/useFunnels.ts` — remover o `Promise.all` de deals por stage da query principal
+- `src/pages/Funnels.tsx` e componentes de Kanban dentro de `src/components/funnels/` — garantir uso de `useStageDealCounts` + `useLoadMoreDeals`
+- `src/hooks/useGlobalRealtime.ts` — afinar invalidações
+- Migration SQL — nova policy não-recursiva para `internal_chat_group_members` usando função SECURITY DEFINER
+
+**Tipo `Funnel.stages[].deals`** continua opcional (`deals?: FunnelDeal[]`) — código consumidor não quebra; apenas vem `undefined` no Inbox.
+
+**Impacto esperado:** abertura de conversa no Inbox deve cair de vários segundos para ~100–300 ms na parte do funil.
