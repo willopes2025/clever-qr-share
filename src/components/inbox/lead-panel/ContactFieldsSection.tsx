@@ -89,6 +89,9 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
     
     queryClient.invalidateQueries({ queryKey: ['conversations'] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+    queryClient.invalidateQueries({ queryKey: ['funnels'] });
+    queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
     toast.success("Nome atualizado");
     setIsEditingName(false);
   };
