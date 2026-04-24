@@ -485,14 +485,14 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
       await queryClient.cancelQueries({ queryKey: ['funnels'] });
       await queryClient.cancelQueries({ queryKey: ['contact-deal'] });
       
-      // Snapshot current data
-      const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
+      // Snapshot all funnels cache variants (with/without deals)
+      const previousFunnels = queryClient.getQueriesData({ queryKey: ['funnels', user?.id] });
       
       // Snapshot all contact-deal queries
       const contactDealQueries = queryClient.getQueriesData({ queryKey: ['contact-deal'] });
       
-      // Optimistic update - move deal to new stage instantly in funnels cache
-      queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
+      // Optimistic update - move deal to new stage instantly across all funnels variants
+      queryClient.setQueriesData({ queryKey: ['funnels', user?.id] }, (old: Funnel[] | undefined) => {
         if (!old) return old;
         
         return old.map(funnel => {
@@ -543,7 +543,9 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousFunnels) {
-        queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
+        context.previousFunnels.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data);
+        });
       }
       if (context?.contactDealQueries) {
         context.contactDealQueries.forEach(([queryKey, data]: [any, any]) => {
