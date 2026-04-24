@@ -25,13 +25,22 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
   const grabScroll = useGrabScroll();
-  
+  const { leadFieldDefinitions } = useCustomFields();
+  const { rules: requiredRules } = useFieldRequiredRules();
+
   const [showDealForm, setShowDealForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [loadingStageId, setLoadingStageId] = useState<string | null>(null);
+
+  // Estado do dialog de validação de campos obrigatórios
+  const [pendingMove, setPendingMove] = useState<{
+    deal: FunnelDeal;
+    targetStage: FunnelStage;
+    missing: CustomFieldDefinition[];
+  } | null>(null);
 
   const stages = funnel.stages || [];
 
