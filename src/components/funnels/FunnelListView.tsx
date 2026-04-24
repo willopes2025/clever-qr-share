@@ -1463,6 +1463,22 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         onSave={handleColumnsConfigSave}
         teamMembers={members}
         isSaving={isSavingColumns}
+        onEditCustomField={(id) => {
+          setFieldsManagerInitialId(id);
+          setFieldsManagerOpen(true);
+        }}
+        onDeleteCustomField={async (id) => {
+          await deleteField.mutateAsync(id);
+        }}
+      />
+
+      <CustomFieldsManager
+        open={fieldsManagerOpen}
+        onOpenChange={(o) => {
+          setFieldsManagerOpen(o);
+          if (!o) setFieldsManagerInitialId(null);
+        }}
+        initialEditFieldId={fieldsManagerInitialId}
       />
 
       <BulkEditDialog
