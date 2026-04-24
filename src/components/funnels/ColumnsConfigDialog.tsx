@@ -265,6 +265,40 @@ export const ColumnsConfigDialog = ({
           </Button>
         </div>
       </DialogContent>
+
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir campo personalizado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O campo <strong>{pendingDelete?.label}</strong> será removido permanentemente, e os dados
+              já preenchidos para esse campo deixarão de ser exibidos. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!pendingDelete || !onDeleteCustomField) return;
+                setIsDeleting(true);
+                try {
+                  await onDeleteCustomField(pendingDelete.id);
+                  setPendingDelete(null);
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
