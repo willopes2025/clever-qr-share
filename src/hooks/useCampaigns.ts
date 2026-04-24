@@ -111,7 +111,8 @@ export const useCampaigns = () => {
         .select(`
           *,
           template:message_templates(id, name, content),
-          list:broadcast_lists(id, name)
+          list:broadcast_lists(id, name),
+          chatbot_flow:chatbot_flows(id, name)
         `)
         // RLS policy handles organization-level access
         .order('created_at', { ascending: false });
