@@ -90,11 +90,23 @@ export const CampaignCard = ({
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div className="flex items-center gap-2 text-sm">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          <span className="text-muted-foreground">Template:</span>
-          <span className="font-medium truncate">
-            {campaign.template?.name || 'Não definido'}
-          </span>
+          {campaign.dispatch_mode === 'chatbot' ? (
+            <>
+              <Bot className="h-4 w-4 text-primary" />
+              <span className="text-muted-foreground">Chatbot:</span>
+              <span className="font-medium truncate">
+                {campaign.chatbot_flow?.name || 'Fluxo não definido'}
+              </span>
+            </>
+          ) : (
+            <>
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Template:</span>
+              <span className="font-medium truncate">
+                {campaign.template?.name || 'Não definido'}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2 text-sm">
           <Users className="h-4 w-4 text-muted-foreground" />
