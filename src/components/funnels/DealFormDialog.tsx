@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/select";
 import { useFunnels, FunnelDeal } from "@/hooks/useFunnels";
 import { useContacts } from "@/hooks/useContacts";
+import { useCustomFields } from "@/hooks/useCustomFields";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { getMissingRequiredFields } from "@/lib/required-fields";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
 import { SsoticaDealSection } from "./SsoticaDealSection";
 import { NextActionForm, NextActionData } from "./NextActionForm";
