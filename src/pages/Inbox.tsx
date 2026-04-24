@@ -10,7 +10,7 @@ import { RightSidePanel } from "@/components/inbox/RightSidePanel";
 import { SoftphoneWidget } from "@/components/softphone/SoftphoneWidget";
 import { Conversation, useConversations } from "@/hooks/useConversations";
 import { useFusionPBXConfig } from "@/hooks/useFusionPBXConfig";
-import { supabase } from "@/integrations/supabase/client";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -64,27 +64,9 @@ const Inbox = () => {
       || (fallbackConversation?.id === selectedConversationId ? fallbackConversation : null);
   }, [conversations, selectedConversationId, fallbackConversation]);
 
-  // Real-time subscription for conversations
-  useEffect(() => {
-    const channel = supabase
-      .channel('conversations-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversations',
-        },
-        () => {
-          refetch();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  // Realtime for conversations is handled globally by useGlobalRealtime
+  // (see src/hooks/useGlobalRealtime.ts). Subscribing again here would
+  // duplicate every refetch and add load to the Inbox.
 
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversationId(conversation.id);

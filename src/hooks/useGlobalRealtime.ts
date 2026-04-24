@@ -20,8 +20,10 @@ export const useGlobalRealtime = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+          // Only refetch the active Inbox query — avoids re-running the
+          // (expensive) conversations+deals query for every cached variant.
+          queryClient.invalidateQueries({ queryKey: ['conversations'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['unread-count'], refetchType: 'active' });
         }
       )
       .on(
@@ -30,18 +32,18 @@ export const useGlobalRealtime = () => {
         (payload) => {
           const msg = payload.new as { conversation_id?: string };
           if (msg.conversation_id) {
-            queryClient.invalidateQueries({ queryKey: ['messages', msg.conversation_id] });
+            queryClient.invalidateQueries({ queryKey: ['messages', msg.conversation_id], refetchType: 'active' });
           }
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-count'] });
+          queryClient.invalidateQueries({ queryKey: ['conversations'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['unread-count'], refetchType: 'active' });
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'contacts' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['contacts'] });
+          queryClient.invalidateQueries({ queryKey: ['conversations'], refetchType: 'active' });
+          queryClient.invalidateQueries({ queryKey: ['contacts'], refetchType: 'active' });
         }
       )
       .on(
