@@ -35,7 +35,7 @@ interface FunnelDealSectionProps {
 }
 
 export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSectionProps) => {
-  const { funnels, updateDeal, useContactDeal } = useFunnels();
+  const { funnels, updateDeal, useContactDeal } = useFunnels({ includeDeals: false });
   const { data: activeDeal, isLoading } = useContactDeal(contactId);
   const [showDealForm, setShowDealForm] = useState(false);
   const [showMoveFunnel, setShowMoveFunnel] = useState(false);

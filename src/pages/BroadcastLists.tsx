@@ -33,7 +33,7 @@ const BroadcastLists = () => {
   } = useBroadcastLists();
   
   const { contacts, tags } = useContacts();
-  const { funnels } = useFunnels();
+  const { funnels } = useFunnels({ includeDeals: false });
   const { fieldDefinitions } = useCustomFields();
 
   // UI State

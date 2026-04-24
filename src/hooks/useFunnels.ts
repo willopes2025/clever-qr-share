@@ -92,13 +92,17 @@ export interface FunnelAutomation {
   updated_at: string;
 }
 
-export const useFunnels = () => {
+export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
+  const { includeDeals = true } = options;
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch all funnels with stages and LIMITED deals (50 per stage to prevent crashes)
+  // Fetch all funnels with stages.
+  // Deals per stage are only loaded when includeDeals is true (Funnels page).
+  // Lighter consumers (e.g. Inbox lateral panel) should pass { includeDeals: false }
+  // to avoid an N+1 storm of one query per stage.
   const { data: funnels, isLoading, refetch } = useQuery({
-    queryKey: ['funnels', user?.id],
+    queryKey: ['funnels', user?.id, includeDeals],
     queryFn: async () => {
       // First, get funnels with stages (no deals yet)
       const { data: funnelsData, error: funnelsError } = await supabase
@@ -111,17 +115,28 @@ export const useFunnels = () => {
 
       if (funnelsError) throw funnelsError;
 
-      // Then, for each funnel, load limited deals per stage
-      const funnelsWithDeals = await Promise.all(
-        (funnelsData || []).map(async (funnel) => {
-          const sortedStages = (funnel.stages || []).sort(
-            (a: { display_order: number }, b: { display_order: number }) => 
-              a.display_order - b.display_order
-          );
+      // Sort stages by display_order regardless of deal loading
+      const funnelsWithSortedStages = (funnelsData || []).map((funnel) => ({
+        ...funnel,
+        stages: (funnel.stages || []).sort(
+          (a: { display_order: number }, b: { display_order: number }) =>
+            a.display_order - b.display_order
+        ),
+      }));
 
-          // Get deals for all stages of this funnel (limited to 50 per stage)
+      // Fast path: no deals needed (Inbox dropdown, selectors, etc.)
+      if (!includeDeals) {
+        return funnelsWithSortedStages.map((funnel) => ({
+          ...funnel,
+          stages: (funnel.stages || []).map((s: { id: string }) => ({ ...s, deals: [] })),
+        })) as Funnel[];
+      }
+
+      // Heavy path: Funnels page needs the first page of deals per stage
+      const funnelsWithDeals = await Promise.all(
+        funnelsWithSortedStages.map(async (funnel) => {
           const stagesWithDeals = await Promise.all(
-            sortedStages.map(async (stage: { id: string }) => {
+            (funnel.stages || []).map(async (stage: { id: string }) => {
               const { data: deals } = await supabase
                 .from('funnel_deals')
                 .select(`
@@ -282,12 +297,12 @@ export const useFunnels = () => {
       // Cancel outgoing queries
       await queryClient.cancelQueries({ queryKey: ['funnels'] });
       
-      // Snapshot current data
-      const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
+      // Snapshot all variants of the funnels cache (with/without deals)
+      const previousFunnels = queryClient.getQueriesData({ queryKey: ['funnels', user?.id] });
       
-      // Optimistic update
+      // Optimistic update across all funnels cache variants
       if (data.display_order !== undefined) {
-        queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
+        queryClient.setQueriesData({ queryKey: ['funnels', user?.id] }, (old: Funnel[] | undefined) => {
           if (!old) return old;
           return old.map(funnel => ({
             ...funnel,
@@ -302,7 +317,9 @@ export const useFunnels = () => {
     },
     onError: (err, variables, context) => {
       if (context?.previousFunnels) {
-        queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
+        context.previousFunnels.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
       }
     },
     onSettled: () => {
@@ -468,14 +485,14 @@ export const useFunnels = () => {
       await queryClient.cancelQueries({ queryKey: ['funnels'] });
       await queryClient.cancelQueries({ queryKey: ['contact-deal'] });
       
-      // Snapshot current data
-      const previousFunnels = queryClient.getQueryData(['funnels', user?.id]);
+      // Snapshot all funnels cache variants (with/without deals)
+      const previousFunnels = queryClient.getQueriesData({ queryKey: ['funnels', user?.id] });
       
       // Snapshot all contact-deal queries
       const contactDealQueries = queryClient.getQueriesData({ queryKey: ['contact-deal'] });
       
-      // Optimistic update - move deal to new stage instantly in funnels cache
-      queryClient.setQueryData(['funnels', user?.id], (old: Funnel[] | undefined) => {
+      // Optimistic update - move deal to new stage instantly across all funnels variants
+      queryClient.setQueriesData({ queryKey: ['funnels', user?.id] }, (old: Funnel[] | undefined) => {
         if (!old) return old;
         
         return old.map(funnel => {
@@ -526,7 +543,9 @@ export const useFunnels = () => {
     onError: (err, variables, context) => {
       // Rollback on error
       if (context?.previousFunnels) {
-        queryClient.setQueryData(['funnels', user?.id], context.previousFunnels);
+        context.previousFunnels.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data);
+        });
       }
       if (context?.contactDealQueries) {
         context.contactDealQueries.forEach(([queryKey, data]: [any, any]) => {

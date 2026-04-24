@@ -48,9 +48,15 @@ export const useGlobalRealtime = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'funnel_deals' },
         () => {
+          // NOTE: Do NOT invalidate ['funnels'] here. The funnels cache only
+          // contains funnel/stage metadata (deals are loaded separately via
+          // useFunnelDeals / useStageDealCounts). Invalidating ['funnels']
+          // would re-trigger the heavy Funnels-page query for every realtime
+          // event and slow the Inbox down significantly.
           queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
           queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
-          queryClient.invalidateQueries({ queryKey: ['funnels'] });
+          queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
+          queryClient.invalidateQueries({ queryKey: ['funnel-metrics'] });
         }
       )
       .on(

@@ -85,7 +85,7 @@ export const ContactFormDialog = ({
   currentDeal,
 }: ContactFormDialogProps) => {
   const { fieldDefinitions, updateField, createField, deleteField } = useCustomFields();
-  const { funnels } = useFunnels();
+  const { funnels } = useFunnels({ includeDeals: false });
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [addedFieldIds, setAddedFieldIds] = useState<string[]>([]);
   const [showCreateField, setShowCreateField] = useState(false);

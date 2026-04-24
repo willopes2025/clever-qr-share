@@ -92,7 +92,7 @@ const Contacts = () => {
 
   const { fieldDefinitions } = useCustomFields();
   const { subscription } = useSubscription();
-  const { createDeal, funnels } = useFunnels();
+  const { createDeal, funnels } = useFunnels({ includeDeals: false });
 
   // Dialogs state
   const [showContactForm, setShowContactForm] = useState(false);
