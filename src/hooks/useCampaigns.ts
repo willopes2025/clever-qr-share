@@ -66,6 +66,9 @@ export interface Campaign {
   ai_handoff_keywords: string[] | null;
   ai_active_hours_start: number | null;
   ai_active_hours_end: number | null;
+  // Dispatch mode (template vs chatbot flow)
+  dispatch_mode?: 'template' | 'chatbot' | null;
+  chatbot_flow_id?: string | null;
   template?: {
     id: string;
     name: string;
