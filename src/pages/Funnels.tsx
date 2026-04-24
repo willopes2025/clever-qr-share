@@ -94,6 +94,10 @@ const Funnels = () => {
               <Settings2 className="h-4 w-4 mr-2" />
               Motivos
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowFieldsManager(true)}>
+              <ListChecks className="h-4 w-4 mr-2" />
+              Campos
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowAutomations(true)}>
               <Zap className="h-4 w-4 mr-2" />
               Automações
