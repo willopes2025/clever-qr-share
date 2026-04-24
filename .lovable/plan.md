@@ -1,81 +1,74 @@
 
-## Corrigir 3 problemas de uma vez: lista de funis, datas do popup e números no “Nova Conversa”
+## Objetivo
+Permitir que campanhas disparem fluxos completos de chatbot (em vez de apenas templates de mensagem), respeitando todas as regras de envio já existentes (intervalos, lotes, limites diários, janela horária, instâncias).
 
-### 1) Coluna Telefone no formato de lista dos funis
-Ajustar a tabela de `FunnelListView` para o campo telefone ter largura mínima própria e não ficar cortado quando houver muitas colunas.
+## 1. Schema do banco
 
-**O que será feito**
-- Criar largura específica por coluna na listagem, principalmente:
-  - `contact`: largura flexível maior
-  - `phone`: `min-width` fixa suficiente para o número completo
-- Renderizar o telefone com:
-  - `font-mono`/alinhamento estável
-  - `title` com o valor completo
-  - conteúdo sem corte indevido
-- Manter o scroll horizontal da tabela, mas sem “espremer” a coluna de telefone.
+**Tabela `campaigns`** — adicionar colunas:
+- `dispatch_mode` text NOT NULL DEFAULT `'template'` — valores: `'template'` | `'chatbot'`
+- `chatbot_flow_id` uuid NULL — FK para `chatbot_flows(id)` ON DELETE SET NULL
+- Index em `chatbot_flow_id`
 
-**Arquivo**
-- `src/components/funnels/FunnelListView.tsx`
+**Tabela `chatbot_executions`** — adicionar coluna:
+- `trigger_campaign_id` uuid NULL — FK para `campaigns(id)` ON DELETE SET NULL
+- Index em `trigger_campaign_id`
 
----
+Migration via tool de migração (schema change).
 
-### 2) Popup de edição mostrando datas em `YYYY-MM-DD`
-O problema não parece ser só no campo padrão do deal, mas principalmente em campos personalizados que chegam como texto/data ISO e hoje são renderizados cruamente em alguns casos.
+## 2. UI — Formulário de Campanha
 
-**O que será feito**
-- Alinhar `DealCustomFieldsEditor` com o mesmo padrão já usado em outras áreas do sistema:
-  - detectar campos de data por tipo (`date` / `datetime`)
-  - detectar também campos `text` com nome de data (ex.: “Data da Entrada”, “Data da Consulta”)
-- Usar os utilitários já existentes para:
-  - interpretar `YYYY-MM-DD`, ISO e outros formatos válidos
-  - exibir sempre em `dd/MM/yyyy`
-- Salvar datas normalizadas no formato correto (`yyyy-MM-dd` para data simples), evitando voltar a aparecer em ISO bruto no popup.
-- Revisar também o campo padrão de previsão/fechamento para manter consistência visual.
+**`src/components/campaigns/CampaignFormDialog.tsx`**
+- Adicionar seletor "Modo de disparo" com 2 opções:
+  - 📄 Template (Meta/Evolution) — comportamento atual
+  - 🤖 Chatbot — dispara fluxo
+- Quando `dispatch_mode === 'chatbot'`:
+  - Esconder seleção de template Meta e mensagem de texto
+  - Mostrar dropdown "Fluxo do chatbot" listando `chatbot_flows` ativos da organização
+  - Manter seleção de instâncias Evolution (necessárias para o chatbot enviar mensagens)
+  - Manter configurações de intervalo, lotes, horários, limites diários
+- Validar que `chatbot_flow_id` está preenchido antes de salvar quando modo = chatbot
 
-**Arquivos**
-- `src/components/funnels/DealCustomFieldsEditor.tsx`
-- `src/lib/date-utils.ts` (se precisar complementar helper reutilizável)
+**`src/components/campaigns/CampaignCard.tsx`**
+- Mostrar badge "🤖 Chatbot: [nome do fluxo]" quando aplicável
+- Métricas: contar execuções iniciadas / concluídas / em andamento (via `chatbot_executions` filtrado por `trigger_campaign_id`)
 
----
+## 3. Backend — Edge Function `send-campaign-messages`
 
-### 3) “Iniciar Nova Conversa” ainda mostrando números de outros assinantes
-A correção precisa ser feita na origem do dado, não só no componente. Hoje a origem mais frágil é a resolução da organização do usuário nos hooks de canais.
+Modificar `supabase/functions/send-campaign-messages/index.ts`:
+- Ler `dispatch_mode` e `chatbot_flow_id` da campanha
+- Se `dispatch_mode === 'chatbot'`:
+  - Para cada contato do lote (respeitando intervalos, batch e janela horária já implementados):
+    1. Criar registro em `chatbot_executions` com:
+       - `flow_id = campaign.chatbot_flow_id`
+       - `contact_id`, `phone`, `instance_id` (round-robin ou conforme `sending_mode`)
+       - `trigger_campaign_id = campaign.id`
+       - `status = 'running'`, `current_node_id = nó inicial`
+       - `user_id` da campanha
+    2. Invocar `execute-chatbot-flow` com `{ executionId }` para iniciar o fluxo
+    3. Marcar `campaign_messages` (ou criar registro equivalente) como `sent` quando a execução iniciar com sucesso, `failed` em caso de erro
+- Se `dispatch_mode === 'template'`: comportamento atual inalterado
+- Mesma lógica em `process-scheduled-campaigns` continua funcionando (apenas chama `send-campaign-messages`, sem mudança)
 
-**O que será feito**
-- Refatorar a resolução de escopo organizacional para ficar determinística:
-  - evitar depender de consultas soltas com `maybeSingle()` em vários hooks
-  - centralizar a resolução da organização ativa do usuário em um único fluxo reutilizável
-- Em `useWhatsAppInstances`:
-  - priorizar filtro por `organization_id` da instância quando disponível
-  - manter filtro adicional por permissões do membro (`allowedInstanceIds`) quando houver restrição individual
-  - retornar lista vazia enquanto o escopo ainda não estiver resolvido, evitando qualquer “flash” com números errados
-- Aplicar a mesma lógica de escopo aos hooks de números oficiais para deixar todos os seletores consistentes:
-  - `useMetaNumbersMap`
-  - `useMetaWhatsAppNumbers`
-- Ajustar `NewConversationDialog` para:
-  - só popular o select depois que a lista já vier filtrada
-  - só auto-selecionar instância após o carregamento do escopo correto
-  - mostrar estado vazio/carregando de forma segura
+## 4. Backend — Edge Function `start-campaign`
 
-**Arquivos**
-- `src/hooks/useChannelAccessScope.ts`
-- `src/hooks/useWhatsAppInstances.ts`
-- `src/hooks/useMetaNumbersMap.ts`
-- `src/hooks/useMetaWhatsAppNumbers.ts`
-- `src/components/inbox/NewConversationDialog.tsx`
+`supabase/functions/start-campaign/index.ts`:
+- Validar que se `dispatch_mode === 'chatbot'`, então `chatbot_flow_id` existe e o fluxo está ativo e pertence à organização
+- Validar que há pelo menos 1 instância Evolution conectada (chatbot precisa enviar mensagens)
 
----
+## 5. Garantias e detalhes
 
-### Validação final esperada
-Depois da implementação:
+- **Idempotência**: usar `trigger_campaign_id + contact_id` como chave única lógica para evitar disparar 2x o mesmo fluxo para o mesmo contato.
+- **Anti-duplicidade**: se já existe `chatbot_execution` ativa para o contato (`status in ('running','waiting_input')`), pular e registrar como `skipped`.
+- **Métricas**: a campanha ainda usa a tabela `campaign_messages` para contar enviados/falhos; um registro = uma execução de fluxo iniciada.
+- **Sem combinar template + chatbot** nesta primeira versão (modos mutuamente exclusivos), conforme aprovado.
 
-1. No **Funil > Lista**, o telefone aparecerá completo.
-2. No **popup de editar deal**, datas aparecerão em `dd/MM/yyyy`, inclusive nos campos personalizados de data.
-3. Em **Iniciar Nova Conversa**, o usuário verá somente os números/instâncias autorizados da própria assinatura/organização.
-4. A mesma regra de escopo ficará consistente nos demais seletores de canais do Inbox, reduzindo novos vazamentos parecidos.
+## Arquivos a editar/criar
+- Migration SQL (schema)
+- `src/components/campaigns/CampaignFormDialog.tsx`
+- `src/components/campaigns/CampaignCard.tsx`
+- `supabase/functions/send-campaign-messages/index.ts`
+- `supabase/functions/start-campaign/index.ts`
+- (possível) novo hook `src/hooks/useChatbotFlows.ts` se ainda não existir para listar fluxos no formulário
 
-### Detalhes técnicos
-- Reaproveitar os helpers já existentes em `date-utils` em vez de criar parsing novo espalhado.
-- Tratar carregamento de escopo antes do render dos selects para evitar vazamento visual temporário.
-- Preferir escopo por organização real da instância (`organization_id`) quando existir; usar `user_id` apenas como fallback legado.
-- Manter a camada de restrição individual por membro (`team_member_instances` / `team_member_meta_numbers`) por cima do escopo da organização.
+## Memória a salvar após implementação
+- `mem://features/campaigns/chatbot-dispatch-mode` — descrevendo o novo modo, regras de exclusividade e anti-duplicidade.

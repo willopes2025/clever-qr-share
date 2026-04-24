@@ -1221,10 +1221,12 @@ export type Database = {
           batch_enabled: boolean | null
           batch_pause_minutes: number | null
           batch_size: number | null
+          chatbot_flow_id: string | null
           completed_at: string | null
           created_at: string
           daily_limit: number | null
           delivered: number
+          dispatch_mode: string
           failed: number
           id: string
           instance_id: string | null
@@ -1272,10 +1274,12 @@ export type Database = {
           batch_enabled?: boolean | null
           batch_pause_minutes?: number | null
           batch_size?: number | null
+          chatbot_flow_id?: string | null
           completed_at?: string | null
           created_at?: string
           daily_limit?: number | null
           delivered?: number
+          dispatch_mode?: string
           failed?: number
           id?: string
           instance_id?: string | null
@@ -1323,10 +1327,12 @@ export type Database = {
           batch_enabled?: boolean | null
           batch_pause_minutes?: number | null
           batch_size?: number | null
+          chatbot_flow_id?: string | null
           completed_at?: string | null
           created_at?: string
           daily_limit?: number | null
           delivered?: number
+          dispatch_mode?: string
           failed?: number
           id?: string
           instance_id?: string | null
@@ -1359,6 +1365,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "campaigns_chatbot_flow_id_fkey"
+            columns: ["chatbot_flow_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_flows"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "campaigns_instance_id_fkey"
             columns: ["instance_id"]
@@ -1432,6 +1445,7 @@ export type Database = {
           started_at: string | null
           status: string | null
           trigger_automation_id: string | null
+          trigger_campaign_id: string | null
           trigger_source: string | null
           user_id: string
           variables: Json | null
@@ -1450,6 +1464,7 @@ export type Database = {
           started_at?: string | null
           status?: string | null
           trigger_automation_id?: string | null
+          trigger_campaign_id?: string | null
           trigger_source?: string | null
           user_id: string
           variables?: Json | null
@@ -1468,6 +1483,7 @@ export type Database = {
           started_at?: string | null
           status?: string | null
           trigger_automation_id?: string | null
+          trigger_campaign_id?: string | null
           trigger_source?: string | null
           user_id?: string
           variables?: Json | null
@@ -1506,6 +1522,13 @@ export type Database = {
             columns: ["trigger_automation_id"]
             isOneToOne: false
             referencedRelation: "funnel_automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_executions_trigger_campaign_id_fkey"
+            columns: ["trigger_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
         ]
