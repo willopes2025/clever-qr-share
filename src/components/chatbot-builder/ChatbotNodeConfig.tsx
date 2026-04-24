@@ -41,6 +41,8 @@ interface NodeData {
   value?: string;
   duration?: number;
   unit?: string;
+  waitMode?: 'time' | 'message';
+  messageTimeoutMinutes?: number | null;
   prompt?: string;
   maxTokens?: number;
   aiConfigId?: string;

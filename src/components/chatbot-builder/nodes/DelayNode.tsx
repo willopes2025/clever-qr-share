@@ -49,10 +49,8 @@ export const DelayNode = ({ data, selected }: NodeProps) => {
           <Clock className="h-4 w-4 text-white" />
         </div>
         <div>
-          <span className="font-medium text-sm">Aguardar</span>
-          <p className="text-xs text-muted-foreground">
-            {duration} {unitLabels[unit]}
-          </p>
+          <span className="font-medium text-sm">{label}</span>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
       </div>
       <Handle
