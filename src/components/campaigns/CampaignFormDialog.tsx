@@ -15,13 +15,14 @@ import { useContacts } from '@/hooks/useContacts';
 import { Campaign, MetaVariableMapping } from '@/hooks/useCampaigns';
 import { useAgentConfig, useAgentConfigMutations } from '@/hooks/useAIAgentConfig';
 import { useCustomFields } from '@/hooks/useCustomFields';
-import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone, Variable } from 'lucide-react';
+import { Calendar, Clock, Settings2, ChevronDown, ChevronUp, Bot, UserX, ExternalLink, Tag, Plus, Cloud, Phone, Variable, Workflow } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentPicker } from '@/components/shared/AgentPicker';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
+import { useChatbotFlows } from '@/hooks/useChatbotFlows';
 interface CampaignFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
