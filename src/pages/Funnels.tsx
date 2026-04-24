@@ -47,6 +47,7 @@ const Funnels = () => {
   const [showAutomations, setShowAutomations] = useState(false);
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showImportContacts, setShowImportContacts] = useState(false);
+  const [showFieldsManager, setShowFieldsManager] = useState(false);
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
   const [selectedDealIdFromSearch, setSelectedDealIdFromSearch] = useState<string | null>(null);
 
