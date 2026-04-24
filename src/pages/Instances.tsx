@@ -40,7 +40,7 @@ const Instances = () => {
   } = useWhatsAppInstances();
   
   const { subscription, isSubscribed, currentPlan, canCreateInstance, createCheckout } = useSubscription();
-  const { funnels } = useFunnels();
+  const { funnels } = useFunnels({ includeDeals: false });
 
   const [newInstanceName, setNewInstanceName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);

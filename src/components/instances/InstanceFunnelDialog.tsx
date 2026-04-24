@@ -38,7 +38,7 @@ export const InstanceFunnelDialog = ({
 }: InstanceFunnelDialogProps) => {
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(currentFunnelId);
   const [isSaving, setIsSaving] = useState(false);
-  const { funnels, isLoading } = useFunnels();
+  const { funnels, isLoading } = useFunnels({ includeDeals: false });
 
   useEffect(() => {
     if (open) {

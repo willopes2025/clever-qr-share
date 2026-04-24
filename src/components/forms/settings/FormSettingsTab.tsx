@@ -15,7 +15,7 @@ interface FormSettingsTabProps {
 
 export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
   const { updateForm } = useForms();
-  const { funnels } = useFunnels();
+  const { funnels } = useFunnels({ includeDeals: false });
   
   const [settings, setSettings] = useState({
     name: form.name,

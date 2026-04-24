@@ -33,7 +33,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   
   // Get the active deal for this contact
-  const { useContactDeal } = useFunnels();
+  const { useContactDeal } = useFunnels({ includeDeals: false });
   const { data: activeDeal } = useContactDeal(conversation.contact_id);
 
   // Reset tab when conversation changes

@@ -37,7 +37,7 @@ export function BulkSendToFunnelDialog({
   onSuccess,
 }: BulkSendToFunnelDialogProps) {
   const { user } = useAuth();
-  const { funnels } = useFunnels();
+  const { funnels } = useFunnels({ includeDeals: false });
   const queryClient = useQueryClient();
 
   const [selectedFunnelId, setSelectedFunnelId] = useState("");

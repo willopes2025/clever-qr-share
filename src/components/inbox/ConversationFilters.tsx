@@ -88,7 +88,7 @@ export const ConversationFiltersComponent = ({ filters, onFiltersChange }: Conve
   const { instances } = useWhatsAppInstances();
   const { metaNumbers } = useMetaNumbersMap();
   const { tags } = useConversationTags();
-  const { funnels } = useFunnels();
+  const { funnels } = useFunnels({ includeDeals: false });
   const { members } = useTeamMembers();
   const { data: campaigns } = useCampaigns();
 
