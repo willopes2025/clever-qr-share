@@ -283,9 +283,15 @@ Deno.serve(async (req: Request) => {
     // Helper: substitute variables in text
     const substituteVars = (text: string): string => {
       if (!text) return '';
+      const fullName = (contact?.name || '').trim();
+      const firstName = fullName.split(/\s+/)[0] || '';
       return text
-        .replace(/\{\{nome\}\}/gi, contact?.name || '')
-        .replace(/\{\{name\}\}/gi, contact?.name || '')
+        .replace(/\{\{primeiro_nome\}\}/gi, firstName)
+        .replace(/\{\{primeiroNome\}\}/gi, firstName)
+        .replace(/\{\{first_name\}\}/gi, firstName)
+        .replace(/\{\{firstName\}\}/gi, firstName)
+        .replace(/\{\{nome\}\}/gi, fullName)
+        .replace(/\{\{name\}\}/gi, fullName)
         .replace(/\{\{telefone\}\}/gi, contact?.phone || '')
         .replace(/\{\{phone\}\}/gi, contact?.phone || '')
         .replace(/\{\{email\}\}/gi, contact?.email || '')
