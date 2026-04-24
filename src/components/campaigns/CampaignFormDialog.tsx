@@ -253,6 +253,7 @@ export const CampaignFormDialog = ({
       setMessageMode('template');
       setTemplateId('');
       setSelectedMetaPhoneNumberId('');
+      setChatbotFlowId('');
       setListId('');
       setIsScheduled(false);
       setScheduledDate('');
