@@ -346,7 +346,12 @@ export const DealFormDialog = ({
             </div>
 
             {/* Custom Fields */}
-            <DealCustomFieldsEditor values={customFields} onChange={setCustomFields} />
+            <DealCustomFieldsEditor
+              values={customFields}
+              onChange={setCustomFields}
+              funnelId={selectedFunnelId}
+              stageId={selectedStageId}
+            />
 
             {/* ssOtica Integration */}
             {deal && (
