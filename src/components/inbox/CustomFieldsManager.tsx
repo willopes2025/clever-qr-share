@@ -180,6 +180,8 @@ const RequiredRulesEditor = ({ fieldId }: RequiredRulesEditorProps) => {
     </div>
   );
 };
+
+interface CustomFieldsManagerProps {
   /** Quando provido, o componente vira controlado e não renderiza o botão trigger. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
