@@ -1382,10 +1382,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                                 key={stage.id}
                                 disabled={stage.id === deal.stage_id}
                                 onClick={() => {
-                                  updateDeal.mutate({
-                                    id: deal.id,
-                                    stage_id: stage.id,
-                                  });
+                                  requestStageChange(deal, stage.id);
                                 }}
                               >
                                 <div
