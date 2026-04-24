@@ -483,27 +483,104 @@ Deno.serve(async (req: Request) => {
 
               if (tpl) {
                 const tplText = substituteVars(tpl.content || '');
-                if (tpl.media_url && tpl.media_type && instanceName && contact?.phone) {
-                  // Send media first
-                  const mediaEndpoint = tpl.media_type === 'image' ? 'sendMedia' : tpl.media_type === 'video' ? 'sendMedia' : 'sendMedia';
-                  await fetch(`${evolutionApiUrl}/message/sendMedia/${instanceName}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-                    body: JSON.stringify({
-                      number: contact.phone,
-                      mediatype: tpl.media_type,
-                      media: tpl.media_url,
-                      caption: tplText || undefined,
-                    }),
-                  });
-                  await supabase.from('inbox_messages').insert({
-                    user_id: userId, conversation_id: conversationId,
-                    content: tplText || '', direction: 'outbound', status: 'sent',
-                    message_type: tpl.media_type, media_url: tpl.media_url,
-                    sent_at: new Date().toISOString(),
-                  });
-                } else if (tplText) {
+                const hasMedia = !!(tpl.media_url && tpl.media_type);
+
+                // Send caption text first (separate from media), like in campaigns
+                if (tplText) {
                   await sendMessage(tplText);
+                  await new Promise(r => setTimeout(r, 2000));
+                }
+
+                if (hasMedia && contact?.phone) {
+                  const mediaType = tpl.media_type as string;
+                  let mediaSent = false;
+                  let mediaError: string | null = null;
+                  let mediaMessageId: string | null = null;
+
+                  // Try Evolution API first
+                  if (instanceName) {
+                    try {
+                      const isAudio = mediaType === 'audio';
+                      const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
+                      const payload: any = isAudio
+                        ? { number: contact.phone, audio: tpl.media_url }
+                        : { number: contact.phone, mediatype: mediaType, media: tpl.media_url };
+
+                      const mediaResp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                        body: JSON.stringify(payload),
+                      });
+                      const mediaResult = await mediaResp.json();
+                      if (!mediaResp.ok) {
+                        mediaError = mediaResult?.message || mediaResult?.error || `Evolution ${endpoint} HTTP ${mediaResp.status}`;
+                        console.error(`[FLOW] Evolution ${endpoint} failed:`, JSON.stringify(mediaResult));
+                      } else {
+                        mediaSent = true;
+                        mediaMessageId = mediaResult?.key?.id || null;
+                        console.log(`[FLOW] Media sent via Evolution (${endpoint})`);
+                      }
+                    } catch (err: any) {
+                      mediaError = err?.message || 'Evolution media exception';
+                      console.error('[FLOW] Evolution media exception:', err);
+                    }
+                  } else if (metaPhoneNumberId && metaAccessToken) {
+                    // Fallback: Meta Cloud API media
+                    try {
+                      const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+                      const metaPayload: any = {
+                        messaging_product: 'whatsapp',
+                        recipient_type: 'individual',
+                        to: formattedPhone,
+                        type: mediaType,
+                      };
+                      if (mediaType === 'audio') {
+                        metaPayload.audio = { link: tpl.media_url };
+                      } else if (mediaType === 'image') {
+                        metaPayload.image = { link: tpl.media_url };
+                      } else if (mediaType === 'video') {
+                        metaPayload.video = { link: tpl.media_url };
+                      } else {
+                        metaPayload.document = { link: tpl.media_url };
+                      }
+                      const metaResp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${metaAccessToken}`,
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(metaPayload),
+                      });
+                      const metaResult = await metaResp.json();
+                      if (!metaResp.ok) {
+                        mediaError = metaResult?.error?.message || `Meta media HTTP ${metaResp.status}`;
+                        console.error('[FLOW] Meta media failed:', JSON.stringify(metaResult));
+                      } else {
+                        mediaSent = true;
+                        mediaMessageId = metaResult?.messages?.[0]?.id || null;
+                        console.log('[FLOW] Media sent via Meta Cloud API');
+                      }
+                    } catch (err: any) {
+                      mediaError = err?.message || 'Meta media exception';
+                      console.error('[FLOW] Meta media exception:', err);
+                    }
+                  } else {
+                    mediaError = 'Nenhum canal disponível para envio de mídia';
+                  }
+
+                  await supabase.from('inbox_messages').insert({
+                    user_id: userId,
+                    conversation_id: conversationId,
+                    content: '',
+                    direction: 'outbound',
+                    status: mediaSent ? 'sent' : 'failed',
+                    message_type: mediaType,
+                    media_url: tpl.media_url,
+                    whatsapp_message_id: mediaMessageId,
+                    error_message: mediaError,
+                    sent_at: new Date().toISOString(),
+                    sent_via_meta_number_id: !instanceName && metaPhoneNumberId ? metaPhoneNumberId : null,
+                  });
                 }
               }
             } catch (err) {
