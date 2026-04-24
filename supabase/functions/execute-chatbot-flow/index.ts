@@ -1096,6 +1096,45 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'delay': {
+          const waitMode = (node.data?.waitMode as string) || 'time';
+
+          // ----- Mode: wait until contact sends a message -----
+          if (waitMode === 'message') {
+            const isResumingHere = execution.current_node_id === node.id &&
+              (resumingFromSchedule || inputValue !== undefined);
+            // If we're already resuming because a message arrived (or timeout fired), continue
+            if (isResumingHere) {
+              console.log('[FLOW] Delay(message): resume signal received, continuing');
+              resumingFromSchedule = false;
+              currentId = getNextNode(node.id);
+              break;
+            }
+
+            // Optional timeout in minutes - schedule auto-resume
+            const timeoutMin = node.data?.messageTimeoutMinutes
+              ? parseInt(String(node.data.messageTimeoutMinutes))
+              : 0;
+
+            const update: Record<string, unknown> = {
+              status: 'waiting_input',
+              current_node_id: node.id,
+            };
+            if (timeoutMin > 0) {
+              update.scheduled_resume_at = new Date(Date.now() + timeoutMin * 60 * 1000).toISOString();
+            }
+
+            await logNodeExecution(node.id, node.type, 'waiting_input');
+            await supabase
+              .from('chatbot_executions')
+              .update(update)
+              .eq('id', execution.id);
+
+            console.log(`[FLOW] Delay(message): waiting for user message at node ${node.id}${timeoutMin ? ` (timeout ${timeoutMin}min)` : ''}`);
+            currentId = null;
+            break;
+          }
+
+          // ----- Mode: wait fixed time -----
           // If resuming from a scheduled delay on this node, skip straight to next
           if (resumingFromSchedule) {
             console.log('[FLOW] Resuming from scheduled delay, skipping to next node');
