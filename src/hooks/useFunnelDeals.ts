@@ -114,8 +114,8 @@ export const useLoadMoreDeals = () => {
       return data as FunnelDeal[];
     },
     onSuccess: (newDeals, { stageId, funnelId }) => {
-      // Append new deals to the existing funnels cache
-      queryClient.setQueryData(['funnels', user?.id], (old: unknown[] | undefined) => {
+      // Append new deals to all funnels cache variants (with/without deals)
+      queryClient.setQueriesData({ queryKey: ['funnels', user?.id] }, (old: unknown[] | undefined) => {
         if (!old) return old;
         
         return old.map((funnel: { id: string; stages?: { id: string; deals?: FunnelDeal[] }[] }) => {
