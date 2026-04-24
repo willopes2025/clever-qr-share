@@ -117,7 +117,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const { deleteDeal, updateDeal, closeReasons, deleteMultipleDeals, bulkUpdateDeals, funnels: allFunnels } = useFunnels();
   const { data: stageCounts = {} } = useStageDealCounts(funnel.id);
   const loadMoreDeals = useLoadMoreDeals();
-  const { fieldDefinitions } = useCustomFields();
+  const { fieldDefinitions, deleteField } = useCustomFields();
   const { members } = useTeamMembers();
   const [editingDeal, setEditingDeal] = useState<FunnelDeal | null>(null);
   const [closingDeal, setClosingDeal] = useState<FunnelDeal | null>(null);
