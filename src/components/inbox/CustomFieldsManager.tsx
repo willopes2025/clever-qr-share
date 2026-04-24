@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CustomFieldDefinition, FieldType, useCustomFields } from "@/hooks/useCustomFields";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { useFunnels } from "@/hooks/useFunnels";
 import { inferFieldType } from "@/utils/inferFieldType";
 import { toast } from "sonner";
 
