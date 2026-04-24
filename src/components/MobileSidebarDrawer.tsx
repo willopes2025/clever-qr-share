@@ -94,7 +94,7 @@ export const MobileSidebarDrawer = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentPlan, isSubscribed } = useSubscription();
-  const { conversations: _ignored } = { conversations: undefined as any };
+  
   const { isMobileOpen, closeMobile } = useSidebarContext();
   const { checkPermission, organization, isLoading: isLoadingOrg } = useOrganization();
   const { profile } = useProfile();
