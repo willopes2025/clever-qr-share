@@ -1518,7 +1518,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Message sent to ${formattedPhone}`,
+        message: `Message processed for ${message.phone}`,
         remaining,
         sent: (campaign.sent || 0) + 1
       }),
