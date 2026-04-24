@@ -64,27 +64,9 @@ const Inbox = () => {
       || (fallbackConversation?.id === selectedConversationId ? fallbackConversation : null);
   }, [conversations, selectedConversationId, fallbackConversation]);
 
-  // Real-time subscription for conversations
-  useEffect(() => {
-    const channel = supabase
-      .channel('conversations-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversations',
-        },
-        () => {
-          refetch();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [refetch]);
+  // Realtime for conversations is handled globally by useGlobalRealtime
+  // (see src/hooks/useGlobalRealtime.ts). Subscribing again here would
+  // duplicate every refetch and add load to the Inbox.
 
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversationId(conversation.id);

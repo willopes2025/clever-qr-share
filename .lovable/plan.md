@@ -1,75 +1,81 @@
-## Diagnóstico — por que o funil no Inbox está lento
+## Diagnóstico — gargalo restante do Inbox
 
-Ao abrir uma conversa no Inbox, o painel lateral (`RightSidePanel`) carrega o `useFunnels()`, que executa um padrão **N+1 muito pesado**:
+Depois das otimizações anteriores, o `useFunnels({ includeDeals: false })` ficou rápido. Mas o Inbox **ainda tem outro gargalo**, agora dentro do `useConversations`:
 
-### O que acontece hoje (`src/hooks/useFunnels.ts`, linhas 100–153)
+### O problema (`src/hooks/useConversations.ts`, linhas 179–208)
 
-```text
-1 query  → busca todos os funis + stages
-+ N queries → para CADA stage, faz uma query separada buscando até 50 deals
-              (com JOIN em contacts e funnel_close_reasons)
+A cada carregamento da lista de conversas, o hook executa:
+
+```ts
+supabase
+  .from('funnel_deals')
+  .select('id, contact_id, stage_id, funnel_id, funnel:funnels(name), stage:funnel_stages(name, color)')
+  .is('closed_at', null);   // ← SEM filtro de contato/usuário
 ```
 
-Para um usuário com muitos funis, isso significa **dezenas a centenas de requests sequenciais ao Postgres** só para abrir uma conversa. Exemplos reais no banco:
+Confirmei no banco: **9.171 deals abertos** em `funnel_deals`. Isso significa que, ao abrir o Inbox, o navegador baixa ~9 mil linhas com 2 joins, só para depois fazer o match em memória contra a lista de conversas (que normalmente tem ~50–200 itens visíveis).
 
-- 1 usuário com 49 stages → **50 queries** por carregamento
-- 1 usuário com 22 stages → **23 queries** por carregamento
-- Total no banco: 9.238 deals, 126 stages, 18 funis
+**Pior ainda:** o `useGlobalRealtime` invalida `['conversations']` a cada:
+- nova mensagem (`inbox_messages` INSERT)
+- update em `conversations`
+- update em `contacts`
 
-E o pior: **o Inbox não precisa da lista de deals por stage** — só usa `funnels[].stages[]` para popular o dropdown de etapas no `LeadPanelFunnelBar`. Os deals só são consumidos pela página do Funil (`/funnels`).
+Cada um desses eventos refaz o fetch das ~9k linhas. Em uma conversa ativa, isso ocorre várias vezes por minuto, deixando o sistema lento e congelado.
 
-Além disso:
-- `useGlobalRealtime` invalida `['funnels']` em **qualquer** mudança em `funnel_deals` (toda mensagem nova que move um lead refaz todas as N+1 queries)
-- A tela do Inbox monta o `useFunnels` em vários componentes (LeadPanelFunnelBar, RightSidePanel) — cada um dispara o pipeline pesado
+### Erros adicionais que pioram o quadro
 
-### Erro adicional observado nos logs
+1. `src/pages/Inbox.tsx` (linhas 68–87) cria **um segundo canal de realtime** (`conversations-updates`) duplicando o que `useGlobalRealtime` já faz — toda mudança em `conversations` dispara dois `refetch()` simultâneos.
 
-```text
-GET /internal_chat_group_members → 500
-"infinite recursion detected in policy for relation internal_chat_group_members"
-```
-
-Não causa a lentidão do funil, mas é um bug de RLS que está retornando 500 a cada navegação. Vou corrigir no mesmo passe.
+2. O Supabase tem limite padrão de 1000 linhas por query, então é provável que esses 9k deals nem estejam vindo completos — pode haver leads ausentes do badge "etapa do funil" na lista de conversas.
 
 ---
 
 ## Plano de correção
 
-### 1. Tornar a query `['funnels']` leve por padrão
+### 1. Buscar apenas os deals dos contatos visíveis
 
-Alterar `useFunnels` em `src/hooks/useFunnels.ts` para **não** carregar deals por stage no fetch base. A query passa a retornar apenas funis + stages (1 única query, sem N+1). Os locais que precisam dos deals já usam hooks dedicados:
+Em `src/hooks/useConversations.ts`, trocar o `select(...).is('closed_at', null)` por uma versão filtrada pelos `contact_id`s das conversas que acabaram de ser carregadas:
 
-- Página do Funil → `useStageDealCounts` + `useLoadMoreDeals` (já existem em `useFunnelDeals.ts`)
-- Inbox → só precisa de `stages[]` para o dropdown
+```ts
+const contactIds = (data || []).map(c => c.contact_id);
+if (contactIds.length > 0) {
+  const { data: deals } = await supabase
+    .from('funnel_deals')
+    .select('id, contact_id, stage_id, funnel_id, funnel:funnels(name), stage:funnel_stages(name, color)')
+    .is('closed_at', null)
+    .in('contact_id', contactIds);
+  // build dealsMap...
+}
+```
 
-Resultado: abrir uma conversa passa de ~50 queries para 1.
+Resultado: a query de deals passa de ~9.000 linhas para no máximo ~200 (uma por contato visível). Carga cai 95–98%.
 
-### 2. Ajustar a página do Funil para carregar deals sob demanda
+### 2. Remover o canal de realtime duplicado em `Inbox.tsx`
 
-Verificar `src/pages/Funnels.tsx` e componentes de Kanban. Onde ainda dependerem de `funnel.stages[].deals` no payload inicial, trocar por `useLoadMoreDeals` (paginação que já existe). Manter a mesma UX — apenas garantindo que os deals da primeira página sejam carregados ao abrir a tela do funil, não ao abrir o Inbox.
+`useGlobalRealtime` já cobre `conversations` + `inbox_messages`. O `useEffect` das linhas 68–87 do `src/pages/Inbox.tsx` é um duplo trabalho — vai sair.
 
-### 3. Refinar a invalidação do realtime
+### 3. Refinar invalidações em `useGlobalRealtime`
 
-Em `src/hooks/useGlobalRealtime.ts`, parar de invalidar `['funnels']` em mudanças de `funnel_deals`. Manter apenas:
-- `['contact-deal']` (painel do Inbox)
-- `['funnel-deals']` e `['stage-deal-counts']` (Kanban)
+Hoje qualquer UPDATE em `contacts` (mudou avatar, nome, push name) invalida `['conversations']` inteiro. Vou manter a invalidação, mas com `refetchType: 'active'` para que apenas a query ativa do Inbox seja refeita (e não todas as variantes em cache).
 
-`['funnels']` só precisa invalidar quando muda funil/stage em si.
+### 4. Garantir que o badge de funil continua aparecendo
 
-### 4. Corrigir recursão de RLS em `internal_chat_group_members`
-
-Criar migration que substitui a policy recursiva por uma versão usando função `SECURITY DEFINER` (padrão já adotado no projeto com `has_role`, `get_organization_member_ids`, etc.).
+Como o `dealsMap` agora é construído após carregar conversations, o resultado para o usuário é idêntico — o painel da conversa e o badge do funil continuam vindo populados, só que sem baixar deals de contatos que nem estão na lista.
 
 ---
 
 ## Detalhes técnicos
 
-**Arquivos editados:**
-- `src/hooks/useFunnels.ts` — remover o `Promise.all` de deals por stage da query principal
-- `src/pages/Funnels.tsx` e componentes de Kanban dentro de `src/components/funnels/` — garantir uso de `useStageDealCounts` + `useLoadMoreDeals`
-- `src/hooks/useGlobalRealtime.ts` — afinar invalidações
-- Migration SQL — nova policy não-recursiva para `internal_chat_group_members` usando função SECURITY DEFINER
+**Arquivos a editar:**
+- `src/hooks/useConversations.ts` — adicionar filtro `.in('contact_id', contactIds)` na query de deals
+- `src/pages/Inbox.tsx` — remover o `useEffect` duplicado de realtime (linhas ~67–87)
+- `src/hooks/useGlobalRealtime.ts` — adicionar `refetchType: 'active'` nas invalidações de `['conversations']` para evitar refetch de caches inativos
 
-**Tipo `Funnel.stages[].deals`** continua opcional (`deals?: FunnelDeal[]`) — código consumidor não quebra; apenas vem `undefined` no Inbox.
+**Sem migração de banco** — os índices já existem (`idx_funnel_deals_contact_id`).
 
-**Impacto esperado:** abertura de conversa no Inbox deve cair de vários segundos para ~100–300 ms na parte do funil.
+**Impacto esperado:**
+- Tempo para abrir o Inbox: cai significativamente (uma query de ~200 linhas com índice é praticamente instantânea contra uma de ~9k linhas).
+- Realtime: cada mensagem nova passa a refetchar somente a lista filtrada e ativa, em vez de rebaixar 9k deals.
+- Resolve também o limite de 1000 linhas que pode estar omitindo leads do badge.
+
+Posso aplicar?

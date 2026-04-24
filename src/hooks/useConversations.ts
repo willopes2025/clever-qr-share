@@ -175,36 +175,52 @@ export const useConversations = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      
-      // Fetch ALL active deals (without contact_id filter to avoid URL too long error)
-      // Then match by contact_id on client side
-      let dealsMap: Record<string, ConversationDeal> = {};
-      
-      const { data: deals } = await supabase
-        .from('funnel_deals')
-        .select(`
-          id,
-          contact_id,
-          stage_id,
-          funnel_id,
-          funnel:funnels(name),
-          stage:funnel_stages(name, color)
-        `)
-        .is('closed_at', null);
-      
-      if (deals) {
-        deals.forEach((deal: any) => {
-          if (deal.contact_id) {
-            dealsMap[deal.contact_id] = {
-              id: deal.id,
-              stage_id: deal.stage_id,
-              funnel_id: deal.funnel_id,
-              funnel_name: deal.funnel?.name || null,
-              stage_name: deal.stage?.name || null,
-              stage_color: deal.stage?.color || null,
-            };
+
+      // Build dealsMap ONLY for the contacts visible in this inbox load.
+      // Previously this query fetched ALL open deals (~9k+ rows) on every
+      // conversations refetch — including every realtime invalidation —
+      // which made opening the Inbox extremely slow. Filtering by
+      // contact_id keeps the payload at most ~N where N = visible
+      // conversations (typically <300), and is backed by the
+      // idx_funnel_deals_contact_id index.
+      const dealsMap: Record<string, ConversationDeal> = {};
+      const contactIds = Array.from(
+        new Set(((data as any[]) || []).map((c: any) => c.contact_id).filter(Boolean))
+      );
+
+      if (contactIds.length > 0) {
+        // Chunk to keep URL length safe even on very large inboxes
+        const CHUNK = 200;
+        for (let i = 0; i < contactIds.length; i += CHUNK) {
+          const slice = contactIds.slice(i, i + CHUNK);
+          const { data: deals } = await supabase
+            .from('funnel_deals')
+            .select(`
+              id,
+              contact_id,
+              stage_id,
+              funnel_id,
+              funnel:funnels(name),
+              stage:funnel_stages(name, color)
+            `)
+            .is('closed_at', null)
+            .in('contact_id', slice);
+
+          if (deals) {
+            for (const deal of deals as any[]) {
+              if (deal.contact_id && !dealsMap[deal.contact_id]) {
+                dealsMap[deal.contact_id] = {
+                  id: deal.id,
+                  stage_id: deal.stage_id,
+                  funnel_id: deal.funnel_id,
+                  funnel_name: deal.funnel?.name || null,
+                  stage_name: deal.stage?.name || null,
+                  stage_color: deal.stage?.color || null,
+                };
+              }
+            }
           }
-        });
+        }
       }
       
       // Filter out "ghost" conversations: no message preview, no direction,
