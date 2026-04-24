@@ -1453,6 +1453,7 @@ Deno.serve(async (req: Request) => {
         failed: (campaign.failed || 0) + 1
       }).eq('id', campaignId);
     } // end of sending block
+    } // end of else (template/evolution dispatch_mode)
 
     // Check if there are more messages to send
     const { count: remainingCount, error: countError } = await supabase
@@ -1517,7 +1518,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Message sent to ${formattedPhone}`,
+        message: `Message processed for ${message.phone}`,
         remaining,
         sent: (campaign.sent || 0) + 1
       }),
