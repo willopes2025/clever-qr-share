@@ -1,50 +1,56 @@
-## Objetivo
-Eliminar o timeout que ainda impede o Inbox de abrir rapidamente.
-
 ## Diagnóstico
-O problema continua no backend, não no layout. A requisição principal do Inbox ainda falha com `statement timeout` ao buscar `conversations`.
 
-Evidências já confirmadas:
-- A chamada que falha é `GET /rest/v1/conversations ... order=is_pinned.desc,last_message_at.desc&limit=300`.
-- O erro retornado é `57014: canceling statement due to statement timeout`.
-- A base está grande o suficiente para expor isso: cerca de `8.475 conversations`, `143.855 inbox_messages`, `19.898 contacts` e `9.176 funnel_deals` abertos.
-- Hoje a tabela `conversations` só tem índices simples em `user_id`, `last_message_at`, `campaign_id`, `assigned_to`, `first_response_at` e `provider`. Não há índice cobrindo a ordenação/filtros usados pelo Inbox.
-- A política atual de acesso do Inbox usa a função `can_access_conversation_channel(...)`, que é mais pesada do que a política anterior e pode agravar o custo da leitura em listas grandes.
+Investiguei o banco e o código. São **três problemas separados**:
 
-## Plano
-1. Ajustar a consulta principal do hook `useConversations` para reduzir custo antes do restante do pipeline.
-   - Remover o `or(instance_id.is.null,instance_id.not.in(...))` quando não for necessário e substituir por uma estratégia mais indexável.
-   - Separar o caso “instâncias notificacionais” para não degradar a query principal.
-   - Reduzir a primeira carga para uma janela menor e previsível, com paginação incremental.
+### 1. Duplicatas reais encontradas (apenas 1 caso para `williamminguta@gmail.com`)
+- `Forma de Pg Saldo` (`forma_de_pg_saldo`) **vs** `Forma Pg Saldo` (`forma_pg_saldo`) → ambos do tipo `lead`, criados em 26/03 quase no mesmo segundo. É duplicata real.
+- "Modelo de Lente - Dependente 1" e "Modelo de Lente - Dependente 2" **NÃO são duplicatas** — são dois campos diferentes (um por dependente). Mesma coisa para "Tipo de Lente" e "Ref. Armação". Vou deixá-los intactos.
+- Para `andressamartins@oticamarins.com.br` não há nenhuma duplicata.
 
-2. Corrigir o gargalo estrutural no banco via migration.
-   - Criar índices compostos/parciais voltados ao Inbox, cobrindo ordenação e filtros reais (`user/org scope`, `status`, `is_pinned`, `last_message_at`, `instance_id`, `meta_phone_number_id` conforme aplicável).
-   - Priorizar índices que ajudem tanto a query da lista quanto os cenários de filtros básicos (todas, não lidas, arquivadas).
+### 2. Não existe gerenciamento de campos no Funil
+O diálogo "Configurar Colunas" (mostrado no print) só permite **mostrar/ocultar e reordenar** colunas. Não tem botão de **excluir / editar / tornar obrigatório**.
+Hoje, a única tela com essas ações é o `CustomFieldsManager` no painel lateral do Inbox (ícone de engrenagem). Por isso o usuário não consegue gerenciar os campos pelo Funil.
 
-3. Revisar a política/função de acesso usada por `conversations`.
-   - Simplificar `can_access_conversation_channel(...)` ou trocar a policy para uma forma mais barata de execução em leitura massiva.
-   - Preservar o comportamento de organização e restrições por instância/número, sem relaxar segurança.
+### 3. Excluir/Editar funcionam pela RLS, mas a UX está escondida
+As policies de `custom_field_definitions` permitem `UPDATE` e `DELETE` para o dono e qualquer membro ativo da organização. O hook `useCustomFields` está correto. O problema é puramente de UI (não há botão na tela do Funil).
 
-4. Alinhar consultas auxiliares que ainda podem piorar a percepção de lentidão.
-   - Tornar a busca de conversas faltantes em `ConversationList.tsx` compatível com o novo modelo leve, evitando `select *` com joins embutidos para IDs ausentes da busca.
-   - Revisar `useUnreadCount` para garantir que não amplifique carga desnecessária em paralelo.
+---
 
-5. Validar o resultado após a correção.
-   - Confirmar que a chamada principal do Inbox deixa de retornar 500/timeout.
-   - Verificar abertura inicial, troca entre abas e busca sem regressão funcional.
+## Plano de correção
 
-## Detalhes técnicos
-- Arquivos principais a alterar:
-  - `src/hooks/useConversations.ts`
-  - `src/components/inbox/ConversationList.tsx`
-  - `src/hooks/useUnreadCount.ts`
-  - nova migration em `supabase/migrations/`
-- Mudanças esperadas no banco:
-  - índices compostos/parciais para `conversations`
-  - possível ajuste em função/policy relacionada a acesso organizacional do Inbox
-- Segurança:
-  - manter RLS e restrições por organização/instância/número
-  - não relaxar acesso para “resolver performance”
+### Passo 1 — Limpar duplicata real existente (migration)
+Remover o campo `forma_pg_saldo` (id `625af5bc-81f3-419f-ab6c-4af220331339`) pois é cópia de `forma_de_pg_saldo`.
+Antes de excluir, copiar qualquer valor existente em `funnel_deals.custom_fields->>'forma_pg_saldo'` para a chave canônica `forma_de_pg_saldo` quando esta estiver vazia, para não perder dados.
 
-## Resultado esperado
-O Inbox volta a abrir sem timeout, com primeira carga rápida e sem depender de uma consulta cara demais para listar conversas.
+### Passo 2 — Adicionar botão "Gerenciar Campos" no Funil (Lista e Kanban)
+No header do `FunnelListView` (e também no `FunnelKanbanView`), adicionar um botão ao lado de "Colunas" que abre o componente `CustomFieldsManager` já existente. Esse componente já tem:
+- Listagem de todos os campos personalizados (Contato + Lead)
+- Botão de **editar** (nome, tipo, opções, **obrigatório** via switch)
+- Botão de **excluir**
+- Botão de **adicionar** novo campo
+
+Como o `CustomFieldsManager` está hoje com seu próprio `DialogTrigger` (ícone de engrenagem), vou refatorá-lo levemente para aceitar `open`/`onOpenChange` controlados, permitindo que o Funil dispare o mesmo dialog.
+
+### Passo 3 — Reaproveitar a mesma ação no `ColumnsConfigDialog`
+Em cada linha de coluna **personalizada** (id começando com `custom_`), exibir dois ícones extras à direita:
+- ✏️ "Editar campo" → abre o editor inline do `CustomFieldsManager` direto naquele campo
+- 🗑️ "Excluir campo" → confirma e chama `deleteField`
+Isso resolve o caso prático mostrado no print: o usuário identifica a coluna duplicada e a remove sem precisar trocar de tela.
+
+### Passo 4 — Indicador visual de duplicatas
+No `CustomFieldsManager`, marcar com badge "Possível duplicata" quando dois campos da mesma `entity_type` tiverem similaridade > 0.85 no `field_name` (cálculo no client). Apenas visual; não exclui automaticamente.
+
+### Passo 5 — Validação ao criar campo novo
+Em `CustomFieldsManager.handleAddField`, antes de chamar `createField`, verificar se já existe um campo com o mesmo `field_key` na mesma `entity_type`. Se existir, exibir toast de erro e não criar — evita gerar novas duplicatas no futuro.
+
+---
+
+## Arquivos afetados
+
+- **Migration SQL** (nova): consolidar `forma_pg_saldo` em `forma_de_pg_saldo` e remover a definição duplicada
+- `src/components/inbox/CustomFieldsManager.tsx`: aceitar props `open`/`onOpenChange` opcionais; adicionar validação anti-duplicata; badge de "possível duplicata"
+- `src/components/funnels/ColumnsConfigDialog.tsx`: novos botões editar/excluir por linha de coluna personalizada; novas props `onEditField` e `onDeleteField`
+- `src/components/funnels/FunnelListView.tsx`: adicionar botão "Gerenciar Campos" no header e wirar callbacks editar/excluir do `ColumnsConfigDialog` ao `useCustomFields`
+- `src/components/funnels/FunnelKanbanView.tsx`: adicionar mesmo botão "Gerenciar Campos" no header
+
+Posso aplicar este plano?
