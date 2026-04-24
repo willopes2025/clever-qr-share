@@ -129,6 +129,9 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     }
     
     queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+    queryClient.invalidateQueries({ queryKey: ['funnels'] });
+    queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
     toast.success("Título atualizado");
     setIsEditingTitle(false);
   };
@@ -148,6 +151,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     
     queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
     queryClient.invalidateQueries({ queryKey: ['funnels'] });
+    queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
     toast.success("Valor atualizado");
     setIsEditingValue(false);
   };

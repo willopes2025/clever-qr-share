@@ -138,6 +138,9 @@ export const useCustomFields = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
+      queryClient.invalidateQueries({ queryKey: ['funnels'] });
+      queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
     },
     onError: (error: Error) => {
       toast.error("Erro ao atualizar campos: " + error.message);
@@ -154,12 +157,28 @@ export const useCustomFields = () => {
 
       if (error) throw error;
     },
+    onMutate: async ({ dealId, customFields }) => {
+      // Optimistic update on the contact-deal cache so the side panel reflects instantly
+      await queryClient.cancelQueries({ queryKey: ['contact-deal'] });
+      const previous = queryClient.getQueriesData({ queryKey: ['contact-deal'] });
+      queryClient.setQueriesData({ queryKey: ['contact-deal'] }, (old: any) => {
+        if (!old || old?.id !== dealId) return old;
+        return { ...old, custom_fields: customFields };
+      });
+      return { previous };
+    },
+    onError: (error: Error, _vars, context: any) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+      toast.error("Erro ao atualizar campos do lead: " + error.message);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
-    },
-    onError: (error: Error) => {
-      toast.error("Erro ao atualizar campos do lead: " + error.message);
+      queryClient.invalidateQueries({ queryKey: ['contact-deal'] });
     },
   });
 
