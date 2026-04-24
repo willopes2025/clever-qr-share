@@ -55,11 +55,15 @@ export const ColumnsConfigDialog = ({
   onSave,
   teamMembers = [],
   isSaving = false,
+  onEditCustomField,
+  onDeleteCustomField,
 }: ColumnsConfigDialogProps) => {
   const [localVisible, setLocalVisible] = useState<string[]>(visibleColumns);
   const [localOrder, setLocalOrder] = useState<string[]>(columnOrder);
   const [showTeamShare, setShowTeamShare] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (open) {
