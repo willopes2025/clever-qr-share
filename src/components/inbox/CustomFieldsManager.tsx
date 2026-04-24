@@ -420,8 +420,12 @@ export const CustomFieldsManager = ({ open: openProp, onOpenChange, initialEditF
                           checked={editData.is_required}
                           onCheckedChange={(checked) => setEditData(prev => ({ ...prev, is_required: checked }))}
                         />
-                        <Label className="text-sm">Campo obrigatório</Label>
+                        <Label className="text-sm">Campo obrigatório (sempre)</Label>
                       </div>
+
+                      {editData.entity_type === 'lead' && !editData.is_required && (
+                        <RequiredRulesEditor fieldId={field.id} />
+                      )}
 
                       <div className="flex gap-2">
                         <Button size="sm" onClick={handleSaveEdit} disabled={!editData.field_name.trim() || updateField.isPending} className="flex-1">
