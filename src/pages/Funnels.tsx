@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles } from "lucide-react";
+import { Plus, Target, LayoutGrid, List, Settings2, Zap, BarChart3, Bot, Trash2, Pencil, Workflow, UserPlus, Sparkles, ListChecks } from "lucide-react";
 import { AppLayout } from "@/layouts/AppLayout";
 import { FeatureGate } from "@/components/FeatureGate";
 import { Button } from "@/components/ui/button";
