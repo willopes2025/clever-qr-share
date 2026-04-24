@@ -2349,6 +2349,55 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_field_required_rules: {
+        Row: {
+          created_at: string
+          field_definition_id: string
+          from_stage_id: string
+          funnel_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_definition_id: string
+          from_stage_id: string
+          funnel_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          field_definition_id?: string
+          from_stage_id?: string
+          funnel_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_field_required_rules_field_definition_id_fkey"
+            columns: ["field_definition_id"]
+            isOneToOne: false
+            referencedRelation: "custom_field_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_field_required_rules_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_field_required_rules_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_configs: {
         Row: {
           config_type: string
