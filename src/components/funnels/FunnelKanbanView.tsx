@@ -4,12 +4,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useGrabScroll } from "@/hooks/useGrabScroll";
-import { Funnel, FunnelStage, useFunnels } from "@/hooks/useFunnels";
+import { Funnel, FunnelStage, FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { useStageDealCounts, useLoadMoreDeals, DEALS_PER_PAGE } from "@/hooks/useFunnelDeals";
+import { useCustomFields } from "@/hooks/useCustomFields";
+import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { getMissingRequiredFields } from "@/lib/required-fields";
 import { FunnelDealCard } from "./FunnelDealCard";
 import { DealFormDialog } from "./DealFormDialog";
 import { StageFormDialog } from "./StageFormDialog";
 import { StageContextMenu } from "./StageContextMenu";
+import { RequiredFieldsCheckDialog } from "./RequiredFieldsCheckDialog";
+import type { CustomFieldDefinition } from "@/hooks/useCustomFields";
 
 interface FunnelKanbanViewProps {
   funnel: Funnel;
