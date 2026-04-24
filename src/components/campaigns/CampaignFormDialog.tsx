@@ -214,11 +214,13 @@ export const CampaignFormDialog = ({
 
   useEffect(() => {
     if (campaign) {
+      const isChatbotCampaign = campaign.dispatch_mode === 'chatbot';
       const isMetaCampaign = !!campaign.meta_template_id;
       setName(campaign.name);
-      setMessageMode(isMetaCampaign ? 'meta_template' : 'template');
+      setMessageMode(isChatbotCampaign ? 'chatbot' : isMetaCampaign ? 'meta_template' : 'template');
       setTemplateId(campaign.meta_template_id || campaign.template_id || '');
       setSelectedMetaPhoneNumberId(campaign.meta_phone_number_id || '');
+      setChatbotFlowId(campaign.chatbot_flow_id || '');
       setListId(campaign.list_id || '');
       if (campaign.scheduled_at) {
         setIsScheduled(true);
