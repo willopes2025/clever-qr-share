@@ -138,68 +138,103 @@ export const useConversations = () => {
     enabled: !!user,
   });
 
+  // Page size for the inbox list. We keep it generous so all common filters
+  // (unread, archived, by funnel etc.) still find matches client-side, but
+  // small enough to avoid statement timeouts on large databases.
+  const INBOX_PAGE_SIZE = 300;
+
   const { data: conversations, isLoading, refetch } = useQuery({
     queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds],
     queryFn: async () => {
+      // STEP 1 — Light query: only fields needed by the list itself.
+      // We deliberately removed the embedded `contact` and
+      // `conversation_tag_assignments` joins from this call — embedding
+      // those in a single PostgREST request was triggering
+      // "canceling statement due to statement timeout" (HTTP 500) on
+      // accounts with thousands of conversations. We now fetch contacts
+      // and tag assignments separately, in chunks, only for the page we
+      // actually render.
       let query = supabase
         .from('conversations')
         .select(`
-          *,
-          contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
-          tag_assignments:conversation_tag_assignments(tag_id)
+          id, user_id, contact_id, instance_id,
+          last_message_at, last_message_preview, last_message_direction,
+          unread_count, status, is_pinned,
+          created_at, updated_at,
+          campaign_id, ai_handled, ai_paused, ai_handoff_requested,
+          ai_handoff_reason, ai_interactions_count,
+          assigned_to, first_response_at,
+          provider, meta_phone_number_id
         `)
         .order('is_pinned', { ascending: false })
-        .order('last_message_at', { ascending: false });
+        .order('last_message_at', { ascending: false })
+        .limit(INBOX_PAGE_SIZE);
 
       // Filter by instance IDs if member has instance restrictions
-      // But always include Meta conversations (instance_id IS NULL) unless user has meta number restrictions
       if (hasInstanceRestriction && allowedInstanceIds !== undefined) {
         if (allowedInstanceIds.length > 0) {
-          // Include assigned instances AND meta conversations (instance_id is null)
           query = query.or(`instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`);
         } else {
-          // No Evolution instances assigned - still show Meta conversations
           query = query.is('instance_id', null);
         }
       }
 
-      // Exclude conversations from notification-only instances
-      // But always include meta conversations (instance_id = null)
       if (notificationInstanceIds && notificationInstanceIds.length > 0) {
-        // We need to keep conversations where:
-        // 1. instance_id is null (meta conversations)
-        // 2. instance_id is NOT in notificationInstanceIds
         query = query.or(`instance_id.is.null,instance_id.not.in.(${notificationInstanceIds.join(',')})`);
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      // Build dealsMap ONLY for the contacts visible in this inbox load.
-      // Previously this query fetched ALL open deals (~9k+ rows) on every
-      // conversations refetch — including every realtime invalidation —
-      // which made opening the Inbox extremely slow. Filtering by
-      // contact_id keeps the payload at most ~N where N = visible
-      // conversations (typically <300), and is backed by the
-      // idx_funnel_deals_contact_id index.
-      const dealsMap: Record<string, ConversationDeal> = {};
-      const contactIds = Array.from(
-        new Set(((data as any[]) || []).map((c: any) => c.contact_id).filter(Boolean))
-      );
+      const rows = (data as any[]) || [];
+      const conversationIds = rows.map(r => r.id);
+      const contactIds = Array.from(new Set(rows.map(r => r.contact_id).filter(Boolean)));
 
+      // STEP 2 — Fetch contacts (just what the list needs) in chunks.
+      const contactsMap: Record<string, any> = {};
       if (contactIds.length > 0) {
-        // Chunk to keep URL length safe even on very large inboxes
+        const CHUNK = 200;
+        for (let i = 0; i < contactIds.length; i += CHUNK) {
+          const slice = contactIds.slice(i, i + CHUNK);
+          const { data: cs } = await supabase
+            .from('contacts')
+            .select('id, name, phone, avatar_url, contact_display_id, notes, custom_fields')
+            .in('id', slice);
+          if (cs) {
+            for (const c of cs as any[]) contactsMap[c.id] = c;
+          }
+        }
+      }
+
+      // STEP 3 — Fetch tag assignments for the visible conversations only.
+      const tagsMap: Record<string, { tag_id: string }[]> = {};
+      if (conversationIds.length > 0) {
+        const CHUNK = 200;
+        for (let i = 0; i < conversationIds.length; i += CHUNK) {
+          const slice = conversationIds.slice(i, i + CHUNK);
+          const { data: tagRows } = await supabase
+            .from('conversation_tag_assignments')
+            .select('conversation_id, tag_id')
+            .in('conversation_id', slice);
+          if (tagRows) {
+            for (const t of tagRows as any[]) {
+              if (!tagsMap[t.conversation_id]) tagsMap[t.conversation_id] = [];
+              tagsMap[t.conversation_id].push({ tag_id: t.tag_id });
+            }
+          }
+        }
+      }
+
+      // STEP 4 — Fetch open deals for visible contacts only.
+      const dealsMap: Record<string, ConversationDeal> = {};
+      if (contactIds.length > 0) {
         const CHUNK = 200;
         for (let i = 0; i < contactIds.length; i += CHUNK) {
           const slice = contactIds.slice(i, i + CHUNK);
           const { data: deals } = await supabase
             .from('funnel_deals')
             .select(`
-              id,
-              contact_id,
-              stage_id,
-              funnel_id,
+              id, contact_id, stage_id, funnel_id,
               funnel:funnels(name),
               stage:funnel_stages(name, color)
             `)
@@ -222,26 +257,26 @@ export const useConversations = () => {
           }
         }
       }
-      
-      // Filter out "ghost" conversations: no message preview, no direction,
-      // and no real contact name. These are typically dialogs that were opened
-      // via "Nova Conversa" but never had a message sent or received.
-      const cleaned = (data || []).filter((conv: any) => {
+
+      // Filter out "ghost" conversations (created via "Nova Conversa" but
+      // never had a message exchanged AND no real contact name).
+      const cleaned = rows.filter((conv: any) => {
         const hasPreview = !!conv.last_message_preview;
         const hasDirection = !!conv.last_message_direction;
-        const contactName = (conv.contact?.name || '').trim();
-        const hasRealName = contactName.length > 0;
-        // Keep if there's any sign of activity OR a real contact name
-        return hasPreview || hasDirection || hasRealName;
+        const contact = contactsMap[conv.contact_id];
+        const contactName = (contact?.name || '').trim();
+        return hasPreview || hasDirection || contactName.length > 0;
       });
 
-      // Map deals to conversations
       return cleaned.map((conv: any) => ({
         ...conv,
+        contact: contactsMap[conv.contact_id] || null,
+        tag_assignments: tagsMap[conv.id] || [],
         deal: dealsMap[conv.contact_id] || null,
       })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
     enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
+    staleTime: 15_000,
   });
 
   const createConversation = useMutation({
