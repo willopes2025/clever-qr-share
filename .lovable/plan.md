@@ -1,56 +1,34 @@
-## Diagnóstico
+# Atualização instantânea ao editar dados do lead
 
-A campanha gera mensagens com placeholders vazios — `{{consultor}}`, `{{valor_da_entrada}}`, `{{data_da_entrada}}`, `{{forma_de_pagamento}}` aparecem literalmente no WhatsApp ou viram texto vazio — porque a Edge Function `start-campaign` (linhas 1320–1345 de `supabase/functions/start-campaign/index.ts`) faz a substituição olhando **apenas** para `contacts.custom_fields`.
+## Problema
 
-Confirmei no banco:
-- `consultor`, `valor_da_entrada`, `data_da_entrada`, `forma_de_pagamento` → entity_type = **`lead`** (ficam em `funnel_deals.custom_fields`)
-- `primeiro_nome` → entity_type = `contact`, mas é virtual (derivado do `name`), não está em `custom_fields`
+Quando você edita um campo do lead (título, valor, ou campos personalizados de lead/contato) no painel lateral do Inbox ou no Kanban, o valor é salvo no banco mas o painel exibe o valor antigo até apertar F5. O motivo é que as mutations de salvamento invalidam apenas algumas chaves de cache do React Query, deixando outras (que alimentam o painel) com dados desatualizados.
 
-Como nada disso é resolvido, o regex final de limpeza (`messageContent.replace(/\{\{[^}]+\}\}/g, '')`) acaba apagando os placeholders, gerando a mensagem incompleta vista no print.
-
-Observação: a função `execute-chatbot-flow` **já** trata `primeiro_nome` e campos de lead corretamente (corrigido em loop anterior). Esta correção é necessária apenas no caminho de campanhas tradicionais (template + variações).
+Especificamente:
+- O painel lateral lê os dados via a query `['contact-deal', contactId]` (`useContactDeal`).
+- As mutations atuais invalidam apenas `['funnels']` e `['funnel-deals']`, **nunca** `['contact-deal']`.
+- O mesmo acontece com edições de nome/campos do contato (não invalidam `['contact-deal']` nem `['funnels']`).
 
 ## Mudanças
 
-**Arquivo:** `supabase/functions/start-campaign/index.ts`
+### 1. `src/hooks/useCustomFields.ts`
+- Em `updateDealCustomFields.onSuccess`: adicionar `invalidateQueries({ queryKey: ['contact-deal'] })`.
+- Em `updateContactCustomFields.onSuccess`: adicionar `invalidateQueries({ queryKey: ['contact-deal'] })` e `invalidateQueries({ queryKey: ['funnels'] })` (o Kanban exibe nome/campos do contato no card).
 
-No bloco `messageRecords = filteredContacts.map(...)` (linhas ~1320–1345):
+### 2. `src/components/inbox/lead-panel/LeadFieldsSection.tsx`
+- Em `handleSaveTitle` e `handleSaveValue`: adicionar `invalidateQueries({ queryKey: ['contact-deal'] })` para refletir alterações imediatamente no painel.
+- Aplicar atualização otimista local imediata em `localTitle`/`localValue` (já feito), mas garantir que a invalidação dispare também `['conversations']` (o título do deal aparece no header do painel via `LeadPanelHeader`).
 
-1. **Antes do `.map`**, fazer um único batch fetch dos deals dos contatos filtrados:
-   ```ts
-   const contactIds = filteredContacts.map(c => c.id);
-   const { data: deals } = await supabase
-     .from('funnel_deals')
-     .select('contact_id, custom_fields, value, name, stage:funnel_stages(name), funnel:funnels(name)')
-     .in('contact_id', contactIds)
-     .order('created_at', { ascending: false });
-   const dealByContact = new Map<string, any>();
-   for (const d of deals || []) {
-     if (!dealByContact.has(d.contact_id)) dealByContact.set(d.contact_id, d);
-   }
-   ```
+### 3. `src/components/inbox/lead-panel/ContactFieldsSection.tsx`
+- Em `handleSaveName` (edição do nome do contato): além de invalidar `contacts`/`conversations`, invalidar `['contact-deal']` e `['funnels']` para que o cartão e o painel reflitam o novo nome sem F5.
 
-2. **Dentro do `.map`**, expandir a substituição:
-   - `{{primeiro_nome}}` / `{{first_name}}` → primeira palavra de `contact.name`
-   - `{{nome}}` / `{{name}}`, `{{telefone}}` / `{{phone}}`, `{{email}}` (já existem)
-   - `{{valor}}` → `deal.value`
-   - `{{etapa}}` → `deal.stage?.name`
-   - `{{funil}}` → `deal.funnel?.name`
-   - Loop em `contact.custom_fields` (campos de contato — já existe)
-   - **Novo:** loop em `deal.custom_fields` (campos de lead)
-   - Manter o regex final que limpa placeholders restantes
+### 4. (Opcional, mas recomendado) Atualização otimista do cache `contact-deal`
+Para feedback ainda mais instantâneo (sem aguardar refetch), na mutation `updateDealCustomFields` podemos aplicar um `setQueryData` otimista que mescla `customFields` no cache `['contact-deal', contactId]` antes do servidor responder. Isso elimina o "flicker" entre clicar e ver o valor novo.
 
-3. Aplicar a mesma lógica também no bloco anterior (linhas ~1083–1108) onde mensagens IA caem no fallback de texto fixo, garantindo consistência.
+## Resultado esperado
 
-## Detalhes técnicos
+- Editar título, valor ou qualquer campo personalizado do lead atualiza o painel lateral instantaneamente.
+- Editar o nome ou campos personalizados do contato também atualiza o painel e o card no Kanban sem reload.
+- Nenhuma necessidade de F5.
 
-- A consulta de deals é feita uma única vez (em batch via `.in('contact_id', ...)`) para não impactar performance em campanhas grandes (a campanha "Receitas Vencidas" tem 7.878 contatos).
-- Para campanhas que já estão `sending` com `campaign_messages` enfileiradas (como a do print), os registros já gravados no banco têm `message_content` corrompido. **Não vou regravá-los automaticamente** para evitar efeito colateral; após o deploy as próximas campanhas (e a campanha "teste" da Ingrid mencionada antes) serão enviadas corretamente. Se quiser regerar uma campanha já em andamento, posso adicionar um botão "Regerar mensagens" no card da campanha em um próximo passo.
-- Manter compatibilidade com a substituição existente para não quebrar campanhas em curso.
-
-## Fora de escopo
-
-- UI do CampaignCard (estimativa de conclusão / aviso de daily_limit) — fica para outro loop.
-- Mostrar fuso horário no card da campanha — fica para outro loop.
-
-Pronto para aplicar?
+Posso aplicar?
