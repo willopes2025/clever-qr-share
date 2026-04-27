@@ -113,6 +113,7 @@ export const BroadcastListFormDialog = ({
         fieldKey,
         operator: filter.operator,
         value: filter.value,
+        entity: filter.entity,
       }));
       setCustomFieldFilters(filtersArray);
       
