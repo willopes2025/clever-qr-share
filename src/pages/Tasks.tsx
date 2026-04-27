@@ -44,7 +44,23 @@ const Tasks = () => {
   const [completingTask, setCompletingTask] = useState<AllTaskItem | null>(null);
   const [completionNotes, setCompletionNotes] = useState("");
 
-  // Fetch profiles for assignee names
+  // Edit dialog state
+  const [editingTask, setEditingTask] = useState<AllTaskItem | null>(null);
+
+  // Fetch team members for assignee picker
+  const { members } = useTeamMembers();
+  const allAssignees = useMemo(
+    () =>
+      (members || [])
+        .filter((m: any) => m.user_id)
+        .map((m: any) => ({
+          id: m.user_id as string,
+          name: (m.profile?.full_name as string) || (m.email as string) || "Sem nome",
+        })),
+    [members]
+  );
+
+  // Fetch profiles for assignee names (display in table)
   const { data: profiles = [] } = useQuery({
     queryKey: ['task-profiles', assigneeIds],
     queryFn: async () => {
@@ -55,7 +71,12 @@ const Tasks = () => {
     enabled: assigneeIds.length > 0,
   });
 
-  const profileMap = useMemo(() => new Map(profiles.map(p => [p.id, p.full_name || 'Sem nome'])), [profiles]);
+  const profileMap = useMemo(() => {
+    const map = new Map(profiles.map(p => [p.id, p.full_name || 'Sem nome']));
+    // Fallback to team members if profile not found
+    allAssignees.forEach(a => { if (!map.has(a.id)) map.set(a.id, a.name); });
+    return map;
+  }, [profiles, allAssignees]);
 
   const isOverdue = (task: AllTaskItem) => {
     if (task.completed_at || !task.due_date) return false;
