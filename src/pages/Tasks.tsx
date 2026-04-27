@@ -235,6 +235,7 @@ const Tasks = () => {
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Origem</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
