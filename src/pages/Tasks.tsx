@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { EditTaskDialog } from "@/components/tasks/EditTaskDialog";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { Pencil } from "lucide-react";
 
 const priorityColors: Record<string, string> = {
   high: "text-destructive",
@@ -41,7 +44,23 @@ const Tasks = () => {
   const [completingTask, setCompletingTask] = useState<AllTaskItem | null>(null);
   const [completionNotes, setCompletionNotes] = useState("");
 
-  // Fetch profiles for assignee names
+  // Edit dialog state
+  const [editingTask, setEditingTask] = useState<AllTaskItem | null>(null);
+
+  // Fetch team members for assignee picker
+  const { members } = useTeamMembers();
+  const allAssignees = useMemo(
+    () =>
+      (members || [])
+        .filter((m: any) => m.user_id)
+        .map((m: any) => ({
+          id: m.user_id as string,
+          name: (m.profile?.full_name as string) || (m.email as string) || "Sem nome",
+        })),
+    [members]
+  );
+
+  // Fetch profiles for assignee names (display in table)
   const { data: profiles = [] } = useQuery({
     queryKey: ['task-profiles', assigneeIds],
     queryFn: async () => {
@@ -52,7 +71,12 @@ const Tasks = () => {
     enabled: assigneeIds.length > 0,
   });
 
-  const profileMap = useMemo(() => new Map(profiles.map(p => [p.id, p.full_name || 'Sem nome'])), [profiles]);
+  const profileMap = useMemo(() => {
+    const map = new Map(profiles.map(p => [p.id, p.full_name || 'Sem nome']));
+    // Fallback to team members if profile not found
+    allAssignees.forEach(a => { if (!map.has(a.id)) map.set(a.id, a.name); });
+    return map;
+  }, [profiles, allAssignees]);
 
   const isOverdue = (task: AllTaskItem) => {
     if (task.completed_at || !task.due_date) return false;
@@ -211,25 +235,30 @@ const Tasks = () => {
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Origem</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     Carregando tarefas...
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     Nenhuma tarefa encontrada
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.map(task => (
-                <TableRow key={`${task.source}-${task.id}`} className={cn(task.completed_at && "opacity-60")}>
+                <TableRow
+                  key={`${task.source}-${task.id}`}
+                  className={cn("group cursor-pointer hover:bg-muted/40", task.completed_at && "opacity-60")}
+                  onClick={() => setEditingTask(task)}
+                >
                   <TableCell>
-                    <button onClick={() => handleToggleComplete(task)} className="hover:scale-110 transition-transform">
+                    <button onClick={(e) => { e.stopPropagation(); handleToggleComplete(task); }} className="hover:scale-110 transition-transform">
                       {task.completed_at ? (
                         <CheckCircle2 className="h-5 w-5 text-primary" />
                       ) : (
@@ -284,7 +313,7 @@ const Tasks = () => {
                   <TableCell>
                     {(task.conversation_id || task.contact_id) ? (
                       <button
-                        onClick={() => navigateToOrigin(task)}
+                        onClick={(e) => { e.stopPropagation(); navigateToOrigin(task); }}
                         className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                       >
                         <ExternalLink className="h-3 w-3" />
@@ -298,6 +327,17 @@ const Tasks = () => {
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(task)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                      title="Editar tarefa"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -329,6 +369,14 @@ const Tasks = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => { if (!open) setEditingTask(null); }}
+        assignees={allAssignees}
+      />
     </DashboardLayout>
   );
 };
