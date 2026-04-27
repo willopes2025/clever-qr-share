@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { EditTaskDialog } from "@/components/tasks/EditTaskDialog";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { Pencil } from "lucide-react";
 
 const priorityColors: Record<string, string> = {
   high: "text-destructive",
