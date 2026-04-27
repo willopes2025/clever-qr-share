@@ -258,7 +258,7 @@ const Tasks = () => {
                   onClick={() => setEditingTask(task)}
                 >
                   <TableCell>
-                    <button onClick={() => handleToggleComplete(task)} className="hover:scale-110 transition-transform">
+                    <button onClick={(e) => { e.stopPropagation(); handleToggleComplete(task); }} className="hover:scale-110 transition-transform">
                       {task.completed_at ? (
                         <CheckCircle2 className="h-5 w-5 text-primary" />
                       ) : (
