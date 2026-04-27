@@ -349,6 +349,11 @@ export const BroadcastListFormDialog = ({
                                     style={{ backgroundColor: stage.color }}
                                   />
                                   {stage.name}
+                                  {stage.is_final && (
+                                    <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                                      Final
+                                    </Badge>
+                                  )}
                                 </span>
                               </SelectItem>
                             ))}
