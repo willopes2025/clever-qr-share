@@ -41,6 +41,7 @@ interface CustomFieldFilterState {
   fieldKey: string;
   operator: CustomFieldOperator;
   value?: string;
+  entity?: 'lead' | 'contact';
 }
 
 export const BroadcastListFormDialog = ({
