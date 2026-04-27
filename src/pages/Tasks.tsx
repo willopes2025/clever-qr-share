@@ -313,7 +313,7 @@ const Tasks = () => {
                   <TableCell>
                     {(task.conversation_id || task.contact_id) ? (
                       <button
-                        onClick={() => navigateToOrigin(task)}
+                        onClick={(e) => { e.stopPropagation(); navigateToOrigin(task); }}
                         className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                       >
                         <ExternalLink className="h-3 w-3" />
