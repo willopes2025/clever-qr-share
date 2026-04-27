@@ -328,6 +328,17 @@ const Tasks = () => {
                   <TableCell>
                     {getStatusBadge(task)}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                      title="Editar tarefa"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
