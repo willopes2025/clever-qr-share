@@ -369,6 +369,14 @@ const Tasks = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      <EditTaskDialog
+        task={editingTask}
+        open={!!editingTask}
+        onOpenChange={(open) => { if (!open) setEditingTask(null); }}
+        assignees={allAssignees}
+      />
     </DashboardLayout>
   );
 };
