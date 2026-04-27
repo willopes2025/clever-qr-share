@@ -76,15 +76,18 @@ export const BroadcastListFormDialog = ({
   }, [funnels, selectedFunnelId]);
 
   const funnelStages = useMemo(() => {
-    return selectedFunnel?.stages?.filter(s => !s.is_final) || [];
+    // Inclui etapas finais (Ganho/Perdido) — útil para reativar leads perdidos
+    return selectedFunnel?.stages || [];
   }, [selectedFunnel]);
 
   // Campos disponíveis para filtro (baseado na fonte)
   const availableCustomFields = useMemo(() => {
-    // Para contatos, usa campos de contato; para funil, usa campos de lead
-    return source === 'contacts' 
-      ? customFieldDefinitions.filter(f => f.entity_type === 'contact')
-      : customFieldDefinitions.filter(f => f.entity_type === 'lead');
+    if (source === 'funnel') {
+      // Em funil, mostramos campos de Lead E de Contato — usuário escolhe a entidade por filtro
+      return customFieldDefinitions.filter(f => f.entity_type === 'lead' || f.entity_type === 'contact');
+    }
+    // Em contatos, apenas campos do contato
+    return customFieldDefinitions.filter(f => f.entity_type === 'contact');
   }, [customFieldDefinitions, source]);
 
   useEffect(() => {
