@@ -41,6 +41,7 @@ interface CustomFieldFilterState {
   fieldKey: string;
   operator: CustomFieldOperator;
   value?: string;
+  entity?: 'lead' | 'contact';
 }
 
 export const BroadcastListFormDialog = ({
@@ -75,15 +76,18 @@ export const BroadcastListFormDialog = ({
   }, [funnels, selectedFunnelId]);
 
   const funnelStages = useMemo(() => {
-    return selectedFunnel?.stages?.filter(s => !s.is_final) || [];
+    // Inclui etapas finais (Ganho/Perdido) — útil para reativar leads perdidos
+    return selectedFunnel?.stages || [];
   }, [selectedFunnel]);
 
   // Campos disponíveis para filtro (baseado na fonte)
   const availableCustomFields = useMemo(() => {
-    // Para contatos, usa campos de contato; para funil, usa campos de lead
-    return source === 'contacts' 
-      ? customFieldDefinitions.filter(f => f.entity_type === 'contact')
-      : customFieldDefinitions.filter(f => f.entity_type === 'lead');
+    if (source === 'funnel') {
+      // Em funil, mostramos campos de Lead E de Contato — usuário escolhe a entidade por filtro
+      return customFieldDefinitions.filter(f => f.entity_type === 'lead' || f.entity_type === 'contact');
+    }
+    // Em contatos, apenas campos do contato
+    return customFieldDefinitions.filter(f => f.entity_type === 'contact');
   }, [customFieldDefinitions, source]);
 
   useEffect(() => {
@@ -109,6 +113,7 @@ export const BroadcastListFormDialog = ({
         fieldKey,
         operator: filter.operator,
         value: filter.value,
+        entity: filter.entity,
       }));
       setCustomFieldFilters(filtersArray);
       
@@ -171,9 +176,17 @@ export const BroadcastListFormDialog = ({
         const customFields: Record<string, CustomFieldFilter> = {};
         customFieldFilters.forEach(filter => {
           if (filter.fieldKey) {
+            // Resolver entity automaticamente a partir da definição do campo
+            const fieldDef = availableCustomFields.find(f => f.field_key === filter.fieldKey);
+            const resolvedEntity: 'lead' | 'contact' | undefined =
+              source === 'funnel'
+                ? (fieldDef?.entity_type === 'contact' ? 'contact' : 'lead')
+                : undefined;
+
             customFields[filter.fieldKey] = {
               operator: filter.operator,
               value: filter.value,
+              ...(resolvedEntity ? { entity: resolvedEntity } : {}),
             };
           }
         });
@@ -336,6 +349,11 @@ export const BroadcastListFormDialog = ({
                                     style={{ backgroundColor: stage.color }}
                                   />
                                   {stage.name}
+                                  {stage.is_final && (
+                                    <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px]">
+                                      Final
+                                    </Badge>
+                                  )}
                                 </span>
                               </SelectItem>
                             ))}

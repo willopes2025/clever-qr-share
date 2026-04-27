@@ -44,7 +44,12 @@ export const CustomFieldFilterRow = ({
         <SelectContent>
           {availableFields.map((field) => (
             <SelectItem key={field.id} value={field.field_key}>
-              {field.field_name}
+              <span className="flex items-center gap-1.5">
+                {field.field_name}
+                <span className="text-[10px] text-muted-foreground uppercase">
+                  ({field.entity_type === 'lead' ? 'lead' : 'contato'})
+                </span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

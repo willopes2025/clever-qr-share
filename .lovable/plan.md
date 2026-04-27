@@ -1,87 +1,86 @@
-## Objetivo
+## Diagnóstico — Filtros das Listas Dinâmicas
 
-Hoje o switch "Campo obrigatório" é global — ou o campo é obrigatório em todos os lugares ou em nenhum. Você precisa que ele seja obrigatório **apenas a partir de uma etapa específica de um funil específico**.
-
-Exemplo do seu caso: no funil "Centro de Saúde Visual", o campo "Data da consulta" só passa a ser obrigatório quando o lead é movido para a etapa "Exame agendado" (ou qualquer etapa posterior). Antes dela, o campo continua opcional.
+Após auditar `src/hooks/useBroadcastLists.ts` e `src/components/broadcasts/BroadcastListFormDialog.tsx`, encontrei **6 problemas** que fazem com que os leads filtrados não apareçam corretamente na lista (e divirjam entre o badge de contagem e a lista efetiva exibida/disparada):
 
 ---
 
-## Como vai funcionar (visão do usuário)
+### Bugs encontrados
 
-### 1. Configurar a obrigatoriedade
-No gerenciador de campos personalizados (botão **"Campos"** no Funil), ao editar um campo do tipo **Lead**, além do switch "Campo obrigatório" atual aparecerá uma nova seção:
+**1. Etapas finais (Ganho/Perdido) ocultas no seletor de etapa**
+No diálogo de criação da lista, ao escolher fonte = "Funil", o select de Etapa filtra `s => !s.is_final`. Isso impede o usuário de criar uma lista para leads ganhos/perdidos (ex.: reativar perdidos com uma campanha).
 
-> **Regras de obrigatoriedade por etapa**  
-> [+ Adicionar regra]
+**2. Branch "Funil" usa `.limit(1000)` em vez de paginar**
+Em `useListContacts`, quando `source === 'funnel'`, a query usa `.limit(1000)` (linhas 353 e 385). Funis com >1000 deals retornam **lista truncada silenciosamente** — diferente do badge de contagem, que conta tudo via `head: true`. Isso faz parecer que "leads não aparecem".
 
-Cada regra terá:
-- **Funil** (select) — qual funil
-- **A partir da etapa** (select com as etapas do funil escolhido, em ordem)
+**3. Filtro `optedOut` não aplicado na fonte "Funil"**
+Quando source = funnel, o código nunca aplica `excludeOptedOut` aos contatos retornados. O usuário marca a opção mas ela é ignorada para listas de funil.
 
-Você pode adicionar várias regras (ex.: obrigatório a partir de "Exame agendado" no funil de Saúde Visual **e** a partir de "Proposta enviada" no funil Comercial).
+**4. Filtro de tags na fonte "Funil" só busca os primeiros 1000 deals**
+A combinação `funil + tags` faz fetch de até 1000 deals e depois filtra por tag em memória. Em funis grandes, leads válidos ficam de fora.
 
-### 2. Validação ao mover o lead
-Quando o usuário tentar mover um lead para uma etapa onde o campo se tornou obrigatório (via drag-and-drop no Kanban, dropdown na Lista, ou edição no formulário do deal):
+**5. `customFields` aplicado na entidade errada quando source = "funnel"**
+No dialog, ao escolher fonte = "funnel", só são listados campos do tipo `lead` — porém o filtro é aplicado em `funnel_deals.custom_fields`. Isso está correto **somente** se o campo estiver salvo no deal. Campos de Lead que foram convertidos/movidos do contato (vencimento boleto etc., conforme memória do projeto, vivem em `contacts.custom_fields`) ficam fora do filtro. Resultado: zero matches mesmo havendo leads válidos.
 
-- Se o valor estiver preenchido → move normalmente
-- Se estiver vazio → bloqueia, mostra um diálogo "Preencha os campos obrigatórios para esta etapa" listando os campos faltantes, com inputs inline para preencher e botão **"Preencher e mover"**
-
-Vai funcionar nos 3 fluxos: Kanban (drag), Lista (dropdown da etapa) e DealFormDialog (salvar).
-
-### 3. Indicação visual
-- No editor de campos do lead (`DealCustomFieldsEditor`), o asterisco vermelho aparece dinamicamente baseado na etapa atual do deal
-- O switch global "Campo obrigatório" continua existindo (= obrigatório sempre, em todos os funis) e tem precedência
+**6. Inconsistência entre contagem e listagem para "tags + customFields"**
+Em `countContactsByCriteria` (branch com tags), aplica filtros de `customFields` mas pagina manualmente. A `useListContacts` (branch idêntico) também pagina, mas a deduplicação por `Map<id>` esconde resultados quando a query retorna >1000 linhas com mesmo contato em múltiplas tags. Em contas grandes o número exibido no card e o número da lista divergem.
 
 ---
 
-## Detalhes técnicos
+### Plano de correção
 
-### Migração de banco
-Nova tabela:
-```sql
-CREATE TABLE custom_field_required_rules (
-  id uuid PK,
-  field_definition_id uuid REFERENCES custom_field_definitions ON DELETE CASCADE,
-  funnel_id uuid REFERENCES funnels ON DELETE CASCADE,
-  from_stage_id uuid REFERENCES funnel_stages ON DELETE CASCADE,
-  -- "from_stage_id" = a partir desta etapa em diante (usa display_order da etapa)
-  user_id uuid,
-  created_at timestamptz default now(),
-  UNIQUE(field_definition_id, funnel_id)
-);
+**A. `BroadcastListFormDialog.tsx`**
+- Permitir todas as etapas no select (incluindo `is_final`), marcando-as visualmente com badge "Final".
+- Quando fonte = "funnel", oferecer um sub-seletor "Buscar campos em" → opções: **Lead** (deal.custom_fields, padrão) ou **Contato** (contact.custom_fields). Mostrar campos da entidade escolhida.
+
+**B. `useBroadcastLists.ts` — `useListContacts` (branch funnel)**
+- Substituir `.limit(1000)` por paginação `.range()` em loop (igual ao branch de contatos).
+- Aplicar `optedOut` no contato (via filtro no join `contacts!inner(...)` com `.eq('contacts.opted_out', false)`).
+- Para tags + funnel: trocar a busca em memória por **paginação completa** dos deals e depois join com `contact_tags` em lote.
+- Adicionar suporte para filtros de `customFields` em `contacts.custom_fields` quando o usuário escolher entidade "Contato" (usar JOIN ao invés de filtro no deal).
+
+**C. `useBroadcastLists.ts` — `countContactsByCriteria` (branch funnel)**
+- Replicar exatamente as mesmas regras (paginar, aplicar optedOut, suportar campo do contato vs do lead) para garantir paridade entre badge e lista.
+
+**D. Consistência geral**
+- Extrair uma função helper `applyCustomFieldFilters(query, customFields, jsonColumn)` reutilizada por todos os 4 branches (count contatos, count funil, list contatos, list funil) para eliminar divergências.
+- Unificar pagamento Asaas: aplicar `optedOut` também quando o filtro é `asaasPaymentStatus` em fonte funil (hoje só funciona em contatos).
+
+---
+
+### Detalhes técnicos
+
+**Sintaxe JSONB no PostgREST**
+A sintaxe atual ``custom_fields->>${fieldKey}`` está correta para campos top-level com chaves alfanuméricas/underscore. Caso a chave do campo contenha hífen (raro mas possível), precisa virar ``custom_fields->>"${fieldKey}"``. Vou normalizar via helper.
+
+**OptedOut em join**
+Para `funnel_deals` com `contacts!inner(...)`, o filtro precisa ser:
+```ts
+query = query.eq('contacts.opted_out', false);
 ```
-RLS espelhando as policies de `custom_field_definitions` (owner + membros da org).
+(não `query.eq('opted_out', false)` — esse filtra na tabela base errada).
 
-Nova função `is_field_required_at_stage(field_id, funnel_id, stage_id)` para resolver server-side se necessário (opcional; validação principal será client-side para UX rápida).
-
-### Frontend
-- **Novo hook** `useFieldRequiredRules.ts`: CRUD das regras por campo
-- **`CustomFieldsManager.tsx`**: nova seção "Regras de obrigatoriedade por etapa" no editor de cada campo do tipo Lead (lista de regras + adicionar/remover)
-- **Novo helper** `getRequiredFieldsForStage(stageId, funnelId, fieldDefs, rules)`: retorna lista de field_keys obrigatórios para uma etapa específica (considera display_order ≥ from_stage)
-- **Novo componente** `RequiredFieldsCheckDialog.tsx`: modal de bloqueio que lista campos faltantes com inputs inline e botão "Preencher e mover"
-- **`FunnelKanbanView.tsx`** (linha 84): antes de `updateDeal.mutate`, validar e abrir o dialog se faltar algo
-- **`FunnelListView.tsx`** (linhas 752, 1341): mesma validação no dropdown de mudança de etapa e no menu de contexto
-- **`DealFormDialog.tsx`**: validar no submit quando `selectedStageId` for diferente de `deal.stage_id`
-- **`DealCustomFieldsEditor.tsx`**: aceitar prop `currentStageId` e `funnelId` para mostrar asterisco condicional
-
-### Arquivos afetados
-- Nova migration SQL (criar tabela + RLS)
-- `src/hooks/useFieldRequiredRules.ts` (novo)
-- `src/lib/required-fields.ts` (novo helper)
-- `src/components/funnels/RequiredFieldsCheckDialog.tsx` (novo)
-- `src/components/inbox/CustomFieldsManager.tsx`
-- `src/components/funnels/DealCustomFieldsEditor.tsx`
-- `src/components/funnels/FunnelKanbanView.tsx`
-- `src/components/funnels/FunnelListView.tsx`
-- `src/components/funnels/DealFormDialog.tsx`
+**Paginação consistente**
+```ts
+let all: any[] = [];
+let page = 0;
+const PAGE = 1000;
+while (true) {
+  const { data, error } = await query.range(page*PAGE, (page+1)*PAGE - 1);
+  if (error) throw error;
+  if (!data?.length) break;
+  all.push(...data);
+  if (data.length < PAGE) break;
+  page++;
+}
+```
 
 ---
 
-## Pontos de atenção
+### Arquivos a editar
 
-1. **Compatibilidade**: o switch global `is_required` continua funcionando como hoje. As regras por etapa são **adicionais** e só se aplicam quando configuradas. Nenhum dado existente é afetado.
-2. **Campos de Contato** vs **Campos de Lead**: regras por etapa só fazem sentido para campos do tipo **Lead** (que vivem dentro do funil). Para campos do tipo Contato, a seção fica oculta.
-3. **Ordem das etapas**: "a partir de X" usa o `display_order` da etapa. Se o usuário reordenar etapas depois, a regra continua apontando para a etapa pelo ID, então a faixa de obrigatoriedade acompanha a nova ordem automaticamente.
-4. **Etapas finais (won/lost)**: serão incluídas na obrigatoriedade se estiverem após a etapa-gatilho na ordem do funil — comportamento esperado, pois normalmente você quer dados completos antes de fechar.
+- `src/hooks/useBroadcastLists.ts` — corrigir as 4 branches (contagem/listagem × contatos/funil), adicionar helper compartilhado.
+- `src/components/broadcasts/BroadcastListFormDialog.tsx` — liberar etapas finais + seletor de entidade dos campos personalizados na fonte funil.
 
-Posso aplicar?
+Sem migração de banco. Sem mudanças em Edge Functions.
+
+**Posso aplicar essas correções?**

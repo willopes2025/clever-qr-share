@@ -8,6 +8,10 @@ export type CustomFieldOperator = 'equals' | 'contains' | 'not_empty' | 'empty';
 export interface CustomFieldFilter {
   operator: CustomFieldOperator;
   value?: string;
+  // Onde o campo está armazenado quando a fonte é "funnel":
+  // - 'lead'    → funnel_deals.custom_fields (default)
+  // - 'contact' → contacts.custom_fields (via join)
+  entity?: 'lead' | 'contact';
 }
 
 export interface FilterCriteria {
@@ -18,8 +22,8 @@ export interface FilterCriteria {
   asaasPaymentStatus?: 'overdue' | 'pending' | 'current';
   asaasDueDateFrom?: string;
   asaasDueDateTo?: string;
-  
-  // Novos campos para filtros avançados
+
+  // Filtros avançados
   source?: 'contacts' | 'funnel';
   funnelId?: string;
   stageId?: string;
@@ -61,6 +65,7 @@ export interface BroadcastListWithContacts extends BroadcastList {
   contact_count: number;
 }
 
+const PAGE_SIZE = 1000;
 const ASAAS_SYNC_DEDUP_TTL_MS = 2 * 60 * 1000;
 const asaasSyncInFlight = new Map<string, Promise<void>>();
 const asaasSyncLastRun = new Map<string, number>();
@@ -68,8 +73,63 @@ const asaasSyncLastRun = new Map<string, number>();
 const getAsaasSyncCriteriaKey = (criteria?: FilterCriteria) => {
   const dueDateFrom = criteria?.asaasDueDateFrom?.slice(0, 10) || "";
   const dueDateTo = criteria?.asaasDueDateTo?.slice(0, 10) || "";
-
   return [criteria?.asaasPaymentStatus || "none", dueDateFrom, dueDateTo].join("|");
+};
+
+// =====================================================
+// Helpers compartilhados (paginação + filtros JSONB)
+// =====================================================
+
+/**
+ * Aplica filtros de campo personalizado a uma query.
+ * @param column Coluna JSONB alvo (ex: 'custom_fields' ou 'contacts.custom_fields')
+ * @param entityFilter Se definido, aplica somente filtros cuja entity bate (default: aplica a tudo)
+ */
+const applyCustomFieldFilters = <T extends { eq: Function; ilike: Function; not: Function; is: Function }>(
+  query: T,
+  customFields: Record<string, CustomFieldFilter> | undefined,
+  column: string,
+  entityFilter?: 'lead' | 'contact',
+): T => {
+  if (!customFields) return query;
+
+  let q: any = query;
+  Object.entries(customFields).forEach(([fieldKey, filter]) => {
+    // Quando há entityFilter (modo funnel), pula filtros da outra entidade
+    if (entityFilter) {
+      const fieldEntity = filter.entity ?? 'lead'; // default lead em modo funnel
+      if (fieldEntity !== entityFilter) return;
+    }
+
+    // Sintaxe PostgREST: column->>"key" — aspas garantem suporte a hífens etc.
+    const path = `${column}->>${fieldKey}`;
+
+    if (filter.operator === 'equals' && filter.value !== undefined && filter.value !== '') {
+      q = q.eq(path, filter.value);
+    } else if (filter.operator === 'contains' && filter.value !== undefined && filter.value !== '') {
+      q = q.ilike(path, `%${filter.value}%`);
+    } else if (filter.operator === 'not_empty') {
+      q = q.not(path, 'is', null);
+    } else if (filter.operator === 'empty') {
+      q = q.is(path, null);
+    }
+  });
+  return q as T;
+};
+
+/** Pagina uma query Supabase em lotes de PAGE_SIZE retornando todos os registros. */
+const fetchAllPages = async <T,>(buildQuery: () => any): Promise<T[]> => {
+  const all: T[] = [];
+  let page = 0;
+  while (true) {
+    const { data, error } = await buildQuery().range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...(data as T[]));
+    if (data.length < PAGE_SIZE) break;
+    page++;
+  }
+  return all;
 };
 
 export const useBroadcastLists = () => {
@@ -81,10 +141,7 @@ export const useBroadcastLists = () => {
     const syncKey = getAsaasSyncCriteriaKey(criteria);
     const lastRunAt = asaasSyncLastRun.get(syncKey);
     const now = Date.now();
-
-    if (lastRunAt && now - lastRunAt < ASAAS_SYNC_DEDUP_TTL_MS) {
-      return;
-    }
+    if (lastRunAt && now - lastRunAt < ASAAS_SYNC_DEDUP_TTL_MS) return;
 
     const inFlightSync = asaasSyncInFlight.get(syncKey);
     if (inFlightSync) {
@@ -99,18 +156,14 @@ export const useBroadcastLists = () => {
       const syncBody: Record<string, string> = {};
       if (dueDateFrom) syncBody.dueDateFrom = dueDateFrom;
       if (dueDateTo) syncBody.dueDateTo = dueDateTo;
-
       const { error } = await supabase.functions.invoke('sync-asaas-contacts', {
         body: Object.keys(syncBody).length > 0 ? syncBody : undefined,
       });
-
       if (error) throw error;
-
       asaasSyncLastRun.set(syncKey, Date.now());
     })();
 
     asaasSyncInFlight.set(syncKey, syncPromise);
-
     try {
       await syncPromise;
     } finally {
@@ -118,120 +171,105 @@ export const useBroadcastLists = () => {
     }
   };
 
-  // Helper para contar contatos baseado nos critérios de filtro
-  // NOTE: NÃO chamar sync aqui — a sync só roda ao abrir os contatos da lista
+  // ===========================================================
+  // CONTAGEM
+  // ===========================================================
   const countContactsByCriteria = async (criteria: FilterCriteria): Promise<number> => {
-
-    // Se fonte é funil, buscar contatos via funnel_deals
+    // ---------- FONTE: FUNIL ----------
     if (criteria.source === 'funnel' && criteria.funnelId) {
-      let query = supabase
-        .from('funnel_deals')
-        .select('contact_id', { count: 'exact', head: true })
-        .eq('funnel_id', criteria.funnelId);
-      
-      if (criteria.stageId && criteria.stageId !== 'all') {
-        query = query.eq('stage_id', criteria.stageId);
-      }
-      
-      // Para filtros de funil, aplicamos filtros de customFields do deal
-      if (criteria.customFields) {
-        Object.entries(criteria.customFields).forEach(([fieldKey, filter]) => {
-          if (filter.operator === 'equals' && filter.value) {
-            query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-          } else if (filter.operator === 'contains' && filter.value) {
-            query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-          } else if (filter.operator === 'not_empty') {
-            query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-          } else if (filter.operator === 'empty') {
-            query = query.is(`custom_fields->>${fieldKey}`, null);
-          }
-        });
-      }
-      
-      const { count } = await query;
-      return count || 0;
-    }
-    
-    // Fonte é contatos - lógica original expandida
-    // Se tags são definidas, usar inner join
-    if (criteria.tags && criteria.tags.length > 0) {
-      let query = supabase
-        .from("contacts")
-        .select("id, contact_tags!inner(tag_id)")
-        .in("contact_tags.tag_id", criteria.tags);
+      // Para garantir paridade com a listagem, paginamos os deals e
+      // contamos contact_ids únicos (um contato pode ter múltiplos deals).
+      const needsContactJoin =
+        criteria.optedOut !== undefined ||
+        (criteria.tags && criteria.tags.length > 0) ||
+        Object.values(criteria.customFields ?? {}).some(f => f.entity === 'contact') ||
+        !!criteria.asaasPaymentStatus;
 
-      if (criteria.status) {
-        query = query.eq("status", criteria.status);
-      }
-      if (criteria.optedOut !== undefined) {
-        query = query.eq("opted_out", criteria.optedOut);
-      }
-      if (criteria.asaasPaymentStatus) {
-        query = query.eq("asaas_payment_status", criteria.asaasPaymentStatus);
-      }
-      
-      // Filtros de campos dinâmicos para contatos
-      if (criteria.customFields) {
-        Object.entries(criteria.customFields).forEach(([fieldKey, filter]) => {
-          if (filter.operator === 'equals' && filter.value) {
-            query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-          } else if (filter.operator === 'contains' && filter.value) {
-            query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-          } else if (filter.operator === 'not_empty') {
-            query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-          } else if (filter.operator === 'empty') {
-            query = query.is(`custom_fields->>${fieldKey}`, null);
-          }
-        });
-      }
+      const select = needsContactJoin
+        ? 'contact_id, contacts!inner(id, opted_out, asaas_payment_status, custom_fields)'
+        : 'contact_id';
 
-      const uniqueContactIds = new Set<string>();
-      let page = 0;
-      const pageSize = 1000;
+      let buildQuery = () => {
+        let q: any = supabase
+          .from('funnel_deals')
+          .select(select)
+          .eq('funnel_id', criteria.funnelId!);
 
-      while (true) {
-        const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-
-        data.forEach((contact) => uniqueContactIds.add(contact.id));
-
-        if (data.length < pageSize) break;
-        page++;
-      }
-
-      return uniqueContactIds.size;
-    }
-    
-    // Sem tags - usar query padrão
-    let query = supabase.from("contacts").select("*", { count: "exact", head: true });
-    
-    if (criteria.status) {
-      query = query.eq("status", criteria.status);
-    }
-    if (criteria.optedOut !== undefined) {
-      query = query.eq("opted_out", criteria.optedOut);
-    }
-    if (criteria.asaasPaymentStatus) {
-      query = query.eq("asaas_payment_status", criteria.asaasPaymentStatus);
-    }
-    
-    // Filtros de campos dinâmicos para contatos
-    if (criteria.customFields) {
-      Object.entries(criteria.customFields).forEach(([fieldKey, filter]) => {
-        if (filter.operator === 'equals' && filter.value) {
-          query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-        } else if (filter.operator === 'contains' && filter.value) {
-          query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-        } else if (filter.operator === 'not_empty') {
-          query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-        } else if (filter.operator === 'empty') {
-          query = query.is(`custom_fields->>${fieldKey}`, null);
+        if (criteria.stageId && criteria.stageId !== 'all') {
+          q = q.eq('stage_id', criteria.stageId);
         }
-      });
+
+        // Filtros do contato (via join)
+        if (needsContactJoin) {
+          if (criteria.optedOut !== undefined) {
+            q = q.eq('contacts.opted_out', criteria.optedOut);
+          }
+          if (criteria.asaasPaymentStatus) {
+            q = q.eq('contacts.asaas_payment_status', criteria.asaasPaymentStatus);
+          }
+          // Custom fields do contato
+          q = applyCustomFieldFilters(q, criteria.customFields, 'contacts.custom_fields', 'contact');
+        }
+
+        // Custom fields do lead (no próprio deal)
+        q = applyCustomFieldFilters(q, criteria.customFields, 'custom_fields', 'lead');
+
+        return q;
+      };
+
+      const rows = await fetchAllPages<{ contact_id: string }>(buildQuery);
+      let contactIds = new Set(rows.map(r => r.contact_id));
+
+      // Filtro de tags (separado: requer um lookup adicional)
+      if (criteria.tags && criteria.tags.length > 0 && contactIds.size > 0) {
+        const ids = Array.from(contactIds);
+        const tagged = new Set<string>();
+        // Paginar por blocos de 1000 contact_ids para evitar limite do .in()
+        for (let i = 0; i < ids.length; i += PAGE_SIZE) {
+          const slice = ids.slice(i, i + PAGE_SIZE);
+          const { data, error } = await supabase
+            .from('contact_tags')
+            .select('contact_id')
+            .in('contact_id', slice)
+            .in('tag_id', criteria.tags);
+          if (error) throw error;
+          (data ?? []).forEach(r => tagged.add(r.contact_id));
+        }
+        contactIds = new Set(Array.from(contactIds).filter(id => tagged.has(id)));
+      }
+
+      return contactIds.size;
     }
-    
-    const { count } = await query;
+
+    // ---------- FONTE: CONTATOS ----------
+    // Quando há tags, usamos inner join para evitar limite do .in() em listas grandes
+    if (criteria.tags && criteria.tags.length > 0) {
+      let buildQuery = () => {
+        let q: any = supabase
+          .from('contacts')
+          .select('id, contact_tags!inner(tag_id)')
+          .in('contact_tags.tag_id', criteria.tags!);
+
+        if (criteria.status) q = q.eq('status', criteria.status);
+        if (criteria.optedOut !== undefined) q = q.eq('opted_out', criteria.optedOut);
+        if (criteria.asaasPaymentStatus) q = q.eq('asaas_payment_status', criteria.asaasPaymentStatus);
+        q = applyCustomFieldFilters(q, criteria.customFields, 'custom_fields');
+        return q;
+      };
+
+      const rows = await fetchAllPages<{ id: string }>(buildQuery);
+      const unique = new Set(rows.map(r => r.id));
+      return unique.size;
+    }
+
+    // Sem tags: contagem direta via head
+    let q: any = supabase.from('contacts').select('*', { count: 'exact', head: true });
+    if (criteria.status) q = q.eq('status', criteria.status);
+    if (criteria.optedOut !== undefined) q = q.eq('opted_out', criteria.optedOut);
+    if (criteria.asaasPaymentStatus) q = q.eq('asaas_payment_status', criteria.asaasPaymentStatus);
+    q = applyCustomFieldFilters(q, criteria.customFields, 'custom_fields');
+
+    const { count } = await q;
     return count || 0;
   };
 
@@ -250,17 +288,15 @@ export const useBroadcastLists = () => {
       if (error) throw error;
       if (!lists || lists.length === 0) return [];
 
-      // Fetch manual list counts in a single query instead of N+1
       const manualListIds = lists.filter(l => l.type === "manual").map(l => l.id);
-      
+
       let manualCountMap = new Map<string, number>();
       if (manualListIds.length > 0) {
         const { data: countData } = await supabase
           .from("broadcast_list_contacts")
           .select("list_id", { count: "exact", head: false })
           .in("list_id", manualListIds);
-        
-        // Count per list_id
+
         if (countData) {
           for (const row of countData) {
             manualCountMap.set(row.list_id, (manualCountMap.get(row.list_id) || 0) + 1);
@@ -268,10 +304,8 @@ export const useBroadcastLists = () => {
         }
       }
 
-      // Build results with counts
       const dynamicLists = lists.filter(l => l.type === "dynamic");
-      
-      // Fetch dynamic list counts in parallel using lightweight head queries
+
       const dynamicCountMap = new Map<string, number>();
       if (dynamicLists.length > 0) {
         const countPromises = dynamicLists.map(async (list) => {
@@ -279,7 +313,8 @@ export const useBroadcastLists = () => {
           try {
             const count = await countContactsByCriteria(criteria);
             return { id: list.id, count };
-          } catch {
+          } catch (err) {
+            console.error('[BroadcastLists] count failed for list', list.id, err);
             return { id: list.id, count: 0 };
           }
         });
@@ -289,10 +324,10 @@ export const useBroadcastLists = () => {
 
       const listsWithCounts: BroadcastListWithContacts[] = lists.map(list => {
         const criteria = (list.filter_criteria || {}) as FilterCriteria;
-        const contactCount = list.type === "manual" 
+        const contactCount = list.type === "manual"
           ? (manualCountMap.get(list.id) || 0)
           : (dynamicCountMap.get(list.id) || 0);
-        
+
         return {
           ...list,
           type: list.type as "manual" | "dynamic",
@@ -305,199 +340,149 @@ export const useBroadcastLists = () => {
     },
   });
 
-  // Fetch contacts for a specific list
+  // ===========================================================
+  // LISTAGEM
+  // ===========================================================
   const useListContacts = (listId: string, listType?: "manual" | "dynamic", filterCriteria?: FilterCriteria) => {
     return useQuery({
       queryKey: ["broadcast-list-contacts", listId, listType, JSON.stringify(filterCriteria ?? {})],
       queryFn: async () => {
         if (listType === "dynamic") {
-          // If Asaas payment status filter is active, trigger sync first
+          // Trigger Asaas sync if needed
           if (filterCriteria?.asaasPaymentStatus) {
             try {
-              console.log('[BroadcastList] Triggering Asaas contact sync before loading list...');
               await syncAsaasContactsForCriteria(filterCriteria);
-              console.log('[BroadcastList] Asaas sync completed');
             } catch (syncError) {
-              console.error('[BroadcastList] Asaas sync failed, loading with existing data:', syncError);
+              console.error('[BroadcastList] Asaas sync failed:', syncError);
             }
           }
-          // Se fonte é funil, buscar contatos via funnel_deals
+
+          // ---------- FONTE: FUNIL ----------
           if (filterCriteria?.source === 'funnel' && filterCriteria?.funnelId) {
-            let query = supabase
-              .from('funnel_deals')
-              .select('contact_id, contacts!inner(id, name, phone, email, status)')
-              .eq('funnel_id', filterCriteria.funnelId);
-            
-            if (filterCriteria.stageId && filterCriteria.stageId !== 'all') {
-              query = query.eq('stage_id', filterCriteria.stageId);
+            type DealRow = {
+              contact_id: string;
+              contacts: {
+                id: string;
+                name: string | null;
+                phone: string;
+                email: string | null;
+                status: string;
+                opted_out?: boolean | null;
+              };
+            };
+
+            // Sempre usamos inner join com contatos pra retornar nome/telefone/etc.
+            const buildQuery = () => {
+              let q: any = supabase
+                .from('funnel_deals')
+                .select('contact_id, contacts!inner(id, name, phone, email, status, opted_out, asaas_payment_status, custom_fields)')
+                .eq('funnel_id', filterCriteria.funnelId!);
+
+              if (filterCriteria.stageId && filterCriteria.stageId !== 'all') {
+                q = q.eq('stage_id', filterCriteria.stageId);
+              }
+
+              // Filtros do contato (via join)
+              if (filterCriteria.optedOut !== undefined) {
+                q = q.eq('contacts.opted_out', filterCriteria.optedOut);
+              }
+              if (filterCriteria.asaasPaymentStatus) {
+                q = q.eq('contacts.asaas_payment_status', filterCriteria.asaasPaymentStatus);
+              }
+              q = applyCustomFieldFilters(q, filterCriteria.customFields, 'contacts.custom_fields', 'contact');
+
+              // Custom fields do lead (no próprio deal)
+              q = applyCustomFieldFilters(q, filterCriteria.customFields, 'custom_fields', 'lead');
+
+              return q;
+            };
+
+            const rows = await fetchAllPages<DealRow>(buildQuery);
+
+            // Deduplicar contatos
+            let uniqueContactsMap = new Map<string, DealRow['contacts']>();
+            for (const r of rows) {
+              if (!uniqueContactsMap.has(r.contact_id) && r.contacts) {
+                uniqueContactsMap.set(r.contact_id, r.contacts);
+              }
             }
-            
-            // Filtros de campos dinâmicos do deal
-            if (filterCriteria.customFields) {
-              Object.entries(filterCriteria.customFields).forEach(([fieldKey, filter]) => {
-                if (filter.operator === 'equals' && filter.value) {
-                  query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-                } else if (filter.operator === 'contains' && filter.value) {
-                  query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-                } else if (filter.operator === 'not_empty') {
-                  query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-                } else if (filter.operator === 'empty') {
-                  query = query.is(`custom_fields->>${fieldKey}`, null);
-                }
-              });
+
+            // Filtro de tags em lote
+            if (filterCriteria.tags && filterCriteria.tags.length > 0 && uniqueContactsMap.size > 0) {
+              const ids = Array.from(uniqueContactsMap.keys());
+              const tagged = new Set<string>();
+              for (let i = 0; i < ids.length; i += PAGE_SIZE) {
+                const slice = ids.slice(i, i + PAGE_SIZE);
+                const { data, error } = await supabase
+                  .from('contact_tags')
+                  .select('contact_id')
+                  .in('contact_id', slice)
+                  .in('tag_id', filterCriteria.tags);
+                if (error) throw error;
+                (data ?? []).forEach(r => tagged.add(r.contact_id));
+              }
+              uniqueContactsMap = new Map(
+                Array.from(uniqueContactsMap.entries()).filter(([id]) => tagged.has(id))
+              );
             }
-            
-            // Filtro de tags (aplicado ao contato via join)
-            if (filterCriteria.tags && filterCriteria.tags.length > 0) {
-              // Precisamos filtrar os resultados após o fetch
-              const { data, error } = await query.limit(1000);
-              if (error) throw error;
-              
-              // Buscar tags dos contatos para filtrar
-              const contactIds = (data || []).map((d: { contact_id: string }) => d.contact_id);
-              if (contactIds.length === 0) return [];
-              
-              const { data: contactTags } = await supabase
-                .from('contact_tags')
-                .select('contact_id, tag_id')
-                .in('contact_id', contactIds)
-                .in('tag_id', filterCriteria.tags);
-              
-              const contactsWithTags = new Set((contactTags || []).map(ct => ct.contact_id));
-              
-              const filteredData = (data || []).filter((d: { contact_id: string }) => 
-                contactsWithTags.has(d.contact_id)
-              );
-              
-              // Remover duplicatas
-              const uniqueContacts = Array.from(
-                new Map(filteredData.map((d: { contact_id: string; contacts: { id: string; name: string | null; phone: string; email: string | null; status: string } }) => [d.contact_id, d.contacts])).values()
-              );
-              
-              return uniqueContacts.map((contact) => ({
+
+            return Array.from(uniqueContactsMap.values()).map((contact) => ({
+              id: contact.id,
+              contact_id: contact.id,
+              added_at: new Date().toISOString(),
+              contacts: {
                 id: contact.id,
-                contact_id: contact.id,
-                added_at: new Date().toISOString(),
-                contacts: contact,
-              }));
-            }
-            
-            const { data, error } = await query.limit(1000);
-            if (error) throw error;
-            
-            // Remover duplicatas (mesmo contato pode ter múltiplos deals)
-            const uniqueContacts = Array.from(
-              new Map((data || []).map((d: { contact_id: string; contacts: { id: string; name: string | null; phone: string; email: string | null; status: string } }) => [d.contact_id, d.contacts])).values()
-            );
-            
+                name: contact.name,
+                phone: contact.phone,
+                email: contact.email,
+                status: contact.status,
+              },
+            }));
+          }
+
+          // ---------- FONTE: CONTATOS COM TAGS ----------
+          if (filterCriteria?.tags && filterCriteria.tags.length > 0) {
+            const buildQuery = () => {
+              let q: any = supabase
+                .from('contacts')
+                .select('id, name, phone, email, status, custom_fields, contact_tags!inner(tag_id)')
+                .in('contact_tags.tag_id', filterCriteria.tags!);
+
+              if (filterCriteria.status) q = q.eq('status', filterCriteria.status);
+              if (filterCriteria.optedOut !== undefined) q = q.eq('opted_out', filterCriteria.optedOut);
+              if (filterCriteria.asaasPaymentStatus) q = q.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
+              q = applyCustomFieldFilters(q, filterCriteria.customFields, 'custom_fields');
+              return q;
+            };
+
+            const rows = await fetchAllPages<any>(buildQuery);
+            const uniqueContacts = Array.from(new Map(rows.map(c => [c.id, c])).values());
+
             return uniqueContacts.map((contact) => ({
               id: contact.id,
               contact_id: contact.id,
               added_at: new Date().toISOString(),
-              contacts: contact,
-            }));
-          }
-          
-          // For dynamic lists with tags, use inner join (avoids .in() limit with large lists)
-          if (filterCriteria?.tags && filterCriteria.tags.length > 0) {
-            let query = supabase
-              .from("contacts")
-              .select("id, name, phone, email, status, custom_fields, contact_tags!inner(tag_id)")
-              .in("contact_tags.tag_id", filterCriteria.tags);
-
-            if (filterCriteria?.status) {
-              query = query.eq("status", filterCriteria.status);
-            }
-            if (filterCriteria?.optedOut !== undefined) {
-              query = query.eq("opted_out", filterCriteria.optedOut);
-            }
-            if (filterCriteria?.asaasPaymentStatus) {
-              query = query.eq("asaas_payment_status", filterCriteria.asaasPaymentStatus);
-            }
-            
-            // Filtros de campos dinâmicos
-            if (filterCriteria.customFields) {
-              Object.entries(filterCriteria.customFields).forEach(([fieldKey, filter]) => {
-                if (filter.operator === 'equals' && filter.value) {
-                  query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-                } else if (filter.operator === 'contains' && filter.value) {
-                  query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-                } else if (filter.operator === 'empty') {
-                  query = query.is(`custom_fields->>${fieldKey}`, null);
-                } else if (filter.operator === 'not_empty') {
-                  query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-                }
-              });
-            }
-
-            // Paginate to get all results
-            let allTagContacts: any[] = [];
-            let tagPage = 0;
-            const tagPageSize = 1000;
-            
-            while (true) {
-              const { data, error } = await query.range(tagPage * tagPageSize, (tagPage + 1) * tagPageSize - 1);
-              if (error) throw error;
-              if (!data || data.length === 0) break;
-              allTagContacts.push(...data);
-              if (data.length < tagPageSize) break;
-              tagPage++;
-            }
-
-            // Remove duplicates (contact may have multiple matching tags)
-            const uniqueContacts = Array.from(
-              new Map(allTagContacts.map((c: any) => [c.id, c])).values()
-            );
-
-            return uniqueContacts.map((contact: any) => ({
-              id: contact.id,
-              contact_id: contact.id,
-              added_at: new Date().toISOString(),
-              contacts: { id: contact.id, name: contact.name, phone: contact.phone, email: contact.email, status: contact.status },
+              contacts: {
+                id: contact.id,
+                name: contact.name,
+                phone: contact.phone,
+                email: contact.email,
+                status: contact.status,
+              },
             }));
           }
 
-          // Dynamic list without tags - use other filters
-          let query = supabase.from("contacts").select("id, name, phone, email, status, custom_fields");
-          
-          if (filterCriteria?.status) {
-            query = query.eq("status", filterCriteria.status);
-          }
-          if (filterCriteria?.optedOut !== undefined) {
-            query = query.eq("opted_out", filterCriteria.optedOut);
-          }
-          if (filterCriteria?.asaasPaymentStatus) {
-            query = query.eq("asaas_payment_status", filterCriteria.asaasPaymentStatus);
-          }
-          
-          // Filtros de campos dinâmicos
-          if (filterCriteria?.customFields) {
-            Object.entries(filterCriteria.customFields).forEach(([fieldKey, filter]) => {
-              if (filter.operator === 'equals' && filter.value) {
-                query = query.eq(`custom_fields->>${fieldKey}`, filter.value);
-              } else if (filter.operator === 'contains' && filter.value) {
-                query = query.ilike(`custom_fields->>${fieldKey}`, `%${filter.value}%`);
-              } else if (filter.operator === 'not_empty') {
-                query = query.not(`custom_fields->>${fieldKey}`, 'is', null);
-              } else if (filter.operator === 'empty') {
-                query = query.is(`custom_fields->>${fieldKey}`, null);
-              }
-            });
-          }
+          // ---------- FONTE: CONTATOS SEM TAGS ----------
+          const buildQuery = () => {
+            let q: any = supabase.from('contacts').select('id, name, phone, email, status, custom_fields');
+            if (filterCriteria?.status) q = q.eq('status', filterCriteria.status);
+            if (filterCriteria?.optedOut !== undefined) q = q.eq('opted_out', filterCriteria.optedOut);
+            if (filterCriteria?.asaasPaymentStatus) q = q.eq('asaas_payment_status', filterCriteria.asaasPaymentStatus);
+            q = applyCustomFieldFilters(q, filterCriteria?.customFields, 'custom_fields');
+            return q;
+          };
 
-          // Fetch all contacts without 1000 limit - paginate
-          let allFilteredContacts: any[] = [];
-          let page = 0;
-          const pageSize = 1000;
-          
-          while (true) {
-            const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
-            if (error) throw error;
-            if (!data || data.length === 0) break;
-            allFilteredContacts.push(...data);
-            if (data.length < pageSize) break;
-            page++;
-          }
+          const allFilteredContacts = await fetchAllPages<any>(buildQuery);
 
           return allFilteredContacts.map((contact) => ({
             id: contact.id,
