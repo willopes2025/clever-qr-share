@@ -241,18 +241,22 @@ const Tasks = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     Carregando tarefas...
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     Nenhuma tarefa encontrada
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.map(task => (
-                <TableRow key={`${task.source}-${task.id}`} className={cn(task.completed_at && "opacity-60")}>
+                <TableRow
+                  key={`${task.source}-${task.id}`}
+                  className={cn("group cursor-pointer hover:bg-muted/40", task.completed_at && "opacity-60")}
+                  onClick={() => setEditingTask(task)}
+                >
                   <TableCell>
                     <button onClick={() => handleToggleComplete(task)} className="hover:scale-110 transition-transform">
                       {task.completed_at ? (
