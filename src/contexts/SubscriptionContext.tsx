@@ -50,6 +50,12 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
       if (!currentSession?.access_token) {
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
         if (refreshError || !refreshData?.session) {
+          // Refresh token invalid/missing — sign out cleanly to redirect to login
+          const msg = refreshError?.message ?? '';
+          if (/refresh token|not found|invalid/i.test(msg)) {
+            console.warn('[SubscriptionContext] Invalid refresh token, signing out');
+            await supabase.auth.signOut();
+          }
           setSubscription(null);
           setLoading(false);
           checkInFlightRef.current = false;
