@@ -176,9 +176,17 @@ export const BroadcastListFormDialog = ({
         const customFields: Record<string, CustomFieldFilter> = {};
         customFieldFilters.forEach(filter => {
           if (filter.fieldKey) {
+            // Resolver entity automaticamente a partir da definição do campo
+            const fieldDef = availableCustomFields.find(f => f.field_key === filter.fieldKey);
+            const resolvedEntity: 'lead' | 'contact' | undefined =
+              source === 'funnel'
+                ? (fieldDef?.entity_type === 'contact' ? 'contact' : 'lead')
+                : undefined;
+
             customFields[filter.fieldKey] = {
               operator: filter.operator,
               value: filter.value,
+              ...(resolvedEntity ? { entity: resolvedEntity } : {}),
             };
           }
         });
