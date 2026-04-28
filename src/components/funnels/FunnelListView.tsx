@@ -1032,10 +1032,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           }
           if (val === undefined || val === null) return <span className="text-muted-foreground">-</span>;
           if (typeof val === "boolean") return val ? "Sim" : "Não";
-          // Respect declared field_type; only fall back to name heuristic when no field def exists
-          const isDateField = fieldDef
-            ? (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')
-            : isDateLikeFieldName(String(fieldKey));
+          // Respect declared field_type; also use name heuristic to catch text fields named like dates
+          const isDateField =
+            (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
+            isDateLikeFieldName(String(fieldKey)) ||
+            (fieldDef?.field_name ? isDateLikeFieldName(String(fieldDef.field_name)) : false);
           if (isDateField) {
             const formatted = formatCustomFieldDate(val);
             if (formatted) return formatted;
@@ -1043,6 +1044,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           // Fallback: format ISO-like date strings (YYYY-MM-DD) as DD/MM/YYYY even for text fields
           if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(val)) {
             const formatted = formatCustomFieldDate(val);
+            if (formatted) return formatted;
+          }
+          // Fallback: Excel serial date numbers (e.g. 46119) stored as number or numeric string
+          const num = typeof val === 'number' ? val : (typeof val === 'string' && /^\d{4,6}(\.\d+)?$/.test(val.trim()) ? parseFloat(val) : NaN);
+          if (!isNaN(num) && num > 25000 && num < 100000) {
+            const formatted = formatCustomFieldDate(num);
             if (formatted) return formatted;
           }
           return String(val);
