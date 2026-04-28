@@ -21,6 +21,9 @@ import {
   Send,
   MessageSquare,
   Merge,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   Table,
@@ -252,6 +255,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+
+  // Sorting
+  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const setSort = (columnId: string, direction: 'asc' | 'desc' | null) => {
+    if (direction === null) setSortConfig(null);
+    else setSortConfig({ columnId, direction });
+  };
 
   // Calculate total deals vs loaded deals
   const totalDealsCount = useMemo(() => {
@@ -569,7 +580,79 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
       return true;
     });
-  }, [searchableDeals, columnFilters, normalizedContactFilter, contactFilterDigits]);
+  }, [searchableDeals, columnFilters, normalizedContactFilter, contactFilterDigits, fieldDefinitions]);
+
+  // Apply sorting on top of filtering
+  const sortedDeals = useMemo(() => {
+    if (!sortConfig) return filteredDeals;
+    const { columnId, direction } = sortConfig;
+    const dir = direction === 'asc' ? 1 : -1;
+
+    const numericCols = new Set(['value']);
+    const dateCols = new Set(['expected_close', 'time_in_stage']);
+
+    const getSortKey = (deal: DealWithStage): { num: number | null; str: string } => {
+      if (columnId === 'value') {
+        return { num: Number(deal.value || 0), str: '' };
+      }
+      if (columnId === 'time_in_stage') {
+        const t = new Date(deal.entered_stage_at).getTime();
+        return { num: isNaN(t) ? null : t, str: '' };
+      }
+      if (columnId === 'expected_close') {
+        if (!deal.expected_close_date) return { num: null, str: '' };
+        const t = new Date(deal.expected_close_date).getTime();
+        return { num: isNaN(t) ? null : t, str: '' };
+      }
+      if (columnId.startsWith('custom_')) {
+        const fieldKey = columnId.replace('custom_', '');
+        const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+        let val: any = deal.custom_fields?.[fieldKey];
+        if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+          val = (deal.contact as any)?.custom_fields?.[fieldKey];
+        }
+        if (val === undefined || val === null || val === '') return { num: null, str: '' };
+        if (fieldDef?.field_type === 'number') {
+          const n = Number(val);
+          return { num: isNaN(n) ? null : n, str: '' };
+        }
+        if (fieldDef?.field_type === 'date' || fieldDef?.field_type === 'datetime' ||
+            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name))) {
+          // Parse common formats
+          let s = String(val);
+          if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+            const [d, m, y] = s.split('/');
+            s = `${y}-${m}-${d}`;
+          }
+          const t = new Date(s).getTime();
+          return { num: isNaN(t) ? null : t, str: '' };
+        }
+        return { num: null, str: String(val) };
+      }
+      // Default: use cell text
+      const text = getCellValue(deal, columnId);
+      return { num: null, str: text === '-' ? '' : text };
+    };
+
+    const arr = [...filteredDeals];
+    arr.sort((a, b) => {
+      const ka = getSortKey(a);
+      const kb = getSortKey(b);
+
+      // Empty values always go to the end (regardless of direction)
+      const aEmpty = ka.num === null && !ka.str;
+      const bEmpty = kb.num === null && !kb.str;
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+
+      if (ka.num !== null && kb.num !== null) {
+        return (ka.num - kb.num) * dir;
+      }
+      return ka.str.localeCompare(kb.str, 'pt-BR', { sensitivity: 'base', numeric: true }) * dir;
+    });
+    return arr;
+  }, [filteredDeals, sortConfig, fieldDefinitions]);
 
   const getTimeInStage = (enteredAt: string) => {
     const days = Math.floor(
@@ -583,7 +666,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(filteredDeals.map((d) => d.id));
+      setSelectedIds(sortedDeals.map((d) => d.id));
     } else {
       setSelectedIds([]);
     }
@@ -597,8 +680,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     }
   };
 
-  const isAllSelected = filteredDeals.length > 0 && selectedIds.length === filteredDeals.length;
-  const isSomeSelected = selectedIds.length > 0 && selectedIds.length < filteredDeals.length;
+  const isAllSelected = sortedDeals.length > 0 && selectedIds.length === sortedDeals.length;
+  const isSomeSelected = selectedIds.length > 0 && selectedIds.length < sortedDeals.length;
 
   // Set column filter
   const setColumnFilter = (columnId: string, value: string) => {
@@ -890,6 +973,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     const hasFilter = (columnFilters[columnId] && columnFilters[columnId] !== "all") || 
       columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`];
 
+    const isSorted = sortConfig?.columnId === columnId;
+    const sortDir = isSorted ? sortConfig!.direction : null;
+
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -899,28 +985,66 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             className="h-auto p-0 font-medium hover:bg-transparent flex items-center gap-1"
           >
             {col.label}
-            {hasFilter ? (
+            {sortDir === 'asc' && <ArrowUp className="h-3 w-3 text-primary" />}
+            {sortDir === 'desc' && <ArrowDown className="h-3 w-3 text-primary" />}
+            {!sortDir && (hasFilter ? (
               <Filter className="h-3 w-3 text-primary" />
             ) : (
               <ChevronDown className="h-3 w-3 opacity-50" />
-            )}
+            ))}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start">
           <div className="space-y-3">
-            <p className="text-sm font-medium">Filtrar por {col.label}</p>
-            {renderFilterInput(columnId, col)}
-            {hasFilter && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={() => clearColumnFilter(columnId)}
-              >
-                <X className="h-3 w-3 mr-1" />
-                Limpar filtro
-              </Button>
-            )}
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ordenar</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={sortDir === 'asc' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSort(columnId, 'asc')}
+                >
+                  <ArrowUp className="h-3 w-3 mr-1" />
+                  A → Z
+                </Button>
+                <Button
+                  variant={sortDir === 'desc' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSort(columnId, 'desc')}
+                >
+                  <ArrowDown className="h-3 w-3 mr-1" />
+                  Z → A
+                </Button>
+              </div>
+              {isSorted && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-xs"
+                  onClick={() => setSort(columnId, null)}
+                >
+                  <ArrowUpDown className="h-3 w-3 mr-1" />
+                  Remover ordenação
+                </Button>
+              )}
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-sm font-medium">Filtrar por {col.label}</p>
+              {renderFilterInput(columnId, col)}
+              {hasFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => clearColumnFilter(columnId)}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Limpar filtro
+                </Button>
+              )}
+            </div>
           </div>
         </PopoverContent>
       </Popover>
@@ -1309,7 +1433,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredDeals.length === 0 ? (
+            {sortedDeals.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={orderedVisibleColumns.length + 2}
@@ -1321,7 +1445,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                 </TableCell>
               </TableRow>
             ) : (
-              filteredDeals.map((deal) => (
+              sortedDeals.map((deal) => (
                 <TableRow key={deal.id} className="cursor-pointer hover:bg-muted/50" onClick={(e) => {
                   // Don't open if clicking on checkbox, dropdown, or button
                   const target = e.target as HTMLElement;
@@ -1575,6 +1699,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         selectedDealIds={selectedIds}
         funnelId={funnel.id}
         funnelName={funnel.name}
+      />
+
+      <MergeDealsDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        deals={sortedDeals.filter((d) => selectedIds.includes(d.id))}
+        funnel={funnel}
+        onMerged={() => setSelectedIds([])}
       />
 
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
