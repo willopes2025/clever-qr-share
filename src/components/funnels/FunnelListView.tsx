@@ -666,7 +666,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(filteredDeals.map((d) => d.id));
+      setSelectedIds(sortedDeals.map((d) => d.id));
     } else {
       setSelectedIds([]);
     }
@@ -680,8 +680,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     }
   };
 
-  const isAllSelected = filteredDeals.length > 0 && selectedIds.length === filteredDeals.length;
-  const isSomeSelected = selectedIds.length > 0 && selectedIds.length < filteredDeals.length;
+  const isAllSelected = sortedDeals.length > 0 && selectedIds.length === sortedDeals.length;
+  const isSomeSelected = selectedIds.length > 0 && selectedIds.length < sortedDeals.length;
 
   // Set column filter
   const setColumnFilter = (columnId: string, value: string) => {
