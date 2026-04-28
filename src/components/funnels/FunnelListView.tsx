@@ -1436,6 +1436,74 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     }
   }, [funnel.id, queryClient, sanitizeColumnArray]);
 
+  // Persist only the column order (used by drag-and-drop reordering)
+  const persistColumnOrder = useCallback(async (newOrder: string[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase
+        .from('funnel_column_configs')
+        .upsert({
+          user_id: user.id,
+          funnel_id: funnel.id,
+          visible_columns: visibleColumns,
+          column_order: newOrder,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,funnel_id' });
+      queryClient.invalidateQueries({ queryKey: ['funnel-column-config', funnel.id] });
+    } catch (error) {
+      console.error("Error persisting column order:", error);
+    }
+  }, [funnel.id, visibleColumns, queryClient]);
+
+  // Drag-and-drop handlers for column reordering
+  const handleColumnDragStart = (e: React.DragEvent<HTMLTableCellElement>, columnId: string) => {
+    setDraggedColumnId(columnId);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', columnId); } catch {}
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent<HTMLTableCellElement>, columnId: string) => {
+    if (!draggedColumnId || draggedColumnId === columnId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColumnId !== columnId) setDragOverColumnId(columnId);
+  };
+
+  const handleColumnDragLeave = () => {
+    setDragOverColumnId(null);
+  };
+
+  const handleColumnDrop = (e: React.DragEvent<HTMLTableCellElement>, targetColumnId: string) => {
+    e.preventDefault();
+    const sourceId = draggedColumnId;
+    setDraggedColumnId(null);
+    setDragOverColumnId(null);
+    if (!sourceId || sourceId === targetColumnId) return;
+
+    const currentOrder = orderedVisibleColumns.slice();
+    const fromIdx = currentOrder.indexOf(sourceId);
+    const toIdx = currentOrder.indexOf(targetColumnId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    currentOrder.splice(fromIdx, 1);
+    const insertAt = currentOrder.indexOf(targetColumnId);
+    // Insert before target if dragging from right; after target if from left
+    const newIndex = fromIdx < toIdx ? insertAt + 1 : insertAt;
+    currentOrder.splice(newIndex, 0, sourceId);
+
+    // Merge with hidden columns to keep their positions appended at the end (or where they were)
+    const hidden = columnOrder.filter((id) => !orderedVisibleColumns.includes(id));
+    const mergedOrder = sanitizeColumnArray([...currentOrder, ...hidden]);
+    setColumnOrder(mergedOrder);
+    persistColumnOrder(mergedOrder);
+  };
+
+  const handleColumnDragEnd = () => {
+    setDraggedColumnId(null);
+    setDragOverColumnId(null);
+  };
+
   // Get ordered visible columns (sanitized + filter only visible + only known columns)
   const orderedVisibleColumns = useMemo(() => {
     const knownIds = new Set(allColumns.map((c) => c.id));
