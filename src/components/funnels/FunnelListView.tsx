@@ -895,13 +895,24 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       case "phone": {
         const phoneValue = deal.contact?.phone || "";
         const formatted = formatForDisplay(phoneValue);
+        // Debug: log empty phones to diagnose missing values
+        if (!phoneValue) {
+          console.log('[FunnelListView] Deal sem telefone:', { dealId: deal.id, title: deal.title, contactId: deal.contact_id, contactName: deal.contact?.name });
+        } else if (!formatted) {
+          console.log('[FunnelListView] Telefone presente mas formatForDisplay retornou vazio:', { dealId: deal.id, phoneValue });
+        }
+        if (!phoneValue) {
+          return <span className="text-sm text-muted-foreground">-</span>;
+        }
+        // Show raw value as fallback if formatter fails
+        const display = formatted || phoneValue;
         return (
           <p
             className="text-sm text-muted-foreground flex items-center gap-1 font-mono tabular-nums whitespace-nowrap"
-            title={formatted || phoneValue}
+            title={display}
           >
             <Phone className="h-3 w-3 shrink-0" />
-            <span className="whitespace-nowrap">{formatted}</span>
+            <span className="whitespace-nowrap">{display}</span>
           </p>
         );
       }
