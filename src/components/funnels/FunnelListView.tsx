@@ -577,8 +577,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       }
 
       // Custom field filters
-      for (const [key, filterValue] of Object.entries(columnFilters)) {
-        if (key.startsWith("custom_") && filterValue) {
+      for (const [key, rawFilterValue] of Object.entries(columnFilters)) {
+        if (key.startsWith("custom_") && rawFilterValue) {
+          const filterValue = typeof rawFilterValue === 'string' ? rawFilterValue : '';
+          if (!filterValue) continue;
           // Skip date range helper keys (they are handled below)
           if (key.endsWith('_from') || key.endsWith('_to')) {
             // Handle date range filters
