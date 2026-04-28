@@ -973,6 +973,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     const hasFilter = (columnFilters[columnId] && columnFilters[columnId] !== "all") || 
       columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`];
 
+    const isSorted = sortConfig?.columnId === columnId;
+    const sortDir = isSorted ? sortConfig!.direction : null;
+
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -982,28 +985,66 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             className="h-auto p-0 font-medium hover:bg-transparent flex items-center gap-1"
           >
             {col.label}
-            {hasFilter ? (
+            {sortDir === 'asc' && <ArrowUp className="h-3 w-3 text-primary" />}
+            {sortDir === 'desc' && <ArrowDown className="h-3 w-3 text-primary" />}
+            {!sortDir && (hasFilter ? (
               <Filter className="h-3 w-3 text-primary" />
             ) : (
               <ChevronDown className="h-3 w-3 opacity-50" />
-            )}
+            ))}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start">
           <div className="space-y-3">
-            <p className="text-sm font-medium">Filtrar por {col.label}</p>
-            {renderFilterInput(columnId, col)}
-            {hasFilter && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={() => clearColumnFilter(columnId)}
-              >
-                <X className="h-3 w-3 mr-1" />
-                Limpar filtro
-              </Button>
-            )}
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ordenar</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={sortDir === 'asc' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSort(columnId, 'asc')}
+                >
+                  <ArrowUp className="h-3 w-3 mr-1" />
+                  A → Z
+                </Button>
+                <Button
+                  variant={sortDir === 'desc' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSort(columnId, 'desc')}
+                >
+                  <ArrowDown className="h-3 w-3 mr-1" />
+                  Z → A
+                </Button>
+              </div>
+              {isSorted && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-xs"
+                  onClick={() => setSort(columnId, null)}
+                >
+                  <ArrowUpDown className="h-3 w-3 mr-1" />
+                  Remover ordenação
+                </Button>
+              )}
+            </div>
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-sm font-medium">Filtrar por {col.label}</p>
+              {renderFilterInput(columnId, col)}
+              {hasFilter && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => clearColumnFilter(columnId)}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Limpar filtro
+                </Button>
+              )}
+            </div>
           </div>
         </PopoverContent>
       </Popover>
