@@ -1344,8 +1344,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           .upsert({
             user_id: userId,
             funnel_id: funnel.id,
-            visible_columns: newVisible,
-            column_order: newOrder,
+            visible_columns: cleanVisible,
+            column_order: cleanOrder,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,funnel_id' });
       }
