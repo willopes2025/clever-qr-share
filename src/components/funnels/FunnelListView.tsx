@@ -922,6 +922,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
             return formatCustomFieldDate(val) || String(val);
           }
+          if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(val)) {
+            return formatCustomFieldDate(val) || String(val);
+          }
           return String(val);
         }
         return "-";
@@ -1034,6 +1037,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             ? (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')
             : isDateLikeFieldName(String(fieldKey));
           if (isDateField) {
+            const formatted = formatCustomFieldDate(val);
+            if (formatted) return formatted;
+          }
+          // Fallback: format ISO-like date strings (YYYY-MM-DD) as DD/MM/YYYY even for text fields
+          if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(val)) {
             const formatted = formatCustomFieldDate(val);
             if (formatted) return formatted;
           }
