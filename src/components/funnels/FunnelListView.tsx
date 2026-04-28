@@ -922,6 +922,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) {
             return formatCustomFieldDate(val) || String(val);
           }
+          if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(val)) {
+            return formatCustomFieldDate(val) || String(val);
+          }
           return String(val);
         }
         return "-";
