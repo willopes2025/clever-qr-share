@@ -21,6 +21,9 @@ import {
   Send,
   MessageSquare,
   Merge,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   Table,
