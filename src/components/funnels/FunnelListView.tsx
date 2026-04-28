@@ -580,7 +580,79 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
       return true;
     });
-  }, [searchableDeals, columnFilters, normalizedContactFilter, contactFilterDigits]);
+  }, [searchableDeals, columnFilters, normalizedContactFilter, contactFilterDigits, fieldDefinitions]);
+
+  // Apply sorting on top of filtering
+  const sortedDeals = useMemo(() => {
+    if (!sortConfig) return filteredDeals;
+    const { columnId, direction } = sortConfig;
+    const dir = direction === 'asc' ? 1 : -1;
+
+    const numericCols = new Set(['value']);
+    const dateCols = new Set(['expected_close', 'time_in_stage']);
+
+    const getSortKey = (deal: DealWithStage): { num: number | null; str: string } => {
+      if (columnId === 'value') {
+        return { num: Number(deal.value || 0), str: '' };
+      }
+      if (columnId === 'time_in_stage') {
+        const t = new Date(deal.entered_stage_at).getTime();
+        return { num: isNaN(t) ? null : t, str: '' };
+      }
+      if (columnId === 'expected_close') {
+        if (!deal.expected_close_date) return { num: null, str: '' };
+        const t = new Date(deal.expected_close_date).getTime();
+        return { num: isNaN(t) ? null : t, str: '' };
+      }
+      if (columnId.startsWith('custom_')) {
+        const fieldKey = columnId.replace('custom_', '');
+        const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
+        let val: any = deal.custom_fields?.[fieldKey];
+        if ((val === undefined || val === null) && fieldDef?.entity_type === 'contact') {
+          val = (deal.contact as any)?.custom_fields?.[fieldKey];
+        }
+        if (val === undefined || val === null || val === '') return { num: null, str: '' };
+        if (fieldDef?.field_type === 'number') {
+          const n = Number(val);
+          return { num: isNaN(n) ? null : n, str: '' };
+        }
+        if (fieldDef?.field_type === 'date' || fieldDef?.field_type === 'datetime' ||
+            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name))) {
+          // Parse common formats
+          let s = String(val);
+          if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+            const [d, m, y] = s.split('/');
+            s = `${y}-${m}-${d}`;
+          }
+          const t = new Date(s).getTime();
+          return { num: isNaN(t) ? null : t, str: '' };
+        }
+        return { num: null, str: String(val) };
+      }
+      // Default: use cell text
+      const text = getCellValue(deal, columnId);
+      return { num: null, str: text === '-' ? '' : text };
+    };
+
+    const arr = [...filteredDeals];
+    arr.sort((a, b) => {
+      const ka = getSortKey(a);
+      const kb = getSortKey(b);
+
+      // Empty values always go to the end (regardless of direction)
+      const aEmpty = ka.num === null && !ka.str;
+      const bEmpty = kb.num === null && !kb.str;
+      if (aEmpty && bEmpty) return 0;
+      if (aEmpty) return 1;
+      if (bEmpty) return -1;
+
+      if (ka.num !== null && kb.num !== null) {
+        return (ka.num - kb.num) * dir;
+      }
+      return ka.str.localeCompare(kb.str, 'pt-BR', { sensitivity: 'base', numeric: true }) * dir;
+    });
+    return arr;
+  }, [filteredDeals, sortConfig, fieldDefinitions]);
 
   const getTimeInStage = (enteredAt: string) => {
     const days = Math.floor(
