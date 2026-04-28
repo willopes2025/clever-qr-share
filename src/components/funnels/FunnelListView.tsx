@@ -542,9 +542,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         }
       }
 
-      // Stage filter
+      // Stage filter (multi-select array or legacy single string)
       if (columnFilters.stage && columnFilters.stage !== "all") {
-        if (deal.stage_id !== columnFilters.stage) return false;
+        const stageFilter = columnFilters.stage;
+        if (Array.isArray(stageFilter)) {
+          if (stageFilter.length > 0 && !stageFilter.includes(deal.stage_id)) return false;
+        } else {
+          if (deal.stage_id !== stageFilter) return false;
+        }
       }
 
       // Value filter
