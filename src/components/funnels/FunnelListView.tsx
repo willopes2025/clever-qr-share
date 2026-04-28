@@ -1009,8 +1009,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           }
           if (val === undefined || val === null) return <span className="text-muted-foreground">-</span>;
           if (typeof val === "boolean") return val ? "Sim" : "Não";
-          const isDateField = (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
-            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name));
+          // Respect declared field_type; only fall back to name heuristic when no field def exists
+          const isDateField = fieldDef
+            ? (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')
+            : isDateLikeFieldName(String(fieldKey));
           if (isDateField) {
             const formatted = formatCustomFieldDate(val);
             if (formatted) return formatted;
