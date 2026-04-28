@@ -1325,8 +1325,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
   // Handle columns config save
   const handleColumnsConfigSave = useCallback(async (newVisible: string[], newOrder: string[], applyToMemberIds?: string[]) => {
-    setVisibleColumns(newVisible);
-    setColumnOrder(newOrder);
+    const cleanVisible = sanitizeColumnArray(newVisible);
+    const cleanOrder = sanitizeColumnArray(newOrder);
+    setVisibleColumns(cleanVisible);
+    setColumnOrder(cleanOrder);
     setIsSavingColumns(true);
 
     try {
