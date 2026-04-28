@@ -184,19 +184,21 @@ export const useConversations = () => {
         }
       }
 
-      // Notification-only instances: exclude with a simple NOT IN.
-      // Avoid the previous `or(instance_id.is.null,instance_id.not.in...)`
-      // pattern — PostgREST translates that into a non-sargable expression
-      // that disables the (is_pinned, last_message_at) index and triggers
-      // statement timeouts on big inboxes.
-      if (notificationInstanceIds && notificationInstanceIds.length > 0) {
-        query = query.not('instance_id', 'in', `(${notificationInstanceIds.join(',')})`);
-      }
+      // Notification-only instances: NÃO filtramos no servidor porque
+      // PostgREST traduz `not.in` para SQL `NOT IN (...)`, que em Postgres
+      // descarta linhas com `instance_id IS NULL` (NULL NOT IN (...) → NULL → falso).
+      // Isso fazia conversas órfãs (sem instância) sumirem do inbox.
+      // Filtramos client-side abaixo, depois do fetch, preservando o índice
+      // (is_pinned, last_message_at) usado pela query principal.
 
       const { data, error } = await query;
       if (error) throw error;
 
-      const rows = (data as any[]) || [];
+      const notifSet = new Set(notificationInstanceIds || []);
+      const rawRows = ((data as any[]) || []).filter(
+        (r) => !r.instance_id || !notifSet.has(r.instance_id)
+      );
+      const rows = rawRows;
       const conversationIds = rows.map(r => r.id);
       const contactIds = Array.from(new Set(rows.map(r => r.contact_id).filter(Boolean)));
 
