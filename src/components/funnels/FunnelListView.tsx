@@ -1045,7 +1045,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     const col = allColumns.find((c) => c.id === columnId);
     if (!col) return null;
 
-    const hasFilter = (columnFilters[columnId] && columnFilters[columnId] !== "all") || 
+    const filterVal = columnFilters[columnId];
+    const filterIsActive = Array.isArray(filterVal)
+      ? filterVal.length > 0
+      : !!(filterVal && filterVal !== "all");
+    const hasFilter = filterIsActive ||
       columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`];
 
     const isSorted = sortConfig?.columnId === columnId;
