@@ -238,33 +238,39 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     },
   });
 
+  // Sanitiza arrays de colunas: remove duplicatas e garante "phone" logo após "contact"
+  const sanitizeColumnArray = useCallback((ids: string[]): string[] => {
+    // Dedup preservando primeira ocorrência
+    const seen = new Set<string>();
+    const deduped: string[] = [];
+    for (const id of ids) {
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        deduped.push(id);
+      }
+    }
+    // Remove "phone" para reposicionar
+    const withoutPhone = deduped.filter((id) => id !== "phone");
+    const contactIdx = withoutPhone.indexOf("contact");
+    if (contactIdx >= 0) {
+      withoutPhone.splice(contactIdx + 1, 0, "phone");
+    } else {
+      withoutPhone.unshift("phone");
+    }
+    return withoutPhone;
+  }, []);
+
   // Apply saved config when loaded
   useEffect(() => {
     if (savedColumnConfig) {
       if (savedColumnConfig.visible_columns?.length > 0) {
-        // Garante que a coluna "phone" (Telefone) sempre esteja visível,
-        // mesmo em configs antigas salvas antes de existir essa coluna.
-        const visible = savedColumnConfig.visible_columns.includes("phone")
-          ? savedColumnConfig.visible_columns
-          : [
-              ...savedColumnConfig.visible_columns.slice(0, 1),
-              "phone",
-              ...savedColumnConfig.visible_columns.slice(1),
-            ];
-        setVisibleColumns(visible);
+        setVisibleColumns(sanitizeColumnArray(savedColumnConfig.visible_columns));
       }
       if (savedColumnConfig.column_order?.length > 0) {
-        const order = savedColumnConfig.column_order.includes("phone")
-          ? savedColumnConfig.column_order
-          : [
-              ...savedColumnConfig.column_order.slice(0, 1),
-              "phone",
-              ...savedColumnConfig.column_order.slice(1),
-            ];
-        setColumnOrder(order);
+        setColumnOrder(sanitizeColumnArray(savedColumnConfig.column_order));
       }
     }
-  }, [savedColumnConfig]);
+  }, [savedColumnConfig, sanitizeColumnArray]);
 
   // Bulk edit
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);

@@ -1,49 +1,35 @@
-## Problemas identificados
+Vou corrigir a instabilidade da tabela em modo linha no funil. O problema não parece ser o telefone em si: os logs mostram aviso de React sobre colunas com a mesma chave, como `custom_valor_da_entrada` e `custom_referncia_da_armao`. Também vi no banco que a configuração salva de colunas tem IDs duplicados e a coluna `phone` aparece fora do lugar no fim da ordem. Isso faz o React reutilizar/omitir células durante ordenação, dando a sensação de que o telefone aparece e some.
 
-### 1. Não é possível unir leads na visão de Lista do funil
-Ao selecionar 2+ leads, o botão **"Unir Leads"** aparece e ao clicar chama `setMergeDialogOpen(true)`, mas o componente `<MergeDealsDialog>` **nunca é renderizado** no JSX de `FunnelListView.tsx` (apenas o estado e o import existem). Por isso nada acontece ao clicar. Na visão Kanban funciona porque lá o dialog está montado.
+Plano de correção:
 
-### 2. Não há ordenação alfabética / crescente / decrescente
-Os cabeçalhos das colunas só abrem popover de filtro. Não existe estado nem UI de sort em `FunnelListView.tsx`.
+1. Sanitizar a configuração de colunas antes de renderizar
+   - Remover IDs duplicados de `visibleColumns` e `columnOrder` em memória.
+   - Garantir que `phone` esteja sempre visível.
+   - Garantir que `phone` fique logo após `contact`, tanto em colunas visíveis quanto na ordem.
+   - Ignorar IDs de colunas que não existem mais.
 
----
+2. Evitar duplicidade na geração de campos personalizados
+   - Ajustar `allColumns` para não criar colunas duplicadas quando existirem `field_key` repetidos vindos de usuários/organizações diferentes.
+   - Preferir a definição mais adequada ao contexto atual e manter uma coluna por ID lógico.
 
-## Solução
+3. Corrigir as chaves React da tabela
+   - Trocar chaves simples como `key={colId}` por chaves estáveis que incluam posição quando necessário.
+   - Isso elimina o aviso de “Encountered two children with the same key” e impede células de serem omitidas/reutilizadas indevidamente.
 
-### A) Renderizar o `MergeDealsDialog` na Lista (`src/components/funnels/FunnelListView.tsx`)
+4. Persistir a configuração limpa ao salvar colunas
+   - Quando o usuário abrir/salvar “Colunas”, salvar arrays já deduplicados e com `phone` na posição correta.
+   - Isso impede que a configuração antiga volte a bagunçar a tabela após recarregar ou ordenar.
 
-Adicionar, junto aos outros dialogs no final do componente:
+5. Remover logs temporários de diagnóstico
+   - Remover os `console.log` adicionados anteriormente para telefone vazio/formatador.
+   - Manter fallback seguro: se houver telefone no banco, exibir formatado; se a formatação falhar, exibir o número bruto; se realmente estiver vazio, mostrar `-`.
 
-```tsx
-<MergeDealsDialog
-  open={mergeDialogOpen}
-  onOpenChange={setMergeDialogOpen}
-  deals={filteredDeals.filter(d => selectedIds.includes(d.id))}
-  funnel={funnel}
-  onMerged={() => setSelectedIds([])}
-/>
-```
+Arquivos prováveis:
+- `src/components/funnels/FunnelListView.tsx`
+- Possivelmente `src/components/funnels/ColumnsConfigDialog.tsx`, apenas se for necessário sanitizar também no modal de configuração.
 
-Resultado: ao selecionar 2+ leads e clicar **"Unir Leads"**, o diálogo abrirá normalmente, permitindo escolher o lead principal, a etapa final e a origem de cada campo (igual ao Kanban).
-
-### B) Adicionar ordenação por coluna (`FunnelListView.tsx`)
-
-1. Novo estado:
-   ```ts
-   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
-   ```
-
-2. Função `toggleSort(columnId)` que alterna entre `asc → desc → null` (sem ordenação).
-
-3. No `useMemo` de `filteredDeals`, aplicar `.sort(...)` final usando `getCellValue(deal, columnId)` já existente. Para colunas numéricas (`value`) e de data (`expected_close`, `time_in_stage`, custom date) usar comparação numérica/Date; para o resto, comparação de string com `localeCompare(... , 'pt-BR', { sensitivity: 'base', numeric: true })`. Valores `"-"` / vazios vão sempre para o final.
-
-4. Atualizar `renderColumnHeader`: adicionar botões **"Ordenar A→Z"** e **"Ordenar Z→A"** dentro do `PopoverContent` (acima do filtro). Mostrar uma seta (`ArrowUp`/`ArrowDown`) ao lado do nome da coluna no header quando ela for a coluna ativa do sort.
-
-5. Quando `sortConfig` está ativo, a paginação visível continua a mesma (a ordenação acontece sobre os deals já carregados — coerente com o comportamento atual de filtros).
-
----
-
-## Arquivos alterados
-- `src/components/funnels/FunnelListView.tsx` — montar `MergeDealsDialog` + adicionar lógica/UI de sort por coluna.
-
-Nenhuma migration ou novo arquivo necessário.
+Resultado esperado:
+- O telefone não deve mais sumir ao ordenar A-Z ou Z-A.
+- A coluna Telefone deve permanecer fixa logo após Contato.
+- A tabela não deve mais emitir warnings de chaves duplicadas por colunas personalizadas.
+- A visualização em linha fica estável mesmo com configurações antigas salvas.
