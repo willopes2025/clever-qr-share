@@ -256,6 +256,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
+  // Sorting
+  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const setSort = (columnId: string, direction: 'asc' | 'desc' | null) => {
+    if (direction === null) setSortConfig(null);
+    else setSortConfig({ columnId, direction });
+  };
+
   // Calculate total deals vs loaded deals
   const totalDealsCount = useMemo(() => {
     return Object.values(stageCounts).reduce((sum, count) => sum + count, 0);
