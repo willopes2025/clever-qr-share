@@ -24,6 +24,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  GripVertical,
 } from "lucide-react";
 import {
   Table,
