@@ -655,8 +655,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           const n = Number(val);
           return { num: isNaN(n) ? null : n, str: '' };
         }
-        if (fieldDef?.field_type === 'date' || fieldDef?.field_type === 'datetime' ||
-            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name))) {
+        const isDateField = fieldDef
+          ? (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')
+          : isDateLikeFieldName(String(fieldKey));
+        if (isDateField) {
           // Parse common formats
           let s = String(val);
           if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
