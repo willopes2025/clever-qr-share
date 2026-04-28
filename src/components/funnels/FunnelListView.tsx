@@ -629,9 +629,22 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         }
         return { num: null, str: String(val) };
       }
-      // Default: use cell text
-      const text = getCellValue(deal, columnId);
-      return { num: null, str: text === '-' ? '' : text };
+      // Default: derive a sortable string from common columns
+      let text = '';
+      switch (columnId) {
+        case 'contact':
+          text = deal.title || deal.contact?.name || '';
+          break;
+        case 'phone':
+          text = deal.contact?.phone || '';
+          break;
+        case 'stage':
+          text = deal.stageName || '';
+          break;
+        default:
+          text = '';
+      }
+      return { num: null, str: text };
     };
 
     const arr = [...filteredDeals];
