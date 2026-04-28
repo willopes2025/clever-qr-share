@@ -1364,10 +1364,16 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       setIsSavingColumns(false);
       setColumnsDialogOpen(false);
     }
-  }, [funnel.id, queryClient]);
+  }, [funnel.id, queryClient, sanitizeColumnArray]);
 
-  // Get ordered visible columns
-  const orderedVisibleColumns = columnOrder.filter((id) => visibleColumns.includes(id));
+  // Get ordered visible columns (sanitized + filter only visible + only known columns)
+  const orderedVisibleColumns = useMemo(() => {
+    const knownIds = new Set(allColumns.map((c) => c.id));
+    const visibleSet = new Set(visibleColumns);
+    return sanitizeColumnArray(columnOrder).filter(
+      (id) => visibleSet.has(id) && knownIds.has(id)
+    );
+  }, [columnOrder, visibleColumns, allColumns, sanitizeColumnArray]);
 
   return (
     <div className="space-y-4">
