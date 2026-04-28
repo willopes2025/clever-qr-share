@@ -210,7 +210,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [showBroadcast, setShowBroadcast] = useState(false);
 
   // Column filters (key -> value)
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, string | string[]>>({});
 
   // Column configuration
   const defaultColumnIds = ["contact", "phone", "stage", "value", "time_in_stage", "expected_close"];
