@@ -1,35 +1,57 @@
-Vou corrigir a instabilidade da tabela em modo linha no funil. O problema não parece ser o telefone em si: os logs mostram aviso de React sobre colunas com a mesma chave, como `custom_valor_da_entrada` e `custom_referncia_da_armao`. Também vi no banco que a configuração salva de colunas tem IDs duplicados e a coluna `phone` aparece fora do lugar no fim da ordem. Isso faz o React reutilizar/omitir células durante ordenação, dando a sensação de que o telefone aparece e some.
+## Problema confirmado pela imagem
 
-Plano de correção:
+A coluna **"Cidade do Evento"** no formato de linha do funil está exibindo um filtro de **intervalo de datas** (dois campos `dd/mm/yyyy`) quando deveria exibir um filtro de **texto**, pois o campo é do tipo texto — apenas o nome contém a palavra "evento".
 
-1. Sanitizar a configuração de colunas antes de renderizar
-   - Remover IDs duplicados de `visibleColumns` e `columnOrder` em memória.
-   - Garantir que `phone` esteja sempre visível.
-   - Garantir que `phone` fique logo após `contact`, tanto em colunas visíveis quanto na ordem.
-   - Ignorar IDs de colunas que não existem mais.
+O mesmo problema afeta potencialmente outras colunas customizadas cujo nome contenha palavras-chave como `evento`, `data`, `vencimento`, `nascimento`, `pagamento`, `prazo`, `consulta`, `agendamento`, `saída`, mesmo quando o tipo real do campo é texto, número, select, etc.
 
-2. Evitar duplicidade na geração de campos personalizados
-   - Ajustar `allColumns` para não criar colunas duplicadas quando existirem `field_key` repetidos vindos de usuários/organizações diferentes.
-   - Preferir a definição mais adequada ao contexto atual e manter uma coluna por ID lógico.
+## Causa raiz
 
-3. Corrigir as chaves React da tabela
-   - Trocar chaves simples como `key={colId}` por chaves estáveis que incluam posição quando necessário.
-   - Isso elimina o aviso de “Encountered two children with the same key” e impede células de serem omitidas/reutilizadas indevidamente.
+A função `isDateLikeFieldName` (em `src/lib/date-utils.ts`) é uma heurística baseada em palavras-chave do **nome** do campo. Em `src/components/funnels/FunnelListView.tsx` ela é aplicada em três pontos como `OR` em vez de `fallback`, sobrepondo o `field_type` declarado:
 
-4. Persistir a configuração limpa ao salvar colunas
-   - Quando o usuário abrir/salvar “Colunas”, salvar arrays já deduplicados e com `phone` na posição correta.
-   - Isso impede que a configuração antiga volte a bagunçar a tabela após recarregar ou ordenar.
+1. **Linhas 1188-1189** — escolha do input de filtro (data vs. texto)
+2. **Linhas 658-659** — chave de ordenação (timestamp vs. string)
+3. **Linha 1012** — formatação da célula (data vs. texto bruto)
 
-5. Remover logs temporários de diagnóstico
-   - Remover os `console.log` adicionados anteriormente para telefone vazio/formatador.
-   - Manter fallback seguro: se houver telefone no banco, exibir formatado; se a formatação falhar, exibir o número bruto; se realmente estiver vazio, mostrar `-`.
+A palavra "evento" na regex casa com "Cidade do Evento", "Bairro do Evento", "Local do Evento", etc.
 
-Arquivos prováveis:
-- `src/components/funnels/FunnelListView.tsx`
-- Possivelmente `src/components/funnels/ColumnsConfigDialog.tsx`, apenas se for necessário sanitizar também no modal de configuração.
+## Correção
 
-Resultado esperado:
-- O telefone não deve mais sumir ao ordenar A-Z ou Z-A.
-- A coluna Telefone deve permanecer fixa logo após Contato.
-- A tabela não deve mais emitir warnings de chaves duplicadas por colunas personalizadas.
-- A visualização em linha fica estável mesmo com configurações antigas salvas.
+### 1. `src/components/funnels/FunnelListView.tsx`
+
+Trocar a lógica nos três pontos para **respeitar o `field_type` declarado** e só usar a heurística como fallback quando não há definição do campo:
+
+```ts
+const isDateField = fieldDef
+  ? (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')
+  : isDateLikeFieldName(col.label || '');
+```
+
+Pontos a alterar:
+- `renderFilterInput` (linhas 1184-1215) — escolha do tipo de filtro
+- `getSortKey` dentro de `sortedDeals` (linhas 646-670) — comparador de ordenação
+- Renderização da célula em `renderCellContent` (linha ~1012) — formatação do valor
+
+### 2. Melhoria do filtro por tipo de campo (mesmo arquivo)
+
+Aproveitar a correção para que o filtro escolha o input apropriado para cada tipo do `field_type`:
+
+- `date` / `datetime` → dois inputs `type="date"` (intervalo De/Até) — comportamento atual
+- `number` → `<Input type="number">` com filtro de igualdade ou contém
+- `select` / `multi_select` → `<Select>` populado com `fieldDef.options`
+- `boolean` / `switch` → `<Select>` com Sim/Não/Todos
+- `phone`, `email`, `url`, `text` (e qualquer outro/desconhecido) → `<Input>` de texto (padrão atual)
+
+### 3. Sem mudanças em `src/lib/date-utils.ts`
+
+A regex permanece útil para outros componentes que tratam valores **sem** definição de campo (ex.: importações, pré-visualizações). A correção é localizada onde a heurística estava sendo usada incorretamente como prioridade sobre o tipo declarado.
+
+## Verificação após aplicar
+
+Revisar no formato de linha cada coluna visível no print:
+- "Telefone", "Nome do Líder", "Cidade do Evento", "Bairro do Evento", "Município", "UF", "Forma de Pg Saldo" → filtro de **texto**
+- Qualquer campo cujo `field_type` for realmente `date`/`datetime` → filtro de **intervalo de datas**
+- Confirmar que ordenação A→Z / Z→A funciona corretamente em campos de texto que antes eram tratados como data
+
+## Arquivos a editar
+
+- `src/components/funnels/FunnelListView.tsx` (3 condições corrigidas + suporte a `number`/`select`/`boolean` no filtro)
