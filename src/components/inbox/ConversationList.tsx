@@ -255,10 +255,12 @@ export const ConversationList = ({
       if (conv.status === "archived") return false;
     }
 
-    // Apply instance filter - multi-select with strict matching
+    // Apply instance filter - multi-select with strict matching.
+    // Conversas sem instance_id (ex.: criadas antes do vínculo, importadas
+    // ou de canais externos) sempre passam — caso contrário ficariam
+    // invisíveis sempre que qualquer filtro de instância estivesse ativo.
     if (filters.instanceIds.length > 0) {
-      if (!conv.instance_id) return false;
-      if (!filters.instanceIds.includes(conv.instance_id)) return false;
+      if (conv.instance_id && !filters.instanceIds.includes(conv.instance_id)) return false;
     }
 
     // Apply tag filter - multi-select (OR logic: conversation has at least one selected tag)
