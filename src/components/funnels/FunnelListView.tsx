@@ -766,9 +766,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     });
   };
 
-  const hasActiveFilters = Object.keys(columnFilters).some(
-    (key) => columnFilters[key] && columnFilters[key] !== "all"
-  );
+  const hasActiveFilters = Object.keys(columnFilters).some((key) => {
+    const v = columnFilters[key];
+    if (Array.isArray(v)) return v.length > 0;
+    return v && v !== "all";
+  });
 
   const clearAllFilters = () => {
     setColumnFilters({});
