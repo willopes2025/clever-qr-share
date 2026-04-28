@@ -1392,7 +1392,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredDeals.length === 0 ? (
+            {sortedDeals.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={orderedVisibleColumns.length + 2}
@@ -1404,7 +1404,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                 </TableCell>
               </TableRow>
             ) : (
-              filteredDeals.map((deal) => (
+              sortedDeals.map((deal) => (
                 <TableRow key={deal.id} className="cursor-pointer hover:bg-muted/50" onClick={(e) => {
                   // Don't open if clicking on checkbox, dropdown, or button
                   const target = e.target as HTMLElement;
