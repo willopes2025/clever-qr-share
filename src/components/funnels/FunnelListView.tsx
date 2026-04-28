@@ -750,7 +750,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const isSomeSelected = selectedIds.length > 0 && selectedIds.length < sortedDeals.length;
 
   // Set column filter
-  const setColumnFilter = (columnId: string, value: string) => {
+  const setColumnFilter = (columnId: string, value: string | string[]) => {
     setColumnFilters((prev) => ({ ...prev, [columnId]: value }));
   };
 
