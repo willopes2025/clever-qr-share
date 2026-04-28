@@ -242,10 +242,26 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   useEffect(() => {
     if (savedColumnConfig) {
       if (savedColumnConfig.visible_columns?.length > 0) {
-        setVisibleColumns(savedColumnConfig.visible_columns);
+        // Garante que a coluna "phone" (Telefone) sempre esteja visível,
+        // mesmo em configs antigas salvas antes de existir essa coluna.
+        const visible = savedColumnConfig.visible_columns.includes("phone")
+          ? savedColumnConfig.visible_columns
+          : [
+              ...savedColumnConfig.visible_columns.slice(0, 1),
+              "phone",
+              ...savedColumnConfig.visible_columns.slice(1),
+            ];
+        setVisibleColumns(visible);
       }
       if (savedColumnConfig.column_order?.length > 0) {
-        setColumnOrder(savedColumnConfig.column_order);
+        const order = savedColumnConfig.column_order.includes("phone")
+          ? savedColumnConfig.column_order
+          : [
+              ...savedColumnConfig.column_order.slice(0, 1),
+              "phone",
+              ...savedColumnConfig.column_order.slice(1),
+            ];
+        setColumnOrder(order);
       }
     }
   }, [savedColumnConfig]);
