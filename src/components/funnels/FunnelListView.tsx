@@ -1036,7 +1036,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           const isDateField =
             (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
             isDateLikeFieldName(String(fieldKey)) ||
-            (fieldDef?.label ? isDateLikeFieldName(String(fieldDef.label)) : false);
+            (fieldDef?.field_name ? isDateLikeFieldName(String(fieldDef.field_name)) : false);
           if (isDateField) {
             const formatted = formatCustomFieldDate(val);
             if (formatted) return formatted;
