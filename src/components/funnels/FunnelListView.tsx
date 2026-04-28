@@ -1131,7 +1131,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Input
             placeholder="Buscar nome..."
-            value={columnFilters.contact || ""}
+            value={getFilterStr("contact")}
             onChange={(e) => setColumnFilter("contact", e.target.value)}
           />
         );
@@ -1139,7 +1139,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Input
             placeholder="Buscar telefone..."
-            value={columnFilters.phone || ""}
+            value={getFilterStr("phone")}
             onChange={(e) => setColumnFilter("phone", e.target.value)}
           />
         );
@@ -1157,7 +1157,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       case "value":
         return (
           <Select
-            value={columnFilters.value || "all"}
+            value={getFilterStr("value") || "all"}
             onValueChange={(val) => setColumnFilter("value", val)}
           >
             <SelectTrigger>
@@ -1174,7 +1174,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       case "time_in_stage":
         return (
           <Select
-            value={columnFilters.time_in_stage || "all"}
+            value={getFilterStr("time_in_stage") || "all"}
             onValueChange={(val) => setColumnFilter("time_in_stage", val)}
           >
             <SelectTrigger>
@@ -1231,7 +1231,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
               <Input
                 type="number"
                 placeholder={`Filtrar ${col.label}...`}
-                value={columnFilters[columnId] || ""}
+                value={getFilterStr(columnId)}
                 onChange={(e) => setColumnFilter(columnId, e.target.value)}
               />
             );
@@ -1240,7 +1240,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if ((fieldType === 'select' || fieldType === 'multi_select') && fieldDef?.options?.length) {
             return (
               <Select
-                value={columnFilters[columnId] || "all"}
+                value={getFilterStr(columnId) || "all"}
                 onValueChange={(val) => setColumnFilter(columnId, val === "all" ? "" : val)}
               >
                 <SelectTrigger>
@@ -1259,7 +1259,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if (fieldType === 'boolean' || fieldType === 'switch') {
             return (
               <Select
-                value={columnFilters[columnId] || "all"}
+                value={getFilterStr(columnId) || "all"}
                 onValueChange={(val) => setColumnFilter(columnId, val === "all" ? "" : val)}
               >
                 <SelectTrigger>
@@ -1277,7 +1277,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Input
             placeholder={`Filtrar ${col.label}...`}
-            value={columnFilters[columnId] || ""}
+            value={getFilterStr(columnId)}
             onChange={(e) => setColumnFilter(columnId, e.target.value)}
           />
         );
