@@ -1142,25 +1142,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             onChange={(e) => setColumnFilter("phone", e.target.value)}
           />
         );
-      case "stage":
+      case "stage": {
+        const selected = Array.isArray(columnFilters.stage) ? columnFilters.stage : [];
         return (
-          <Select
-            value={columnFilters.stage || "all"}
-            onValueChange={(val) => setColumnFilter("stage", val)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas etapas</SelectItem>
-              {funnel.stages.map((stage) => (
-                <SelectItem key={stage.id} value={stage.id}>
-                  {stage.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelect
+            options={(funnel.stages || []).map((s) => ({ value: s.id, label: s.name }))}
+            value={selected}
+            onChange={(vals) => setColumnFilter("stage", vals)}
+            placeholder="Todas etapas"
+          />
         );
+      }
       case "value":
         return (
           <Select
