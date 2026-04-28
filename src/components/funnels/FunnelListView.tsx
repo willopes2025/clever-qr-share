@@ -1625,9 +1625,26 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                     : colId === "contact"
                       ? "min-w-[220px]"
                       : "";
+                const isDragging = draggedColumnId === colId;
+                const isDragOver = dragOverColumnId === colId && draggedColumnId && draggedColumnId !== colId;
+                const fromIdx = draggedColumnId ? orderedVisibleColumns.indexOf(draggedColumnId) : -1;
+                const toIdx = orderedVisibleColumns.indexOf(colId);
+                const insertSide = isDragOver ? (fromIdx < toIdx ? 'right' : 'left') : null;
                 return (
-                  <TableHead key={colId} className={`whitespace-nowrap ${widthClass}`}>
-                    {renderColumnHeader(colId)}
+                  <TableHead
+                    key={colId}
+                    draggable
+                    onDragStart={(e) => handleColumnDragStart(e, colId)}
+                    onDragOver={(e) => handleColumnDragOver(e, colId)}
+                    onDragLeave={handleColumnDragLeave}
+                    onDrop={(e) => handleColumnDrop(e, colId)}
+                    onDragEnd={handleColumnDragEnd}
+                    className={`whitespace-nowrap cursor-grab active:cursor-grabbing select-none ${widthClass} ${isDragging ? 'opacity-50' : ''} ${insertSide === 'left' ? 'border-l-2 border-primary' : ''} ${insertSide === 'right' ? 'border-r-2 border-primary' : ''}`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" aria-hidden="true" />
+                      <div className="flex-1 min-w-0">{renderColumnHeader(colId)}</div>
+                    </div>
                   </TableHead>
                 );
               })}
