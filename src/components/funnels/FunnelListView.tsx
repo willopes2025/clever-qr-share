@@ -1701,6 +1701,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         funnelName={funnel.name}
       />
 
+      <MergeDealsDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        deals={sortedDeals.filter((d) => selectedIds.includes(d.id))}
+        funnel={funnel}
+        onMerged={() => setSelectedIds([])}
+      />
+
       <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
