@@ -1185,13 +1185,17 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           </Select>
         );
       default:
-        // Custom fields - check if date type for date picker
+        // Custom fields - render input based on declared field_type
         if (columnId.startsWith("custom_")) {
           const fieldKey = columnId.replace("custom_", "");
           const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
-          const isDateField = (fieldDef && (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')) ||
-            (fieldDef?.field_name && isDateLikeFieldName(fieldDef.field_name));
-          
+
+          // Respect declared field_type. Only fall back to name heuristic when there's no field def.
+          const fieldType = fieldDef?.field_type;
+          const isDateField = fieldDef
+            ? (fieldType === 'date' || fieldType === 'datetime')
+            : isDateLikeFieldName(String(fieldKey));
+
           if (isDateField) {
             return (
               <div className="space-y-2">
@@ -1214,6 +1218,54 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                   }
                 </p>
               </div>
+            );
+          }
+
+          if (fieldType === 'number') {
+            return (
+              <Input
+                type="number"
+                placeholder={`Filtrar ${col.label}...`}
+                value={columnFilters[columnId] || ""}
+                onChange={(e) => setColumnFilter(columnId, e.target.value)}
+              />
+            );
+          }
+
+          if ((fieldType === 'select' || fieldType === 'multi_select') && fieldDef?.options?.length) {
+            return (
+              <Select
+                value={columnFilters[columnId] || "all"}
+                onValueChange={(val) => setColumnFilter(columnId, val === "all" ? "" : val)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={`Filtrar ${col.label}...`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {fieldDef.options.map((opt) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          if (fieldType === 'boolean' || fieldType === 'switch') {
+            return (
+              <Select
+                value={columnFilters[columnId] || "all"}
+                onValueChange={(val) => setColumnFilter(columnId, val === "all" ? "" : val)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={`Filtrar ${col.label}...`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">Sim</SelectItem>
+                  <SelectItem value="false">Não</SelectItem>
+                </SelectContent>
+              </Select>
             );
           }
         }
