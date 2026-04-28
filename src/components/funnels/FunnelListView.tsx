@@ -238,33 +238,39 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     },
   });
 
+  // Sanitiza arrays de colunas: remove duplicatas e garante "phone" logo após "contact"
+  const sanitizeColumnArray = useCallback((ids: string[]): string[] => {
+    // Dedup preservando primeira ocorrência
+    const seen = new Set<string>();
+    const deduped: string[] = [];
+    for (const id of ids) {
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        deduped.push(id);
+      }
+    }
+    // Remove "phone" para reposicionar
+    const withoutPhone = deduped.filter((id) => id !== "phone");
+    const contactIdx = withoutPhone.indexOf("contact");
+    if (contactIdx >= 0) {
+      withoutPhone.splice(contactIdx + 1, 0, "phone");
+    } else {
+      withoutPhone.unshift("phone");
+    }
+    return withoutPhone;
+  }, []);
+
   // Apply saved config when loaded
   useEffect(() => {
     if (savedColumnConfig) {
       if (savedColumnConfig.visible_columns?.length > 0) {
-        // Garante que a coluna "phone" (Telefone) sempre esteja visível,
-        // mesmo em configs antigas salvas antes de existir essa coluna.
-        const visible = savedColumnConfig.visible_columns.includes("phone")
-          ? savedColumnConfig.visible_columns
-          : [
-              ...savedColumnConfig.visible_columns.slice(0, 1),
-              "phone",
-              ...savedColumnConfig.visible_columns.slice(1),
-            ];
-        setVisibleColumns(visible);
+        setVisibleColumns(sanitizeColumnArray(savedColumnConfig.visible_columns));
       }
       if (savedColumnConfig.column_order?.length > 0) {
-        const order = savedColumnConfig.column_order.includes("phone")
-          ? savedColumnConfig.column_order
-          : [
-              ...savedColumnConfig.column_order.slice(0, 1),
-              "phone",
-              ...savedColumnConfig.column_order.slice(1),
-            ];
-        setColumnOrder(order);
+        setColumnOrder(sanitizeColumnArray(savedColumnConfig.column_order));
       }
     }
-  }, [savedColumnConfig]);
+  }, [savedColumnConfig, sanitizeColumnArray]);
 
   // Bulk edit
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
@@ -350,15 +356,32 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       { id: "expected_close", label: "Previsão", type: "date" },
     ];
 
-    const customCols: ColumnDefinition[] = (fieldDefinitions || []).map((field) => ({
-      id: `custom_${field.field_key}`,
-      label: field.field_name,
-      type: field.field_type,
-      customFieldId: field.id,
-    }));
+    // Dedup custom fields by field_key (mesmo key em orgs distintas pode duplicar)
+    const seenKeys = new Set<string>();
+    const customCols: ColumnDefinition[] = [];
+    for (const field of fieldDefinitions || []) {
+      if (seenKeys.has(field.field_key)) continue;
+      seenKeys.add(field.field_key);
+      customCols.push({
+        id: `custom_${field.field_key}`,
+        label: field.field_name,
+        type: field.field_type,
+        customFieldId: field.id,
+      });
+    }
 
     return [...defaultCols, ...customCols];
   }, [fieldDefinitions]);
+
+  // Sync column order when new custom fields are added
+  useEffect(() => {
+    const allIds = allColumns.map((c) => c.id);
+    const newIds = allIds.filter((id) => !columnOrder.includes(id));
+    if (newIds.length > 0) {
+      setColumnOrder((prev) => [...prev, ...newIds]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
   // Sync column order when new custom fields are added
   useEffect(() => {
@@ -894,17 +917,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         );
       case "phone": {
         const phoneValue = deal.contact?.phone || "";
-        const formatted = formatForDisplay(phoneValue);
-        // Debug: log empty phones to diagnose missing values
-        if (!phoneValue) {
-          console.log('[FunnelListView] Deal sem telefone:', { dealId: deal.id, title: deal.title, contactId: deal.contact_id, contactName: deal.contact?.name });
-        } else if (!formatted) {
-          console.log('[FunnelListView] Telefone presente mas formatForDisplay retornou vazio:', { dealId: deal.id, phoneValue });
-        }
         if (!phoneValue) {
           return <span className="text-sm text-muted-foreground">-</span>;
         }
-        // Show raw value as fallback if formatter fails
+        const formatted = formatForDisplay(phoneValue);
         const display = formatted || phoneValue;
         return (
           <p
@@ -1309,8 +1325,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
 
   // Handle columns config save
   const handleColumnsConfigSave = useCallback(async (newVisible: string[], newOrder: string[], applyToMemberIds?: string[]) => {
-    setVisibleColumns(newVisible);
-    setColumnOrder(newOrder);
+    const cleanVisible = sanitizeColumnArray(newVisible);
+    const cleanOrder = sanitizeColumnArray(newOrder);
+    setVisibleColumns(cleanVisible);
+    setColumnOrder(cleanOrder);
     setIsSavingColumns(true);
 
     try {
@@ -1326,8 +1344,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           .upsert({
             user_id: userId,
             funnel_id: funnel.id,
-            visible_columns: newVisible,
-            column_order: newOrder,
+            visible_columns: cleanVisible,
+            column_order: cleanOrder,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,funnel_id' });
       }
@@ -1346,10 +1364,16 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       setIsSavingColumns(false);
       setColumnsDialogOpen(false);
     }
-  }, [funnel.id, queryClient]);
+  }, [funnel.id, queryClient, sanitizeColumnArray]);
 
-  // Get ordered visible columns
-  const orderedVisibleColumns = columnOrder.filter((id) => visibleColumns.includes(id));
+  // Get ordered visible columns (sanitized + filter only visible + only known columns)
+  const orderedVisibleColumns = useMemo(() => {
+    const knownIds = new Set(allColumns.map((c) => c.id));
+    const visibleSet = new Set(visibleColumns);
+    return sanitizeColumnArray(columnOrder).filter(
+      (id) => visibleSet.has(id) && knownIds.has(id)
+    );
+  }, [columnOrder, visibleColumns, allColumns, sanitizeColumnArray]);
 
   return (
     <div className="space-y-4">
