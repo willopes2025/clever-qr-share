@@ -536,13 +536,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       }
 
       // Phone filter
-      if (columnFilters.phone) {
-        const phoneFilterDigits = columnFilters.phone.replace(/\D/g, "");
+      const phoneFilter = typeof columnFilters.phone === 'string' ? columnFilters.phone : '';
+      if (phoneFilter) {
+        const phoneFilterDigits = phoneFilter.replace(/\D/g, "");
         const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
         if (phoneFilterDigits.length > 0 && !phoneDigits.includes(phoneFilterDigits)) return false;
         if (phoneFilterDigits.length === 0) {
           const normalizedPhone = normalizeText(deal.contact?.phone || "");
-          if (!normalizedPhone.includes(normalizeText(columnFilters.phone))) return false;
+          if (!normalizedPhone.includes(normalizeText(phoneFilter))) return false;
         }
       }
 
