@@ -895,6 +895,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       case "phone": {
         const phoneValue = deal.contact?.phone || "";
         const formatted = formatForDisplay(phoneValue);
+        if (!phoneValue || !formatted) {
+          return <span className="text-sm text-muted-foreground">-</span>;
+        }
         return (
           <p
             className="text-sm text-muted-foreground flex items-center gap-1 font-mono tabular-nums whitespace-nowrap"
