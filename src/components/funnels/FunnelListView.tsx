@@ -356,15 +356,32 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       { id: "expected_close", label: "Previsão", type: "date" },
     ];
 
-    const customCols: ColumnDefinition[] = (fieldDefinitions || []).map((field) => ({
-      id: `custom_${field.field_key}`,
-      label: field.field_name,
-      type: field.field_type,
-      customFieldId: field.id,
-    }));
+    // Dedup custom fields by field_key (mesmo key em orgs distintas pode duplicar)
+    const seenKeys = new Set<string>();
+    const customCols: ColumnDefinition[] = [];
+    for (const field of fieldDefinitions || []) {
+      if (seenKeys.has(field.field_key)) continue;
+      seenKeys.add(field.field_key);
+      customCols.push({
+        id: `custom_${field.field_key}`,
+        label: field.field_name,
+        type: field.field_type,
+        customFieldId: field.id,
+      });
+    }
 
     return [...defaultCols, ...customCols];
   }, [fieldDefinitions]);
+
+  // Sync column order when new custom fields are added
+  useEffect(() => {
+    const allIds = allColumns.map((c) => c.id);
+    const newIds = allIds.filter((id) => !columnOrder.includes(id));
+    if (newIds.length > 0) {
+      setColumnOrder((prev) => [...prev, ...newIds]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
   // Sync column order when new custom fields are added
   useEffect(() => {
