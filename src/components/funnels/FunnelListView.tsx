@@ -60,6 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 import { Funnel, FunnelDeal, useFunnels } from "@/hooks/useFunnels";
 import { useStageDealCounts, useLoadMoreDeals } from "@/hooks/useFunnelDeals";
@@ -210,7 +211,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [showBroadcast, setShowBroadcast] = useState(false);
 
   // Column filters (key -> value)
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, string | string[]>>({});
 
   // Column configuration
   const defaultColumnIds = ["contact", "phone", "stage", "value", "time_in_stage", "expected_close"];
@@ -438,7 +439,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     fetchDeal();
   }, [openDealId, allDeals, onDealOpened]);
 
-  const contactFilterRaw = columnFilters.contact?.trim() || "";
+  const getFilterStr = (key: string): string => {
+    const v = columnFilters[key];
+    return typeof v === 'string' ? v : '';
+  };
+  const contactFilterRaw = getFilterStr('contact').trim();
   const normalizedContactFilter = normalizeText(contactFilterRaw);
   const contactFilterDigits = contactFilterRaw.replace(/\D/g, "");
   const shouldSearchServerDeals = normalizedContactFilter.length >= 3 || contactFilterDigits.length >= 4;
@@ -532,19 +537,25 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       }
 
       // Phone filter
-      if (columnFilters.phone) {
-        const phoneFilterDigits = columnFilters.phone.replace(/\D/g, "");
+      const phoneFilter = typeof columnFilters.phone === 'string' ? columnFilters.phone : '';
+      if (phoneFilter) {
+        const phoneFilterDigits = phoneFilter.replace(/\D/g, "");
         const phoneDigits = (deal.contact?.phone || "").replace(/\D/g, "");
         if (phoneFilterDigits.length > 0 && !phoneDigits.includes(phoneFilterDigits)) return false;
         if (phoneFilterDigits.length === 0) {
           const normalizedPhone = normalizeText(deal.contact?.phone || "");
-          if (!normalizedPhone.includes(normalizeText(columnFilters.phone))) return false;
+          if (!normalizedPhone.includes(normalizeText(phoneFilter))) return false;
         }
       }
 
-      // Stage filter
+      // Stage filter (multi-select array or legacy single string)
       if (columnFilters.stage && columnFilters.stage !== "all") {
-        if (deal.stage_id !== columnFilters.stage) return false;
+        const stageFilter = columnFilters.stage;
+        if (Array.isArray(stageFilter)) {
+          if (stageFilter.length > 0 && !stageFilter.includes(deal.stage_id)) return false;
+        } else {
+          if (deal.stage_id !== stageFilter) return false;
+        }
       }
 
       // Value filter
@@ -567,8 +578,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       }
 
       // Custom field filters
-      for (const [key, filterValue] of Object.entries(columnFilters)) {
-        if (key.startsWith("custom_") && filterValue) {
+      for (const [key, rawFilterValue] of Object.entries(columnFilters)) {
+        if (key.startsWith("custom_") && rawFilterValue) {
+          const filterValue = typeof rawFilterValue === 'string' ? rawFilterValue : '';
+          if (!filterValue) continue;
           // Skip date range helper keys (they are handled below)
           if (key.endsWith('_from') || key.endsWith('_to')) {
             // Handle date range filters
@@ -738,7 +751,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const isSomeSelected = selectedIds.length > 0 && selectedIds.length < sortedDeals.length;
 
   // Set column filter
-  const setColumnFilter = (columnId: string, value: string) => {
+  const setColumnFilter = (columnId: string, value: string | string[]) => {
     setColumnFilters((prev) => ({ ...prev, [columnId]: value }));
   };
 
@@ -753,9 +766,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     });
   };
 
-  const hasActiveFilters = Object.keys(columnFilters).some(
-    (key) => columnFilters[key] && columnFilters[key] !== "all"
-  );
+  const hasActiveFilters = Object.keys(columnFilters).some((key) => {
+    const v = columnFilters[key];
+    if (Array.isArray(v)) return v.length > 0;
+    return v && v !== "all";
+  });
 
   const clearAllFilters = () => {
     setColumnFilters({});
@@ -1030,7 +1045,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     const col = allColumns.find((c) => c.id === columnId);
     if (!col) return null;
 
-    const hasFilter = (columnFilters[columnId] && columnFilters[columnId] !== "all") || 
+    const filterVal = columnFilters[columnId];
+    const filterIsActive = Array.isArray(filterVal)
+      ? filterVal.length > 0
+      : !!(filterVal && filterVal !== "all");
+    const hasFilter = filterIsActive ||
       columnFilters[`${columnId}_from`] || columnFilters[`${columnId}_to`];
 
     const isSorted = sortConfig?.columnId === columnId;
@@ -1118,7 +1137,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Input
             placeholder="Buscar nome..."
-            value={columnFilters.contact || ""}
+            value={getFilterStr("contact")}
             onChange={(e) => setColumnFilter("contact", e.target.value)}
           />
         );
@@ -1126,33 +1145,25 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Input
             placeholder="Buscar telefone..."
-            value={columnFilters.phone || ""}
+            value={getFilterStr("phone")}
             onChange={(e) => setColumnFilter("phone", e.target.value)}
           />
         );
-      case "stage":
+      case "stage": {
+        const selected = Array.isArray(columnFilters.stage) ? columnFilters.stage : [];
         return (
-          <Select
-            value={columnFilters.stage || "all"}
-            onValueChange={(val) => setColumnFilter("stage", val)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas etapas</SelectItem>
-              {funnel.stages.map((stage) => (
-                <SelectItem key={stage.id} value={stage.id}>
-                  {stage.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelect
+            options={(funnel.stages || []).map((s) => ({ value: s.id, label: s.name }))}
+            value={selected}
+            onChange={(vals) => setColumnFilter("stage", vals)}
+            placeholder="Todas etapas"
+          />
         );
+      }
       case "value":
         return (
           <Select
-            value={columnFilters.value || "all"}
+            value={getFilterStr("value") || "all"}
             onValueChange={(val) => setColumnFilter("value", val)}
           >
             <SelectTrigger>
@@ -1169,7 +1180,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       case "time_in_stage":
         return (
           <Select
-            value={columnFilters.time_in_stage || "all"}
+            value={getFilterStr("time_in_stage") || "all"}
             onValueChange={(val) => setColumnFilter("time_in_stage", val)}
           >
             <SelectTrigger>
@@ -1226,7 +1237,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
               <Input
                 type="number"
                 placeholder={`Filtrar ${col.label}...`}
-                value={columnFilters[columnId] || ""}
+                value={getFilterStr(columnId)}
                 onChange={(e) => setColumnFilter(columnId, e.target.value)}
               />
             );
@@ -1235,7 +1246,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if ((fieldType === 'select' || fieldType === 'multi_select') && fieldDef?.options?.length) {
             return (
               <Select
-                value={columnFilters[columnId] || "all"}
+                value={getFilterStr(columnId) || "all"}
                 onValueChange={(val) => setColumnFilter(columnId, val === "all" ? "" : val)}
               >
                 <SelectTrigger>
@@ -1254,7 +1265,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           if (fieldType === 'boolean' || fieldType === 'switch') {
             return (
               <Select
-                value={columnFilters[columnId] || "all"}
+                value={getFilterStr(columnId) || "all"}
                 onValueChange={(val) => setColumnFilter(columnId, val === "all" ? "" : val)}
               >
                 <SelectTrigger>
@@ -1272,7 +1283,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return (
           <Input
             placeholder={`Filtrar ${col.label}...`}
-            value={columnFilters[columnId] || ""}
+            value={getFilterStr(columnId)}
             onChange={(e) => setColumnFilter(columnId, e.target.value)}
           />
         );
