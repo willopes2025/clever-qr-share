@@ -438,7 +438,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     fetchDeal();
   }, [openDealId, allDeals, onDealOpened]);
 
-  const contactFilterRaw = columnFilters.contact?.trim() || "";
+  const getFilterStr = (key: string): string => {
+    const v = columnFilters[key];
+    return typeof v === 'string' ? v : '';
+  };
+  const contactFilterRaw = getFilterStr('contact').trim();
   const normalizedContactFilter = normalizeText(contactFilterRaw);
   const contactFilterDigits = contactFilterRaw.replace(/\D/g, "");
   const shouldSearchServerDeals = normalizedContactFilter.length >= 3 || contactFilterDigits.length >= 4;
