@@ -917,17 +917,10 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         );
       case "phone": {
         const phoneValue = deal.contact?.phone || "";
-        const formatted = formatForDisplay(phoneValue);
-        // Debug: log empty phones to diagnose missing values
-        if (!phoneValue) {
-          console.log('[FunnelListView] Deal sem telefone:', { dealId: deal.id, title: deal.title, contactId: deal.contact_id, contactName: deal.contact?.name });
-        } else if (!formatted) {
-          console.log('[FunnelListView] Telefone presente mas formatForDisplay retornou vazio:', { dealId: deal.id, phoneValue });
-        }
         if (!phoneValue) {
           return <span className="text-sm text-muted-foreground">-</span>;
         }
-        // Show raw value as fallback if formatter fails
+        const formatted = formatForDisplay(phoneValue);
         const display = formatted || phoneValue;
         return (
           <p
