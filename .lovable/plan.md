@@ -1,57 +1,41 @@
-## Problema confirmado pela imagem
+## Objetivo
+Permitir reordenar as colunas no formato de Lista do Funnel arrastando os cabeçalhos (headers) para a esquerda ou direita, salvando a nova ordem automaticamente.
 
-A coluna **"Cidade do Evento"** no formato de linha do funil está exibindo um filtro de **intervalo de datas** (dois campos `dd/mm/yyyy`) quando deveria exibir um filtro de **texto**, pois o campo é do tipo texto — apenas o nome contém a palavra "evento".
+## Como vai funcionar (UX)
+- Cada cabeçalho de coluna na visualização de lista terá um pequeno "ícone de alça" (grip) no início, indicando que pode ser arrastado.
+- O usuário clica e segura em cima do cabeçalho e arrasta para a posição desejada.
+- Um indicador visual (linha azul vertical) mostra onde a coluna será inserida.
+- Ao soltar, a ordem é atualizada na tela imediatamente e salva automaticamente no banco (mesma rota já usada hoje pelo `ColumnsConfigDialog`).
+- Colunas fixas (checkbox de seleção à esquerda e ações à direita) NÃO serão arrastáveis.
 
-O mesmo problema afeta potencialmente outras colunas customizadas cujo nome contenha palavras-chave como `evento`, `data`, `vencimento`, `nascimento`, `pagamento`, `prazo`, `consulta`, `agendamento`, `saída`, mesmo quando o tipo real do campo é texto, número, select, etc.
+## Implementação técnica
+Arquivo: `src/components/funnels/FunnelListView.tsx`
 
-## Causa raiz
+1. **Drag-and-drop nativo HTML5** (sem nova dependência):
+   - Adicionar `draggable`, `onDragStart`, `onDragOver`, `onDragEnter`, `onDragLeave`, `onDrop` e `onDragEnd` no `<TableHead>` de cada coluna dentro do `orderedVisibleColumns.map(...)`.
+   - Estados locais novos:
+     - `draggedColumnId: string | null` — coluna sendo arrastada.
+     - `dragOverColumnId: string | null` — coluna alvo para feedback visual.
 
-A função `isDateLikeFieldName` (em `src/lib/date-utils.ts`) é uma heurística baseada em palavras-chave do **nome** do campo. Em `src/components/funnels/FunnelListView.tsx` ela é aplicada em três pontos como `OR` em vez de `fallback`, sobrepondo o `field_type` declarado:
+2. **Lógica de reordenação**:
+   - No `onDrop`, calcular nova ordem inserindo `draggedColumnId` antes/depois do alvo (com base na posição relativa).
+   - Reutilizar a função existente `handleSaveColumnConfig(visibleColumns, newOrder)` para persistir no Supabase (`funnel_column_configs.column_order`).
+   - Atualizar `setColumnOrder` localmente para feedback imediato.
 
-1. **Linhas 1188-1189** — escolha do input de filtro (data vs. texto)
-2. **Linhas 658-659** — chave de ordenação (timestamp vs. string)
-3. **Linha 1012** — formatação da célula (data vs. texto bruto)
+3. **Indicador visual**:
+   - Adicionar borda esquerda/direita azul (`border-l-2 border-primary`) no `<TableHead>` quando ele é o `dragOverColumnId`.
+   - Cursor `cursor-grab` no header normal e `cursor-grabbing` durante arrasto.
+   - Pequeno ícone `GripVertical` (lucide-react) à esquerda do nome da coluna no `renderColumnHeader`.
 
-A palavra "evento" na regex casa com "Cidade do Evento", "Bairro do Evento", "Local do Evento", etc.
+4. **Não interferir nos outros gestos**:
+   - O Popover de filtro/ordenação continua abrindo ao clicar no botão do header (não no ícone de grip).
+   - Apenas a área do "grip" inicia o arrasto (`onDragStart` só dispara via atributo `draggable` no wrapper externo, mas usamos `onMouseDown` no botão do filtro para impedir o drag quando o usuário interage com o filtro).
 
-## Correção
+5. **Persistência**:
+   - Após `onDrop`, chamar `handleSaveColumnConfig(visibleColumns, newOrder)` que já faz upsert em `funnel_column_configs`.
+   - Toast de sucesso já vem do fluxo existente.
 
-### 1. `src/components/funnels/FunnelListView.tsx`
-
-Trocar a lógica nos três pontos para **respeitar o `field_type` declarado** e só usar a heurística como fallback quando não há definição do campo:
-
-```ts
-const isDateField = fieldDef
-  ? (fieldDef.field_type === 'date' || fieldDef.field_type === 'datetime')
-  : isDateLikeFieldName(col.label || '');
-```
-
-Pontos a alterar:
-- `renderFilterInput` (linhas 1184-1215) — escolha do tipo de filtro
-- `getSortKey` dentro de `sortedDeals` (linhas 646-670) — comparador de ordenação
-- Renderização da célula em `renderCellContent` (linha ~1012) — formatação do valor
-
-### 2. Melhoria do filtro por tipo de campo (mesmo arquivo)
-
-Aproveitar a correção para que o filtro escolha o input apropriado para cada tipo do `field_type`:
-
-- `date` / `datetime` → dois inputs `type="date"` (intervalo De/Até) — comportamento atual
-- `number` → `<Input type="number">` com filtro de igualdade ou contém
-- `select` / `multi_select` → `<Select>` populado com `fieldDef.options`
-- `boolean` / `switch` → `<Select>` com Sim/Não/Todos
-- `phone`, `email`, `url`, `text` (e qualquer outro/desconhecido) → `<Input>` de texto (padrão atual)
-
-### 3. Sem mudanças em `src/lib/date-utils.ts`
-
-A regex permanece útil para outros componentes que tratam valores **sem** definição de campo (ex.: importações, pré-visualizações). A correção é localizada onde a heurística estava sendo usada incorretamente como prioridade sobre o tipo declarado.
-
-## Verificação após aplicar
-
-Revisar no formato de linha cada coluna visível no print:
-- "Telefone", "Nome do Líder", "Cidade do Evento", "Bairro do Evento", "Município", "UF", "Forma de Pg Saldo" → filtro de **texto**
-- Qualquer campo cujo `field_type` for realmente `date`/`datetime` → filtro de **intervalo de datas**
-- Confirmar que ordenação A→Z / Z→A funciona corretamente em campos de texto que antes eram tratados como data
-
-## Arquivos a editar
-
-- `src/components/funnels/FunnelListView.tsx` (3 condições corrigidas + suporte a `number`/`select`/`boolean` no filtro)
+## Fora de escopo
+- Reordenar linhas (deals) por arrasto.
+- Redimensionar colunas (largura).
+- Aplicar a nova ordem a outros membros automaticamente (continua disponível via diálogo "Configurar Colunas").

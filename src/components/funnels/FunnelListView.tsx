@@ -24,6 +24,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  GripVertical,
 } from "lucide-react";
 import {
   Table,
@@ -219,6 +220,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
   const [columnOrder, setColumnOrder] = useState<string[]>([...defaultColumnIds]);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [isSavingColumns, setIsSavingColumns] = useState(false);
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
   const [fieldsManagerOpen, setFieldsManagerOpen] = useState(false);
   const [fieldsManagerInitialId, setFieldsManagerInitialId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -1433,6 +1436,74 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     }
   }, [funnel.id, queryClient, sanitizeColumnArray]);
 
+  // Persist only the column order (used by drag-and-drop reordering)
+  const persistColumnOrder = useCallback(async (newOrder: string[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase
+        .from('funnel_column_configs')
+        .upsert({
+          user_id: user.id,
+          funnel_id: funnel.id,
+          visible_columns: visibleColumns,
+          column_order: newOrder,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,funnel_id' });
+      queryClient.invalidateQueries({ queryKey: ['funnel-column-config', funnel.id] });
+    } catch (error) {
+      console.error("Error persisting column order:", error);
+    }
+  }, [funnel.id, visibleColumns, queryClient]);
+
+  // Drag-and-drop handlers for column reordering
+  const handleColumnDragStart = (e: React.DragEvent<HTMLTableCellElement>, columnId: string) => {
+    setDraggedColumnId(columnId);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', columnId); } catch {}
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent<HTMLTableCellElement>, columnId: string) => {
+    if (!draggedColumnId || draggedColumnId === columnId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColumnId !== columnId) setDragOverColumnId(columnId);
+  };
+
+  const handleColumnDragLeave = () => {
+    setDragOverColumnId(null);
+  };
+
+  const handleColumnDrop = (e: React.DragEvent<HTMLTableCellElement>, targetColumnId: string) => {
+    e.preventDefault();
+    const sourceId = draggedColumnId;
+    setDraggedColumnId(null);
+    setDragOverColumnId(null);
+    if (!sourceId || sourceId === targetColumnId) return;
+
+    const currentOrder = orderedVisibleColumns.slice();
+    const fromIdx = currentOrder.indexOf(sourceId);
+    const toIdx = currentOrder.indexOf(targetColumnId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    currentOrder.splice(fromIdx, 1);
+    const insertAt = currentOrder.indexOf(targetColumnId);
+    // Insert before target if dragging from right; after target if from left
+    const newIndex = fromIdx < toIdx ? insertAt + 1 : insertAt;
+    currentOrder.splice(newIndex, 0, sourceId);
+
+    // Merge with hidden columns to keep their positions appended at the end (or where they were)
+    const hidden = columnOrder.filter((id) => !orderedVisibleColumns.includes(id));
+    const mergedOrder = sanitizeColumnArray([...currentOrder, ...hidden]);
+    setColumnOrder(mergedOrder);
+    persistColumnOrder(mergedOrder);
+  };
+
+  const handleColumnDragEnd = () => {
+    setDraggedColumnId(null);
+    setDragOverColumnId(null);
+  };
+
   // Get ordered visible columns (sanitized + filter only visible + only known columns)
   const orderedVisibleColumns = useMemo(() => {
     const knownIds = new Set(allColumns.map((c) => c.id));
@@ -1554,9 +1625,26 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                     : colId === "contact"
                       ? "min-w-[220px]"
                       : "";
+                const isDragging = draggedColumnId === colId;
+                const isDragOver = dragOverColumnId === colId && draggedColumnId && draggedColumnId !== colId;
+                const fromIdx = draggedColumnId ? orderedVisibleColumns.indexOf(draggedColumnId) : -1;
+                const toIdx = orderedVisibleColumns.indexOf(colId);
+                const insertSide = isDragOver ? (fromIdx < toIdx ? 'right' : 'left') : null;
                 return (
-                  <TableHead key={colId} className={`whitespace-nowrap ${widthClass}`}>
-                    {renderColumnHeader(colId)}
+                  <TableHead
+                    key={colId}
+                    draggable
+                    onDragStart={(e) => handleColumnDragStart(e, colId)}
+                    onDragOver={(e) => handleColumnDragOver(e, colId)}
+                    onDragLeave={handleColumnDragLeave}
+                    onDrop={(e) => handleColumnDrop(e, colId)}
+                    onDragEnd={handleColumnDragEnd}
+                    className={`whitespace-nowrap cursor-grab active:cursor-grabbing select-none ${widthClass} ${isDragging ? 'opacity-50' : ''} ${insertSide === 'left' ? 'border-l-2 border-primary' : ''} ${insertSide === 'right' ? 'border-r-2 border-primary' : ''}`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" aria-hidden="true" />
+                      <div className="flex-1 min-w-0">{renderColumnHeader(colId)}</div>
+                    </div>
                   </TableHead>
                 );
               })}
