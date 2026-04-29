@@ -583,7 +583,7 @@ Deno.serve(async (req) => {
       ? { number: remoteJid, options: { presence: 'composing' }, text: content }
       : { number: phone, text: content };
 
-    const response = await fetch(
+    const { response, attempts, lastTransientError } = await fetchWithRetry(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
       {
         method: 'POST',
@@ -593,11 +593,12 @@ Deno.serve(async (req) => {
     );
 
     let result: any;
+    let rawText: string | undefined;
     try {
       result = await response.json();
     } catch {
-      const text = await response.text().catch(() => `HTTP ${response.status}`);
-      result = { error: text || `HTTP ${response.status}` };
+      rawText = await response.text().catch(() => `HTTP ${response.status}`);
+      result = { error: rawText || `HTTP ${response.status}` };
     }
 
     if (response.ok && result.key) {
