@@ -7,6 +7,38 @@ const corsHeaders = {
 
 const META_API_URL = 'https://graph.facebook.com/v19.0';
 
+// Retry helper for transient Evolution API failures (5xx / network errors)
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxAttempts = 3,
+): Promise<{ response: Response; attempts: number; lastTransientError?: string }> {
+  const backoffMs = [500, 1500, 3000];
+  let lastTransientError: string | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      // Retry only on transient server errors
+      if (response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
+        const bodyPreview = await response.clone().text().catch(() => '');
+        lastTransientError = `HTTP ${response.status}: ${bodyPreview.slice(0, 200)}`;
+        console.warn(`[SEND] Transient error on attempt ${attempt}: ${lastTransientError}. Retrying in ${backoffMs[attempt - 1]}ms...`);
+        await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+        continue;
+      }
+      return { response, attempts: attempt, lastTransientError };
+    } catch (err) {
+      lastTransientError = err instanceof Error ? err.message : String(err);
+      console.warn(`[SEND] Network error on attempt ${attempt}: ${lastTransientError}`);
+      if (attempt >= maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+    }
+  }
+  // unreachable
+  throw new Error(lastTransientError || 'fetchWithRetry failed');
+}
+
 async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
   try {
     const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
