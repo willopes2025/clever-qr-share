@@ -7,6 +7,35 @@ const corsHeaders = {
 
 const META_API_URL = 'https://graph.facebook.com/v19.0';
 
+// Retry helper for transient Evolution API failures (5xx / network errors)
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxAttempts = 3,
+): Promise<{ response: Response; attempts: number; lastTransientError?: string }> {
+  const backoffMs = [500, 1500, 3000];
+  let lastTransientError: string | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      if (response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
+        const bodyPreview = await response.clone().text().catch(() => '');
+        lastTransientError = `HTTP ${response.status}: ${bodyPreview.slice(0, 200)}`;
+        console.warn(`[SEND-MEDIA] Transient error attempt ${attempt}: ${lastTransientError}`);
+        await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+        continue;
+      }
+      return { response, attempts: attempt, lastTransientError };
+    } catch (err) {
+      lastTransientError = err instanceof Error ? err.message : String(err);
+      console.warn(`[SEND-MEDIA] Network error attempt ${attempt}: ${lastTransientError}`);
+      if (attempt >= maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+    }
+  }
+  throw new Error(lastTransientError || 'fetchWithRetry failed');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
