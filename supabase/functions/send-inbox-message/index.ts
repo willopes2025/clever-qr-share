@@ -625,8 +625,14 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      let errorMessage = result.message || result.error || 'Unknown error';
-      
+      let errorMessage = result.message || result.error || rawText || 'Unknown error';
+
+      // For 5xx with non-JSON body, surface status + attempt count for clarity
+      if (response.status >= 500) {
+        const detail = rawText || lastTransientError || errorMessage;
+        errorMessage = `Evolution API HTTP ${response.status}: ${String(detail).slice(0, 200)} (após ${attempts} tentativa${attempts > 1 ? 's' : ''})`;
+      }
+
       if (response.status === 404 && result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.some((m: string) => m.includes('does not exist'))) {
@@ -634,14 +640,14 @@ Deno.serve(async (req) => {
           errorMessage = `Instância "${instance.instance_name}" desconectada. Reconecte nas configurações.`;
         }
       }
-      
+
       if (result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.length > 0 && msgDetails[0]?.exists === false) {
           errorMessage = `Número (${phone}) não registrado no WhatsApp.`;
         }
       }
-      
+
       await supabase.from('inbox_messages').update({ status: 'failed', error_message: errorMessage }).eq('id', message.id);
       throw new Error(errorMessage);
     }
