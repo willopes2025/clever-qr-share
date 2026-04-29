@@ -7,6 +7,38 @@ const corsHeaders = {
 
 const META_API_URL = 'https://graph.facebook.com/v19.0';
 
+// Retry helper for transient Evolution API failures (5xx / network errors)
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxAttempts = 3,
+): Promise<{ response: Response; attempts: number; lastTransientError?: string }> {
+  const backoffMs = [500, 1500, 3000];
+  let lastTransientError: string | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      // Retry only on transient server errors
+      if (response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
+        const bodyPreview = await response.clone().text().catch(() => '');
+        lastTransientError = `HTTP ${response.status}: ${bodyPreview.slice(0, 200)}`;
+        console.warn(`[SEND] Transient error on attempt ${attempt}: ${lastTransientError}. Retrying in ${backoffMs[attempt - 1]}ms...`);
+        await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+        continue;
+      }
+      return { response, attempts: attempt, lastTransientError };
+    } catch (err) {
+      lastTransientError = err instanceof Error ? err.message : String(err);
+      console.warn(`[SEND] Network error on attempt ${attempt}: ${lastTransientError}`);
+      if (attempt >= maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+    }
+  }
+  // unreachable
+  throw new Error(lastTransientError || 'fetchWithRetry failed');
+}
+
 async function getOrganizationMemberIds(supabase: any, userId: string): Promise<string[]> {
   try {
     const { data } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
@@ -551,7 +583,7 @@ Deno.serve(async (req) => {
       ? { number: remoteJid, options: { presence: 'composing' }, text: content }
       : { number: phone, text: content };
 
-    const response = await fetch(
+    const { response, attempts, lastTransientError } = await fetchWithRetry(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
       {
         method: 'POST',
@@ -561,11 +593,12 @@ Deno.serve(async (req) => {
     );
 
     let result: any;
+    let rawText: string | undefined;
     try {
       result = await response.json();
     } catch {
-      const text = await response.text().catch(() => `HTTP ${response.status}`);
-      result = { error: text || `HTTP ${response.status}` };
+      rawText = await response.text().catch(() => `HTTP ${response.status}`);
+      result = { error: rawText || `HTTP ${response.status}` };
     }
 
     if (response.ok && result.key) {
@@ -592,8 +625,14 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      let errorMessage = result.message || result.error || 'Unknown error';
-      
+      let errorMessage = result.message || result.error || rawText || 'Unknown error';
+
+      // For 5xx with non-JSON body, surface status + attempt count for clarity
+      if (response.status >= 500) {
+        const detail = rawText || lastTransientError || errorMessage;
+        errorMessage = `Evolution API HTTP ${response.status}: ${String(detail).slice(0, 200)} (após ${attempts} tentativa${attempts > 1 ? 's' : ''})`;
+      }
+
       if (response.status === 404 && result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.some((m: string) => m.includes('does not exist'))) {
@@ -601,14 +640,14 @@ Deno.serve(async (req) => {
           errorMessage = `Instância "${instance.instance_name}" desconectada. Reconecte nas configurações.`;
         }
       }
-      
+
       if (result.response?.message) {
         const msgDetails = result.response.message;
         if (Array.isArray(msgDetails) && msgDetails.length > 0 && msgDetails[0]?.exists === false) {
           errorMessage = `Número (${phone}) não registrado no WhatsApp.`;
         }
       }
-      
+
       await supabase.from('inbox_messages').update({ status: 'failed', error_message: errorMessage }).eq('id', message.id);
       throw new Error(errorMessage);
     }

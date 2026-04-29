@@ -7,6 +7,35 @@ const corsHeaders = {
 
 const META_API_URL = 'https://graph.facebook.com/v19.0';
 
+// Retry helper for transient Evolution API failures (5xx / network errors)
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxAttempts = 3,
+): Promise<{ response: Response; attempts: number; lastTransientError?: string }> {
+  const backoffMs = [500, 1500, 3000];
+  let lastTransientError: string | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, init);
+      if (response.status >= 500 && response.status <= 599 && attempt < maxAttempts) {
+        const bodyPreview = await response.clone().text().catch(() => '');
+        lastTransientError = `HTTP ${response.status}: ${bodyPreview.slice(0, 200)}`;
+        console.warn(`[SEND-MEDIA] Transient error attempt ${attempt}: ${lastTransientError}`);
+        await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+        continue;
+      }
+      return { response, attempts: attempt, lastTransientError };
+    } catch (err) {
+      lastTransientError = err instanceof Error ? err.message : String(err);
+      console.warn(`[SEND-MEDIA] Network error attempt ${attempt}: ${lastTransientError}`);
+      if (attempt >= maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, backoffMs[attempt - 1]));
+    }
+  }
+  throw new Error(lastTransientError || 'fetchWithRetry failed');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -364,8 +393,8 @@ Deno.serve(async (req) => {
     console.log(`Calling Evolution API: ${endpoint}`);
     console.log('Body:', JSON.stringify(body));
 
-    // Send via Evolution API
-    const response = await fetch(endpoint, {
+    // Send via Evolution API (with retry on transient 5xx)
+    const { response, attempts, lastTransientError } = await fetchWithRetry(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -374,8 +403,15 @@ Deno.serve(async (req) => {
       body: JSON.stringify(body)
     });
 
-    const result = await response.json();
-    console.log('Evolution API response:', JSON.stringify(result));
+    let result: any;
+    let rawText: string | undefined;
+    try {
+      result = await response.json();
+    } catch {
+      rawText = await response.text().catch(() => `HTTP ${response.status}`);
+      result = { error: rawText || `HTTP ${response.status}` };
+    }
+    console.log('Evolution API response:', JSON.stringify(result), `attempts=${attempts}`);
 
     if (response.ok && result.key) {
       // Success
@@ -445,7 +481,11 @@ Deno.serve(async (req) => {
       );
     } else {
       // Failed
-      const errorMessage = result.message || result.error || 'Unknown error';
+      let errorMessage = result.message || result.error || rawText || 'Unknown error';
+      if (response.status >= 500) {
+        const detail = rawText || lastTransientError || errorMessage;
+        errorMessage = `Evolution API HTTP ${response.status}: ${String(detail).slice(0, 200)} (após ${attempts} tentativa${attempts > 1 ? 's' : ''})`;
+      }
       
       await supabase
         .from('inbox_messages')
