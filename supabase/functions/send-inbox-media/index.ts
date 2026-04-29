@@ -481,7 +481,11 @@ Deno.serve(async (req) => {
       );
     } else {
       // Failed
-      const errorMessage = result.message || result.error || 'Unknown error';
+      let errorMessage = result.message || result.error || rawText || 'Unknown error';
+      if (response.status >= 500) {
+        const detail = rawText || lastTransientError || errorMessage;
+        errorMessage = `Evolution API HTTP ${response.status}: ${String(detail).slice(0, 200)} (após ${attempts} tentativa${attempts > 1 ? 's' : ''})`;
+      }
       
       await supabase
         .from('inbox_messages')
