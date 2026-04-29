@@ -935,8 +935,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       <div className="flex flex-col flex-1 min-h-0 bg-background">
       {/* Header */}
       <div className={cn(
-        "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card",
-        isMobile ? "h-14" : "h-16"
+        "px-3 md:px-4 flex items-center justify-between border-b border-border bg-card relative z-20",
+        isMobile ? "min-h-14 safe-area-top" : "h-16"
       )}>
         <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
           {/* Back button - Mobile only */}
@@ -944,8 +944,15 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             <Button
               variant="ghost"
               size="icon"
-              className="h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 -ml-1"
+              type="button"
+              aria-label="Voltar"
+              className="h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 rounded-full touch-manipulation active:scale-95"
               onClick={onBack}
+              onTouchEnd={(e) => {
+                // Garante resposta no primeiro toque em iOS (evita 300ms delay e perdas por overlay)
+                e.preventDefault();
+                onBack();
+              }}
             >
               <ArrowLeft className="h-6 w-6" />
             </Button>

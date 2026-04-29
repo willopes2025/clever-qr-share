@@ -46,6 +46,13 @@ export interface CampaignChartData {
   failed: number;
 }
 
+// Helper: returns all user_ids visible to the current user (organization-wide collaborative access)
+async function getOrgUserIds(userId: string): Promise<string[]> {
+  const { data, error } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
+  if (error || !data || data.length === 0) return [userId];
+  return data as string[];
+}
+
 export const useDashboardMetrics = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
 
@@ -55,17 +62,17 @@ export const useDashboardMetrics = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      const orgUserIds = await getOrgUserIds(user.id);
+
       // Fetch all data in parallel
       const [
         instancesResult,
         contactsResult,
         campaignsResult,
-        messagesResult
       ] = await Promise.all([
-        supabase.from('whatsapp_instances').select('status').eq('user_id', user.id),
-        supabase.from('contacts').select('status, opted_out').eq('user_id', user.id),
-        supabase.from('campaigns').select('status, sent, delivered, failed').eq('user_id', user.id),
-        supabase.from('campaign_messages').select('status, campaign_id').eq('status', 'sent')
+        supabase.from('whatsapp_instances').select('status').in('user_id', orgUserIds),
+        supabase.from('contacts').select('status, opted_out').in('user_id', orgUserIds),
+        supabase.from('campaigns').select('status, sent, delivered, failed').in('user_id', orgUserIds),
       ]);
 
       // Process instances
@@ -162,6 +169,8 @@ export const useRecentCampaigns = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      const orgUserIds = await getOrgUserIds(user.id);
+
       const { data, error } = await supabase
         .from('campaigns')
         .select(`
@@ -176,7 +185,7 @@ export const useRecentCampaigns = () => {
           failed,
           total_contacts
         `)
-        .eq('user_id', user.id)
+        .in('user_id', orgUserIds)
         .order('updated_at', { ascending: false })
         .limit(5);
 
@@ -194,6 +203,8 @@ export const useScheduledCampaigns = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      const orgUserIds = await getOrgUserIds(user.id);
+
       const { data, error } = await supabase
         .from('campaigns')
         .select(`
@@ -204,7 +215,7 @@ export const useScheduledCampaigns = () => {
           list_id,
           broadcast_lists(name)
         `)
-        .eq('user_id', user.id)
+        .in('user_id', orgUserIds)
         .eq('status', 'scheduled')
         .not('scheduled_at', 'is', null)
         .order('scheduled_at', { ascending: true })
@@ -224,6 +235,8 @@ export const useCampaignChartData = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      const orgUserIds = await getOrgUserIds(user.id);
+
       // Get campaigns from last 7 days
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -231,7 +244,7 @@ export const useCampaignChartData = () => {
       const { data, error } = await supabase
         .from('campaigns')
         .select('started_at, sent, delivered, failed')
-        .eq('user_id', user.id)
+        .in('user_id', orgUserIds)
         .gte('started_at', sevenDaysAgo.toISOString())
         .not('started_at', 'is', null);
 
