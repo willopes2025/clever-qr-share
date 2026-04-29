@@ -1,46 +1,43 @@
-## Diagnóstico
+# Correções: Botão Voltar do Chat (mobile) + Dashboard sem dados
 
-A mensagem "Perfeito." (id `9cf327b1...`, 18:06) falhou com `error_message = "Internal Server Error"`, mas as mensagens enviadas segundos antes e depois (18:05, 18:06:41, 18:08) funcionaram normalmente para o **mesmo contato LID** (`LID_151050073964640`).
+## Problema 1 — Botão "voltar" do chat fica embaixo da Dynamic Island
 
-Isso indica:
+### Diagnóstico
+No `MessageView.tsx`, quando aberto no mobile, o header interno do chat (com o botão `ArrowLeft` em `linha 943-952`) tem altura `h-14` mas **não respeita a safe-area do iPhone**. Em aparelhos com Dynamic Island/notch (iPhone 14 Pro+, 15, 16, 17, 18…), o botão fica parcialmente coberto pela ilha do sistema, e os toques caem na barra de status do iOS em vez do botão. Por isso "precisa apertar várias vezes".
 
-1. **Não é bug de código nem do contato LID** — o `remoteJid` está sendo montado corretamente (`151050073964640@lid`) e o mesmo fluxo funcionou nas mensagens vizinhas.
-2. **Foi uma falha transitória da Evolution API** — ela retornou HTTP 500 com corpo `"Internal Server Error"` (texto plano, não JSON). O código atual (`send-inbox-message/index.ts` linhas 563-595) captura esse texto e o salva como `error_message`, mas não tem nenhuma estratégia de retry.
-3. **Pior ainda**: a mensagem é gravada como `sending` antes do fetch e marcada como `failed` após. Não há retry, então qualquer "soluço" da Evolution = mensagem perdida.
+Além disso o `-ml-1` empurra o botão para fora da área confortável de toque na borda esquerda.
 
-## Causa raiz
+### Correção
+1. Adicionar `safe-area-top` (classe já existente em `index.css`) ao header do `MessageView` quando estiver em mobile, para que ele desça abaixo da Dynamic Island.
+2. Remover o `-ml-1` do botão e garantir alvo de toque ≥ 44×44 px (já está 44, mas ampliar a zona de hit com `p-2` e remover offsets negativos).
+3. Garantir `position: relative` + `z-10` no header para ficar acima de qualquer overlay de animação.
 
-Falha pontual da Evolution API (HTTP 500). Sem mecanismo de retry, qualquer instabilidade da API externa resulta em "Falha no envio" para o usuário.
+## Problema 2 — Dashboard sem nenhuma informação
 
-## Plano de correção
+### Diagnóstico
+O hook `useDashboardMetrics` (em `src/hooks/useDashboardMetrics.ts`) filtra **todas** as queries por `eq('user_id', user.id)`. Isso significa que:
+- Se o usuário logado é **membro** de uma organização (não o dono que criou os registros), ele não vê nada.
+- Mesmo o dono não vê dados criados pela equipe.
 
-### 1. Adicionar retry automático com backoff em `send-inbox-message/index.ts`
+Isso viola a regra de memória do projeto: **acesso colaborativo organizacional via `get_organization_member_ids`**.
 
-Envolver a chamada `fetch` para `/message/sendText/` em uma função de retry:
-- **3 tentativas** no total
-- Backoff: 500ms → 1500ms → 3000ms
-- Retry apenas em erros transitórios: HTTP 500, 502, 503, 504 ou network error
-- **Não** retentar em 400, 401, 404 (erros permanentes do payload/instância)
+### Correção
+Refatorar `useDashboardMetrics`, `useRecentCampaigns`, `useScheduledCampaigns` e `useCampaignChartData` para buscar primeiro a lista de IDs da organização (RPC `get_organization_member_ids` ou função equivalente já usada no projeto) e usar `.in('user_id', memberIds)` em vez de `.eq('user_id', user.id)`.
 
-### 2. Melhorar a mensagem de erro salva
+Padrão a seguir (já usado em outros hooks como `useConversations`, inbox, etc.):
 
-Quando a Evolution retornar texto plano (não-JSON), incluir o status HTTP no `error_message`:
-- Antes: `"Internal Server Error"`
-- Depois: `"Evolution API HTTP 500: Internal Server Error (após 3 tentativas)"`
+```ts
+const { data: memberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: user.id });
+const ids = memberIds?.length ? memberIds : [user.id];
+// ... .in('user_id', ids)
+```
 
-Isso facilita debug futuro e diferencia falha transitória de erro de payload.
-
-### 3. Aplicar o mesmo padrão em `send-inbox-media`
-
-A função de envio de mídia tem o mesmo padrão e deve receber o mesmo retry para consistência.
+Aplicar em todas as 4 queries (`whatsapp_instances`, `contacts`, `campaigns`, `campaign_messages` + as 3 funções auxiliares).
 
 ## Arquivos afetados
+- `src/components/inbox/MessageView.tsx` — safe-area + ajustes do botão voltar
+- `src/hooks/useDashboardMetrics.ts` — usar IDs da organização em todas as queries
 
-- `supabase/functions/send-inbox-message/index.ts` — adicionar helper `fetchWithRetry` e usar nas chamadas Evolution (linha ~554) e logo das mensagens de mídia internas
-- `supabase/functions/send-inbox-media/index.ts` — mesmo padrão de retry
-
-## Resultado esperado
-
-- Falhas transitórias da Evolution API deixam de gerar "Falha no envio" visível ao usuário em ~95% dos casos
-- Mensagens de erro mais informativas quando ainda assim falhar
-- Sem mudanças no comportamento de envio bem-sucedido
+## Validação
+- Abrir `/inbox` em viewport de iPhone (440×688) → confirmar que o botão voltar fica abaixo da Dynamic Island e responde no primeiro toque.
+- Abrir `/dashboard` no desktop e mobile → confirmar que cards mostram contagens reais (contatos, campanhas, mensagens enviadas, taxa de entrega).
