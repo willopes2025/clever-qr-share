@@ -393,8 +393,8 @@ Deno.serve(async (req) => {
     console.log(`Calling Evolution API: ${endpoint}`);
     console.log('Body:', JSON.stringify(body));
 
-    // Send via Evolution API
-    const response = await fetch(endpoint, {
+    // Send via Evolution API (with retry on transient 5xx)
+    const { response, attempts, lastTransientError } = await fetchWithRetry(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -403,8 +403,15 @@ Deno.serve(async (req) => {
       body: JSON.stringify(body)
     });
 
-    const result = await response.json();
-    console.log('Evolution API response:', JSON.stringify(result));
+    let result: any;
+    let rawText: string | undefined;
+    try {
+      result = await response.json();
+    } catch {
+      rawText = await response.text().catch(() => `HTTP ${response.status}`);
+      result = { error: rawText || `HTTP ${response.status}` };
+    }
+    console.log('Evolution API response:', JSON.stringify(result), `attempts=${attempts}`);
 
     if (response.ok && result.key) {
       // Success
