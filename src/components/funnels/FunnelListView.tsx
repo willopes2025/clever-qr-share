@@ -1219,11 +1219,14 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           const fieldKey = columnId.replace("custom_", "");
           const fieldDef = fieldDefinitions?.find(f => f.field_key === fieldKey);
 
-          // Respect declared field_type. Only fall back to name heuristic when there's no field def.
+          // Respect declared field_type. Also fall back to name heuristic (key OR label)
+          // so legacy/text-typed fields named "Data da Entrada" still get the date range filter.
           const fieldType = fieldDef?.field_type;
-          const isDateField = fieldDef
-            ? (fieldType === 'date' || fieldType === 'datetime')
-            : isDateLikeFieldName(String(fieldKey));
+          const isDateField =
+            fieldType === 'date' ||
+            fieldType === 'datetime' ||
+            isDateLikeFieldName(String(fieldKey)) ||
+            (fieldDef?.field_name ? isDateLikeFieldName(String(fieldDef.field_name)) : false);
 
           if (isDateField) {
             return (
