@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Tag, Plus, X, Check, AlertCircle } from "lucide-react";
+import { Tag, Plus, X, Check, AlertCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -41,6 +41,7 @@ export const TagSelector = ({ conversationId }: TagSelectorProps) => {
   const [newTagName, setNewTagName] = useState("");
   const [selectedColor, setSelectedColor] = useState(TAG_COLORS[0]);
   const [tagToRemove, setTagToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { tags, createTag } = useConversationTags();
   const { assignments, assignTag, removeTag } = useConversationTagAssignments(conversationId);
@@ -54,7 +55,12 @@ export const TagSelector = ({ conversationId }: TagSelectorProps) => {
   }, [newTagName, tags]);
 
   const assignedTags = (tags || []).filter(t => assignedTagIds.has(t.id));
-  const availableTags = (tags || []).filter(t => !assignedTagIds.has(t.id));
+  const allAvailableTags = (tags || []).filter(t => !assignedTagIds.has(t.id));
+  const availableTags = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return allAvailableTags;
+    return allAvailableTags.filter(t => t.name.toLowerCase().includes(q));
+  }, [allAvailableTags, searchQuery]);
 
   const handleCreateTag = () => {
     if (!newTagName.trim()) return;
@@ -210,13 +216,30 @@ export const TagSelector = ({ conversationId }: TagSelectorProps) => {
 
           {/* Available tags section */}
           <div>
-            <p className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Adicionar ({availableTags.length})
-            </p>
-            <ScrollArea className="max-h-48">
+            <div className="px-3 py-2 flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Adicionar ({allAvailableTags.length})
+              </p>
+            </div>
+            {allAvailableTags.length > 5 && (
+              <div className="px-3 pb-2">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Buscar tag..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 pl-7 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+            <ScrollArea className="h-72 max-h-72">
               {availableTags.length === 0 ? (
                 <p className="px-3 pb-3 text-center text-sm text-muted-foreground">
-                  {tags && tags.length > 0 ? "Todas as tags já foram atribuídas" : "Nenhuma tag criada ainda"}
+                  {searchQuery
+                    ? `Nenhuma tag encontrada para "${searchQuery}"`
+                    : tags && tags.length > 0 ? "Todas as tags já foram atribuídas" : "Nenhuma tag criada ainda"}
                 </p>
               ) : (
                 <div className="p-1">
