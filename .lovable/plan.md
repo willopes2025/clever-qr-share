@@ -1,48 +1,51 @@
 ## Diagnóstico
 
-Investiguei o problema reportado pelo João Luis (`joaoluis@merceariasaudavel.com.br`) e confirmei pelo banco de dados:
+Investiguei a base e confirmei: **as tags estão sendo carregadas corretamente** (RLS já permite ver todas as tags da organização). No print você vê **"ADICIONAR (9)"** e a sua organização realmente tem 9 tags disponíveis no banco:
 
-**As tags NÃO estão sendo apagadas.** Todas as tags da organização dele continuam intactas:
-- Brigadeiro, Canela de Ceilão, Colaborador, Entregador, Garrafas, paozinho, Whey — todas presentes.
-- As atribuições (`conversation_tag_assignments`) também estão intactas no banco.
+1. Brigadeiro
+2. Canela de Ceilão
+3. Colaborador
+4. Entregador
+5. Garrafas
+6. **Whey** ← não aparece no print
+7. **paozinho** (azul) ← não aparece
+8. **paozinho** (rosa, duplicada) ← não aparece
+9. **paozinho** (azul, duplicada) ← não aparece
 
-**Porém, identifiquei 2 causas reais para a percepção de "tags sumindo":**
+Há **dois problemas reais**:
 
-### Causa 1 — Toggle acidental no seletor (UX confusa)
-No popover de tags (a tela da imagem que ele enviou), clicar numa tag que **já está atribuída** (com check verde) **REMOVE** a tag. O usuário acha que está apenas "selecionando de novo" ou "confirmando", mas na verdade está desmarcando. Isso explica perfeitamente o sintoma "anexei nova → antiga sumiu" — ele clicou na antiga sem querer.
+### Problema 1: Scroll oculto
+A lista usa `ScrollArea` com altura máxima `max-h-48`, mostrando ~5 tags. As outras 4 ficam "escondidas" abaixo, **sem indicador visual** de que há mais conteúdo para rolar. O usuário pensa que a lista acabou.
 
-Evidência: das ~60 conversas com tags do João, apenas **1 conversa** tem mais de uma tag atribuída. Estatisticamente improvável a menos que tags estejam sendo removidas a cada nova adição.
+### Problema 2: Tags duplicadas legadas
+Existem **3 tags chamadas "paozinho"** criadas antes da validação anti-duplicata. A deduplicação atual só impede **novas** duplicatas — não limpa as antigas. Isso polui a lista e confunde.
 
-### Causa 2 — Falta de confirmação ao remover
-Não existe nenhuma confirmação ao clicar para remover uma tag (nem no popover, nem nos badges).
+### Problema 3: Sem busca
+Com 9+ tags, fica difícil encontrar rapidamente. Não há campo de busca/filtro.
 
-## Plano de Correção
+## Plano de correção
 
-### 1. Separar visualmente "Atribuídas" de "Disponíveis" no popover
-No `src/components/inbox/TagSelector.tsx`, dividir a lista em duas seções:
-- **"Tags atribuídas"** (no topo): com botão X explícito para remover (em vez de o item inteiro ser clicável para toggle).
-- **"Adicionar tag"** (abaixo): apenas tags ainda não atribuídas, clique adiciona.
+### 1. `src/components/inbox/TagSelector.tsx`
+- **Aumentar altura** do `ScrollArea` de `max-h-48` para `max-h-64` e adicionar borda/sombra sutil indicando rolagem quando há overflow.
+- **Adicionar campo de busca** acima da lista "Adicionar" (filtra `availableTags` por `name` case-insensitive). Aparece só quando há mais de 5 tags.
+- **Mesclar tags duplicadas visualmente**: agrupar por `name.toLowerCase()` na lista — se houver várias tags com o mesmo nome, mostrar apenas uma (a mais antiga) com um pequeno aviso "⚠ duplicada (3)" e botão "Mesclar" que reatribui todas as conversas para a tag mais antiga e apaga as duplicatas.
+- Mostrar contador real e badge "+N" no rodapé se ainda houver tags fora da viewport visível.
 
-Isso elimina o toggle acidental e deixa claro o que cada clique faz.
+### 2. Limpeza de duplicatas no banco (migration)
+Criar migration que:
+- Para cada nome duplicado dentro da mesma organização, escolhe a tag mais antiga como "canônica".
+- Reatribui todas as `conversation_tag_assignments` das duplicatas para a canônica (com `ON CONFLICT DO NOTHING` para evitar violar o unique).
+- Apaga as tags duplicadas restantes.
+- Adiciona índice único `(user_id, lower(name))` ou melhor: `unique(organization_owner_id, lower(name))` via trigger, para impedir novas duplicatas no banco (não apenas no front).
 
-### 2. Confirmação ao remover tag
-Ao clicar no X de uma tag atribuída, exibir um pequeno confirm inline (AlertDialog) "Remover tag X desta conversa?".
+Especificamente para sua org isso vai consolidar as 3 "paozinho" em uma só, restando **7 tags reais** + as 5 já visíveis = lista limpa.
 
-### 3. Mostrar contador de tags atribuídas no header do popover
-Texto "5 tags atribuídas" para que o usuário perceba imediatamente se uma sumiu após uma ação.
+### 3. (Opcional) `LeadPanelTagsSection`
+Sem mudança — apenas o popover fica corrigido.
 
-### 4. Toast de feedback explícito
-Adicionar `toast.success("Tag X adicionada")` e `toast.info("Tag X removida")` nos handlers `assignTag` e `removeTag` para que o usuário veja claramente o que aconteceu.
+## Resultado esperado
+- Você verá todas as tags disponíveis com scroll claro e um campo "Buscar tag…".
+- Tags duplicadas serão consolidadas automaticamente uma vez.
+- Não será mais possível criar duplicatas (validação no banco, não só na UI).
 
-### 5. Limpar tag duplicada "paozinho"
-O João tem 2 tags "paozinho" criadas (uma azul, uma rosa) e a organização tem mais 1 (azul também). Adicionar uma constraint única (nome+organização) iria quebrar dados existentes — em vez disso, apenas avisar visualmente quando a tag a ser criada já existe (case-insensitive) com botão "usar a existente".
-
-## Arquivos afetados
-
-- `src/components/inbox/TagSelector.tsx` — refatorar popover (atribuídas vs disponíveis), adicionar confirmação, toasts e detecção de duplicata.
-- `src/components/inbox/lead-panel/LeadPanelTagsSection.tsx` — ajuste pequeno: badges com botão X visível ao hover (paridade com o popover).
-- `src/hooks/useConversationTags.ts` — toasts em `assignTag`/`removeTag`.
-
-## Notas técnicas
-
-Não há triggers no banco apagando tags. Não há realtime subscription em `conversation_tag_assignments`. RLS está correta (organização compartilhada via `get_organization_member_ids`). O bug é puramente de UX no componente `TagSelector`.
+Posso seguir?
