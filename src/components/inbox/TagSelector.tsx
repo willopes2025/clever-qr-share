@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Tag, Plus, X, Check, AlertCircle } from "lucide-react";
+import { Tag, Plus, X, Check, AlertCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
