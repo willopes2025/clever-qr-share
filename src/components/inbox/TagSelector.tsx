@@ -55,7 +55,12 @@ export const TagSelector = ({ conversationId }: TagSelectorProps) => {
   }, [newTagName, tags]);
 
   const assignedTags = (tags || []).filter(t => assignedTagIds.has(t.id));
-  const availableTags = (tags || []).filter(t => !assignedTagIds.has(t.id));
+  const allAvailableTags = (tags || []).filter(t => !assignedTagIds.has(t.id));
+  const availableTags = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return allAvailableTags;
+    return allAvailableTags.filter(t => t.name.toLowerCase().includes(q));
+  }, [allAvailableTags, searchQuery]);
 
   const handleCreateTag = () => {
     if (!newTagName.trim()) return;
