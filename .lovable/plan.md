@@ -1,43 +1,48 @@
-# Correções: Botão Voltar do Chat (mobile) + Dashboard sem dados
+## Diagnóstico
 
-## Problema 1 — Botão "voltar" do chat fica embaixo da Dynamic Island
+Investiguei o problema reportado pelo João Luis (`joaoluis@merceariasaudavel.com.br`) e confirmei pelo banco de dados:
 
-### Diagnóstico
-No `MessageView.tsx`, quando aberto no mobile, o header interno do chat (com o botão `ArrowLeft` em `linha 943-952`) tem altura `h-14` mas **não respeita a safe-area do iPhone**. Em aparelhos com Dynamic Island/notch (iPhone 14 Pro+, 15, 16, 17, 18…), o botão fica parcialmente coberto pela ilha do sistema, e os toques caem na barra de status do iOS em vez do botão. Por isso "precisa apertar várias vezes".
+**As tags NÃO estão sendo apagadas.** Todas as tags da organização dele continuam intactas:
+- Brigadeiro, Canela de Ceilão, Colaborador, Entregador, Garrafas, paozinho, Whey — todas presentes.
+- As atribuições (`conversation_tag_assignments`) também estão intactas no banco.
 
-Além disso o `-ml-1` empurra o botão para fora da área confortável de toque na borda esquerda.
+**Porém, identifiquei 2 causas reais para a percepção de "tags sumindo":**
 
-### Correção
-1. Adicionar `safe-area-top` (classe já existente em `index.css`) ao header do `MessageView` quando estiver em mobile, para que ele desça abaixo da Dynamic Island.
-2. Remover o `-ml-1` do botão e garantir alvo de toque ≥ 44×44 px (já está 44, mas ampliar a zona de hit com `p-2` e remover offsets negativos).
-3. Garantir `position: relative` + `z-10` no header para ficar acima de qualquer overlay de animação.
+### Causa 1 — Toggle acidental no seletor (UX confusa)
+No popover de tags (a tela da imagem que ele enviou), clicar numa tag que **já está atribuída** (com check verde) **REMOVE** a tag. O usuário acha que está apenas "selecionando de novo" ou "confirmando", mas na verdade está desmarcando. Isso explica perfeitamente o sintoma "anexei nova → antiga sumiu" — ele clicou na antiga sem querer.
 
-## Problema 2 — Dashboard sem nenhuma informação
+Evidência: das ~60 conversas com tags do João, apenas **1 conversa** tem mais de uma tag atribuída. Estatisticamente improvável a menos que tags estejam sendo removidas a cada nova adição.
 
-### Diagnóstico
-O hook `useDashboardMetrics` (em `src/hooks/useDashboardMetrics.ts`) filtra **todas** as queries por `eq('user_id', user.id)`. Isso significa que:
-- Se o usuário logado é **membro** de uma organização (não o dono que criou os registros), ele não vê nada.
-- Mesmo o dono não vê dados criados pela equipe.
+### Causa 2 — Falta de confirmação ao remover
+Não existe nenhuma confirmação ao clicar para remover uma tag (nem no popover, nem nos badges).
 
-Isso viola a regra de memória do projeto: **acesso colaborativo organizacional via `get_organization_member_ids`**.
+## Plano de Correção
 
-### Correção
-Refatorar `useDashboardMetrics`, `useRecentCampaigns`, `useScheduledCampaigns` e `useCampaignChartData` para buscar primeiro a lista de IDs da organização (RPC `get_organization_member_ids` ou função equivalente já usada no projeto) e usar `.in('user_id', memberIds)` em vez de `.eq('user_id', user.id)`.
+### 1. Separar visualmente "Atribuídas" de "Disponíveis" no popover
+No `src/components/inbox/TagSelector.tsx`, dividir a lista em duas seções:
+- **"Tags atribuídas"** (no topo): com botão X explícito para remover (em vez de o item inteiro ser clicável para toggle).
+- **"Adicionar tag"** (abaixo): apenas tags ainda não atribuídas, clique adiciona.
 
-Padrão a seguir (já usado em outros hooks como `useConversations`, inbox, etc.):
+Isso elimina o toggle acidental e deixa claro o que cada clique faz.
 
-```ts
-const { data: memberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: user.id });
-const ids = memberIds?.length ? memberIds : [user.id];
-// ... .in('user_id', ids)
-```
+### 2. Confirmação ao remover tag
+Ao clicar no X de uma tag atribuída, exibir um pequeno confirm inline (AlertDialog) "Remover tag X desta conversa?".
 
-Aplicar em todas as 4 queries (`whatsapp_instances`, `contacts`, `campaigns`, `campaign_messages` + as 3 funções auxiliares).
+### 3. Mostrar contador de tags atribuídas no header do popover
+Texto "5 tags atribuídas" para que o usuário perceba imediatamente se uma sumiu após uma ação.
+
+### 4. Toast de feedback explícito
+Adicionar `toast.success("Tag X adicionada")` e `toast.info("Tag X removida")` nos handlers `assignTag` e `removeTag` para que o usuário veja claramente o que aconteceu.
+
+### 5. Limpar tag duplicada "paozinho"
+O João tem 2 tags "paozinho" criadas (uma azul, uma rosa) e a organização tem mais 1 (azul também). Adicionar uma constraint única (nome+organização) iria quebrar dados existentes — em vez disso, apenas avisar visualmente quando a tag a ser criada já existe (case-insensitive) com botão "usar a existente".
 
 ## Arquivos afetados
-- `src/components/inbox/MessageView.tsx` — safe-area + ajustes do botão voltar
-- `src/hooks/useDashboardMetrics.ts` — usar IDs da organização em todas as queries
 
-## Validação
-- Abrir `/inbox` em viewport de iPhone (440×688) → confirmar que o botão voltar fica abaixo da Dynamic Island e responde no primeiro toque.
-- Abrir `/dashboard` no desktop e mobile → confirmar que cards mostram contagens reais (contatos, campanhas, mensagens enviadas, taxa de entrega).
+- `src/components/inbox/TagSelector.tsx` — refatorar popover (atribuídas vs disponíveis), adicionar confirmação, toasts e detecção de duplicata.
+- `src/components/inbox/lead-panel/LeadPanelTagsSection.tsx` — ajuste pequeno: badges com botão X visível ao hover (paridade com o popover).
+- `src/hooks/useConversationTags.ts` — toasts em `assignTag`/`removeTag`.
+
+## Notas técnicas
+
+Não há triggers no banco apagando tags. Não há realtime subscription em `conversation_tag_assignments`. RLS está correta (organização compartilhada via `get_organization_member_ids`). O bug é puramente de UX no componente `TagSelector`.

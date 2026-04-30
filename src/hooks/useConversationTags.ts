@@ -103,21 +103,31 @@ export const useConversationTagAssignments = (conversationId?: string) => {
   });
 
   const assignTag = useMutation({
-    mutationFn: async ({ conversationId, tagId }: { conversationId: string; tagId: string }) => {
+    mutationFn: async ({ conversationId, tagId, tagName }: { conversationId: string; tagId: string; tagName?: string }) => {
       const { error } = await supabase
         .from('conversation_tag_assignments')
         .insert({ conversation_id: conversationId, tag_id: tagId });
 
       if (error) throw error;
+      return { tagName };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['conversation-tag-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      toast.success(data?.tagName ? `Tag "${data.tagName}" adicionada` : 'Tag adicionada');
+    },
+    onError: (err: any) => {
+      // Unique constraint violation = tag already assigned
+      if (err?.code === '23505') {
+        toast.info('Esta tag já está atribuída');
+      } else {
+        toast.error('Erro ao adicionar tag');
+      }
     }
   });
 
   const removeTag = useMutation({
-    mutationFn: async ({ conversationId, tagId }: { conversationId: string; tagId: string }) => {
+    mutationFn: async ({ conversationId, tagId, tagName }: { conversationId: string; tagId: string; tagName?: string }) => {
       const { error } = await supabase
         .from('conversation_tag_assignments')
         .delete()
@@ -125,10 +135,15 @@ export const useConversationTagAssignments = (conversationId?: string) => {
         .eq('tag_id', tagId);
 
       if (error) throw error;
+      return { tagName };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['conversation-tag-assignments'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      toast.info(data?.tagName ? `Tag "${data.tagName}" removida` : 'Tag removida');
+    },
+    onError: () => {
+      toast.error('Erro ao remover tag');
     }
   });
 
