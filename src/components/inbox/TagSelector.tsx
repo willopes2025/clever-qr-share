@@ -41,6 +41,7 @@ export const TagSelector = ({ conversationId }: TagSelectorProps) => {
   const [newTagName, setNewTagName] = useState("");
   const [selectedColor, setSelectedColor] = useState(TAG_COLORS[0]);
   const [tagToRemove, setTagToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { tags, createTag } = useConversationTags();
   const { assignments, assignTag, removeTag } = useConversationTagAssignments(conversationId);
