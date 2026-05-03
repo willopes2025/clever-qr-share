@@ -705,7 +705,7 @@ Deno.serve(async (req: Request) => {
               .filter(p => p.value);
 
             // Build URL with path-based params
-            const publicUrl = 'https://clever-qr-share.lovable.app';
+            const publicUrl = Deno.env.get('PUBLIC_APP_URL') || 'https://clever-qr-share.lovable.app';
             const baseUrl = `${publicUrl}/form/${form.slug}`;
             const paramsPath = resolvedParams
               .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
@@ -1154,11 +1154,21 @@ Deno.serve(async (req: Request) => {
           case 'change_responsible': {
             const responsibleId = actionConfig.responsible_id as string;
             if (responsibleId) {
-              // For now, log the change - in a full implementation, you'd update the deal's assigned user
-              console.log(`[FUNNEL-AUTOMATIONS] Would change responsible to ${responsibleId}`);
-              // TODO: Add assigned_to field to funnel_deals if needed
+              const { error: respError } = await supabase
+                .from('funnel_deals')
+                .update({ responsible_id: responsibleId })
+                .eq('id', dealId);
+
+              if (respError) {
+                console.error(`[FUNNEL-AUTOMATIONS] Error changing responsible:`, respError);
+                results.push({ automationId: automation.id, success: false, error: respError.message });
+              } else {
+                console.log(`[FUNNEL-AUTOMATIONS] Changed responsible to ${responsibleId}`);
+                results.push({ automationId: automation.id, success: true });
+              }
+            } else {
+              results.push({ automationId: automation.id, success: false, error: 'No responsible_id configured' });
             }
-            results.push({ automationId: automation.id, success: true });
             break;
           }
 

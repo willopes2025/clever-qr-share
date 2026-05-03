@@ -762,33 +762,39 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
       for (let i = 0; i < dealIds.length; i += BATCH_SIZE) {
         const batch = dealIds.slice(i, i + BATCH_SIZE);
         
-        // If stage changed, use updateDeal for each (it handles history)
+        // If stage changed, handle history + automations for each deal
         if (updates.stage_id) {
           for (const dealId of batch) {
-            await supabase
+            const { data: currentDeal } = await supabase
               .from('funnel_deals')
               .select('stage_id')
               .eq('id', dealId)
-              .single()
-              .then(async ({ data: currentDeal }) => {
-                if (currentDeal && currentDeal.stage_id !== updates.stage_id) {
-                  // Create history entry
-                  await supabase.from('funnel_deal_history').insert({
-                    deal_id: dealId,
-                    from_stage_id: currentDeal.stage_id,
-                    to_stage_id: updates.stage_id
-                  });
-                  
-                  // Update deal with new stage
-                  await supabase
-                    .from('funnel_deals')
-                    .update({ 
-                      stage_id: updates.stage_id,
-                      entered_stage_at: new Date().toISOString()
-                    })
-                    .eq('id', dealId);
-                }
+              .single();
+
+            if (currentDeal && currentDeal.stage_id !== updates.stage_id) {
+              await supabase.from('funnel_deal_history').insert({
+                deal_id: dealId,
+                from_stage_id: currentDeal.stage_id,
+                to_stage_id: updates.stage_id,
               });
+
+              await supabase
+                .from('funnel_deals')
+                .update({
+                  stage_id: updates.stage_id,
+                  entered_stage_at: new Date().toISOString(),
+                })
+                .eq('id', dealId);
+
+              // Trigger stage automations — fire-and-forget, same pattern as updateDeal
+              supabase.functions.invoke('process-funnel-automations', {
+                body: {
+                  dealId,
+                  fromStageId: currentDeal.stage_id,
+                  toStageId: updates.stage_id,
+                },
+              }).catch(e => console.error('Error triggering bulk stage automations:', e));
+            }
           }
         }
         
