@@ -387,16 +387,6 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
 
-  // Sync column order when new custom fields are added
-  useEffect(() => {
-    const allIds = allColumns.map((c) => c.id);
-    const newIds = allIds.filter((id) => !columnOrder.includes(id));
-    if (newIds.length > 0) {
-      setColumnOrder((prev) => [...prev, ...newIds]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allColumns]); // Intentionally exclude columnOrder to prevent infinite loop
-
   // Flatten all deals from all stages
   const allDeals = useMemo(() => {
     return (funnel.stages || []).flatMap((stage) =>
@@ -595,8 +585,9 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             if ((dealValue === undefined || dealValue === null) && fieldDef?.entity_type === 'contact') {
               dealValue = (deal.contact as any)?.custom_fields?.[fieldKey];
             }
+            // Deal has no date value — exclude it from the date range filter
             if (dealValue === undefined || dealValue === null) return false;
-            
+
             // Parse the deal's date value to YYYY-MM-DD for comparison
             let dealDateStr = '';
             if (typeof dealValue === 'string') {
@@ -608,9 +599,18 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
               }
             }
             if (!dealDateStr) return false;
-            
-            if (key.endsWith('_from') && dealDateStr < filterValue) return false;
-            if (key.endsWith('_to') && dealDateStr > filterValue) return false;
+
+            // Validate range direction to avoid empty result sets
+            if (key.endsWith('_from')) {
+              const toValue = columnFilters[`${baseKey}_to`] as string | undefined;
+              if (toValue && filterValue > toValue) return true; // invalid range — skip filter
+              if (dealDateStr < filterValue) return false;
+            }
+            if (key.endsWith('_to')) {
+              const fromValue = columnFilters[`${baseKey}_from`] as string | undefined;
+              if (fromValue && fromValue > filterValue) return true; // invalid range — skip filter
+              if (dealDateStr > filterValue) return false;
+            }
             continue;
           }
           
@@ -843,6 +843,13 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
       }),
     ];
 
+    const escapeCsvField = (v: string): string => {
+      if (v.includes('"') || v.includes(';') || v.includes('\n') || v.includes('\r')) {
+        return `"${v.replace(/"/g, '""')}"`;
+      }
+      return v;
+    };
+
     const rows = dataToExport.map((deal) => {
       return [
         deal.title || deal.contact?.name || "",
@@ -871,12 +878,15 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
             val = (deal.contact as any)?.custom_fields?.[key];
           }
           if (val === undefined || val === null) return "";
-          return formatCustomFieldValue(val, fieldDef?.field_name || key, fieldDef?.field_type).replace(/;/g, ",");
+          return formatCustomFieldValue(val, fieldDef?.field_name || key, fieldDef?.field_type);
         }),
-      ].map((v) => (typeof v === "string" ? v.replace(/;/g, ",") : String(v)));
+      ].map((v) => escapeCsvField(typeof v === "string" ? v : String(v)));
     });
 
-    const csv = [headers.join(";"), ...rows.map((row) => row.join(";"))].join("\n");
+    const csv = [
+      headers.map(escapeCsvField).join(";"),
+      ...rows.map((row) => row.join(";")),
+    ].join("\n");
 
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -1459,7 +1469,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase
+      const { error } = await supabase
         .from('funnel_column_configs')
         .upsert({
           user_id: user.id,
@@ -1468,9 +1478,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
           column_order: newOrder,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id,funnel_id' });
+      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['funnel-column-config', funnel.id] });
     } catch (error) {
       console.error("Error persisting column order:", error);
+      toast.error("Erro ao salvar ordem das colunas");
     }
   }, [funnel.id, visibleColumns, queryClient]);
 

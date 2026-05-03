@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useFunnels, FunnelDeal, FunnelStage } from "@/hooks/useFunnels";
 import { CheckCircle, XCircle } from "lucide-react";
+import { toast } from "sonner";
 
 interface CloseDealDialogProps {
   open: boolean;
@@ -36,7 +37,14 @@ export const CloseDealDialog = ({ open, onOpenChange, deal, stages }: CloseDealD
 
   const handleClose = async () => {
     const targetStage = closeType === 'won' ? wonStage : lostStage;
-    if (!targetStage) return;
+    if (!targetStage) {
+      toast.error(
+        closeType === 'won'
+          ? 'Nenhuma etapa de "Ganho" configurada neste funil. Adicione uma etapa final do tipo Ganho.'
+          : 'Nenhuma etapa de "Perdido" configurada neste funil. Adicione uma etapa final do tipo Perdido.'
+      );
+      return;
+    }
 
     await updateDeal.mutateAsync({
       id: deal.id,
@@ -59,25 +67,38 @@ export const CloseDealDialog = ({ open, onOpenChange, deal, stages }: CloseDealD
 
         <div className="space-y-4">
           {!closeType ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                className="h-24 flex-col gap-2 border-green-500/30 hover:bg-green-500/10 hover:border-green-500"
-                onClick={() => setCloseType('won')}
-                disabled={!wonStage}
-              >
-                <CheckCircle className="h-8 w-8 text-green-500" />
-                <span className="font-medium">Ganho</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-24 flex-col gap-2 border-red-500/30 hover:bg-red-500/10 hover:border-red-500"
-                onClick={() => setCloseType('lost')}
-                disabled={!lostStage}
-              >
-                <XCircle className="h-8 w-8 text-red-500" />
-                <span className="font-medium">Perdido</span>
-              </Button>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant="outline"
+                  className="h-24 flex-col gap-2 border-green-500/30 hover:bg-green-500/10 hover:border-green-500"
+                  onClick={() => setCloseType('won')}
+                  disabled={!wonStage}
+                  title={!wonStage ? 'Nenhuma etapa de Ganho configurada neste funil' : undefined}
+                >
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                  <span className="font-medium">Ganho</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-24 flex-col gap-2 border-red-500/30 hover:bg-red-500/10 hover:border-red-500"
+                  onClick={() => setCloseType('lost')}
+                  disabled={!lostStage}
+                  title={!lostStage ? 'Nenhuma etapa de Perdido configurada neste funil' : undefined}
+                >
+                  <XCircle className="h-8 w-8 text-red-500" />
+                  <span className="font-medium">Perdido</span>
+                </Button>
+              </div>
+              {(!wonStage || !lostStage) && (
+                <p className="text-xs text-muted-foreground text-center">
+                  {!wonStage && !lostStage
+                    ? 'Configure etapas finais de Ganho e Perdido nas configurações do funil.'
+                    : !wonStage
+                      ? 'Configure uma etapa final de Ganho nas configurações do funil.'
+                      : 'Configure uma etapa final de Perdido nas configurações do funil.'}
+                </p>
+              )}
             </div>
           ) : (
             <>

@@ -51,23 +51,24 @@ const Funnels = () => {
   const [funnelToDelete, setFunnelToDelete] = useState<{ id: string; name: string } | null>(null);
   const [selectedDealIdFromSearch, setSelectedDealIdFromSearch] = useState<string | null>(null);
 
-  // Auto-select first funnel (in useEffect to avoid re-render loop)
+  // Auto-select first funnel; keep selection valid when list changes
   useEffect(() => {
-    if (funnels?.length && !selectedFunnelId) {
+    if (!funnels?.length) return;
+    if (!selectedFunnelId || !funnels.some(f => f.id === selectedFunnelId)) {
       setSelectedFunnelId(funnels[0].id);
     }
   }, [funnels, selectedFunnelId]);
 
-  const currentFunnel = funnels?.find(f => f.id === selectedFunnelId) || funnels?.[0];
+  const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
 
   const handleDeleteFunnel = async () => {
     if (!funnelToDelete) return;
-    await deleteFunnel.mutateAsync(funnelToDelete.id);
+    const deletedId = funnelToDelete.id;
     setFunnelToDelete(null);
-    // Select another funnel after deletion
-    if (selectedFunnelId === funnelToDelete.id) {
-      const remaining = funnels?.filter(f => f.id !== funnelToDelete.id);
-      setSelectedFunnelId(remaining?.[0]?.id || null);
+    await deleteFunnel.mutateAsync(deletedId);
+    if (selectedFunnelId === deletedId) {
+      const remaining = funnels?.filter(f => f.id !== deletedId);
+      setSelectedFunnelId(remaining?.[0]?.id ?? null);
     }
   };
 
@@ -247,15 +248,16 @@ const Funnels = () => {
         )}
       </div>
 
-      <FunnelFormDialog 
-        open={showFunnelForm || !!editingFunnel} 
+      <FunnelFormDialog
+        open={showFunnelForm || !!editingFunnel}
         onOpenChange={(open) => {
           if (!open) {
             setShowFunnelForm(false);
             setEditingFunnel(null);
           }
-        }} 
+        }}
         funnel={editingFunnel || undefined}
+        onCreated={(id) => setSelectedFunnelId(id)}
       />
       <CloseReasonsManager open={showCloseReasons} onOpenChange={setShowCloseReasons} />
       <CustomFieldsManager open={showFieldsManager} onOpenChange={setShowFieldsManager} />

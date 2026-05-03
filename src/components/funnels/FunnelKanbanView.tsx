@@ -135,8 +135,12 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
     if (draggedDeal) {
       moveDealToStage(draggedDeal, targetStage);
     } else {
-      // Fallback otimista (caso não consigamos localizar o objeto)
-      updateDeal.mutate({ id: draggedDealId, stage_id: stageId });
+      // Fallback: deal not in current view; update stage + closed_at if final stage
+      updateDeal.mutate({
+        id: draggedDealId,
+        stage_id: stageId,
+        ...(targetStage.is_final ? { closed_at: new Date().toISOString() } : { closed_at: null }),
+      });
     }
     setDraggedDealId(null);
   }, [draggedDealId, stages, funnel.id, leadFieldDefinitions, requiredRules, moveDealToStage, updateDeal]);

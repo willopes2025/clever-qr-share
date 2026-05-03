@@ -33,10 +33,22 @@ export const useConversationActions = () => {
         .eq('id', conversationId);
 
       if (error) throw error;
+      return conversationId;
     },
-    onSuccess: () => {
+    onSuccess: async (conversationId) => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       toast.success('Conversa fechada');
+      // Fire on_conversation_closed for each open deal linked to this conversation
+      const { data: deals } = await supabase
+        .from('funnel_deals')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .is('closed_at', null);
+      for (const deal of deals || []) {
+        supabase.functions.invoke('process-funnel-automations', {
+          body: { dealId: deal.id, triggerType: 'on_conversation_closed' },
+        }).catch(e => console.error('Error triggering on_conversation_closed:', e));
+      }
     },
     onError: () => {
       toast.error('Erro ao fechar conversa');

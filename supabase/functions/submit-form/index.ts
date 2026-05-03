@@ -5,6 +5,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function triggerFormSubmissionAutomations(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  formId: string,
+  dealId: string,
+  stageId: string,
+) {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const { data: automations } = await supabase
+      .from('funnel_automations')
+      .select('id, trigger_config, funnel_id')
+      .eq('user_id', userId)
+      .eq('trigger_type', 'on_form_submission')
+      .eq('is_active', true);
+
+    for (const automation of automations || []) {
+      const triggerConfig = (automation.trigger_config as Record<string, any>) || {};
+      if (triggerConfig.form_id && triggerConfig.form_id !== formId) continue;
+
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/process-funnel-automations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            dealId,
+            toStageId: stageId,
+            triggerType: 'on_form_submission',
+          }),
+        });
+        console.log(`Triggered on_form_submission automation ${automation.id} for deal ${dealId}`);
+      } catch (e) {
+        console.error(`Error triggering automation ${automation.id}:`, e);
+      }
+    }
+  } catch (e) {
+    console.error('Error in triggerFormSubmissionAutomations:', e);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -470,47 +515,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Trigger funnel automations with on_form_submission trigger
-    if (contactId) {
-      try {
-        // Find automations with on_form_submission trigger
-        const { data: automations } = await supabase
-          .from('funnel_automations')
-          .select('*')
-          .eq('user_id', form.user_id)
-          .eq('trigger_type', 'on_form_submission')
-          .eq('is_active', true);
-
-        if (automations && automations.length > 0) {
-          for (const automation of automations) {
-            const triggerConfig = automation.trigger_config as Record<string, any> || {};
-            
-            // Check if this automation is for this specific form or any form
-            if (triggerConfig.form_id && triggerConfig.form_id !== formId) {
-              continue; // Skip if it's for a different form
-            }
-
-            // Trigger the automation via process-funnel-automations edge function
-            try {
-              await supabase.functions.invoke('process-funnel-automations', {
-                body: {
-                  automationId: automation.id,
-                  contactId: contactId,
-                  formSubmissionId: submission.id,
-                  formId: formId,
-                  triggerType: 'on_form_submission',
-                },
-              });
-              console.log(`Triggered automation ${automation.id} for form submission`);
-            } catch (automationError) {
-              console.error('Automation trigger error:', automationError);
-            }
-          }
-        }
-      } catch (automationError) {
-      console.error('Error processing form automations:', automationError);
-    }
-  }
+    // NOTE: on_form_submission automations are triggered AFTER deal creation below,
+    // so the dealId is available. See the triggerFormSubmissionAutomations call below.
 
   // Create deal in funnel if target_funnel_id is configured
   if (contactId && form.target_funnel_id) {
@@ -567,50 +573,54 @@ Deno.serve(async (req: Request) => {
             .insert(dealInsertData)
             .select('id')
             .single();
-          
+
           if (dealError) {
             console.error('Error creating deal:', dealError);
           } else {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
+            // Trigger on_funnel_enter and on_form_submission automations for the new deal
+            await triggerFormSubmissionAutomations(supabase, form.user_id, formId, newDeal.id, stageId);
           }
         } else {
           // Update existing deal with native fields and custom fields
           const dealUpdateData: Record<string, any> = {};
           if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
           if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
-          
+
           // Move deal to the form's target stage if it's different
           if (existingDeal.stage_id !== stageId) {
             dealUpdateData.stage_id = stageId;
             dealUpdateData.entered_stage_at = new Date().toISOString();
             console.log(`Moving deal ${existingDeal.id} from stage ${existingDeal.stage_id} to ${stageId}`);
           }
-          
+
           if (Object.keys(dealCustomFields).length > 0) {
             const { data: dealWithFields } = await supabase
               .from('funnel_deals')
               .select('custom_fields')
               .eq('id', existingDeal.id)
               .single();
-            
+
             const mergedDealFields = {
               ...((dealWithFields?.custom_fields as Record<string, any>) || {}),
               ...dealCustomFields,
             };
-            
+
             dealUpdateData.custom_fields = mergedDealFields;
           }
-          
+
           if (Object.keys(dealUpdateData).length > 0) {
             await supabase
               .from('funnel_deals')
               .update(dealUpdateData)
               .eq('id', existingDeal.id);
-            
+
             console.log(`Updated deal ${existingDeal.id} with form data`);
           } else {
             console.log(`Existing open deal found for contact ${contactId} in funnel ${form.target_funnel_id}`);
           }
+          // Trigger on_form_submission automations for the existing deal
+          await triggerFormSubmissionAutomations(supabase, form.user_id, formId, existingDeal.id, stageId);
         }
       }
     } catch (dealError) {

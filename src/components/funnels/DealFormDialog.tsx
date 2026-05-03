@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -73,7 +73,8 @@ export const DealFormDialog = ({
     description: '',
   });
 
-  const currentFunnel = funnels?.find(f => f.id === selectedFunnelId);
+  const activeFunnels = open ? (funnelsOnOpenRef.current ?? funnels) : funnels;
+  const currentFunnel = activeFunnels?.find(f => f.id === selectedFunnelId);
   const stages = currentFunnel?.stages || [];
 
   // ssOtica sync
@@ -86,9 +87,14 @@ export const DealFormDialog = ({
     open,
   );
 
-  // Reset form when dialog opens with new data
+  // Capture funnels at the moment the dialog opens so refetches don't reset form mid-edit
+  const funnelsOnOpenRef = useRef(funnels);
+  const wasOpen = useRef(false);
+
+  // Reset form only when dialog transitions from closed → open
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpen.current) {
+      funnelsOnOpenRef.current = funnels;
       setTitle(deal?.title || '');
       setContactName(deal?.contact?.name || '');
       setContactId(deal?.contact_id || initialContactId || '');
@@ -96,7 +102,7 @@ export const DealFormDialog = ({
       setExpectedCloseDate(deal?.expected_close_date || '');
       setSource(deal?.source || '');
       setNotes(deal?.notes || '');
-      setSelectedFunnelId(funnelId || deal?.funnel_id || funnels?.[0]?.id || '');
+      setSelectedFunnelId(funnelId || deal?.funnel_id || funnelsOnOpenRef.current?.[0]?.id || '');
       setSelectedStageId(stageId || deal?.stage_id || '');
       setCustomFields((deal?.custom_fields as Record<string, unknown>) || {});
       setNextAction({
@@ -108,7 +114,8 @@ export const DealFormDialog = ({
         description: '',
       });
     }
-  }, [open, deal, initialContactId, stageId, funnelId, funnels]);
+    wasOpen.current = open;
+  }, [open, deal, initialContactId, stageId, funnelId]); // funnels intentionally excluded — use funnelsOnOpenRef
 
   // Update stage when funnel changes
   useEffect(() => {

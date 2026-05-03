@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
+
+type FunnelTriggerType = Database["public"]["Enums"]["funnel_trigger_type"];
+type FunnelActionType = Database["public"]["Enums"]["funnel_action_type"];
 
 export interface Funnel {
   id: string;
@@ -412,23 +416,25 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
       custom_fields?: Record<string, unknown>;
       responsible_id?: string | null;
     }) => {
-      // Get current deal to check stage and responsible changes
+      // Get current deal to check stage, responsible, value, and custom field changes
       const { data: currentDeal } = await supabase
         .from('funnel_deals')
-        .select('stage_id, responsible_id, title')
+        .select('stage_id, responsible_id, title, value, custom_fields')
         .eq('id', id)
         .single();
 
       const updateData: Record<string, unknown> = { ...data };
       let stageChanged = false;
       let responsibleChanged = false;
+      let valueChanged = false;
+      let changedCustomFieldKeys: string[] = [];
       let newStageName: string | null = null;
-      
+
       // If stage changed, update entered_stage_at and create history
       if (data.stage_id && currentDeal && data.stage_id !== currentDeal.stage_id) {
         stageChanged = true;
         updateData.entered_stage_at = new Date().toISOString();
-        
+
         // Create history entry
         await supabase.from('funnel_deal_history').insert({
           deal_id: id,
@@ -444,10 +450,25 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
           .single();
         newStageName = stageData?.name || null;
       }
-      
+
       // Check if responsible changed
       if (data.responsible_id !== undefined && currentDeal && data.responsible_id !== currentDeal.responsible_id) {
         responsibleChanged = true;
+      }
+
+      // Check if value changed
+      if (data.value !== undefined && currentDeal && data.value !== currentDeal.value) {
+        valueChanged = true;
+      }
+
+      // Check which custom fields changed
+      if (data.custom_fields && currentDeal?.custom_fields) {
+        const oldFields = (currentDeal.custom_fields as Record<string, unknown>) || {};
+        for (const key of Object.keys(data.custom_fields)) {
+          if (data.custom_fields[key] !== oldFields[key]) {
+            changedCustomFieldKeys.push(key);
+          }
+        }
       }
 
       const { data: updatedDeal, error } = await supabase
@@ -458,21 +479,57 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
         .single();
       if (error) throw error;
 
-      // Trigger stage automations AFTER the update so the deal is in the new stage
+      // Trigger automations AFTER the update so the deal reflects the new state
       if (stageChanged && currentDeal) {
         try {
           await supabase.functions.invoke('process-funnel-automations', {
             body: { dealId: id, fromStageId: currentDeal.stage_id, toStageId: data.stage_id }
           });
         } catch (e) {
-          console.error('Error triggering automations:', e);
+          console.error('Error triggering stage automations:', e);
         }
       }
-      
-      return { 
-        deal: updatedDeal, 
-        stageChanged, 
-        responsibleChanged, 
+
+      // Trigger on_responsible_changed
+      if (responsibleChanged && currentDeal) {
+        supabase.functions.invoke('process-funnel-automations', {
+          body: {
+            dealId: id,
+            triggerType: 'on_responsible_changed',
+            oldResponsible: currentDeal.responsible_id,
+            newResponsible: data.responsible_id,
+          }
+        }).catch(e => console.error('Error triggering responsible_changed automations:', e));
+      }
+
+      // Trigger on_deal_value_changed
+      if (valueChanged) {
+        supabase.functions.invoke('process-funnel-automations', {
+          body: {
+            dealId: id,
+            triggerType: 'on_deal_value_changed',
+            oldValue: currentDeal?.value,
+            newValue: data.value,
+          }
+        }).catch(e => console.error('Error triggering deal_value_changed automations:', e));
+      }
+
+      // Trigger on_custom_field_changed for each changed field
+      for (const fieldKey of changedCustomFieldKeys) {
+        supabase.functions.invoke('process-funnel-automations', {
+          body: {
+            dealId: id,
+            triggerType: 'on_custom_field_changed',
+            customFieldKey: fieldKey,
+            customFieldValue: String((data.custom_fields as Record<string, unknown>)[fieldKey] ?? ''),
+          }
+        }).catch(e => console.error('Error triggering custom_field_changed automations:', e));
+      }
+
+      return {
+        deal: updatedDeal,
+        stageChanged,
+        responsibleChanged,
         newStageName,
         dealTitle: updatedDeal?.title || currentDeal?.title || 'Deal'
       };
@@ -650,16 +707,16 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
 
   // Automation mutations
   const createAutomation = useMutation({
-    mutationFn: async (data: { funnel_id: string; stage_id?: string | null; name: string; trigger_type: string; trigger_config?: Record<string, unknown>; action_type: string; action_config?: Record<string, unknown>; is_active?: boolean }) => {
+    mutationFn: async (data: { funnel_id: string; stage_id?: string | null; name: string; trigger_type: FunnelTriggerType; trigger_config?: Record<string, unknown>; action_type: FunnelActionType; action_config?: Record<string, unknown>; is_active?: boolean }) => {
       const { data: newAutomation, error } = await supabase.from('funnel_automations').insert([{
         user_id: user!.id,
         funnel_id: data.funnel_id,
         stage_id: data.stage_id || null,
         name: data.name,
-        trigger_type: data.trigger_type as any,
-        trigger_config: (data.trigger_config || {}) as Record<string, never>,
-        action_type: data.action_type as any,
-        action_config: (data.action_config || {}) as Record<string, never>,
+        trigger_type: data.trigger_type,
+        trigger_config: (data.trigger_config || {}) as Record<string, unknown>,
+        action_type: data.action_type,
+        action_config: (data.action_config || {}) as Record<string, unknown>,
         is_active: data.is_active ?? true
       }]).select().single();
       if (error) throw error;
@@ -687,7 +744,7 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
   });
 
   const updateAutomation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; stage_id?: string | null; is_active?: boolean; name?: string; trigger_type?: string; action_type?: string; trigger_config?: unknown; action_config?: unknown }) => {
+    mutationFn: async ({ id, ...data }: { id: string; stage_id?: string | null; is_active?: boolean; name?: string; trigger_type?: FunnelTriggerType; action_type?: FunnelActionType; trigger_config?: unknown; action_config?: unknown }) => {
       const updateData: Record<string, unknown> = {};
       if (data.stage_id !== undefined) updateData.stage_id = data.stage_id;
       if (data.is_active !== undefined) updateData.is_active = data.is_active;
