@@ -7,6 +7,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { useGlobalRealtime } from "@/hooks/useGlobalRealtime";
 import { toast } from "sonner";
+import type { Conversation } from "@/hooks/useConversations";
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -55,22 +56,21 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
 
   // Get contact name from cached data or fetch
   const getContactName = useCallback(async (conversationId: string): Promise<string> => {
-    // Check cached conversations first
-    const cachedConversations = queryClient.getQueryData<any[]>(['conversations', user?.id]);
+    const cachedConversations = queryClient.getQueryData<Conversation[]>(['conversations', user?.id]);
     const cachedConv = cachedConversations?.find(c => c.id === conversationId);
     if (cachedConv?.contact?.name) return cachedConv.contact.name;
     if (cachedConv?.contact?.phone) return cachedConv.contact.phone;
 
-    // Fetch from database if not cached
     try {
       const { data } = await supabase
         .from('conversations')
         .select('contact:contacts(name, phone)')
         .eq('id', conversationId)
         .single();
-      
+
       if (data?.contact) {
-        return (data.contact as any).name || (data.contact as any).phone || 'Contato';
+        const contact = data.contact as { name: string | null; phone: string };
+        return contact.name || contact.phone || 'Contato';
       }
     } catch (error) {
       console.error('Error fetching contact for notification:', error);
@@ -105,7 +105,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
           if (message.user_id !== user.id) return;
 
           // Check if from notification-only instance
-          const cachedConversations = queryClient.getQueryData<any[]>(['conversations', user?.id]);
+          const cachedConversations = queryClient.getQueryData<Conversation[]>(['conversations', user?.id]);
           const conversation = cachedConversations?.find(c => c.id === message.conversation_id);
           if (conversation?.instance_id && notificationInstanceIds?.includes(conversation.instance_id)) {
             return;

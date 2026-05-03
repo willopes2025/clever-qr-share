@@ -19,13 +19,21 @@ const STORAGE_KEY = "sidebar-collapsed";
 export const SidebarProvider = ({ children }: { children: ReactNode }) => {
   const isMobile = useIsMobile();
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === "true";
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored === "true";
+    } catch {
+      return false;
+    }
   });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, String(isCollapsed));
+    try {
+      localStorage.setItem(STORAGE_KEY, String(isCollapsed));
+    } catch {
+      // localStorage unavailable (e.g. private browsing with strict settings)
+    }
   }, [isCollapsed]);
 
   // Close mobile sidebar on route change or resize to desktop

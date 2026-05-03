@@ -53,7 +53,7 @@ export const useWilAssistant = () => {
   const saveMessages = useCallback(async (newMessages: WilMessage[]) => {
     if (!user?.id) return;
 
-    const messagesJson = JSON.parse(JSON.stringify(newMessages));
+    const messagesJson = newMessages;
 
     try {
       if (sessionId) {
@@ -122,15 +122,19 @@ export const useWilAssistant = () => {
         content: m.content,
       }));
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) throw new Error("Sessão expirada. Faça login novamente.");
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wil-assistant`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             messages: allMessages,
             userId: user.id,
           }),

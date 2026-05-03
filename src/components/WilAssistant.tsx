@@ -77,7 +77,11 @@ export const WilAssistant = () => {
     setIsDragging(false);
     const newPosition = { x: position.x + info.offset.x, y: position.y + info.offset.y };
     setPosition(newPosition);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newPosition));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newPosition));
+    } catch {
+      // localStorage unavailable (e.g. private browsing with strict settings)
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -215,11 +215,12 @@ export const useActivitySession = () => {
   useEffect(() => {
     const handleUnload = () => {
       if (currentSession) {
-        // Use sendBeacon with edge function for reliable delivery
+        // sendBeacon with a Blob ensures Content-Type: application/json is set,
+        // which is required for the edge function to parse the body correctly.
         const payload = JSON.stringify({ session_id: currentSession.id });
-        navigator.sendBeacon(END_SESSION_URL, payload);
-        
-        // Clear cache immediately
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(END_SESSION_URL, blob);
+
         cacheSession(null);
       }
     };

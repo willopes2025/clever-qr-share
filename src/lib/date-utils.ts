@@ -7,15 +7,23 @@ const BRAZIL_TZ = 'America/Sao_Paulo';
  * Returns a new Date object adjusted to display Brazil time when used with date-fns format()
  */
 export function toBrazilTime(date: Date): Date {
+  if (isNaN(date.getTime())) return date;
   const brString = date.toLocaleString('en-US', { timeZone: BRAZIL_TZ });
   return new Date(brString);
+}
+
+function parseDate(dateString: string): Date | null {
+  const d = new Date(dateString);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 /**
  * Format a date string (ISO/UTC) to HH:mm in Brazil timezone
  */
 export function formatTimeBR(dateString: string): string {
-  const date = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return '';
+  const date = toBrazilTime(raw);
   return format(date, "HH:mm");
 }
 
@@ -23,7 +31,9 @@ export function formatTimeBR(dateString: string): string {
  * Check if a date string is today in Brazil timezone
  */
 export function isTodayBR(dateString: string): boolean {
-  const date = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return false;
+  const date = toBrazilTime(raw);
   const now = toBrazilTime(new Date());
   return dateFnsIsToday(date) || (date.toDateString() === now.toDateString());
 }
@@ -32,7 +42,9 @@ export function isTodayBR(dateString: string): boolean {
  * Check if a date string is yesterday in Brazil timezone
  */
 export function isYesterdayBR(dateString: string): boolean {
-  const date = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return false;
+  const date = toBrazilTime(raw);
   const now = toBrazilTime(new Date());
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -44,7 +56,9 @@ export function isYesterdayBR(dateString: string): boolean {
  */
 export function formatMessageTimeBR(dateString: string | null): string {
   if (!dateString) return "";
-  const brDate = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   if (isTodayBR(dateString)) {
     return format(brDate, "HH:mm");
   }
@@ -58,7 +72,9 @@ export function formatMessageTimeBR(dateString: string | null): string {
  * Full format for message bubbles in Brazil timezone: "dd/MM/yyyy 'às' HH:mm"
  */
 export function formatFullDateTimeBR(dateString: string): string {
-  const brDate = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   return format(brDate, "dd/MM/yyyy 'às' HH:mm");
 }
 
@@ -66,7 +82,9 @@ export function formatFullDateTimeBR(dateString: string): string {
  * Format for message bubble time display in Brazil timezone
  */
 export function formatBubbleTimeBR(dateString: string): string {
-  const brDate = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   if (isTodayBR(dateString)) {
     return format(brDate, "HH:mm");
   }
@@ -80,7 +98,9 @@ export function formatBubbleTimeBR(dateString: string): string {
  * Get the date label for DateSeparator in Brazil timezone
  */
 export function getDateLabelBR(dateString: string): string {
-  const brDate = toBrazilTime(new Date(dateString));
+  const raw = parseDate(dateString);
+  if (!raw) return "";
+  const brDate = toBrazilTime(raw);
   if (isTodayBR(dateString)) return "Hoje";
   if (isYesterdayBR(dateString)) return "Ontem";
   
