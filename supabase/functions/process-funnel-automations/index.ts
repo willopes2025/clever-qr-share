@@ -60,9 +60,10 @@ Deno.serve(async (req: Request) => {
     // Determine trigger types to check
     const triggersToCheck: string[] = [];
 
-    // Check for funnel enter trigger (when deal is newly created)
+    // Check for funnel enter + contact created triggers (when deal is newly created)
     if (isNewDeal) {
       triggersToCheck.push('on_funnel_enter');
+      triggersToCheck.push('on_contact_created');
     }
 
     if (toStageId) {
