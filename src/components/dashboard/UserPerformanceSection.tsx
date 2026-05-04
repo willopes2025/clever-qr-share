@@ -95,7 +95,7 @@ export const UserPerformanceSection = ({ dateRange, customRange }: UserPerforman
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Usuário</TableHead>
-                  <TableHead className="text-center whitespace-nowrap">Tempo/Dia</TableHead>
+                  <TableHead className="text-center whitespace-nowrap" title="Tempo ativo estimado: intervalo entre a 1ª e última mensagem de cada dia">Tempo/Dia ⓘ</TableHead>
                   <TableHead className="text-center whitespace-nowrap">Caracteres</TableHead>
                   <TableHead className="text-center">Msgs</TableHead>
                   <TableHead className="text-center">Atend.</TableHead>

@@ -992,38 +992,30 @@ export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRa
     queryKey: ['user-performance-detailed', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<UserPerformanceDetailedMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
-      const daysDiff = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 
-      const [profilesResult, perfMetricsResult, workSessionsResult, outboundMsgsResult, stagesResult, openDealsResult] =
-        await Promise.all([
-          supabase.from('profiles').select('id, full_name'),
-          supabase
-            .from('user_performance_metrics')
-            .select('user_id, messages_sent, conversations_handled, deals_won, deals_value, avg_response_time_seconds')
-            .gte('metric_date', start.toISOString().split('T')[0])
-            .lte('metric_date', end.toISOString().split('T')[0]),
-          supabase
-            .from('user_activity_sessions')
-            .select('user_id, duration_seconds')
-            .eq('session_type', 'work')
-            .gte('started_at', start.toISOString())
-            .lte('started_at', end.toISOString()),
-          supabase
-            .from('inbox_messages')
-            .select('sent_by_user_id, content')
-            .eq('direction', 'outbound')
-            .not('sent_by_user_id', 'is', null)
-            .not('is_ai_generated', 'is', true)
-            .gte('created_at', start.toISOString())
-            .lte('created_at', end.toISOString())
-            .limit(10000),
-          supabase.from('funnel_stages').select('id, final_type').not('final_type', 'is', null),
-          supabase.from('funnel_deals').select('responsible_id').not('responsible_id', 'is', null).is('closed_at', null),
-        ]);
+      // Fetch everything in parallel — derive all user stats from real data tables
+      // (user_activity_sessions / user_performance_metrics are not used because they
+      //  require a background job to populate and are usually empty)
+      const [profilesResult, outboundMsgsResult, stagesResult, openDealsResult] = await Promise.all([
+        supabase.from('profiles').select('id, full_name'),
+        supabase
+          .from('inbox_messages')
+          .select('sent_by_user_id, content, conversation_id, created_at')
+          .eq('direction', 'outbound')
+          .not('sent_by_user_id', 'is', null)
+          .not('is_ai_generated', 'is', true)
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString())
+          .limit(50000),
+        supabase.from('funnel_stages').select('id, final_type').not('final_type', 'is', null),
+        supabase
+          .from('funnel_deals')
+          .select('responsible_id')
+          .not('responsible_id', 'is', null)
+          .is('closed_at', null),
+      ]);
 
       const profiles = profilesResult.data || [];
-      const perfMetrics = perfMetricsResult.data || [];
-      const workSessions = workSessionsResult.data || [];
       const outboundMessages = outboundMsgsResult.data || [];
       const stages = stagesResult.data || [];
       const openDeals = openDealsResult.data || [];
@@ -1040,45 +1032,36 @@ export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRa
         .gte('closed_at', start.toISOString())
         .lte('closed_at', end.toISOString());
 
-      // Aggregate work seconds per user
-      const workSecondsMap = new Map<string, number>();
-      workSessions.forEach(s => {
-        if (s.user_id && s.duration_seconds) {
-          workSecondsMap.set(s.user_id, (workSecondsMap.get(s.user_id) || 0) + s.duration_seconds);
-        }
-      });
+      // Aggregate per-user stats from inbox_messages
+      // dayMap tracks { date -> { min_ts, max_ts } } to compute daily activity span
+      type UserMsgData = {
+        chars: number;
+        msgCount: number;
+        convIds: Set<string>;
+        dayMap: Map<string, { min: number; max: number }>;
+      };
+      const msgDataMap = new Map<string, UserMsgData>();
 
-      // Character count per user
-      const charMap = new Map<string, number>();
       outboundMessages.forEach(m => {
-        if (m.sent_by_user_id && m.content) {
-          charMap.set(m.sent_by_user_id, (charMap.get(m.sent_by_user_id) || 0) + m.content.length);
+        if (!m.sent_by_user_id) return;
+        const uid = m.sent_by_user_id;
+        if (!msgDataMap.has(uid)) {
+          msgDataMap.set(uid, { chars: 0, msgCount: 0, convIds: new Set(), dayMap: new Map() });
         }
-      });
+        const data = msgDataMap.get(uid)!;
+        data.chars += (m.content || '').length;
+        data.msgCount++;
+        if (m.conversation_id) data.convIds.add(m.conversation_id);
 
-      // Aggregate performance metrics per user
-      type PerfAgg = { messages: number; conversations: number; rtSum: number; rtCount: number; dealsWon: number; dealsValue: number };
-      const perfMap = new Map<string, PerfAgg>();
-      perfMetrics.forEach(m => {
-        const existing = perfMap.get(m.user_id);
-        const convHandled = m.conversations_handled || 0;
-        const rt = m.avg_response_time_seconds || 0;
-        if (existing) {
-          existing.messages += m.messages_sent || 0;
-          existing.conversations += convHandled;
-          existing.rtSum += rt * convHandled;
-          existing.rtCount += convHandled;
-          existing.dealsWon += m.deals_won || 0;
-          existing.dealsValue += Number(m.deals_value) || 0;
+        // Track daily span: first to last message each day = approximate active time
+        const ts = new Date(m.created_at).getTime();
+        const day = m.created_at.slice(0, 10); // YYYY-MM-DD
+        const dayData = data.dayMap.get(day);
+        if (!dayData) {
+          data.dayMap.set(day, { min: ts, max: ts });
         } else {
-          perfMap.set(m.user_id, {
-            messages: m.messages_sent || 0,
-            conversations: convHandled,
-            rtSum: rt * convHandled,
-            rtCount: convHandled,
-            dealsWon: m.deals_won || 0,
-            dealsValue: Number(m.deals_value) || 0,
-          });
+          if (ts < dayData.min) dayData.min = ts;
+          if (ts > dayData.max) dayData.max = ts;
         }
       });
 
@@ -1088,7 +1071,7 @@ export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRa
         if (d.responsible_id) openDealsMap.set(d.responsible_id, (openDealsMap.get(d.responsible_id) || 0) + 1);
       });
 
-      // Closed deals in period
+      // Closed deals in period: won vs lost per user
       const wonMap = new Map<string, { count: number; value: number }>();
       const lostMap = new Map<string, number>();
       (closedDealsInPeriod || []).forEach(d => {
@@ -1102,11 +1085,9 @@ export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRa
         }
       });
 
-      // Collect all user IDs from all sources
+      // Union of all known user IDs
       const allUserIds = new Set([
-        ...workSecondsMap.keys(),
-        ...charMap.keys(),
-        ...perfMap.keys(),
+        ...msgDataMap.keys(),
         ...openDealsMap.keys(),
         ...wonMap.keys(),
         ...lostMap.keys(),
@@ -1115,22 +1096,28 @@ export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRa
       const userMap = new Map<string, UserPerformanceDetail>();
       for (const userId of allUserIds) {
         const profile = profiles.find(p => p.id === userId);
-        const workSecs = workSecondsMap.get(userId) || 0;
-        const perf = perfMap.get(userId);
+        const msgData = msgDataMap.get(userId);
         const won = wonMap.get(userId);
         const wonCount = won?.count || 0;
         const lostCount = lostMap.get(userId) || 0;
         const totalClosed = wonCount + lostCount;
 
+        // Daily work time = sum of (last_msg_ts - first_msg_ts) per day
+        let totalActiveSeconds = 0;
+        msgData?.dayMap.forEach(({ min, max }) => {
+          totalActiveSeconds += Math.max(0, Math.floor((max - min) / 1000));
+        });
+        const activeDays = msgData?.dayMap.size || 0;
+
         userMap.set(userId, {
           userId,
           userName: profile?.full_name || 'Usuário',
-          totalWorkSeconds: workSecs,
-          avgDailyWorkSeconds: workSecs / daysDiff,
-          charactersTyped: charMap.get(userId) || 0,
-          messagesSent: perf?.messages || 0,
-          conversationsHandled: perf?.conversations || 0,
-          avgResponseTimeSeconds: perf?.rtCount ? perf.rtSum / perf.rtCount : 0,
+          totalWorkSeconds: totalActiveSeconds,
+          avgDailyWorkSeconds: activeDays > 0 ? totalActiveSeconds / activeDays : 0,
+          charactersTyped: msgData?.chars || 0,
+          messagesSent: msgData?.msgCount || 0,
+          conversationsHandled: msgData?.convIds.size || 0,
+          avgResponseTimeSeconds: 0,
           dealsOpen: openDealsMap.get(userId) || 0,
           dealsWon: wonCount,
           dealsLost: lostCount,
@@ -1140,7 +1127,8 @@ export const useUserPerformanceDetailed = (dateRange: DateRange = '7d', customRa
         });
       }
 
-      const users = Array.from(userMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+      const users = Array.from(userMap.values())
+        .sort((a, b) => b.messagesSent - a.messagesSent || b.charactersTyped - a.charactersTyped);
       const totalCharactersTyped = users.reduce((sum, u) => sum + u.charactersTyped, 0);
 
       return { users, totalCharactersTyped };
