@@ -580,6 +580,38 @@ export function TeamSettings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={editOwnerNameOpen} onOpenChange={setEditOwnerNameOpen}>
+        <DialogContent>
+          <form onSubmit={handleSaveOwnerName}>
+            <DialogHeader>
+              <DialogTitle>Editar nome</DialogTitle>
+              <DialogDescription>
+                Altere o nome exibido para o administrador principal da organização.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-2">
+              <Label htmlFor="owner-name">Nome</Label>
+              <Input
+                id="owner-name"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                placeholder="Seu nome"
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOwnerNameOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateProfile.isPending || !ownerName.trim()}>
+                {updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
