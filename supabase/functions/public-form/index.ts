@@ -905,3 +905,17 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+function sanitizeColor(color: string | null | undefined, fallback: string): string {
+  if (!color || typeof color !== 'string') return fallback;
+  const trimmed = color.trim();
+  // Allow #RGB, #RRGGBB, #RRGGBBAA hex colors only
+  if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(trimmed)) return trimmed;
+  return fallback;
+}
+
+function sanitizeFontFamily(font: string | null | undefined): string {
+  if (!font || typeof font !== 'string') return 'Inter';
+  const safe = font.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+  return safe.length > 0 ? safe.slice(0, 64) : 'Inter';
+}
