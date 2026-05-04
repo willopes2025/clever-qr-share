@@ -432,7 +432,17 @@ export function TeamSettings() {
                       }
                     </TableCell>
                     <TableCell>
-                      {isAdmin && member.user_id !== organization.owner_id && (
+                      {member.user_id === organization.owner_id && user?.id === organization.owner_id ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleOpenEditOwnerName}
+                          className="gap-2"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Editar nome
+                        </Button>
+                      ) : isAdmin && member.user_id !== organization.owner_id ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -484,7 +494,7 @@ export function TeamSettings() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      )}
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
