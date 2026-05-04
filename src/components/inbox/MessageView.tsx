@@ -93,7 +93,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     conversation.instance_id || ""
   );
   const [selectedMetaNumberId, setSelectedMetaNumberId] = useState<string>(
-    (conversation as any).meta_phone_number_id || ""
+    conversation.meta_phone_number_id || ""
   );
   // For Meta conversations: track if user switched to an Evolution instance
   const [metaUsingEvoInstance, setMetaUsingEvoInstance] = useState(false);
@@ -173,12 +173,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     );
   }, [activeFlows, slashSearchTerm]);
 
-  // Set default instance/meta number ONLY when conversation changes (by id)
+  // Set default instance/meta number when conversation changes OR when meta_phone_number_id
+  // changes (e.g. an inbound message arrives on a different Meta number via realtime).
   const conversationId = conversation.id;
   const conversationInstanceId = conversation.instance_id;
   const conversationMetaPhoneId = conversation.meta_phone_number_id;
   const conversationProvider = conversation.provider;
-  
+
   useEffect(() => {
     if (isMetaConversation) {
       // Check if conversation has an instance_id set (means user previously chose Evo)
@@ -201,8 +202,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         setSelectedInstanceId(connectedInstances[0].id);
       }
     }
+  // Re-run when the meta_phone_number_id changes so the reply number always
+  // tracks the last inbound message (updated by the webhook via realtime).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
+  }, [conversationId, conversationMetaPhoneId]);
 
   // Persist sender name preference
   useEffect(() => {
