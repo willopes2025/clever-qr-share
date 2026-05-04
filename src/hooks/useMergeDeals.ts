@@ -224,6 +224,8 @@ export const useMergeDeals = () => {
       queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
     },
     onError: (error: Error) => {
       console.error('[useMergeDeals] Error:', error);
