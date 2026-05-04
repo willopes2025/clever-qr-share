@@ -53,6 +53,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
   const [fieldSources, setFieldSources] = useState<FieldSourceMap>({});
   const [mergeTags, setMergeTags] = useState(true);
   const [mergeNotes, setMergeNotes] = useState(true);
+  const [mergeConversations, setMergeConversations] = useState(true);
 
   // When dialog opens, default master = first deal, stage = master's stage, fields default to master values
   useEffect(() => {
