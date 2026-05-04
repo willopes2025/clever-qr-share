@@ -166,8 +166,11 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
       },
       mergeTags,
       mergeNotes,
+      mergeConversations,
       masterContactId: masterDeal.contact_id || null,
       secondaryContactIds: secondaryDeals.map(d => d.contact_id).filter(Boolean) as string[],
+      masterConversationId: masterDeal.conversation_id || null,
+      secondaryConversationIds: secondaryDeals.map(d => d.conversation_id).filter(Boolean) as string[],
     });
 
     onOpenChange(false);
