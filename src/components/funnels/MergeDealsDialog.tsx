@@ -53,6 +53,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
   const [fieldSources, setFieldSources] = useState<FieldSourceMap>({});
   const [mergeTags, setMergeTags] = useState(true);
   const [mergeNotes, setMergeNotes] = useState(true);
+  const [mergeConversations, setMergeConversations] = useState(true);
 
   // When dialog opens, default master = first deal, stage = master's stage, fields default to master values
   useEffect(() => {
@@ -165,8 +166,11 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
       },
       mergeTags,
       mergeNotes,
+      mergeConversations,
       masterContactId: masterDeal.contact_id || null,
       secondaryContactIds: secondaryDeals.map(d => d.contact_id).filter(Boolean) as string[],
+      masterConversationId: masterDeal.conversation_id || null,
+      secondaryConversationIds: secondaryDeals.map(d => d.conversation_id).filter(Boolean) as string[],
     });
 
     onOpenChange(false);
@@ -295,6 +299,27 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
                   <div className="text-sm font-medium">Mesclar notas</div>
                   <p className="text-xs text-muted-foreground">
                     Move as notas dos contatos secundários para o contato principal.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox checked={mergeConversations} onCheckedChange={(c) => setMergeConversations(c === true)} className="mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium">
+                    Unificar conversas
+                    {(() => {
+                      const ids = Array.from(new Set(
+                        secondaryDeals.map(d => d.conversation_id).filter(Boolean) as string[]
+                      )).filter(id => id !== masterDeal?.conversation_id);
+                      return ids.length > 0 ? (
+                        <Badge variant="secondary" className="ml-2 text-[10px]">
+                          {ids.length} conversa{ids.length > 1 ? 's' : ''}
+                        </Badge>
+                      ) : null;
+                    })()}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Move todas as mensagens, notas, tarefas e chamadas dos leads secundários para a conversa do lead principal. As conversas secundárias serão arquivadas.
                   </p>
                 </div>
               </label>

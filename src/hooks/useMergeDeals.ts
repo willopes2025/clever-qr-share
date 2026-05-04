@@ -16,10 +16,15 @@ export interface MergeDealsPayload {
   };
   mergeTags: boolean;
   mergeNotes: boolean;
+  mergeConversations: boolean;
   // Contact id of the master (used for tag/note merges)
   masterContactId: string | null;
   // Contact ids of the secondaries (for tag/note merges)
   secondaryContactIds: string[];
+  // Conversation id of the master deal (target for conversation merge)
+  masterConversationId: string | null;
+  // Conversation ids of the secondaries (sources to migrate into master)
+  secondaryConversationIds: string[];
 }
 
 /**
@@ -33,7 +38,7 @@ export const useMergeDeals = () => {
 
   return useMutation({
     mutationFn: async (payload: MergeDealsPayload) => {
-      const { masterId, secondaryIds, fields, mergeTags, mergeNotes, masterContactId, secondaryContactIds } = payload;
+      const { masterId, secondaryIds, fields, mergeTags, mergeNotes, mergeConversations, masterContactId, secondaryContactIds, masterConversationId, secondaryConversationIds } = payload;
 
       // 1. Fetch the master deal current stage to detect a stage change
       const { data: masterDeal, error: masterErr } = await supabase
@@ -84,6 +89,77 @@ export const useMergeDeals = () => {
           to_stage_id: fields.stage_id,
           notes: `União de leads: ${secondaryIds.join(', ')}`,
         });
+      }
+
+      // 4.5. Merge conversations from secondaries into master conversation
+      if (mergeConversations && masterConversationId && secondaryConversationIds.length > 0) {
+        const uniqueSecondaryConvIds = Array.from(new Set(
+          secondaryConversationIds.filter(cid => cid && cid !== masterConversationId)
+        ));
+
+        for (const secConvId of uniqueSecondaryConvIds) {
+          // Count messages before move
+          const { count: beforeCount } = await supabase
+            .from('inbox_messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('conversation_id', secConvId);
+
+          // Move inbox messages
+          const { error: msgErr } = await supabase
+            .from('inbox_messages')
+            .update({ conversation_id: masterConversationId })
+            .eq('conversation_id', secConvId);
+          if (msgErr) throw new Error(`Erro ao mover mensagens: ${msgErr.message}`);
+
+          // Verify
+          if (beforeCount && beforeCount > 0) {
+            const { count: remaining } = await supabase
+              .from('inbox_messages')
+              .select('id', { count: 'exact', head: true })
+              .eq('conversation_id', secConvId);
+            if (remaining && remaining > 0) {
+              throw new Error(`Falha ao mover ${remaining} mensagens da conversa secundária. União cancelada.`);
+            }
+          }
+
+          // Move notes, tasks, calls
+          await supabase.from('conversation_notes').update({ conversation_id: masterConversationId }).eq('conversation_id', secConvId);
+          await supabase.from('conversation_tasks').update({ conversation_id: masterConversationId }).eq('conversation_id', secConvId);
+          await supabase.from('voip_calls').update({ conversation_id: masterConversationId }).eq('conversation_id', secConvId);
+          await supabase.from('ai_phone_calls').update({ conversation_id: masterConversationId }).eq('conversation_id', secConvId);
+
+          // Move tag assignments (dedupe)
+          const { data: existingTags } = await supabase
+            .from('conversation_tag_assignments')
+            .select('tag_id')
+            .eq('conversation_id', masterConversationId);
+          const existingTagIds = new Set((existingTags || []).map(t => t.tag_id));
+
+          const { data: secTags } = await supabase
+            .from('conversation_tag_assignments')
+            .select('tag_id')
+            .eq('conversation_id', secConvId);
+
+          const newTags = (secTags || []).filter(t => !existingTagIds.has(t.tag_id));
+          if (newTags.length > 0) {
+            await supabase.from('conversation_tag_assignments').insert(
+              newTags.map(t => ({ conversation_id: masterConversationId, tag_id: t.tag_id }))
+            );
+          }
+          await supabase.from('conversation_tag_assignments').delete().eq('conversation_id', secConvId);
+
+          // Repoint any other deal still linked to the secondary conversation
+          await supabase
+            .from('funnel_deals')
+            .update({ conversation_id: masterConversationId })
+            .eq('conversation_id', secConvId);
+
+          // Archive the now-empty conversation
+          await supabase
+            .from('conversations')
+            .update({ status: 'archived' })
+            .eq('id', secConvId);
+        }
       }
 
       // 5. Migrate references from secondary deals to master
@@ -148,6 +224,8 @@ export const useMergeDeals = () => {
       queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['inbox-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
     },
     onError: (error: Error) => {
       console.error('[useMergeDeals] Error:', error);
