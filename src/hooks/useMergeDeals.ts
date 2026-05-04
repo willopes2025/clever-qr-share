@@ -38,7 +38,7 @@ export const useMergeDeals = () => {
 
   return useMutation({
     mutationFn: async (payload: MergeDealsPayload) => {
-      const { masterId, secondaryIds, fields, mergeTags, mergeNotes, masterContactId, secondaryContactIds } = payload;
+      const { masterId, secondaryIds, fields, mergeTags, mergeNotes, mergeConversations, masterContactId, secondaryContactIds, masterConversationId, secondaryConversationIds } = payload;
 
       // 1. Fetch the master deal current stage to detect a stage change
       const { data: masterDeal, error: masterErr } = await supabase
