@@ -9,57 +9,56 @@ const PublicFormPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (slug) {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      
-      // Extract static params from the URL path after the slug
-      const pathAfterSlug = location.pathname.split(`/${slug}/`)[1] || '';
-      const staticParams = pathAfterSlug
-        .split('/')
-        .filter(Boolean)
-        .map(param => {
-          const [key, value] = param.split('=');
-          return { key: decodeURIComponent(key || ''), value: decodeURIComponent(value || '') };
-        })
-        .filter(p => p.key && p.value);
+    if (!slug) return;
 
-      // Check for embed mode from query string
-      const searchParams = new URLSearchParams(location.search);
-      const embedMode = searchParams.get('embed');
+    const controller = new AbortController();
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
-      // Build URL with params as query string for the edge function
-      const params = new URLSearchParams();
-      params.set('slug', slug);
-      
-      if (staticParams.length > 0) {
-        params.set('static_params', JSON.stringify(staticParams));
-      }
+    // Extract static params from the URL path after the slug
+    const pathAfterSlug = location.pathname.split(`/${slug}/`)[1] || '';
+    const staticParams = pathAfterSlug
+      .split('/')
+      .filter(Boolean)
+      .map(param => {
+        const [key, value] = param.split('=');
+        return { key: decodeURIComponent(key || ''), value: decodeURIComponent(value || '') };
+      })
+      .filter(p => p.key && p.value);
 
-      if (embedMode === 'true') {
-        params.set('embed', 'true');
-      }
+    // Check for embed mode from query string
+    const searchParams = new URLSearchParams(location.search);
+    const embedMode = searchParams.get('embed');
 
-      const fetchForm = async () => {
-        try {
-          const response = await fetch(`${supabaseUrl}/functions/v1/public-form?${params.toString()}`);
-          const html = await response.text();
-          
-          if (!response.ok) {
-            setError('Formulário não encontrado');
-            return;
-          }
-          
-          setHtmlContent(html);
-        } catch (err) {
-          console.error('Error fetching form:', err);
-          setError('Erro ao carregar formulário');
-        } finally {
-          setLoading(false);
+    const params = new URLSearchParams();
+    params.set('slug', slug);
+    if (staticParams.length > 0) params.set('static_params', JSON.stringify(staticParams));
+    if (embedMode === 'true') params.set('embed', 'true');
+
+    const fetchForm = async () => {
+      try {
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/public-form?${params.toString()}`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) {
+          setError('Formulário não encontrado');
+          return;
         }
-      };
 
-      fetchForm();
-    }
+        const html = await response.text();
+        setHtmlContent(html);
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        console.error('Error fetching form:', err);
+        setError('Erro ao carregar formulário');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchForm();
+    return () => controller.abort();
   }, [slug, location.pathname]);
 
   if (loading) {

@@ -148,6 +148,10 @@ Deno.serve(async (req) => {
 
     if (fieldsError) {
       console.error('Error fetching fields:', fieldsError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao carregar campos do formulário' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const formFields = fields || [];

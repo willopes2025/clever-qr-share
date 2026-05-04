@@ -46,21 +46,19 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   const [newParamKey, setNewParamKey] = useState('');
   const [newParamValue, setNewParamValue] = useState('');
 
-  // Build URL with static params
+  // Build URL pointing to the edge function so WhatsApp/social crawlers get proper OG meta tags
   const buildFormUrl = () => {
-    const baseUrl = `${window.location.origin}/form/${form.slug}`;
-    if (staticParams.length === 0) return baseUrl;
-    
-    const paramsPath = staticParams
-      .filter(p => p.key && p.value)
-      .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-      .join('/');
-    
-    return paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    const params = new URLSearchParams({ slug: form.slug });
+    const validParams = staticParams.filter(p => p.key && p.value);
+    if (validParams.length > 0) {
+      params.set('static_params', JSON.stringify(validParams));
+    }
+    return `${supabaseUrl}/functions/v1/public-form?${params.toString()}`;
   };
 
   const formUrl = buildFormUrl();
-  const embedCode = `<iframe src="${formUrl}" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
+  const embedCode = `<iframe src="${formUrl}&embed=true" width="100%" height="600" frameborder="0" style="border: none;"></iframe>`;
 
   const handleCopy = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
