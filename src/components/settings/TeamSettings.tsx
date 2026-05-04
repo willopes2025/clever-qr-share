@@ -69,6 +69,7 @@ import { Input } from '@/components/ui/input';
 export function TeamSettings() {
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
+  const queryClient = useQueryClient();
   const { 
     organization, 
     isOwner, 
