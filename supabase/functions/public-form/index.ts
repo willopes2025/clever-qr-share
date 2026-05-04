@@ -205,12 +205,12 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
   ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(form.font_family || 'Inter')}:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(sanitizeFontFamily(form.font_family))}:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary-color: ${form.primary_color || '#3b82f6'};
-      --bg-color: ${form.background_color || '#ffffff'};
-      --font-family: '${form.font_family || 'Inter'}', sans-serif;
+      --primary-color: ${sanitizeColor(form.primary_color, '#3b82f6')};
+      --bg-color: ${sanitizeColor(form.background_color, '#ffffff')};
+      --font-family: '${sanitizeFontFamily(form.font_family)}', sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { ${bodyStyles} }
@@ -904,4 +904,18 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function sanitizeColor(color: string | null | undefined, fallback: string): string {
+  if (!color || typeof color !== 'string') return fallback;
+  const trimmed = color.trim();
+  // Allow #RGB, #RRGGBB, #RRGGBBAA hex colors only
+  if (/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(trimmed)) return trimmed;
+  return fallback;
+}
+
+function sanitizeFontFamily(font: string | null | undefined): string {
+  if (!font || typeof font !== 'string') return 'Inter';
+  const safe = font.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+  return safe.length > 0 ? safe.slice(0, 64) : 'Inter';
 }
