@@ -221,10 +221,24 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   // Clear optimistic messages when real messages arrive
   useEffect(() => {
     if (messages?.length) {
-      setOptimisticMessages(prev => 
-        prev.filter(opt => 
-          !messages.some(m => m.content === opt.content && m.direction === 'outbound')
-        )
+      setOptimisticMessages(prev =>
+        prev.filter(opt => {
+          // Match media optimistic by media_url + type
+          if (opt.media_url) {
+            const matched = messages.some(
+              m => m.direction === 'outbound' && m.media_url === opt.media_url
+            );
+            if (matched) return false;
+            // Also drop media optimistic older than 30s to prevent loop
+            const ageMs = Date.now() - new Date(opt.created_at).getTime();
+            if (ageMs > 30000) return false;
+            return true;
+          }
+          // Text match
+          return !messages.some(
+            m => m.content === opt.content && m.direction === 'outbound'
+          );
+        })
       );
     }
   }, [messages]);
