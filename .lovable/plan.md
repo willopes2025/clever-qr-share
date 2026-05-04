@@ -1,51 +1,68 @@
-## Diagnóstico
+# Unificação completa de leads (campos + conversas)
 
-Investiguei a base e confirmei: **as tags estão sendo carregadas corretamente** (RLS já permite ver todas as tags da organização). No print você vê **"ADICIONAR (9)"** e a sua organização realmente tem 9 tags disponíveis no banco:
+## Situação atual
 
-1. Brigadeiro
-2. Canela de Ceilão
-3. Colaborador
-4. Entregador
-5. Garrafas
-6. **Whey** ← não aparece no print
-7. **paozinho** (azul) ← não aparece
-8. **paozinho** (rosa, duplicada) ← não aparece
-9. **paozinho** (azul, duplicada) ← não aparece
+O diálogo **"Unir Leads"** (`MergeDealsDialog` + `useMergeDeals`) já permite:
+- Escolher o lead **principal** (mantém ID e histórico).
+- Selecionar, **campo a campo**, de qual lead vem o valor final (título, valor, responsável, campos personalizados do lead e do contato).
+- Mesclar tags e notas dos contatos.
+- Migrar referências (chatbot_executions, automation_execution_log, calendly_events) e excluir os secundários.
 
-Há **dois problemas reais**:
+**O que falta:** as conversas dos leads secundários **não são unificadas** na conversa do lead principal. Cada `funnel_deal` aponta para um `conversation_id` próprio, então após a união as mensagens dos cards secundários ficam órfãs (o deal foi excluído, mas a conversa e o contato continuam separados na Inbox).
 
-### Problema 1: Scroll oculto
-A lista usa `ScrollArea` com altura máxima `max-h-48`, mostrando ~5 tags. As outras 4 ficam "escondidas" abaixo, **sem indicador visual** de que há mais conteúdo para rolar. O usuário pensa que a lista acabou.
+## O que será feito
 
-### Problema 2: Tags duplicadas legadas
-Existem **3 tags chamadas "paozinho"** criadas antes da validação anti-duplicata. A deduplicação atual só impede **novas** duplicatas — não limpa as antigas. Isso polui a lista e confunde.
+### 1. Backend de união (`src/hooks/useMergeDeals.ts`)
+Adicionar uma nova etapa **antes** de excluir os deals secundários: para cada deal secundário com `conversation_id` diferente do principal, mover **tudo** para a conversa do lead principal — reusando exatamente a mesma lógica já validada em `useConversationActions.mergeConversations`:
 
-### Problema 3: Sem busca
-Com 9+ tags, fica difícil encontrar rapidamente. Não há campo de busca/filtro.
+- `inbox_messages` → conversation_id do principal (com verificação de contagem para não perder histórico).
+- `conversation_notes`, `conversation_tasks`, `voip_calls`, `ai_phone_calls` → mesma migração.
+- `conversation_tag_assignments` → deduplicar tags já existentes.
+- `funnel_deals.conversation_id` → apontar para a conversa principal (caso outros deals usem a secundária).
+- Marcar a conversa secundária como `status='archived'` (não excluir, para preservar logs/auditoria).
 
-## Plano de correção
+Novo parâmetro no payload:
+```ts
+mergeConversations: boolean // default true
+```
 
-### 1. `src/components/inbox/TagSelector.tsx`
-- **Aumentar altura** do `ScrollArea` de `max-h-48` para `max-h-64` e adicionar borda/sombra sutil indicando rolagem quando há overflow.
-- **Adicionar campo de busca** acima da lista "Adicionar" (filtra `availableTags` por `name` case-insensitive). Aparece só quando há mais de 5 tags.
-- **Mesclar tags duplicadas visualmente**: agrupar por `name.toLowerCase()` na lista — se houver várias tags com o mesmo nome, mostrar apenas uma (a mais antiga) com um pequeno aviso "⚠ duplicada (3)" e botão "Mesclar" que reatribui todas as conversas para a tag mais antiga e apaga as duplicatas.
-- Mostrar contador real e badge "+N" no rodapé se ainda houver tags fora da viewport visível.
+### 2. UI (`src/components/funnels/MergeDealsDialog.tsx`)
+- Adicionar nova opção na seção **"4. Opções adicionais"**:
+  - ☑ **Unificar conversas** (default: ligado)
+  - Texto: *"Move todas as mensagens, notas, tarefas e chamadas dos leads secundários para a conversa do lead principal. As conversas secundárias serão arquivadas."*
+- Mostrar um aviso visual indicando quantas conversas distintas serão mescladas (contar `conversation_id` únicos entre os deals selecionados).
 
-### 2. Limpeza de duplicatas no banco (migration)
-Criar migration que:
-- Para cada nome duplicado dentro da mesma organização, escolhe a tag mais antiga como "canônica".
-- Reatribui todas as `conversation_tag_assignments` das duplicatas para a canônica (com `ON CONFLICT DO NOTHING` para evitar violar o unique).
-- Apaga as tags duplicadas restantes.
-- Adiciona índice único `(user_id, lower(name))` ou melhor: `unique(organization_owner_id, lower(name))` via trigger, para impedir novas duplicatas no banco (não apenas no front).
+### 3. Garantias / segurança
+- A verificação de `beforeCount` vs `remainingCount` em `inbox_messages` (já existente em `mergeConversations`) será replicada para abortar se RLS impedir a movimentação — assim nenhum histórico se perde silenciosamente.
+- Ordem da operação: **mover conversas → mover refs → atualizar campos → excluir deals secundários**. Se a unificação de conversas falhar, a transação para antes de excluir nada.
+- Invalidar caches: `conversations`, `inbox-messages`, `funnel-deals`, `funnels`, `contacts`.
 
-Especificamente para sua org isso vai consolidar as 3 "paozinho" em uma só, restando **7 tags reais** + as 5 já visíveis = lista limpa.
+## Detalhes técnicos
 
-### 3. (Opcional) `LeadPanelTagsSection`
-Sem mudança — apenas o popover fica corrigido.
+```text
+useMergeDeals (novo fluxo)
+├── 1. valida master + stage
+├── 2. atualiza campos do master (já existe)
+├── 3. mescla custom_fields do contato (já existe)
+├── 4. NOVO: para cada conversation_id secundário ≠ master:
+│      ├─ move inbox_messages (com verificação)
+│      ├─ move notes, tasks, voip_calls, ai_phone_calls
+│      ├─ deduplica e move tag_assignments
+│      ├─ aponta outros funnel_deals.conversation_id → master
+│      └─ archives a conversa antiga
+├── 5. migra chatbot_executions/automation_logs/calendly (já existe)
+├── 6. mescla tags e notes dos contatos secundários (já existe)
+└── 7. exclui deals secundários (já existe)
+```
+
+Arquivos a alterar:
+- `src/hooks/useMergeDeals.ts` — adicionar etapa 4 e parâmetro `mergeConversations`.
+- `src/components/funnels/MergeDealsDialog.tsx` — checkbox + contador de conversas únicas + passar flag.
+
+Nenhuma migração de banco é necessária (todas as colunas já existem).
 
 ## Resultado esperado
-- Você verá todas as tags disponíveis com scroll claro e um campo "Buscar tag…".
-- Tags duplicadas serão consolidadas automaticamente uma vez.
-- Não será mais possível criar duplicatas (validação no banco, não só na UI).
-
-Posso seguir?
+Após confirmar a união:
+- 1 lead único com os campos escolhidos por você campo-a-campo.
+- 1 conversa única contendo **todas** as mensagens dos cards originais, em ordem cronológica.
+- Conversas antigas arquivadas (recuperáveis se preciso).

@@ -16,10 +16,15 @@ export interface MergeDealsPayload {
   };
   mergeTags: boolean;
   mergeNotes: boolean;
+  mergeConversations: boolean;
   // Contact id of the master (used for tag/note merges)
   masterContactId: string | null;
   // Contact ids of the secondaries (for tag/note merges)
   secondaryContactIds: string[];
+  // Conversation id of the master deal (target for conversation merge)
+  masterConversationId: string | null;
+  // Conversation ids of the secondaries (sources to migrate into master)
+  secondaryConversationIds: string[];
 }
 
 /**
