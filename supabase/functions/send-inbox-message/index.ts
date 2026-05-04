@@ -426,6 +426,8 @@ Deno.serve(async (req) => {
             last_message_preview: displayContent.substring(0, 100),
             last_message_direction: 'outbound',
             unread_count: 0,
+            meta_phone_number_id: phoneNumberId,
+            provider: 'meta',
           })
           .eq('id', conversationId);
 
@@ -500,7 +502,8 @@ Deno.serve(async (req) => {
         .update({ status: 'sent', whatsapp_message_id: whatsappMessageId })
         .eq('id', message.id);
 
-      // Update conversation
+      // Update conversation — also stamp meta_phone_number_id so the webhook handler
+      // can find this conversation when the lead replies (it filters by phone_number_id).
       await supabase
         .from('conversations')
         .update({
@@ -508,6 +511,8 @@ Deno.serve(async (req) => {
           last_message_preview: content.substring(0, 100),
           last_message_direction: 'outbound',
           unread_count: 0,
+          meta_phone_number_id: phoneNumberId,
+          provider: 'meta',
         })
         .eq('id', conversationId);
 
