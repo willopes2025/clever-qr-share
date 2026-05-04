@@ -114,6 +114,7 @@ export function TeamSettings() {
     e.preventDefault();
     if (!ownerName.trim()) return;
     await updateProfile.mutateAsync({ full_name: ownerName.trim() });
+    queryClient.invalidateQueries({ queryKey: ['team-members'] });
     setEditOwnerNameOpen(false);
   };
 
