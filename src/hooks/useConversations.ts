@@ -322,6 +322,18 @@ export const useConversations = () => {
         .eq('id', conversationId);
 
       if (error) throw error;
+
+      // Stamp read_at on unread inbound messages in the background (non-blocking)
+      const now = new Date().toISOString();
+      supabase
+        .from('inbox_messages')
+        .update({ read_at: now })
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'inbound')
+        .is('read_at', null)
+        .then(({ error: msgError }) => {
+          if (msgError) console.error('[markAsRead] Failed to stamp message read_at:', msgError.message);
+        });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

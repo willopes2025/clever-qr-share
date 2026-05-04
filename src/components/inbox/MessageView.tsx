@@ -55,17 +55,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isToday, isSameDay } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-interface ConversationWithAI extends Conversation {
-  campaign_id?: string | null;
-  ai_handled?: boolean | null;
-  ai_paused?: boolean | null;
-  ai_handoff_requested?: boolean | null;
-  ai_handoff_reason?: string | null;
-  ai_interactions_count?: number | null;
-}
-
 interface MessageViewProps {
-  conversation: ConversationWithAI;
+  conversation: Conversation;
   onBack?: () => void;
   onOpenRightPanel?: () => void;
   onMarkAsRead?: () => void;
@@ -85,8 +76,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
   // Get the WABA ID for the current conversation's Meta number to filter templates
-  const conversationMetaNumberId = (conversation as any).meta_phone_number_id;
-  const conversationWabaId = conversationMetaNumberId 
+  const conversationMetaNumberId = conversation.meta_phone_number_id;
+  const conversationWabaId = conversationMetaNumberId
     ? metaNumbers.find(n => n.phone_number_id === conversationMetaNumberId)?.waba_id || null
     : null;
   // Fetch Meta templates - pass null to get all templates when no specific WABA is linked
@@ -185,7 +176,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   // Set default instance/meta number ONLY when conversation changes (by id)
   const conversationId = conversation.id;
   const conversationInstanceId = conversation.instance_id;
-  const conversationMetaPhoneId = (conversation as any).meta_phone_number_id;
+  const conversationMetaPhoneId = conversation.meta_phone_number_id;
   const conversationProvider = conversation.provider;
   
   useEffect(() => {
@@ -217,17 +208,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   useEffect(() => {
     localStorage.setItem('inbox-show-sender-name', showSenderName.toString());
   }, [showSenderName]);
-
-  // Clear optimistic messages when real messages arrive
-  useEffect(() => {
-    if (messages?.length) {
-      setOptimisticMessages(prev => 
-        prev.filter(opt => 
-          !messages.some(m => m.content === opt.content && m.direction === 'outbound')
-        )
-      );
-    }
-  }, [messages]);
 
   // Scroll handling
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -265,6 +245,14 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     setNewMessagesCount(0);
     setOptimisticMessages([]);
   }, [conversation.id, scrollToBottom]);
+
+  // Auto-mark as read when opening a conversation
+  useEffect(() => {
+    if (conversation.unread_count > 0 && onMarkAsRead) {
+      onMarkAsRead();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id]);
 
   // Real-time subscription
   useEffect(() => {
@@ -382,14 +370,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       instanceId: selectedInstanceId,
       targetPhone,
     }).then(() => {
-      // Mark as read when user replies
-      if (conversation.unread_count > 0 && onMarkAsRead) {
-        onMarkAsRead();
-      }
-    }).catch((error) => {
+      // Remove optimistic by ID once server confirms — real message arrives via query invalidation
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
+    }).catch(() => {
       toast.error("Erro ao enviar mensagem");
-      setOptimisticMessages(prev => 
-        prev.filter(m => m.id !== optimisticId)
+      // Mark as failed instead of removing — keeps message visible so user knows what failed
+      setOptimisticMessages(prev =>
+        prev.map(m => m.id === optimisticId ? { ...m, status: 'failed' } : m)
       );
     });
   };
@@ -439,11 +426,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         mediaType,
         targetPhone: selectedTargetPhone || undefined,
       });
-      // Media sent successfully - no toast needed as user sees it in chat
-    } catch (error) {
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+    } catch {
       toast.error("Erro ao enviar mídia");
-      setOptimisticMessages(prev => 
-        prev.filter(m => m.id !== optimisticMessage.id)
+      setOptimisticMessages(prev =>
+        prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
       );
     }
   };
@@ -632,23 +619,24 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         };
         setOptimisticMessages(prev => [...prev, optimisticMessage]);
         setTimeout(() => scrollToBottom("smooth"), 50);
-        
-        sendMessage.mutateAsync({
-          content: finalText.trim(),
-          conversationId: conversation.id,
-          instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
-        }).catch(() => {
-          toast.error("Erro ao enviar texto do template");
+
+        // Await the text send so media is inserted after text (preserves order)
+        try {
+          await sendMessage.mutateAsync({
+            content: finalText.trim(),
+            conversationId: conversation.id,
+            instanceId: useMetaSender ? selectedMetaNumberId : selectedInstanceId,
+          });
           setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
-        });
+        } catch {
+          toast.error("Erro ao enviar texto do template");
+          setOptimisticMessages(prev => prev.map(m => m.id === optimisticId ? { ...m, status: 'failed' } : m));
+        }
       }
-      
-      // Send media with a small delay to avoid race condition
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       try {
         await handleSendMedia(template.media_url, mediaType);
-      } catch (error) {
+      } catch {
         const mediaLabels: Record<string, string> = { video: 'vídeo', image: 'imagem', audio: 'áudio', document: 'documento' };
         toast.error(`Erro ao enviar ${mediaLabels[mediaType] || 'mídia'} do template`);
       }
@@ -789,6 +777,57 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       toast.error('Erro ao executar fluxo: ' + (error.message || 'Erro desconhecido'));
     }
   };
+
+  // Shared handler for all instance/number selector changes (desktop Meta, desktop Evo, mobile Meta, mobile Evo)
+  // Persists selection to DB immediately and reverts local state if the update fails
+  const handleInstanceValueChange = useCallback(async (value: string) => {
+    if (value.startsWith('evo:')) {
+      const evoId = value.replace('evo:', '');
+      setSelectedInstanceId(evoId);
+      setMetaUsingEvoInstance(true);
+      const { error } = await supabase
+        .from('conversations')
+        .update({ instance_id: evoId })
+        .eq('id', conversation.id);
+      if (error) {
+        setSelectedInstanceId(conversationInstanceId || '');
+        setMetaUsingEvoInstance(false);
+        toast.error("Erro ao atualizar número de envio");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        toast.success("Número de envio atualizado");
+      }
+    } else if (value.startsWith('meta:')) {
+      const metaId = value.replace('meta:', '');
+      setSelectedMetaNumberId(metaId);
+      setMetaUsingEvoInstance(false);
+      const { error } = await supabase
+        .from('conversations')
+        .update({ meta_phone_number_id: metaId })
+        .eq('id', conversation.id);
+      if (error) {
+        setSelectedMetaNumberId(conversationMetaPhoneId || '');
+        toast.error("Erro ao atualizar número Meta");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        toast.success("Número Meta atualizado");
+      }
+    } else {
+      // Plain Evolution instance (non-Meta conversation)
+      setSelectedInstanceId(value);
+      const { error } = await supabase
+        .from('conversations')
+        .update({ instance_id: value })
+        .eq('id', conversation.id);
+      if (error) {
+        setSelectedInstanceId(conversationInstanceId || '');
+        toast.error("Erro ao atualizar número de envio");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        toast.success("Número de envio atualizado");
+      }
+    }
+  }, [conversation.id, conversationInstanceId, conversationMetaPhoneId, queryClient]);
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
@@ -1093,37 +1132,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             <>
               {/* Instance / Meta Number Selector - Primary */}
               {isMetaConversation ? (
-                <Select 
-                  value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
-                  onValueChange={async (value) => {
-                    if (value.startsWith('evo:')) {
-                      const evoId = value.replace('evo:', '');
-                      setSelectedInstanceId(evoId);
-                      setMetaUsingEvoInstance(true);
-                      try {
-                        await supabase
-                          .from('conversations')
-                          .update({ instance_id: evoId })
-                          .eq('id', conversation.id);
-                        toast.success("Número de envio atualizado");
-                      } catch (error) {
-                        toast.error("Erro ao atualizar número");
-                      }
-                    } else {
-                      const metaId = value.replace('meta:', '');
-                      setSelectedMetaNumberId(metaId);
-                      setMetaUsingEvoInstance(false);
-                      try {
-                        await supabase
-                          .from('conversations')
-                          .update({ meta_phone_number_id: metaId })
-                          .eq('id', conversation.id);
-                        toast.success("Número Meta atualizado");
-                      } catch (error) {
-                        toast.error("Erro ao atualizar número");
-                      }
-                    }
-                  }}
+                <Select
+                  value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`}
+                  onValueChange={handleInstanceValueChange}
                 >
                   <SelectTrigger className="w-[140px] h-9">
                     <div className="flex items-center min-w-0 flex-1">
@@ -1186,20 +1197,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                   </SelectContent>
                 </Select>
               ) : (
-              <Select 
-                value={selectedInstanceId} 
-                onValueChange={async (value) => {
-                  setSelectedInstanceId(value);
-                  try {
-                    await supabase
-                      .from('conversations')
-                      .update({ instance_id: value })
-                      .eq('id', conversation.id);
-                    toast.success("Número de envio atualizado");
-                  } catch (error) {
-                    toast.error("Erro ao atualizar número");
-                  }
-                }}
+              <Select
+                value={selectedInstanceId}
+                onValueChange={handleInstanceValueChange}
               >
                 <SelectTrigger className="w-[140px] h-9">
                   <div className="flex items-center min-w-0 flex-1">
@@ -1508,37 +1508,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         {isMobile && (
           <div className="mb-2">
             {isMetaConversation ? (
-              <Select 
-                value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`} 
-                onValueChange={async (value) => {
-                  if (value.startsWith('evo:')) {
-                    const evoId = value.replace('evo:', '');
-                    setSelectedInstanceId(evoId);
-                    setMetaUsingEvoInstance(true);
-                    try {
-                      await supabase
-                        .from('conversations')
-                        .update({ instance_id: evoId })
-                        .eq('id', conversation.id);
-                      toast.success("Número atualizado");
-                    } catch (error) {
-                      toast.error("Erro ao atualizar número");
-                    }
-                  } else {
-                    const metaId = value.replace('meta:', '');
-                    setSelectedMetaNumberId(metaId);
-                    setMetaUsingEvoInstance(false);
-                    try {
-                      await supabase
-                        .from('conversations')
-                        .update({ meta_phone_number_id: metaId })
-                        .eq('id', conversation.id);
-                      toast.success("Número Meta atualizado");
-                    } catch (error) {
-                      toast.error("Erro ao atualizar número");
-                    }
-                  }
-                }}
+              <Select
+                value={metaUsingEvoInstance ? `evo:${selectedInstanceId}` : `meta:${selectedMetaNumberId}`}
+                onValueChange={handleInstanceValueChange}
               >
                 <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
                   {metaUsingEvoInstance ? (
@@ -1578,19 +1550,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                 </SelectContent>
               </Select>
             ) : (
-              <Select 
-                value={selectedInstanceId} 
-                onValueChange={async (value) => {
-                  setSelectedInstanceId(value);
-                  try {
-                    await supabase
-                      .from('conversations')
-                      .update({ instance_id: value })
-                      .eq('id', conversation.id);
-                  } catch (error) {
-                    toast.error("Erro ao atualizar número");
-                  }
-                }}
+              <Select
+                value={selectedInstanceId}
+                onValueChange={handleInstanceValueChange}
               >
                 <SelectTrigger className="w-full h-8 text-xs bg-white dark:bg-[#2a3942] border-0">
                   <Smartphone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
@@ -1639,7 +1601,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           
           {/* Phone selector when contact has multiple phones */}
           {(() => {
-            const additionalPhones = (conversation.contact?.custom_fields as any)?.additional_phones as Array<{phone: string; label: string}> | undefined;
+            const customFields = conversation.contact?.custom_fields;
+            const additionalPhones = (
+              customFields && typeof customFields === 'object' && 'additional_phones' in customFields
+                ? (customFields as Record<string, unknown>).additional_phones
+                : undefined
+            ) as Array<{ phone: string; label: string }> | undefined;
             if (!additionalPhones || additionalPhones.length === 0) return null;
             const mainPhone = conversation.contact?.phone || "";
             const allPhones = [
@@ -1726,9 +1693,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                onClick={handleSend} 
-                disabled={!newMessage.trim() || !selectedInstanceId || isAutoCorrect}
+              <Button
+                onClick={handleSend}
+                disabled={!newMessage.trim() || !hasValidSender || isAutoCorrect}
                 size={isMobile ? "icon" : "default"}
                 className="shrink-0 min-w-[40px] md:min-w-[44px] relative"
               >

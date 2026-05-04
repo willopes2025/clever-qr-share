@@ -627,10 +627,11 @@ Deno.serve(async (req) => {
     } else {
       let errorMessage = result.message || result.error || rawText || 'Unknown error';
 
-      // For 5xx with non-JSON body, surface status + attempt count for clarity
+      // For 5xx, show user-friendly message and log technical detail
       if (response.status >= 500) {
         const detail = rawText || lastTransientError || errorMessage;
-        errorMessage = `Evolution API HTTP ${response.status}: ${String(detail).slice(0, 200)} (após ${attempts} tentativa${attempts > 1 ? 's' : ''})`;
+        console.error(`[SEND] Evolution API HTTP ${response.status} após ${attempts} tentativa(s): ${String(detail).slice(0, 500)}`);
+        errorMessage = 'Falha temporária ao enviar mensagem. Tente novamente em instantes.';
       }
 
       if (response.status === 404 && result.response?.message) {
@@ -729,9 +730,18 @@ async function handleAIHandoff(
       ai_handoff_reason: `Pausado via emoji ${pauseEmoji}`,
     }).eq('id', conversationId);
   } else {
-    await supabase.from('conversations').update({
-      ai_paused: true, ai_handoff_requested: true,
-      ai_handoff_reason: 'Atendente assumiu a conversa',
-    }).eq('id', conversationId);
+    // Only pause AI if it was actively running — prevents disabling AI for every human message
+    const { data: convState } = await supabase
+      .from('conversations')
+      .select('ai_handled, ai_paused')
+      .eq('id', conversationId)
+      .single();
+
+    if (convState?.ai_handled && !convState.ai_paused) {
+      await supabase.from('conversations').update({
+        ai_paused: true, ai_handoff_requested: true,
+        ai_handoff_reason: 'Atendente assumiu a conversa',
+      }).eq('id', conversationId);
+    }
   }
 }
