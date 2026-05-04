@@ -100,6 +100,20 @@ export function TeamSettings() {
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [notificationInstanceId, setNotificationInstanceId] = useState<string | null>(null);
   const [isSavingNotificationInstance, setIsSavingNotificationInstance] = useState(false);
+  const [editOwnerNameOpen, setEditOwnerNameOpen] = useState(false);
+  const [ownerName, setOwnerName] = useState('');
+
+  const handleOpenEditOwnerName = () => {
+    setOwnerName(profile?.full_name || '');
+    setEditOwnerNameOpen(true);
+  };
+
+  const handleSaveOwnerName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ownerName.trim()) return;
+    await updateProfile.mutateAsync({ full_name: ownerName.trim() });
+    setEditOwnerNameOpen(false);
+  };
 
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
