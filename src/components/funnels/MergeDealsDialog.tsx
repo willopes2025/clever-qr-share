@@ -302,6 +302,27 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
                   </p>
                 </div>
               </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox checked={mergeConversations} onCheckedChange={(c) => setMergeConversations(c === true)} className="mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium">
+                    Unificar conversas
+                    {(() => {
+                      const ids = Array.from(new Set(
+                        secondaryDeals.map(d => d.conversation_id).filter(Boolean) as string[]
+                      )).filter(id => id !== masterDeal?.conversation_id);
+                      return ids.length > 0 ? (
+                        <Badge variant="secondary" className="ml-2 text-[10px]">
+                          {ids.length} conversa{ids.length > 1 ? 's' : ''}
+                        </Badge>
+                      ) : null;
+                    })()}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Move todas as mensagens, notas, tarefas e chamadas dos leads secundários para a conversa do lead principal. As conversas secundárias serão arquivadas.
+                  </p>
+                </div>
+              </label>
             </section>
 
             {/* Warnings */}
