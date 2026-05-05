@@ -717,9 +717,9 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
   });
 
   // Get deal by contact
-  const useContactDeal = (contactId: string | undefined) => {
+  const useContactDeal = (contactId: string | undefined, conversationId?: string) => {
     return useQuery({
-      queryKey: ['contact-deal', contactId],
+      queryKey: ['contact-deal', contactId, conversationId ?? null],
       queryFn: async () => {
         if (!contactId) return null;
         const { data, error } = await supabase
@@ -732,11 +732,15 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
           `)
           .eq('contact_id', contactId)
           .is('closed_at', null)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('updated_at', { ascending: false });
         if (error) throw error;
-        return data;
+        if (!data || data.length === 0) return null;
+        // Prefer deal tied to current conversation, otherwise most recently updated
+        if (conversationId) {
+          const tied = data.find((d: any) => d.conversation_id === conversationId);
+          if (tied) return tied;
+        }
+        return data[0];
       },
       enabled: !!contactId
     });

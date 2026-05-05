@@ -1,68 +1,48 @@
-# Unificação completa de leads (campos + conversas)
+## Problema
 
-## Situação atual
+A contato MARINEIA ROSA tem **2 negócios abertos** (closed_at = NULL) ao mesmo tempo:
 
-O diálogo **"Unir Leads"** (`MergeDealsDialog` + `useMergeDeals`) já permite:
-- Escolher o lead **principal** (mantém ID e histórico).
-- Selecionar, **campo a campo**, de qual lead vem o valor final (título, valor, responsável, campos personalizados do lead e do contato).
-- Mesclar tags e notas dos contatos.
-- Migrar referências (chatbot_executions, automation_execution_log, calendly_events) e excluir os secundários.
+1. `James & Jesse's` → Pré-venda (criado 20:12)
+2. `Programa Seven` → Novo Lead (criado 20:46)
 
-**O que falta:** as conversas dos leads secundários **não são unificadas** na conversa do lead principal. Cada `funnel_deal` aponta para um `conversation_id` próprio, então após a união as mensagens dos cards secundários ficam órfãs (o deal foi excluído, mas a conversa e o contato continuam separados na Inbox).
+Cada parte da tela escolhe um deal diferente porque cada query usa uma lógica de seleção distinta:
 
-## O que será feito
+| Local | Lógica atual | Resultado |
+|---|---|---|
+| `ConversationList.tsx` (lista da esquerda) | `dealsMap[contact_id] = deal` em loop → fica o **último** retornado pelo Supabase (sem ORDER BY) | mostra "James & Jesse's / Pré-venda" |
+| `useConversations.ts` (mesma lista, fetch alternativo) | `if (!dealsMap[contact_id])` → fica o **primeiro** retornado | inconsistente |
+| `useFunnels.useContactDeal` (painel direito / card) | `order created_at desc limit 1` → mais **recente** | mostra "Programa Seven / Novo Lead" |
 
-### 1. Backend de união (`src/hooks/useMergeDeals.ts`)
-Adicionar uma nova etapa **antes** de excluir os deals secundários: para cada deal secundário com `conversation_id` diferente do principal, mover **tudo** para a conversa do lead principal — reusando exatamente a mesma lógica já validada em `useConversationActions.mergeConversations`:
+Por isso a fila e o card divergem.
 
-- `inbox_messages` → conversation_id do principal (com verificação de contagem para não perder histórico).
-- `conversation_notes`, `conversation_tasks`, `voip_calls`, `ai_phone_calls` → mesma migração.
-- `conversation_tag_assignments` → deduplicar tags já existentes.
-- `funnel_deals.conversation_id` → apontar para a conversa principal (caso outros deals usem a secundária).
-- Marcar a conversa secundária como `status='archived'` (não excluir, para preservar logs/auditoria).
+## Solução
 
-Novo parâmetro no payload:
-```ts
-mergeConversations: boolean // default true
-```
+Unificar a regra de "qual deal mostrar para um contato" em todos os pontos:
 
-### 2. UI (`src/components/funnels/MergeDealsDialog.tsx`)
-- Adicionar nova opção na seção **"4. Opções adicionais"**:
-  - ☑ **Unificar conversas** (default: ligado)
-  - Texto: *"Move todas as mensagens, notas, tarefas e chamadas dos leads secundários para a conversa do lead principal. As conversas secundárias serão arquivadas."*
-- Mostrar um aviso visual indicando quantas conversas distintas serão mescladas (contar `conversation_id` únicos entre os deals selecionados).
+1. Se o contato tem um deal aberto vinculado à **conversa atual** (`funnel_deals.conversation_id = conversation.id`), usar esse.
+2. Caso contrário, usar o deal aberto mais recentemente atualizado (`updated_at desc`, fallback `created_at desc`).
 
-### 3. Garantias / segurança
-- A verificação de `beforeCount` vs `remainingCount` em `inbox_messages` (já existente em `mergeConversations`) será replicada para abortar se RLS impedir a movimentação — assim nenhum histórico se perde silenciosamente.
-- Ordem da operação: **mover conversas → mover refs → atualizar campos → excluir deals secundários**. Se a unificação de conversas falhar, a transação para antes de excluir nada.
-- Invalidar caches: `conversations`, `inbox-messages`, `funnel-deals`, `funnels`, `contacts`.
+## Mudanças
 
-## Detalhes técnicos
+### 1. `src/hooks/useFunnels.ts` — `useContactDeal`
+- Aceitar `conversationId?: string` como segundo argumento.
+- Buscar todos os deals abertos do contato (`funnel:funnels(...), stage:..., conversation_id, updated_at`).
+- No client: priorizar o que `conversation_id === conversationId`; senão o de maior `updated_at`.
 
-```text
-useMergeDeals (novo fluxo)
-├── 1. valida master + stage
-├── 2. atualiza campos do master (já existe)
-├── 3. mescla custom_fields do contato (já existe)
-├── 4. NOVO: para cada conversation_id secundário ≠ master:
-│      ├─ move inbox_messages (com verificação)
-│      ├─ move notes, tasks, voip_calls, ai_phone_calls
-│      ├─ deduplica e move tag_assignments
-│      ├─ aponta outros funnel_deals.conversation_id → master
-│      └─ archives a conversa antiga
-├── 5. migra chatbot_executions/automation_logs/calendly (já existe)
-├── 6. mescla tags e notes dos contatos secundários (já existe)
-└── 7. exclui deals secundários (já existe)
-```
+### 2. `src/components/inbox/lead-panel/LeadPanelFunnelBar.tsx`
+- Repassar `conversationId` para `useContactDeal(contactId, conversationId)`.
 
-Arquivos a alterar:
-- `src/hooks/useMergeDeals.ts` — adicionar etapa 4 e parâmetro `mergeConversations`.
-- `src/components/funnels/MergeDealsDialog.tsx` — checkbox + contador de conversas únicas + passar flag.
+### 3. `src/components/inbox/ConversationList.tsx` (fetch de deals da lista)
+- Selecionar também `conversation_id, updated_at`.
+- Ao montar `dealsMap`, agrupar por `contact_id` e escolher: deal cujo `conversation_id` bate com `conversation.id` da linha; senão o de maior `updated_at`.
+- Como a relação é por contato (não por conversa) na construção atual, fazer o pick na hora de mapear conversas → deals (passo do `return conversationsData.map(...)`).
 
-Nenhuma migração de banco é necessária (todas as colunas já existem).
+### 4. `src/hooks/useConversations.ts` (mesma fila, fetch paralelo)
+- Mesma mudança: select inclui `conversation_id, updated_at`; na atribuição, preferir deal da conversa atual; fallback `updated_at` mais recente.
 
-## Resultado esperado
-Após confirmar a união:
-- 1 lead único com os campos escolhidos por você campo-a-campo.
-- 1 conversa única contendo **todas** as mensagens dos cards originais, em ordem cronológica.
-- Conversas antigas arquivadas (recuperáveis se preciso).
+### 5. Invalidação de cache
+- `useContactDeal` queryKey passa a ser `['contact-deal', contactId, conversationId]` para não vazar entre conversas.
+
+## Não inclui
+
+- Não vamos fechar/mesclar deals duplicados existentes (já existe o `MergeDealsDialog` para isso). Apenas garantir que a UI mostre o deal correto e consistente em todos os lugares.
