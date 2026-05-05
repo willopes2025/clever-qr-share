@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     const slug = url.searchParams.get('slug');
     const staticParamsJson = url.searchParams.get('static_params');
     const embed = url.searchParams.get('embed') === 'true';
-    const originUrl = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/$/, '') || 'https://clever-qr-share.lovable.app';
+
 
     if (!slug) {
       return new Response(
@@ -98,6 +98,10 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    // Canonical URL = the edge function itself (it IS the page that has OG tags).
+    // Do NOT use origin/referer — bots send neither, causing the fallback SPA URL
+    // to be set as og:url, which makes crawlers re-fetch a page with no meta tags.
+    const canonicalUrl = `${supabaseUrl}/functions/v1/public-form?slug=${encodeURIComponent(slug)}`;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -157,7 +161,7 @@ Deno.serve(async (req) => {
     const formFields = fields || [];
 
     // Generate form HTML with static params and embed mode
-    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl);
+    const html = generateFormHTML(form, formFields, staticParams, embed, canonicalUrl);
 
     return new Response(html, {
       headers: { 
@@ -175,7 +179,7 @@ Deno.serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = ''): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, canonicalUrl: string = ''): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
     .map(field => generateFieldHTML(field))
@@ -202,11 +206,21 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(form.page_title || form.name)}</title>
   ${form.meta_description ? `<meta name="description" content="${escapeHtml(form.meta_description)}">` : ''}
+  <!-- Open Graph — must point to THIS edge function URL so crawlers don't re-fetch a blank SPA page -->
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="${escapeHtml(form.page_title || form.name)}">
   <meta property="og:title" content="${escapeHtml(form.page_title || form.name)}">
   ${form.meta_description ? `<meta property="og:description" content="${escapeHtml(form.meta_description)}">` : ''}
-  <meta property="og:url" content="${originUrl}/f/${form.slug}">
-  ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">` : ''}
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
+  ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">
+  <meta property="og:image:secure_url" content="${escapeHtml(form.og_image_url)}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">` : ''}
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="${form.og_image_url ? 'summary_large_image' : 'summary'}">
+  <meta name="twitter:title" content="${escapeHtml(form.page_title || form.name)}">
+  ${form.meta_description ? `<meta name="twitter:description" content="${escapeHtml(form.meta_description)}">` : ''}
+  ${form.og_image_url ? `<meta name="twitter:image" content="${escapeHtml(form.og_image_url)}">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(form.font_family || 'Inter')}:wght@400;500;600&display=swap" rel="stylesheet">
