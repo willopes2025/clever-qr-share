@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Copy, ExternalLink, Check, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { buildPublicFormUrl } from "@/lib/form-url";
 
 interface FormShareDialogProps {
   open: boolean;
@@ -46,19 +47,8 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   const [newParamKey, setNewParamKey] = useState('');
   const [newParamValue, setNewParamValue] = useState('');
 
-  // Build URL with static params
-  // IMPORTANT: use the edge function URL so social scrapers (WhatsApp, FB, X)
-  // read the correct og:title / og:description / og:image of THIS form,
-  // instead of the SPA's index.html (which shows the Widezap defaults).
   const buildFormUrl = () => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const params = new URLSearchParams();
-    params.set('slug', form.slug);
-    const validStatic = staticParams.filter(p => p.key && p.value);
-    if (validStatic.length > 0) {
-      params.set('static_params', JSON.stringify(validStatic));
-    }
-    return `${supabaseUrl}/functions/v1/public-form?${params.toString()}`;
+    return buildPublicFormUrl(form.slug, { staticParams });
   };
 
   const formUrl = buildFormUrl();

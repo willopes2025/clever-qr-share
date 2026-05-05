@@ -36,6 +36,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { buildPublicFormUrl } from "@/lib/form-url";
 
 interface FormCardProps {
   form: Form;
@@ -64,11 +65,8 @@ export const FormCard = ({ form }: FormCardProps) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const status = statusConfig[form.status] || statusConfig.draft;
-  // Use the edge function URL so social previews (WhatsApp/FB) read the form's
-  // own meta tags, not the SPA index.html defaults.
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const formUrl = `${supabaseUrl}/functions/v1/public-form?slug=${encodeURIComponent(form.slug)}`;
-  const embedUrl = `${formUrl}&embed=true`;
+  const formUrl = buildPublicFormUrl(form.slug);
+  const embedUrl = buildPublicFormUrl(form.slug, { embed: true });
   const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
   const handleCopyLink = () => {

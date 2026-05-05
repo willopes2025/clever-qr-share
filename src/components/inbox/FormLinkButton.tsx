@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useForms } from "@/hooks/useForms";
 import { toast } from "sonner";
+import { buildPublicFormUrl } from "@/lib/form-url";
 
 interface FormLinkButtonProps {
   contactId: string;
@@ -25,14 +26,10 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
   const generateFormLink = (slug: string) => {
-    // Use the edge function URL so WhatsApp/social previews show this form's
-    // own title/description/image (the SPA index.html shows Widezap defaults).
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const staticParams = JSON.stringify([
+    return buildPublicFormUrl(slug, { staticParams: [
       { key: 'contact_id', value: contactId },
       { key: 'conversation_id', value: conversationId },
-    ]);
-    return `${supabaseUrl}/functions/v1/public-form?slug=${encodeURIComponent(slug)}&static_params=${encodeURIComponent(staticParams)}`;
+    ] });
   };
 
   const handleSelectForm = (form: { slug: string; name: string }) => {
