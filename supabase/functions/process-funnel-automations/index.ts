@@ -127,7 +127,7 @@ Deno.serve(async (req: Request) => {
         year: 'numeric' 
       });
       
-      return text
+      let result = text
         .replace(/\{\{nome\}\}/g, deal.contact?.name || 'Cliente')
         .replace(/\{\{telefone\}\}/g, deal.contact?.phone || '')
         .replace(/\{\{email\}\}/g, deal.contact?.email || '')
@@ -137,6 +137,25 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{titulo\}\}/g, deal.title || '')
         .replace(/\{\{data\}\}/g, formattedDate)
         .replace(/\{\{deal_id\}\}/g, deal.id || '');
+
+      // Substituir campos personalizados do deal e do contato
+      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const formatVal = (v: unknown): string => {
+        if (v === null || v === undefined) return '';
+        if (typeof v === 'object') {
+          try { return JSON.stringify(v); } catch { return String(v); }
+        }
+        return String(v);
+      };
+      const dealCustom = (deal.custom_fields || {}) as Record<string, unknown>;
+      const contactCustom = (deal.contact?.custom_fields || {}) as Record<string, unknown>;
+      // Contact fields first, then deal fields override (deal mais específico)
+      const merged: Record<string, unknown> = { ...contactCustom, ...dealCustom };
+      for (const [key, value] of Object.entries(merged)) {
+        const re = new RegExp(`\\{\\{\\s*${escapeRegex(key)}\\s*\\}\\}`, 'g');
+        result = result.replace(re, formatVal(value));
+      }
+      return result;
     };
 
     // Process each automation
