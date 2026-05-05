@@ -238,7 +238,7 @@ export const useConversations = () => {
       }
 
       // STEP 4 — Fetch open deals for visible contacts only.
-      const dealsMap: Record<string, ConversationDeal> = {};
+      const dealsByContact: Record<string, any[]> = {};
       if (contactIds.length > 0) {
         const CHUNK = 200;
         for (let i = 0; i < contactIds.length; i += CHUNK) {
@@ -246,29 +246,38 @@ export const useConversations = () => {
           const { data: deals } = await supabase
             .from('funnel_deals')
             .select(`
-              id, contact_id, stage_id, funnel_id,
+              id, contact_id, conversation_id, stage_id, funnel_id, updated_at,
               funnel:funnels(name),
               stage:funnel_stages(name, color)
             `)
             .is('closed_at', null)
-            .in('contact_id', slice);
+            .in('contact_id', slice)
+            .order('updated_at', { ascending: false });
 
           if (deals) {
             for (const deal of deals as any[]) {
-              if (deal.contact_id && !dealsMap[deal.contact_id]) {
-                dealsMap[deal.contact_id] = {
-                  id: deal.id,
-                  stage_id: deal.stage_id,
-                  funnel_id: deal.funnel_id,
-                  funnel_name: deal.funnel?.name || null,
-                  stage_name: deal.stage?.name || null,
-                  stage_color: deal.stage?.color || null,
-                };
-              }
+              if (!deal.contact_id) continue;
+              if (!dealsByContact[deal.contact_id]) dealsByContact[deal.contact_id] = [];
+              dealsByContact[deal.contact_id].push(deal);
             }
           }
         }
       }
+
+      const pickDeal = (contactId: string, conversationId: string): ConversationDeal | null => {
+        const list = dealsByContact[contactId];
+        if (!list || list.length === 0) return null;
+        const tied = list.find((d) => d.conversation_id === conversationId);
+        const deal = tied ?? list[0];
+        return {
+          id: deal.id,
+          stage_id: deal.stage_id,
+          funnel_id: deal.funnel_id,
+          funnel_name: deal.funnel?.name || null,
+          stage_name: deal.stage?.name || null,
+          stage_color: deal.stage?.color || null,
+        };
+      };
 
       // Filter out "ghost" conversations (created via "Nova Conversa" but
       // never had a message exchanged AND no real contact name).
@@ -284,7 +293,7 @@ export const useConversations = () => {
         ...conv,
         contact: contactsMap[conv.contact_id] || null,
         tag_assignments: tagsMap[conv.id] || [],
-        deal: dealsMap[conv.contact_id] || null,
+        deal: pickDeal(conv.contact_id, conv.id),
       })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
     enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),

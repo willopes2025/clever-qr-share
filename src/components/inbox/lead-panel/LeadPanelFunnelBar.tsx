@@ -23,7 +23,7 @@ interface LeadPanelFunnelBarProps {
 
 export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunnelBarProps) => {
   const { funnels, updateDeal, useContactDeal } = useFunnels({ includeDeals: false });
-  const { data: activeDeal, isLoading } = useContactDeal(contactId);
+  const { data: activeDeal, isLoading } = useContactDeal(contactId, conversationId);
   const [showDealForm, setShowDealForm] = useState(false);
   const [showMoveFunnel, setShowMoveFunnel] = useState(false);
   const navigate = useNavigate();
