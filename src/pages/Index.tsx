@@ -168,7 +168,7 @@ const Index = () => {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="mb-6"
             >
-              <img src={wideLogo} alt="Widezap" className="h-47 md:h-60 lg:h-76 w-auto mx-auto" />
+              <img src={wideLogo} alt="Widezap" width={480} height={480} fetchPriority="high" decoding="async" className="h-47 md:h-60 lg:h-76 w-auto mx-auto" />
             </motion.div>
 
             <motion.p
