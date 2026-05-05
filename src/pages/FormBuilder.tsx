@@ -13,6 +13,7 @@ import { FormSettingsTab } from "@/components/forms/settings/FormSettingsTab";
 import { FormAppearanceTab } from "@/components/forms/settings/FormAppearanceTab";
 import { FormShareDialog } from "@/components/forms/settings/FormShareDialog";
 import { SubmissionsList } from "@/components/forms/submissions/SubmissionsList";
+import { buildPublicFormUrl } from "@/lib/form-url";
 
 const FormBuilder = () => {
   const { id } = useParams<{ id: string }>();
@@ -40,7 +41,7 @@ const FormBuilder = () => {
 
   const handlePreview = () => {
     if (!form) return;
-    window.open(`/f/${form.slug}`, '_blank');
+    window.open(buildPublicFormUrl(form.slug), '_blank');
   };
 
   if (isLoading) {
