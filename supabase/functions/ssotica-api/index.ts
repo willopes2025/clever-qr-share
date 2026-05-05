@@ -831,13 +831,13 @@ Deno.serve(async (req: Request) => {
             numero: os.numero || os.id,
             status: os.status || os.situacao,
             previsao_entrega: os.previsao_entrega || os.data_previsao,
-            data_entrada: os.data_entrada || os.created_at,
+            data_entrada: os.data_entrada || os.data || os.created_at,
             cliente: {
               nome: os.cliente?.nome || os.nome_cliente,
               cpf: os.cliente?.cpf || os.cpf_cliente,
               telefone: os.cliente?.telefone || os.telefone_cliente,
             },
-            valor_total: os.valor_total || os.total,
+            valor_total: parseFloat(os.valor_total ?? os.valor_liquido ?? os.valor_bruto ?? os.total ?? 0) || 0,
             observacoes: os.observacoes || os.obs,
             raw_data: os,
           })),
@@ -862,12 +862,12 @@ Deno.serve(async (req: Request) => {
           data: searchResult.data.map((v: any) => ({
             id: v.id,
             numero: v.numero || v.id,
-            data_venda: v.data_venda || v.created_at,
+            data_venda: v.data_venda || v.data || v.created_at,
             cliente: {
               nome: v.cliente?.nome || v.nome_cliente,
               cpf: v.cliente?.cpf || v.cpf_cliente,
             },
-            valor_total: v.valor_total || v.total,
+            valor_total: parseFloat(v.valor_total ?? v.valor_liquido ?? v.valor_bruto ?? v.total ?? 0) || 0,
             forma_pagamento: v.forma_pagamento || v.pagamento,
             status: v.status,
             raw_data: v,
@@ -881,25 +881,31 @@ Deno.serve(async (req: Request) => {
         
         const searchResult = await searchParcelasWithLookback(token, empresaCnpj, null, lookbackDays);
         
-        console.log(`[ssOtica] Parcelas listadas: ${searchResult.data.length} (raw: ${searchResult.rawTotal})`);
+        // Filter only open parcelas (exclude Pago/Quitado/Cancelado)
+        const parcelasAbertas = (searchResult.data || []).filter((c: any) => {
+          const s = String(c.situacao || c.status || '').toLowerCase();
+          return s !== 'pago' && s !== 'quitado' && s !== 'cancelado' && s !== 'baixado';
+        });
+        
+        console.log(`[ssOtica] Parcelas listadas: ${parcelasAbertas.length} em aberto (raw: ${searchResult.rawTotal})`);
 
-        const valorTotalAberto = searchResult.data.reduce((sum: number, c: any) => 
-          sum + (parseFloat(c.valor) || parseFloat(c.valor_parcela) || 0), 0
+        const valorTotalAberto = parcelasAbertas.reduce((sum: number, c: any) => 
+          sum + (parseFloat(c.valor ?? c.valor_parcela ?? c.valor_reajustado ?? c.valor_original ?? 0) || 0), 0
         );
 
         result = {
           success: true,
-          total: searchResult.data.length,
+          total: parcelasAbertas.length,
           periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
             ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
             : `últimos ${lookbackDays} dias`,
           janelas_verificadas: searchResult.windowsSearched,
           valor_total_aberto: valorTotalAberto,
-          data: searchResult.data.map((c: any) => ({
+          data: parcelasAbertas.map((c: any) => ({
             id: c.id,
             numero: c.numero_parcela || c.parcela,
             documento: c.documento || c.numero_documento,
-            valor: c.valor || c.valor_parcela,
+            valor: parseFloat(c.valor ?? c.valor_parcela ?? c.valor_reajustado ?? c.valor_original ?? 0) || 0,
             vencimento: c.vencimento || c.data_vencimento,
             status: c.status || c.situacao || 'em_aberto',
             cliente: {
