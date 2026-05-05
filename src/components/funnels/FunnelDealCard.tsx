@@ -146,7 +146,7 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className="font-semibold text-sm truncate flex-1">
-                    {deal.title || deal.contact?.name || 'Sem nome'}
+                    {(deal.title && deal.title !== 'Lead - Cliente' ? deal.title : null) || deal.contact?.name || deal.title || 'Sem nome'}
                   </p>
                   <Tooltip>
                     <TooltipTrigger asChild>
