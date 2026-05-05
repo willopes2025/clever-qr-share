@@ -895,13 +895,13 @@ Deno.serve(async (req: Request) => {
 
         result = {
           success: true,
-          total: searchResult.data.length,
+          total: parcelasAbertas.length,
           periodo_consultado: searchResult.periodStart && searchResult.periodEnd 
             ? `${searchResult.periodStart} a ${searchResult.periodEnd}` 
             : `últimos ${lookbackDays} dias`,
           janelas_verificadas: searchResult.windowsSearched,
           valor_total_aberto: valorTotalAberto,
-          data: searchResult.data.map((c: any) => ({
+          data: parcelasAbertas.map((c: any) => ({
             id: c.id,
             numero: c.numero_parcela || c.parcela,
             documento: c.documento || c.numero_documento,
