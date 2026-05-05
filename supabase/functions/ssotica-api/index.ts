@@ -862,12 +862,12 @@ Deno.serve(async (req: Request) => {
           data: searchResult.data.map((v: any) => ({
             id: v.id,
             numero: v.numero || v.id,
-            data_venda: v.data_venda || v.created_at,
+            data_venda: v.data_venda || v.data || v.created_at,
             cliente: {
               nome: v.cliente?.nome || v.nome_cliente,
               cpf: v.cliente?.cpf || v.cpf_cliente,
             },
-            valor_total: v.valor_total || v.total,
+            valor_total: parseFloat(v.valor_total ?? v.valor_liquido ?? v.valor_bruto ?? v.total ?? 0) || 0,
             forma_pagamento: v.forma_pagamento || v.pagamento,
             status: v.status,
             raw_data: v,
