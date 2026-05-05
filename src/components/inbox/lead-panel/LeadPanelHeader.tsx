@@ -51,10 +51,21 @@ export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle }: 
         .eq('id', conversation.contact_id);
       
       if (error) throw error;
+
+      // Also update generic/default deal titles to reflect the new contact name
+      if (newName) {
+        await supabase
+          .from('funnel_deals')
+          .update({ title: newName })
+          .eq('contact_id', conversation.contact_id)
+          .in('title', ['Lead - Cliente', 'Sem nome', '']);
+      }
       
       toast.success("Nome atualizado");
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['funnel_deals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
     } catch (error) {
       // Rollback on error
       queryClient.setQueryData(['conversations'], previousConversations);
