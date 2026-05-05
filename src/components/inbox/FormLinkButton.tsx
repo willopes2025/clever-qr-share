@@ -25,8 +25,14 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
   const generateFormLink = (slug: string) => {
-    const origin = window.location.origin;
-    return `${origin}/form/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
+    // Use the edge function URL so WhatsApp/social previews show this form's
+    // own title/description/image (the SPA index.html shows Widezap defaults).
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const staticParams = JSON.stringify([
+      { key: 'contact_id', value: contactId },
+      { key: 'conversation_id', value: conversationId },
+    ]);
+    return `${supabaseUrl}/functions/v1/public-form?slug=${encodeURIComponent(slug)}&static_params=${encodeURIComponent(staticParams)}`;
   };
 
   const handleSelectForm = (form: { slug: string; name: string }) => {
