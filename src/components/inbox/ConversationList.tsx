@@ -130,7 +130,7 @@ export const ConversationList = ({
         .map((conversation) => conversation.contact_id)
         .filter((contactId): contactId is string => Boolean(contactId));
 
-      const dealsMap: Record<string, Conversation["deal"]> = {};
+      const dealsByContact: Record<string, any[]> = {};
 
       if (contactIds.length > 0) {
         const { data: dealsData, error: dealsError } = await supabase
@@ -138,33 +138,44 @@ export const ConversationList = ({
           .select(`
             id,
             contact_id,
+            conversation_id,
             stage_id,
             funnel_id,
+            updated_at,
             funnel:funnels(name),
             stage:funnel_stages(name, color)
           `)
           .in("contact_id", contactIds)
-          .is("closed_at", null);
+          .is("closed_at", null)
+          .order("updated_at", { ascending: false });
 
         if (dealsError) throw dealsError;
 
         dealsData?.forEach((deal: any) => {
-          if (deal.contact_id) {
-            dealsMap[deal.contact_id] = {
-              id: deal.id,
-              stage_id: deal.stage_id,
-              funnel_id: deal.funnel_id,
-              funnel_name: deal.funnel?.name ?? null,
-              stage_name: deal.stage?.name ?? null,
-              stage_color: deal.stage?.color ?? null,
-            };
-          }
+          if (!deal.contact_id) return;
+          if (!dealsByContact[deal.contact_id]) dealsByContact[deal.contact_id] = [];
+          dealsByContact[deal.contact_id].push(deal);
         });
       }
 
+      const pickDeal = (contactId: string, conversationId: string): Conversation["deal"] | null => {
+        const list = dealsByContact[contactId];
+        if (!list || list.length === 0) return null;
+        const tied = list.find((d) => d.conversation_id === conversationId);
+        const deal = tied ?? list[0];
+        return {
+          id: deal.id,
+          stage_id: deal.stage_id,
+          funnel_id: deal.funnel_id,
+          funnel_name: deal.funnel?.name ?? null,
+          stage_name: deal.stage?.name ?? null,
+          stage_color: deal.stage?.color ?? null,
+        };
+      };
+
       return conversationsData.map((conversation: any) => ({
         ...conversation,
-        deal: dealsMap[conversation.contact_id] ?? null,
+        deal: pickDeal(conversation.contact_id, conversation.id),
       })) as ConversationWithTags[];
     },
     staleTime: 30000,
