@@ -128,7 +128,11 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
     const value = localFields[definition.field_key];
     const isEditing = editingField === definition.field_key;
 
-    switch (definition.field_type) {
+    const effectiveType = (definition.field_type === 'text' && isDateLikeField(definition.field_name))
+      ? 'date'
+      : definition.field_type;
+
+    switch (effectiveType) {
       case 'boolean':
       case 'switch':
         return (

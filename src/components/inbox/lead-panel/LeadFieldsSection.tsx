@@ -194,7 +194,13 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
     const value = localFields[definition.field_key];
     const isEditing = editingField === definition.field_key;
 
-    switch (definition.field_type) {
+    // Auto-promove campos com nome de data (ex: "Data da Entrada") para date picker
+    // mesmo quando salvos como text
+    const effectiveType = (definition.field_type === 'text' && isDateLikeField(definition.field_name))
+      ? 'date'
+      : definition.field_type;
+
+    switch (effectiveType) {
       case 'boolean':
       case 'switch':
         return (
