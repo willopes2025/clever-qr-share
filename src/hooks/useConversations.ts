@@ -293,7 +293,7 @@ export const useConversations = () => {
         ...conv,
         contact: contactsMap[conv.contact_id] || null,
         tag_assignments: tagsMap[conv.id] || [],
-        deal: dealsMap[conv.contact_id] || null,
+        deal: pickDeal(conv.contact_id, conv.id),
       })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
     enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
