@@ -881,9 +881,15 @@ Deno.serve(async (req: Request) => {
         
         const searchResult = await searchParcelasWithLookback(token, empresaCnpj, null, lookbackDays);
         
-        console.log(`[ssOtica] Parcelas listadas: ${searchResult.data.length} (raw: ${searchResult.rawTotal})`);
+        // Filter only open parcelas (exclude Pago/Quitado/Cancelado)
+        const parcelasAbertas = (searchResult.data || []).filter((c: any) => {
+          const s = String(c.situacao || c.status || '').toLowerCase();
+          return s !== 'pago' && s !== 'quitado' && s !== 'cancelado' && s !== 'baixado';
+        });
+        
+        console.log(`[ssOtica] Parcelas listadas: ${parcelasAbertas.length} em aberto (raw: ${searchResult.rawTotal})`);
 
-        const valorTotalAberto = searchResult.data.reduce((sum: number, c: any) => 
+        const valorTotalAberto = parcelasAbertas.reduce((sum: number, c: any) => 
           sum + (parseFloat(c.valor ?? c.valor_parcela ?? c.valor_reajustado ?? c.valor_original ?? 0) || 0), 0
         );
 
