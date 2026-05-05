@@ -572,6 +572,28 @@ Deno.serve(async (req: Request) => {
             console.error('Error creating deal:', dealError);
           } else {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
+            // Trigger on_funnel_enter and on_stage_enter automations for the new deal
+            try {
+              await supabase.functions.invoke('process-funnel-automations', {
+                body: {
+                  dealId: newDeal.id,
+                  funnelId: form.target_funnel_id,
+                  toStageId: stageId,
+                  triggerType: 'on_funnel_enter',
+                },
+              });
+              await supabase.functions.invoke('process-funnel-automations', {
+                body: {
+                  dealId: newDeal.id,
+                  funnelId: form.target_funnel_id,
+                  toStageId: stageId,
+                  triggerType: 'on_stage_enter',
+                },
+              });
+              console.log(`Triggered on_funnel_enter + on_stage_enter for new deal ${newDeal.id}`);
+            } catch (autoErr) {
+              console.error('Error triggering stage automations for new deal:', autoErr);
+            }
           }
         } else {
           // Update existing deal with native fields and custom fields
