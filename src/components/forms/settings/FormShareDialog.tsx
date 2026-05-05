@@ -47,16 +47,18 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   const [newParamValue, setNewParamValue] = useState('');
 
   // Build URL with static params
+  // IMPORTANT: use the edge function URL so social scrapers (WhatsApp, FB, X)
+  // read the correct og:title / og:description / og:image of THIS form,
+  // instead of the SPA's index.html (which shows the Widezap defaults).
   const buildFormUrl = () => {
-    const baseUrl = `${window.location.origin}/form/${form.slug}`;
-    if (staticParams.length === 0) return baseUrl;
-    
-    const paramsPath = staticParams
-      .filter(p => p.key && p.value)
-      .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
-      .join('/');
-    
-    return paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const params = new URLSearchParams();
+    params.set('slug', form.slug);
+    const validStatic = staticParams.filter(p => p.key && p.value);
+    if (validStatic.length > 0) {
+      params.set('static_params', JSON.stringify(validStatic));
+    }
+    return `${supabaseUrl}/functions/v1/public-form?${params.toString()}`;
   };
 
   const formUrl = buildFormUrl();
