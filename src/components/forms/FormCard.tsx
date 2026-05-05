@@ -36,7 +36,6 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { buildPublicFormUrl } from "@/lib/form-url";
 
 interface FormCardProps {
   form: Form;
@@ -65,8 +64,9 @@ export const FormCard = ({ form }: FormCardProps) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const status = statusConfig[form.status] || statusConfig.draft;
-  const formUrl = buildPublicFormUrl(form.slug);
-  const embedUrl = buildPublicFormUrl(form.slug, { embed: true });
+  const publicBaseUrl = `${window.location.origin}/form/${form.slug}`;
+  const formUrl = publicBaseUrl;
+  const embedUrl = `${publicBaseUrl}?embed=true`;
   const embedCode = `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" style="border: none; max-width: 100%;"></iframe>`;
 
   const handleCopyLink = () => {

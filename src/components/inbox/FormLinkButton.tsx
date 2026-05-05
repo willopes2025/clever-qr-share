@@ -10,7 +10,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useForms } from "@/hooks/useForms";
 import { toast } from "sonner";
-import { buildPublicFormUrl } from "@/lib/form-url";
 
 interface FormLinkButtonProps {
   contactId: string;
@@ -26,10 +25,8 @@ export const FormLinkButton = ({ contactId, conversationId, onInsertMessage }: F
   const publishedForms = forms?.filter(f => f.status === 'published') || [];
 
   const generateFormLink = (slug: string) => {
-    return buildPublicFormUrl(slug, { staticParams: [
-      { key: 'contact_id', value: contactId },
-      { key: 'conversation_id', value: conversationId },
-    ] });
+    const origin = window.location.origin;
+    return `${origin}/form/${slug}/contact_id=${encodeURIComponent(contactId)}/conversation_id=${encodeURIComponent(conversationId)}`;
   };
 
   const handleSelectForm = (form: { slug: string; name: string }) => {

@@ -723,13 +723,14 @@ Deno.serve(async (req: Request) => {
               }))
               .filter(p => p.value);
 
-            const formUrlParams = new URLSearchParams();
-            formUrlParams.set('slug', form.slug);
-            if (resolvedParams.length > 0) {
-              formUrlParams.set('static_params', JSON.stringify(resolvedParams));
-            }
-
-            const formUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/public-form?${formUrlParams.toString()}`;
+            // Build URL with path-based params
+            const publicUrl = 'https://clever-qr-share.lovable.app';
+            const baseUrl = `${publicUrl}/form/${form.slug}`;
+            const paramsPath = resolvedParams
+              .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+              .join('/');
+            
+            const formUrl = paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
 
             // Replace variables in message and insert link
             const message = replaceVariables(messageTemplate).replace(/\{\{link\}\}/g, formUrl);

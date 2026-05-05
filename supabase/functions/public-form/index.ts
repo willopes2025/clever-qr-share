@@ -197,20 +197,12 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(form.page_title || form.name)}</title>
-  <meta name="description" content="${escapeHtml(form.meta_description || form.subheader_text || form.header_text || `Preencha o formulário: ${form.name}`)}">
+  ${form.meta_description ? `<meta name="description" content="${escapeHtml(form.meta_description)}">` : ''}
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="${escapeHtml(form.name)}">
   <meta property="og:title" content="${escapeHtml(form.page_title || form.name)}">
-  <meta property="og:description" content="${escapeHtml(form.meta_description || form.subheader_text || form.header_text || `Preencha o formulário: ${form.name}`)}">
+  ${form.meta_description ? `<meta property="og:description" content="${escapeHtml(form.meta_description)}">` : ''}
   <meta property="og:url" content="${originUrl}/f/${form.slug}">
-  <meta property="og:image" content="${escapeHtml(form.og_image_url || form.logo_url || 'https://storage.googleapis.com/gpt-engineer-file-uploads/r10144pT7xNLtO5e8KhIlmmX7Vf2/social-images/social-1766894338950-wide.png')}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${escapeHtml(form.page_title || form.name)}">
-  <meta name="twitter:description" content="${escapeHtml(form.meta_description || form.subheader_text || form.header_text || `Preencha o formulário: ${form.name}`)}">
-  <meta name="twitter:image" content="${escapeHtml(form.og_image_url || form.logo_url || 'https://storage.googleapis.com/gpt-engineer-file-uploads/r10144pT7xNLtO5e8KhIlmmX7Vf2/social-images/social-1766894338950-wide.png')}">
-  <link rel="canonical" href="${originUrl}/f/${form.slug}">
+  ${form.og_image_url ? `<meta property="og:image" content="${escapeHtml(form.og_image_url)}">` : ''}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(sanitizeFontFamily(form.font_family))}:wght@400;500;600&display=swap" rel="stylesheet">

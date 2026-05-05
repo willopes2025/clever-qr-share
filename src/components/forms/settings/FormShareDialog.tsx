@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Copy, ExternalLink, Check, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { buildPublicFormUrl } from "@/lib/form-url";
 
 interface FormShareDialogProps {
   open: boolean;
@@ -47,8 +46,17 @@ export const FormShareDialog = ({ open, onOpenChange, form, onUpdateForm }: Form
   const [newParamKey, setNewParamKey] = useState('');
   const [newParamValue, setNewParamValue] = useState('');
 
+  // Build URL with static params
   const buildFormUrl = () => {
-    return buildPublicFormUrl(form.slug, { staticParams });
+    const baseUrl = `${window.location.origin}/form/${form.slug}`;
+    if (staticParams.length === 0) return baseUrl;
+    
+    const paramsPath = staticParams
+      .filter(p => p.key && p.value)
+      .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+      .join('/');
+    
+    return paramsPath ? `${baseUrl}/${paramsPath}` : baseUrl;
   };
 
   const formUrl = buildFormUrl();
