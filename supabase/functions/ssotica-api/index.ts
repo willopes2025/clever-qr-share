@@ -884,7 +884,7 @@ Deno.serve(async (req: Request) => {
         console.log(`[ssOtica] Parcelas listadas: ${searchResult.data.length} (raw: ${searchResult.rawTotal})`);
 
         const valorTotalAberto = searchResult.data.reduce((sum: number, c: any) => 
-          sum + (parseFloat(c.valor) || parseFloat(c.valor_parcela) || 0), 0
+          sum + (parseFloat(c.valor ?? c.valor_parcela ?? c.valor_reajustado ?? c.valor_original ?? 0) || 0), 0
         );
 
         result = {
@@ -899,7 +899,7 @@ Deno.serve(async (req: Request) => {
             id: c.id,
             numero: c.numero_parcela || c.parcela,
             documento: c.documento || c.numero_documento,
-            valor: c.valor || c.valor_parcela,
+            valor: parseFloat(c.valor ?? c.valor_parcela ?? c.valor_reajustado ?? c.valor_original ?? 0) || 0,
             vencimento: c.vencimento || c.data_vencimento,
             status: c.status || c.situacao || 'em_aberto',
             cliente: {
