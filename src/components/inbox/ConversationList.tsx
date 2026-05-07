@@ -24,7 +24,12 @@ import { ProviderBadge } from "./ProviderBadge";
 import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { formatMessageTimeBR } from "@/lib/date-utils";
 
-interface ConversationWithTags extends Conversation {
+type ConversationContact = NonNullable<Conversation["contact"]> & {
+  contact_display_id?: string | number | null;
+};
+
+interface ConversationWithTags extends Omit<Conversation, "contact"> {
+  contact?: ConversationContact | null;
   tag_assignments?: { tag_id: string }[];
   campaign_id?: string | null;
   ai_handled?: boolean | null;
