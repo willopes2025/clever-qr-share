@@ -28,6 +28,16 @@ type ConversationContact = NonNullable<Conversation["contact"]> & {
   contact_display_id?: string | number | null;
 };
 
+type MissingConversationRow = Omit<ConversationWithTags, "contact" | "deal" | "tag_assignments">;
+type SearchDealRow = {
+  id: string;
+  contact_id: string | null;
+  stage_id: string;
+  funnel_id: string;
+  funnel?: { name: string | null } | null;
+  stage?: { name: string | null; color: string | null } | null;
+};
+
 interface ConversationWithTags extends Omit<Conversation, "contact"> {
   contact?: ConversationContact | null;
   tag_assignments?: { tag_id: string }[];
@@ -124,7 +134,7 @@ export const ConversationList = ({
       // causaram timeout no carregamento principal em contas grandes. A busca
       // precisa buscar conversa, contato, tags e negócio em lotes separados.
       const CHUNK = 150;
-      const conversationsData: any[] = [];
+      const conversationsData: MissingConversationRow[] = [];
 
       for (let i = 0; i < missingConversationIds.length; i += CHUNK) {
         const slice = missingConversationIds.slice(i, i + CHUNK);
@@ -157,7 +167,7 @@ export const ConversationList = ({
         )
       );
 
-      const contactsMap: Record<string, any> = {};
+      const contactsMap: Record<string, ConversationContact> = {};
 
       if (contactIds.length > 0) {
         for (let i = 0; i < contactIds.length; i += CHUNK) {
@@ -212,7 +222,7 @@ export const ConversationList = ({
 
           if (dealsError) throw dealsError;
 
-          dealsData?.forEach((deal: any) => {
+          (dealsData as SearchDealRow[] | null)?.forEach((deal) => {
             if (deal.contact_id && !dealsMap[deal.contact_id]) {
               dealsMap[deal.contact_id] = {
                 id: deal.id,
@@ -227,7 +237,7 @@ export const ConversationList = ({
         }
       }
 
-      return conversationsData.map((conversation: any) => ({
+      return conversationsData.map((conversation) => ({
         ...conversation,
         contact: contactsMap[conversation.contact_id] ?? null,
         tag_assignments: tagsMap[conversation.id] ?? [],
