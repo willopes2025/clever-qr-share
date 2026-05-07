@@ -114,52 +114,71 @@ export const ConversationList = ({
     queryKey: ["search-missing-conversations", missingConversationIds],
     enabled: debouncedSearch.length >= 3 && missingConversationIds.length > 0,
     queryFn: async () => {
-      const { data: conversationsData, error: conversationsError } = await supabase
-        .from("conversations")
-        .select(`
-          *,
-          contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
-          tag_assignments:conversation_tag_assignments(tag_id)
-        `)
-        .in("id", missingConversationIds);
+      // CHUNK requests: PostgREST `in.(...)` coloca todos os IDs na URL.
+      // Buscas por termos comuns ("curso", "mais informações") podem retornar
+      // centenas de IDs únicos, estourando o tamanho da URL e fazendo a request
+      // falhar silenciosamente — resultado: "Nenhuma conversa encontrada".
+      const CHUNK = 150;
+      const conversationsData: any[] = [];
 
-      if (conversationsError) throw conversationsError;
-      if (!conversationsData?.length) return [];
+      for (let i = 0; i < missingConversationIds.length; i += CHUNK) {
+        const slice = missingConversationIds.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from("conversations")
+          .select(`
+            *,
+            contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
+            tag_assignments:conversation_tag_assignments(tag_id)
+          `)
+          .in("id", slice);
 
-      const contactIds = conversationsData
-        .map((conversation) => conversation.contact_id)
-        .filter((contactId): contactId is string => Boolean(contactId));
+        if (error) throw error;
+        if (data) conversationsData.push(...data);
+      }
+
+      if (!conversationsData.length) return [];
+
+      const contactIds = Array.from(
+        new Set(
+          conversationsData
+            .map((conversation) => conversation.contact_id)
+            .filter((contactId): contactId is string => Boolean(contactId))
+        )
+      );
 
       const dealsMap: Record<string, Conversation["deal"]> = {};
 
       if (contactIds.length > 0) {
-        const { data: dealsData, error: dealsError } = await supabase
-          .from("funnel_deals")
-          .select(`
-            id,
-            contact_id,
-            stage_id,
-            funnel_id,
-            funnel:funnels(name),
-            stage:funnel_stages(name, color)
-          `)
-          .in("contact_id", contactIds)
-          .is("closed_at", null);
+        for (let i = 0; i < contactIds.length; i += CHUNK) {
+          const slice = contactIds.slice(i, i + CHUNK);
+          const { data: dealsData, error: dealsError } = await supabase
+            .from("funnel_deals")
+            .select(`
+              id,
+              contact_id,
+              stage_id,
+              funnel_id,
+              funnel:funnels(name),
+              stage:funnel_stages(name, color)
+            `)
+            .in("contact_id", slice)
+            .is("closed_at", null);
 
-        if (dealsError) throw dealsError;
+          if (dealsError) throw dealsError;
 
-        dealsData?.forEach((deal: any) => {
-          if (deal.contact_id) {
-            dealsMap[deal.contact_id] = {
-              id: deal.id,
-              stage_id: deal.stage_id,
-              funnel_id: deal.funnel_id,
-              funnel_name: deal.funnel?.name ?? null,
-              stage_name: deal.stage?.name ?? null,
-              stage_color: deal.stage?.color ?? null,
-            };
-          }
-        });
+          dealsData?.forEach((deal: any) => {
+            if (deal.contact_id && !dealsMap[deal.contact_id]) {
+              dealsMap[deal.contact_id] = {
+                id: deal.id,
+                stage_id: deal.stage_id,
+                funnel_id: deal.funnel_id,
+                funnel_name: deal.funnel?.name ?? null,
+                stage_name: deal.stage?.name ?? null,
+                stage_color: deal.stage?.color ?? null,
+              };
+            }
+          });
+        }
       }
 
       return conversationsData.map((conversation: any) => ({
