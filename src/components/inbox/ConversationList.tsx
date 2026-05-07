@@ -115,9 +115,9 @@ export const ConversationList = ({
     enabled: debouncedSearch.length >= 3 && missingConversationIds.length > 0,
     queryFn: async () => {
       // CHUNK requests: PostgREST `in.(...)` coloca todos os IDs na URL.
-      // Buscas por termos comuns ("curso", "mais informações") podem retornar
-      // centenas de IDs únicos, estourando o tamanho da URL e fazendo a request
-      // falhar silenciosamente — resultado: "Nenhuma conversa encontrada".
+      // Além disso, evitamos embeds aqui: os mesmos joins de contact/tags já
+      // causaram timeout no carregamento principal em contas grandes. A busca
+      // precisa buscar conversa, contato, tags e negócio em lotes separados.
       const CHUNK = 150;
       const conversationsData: any[] = [];
 
@@ -126,9 +126,14 @@ export const ConversationList = ({
         const { data, error } = await supabase
           .from("conversations")
           .select(`
-            *,
-            contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
-            tag_assignments:conversation_tag_assignments(tag_id)
+            id, user_id, contact_id, instance_id,
+            last_message_at, last_message_preview, last_message_direction,
+            unread_count, status, is_pinned,
+            created_at, updated_at,
+            campaign_id, ai_handled, ai_paused, ai_handoff_requested,
+            ai_handoff_reason, ai_interactions_count,
+            assigned_to, first_response_at,
+            provider, meta_phone_number_id
           `)
           .in("id", slice);
 
@@ -138,6 +143,7 @@ export const ConversationList = ({
 
       if (!conversationsData.length) return [];
 
+      const conversationIds = conversationsData.map((conversation) => conversation.id);
       const contactIds = Array.from(
         new Set(
           conversationsData
@@ -145,6 +151,41 @@ export const ConversationList = ({
             .filter((contactId): contactId is string => Boolean(contactId))
         )
       );
+
+      const contactsMap: Record<string, any> = {};
+
+      if (contactIds.length > 0) {
+        for (let i = 0; i < contactIds.length; i += CHUNK) {
+          const slice = contactIds.slice(i, i + CHUNK);
+          const { data: contactsData, error: contactsError } = await supabase
+            .from("contacts")
+            .select("id, name, phone, notes, custom_fields, avatar_url, contact_display_id")
+            .in("id", slice);
+
+          if (contactsError) throw contactsError;
+          contactsData?.forEach((contact) => {
+            contactsMap[contact.id] = contact;
+          });
+        }
+      }
+
+      const tagsMap: Record<string, { tag_id: string }[]> = {};
+
+      if (conversationIds.length > 0) {
+        for (let i = 0; i < conversationIds.length; i += CHUNK) {
+          const slice = conversationIds.slice(i, i + CHUNK);
+          const { data: tagRows, error: tagsError } = await supabase
+            .from("conversation_tag_assignments")
+            .select("conversation_id, tag_id")
+            .in("conversation_id", slice);
+
+          if (tagsError) throw tagsError;
+          tagRows?.forEach((tag) => {
+            if (!tagsMap[tag.conversation_id]) tagsMap[tag.conversation_id] = [];
+            tagsMap[tag.conversation_id].push({ tag_id: tag.tag_id });
+          });
+        }
+      }
 
       const dealsMap: Record<string, Conversation["deal"]> = {};
 
@@ -183,6 +224,8 @@ export const ConversationList = ({
 
       return conversationsData.map((conversation: any) => ({
         ...conversation,
+        contact: contactsMap[conversation.contact_id] ?? null,
+        tag_assignments: tagsMap[conversation.id] ?? [],
         deal: dealsMap[conversation.contact_id] ?? null,
       })) as ConversationWithTags[];
     },
