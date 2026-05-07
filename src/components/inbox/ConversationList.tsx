@@ -24,7 +24,22 @@ import { ProviderBadge } from "./ProviderBadge";
 import { useMetaNumbersMap } from "@/hooks/useMetaNumbersMap";
 import { formatMessageTimeBR } from "@/lib/date-utils";
 
-interface ConversationWithTags extends Conversation {
+type ConversationContact = NonNullable<Conversation["contact"]> & {
+  contact_display_id?: string | number | null;
+};
+
+type MissingConversationRow = Omit<ConversationWithTags, "contact" | "deal" | "tag_assignments">;
+type SearchDealRow = {
+  id: string;
+  contact_id: string | null;
+  stage_id: string;
+  funnel_id: string;
+  funnel?: { name: string | null } | null;
+  stage?: { name: string | null; color: string | null } | null;
+};
+
+interface ConversationWithTags extends Omit<Conversation, "contact"> {
+  contact?: ConversationContact | null;
   tag_assignments?: { tag_id: string }[];
   campaign_id?: string | null;
   ai_handled?: boolean | null;
@@ -115,29 +130,35 @@ export const ConversationList = ({
     enabled: debouncedSearch.length >= 3 && missingConversationIds.length > 0,
     queryFn: async () => {
       // CHUNK requests: PostgREST `in.(...)` coloca todos os IDs na URL.
-      // Buscas por termos comuns ("curso", "mais informações") podem retornar
-      // centenas de IDs únicos, estourando o tamanho da URL e fazendo a request
-      // falhar silenciosamente — resultado: "Nenhuma conversa encontrada".
+      // Além disso, evitamos embeds aqui: os mesmos joins de contact/tags já
+      // causaram timeout no carregamento principal em contas grandes. A busca
+      // precisa buscar conversa, contato, tags e negócio em lotes separados.
       const CHUNK = 150;
-      const conversationsData: any[] = [];
+      const conversationsData: MissingConversationRow[] = [];
 
       for (let i = 0; i < missingConversationIds.length; i += CHUNK) {
         const slice = missingConversationIds.slice(i, i + CHUNK);
         const { data, error } = await supabase
           .from("conversations")
           .select(`
-            *,
-            contact:contacts(id, name, phone, notes, custom_fields, avatar_url, contact_display_id),
-            tag_assignments:conversation_tag_assignments(tag_id)
+            id, user_id, contact_id, instance_id,
+            last_message_at, last_message_preview, last_message_direction,
+            unread_count, status, is_pinned,
+            created_at, updated_at,
+            campaign_id, ai_handled, ai_paused, ai_handoff_requested,
+            ai_handoff_reason, ai_interactions_count,
+            assigned_to, first_response_at,
+            provider, meta_phone_number_id
           `)
           .in("id", slice);
 
         if (error) throw error;
-        if (data) conversationsData.push(...data);
+        if (data) conversationsData.push(...(data as unknown as MissingConversationRow[]));
       }
 
       if (!conversationsData.length) return [];
 
+      const conversationIds = conversationsData.map((conversation) => conversation.id);
       const contactIds = Array.from(
         new Set(
           conversationsData
@@ -145,6 +166,41 @@ export const ConversationList = ({
             .filter((contactId): contactId is string => Boolean(contactId))
         )
       );
+
+      const contactsMap: Record<string, ConversationContact> = {};
+
+      if (contactIds.length > 0) {
+        for (let i = 0; i < contactIds.length; i += CHUNK) {
+          const slice = contactIds.slice(i, i + CHUNK);
+          const { data: contactsData, error: contactsError } = await supabase
+            .from("contacts")
+            .select("id, name, phone, notes, custom_fields, avatar_url, contact_display_id")
+            .in("id", slice);
+
+          if (contactsError) throw contactsError;
+          contactsData?.forEach((contact) => {
+            contactsMap[contact.id] = contact as unknown as ConversationContact;
+          });
+        }
+      }
+
+      const tagsMap: Record<string, { tag_id: string }[]> = {};
+
+      if (conversationIds.length > 0) {
+        for (let i = 0; i < conversationIds.length; i += CHUNK) {
+          const slice = conversationIds.slice(i, i + CHUNK);
+          const { data: tagRows, error: tagsError } = await supabase
+            .from("conversation_tag_assignments")
+            .select("conversation_id, tag_id")
+            .in("conversation_id", slice);
+
+          if (tagsError) throw tagsError;
+          tagRows?.forEach((tag) => {
+            if (!tagsMap[tag.conversation_id]) tagsMap[tag.conversation_id] = [];
+            tagsMap[tag.conversation_id].push({ tag_id: tag.tag_id });
+          });
+        }
+      }
 
       const dealsMap: Record<string, Conversation["deal"]> = {};
 
@@ -166,7 +222,7 @@ export const ConversationList = ({
 
           if (dealsError) throw dealsError;
 
-          dealsData?.forEach((deal: any) => {
+          (dealsData as SearchDealRow[] | null)?.forEach((deal) => {
             if (deal.contact_id && !dealsMap[deal.contact_id]) {
               dealsMap[deal.contact_id] = {
                 id: deal.id,
@@ -181,8 +237,10 @@ export const ConversationList = ({
         }
       }
 
-      return conversationsData.map((conversation: any) => ({
+      return conversationsData.map((conversation) => ({
         ...conversation,
+        contact: contactsMap[conversation.contact_id] ?? null,
+        tag_assignments: tagsMap[conversation.id] ?? [],
         deal: dealsMap[conversation.contact_id] ?? null,
       })) as ConversationWithTags[];
     },
@@ -238,7 +296,7 @@ export const ConversationList = ({
   const filteredConversations = sortedConversations.filter(conv => {
     const name = conv.contact?.name || "";
     const phone = conv.contact?.phone || "";
-    const displayId = ((conv.contact as any)?.contact_display_id || "").toString();
+    const displayId = (conv.contact?.contact_display_id || "").toString();
 
     const normalizedSearch = normalizeText(searchTerm.trim());
     const searchDigits = searchTerm.replace(/\D/g, "");
@@ -556,11 +614,11 @@ export const ConversationList = ({
                       {/* Contact ID + Phone Number + Provider Badge + Meta Number */}
                       <div className="flex items-center gap-2 mb-0.5">
                         <ProviderBadge 
-                          provider={(conversation as any).provider || (conversation.instance_id ? 'evolution' : 'meta')} 
+                          provider={conversation.provider || (conversation.instance_id ? 'evolution' : 'meta')} 
                           size="sm" 
                         />
-                        {(conversation.contact as any)?.contact_display_id && (
-                          <ContactIdBadge displayId={(conversation.contact as any).contact_display_id} size="sm" />
+                        {conversation.contact?.contact_display_id && (
+                          <ContactIdBadge displayId={String(conversation.contact.contact_display_id)} size="sm" />
                         )}
                         <p className="text-xs text-muted-foreground truncate">
                           {formatForDisplay(conversation.contact?.phone || "")}
