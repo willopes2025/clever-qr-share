@@ -23,13 +23,17 @@ export const useConversationSearch = (searchTerm: string) => {
 
       if (error) throw error;
 
-      // Return unique conversation IDs (preserva ordem por recência)
+      // Return unique conversation IDs (preserva ordem por recência).
+      // Teto defensivo: mesmo com chunking no consumidor, evitamos retornar
+      // milhares de IDs para termos extremamente genéricos.
+      const MAX_IDS = 800;
       const seen = new Set<string>();
       const ids: string[] = [];
       for (const m of data ?? []) {
         if (m.conversation_id && !seen.has(m.conversation_id)) {
           seen.add(m.conversation_id);
           ids.push(m.conversation_id);
+          if (ids.length >= MAX_IDS) break;
         }
       }
       return ids;

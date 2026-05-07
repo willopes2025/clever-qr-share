@@ -1,37 +1,30 @@
 ## Problema
 
-A sincronização da instância **Seven 7685** falha porque o endpoint `POST /chat/findChats/Seven 7685` da Evolution API retorna **500** com a mensagem `Cannot read properties of null (reading 'mediaUrl')`. Esse é um bug interno da Evolution (não do nosso código), provavelmente disparado por algum chat antigo com mídia inválida.
+No inbox da Aline Galacha, buscas por termos comuns (ex.: "curso", "mais informações") mostram **"Nenhuma conversa encontrada"**, mesmo havendo dezenas de conversas com esses termos.
 
-Hoje a edge function `sync-message-history` aborta inteira quando `findChats` falha, então o usuário vê apenas "erro de edge function" sem alternativa.
+## Causa raiz
 
-## Solução
+O fix anterior (subir o limite de `useConversationSearch` para 2000 mensagens) expôs um segundo bug em `ConversationList.tsx` (query `search-missing-conversations`):
 
-Tornar a função tolerante a esse cenário com **3 estratégias de fallback**, em ordem:
+- Termos comuns retornam **centenas de IDs únicos** de conversa (ex.: "mais informações" → 868 IDs no banco).
+- Esses IDs são passados em uma única request `supabase.from('conversations').in('id', [800+ UUIDs])`.
+- O PostgREST coloca todos os UUIDs na URL, que estoura o tamanho permitido — a request falha ou retorna vazio.
+- Resultado: nada aparece na lista.
 
-### 1. Fallback A — usar contatos já existentes no banco
-Se `findChats` falhar, em vez de abortar, buscar todos os `contacts` da organização da instância que têm conversa nessa `instance_id` e iterar sobre eles, chamando `findMessages` por `remoteJid` reconstruído (`{phone}@s.whatsapp.net`).
+Confirmei via SQL que existem 18 mensagens da Aline com "mais informações" em conversas ativas que **deveriam** aparecer.
 
-### 2. Fallback B — endpoint alternativo de chats
-Tentar `POST /chat/findContacts/{instance}` (lista contatos brutos do WhatsApp) como segunda tentativa. Esse endpoint não monta o objeto de mídia que está quebrando o findChats.
+## Correção
 
-### 3. Mensagem de erro clara
-Se todos falharem, retornar 200 com `success: false` e um campo `evolutionError` explicando que o servidor Evolution está com problema, em vez de 500. O dialog frontend mostra o motivo real ("A Evolution API retornou erro interno ao listar chats — tente novamente em alguns minutos ou reconecte a instância").
+### `src/components/inbox/ConversationList.tsx`
+Quebrar a query `search-missing-conversations` em **chunks de 150 IDs** (padrão já usado em `useConversations.ts`):
 
-### 4. Try/catch por chat já existe
-O loop por chat já tem try/catch individual (linha 419), então um chat com problema não derruba os outros — só falta proteger o `findChats` inicial.
+- Loop sobre `missingConversationIds` em fatias de 150, agregando os resultados.
+- Mesmo tratamento para o `funnel_deals.in('contact_id', ...)` que vem logo depois.
+- Deduplicar `contactIds` antes de buscar deals.
 
-## Arquivos afetados
-
-- `supabase/functions/sync-message-history/index.ts` — adicionar fallbacks A/B e melhorar mensagem de erro
-- `src/components/instances/SyncHistoryDialog.tsx` — exibir `evolutionError` quando vier no payload de resposta
+### `src/hooks/useConversationSearch.ts`
+Pequeno ajuste defensivo: manter o `limit(2000)` mas garantir que IDs únicos retornados sejam limitados a um teto razoável (ex.: 800) para evitar payloads gigantes mesmo com chunking — preserva relevância (mais recentes primeiro).
 
 ## Resultado esperado
 
-Você consegue clicar em "Sincronizar" para a instância Seven 7685 com data 06/05/2026 e:
-- Se a Evolution recuperar, sincroniza normalmente
-- Se `findChats` continuar quebrado, o sistema usa os contatos existentes da Seven e busca mensagens individualmente daqueles contatos
-- Em último caso, mensagem clara em vez de "erro de edge function"
-
-## Observação importante
-
-Se nenhum dos fallbacks trouxer mensagens, o problema está no **celular conectado** à instância Seven 7685 (Evolution não consegue ler o histórico local dele). Nesse caso a única solução é **reconectar a instância** (logout + novo QR Code) para forçar a Evolution a reconstruir o cache de chats.
+Buscar "curso", "mais informações" ou qualquer termo comum no inbox passa a listar todas as conversas correspondentes da organização, ordenadas por mais recente.
