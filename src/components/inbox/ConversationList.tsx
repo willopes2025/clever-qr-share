@@ -153,7 +153,7 @@ export const ConversationList = ({
           .in("id", slice);
 
         if (error) throw error;
-        if (data) conversationsData.push(...data);
+        if (data) conversationsData.push(...(data as unknown as MissingConversationRow[]));
       }
 
       if (!conversationsData.length) return [];
@@ -179,7 +179,7 @@ export const ConversationList = ({
 
           if (contactsError) throw contactsError;
           contactsData?.forEach((contact) => {
-            contactsMap[contact.id] = contact;
+            contactsMap[contact.id] = contact as unknown as ConversationContact;
           });
         }
       }
