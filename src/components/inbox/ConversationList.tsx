@@ -618,7 +618,7 @@ export const ConversationList = ({
                           size="sm" 
                         />
                         {conversation.contact?.contact_display_id && (
-                          <ContactIdBadge displayId={conversation.contact.contact_display_id} size="sm" />
+                          <ContactIdBadge displayId={String(conversation.contact.contact_display_id)} size="sm" />
                         )}
                         <p className="text-xs text-muted-foreground truncate">
                           {formatForDisplay(conversation.contact?.phone || "")}
