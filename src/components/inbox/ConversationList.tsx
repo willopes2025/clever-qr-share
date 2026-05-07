@@ -296,7 +296,7 @@ export const ConversationList = ({
   const filteredConversations = sortedConversations.filter(conv => {
     const name = conv.contact?.name || "";
     const phone = conv.contact?.phone || "";
-    const displayId = ((conv.contact as any)?.contact_display_id || "").toString();
+    const displayId = (conv.contact?.contact_display_id || "").toString();
 
     const normalizedSearch = normalizeText(searchTerm.trim());
     const searchDigits = searchTerm.replace(/\D/g, "");
@@ -614,11 +614,11 @@ export const ConversationList = ({
                       {/* Contact ID + Phone Number + Provider Badge + Meta Number */}
                       <div className="flex items-center gap-2 mb-0.5">
                         <ProviderBadge 
-                          provider={(conversation as any).provider || (conversation.instance_id ? 'evolution' : 'meta')} 
+                          provider={conversation.provider || (conversation.instance_id ? 'evolution' : 'meta')} 
                           size="sm" 
                         />
-                        {(conversation.contact as any)?.contact_display_id && (
-                          <ContactIdBadge displayId={(conversation.contact as any).contact_display_id} size="sm" />
+                        {conversation.contact?.contact_display_id && (
+                          <ContactIdBadge displayId={conversation.contact.contact_display_id} size="sm" />
                         )}
                         <p className="text-xs text-muted-foreground truncate">
                           {formatForDisplay(conversation.contact?.phone || "")}
