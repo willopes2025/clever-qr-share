@@ -41,10 +41,14 @@ export function useSyncHistory() {
 
       return data as SyncResult;
     },
-    onSuccess: (data) => {
-      if (data.success && data.synced) {
+    onSuccess: (data: SyncResult & { evolutionError?: string; evolutionWarning?: string }) => {
+      if (data.success === false && data.evolutionError) {
+        toast.error(data.evolutionError, { duration: 10000 });
+      } else if (data.success && data.synced) {
+        const warn = data.evolutionWarning;
         toast.success(
-          `Sincronização concluída! ${data.synced.messages} mensagens, ${data.synced.contacts} novos contatos importados.`
+          `Sincronização concluída! ${data.synced.messages} mensagens, ${data.synced.contacts} novos contatos importados.${warn ? ' (Aviso: usado fallback porque Evolution falhou)' : ''}`,
+          { duration: warn ? 10000 : 5000 }
         );
       }
       setProgress(0);
