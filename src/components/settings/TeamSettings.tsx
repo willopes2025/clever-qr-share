@@ -422,6 +422,18 @@ export function TeamSettings() {
                         )}
                       </Badge>
                     </TableCell>
+                    {isOwner && (
+                      <TableCell>
+                        {member.user_id === organization.owner_id ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <MemberTeamGroupSelector
+                            memberId={member.id}
+                            currentGroupId={member.team_group_id}
+                          />
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Badge variant={
                         member.status === 'active' ? 'default' :
