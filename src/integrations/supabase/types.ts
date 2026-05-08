@@ -4271,6 +4271,137 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_messenger_accounts: {
+        Row: {
+          connected_at: string
+          created_at: string
+          id: string
+          ig_business_account_id: string | null
+          ig_username: string | null
+          last_sync_at: string | null
+          metadata: Json | null
+          organization_id: string | null
+          page_access_token: string
+          page_category: string | null
+          page_id: string
+          page_name: string | null
+          platforms: string[]
+          profile_picture_url: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          webhook_subscribed: boolean
+        }
+        Insert: {
+          connected_at?: string
+          created_at?: string
+          id?: string
+          ig_business_account_id?: string | null
+          ig_username?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          organization_id?: string | null
+          page_access_token: string
+          page_category?: string | null
+          page_id: string
+          page_name?: string | null
+          platforms?: string[]
+          profile_picture_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          webhook_subscribed?: boolean
+        }
+        Update: {
+          connected_at?: string
+          created_at?: string
+          id?: string
+          ig_business_account_id?: string | null
+          ig_username?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          organization_id?: string | null
+          page_access_token?: string
+          page_category?: string | null
+          page_id?: string
+          page_name?: string | null
+          platforms?: string[]
+          profile_picture_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          webhook_subscribed?: boolean
+        }
+        Relationships: []
+      }
+      meta_messenger_webhook_events: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          error: string | null
+          event_type: string | null
+          id: string
+          ig_business_account_id: string | null
+          method: string
+          page_id: string | null
+          payload: Json | null
+          platform: string
+          processed: boolean
+          received_at: string
+          recipient_id: string | null
+          sender_id: string | null
+          signature_valid: boolean | null
+          status_code: number | null
+          user_id: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          ig_business_account_id?: string | null
+          method?: string
+          page_id?: string | null
+          payload?: Json | null
+          platform: string
+          processed?: boolean
+          received_at?: string
+          recipient_id?: string | null
+          sender_id?: string | null
+          signature_valid?: boolean | null
+          status_code?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          id?: string
+          ig_business_account_id?: string | null
+          method?: string
+          page_id?: string | null
+          payload?: Json | null
+          platform?: string
+          processed?: boolean
+          received_at?: string
+          recipient_id?: string | null
+          sender_id?: string | null
+          signature_valid?: boolean | null
+          status_code?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_messenger_webhook_events_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "meta_messenger_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_templates: {
         Row: {
           approved_at: string | null
