@@ -364,6 +364,9 @@ export function TeamSettings() {
         </Card>
       )}
 
+      {/* Equipes (perfis prontos) - apenas para o dono */}
+      {isOwner && <TeamGroupsManager />}
+
       {/* Lista de Membros */}
       <Card>
         <CardHeader>
