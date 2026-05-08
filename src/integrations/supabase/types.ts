@@ -5225,6 +5225,116 @@ export type Database = {
         }
         Relationships: []
       }
+      team_group_instances: {
+        Row: {
+          created_at: string
+          id: string
+          instance_id: string
+          team_group_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_id: string
+          team_group_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_id?: string
+          team_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_group_instances_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_group_instances_team_group_id_fkey"
+            columns: ["team_group_id"]
+            isOneToOne: false
+            referencedRelation: "team_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_group_meta_numbers: {
+        Row: {
+          created_at: string
+          id: string
+          meta_number_id: string
+          team_group_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_number_id: string
+          team_group_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_number_id?: string
+          team_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_group_meta_numbers_meta_number_id_fkey"
+            columns: ["meta_number_id"]
+            isOneToOne: false
+            referencedRelation: "meta_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_group_meta_numbers_team_group_id_fkey"
+            columns: ["team_group_id"]
+            isOneToOne: false
+            referencedRelation: "team_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          permissions: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          permissions?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          permissions?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_member_instances: {
         Row: {
           created_at: string | null
@@ -5310,6 +5420,7 @@ export type Database = {
           phone: string | null
           role: string
           status: string
+          team_group_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -5324,6 +5435,7 @@ export type Database = {
           phone?: string | null
           role?: string
           status?: string
+          team_group_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -5338,6 +5450,7 @@ export type Database = {
           phone?: string | null
           role?: string
           status?: string
+          team_group_id?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -5346,6 +5459,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_team_group_id_fkey"
+            columns: ["team_group_id"]
+            isOneToOne: false
+            referencedRelation: "team_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -6491,6 +6611,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_team_group_to_member: {
+        Args: { _group_id: string; _member_id: string }
+        Returns: undefined
+      }
       can_access_conversation: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
@@ -6580,6 +6704,10 @@ export type Database = {
         Returns: boolean
       }
       reset_leads_monthly: { Args: never; Returns: undefined }
+      resync_team_group_members: {
+        Args: { _group_id: string }
+        Returns: number
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       user_belongs_to_org: {
