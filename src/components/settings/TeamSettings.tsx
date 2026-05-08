@@ -385,6 +385,7 @@ export function TeamSettings() {
                 <TableRow>
                   <TableHead>Membro</TableHead>
                   <TableHead>Função</TableHead>
+                  {isOwner && <TableHead>Equipe</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead>Entrou em</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
