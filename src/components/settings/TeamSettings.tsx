@@ -45,6 +45,8 @@ import { DeleteOrganizationDialog } from './DeleteOrganizationDialog';
 import { EditMemberDialog } from './EditMemberDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { MemberInstancesDialog } from './MemberInstancesDialog';
+import { TeamGroupsManager } from './TeamGroupsManager';
+import { MemberTeamGroupSelector } from './MemberTeamGroupSelector';
 
 import { MyPermissionsCard } from './MyPermissionsCard';
 import { TeamMember } from '@/hooks/useOrganization';
