@@ -45,6 +45,8 @@ import { DeleteOrganizationDialog } from './DeleteOrganizationDialog';
 import { EditMemberDialog } from './EditMemberDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { MemberInstancesDialog } from './MemberInstancesDialog';
+import { TeamGroupsManager } from './TeamGroupsManager';
+import { MemberTeamGroupSelector } from './MemberTeamGroupSelector';
 
 import { MyPermissionsCard } from './MyPermissionsCard';
 import { TeamMember } from '@/hooks/useOrganization';
@@ -362,6 +364,9 @@ export function TeamSettings() {
         </Card>
       )}
 
+      {/* Equipes (perfis prontos) - apenas para o dono */}
+      {isOwner && <TeamGroupsManager />}
+
       {/* Lista de Membros */}
       <Card>
         <CardHeader>
@@ -383,6 +388,7 @@ export function TeamSettings() {
                 <TableRow>
                   <TableHead>Membro</TableHead>
                   <TableHead>Função</TableHead>
+                  {isOwner && <TableHead>Equipe</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead>Entrou em</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
@@ -419,6 +425,18 @@ export function TeamSettings() {
                         )}
                       </Badge>
                     </TableCell>
+                    {isOwner && (
+                      <TableCell>
+                        {member.user_id === organization.owner_id ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <MemberTeamGroupSelector
+                            memberId={member.id}
+                            currentGroupId={member.team_group_id}
+                          />
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Badge variant={
                         member.status === 'active' ? 'default' :

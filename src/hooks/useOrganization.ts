@@ -23,6 +23,7 @@ export interface TeamMember {
   invited_at: string;
   joined_at: string | null;
   created_at: string;
+  team_group_id?: string | null;
   profile?: {
     full_name: string | null;
     avatar_url: string | null;
