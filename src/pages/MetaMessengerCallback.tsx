@@ -36,7 +36,7 @@ const MetaMessengerCallback = () => {
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('connect-meta-messenger', {
-          body: { user_access_token: token },
+          body: { code, redirect_uri: redirectUri },
         });
         if (error) throw new Error(error.message);
         if (!data?.success) throw new Error(data?.error || 'Falha ao conectar');
