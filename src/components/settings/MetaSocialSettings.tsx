@@ -12,8 +12,8 @@ const SCOPES = [
   'pages_manage_metadata',
   'pages_read_engagement',
   'business_management',
-  'instagram_basic',
-  'instagram_manage_messages',
+  'instagram_business_basic',
+  'instagram_business_manage_messages',
 ].join(',');
 
 const buildOAuthUrl = () => {
