@@ -9,11 +9,8 @@ const META_APP_ID = '810749588135300';
 const SCOPES = [
   'pages_show_list',
   'pages_messaging',
-  'pages_manage_metadata',
   'pages_read_engagement',
-  'business_management',
-  'instagram_business_basic',
-  'instagram_business_manage_messages',
+  'pages_manage_metadata',
 ].join(',');
 
 const buildOAuthUrl = () => {
@@ -21,7 +18,7 @@ const buildOAuthUrl = () => {
   const params = new URLSearchParams({
     client_id: META_APP_ID,
     redirect_uri: redirectUri,
-    response_type: 'token',
+    response_type: 'code',
     scope: SCOPES,
     auth_type: 'rerequest',
   });

@@ -15,9 +15,9 @@ const MetaMessengerCallback = () => {
     if (ran.current) return;
     ran.current = true;
 
-    const hash = new URLSearchParams(window.location.hash.slice(1));
     const search = new URLSearchParams(window.location.search);
-    const token = hash.get('access_token');
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const code = search.get('code');
     const errParam = search.get('error') || hash.get('error');
 
     if (errParam) {
@@ -25,16 +25,18 @@ const MetaMessengerCallback = () => {
       setError(search.get('error_description') || hash.get('error_description') || errParam);
       return;
     }
-    if (!token) {
+    if (!code) {
       setStatus('error');
-      setError('Token de acesso não encontrado.');
+      setError('Código de autorização não encontrado.');
       return;
     }
+
+    const redirectUri = `${window.location.origin}/auth/meta-social/callback`;
 
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('connect-meta-messenger', {
-          body: { user_access_token: token },
+          body: { code, redirect_uri: redirectUri },
         });
         if (error) throw new Error(error.message);
         if (!data?.success) throw new Error(data?.error || 'Falha ao conectar');

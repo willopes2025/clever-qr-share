@@ -32,9 +32,35 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { user_access_token } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  let user_access_token: string | undefined = body.user_access_token;
+  const code: string | undefined = body.code;
+  const redirect_uri: string | undefined = body.redirect_uri;
+
+  if (!user_access_token && code && redirect_uri) {
+    const appId = Deno.env.get('META_APP_ID');
+    const appSecret = Deno.env.get('META_WHATSAPP_APP_SECRET');
+    if (!appId || !appSecret) {
+      return new Response(JSON.stringify({ error: 'META_APP_ID/META_WHATSAPP_APP_SECRET não configurados' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const tokenUrl = `${GRAPH}/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&redirect_uri=${encodeURIComponent(redirect_uri)}&code=${encodeURIComponent(code)}`;
+    const tokenRes = await fetch(tokenUrl);
+    const tokenJson = await tokenRes.json();
+    if (tokenJson.error || !tokenJson.access_token) {
+      return new Response(JSON.stringify({ error: tokenJson.error?.message || 'Falha ao trocar código por token' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // Exchange short-lived for long-lived user token
+    const llRes = await fetch(`${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${tokenJson.access_token}`);
+    const llJson = await llRes.json();
+    user_access_token = llJson.access_token || tokenJson.access_token;
+  }
+
   if (!user_access_token) {
-    return new Response(JSON.stringify({ error: 'Missing user_access_token' }), {
+    return new Response(JSON.stringify({ error: 'Missing code or user_access_token' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
