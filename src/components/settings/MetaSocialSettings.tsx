@@ -7,10 +7,8 @@ import { useMetaMessengerAccounts } from '@/hooks/useMetaMessengerAccounts';
 
 const META_APP_ID = '810749588135300';
 const SCOPES = [
-  'pages_show_list',
   'pages_messaging',
   'pages_read_engagement',
-  'pages_manage_metadata',
 ].join(',');
 
 const buildOAuthUrl = () => {
@@ -20,7 +18,6 @@ const buildOAuthUrl = () => {
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: SCOPES,
-    auth_type: 'rerequest',
   });
   return `https://www.facebook.com/v21.0/dialog/oauth?${params.toString()}`;
 };
