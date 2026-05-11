@@ -297,13 +297,17 @@ export const useConversations = () => {
       }
 
       // Filter out "ghost" conversations (created via "Nova Conversa" but
-      // never had a message exchanged AND no real contact name).
+      // never had a message exchanged AND no real contact name) and
+      // also hide warming-pool conversations from the regular inbox.
       const cleaned = rows.filter((conv: any) => {
         const hasPreview = !!conv.last_message_preview;
         const hasDirection = !!conv.last_message_direction;
         const contact = contactsMap[conv.contact_id];
         const contactName = (contact?.name || '').trim();
-        return hasPreview || hasDirection || contactName.length > 0;
+        if (!(hasPreview || hasDirection || contactName.length > 0)) return false;
+        const phoneDigits = (contact?.phone || '').replace(/\D/g, '');
+        if (phoneDigits && warmingPhones?.has(phoneDigits)) return false;
+        return true;
       });
 
       return cleaned.map((conv: any) => ({
