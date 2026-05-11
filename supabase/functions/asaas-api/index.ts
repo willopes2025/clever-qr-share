@@ -262,6 +262,9 @@ Deno.serve(async (req) => {
           hasMore = false;
           break;
         }
+
+        // pequena pausa entre batches para não estourar o rate limit do Asaas
+        await new Promise((r) => setTimeout(r, batchDelayMs));
       }
 
       if (allData.length >= maxRecords) {
