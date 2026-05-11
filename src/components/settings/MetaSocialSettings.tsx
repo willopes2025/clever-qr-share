@@ -11,8 +11,6 @@ const SCOPES = [
   'pages_read_engagement',
   'pages_show_list',
   'pages_manage_metadata',
-  'instagram_basic',
-  'instagram_manage_messages',
 ].join(',');
 
 const buildOAuthUrl = () => {
