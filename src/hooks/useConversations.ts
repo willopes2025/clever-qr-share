@@ -97,6 +97,7 @@ export interface InboxMessage {
 export const useConversations = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { hiddenSet: hiddenInstanceSet, hiddenIds: hiddenInstanceIds } = useInboxHiddenInstances();
 
   // Check if current user has instance restrictions
   const { data: hasInstanceRestriction } = useQuery({
