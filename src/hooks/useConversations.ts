@@ -138,6 +138,32 @@ export const useConversations = () => {
     enabled: !!user,
   });
 
+  // Phones used in the chip-warming ecosystem. We hide conversations whose
+  // contact phone matches one of these numbers, because the warming pool
+  // generates synthetic traffic from multiple instances against shared
+  // contacts and the resulting threads pollute the inbox of every chip
+  // that ever talked to the same warming number (RLS allows org-wide read,
+  // so this set covers all warming numbers visible to the user's org).
+  const { data: warmingPhones } = useQuery({
+    queryKey: ['warming-phones-set', user?.id],
+    queryFn: async () => {
+      const set = new Set<string>();
+      const [{ data: wc }, { data: wp }] = await Promise.all([
+        supabase.from('warming_contacts').select('phone'),
+        supabase.from('warming_pool').select('phone_number'),
+      ]);
+      (wc as { phone: string | null }[] | null)?.forEach((r) => {
+        if (r.phone) set.add(r.phone.replace(/\D/g, ''));
+      });
+      (wp as { phone_number: string | null }[] | null)?.forEach((r) => {
+        if (r.phone_number) set.add(r.phone_number.replace(/\D/g, ''));
+      });
+      return set;
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
   // Page size for the inbox list. Kept smaller than the full data set so
   // the first paint is fast even on accounts with thousands of
   // conversations. The "Não lidas" / "Arquivadas" tabs and search use
@@ -145,7 +171,7 @@ export const useConversations = () => {
   const INBOX_PAGE_SIZE = 200;
 
   const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds],
+    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds, warmingPhones?.size ?? 0],
     queryFn: async () => {
       // STEP 1 — Light query: only fields needed by the list itself.
       // We deliberately removed the embedded `contact` and
@@ -271,13 +297,17 @@ export const useConversations = () => {
       }
 
       // Filter out "ghost" conversations (created via "Nova Conversa" but
-      // never had a message exchanged AND no real contact name).
+      // never had a message exchanged AND no real contact name) and
+      // also hide warming-pool conversations from the regular inbox.
       const cleaned = rows.filter((conv: any) => {
         const hasPreview = !!conv.last_message_preview;
         const hasDirection = !!conv.last_message_direction;
         const contact = contactsMap[conv.contact_id];
         const contactName = (contact?.name || '').trim();
-        return hasPreview || hasDirection || contactName.length > 0;
+        if (!(hasPreview || hasDirection || contactName.length > 0)) return false;
+        const phoneDigits = (contact?.phone || '').replace(/\D/g, '');
+        if (phoneDigits && warmingPhones?.has(phoneDigits)) return false;
+        return true;
       });
 
       return cleaned.map((conv: any) => ({
