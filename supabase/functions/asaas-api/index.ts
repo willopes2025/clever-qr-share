@@ -162,38 +162,65 @@ Deno.serve(async (req) => {
         options.body = JSON.stringify(data);
       }
 
-      const response = await fetch(url, options);
-      
-      // Verificar Content-Type antes de fazer parse
-      const contentType = response.headers.get('content-type') || '';
-      
-      // Se retornar HTML, significa erro do servidor (403, 404, etc)
-      if (contentType.includes('text/html') || (!contentType.includes('application/json') && !response.ok)) {
-        console.error(`Asaas returned non-JSON response. Status: ${response.status}, Content-Type: ${contentType}`);
-        
-        // Verificar se é endpoint de negativação
-        if (endpoint.includes('/negativations')) {
-          throw new Error('NEGATIVATION_NOT_ENABLED: Funcionalidade de negativação não habilitada. Contate seu gerente de conta Asaas para solicitar acesso.');
+      const maxAttempts = 5;
+      let lastError: Error | null = null;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const response = await fetch(url, options);
+        const contentType = response.headers.get('content-type') || '';
+
+        // Rate limit: 429 or HTML block page → backoff and retry
+        const isRateLimited =
+          response.status === 429 ||
+          response.status === 403 ||
+          contentType.includes('text/html');
+
+        if (isRateLimited && attempt < maxAttempts) {
+          const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10);
+          const waitMs = retryAfter > 0
+            ? retryAfter * 1000
+            : Math.min(30000, 1000 * Math.pow(2, attempt)); // 2s, 4s, 8s, 16s
+          console.warn(`Asaas rate-limited (status ${response.status}). Attempt ${attempt}/${maxAttempts}. Waiting ${waitMs}ms...`);
+          await new Promise((r) => setTimeout(r, waitMs));
+          continue;
         }
-        
-        throw new Error(`Erro do servidor Asaas (status ${response.status}). Verifique suas credenciais e permissões.`);
-      }
-      
-      const responseData = await response.json();
 
-      if (!response.ok) {
-        console.error('Asaas API error:', responseData);
-        throw new Error(responseData.errors?.[0]?.description || 'Asaas API error');
+        if (contentType.includes('text/html') || (!contentType.includes('application/json') && !response.ok)) {
+          console.error(`Asaas returned non-JSON response. Status: ${response.status}, Content-Type: ${contentType}`);
+          if (endpoint.includes('/negativations')) {
+            throw new Error('NEGATIVATION_NOT_ENABLED: Funcionalidade de negativação não habilitada. Contate seu gerente de conta Asaas para solicitar acesso.');
+          }
+          throw new Error(`Erro do servidor Asaas (status ${response.status}). Verifique suas credenciais e permissões.`);
+        }
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          console.error('Asaas API error:', responseData);
+          const desc = responseData.errors?.[0]?.description || 'Asaas API error';
+          // Retry if message indicates rate limit
+          if (/limite de requisi|temporariamente bloque/i.test(desc) && attempt < maxAttempts) {
+            const waitMs = Math.min(30000, 1000 * Math.pow(2, attempt));
+            console.warn(`Asaas rate-limit message. Attempt ${attempt}/${maxAttempts}. Waiting ${waitMs}ms...`);
+            await new Promise((r) => setTimeout(r, waitMs));
+            lastError = new Error(desc);
+            continue;
+          }
+          throw new Error(desc);
+        }
+
+        return responseData;
       }
 
-      return responseData;
+      throw lastError || new Error('Asaas API: max retries exceeded');
     };
 
     // Função para buscar todas as páginas de uma entidade (em paralelo, por lotes)
     const fetchAllPages = async (endpoint: string, filters: string = '') => {
       const pageLimit = 100;
-      const maxRecords = 5000; // safety cap
-      const batchSize = 10;    // 10 páginas em paralelo = 1000 registros por batch
+      const maxRecords = 5000;
+      const batchSize = 3;     // 3 páginas em paralelo (Asaas tem rate limit agressivo)
+      const batchDelayMs = 400; // pausa entre batches
       const allData: unknown[] = [];
 
       console.log(`Starting parallel pagination for ${endpoint}${filters}`);
@@ -235,6 +262,9 @@ Deno.serve(async (req) => {
           hasMore = false;
           break;
         }
+
+        // pequena pausa entre batches para não estourar o rate limit do Asaas
+        await new Promise((r) => setTimeout(r, batchDelayMs));
       }
 
       if (allData.length >= maxRecords) {
