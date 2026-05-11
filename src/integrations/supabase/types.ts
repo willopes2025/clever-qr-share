@@ -5719,6 +5719,32 @@ export type Database = {
         }
         Relationships: []
       }
+      user_inbox_hidden_instances: {
+        Row: {
+          created_at: string
+          instance_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          instance_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          instance_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_inbox_hidden_instances_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_performance_metrics: {
         Row: {
           avg_response_time_seconds: number | null

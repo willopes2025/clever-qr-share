@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle, Webhook } from "lucide-react";
+import { Plus, RefreshCw, Loader2, Smartphone, AlertTriangle, Webhook, Eye } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { InstancesListView } from "@/components/instances/InstancesListView";
 import { EditDeviceDialog } from "@/components/instances/EditDeviceDialog";
 import { InstanceMembersDialog } from "@/components/instances/InstanceMembersDialog";
 import { MetaWhatsAppSection } from "@/components/instances/MetaWhatsAppSection";
+import { InboxVisibilityDialog } from "@/components/instances/InboxVisibilityDialog";
 import { Separator } from "@/components/ui/separator";
 
 const Instances = () => {
@@ -60,7 +61,8 @@ const Instances = () => {
   // Members dialog for new instance
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [newlyCreatedInstance, setNewlyCreatedInstance] = useState<{ id: string; name: string } | null>(null);
-  
+  const [visibilityDialogOpen, setVisibilityDialogOpen] = useState(false);
+
   // Filters and view mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filters, setFilters] = useState<InstanceFiltersState>({
@@ -256,6 +258,14 @@ const Instances = () => {
         </div>
 
         <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setVisibilityDialogOpen(true)}
+            className="neon-border"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Visibilidade na Inbox
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => configureWebhook.mutate({ configureAll: true })} 
@@ -636,6 +646,11 @@ const Instances = () => {
           onSaved={handleMembersSaved}
         />
       )}
+
+      <InboxVisibilityDialog
+        open={visibilityDialogOpen}
+        onOpenChange={setVisibilityDialogOpen}
+      />
     </AppLayout>
   );
 };

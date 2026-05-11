@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
 import { toast } from "sonner";
 
 export interface ConversationDeal {
@@ -96,6 +97,7 @@ export interface InboxMessage {
 export const useConversations = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { hiddenSet: hiddenInstanceSet, hiddenIds: hiddenInstanceIds } = useInboxHiddenInstances();
 
   // Check if current user has instance restrictions
   const { data: hasInstanceRestriction } = useQuery({
@@ -171,7 +173,7 @@ export const useConversations = () => {
   const INBOX_PAGE_SIZE = 200;
 
   const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds, warmingPhones?.size ?? 0],
+    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds, warmingPhones?.size ?? 0, hiddenInstanceIds.join(',')],
     queryFn: async () => {
       // STEP 1 — Light query: only fields needed by the list itself.
       // We deliberately removed the embedded `contact` and
@@ -222,7 +224,9 @@ export const useConversations = () => {
 
       const notifSet = new Set(notificationInstanceIds || []);
       const rawRows = ((data as any[]) || []).filter(
-        (r) => !r.instance_id || !notifSet.has(r.instance_id)
+        (r) =>
+          (!r.instance_id || !notifSet.has(r.instance_id)) &&
+          (!r.instance_id || !hiddenInstanceSet.has(r.instance_id))
       );
       const rows = rawRows;
       const conversationIds = rows.map(r => r.id);
