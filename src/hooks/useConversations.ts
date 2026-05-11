@@ -224,7 +224,9 @@ export const useConversations = () => {
 
       const notifSet = new Set(notificationInstanceIds || []);
       const rawRows = ((data as any[]) || []).filter(
-        (r) => !r.instance_id || !notifSet.has(r.instance_id)
+        (r) =>
+          (!r.instance_id || !notifSet.has(r.instance_id)) &&
+          (!r.instance_id || !hiddenInstanceSet.has(r.instance_id))
       );
       const rows = rawRows;
       const conversationIds = rows.map(r => r.id);
