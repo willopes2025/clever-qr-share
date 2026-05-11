@@ -138,6 +138,32 @@ export const useConversations = () => {
     enabled: !!user,
   });
 
+  // Phones used in the chip-warming ecosystem. We hide conversations whose
+  // contact phone matches one of these numbers, because the warming pool
+  // generates synthetic traffic from multiple instances against shared
+  // contacts and the resulting threads pollute the inbox of every chip
+  // that ever talked to the same warming number (RLS allows org-wide read,
+  // so this set covers all warming numbers visible to the user's org).
+  const { data: warmingPhones } = useQuery({
+    queryKey: ['warming-phones-set', user?.id],
+    queryFn: async () => {
+      const set = new Set<string>();
+      const [{ data: wc }, { data: wp }] = await Promise.all([
+        supabase.from('warming_contacts').select('phone'),
+        supabase.from('warming_pool').select('phone_number'),
+      ]);
+      (wc as { phone: string | null }[] | null)?.forEach((r) => {
+        if (r.phone) set.add(r.phone.replace(/\D/g, ''));
+      });
+      (wp as { phone_number: string | null }[] | null)?.forEach((r) => {
+        if (r.phone_number) set.add(r.phone_number.replace(/\D/g, ''));
+      });
+      return set;
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
   // Page size for the inbox list. Kept smaller than the full data set so
   // the first paint is fast even on accounts with thousands of
   // conversations. The "Não lidas" / "Arquivadas" tabs and search use
