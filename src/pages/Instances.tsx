@@ -21,6 +21,7 @@ import { InstancesListView } from "@/components/instances/InstancesListView";
 import { EditDeviceDialog } from "@/components/instances/EditDeviceDialog";
 import { InstanceMembersDialog } from "@/components/instances/InstanceMembersDialog";
 import { MetaWhatsAppSection } from "@/components/instances/MetaWhatsAppSection";
+import { InboxVisibilityDialog } from "@/components/instances/InboxVisibilityDialog";
 import { Separator } from "@/components/ui/separator";
 
 const Instances = () => {
