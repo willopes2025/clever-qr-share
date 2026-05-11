@@ -258,6 +258,14 @@ const Instances = () => {
         </div>
 
         <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setVisibilityDialogOpen(true)}
+            className="neon-border"
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Visibilidade na Inbox
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => configureWebhook.mutate({ configureAll: true })} 
