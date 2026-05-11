@@ -61,7 +61,8 @@ const Instances = () => {
   // Members dialog for new instance
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [newlyCreatedInstance, setNewlyCreatedInstance] = useState<{ id: string; name: string } | null>(null);
-  
+  const [visibilityDialogOpen, setVisibilityDialogOpen] = useState(false);
+
   // Filters and view mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filters, setFilters] = useState<InstanceFiltersState>({
