@@ -218,8 +218,9 @@ Deno.serve(async (req) => {
     // Função para buscar todas as páginas de uma entidade (em paralelo, por lotes)
     const fetchAllPages = async (endpoint: string, filters: string = '') => {
       const pageLimit = 100;
-      const maxRecords = 5000; // safety cap
-      const batchSize = 10;    // 10 páginas em paralelo = 1000 registros por batch
+      const maxRecords = 5000;
+      const batchSize = 3;     // 3 páginas em paralelo (Asaas tem rate limit agressivo)
+      const batchDelayMs = 400; // pausa entre batches
       const allData: unknown[] = [];
 
       console.log(`Starting parallel pagination for ${endpoint}${filters}`);
