@@ -646,6 +646,11 @@ const Instances = () => {
           onSaved={handleMembersSaved}
         />
       )}
+
+      <InboxVisibilityDialog
+        open={visibilityDialogOpen}
+        onOpenChange={setVisibilityDialogOpen}
+      />
     </AppLayout>
   );
 };
