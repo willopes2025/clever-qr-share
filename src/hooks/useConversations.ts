@@ -171,7 +171,7 @@ export const useConversations = () => {
   const INBOX_PAGE_SIZE = 200;
 
   const { data: conversations, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds],
+    queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds, warmingPhones?.size ?? 0],
     queryFn: async () => {
       // STEP 1 — Light query: only fields needed by the list itself.
       // We deliberately removed the embedded `contact` and
