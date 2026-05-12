@@ -179,7 +179,9 @@ Deno.serve(async (req: Request) => {
         }
 
         const progression = getProgression(schedule.current_day || 1);
-        const targetToday = getRandomNumber(progression.min, progression.max);
+        const targetToday = schedule.messages_target_today && schedule.messages_target_today > 0
+          ? schedule.messages_target_today
+          : getRandomNumber(progression.min, progression.max);
 
         // Check if already sent enough messages today
         if (schedule.messages_sent_today >= targetToday) {
@@ -187,7 +189,7 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Get paired instances for this user
+        // ===== Collect targets ONCE per run (reused across the batch) =====
         const { data: pairs } = await supabase
           .from('warming_pairs')
           .select('*, instance_a:whatsapp_instances!warming_pairs_instance_a_id_fkey(id, instance_name, status), instance_b:whatsapp_instances!warming_pairs_instance_b_id_fkey(id, instance_name, status)')
@@ -195,26 +197,21 @@ Deno.serve(async (req: Request) => {
           .eq('is_active', true)
           .or(`instance_a_id.eq.${schedule.instance_id},instance_b_id.eq.${schedule.instance_id}`);
 
-        // Get manual warming contacts
         const { data: contacts } = await supabase
           .from('warming_contacts')
           .select('*')
           .eq('user_id', schedule.user_id)
           .eq('is_active', true);
 
-        // Build list of targets
         const targets: { phone: string; name: string; type: 'pair' | 'contact' | 'pool'; sourceId?: string }[] = [];
 
-        // Add paired instances as targets
         if (pairs) {
           for (const pair of pairs) {
             const otherInstance = pair.instance_a_id === schedule.instance_id ? pair.instance_b : pair.instance_a;
             if (otherInstance?.status === 'connected') {
-              // Get phone number of the other instance
               const { data: connectionStatus } = await supabase.functions.invoke('check-connection-status', {
                 body: { instanceName: otherInstance.instance_name }
               });
-              
               if (connectionStatus?.state === 'open' && connectionStatus?.instance?.owner) {
                 targets.push({
                   phone: connectionStatus.instance.owner.replace('@s.whatsapp.net', ''),
@@ -227,7 +224,6 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        // Add manual contacts
         if (contacts) {
           for (const contact of contacts) {
             targets.push({
@@ -239,7 +235,6 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        // Check if this instance is in the community warming pool
         const { data: poolEntry } = await supabase
           .from('warming_pool')
           .select('id, phone_number')
@@ -248,7 +243,6 @@ Deno.serve(async (req: Request) => {
           .single();
 
         if (poolEntry) {
-          // Get community pool pairs for this entry
           const { data: poolPairs } = await supabase
             .from('warming_pool_pairs')
             .select(`
@@ -272,235 +266,192 @@ Deno.serve(async (req: Request) => {
               }
             }
           }
-          console.log(`[WARMING] Added ${poolPairs?.length || 0} pool targets for schedule ${schedule.id}`);
         }
 
-        console.log(`[WARMING] Found ${targets.length} targets for schedule ${schedule.id}: ${targets.map(t => `${t.phone} (${t.type})`).join(', ')}`);
+        console.log(`[WARMING] Schedule ${schedule.id} (${schedule.instance?.instance_name}): ${targets.length} targets, day ${schedule.current_day}, ${schedule.messages_sent_today}/${targetToday} today`);
 
         if (targets.length === 0) {
           console.log(`[WARMING] No targets available for schedule ${schedule.id}`);
           continue;
         }
 
-        // Get random content - prioritize AI-generated news content
-        const contentType = getRandomItem(progression.types);
-        
-        // First try to get AI-generated content (news, curiosities, etc)
-        let { data: contents } = await supabase
-          .from('warming_content')
-          .select('*')
-          .eq('content_type', contentType)
-          .eq('is_active', true)
-          .eq('created_by_ai', true)
-          .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`)
-          .order('created_at', { ascending: false })
-          .limit(50);
+        // ===== BATCH LOOP: send multiple messages per run =====
+        let sentToday = schedule.messages_sent_today;
+        let totalSent = schedule.total_messages_sent;
+        let sentInThisRun = 0;
+        let successInThisRun = 0;
 
-        // If no AI content, fall back to regular content
-        if (!contents || contents.length === 0) {
-          const { data: regularContents } = await supabase
+        while (sentInThisRun < BATCH_PER_RUN && sentToday < targetToday) {
+          // Pick content type & content (refreshed per iteration for variety)
+          const contentType = getRandomItem(progression.types);
+
+          let { data: contents } = await supabase
             .from('warming_content')
             .select('*')
             .eq('content_type', contentType)
             .eq('is_active', true)
-            .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`);
-          
-          contents = regularContents;
-        }
+            .eq('created_by_ai', true)
+            .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`)
+            .order('created_at', { ascending: false })
+            .limit(50);
 
-        console.log(`[WARMING] Found ${contents?.length || 0} contents of type ${contentType}`);
-
-        if (!contents || contents.length === 0) {
-          console.log(`[WARMING] No content available for type ${contentType}`);
-          continue;
-        }
-
-        const content = getRandomItem(contents);
-        const target = getRandomItem(targets);
-
-        // ===== VERIFY IF NUMBER EXISTS ON WHATSAPP BEFORE SENDING =====
-        const numberCheck = await checkWhatsAppNumber(
-          evolutionApiUrl,
-          evolutionApiKey,
-          schedule.instance?.instance_name,
-          target.phone
-        );
-
-        if (!numberCheck.exists) {
-          console.log(`[WARMING] Number ${target.phone} does not exist on WhatsApp, deactivating and skipping`);
-          
-          // Deactivate the invalid contact/pair to avoid retrying
-          if (target.type === 'contact' && target.sourceId) {
-            await supabase
-              .from('warming_contacts')
-              .update({ 
-                is_active: false, 
-                notes: 'Número não existe no WhatsApp (verificado automaticamente)' 
-              })
-              .eq('id', target.sourceId);
-            console.log(`[WARMING] Deactivated contact ${target.sourceId}`);
-          } else if (target.type === 'pool' && target.sourceId) {
-            await supabase
-              .from('warming_pool_pairs')
-              .update({ is_active: false })
-              .eq('id', target.sourceId);
-            console.log(`[WARMING] Deactivated pool pair ${target.sourceId}`);
+          if (!contents || contents.length === 0) {
+            const { data: regularContents } = await supabase
+              .from('warming_content')
+              .select('*')
+              .eq('content_type', contentType)
+              .eq('is_active', true)
+              .or(`user_id.eq.${schedule.user_id},user_id.eq.00000000-0000-0000-0000-000000000000`);
+            contents = regularContents;
           }
 
-          // Log the failed activity
+          if (!contents || contents.length === 0) {
+            console.log(`[WARMING] No content for type ${contentType}, skipping iteration`);
+            sentInThisRun++;
+            continue;
+          }
+
+          const content = getRandomItem(contents);
+          const target = getRandomItem(targets);
+
+          const numberCheck = await checkWhatsAppNumber(
+            evolutionApiUrl,
+            evolutionApiKey,
+            schedule.instance?.instance_name,
+            target.phone
+          );
+
+          if (!numberCheck.exists) {
+            console.log(`[WARMING] ${target.phone} not on WhatsApp, deactivating`);
+            if (target.type === 'contact' && target.sourceId) {
+              await supabase.from('warming_contacts')
+                .update({ is_active: false, notes: 'Número não existe no WhatsApp (verificado automaticamente)' })
+                .eq('id', target.sourceId);
+            } else if (target.type === 'pool' && target.sourceId) {
+              await supabase.from('warming_pool_pairs').update({ is_active: false }).eq('id', target.sourceId);
+            }
+            await supabase.from('warming_activities').insert({
+              schedule_id: schedule.id,
+              instance_id: schedule.instance_id,
+              activity_type: 'number_invalid',
+              contact_phone: target.phone,
+              content_preview: 'Número não existe no WhatsApp',
+              success: false,
+              error_message: 'Número não registrado no WhatsApp',
+            });
+            // Remove from in-memory targets so we don't keep picking it
+            const idx = targets.findIndex(t => t.sourceId === target.sourceId);
+            if (idx >= 0) targets.splice(idx, 1);
+            if (targets.length === 0) {
+              console.log(`[WARMING] All targets exhausted for schedule ${schedule.id}`);
+              break;
+            }
+            sentInThisRun++;
+            continue;
+          }
+
+          let sendSuccess = false;
+          let errorMessage = '';
+
+          try {
+            if (contentType === 'text' && content.content) {
+              const response = await fetch(`${evolutionApiUrl}/message/sendText/${schedule.instance?.instance_name}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                body: JSON.stringify({ number: target.phone, text: content.content }),
+              });
+              if (response.ok) sendSuccess = true;
+              else errorMessage = `API Error: ${response.status} - ${await response.text()}`;
+            } else if (content.media_url) {
+              const mediaEndpoint = contentType === 'audio' ? 'sendWhatsAppAudio' : 'sendMedia';
+              const mediaBody: Record<string, string> = { number: target.phone, media: content.media_url };
+              if (contentType !== 'audio') {
+                mediaBody.mediatype = contentType;
+                if (content.content) mediaBody.caption = content.content;
+              }
+              const response = await fetch(`${evolutionApiUrl}/message/${mediaEndpoint}/${schedule.instance?.instance_name}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                body: JSON.stringify(mediaBody),
+              });
+              if (response.ok) sendSuccess = true;
+              else errorMessage = `API Error: ${response.status} - ${await response.text()}`;
+            }
+          } catch (e: unknown) {
+            errorMessage = `Send error: ${e instanceof Error ? e.message : String(e)}`;
+          }
+
           await supabase.from('warming_activities').insert({
             schedule_id: schedule.id,
             instance_id: schedule.instance_id,
-            activity_type: 'number_invalid',
+            activity_type: `send_${contentType}`,
             contact_phone: target.phone,
-            content_preview: 'Número não existe no WhatsApp',
-            success: false,
-            error_message: 'Número não registrado no WhatsApp',
+            content_preview: content.content?.substring(0, 100) || content.media_url,
+            success: sendSuccess,
+            error_message: errorMessage || null,
           });
+
+          if (sendSuccess) {
+            sentToday++;
+            totalSent++;
+            successInThisRun++;
+
+            if (target.type === 'pool' && target.sourceId) {
+              try {
+                const { data: currentPair } = await supabase
+                  .from('warming_pool_pairs')
+                  .select('messages_exchanged')
+                  .eq('id', target.sourceId)
+                  .single();
+                await supabase
+                  .from('warming_pool_pairs')
+                  .update({ messages_exchanged: (currentPair?.messages_exchanged || 0) + 1 })
+                  .eq('id', target.sourceId);
+              } catch (e) {
+                console.log(`[WARMING] Failed to update pool pair count: ${e}`);
+              }
+            }
+          }
 
           results.push({
             scheduleId: schedule.id,
             instanceName: schedule.instance?.instance_name,
-            sent: false,
+            sent: sendSuccess,
             target: target.phone,
-            error: 'Número não existe no WhatsApp',
-            deactivated: true
+            contentType,
+            error: errorMessage || null,
           });
 
-          continue;
-        }
+          sentInThisRun++;
 
-        console.log(`[WARMING] Number ${target.phone} verified on WhatsApp, proceeding to send`);
-
-        // Send message via Evolution API
-        console.log(`[WARMING] Sending ${contentType} to ${target.phone} from instance ${schedule.instance?.instance_name}`);
-
-        let sendSuccess = false;
-        let errorMessage = '';
-
-        try {
-          if (contentType === 'text' && content.content) {
-            const response = await fetch(`${evolutionApiUrl}/message/sendText/${schedule.instance?.instance_name}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': evolutionApiKey,
-              },
-              body: JSON.stringify({
-                number: target.phone,
-                text: content.content,
-              }),
-            });
-
-            if (response.ok) {
-              sendSuccess = true;
-            } else {
-              const errorData = await response.text();
-              errorMessage = `API Error: ${response.status} - ${errorData}`;
-            }
-          } else if (content.media_url) {
-            // For media types (image, audio, video)
-            const mediaEndpoint = contentType === 'audio' ? 'sendWhatsAppAudio' : 'sendMedia';
-            
-            // Build the request body with mediatype for images/videos
-            const mediaBody: Record<string, string> = {
-              number: target.phone,
-              media: content.media_url,
-            };
-            
-            // Add mediatype for non-audio media (required by Evolution API)
-            if (contentType !== 'audio') {
-              mediaBody.mediatype = contentType; // 'image' or 'video'
-              if (content.content) {
-                mediaBody.caption = content.content;
-              }
-            }
-            
-            const response = await fetch(`${evolutionApiUrl}/message/${mediaEndpoint}/${schedule.instance?.instance_name}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': evolutionApiKey,
-              },
-              body: JSON.stringify(mediaBody),
-            });
-
-            if (response.ok) {
-              sendSuccess = true;
-            } else {
-              const errorData = await response.text();
-              errorMessage = `API Error: ${response.status} - ${errorData}`;
-            }
+          // Human-like pacing between sends in the same run (skip after last)
+          if (sentInThisRun < BATCH_PER_RUN && sentToday < targetToday) {
+            await sleep(getRandomNumber(MIN_DELAY_MS, MAX_DELAY_MS));
           }
-        } catch (e: unknown) {
-          errorMessage = `Send error: ${e instanceof Error ? e.message : String(e)}`;
         }
 
-        // Log activity
-        await supabase.from('warming_activities').insert({
-          schedule_id: schedule.id,
-          instance_id: schedule.instance_id,
-          activity_type: `send_${contentType}`,
-          contact_phone: target.phone,
-          content_preview: content.content?.substring(0, 100) || content.media_url,
-          success: sendSuccess,
-          error_message: errorMessage || null,
-        });
-
-        // Update schedule counters
-        const newSentToday = schedule.messages_sent_today + (sendSuccess ? 1 : 0);
-        const newTotalSent = schedule.total_messages_sent + (sendSuccess ? 1 : 0);
-
+        // Single update per schedule per run
         await supabase
           .from('warming_schedules')
           .update({
-            messages_sent_today: newSentToday,
-            total_messages_sent: newTotalSent,
+            messages_sent_today: sentToday,
+            total_messages_sent: totalSent,
             messages_target_today: targetToday,
             last_activity_at: new Date().toISOString(),
           })
           .eq('id', schedule.id);
 
-        // Update warming level on the instance
         const newWarmingLevel = calculateWarmingLevel(
           schedule.current_day,
-          newTotalSent,
+          totalSent,
           schedule.total_messages_received
         );
-
         await supabase
           .from('whatsapp_instances')
           .update({ warming_level: newWarmingLevel })
           .eq('id', schedule.instance_id);
 
-        // Update pool pair message count if applicable
-        if (target.type === 'pool' && target.sourceId && sendSuccess) {
-          try {
-            // Increment messages_exchanged counter for the pool pair
-            const { data: currentPair } = await supabase
-              .from('warming_pool_pairs')
-              .select('messages_exchanged')
-              .eq('id', target.sourceId)
-              .single();
-            
-            await supabase
-              .from('warming_pool_pairs')
-              .update({ messages_exchanged: (currentPair?.messages_exchanged || 0) + 1 })
-              .eq('id', target.sourceId);
-          } catch (e) {
-            console.log(`[WARMING] Failed to update pool pair message count: ${e}`);
-          }
-        }
-
-        results.push({
-          scheduleId: schedule.id,
-          instanceName: schedule.instance?.instance_name,
-          sent: sendSuccess,
-          target: target.phone,
-          contentType,
-          error: errorMessage || null,
-          whatsappVerified: true
-        });
+        console.log(`[WARMING] Schedule ${schedule.id} batch done: ${successInThisRun}/${sentInThisRun} sent (today: ${sentToday}/${targetToday})`);
 
       } catch (scheduleError: unknown) {
         console.error(`Error processing schedule ${schedule.id}:`, scheduleError);
