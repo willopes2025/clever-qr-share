@@ -124,7 +124,10 @@ export function isSameDateString(dateString: string | null, day: Date): boolean 
  * Check if a field name suggests it's a date field (used for auto-detection)
  */
 export function isDateLikeFieldName(fieldName: string): boolean {
-  return /\bdata\b|date|vencimento|nascimento|pagamento|data_de_entrada|data_da_entrada|saída|saida|prazo|consulta|evento|agendamento/i.test(fieldName);
+  // Só considera "data-like" quando o nome explicita uma data/prazo.
+  // Termos como "evento", "consulta", "agendamento" sozinhos podem se referir
+  // a outros atributos (ex.: "Local do Evento") e NÃO devem virar campo de data.
+  return /\bdata\b|\bdate\b|vencimento|nascimento|prazo|\bdt[_\s-]/i.test(fieldName);
 }
 
 /**
