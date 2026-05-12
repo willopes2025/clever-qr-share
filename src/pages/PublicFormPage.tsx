@@ -23,16 +23,28 @@ const PublicFormPage = () => {
         })
         .filter(p => p.key && p.value);
 
-      // Check for embed mode from query string
+      // Check for embed mode from query string and collect UTM/query params
       const searchParams = new URLSearchParams(location.search);
       const embedMode = searchParams.get('embed');
+
+      // Collect ALL query params (UTM + custom) so the form can pre-fill fields
+      // whose settings.utm_param_key matches one of the keys.
+      const utmParams: Record<string, string> = {};
+      searchParams.forEach((value, key) => {
+        if (key === 'embed') return;
+        utmParams[key] = value;
+      });
 
       // Build URL with params as query string for the edge function
       const params = new URLSearchParams();
       params.set('slug', slug);
-      
+
       if (staticParams.length > 0) {
         params.set('static_params', JSON.stringify(staticParams));
+      }
+
+      if (Object.keys(utmParams).length > 0) {
+        params.set('utm_params', JSON.stringify(utmParams));
       }
 
       if (embedMode === 'true') {

@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const slug = url.searchParams.get('slug');
     const staticParamsJson = url.searchParams.get('static_params');
+    const utmParamsJson = url.searchParams.get('utm_params');
     const embed = url.searchParams.get('embed') === 'true';
     const originUrl = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/$/, '') || 'https://clever-qr-share.lovable.app';
 
@@ -94,6 +95,16 @@ Deno.serve(async (req) => {
         staticParams = JSON.parse(staticParamsJson);
       } catch (e) {
         console.log('Error parsing static params:', e);
+      }
+    }
+
+    // Parse UTM params (used to pre-fill fields by their settings.utm_param_key)
+    let utmParams: Record<string, string> = {};
+    if (utmParamsJson) {
+      try {
+        utmParams = JSON.parse(utmParamsJson) || {};
+      } catch (e) {
+        console.log('Error parsing utm params:', e);
       }
     }
 
@@ -152,11 +163,23 @@ Deno.serve(async (req) => {
 
     const formFields = fields || [];
 
-    // Generate form HTML with static params and embed mode
-    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl);
+    // Merge UTM params into staticParams so they're forwarded to submit-form
+    // (so utm_host_deal_id and any utm_* values are persisted in submission metadata
+    // and can be used to set parent_deal_id, source_form_id, etc.)
+    if (utmParams && Object.keys(utmParams).length > 0) {
+      const existingKeys = new Set(staticParams.map(p => p.key));
+      for (const [k, v] of Object.entries(utmParams)) {
+        if (v && !existingKeys.has(k)) {
+          staticParams.push({ key: k, value: String(v) });
+        }
+      }
+    }
+
+    // Generate form HTML with static params, embed mode, and UTM pre-fill values
+    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl, utmParams);
 
     return new Response(html, {
-      headers: { 
+      headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
       },
@@ -171,10 +194,10 @@ Deno.serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = ''): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = '', utmParams: Record<string, string> = {}): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
-    .map(field => generateFieldHTML(field))
+    .map(field => generateFieldHTML(field, utmParams))
     .join('\n');
 
   // Generate hidden fields for static params
@@ -556,10 +579,18 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
 </html>`;
 }
 
-function generateFieldHTML(field: any): string {
+function generateFieldHTML(field: any, utmParams: Record<string, string> = {}): string {
   const required = field.required ? 'required' : '';
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
+
+  // UTM pre-fill: if this field has a utm_param_key in its settings and the URL
+  // provided a matching value, render only a hidden input so the lead doesn't see/edit it.
+  const utmKey = field?.settings?.utm_param_key;
+  const utmValue = utmKey && utmParams[utmKey] ? String(utmParams[utmKey]) : '';
+  if (utmValue) {
+    return `<input type="hidden" name="${field.id}" value="${escapeHtml(utmValue)}">`;
+  }
 
   // Conditional logic data attributes - supports multiple conditions
   const cl = field.conditional_logic;
@@ -571,7 +602,7 @@ function generateFieldHTML(field: any): string {
       : cl.field_id
         ? [{ field_id: cl.field_id, operator: cl.operator || 'equals', value: cl.value || '' }]
         : [];
-    
+
     if (conditions.length > 0) {
       const logicOp = cl.logic_operator || 'and';
       const conditionsJson = JSON.stringify(conditions).replace(/"/g, '&quot;');

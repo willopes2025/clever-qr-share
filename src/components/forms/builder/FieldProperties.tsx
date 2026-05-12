@@ -545,6 +545,32 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
             </>
           )}
 
+          {/* UTM pre-fill key — herdar valor do card do anfitrião via URL */}
+          {!isLayoutField && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Pré-preencher via URL (UTM)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando o link do formulário for aberto com{" "}
+                  <code className="text-[10px] bg-muted px-1 rounded">?chave=valor</code>, este campo
+                  é preenchido automaticamente e fica oculto para o lead. Use a mesma chave do
+                  campo personalizado do anfitrião (ex: <code className="text-[10px] bg-muted px-1 rounded">local_evento</code>).
+                </p>
+                <Input
+                  placeholder="ex: local_evento"
+                  value={(localField.settings as any)?.utm_param_key || ''}
+                  onChange={(e) =>
+                    handleChange('settings', {
+                      ...(localField.settings || {}),
+                      utm_param_key: e.target.value.trim() || undefined,
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
+
           {/* Conditional Logic */}
           {!isLayoutField && (
             <>

@@ -3089,8 +3089,10 @@ export type Database = {
           id: string
           next_action_required: boolean | null
           notes: string | null
+          parent_deal_id: string | null
           responsible_id: string | null
           source: string | null
+          source_form_id: string | null
           stage_id: string
           title: string | null
           updated_at: string | null
@@ -3111,8 +3113,10 @@ export type Database = {
           id?: string
           next_action_required?: boolean | null
           notes?: string | null
+          parent_deal_id?: string | null
           responsible_id?: string | null
           source?: string | null
+          source_form_id?: string | null
           stage_id: string
           title?: string | null
           updated_at?: string | null
@@ -3133,8 +3137,10 @@ export type Database = {
           id?: string
           next_action_required?: boolean | null
           notes?: string | null
+          parent_deal_id?: string | null
           responsible_id?: string | null
           source?: string | null
+          source_form_id?: string | null
           stage_id?: string
           title?: string | null
           updated_at?: string | null
@@ -3168,6 +3174,20 @@ export type Database = {
             columns: ["funnel_id"]
             isOneToOne: false
             referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deals_parent_deal_id_fkey"
+            columns: ["parent_deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_deals_source_form_id_fkey"
+            columns: ["source_form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
             referencedColumns: ["id"]
           },
           {
