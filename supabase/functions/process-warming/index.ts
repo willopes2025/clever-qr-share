@@ -168,9 +168,10 @@ Deno.serve(async (req: Request) => {
     console.log(`[WARMING] Processing ${schedules.length} active warming schedules`);
     console.log(`[WARMING] Schedule IDs: ${schedules.map(s => s.id).join(', ')}`);
 
-    const results = [];
+    const results: unknown[] = [];
 
-    for (const schedule of schedules) {
+    const processAll = async () => {
+      await Promise.all(schedules.map(async (schedule) => {
       try {
         // Skip if instance is not connected
         if (schedule.instance?.status !== 'connected') {
