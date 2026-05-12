@@ -150,12 +150,37 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
       header_type: "NONE",
       header_content: "",
       header_example: "",
+      header_handle: "",
       body_text: "",
       body_examples: [],
       footer_text: "",
       buttons: [],
     });
+    setMediaFileName("");
     setActiveTab("basic");
+  };
+
+  const handleMediaUpload = async (file: File) => {
+    setUploadingMedia(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase.functions.invoke("meta-template-upload-media", {
+        body: fd,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      handleChange("header_handle", data.handle);
+      setMediaFileName(file.name);
+      const { toast } = await import("sonner");
+      toast.success("Mídia enviada ao Meta com sucesso");
+    } catch (err) {
+      const { toast } = await import("sonner");
+      toast.error(`Falha no upload: ${(err as Error).message}`);
+    } finally {
+      setUploadingMedia(false);
+    }
   };
 
   // Preview the template
