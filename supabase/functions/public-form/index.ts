@@ -579,10 +579,18 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
 </html>`;
 }
 
-function generateFieldHTML(field: any): string {
+function generateFieldHTML(field: any, utmParams: Record<string, string> = {}): string {
   const required = field.required ? 'required' : '';
   const requiredStar = field.required ? '<span class="required">*</span>' : '';
   const helpText = field.help_text ? `<p class="help-text">${escapeHtml(field.help_text)}</p>` : '';
+
+  // UTM pre-fill: if this field has a utm_param_key in its settings and the URL
+  // provided a matching value, render only a hidden input so the lead doesn't see/edit it.
+  const utmKey = field?.settings?.utm_param_key;
+  const utmValue = utmKey && utmParams[utmKey] ? String(utmParams[utmKey]) : '';
+  if (utmValue) {
+    return `<input type="hidden" name="${field.id}" value="${escapeHtml(utmValue)}">`;
+  }
 
   // Conditional logic data attributes - supports multiple conditions
   const cl = field.conditional_logic;
@@ -594,7 +602,7 @@ function generateFieldHTML(field: any): string {
       : cl.field_id
         ? [{ field_id: cl.field_id, operator: cl.operator || 'equals', value: cl.value || '' }]
         : [];
-    
+
     if (conditions.length > 0) {
       const logicOp = cl.logic_operator || 'and';
       const conditionsJson = JSON.stringify(conditions).replace(/"/g, '&quot;');
