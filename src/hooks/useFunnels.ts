@@ -57,6 +57,8 @@ export interface FunnelDeal {
   custom_fields?: Record<string, unknown>;
   next_action_required?: boolean;
   responsible_id?: string | null;
+  parent_deal_id?: string | null;
+  source_form_id?: string | null;
   contact?: {
     id: string;
     name: string | null;
