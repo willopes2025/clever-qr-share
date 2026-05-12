@@ -1,0 +1,1 @@
+UPDATE public.campaigns SET status = 'sending', completed_at = NULL WHERE id = '6eda2fc9-c66e-45b1-975c-1e30f2ef9336' AND status = 'failed';
