@@ -461,11 +461,19 @@ Deno.serve(async (req: Request) => {
           error: scheduleError instanceof Error ? scheduleError.message : String(scheduleError),
         });
       }
+      }));
+      console.log(`Warming processing complete. Results:`, results);
+    };
+
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Runtime
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(processAll());
+    } else {
+      processAll();
     }
 
-    console.log(`Warming processing complete. Results:`, results);
-
-    return new Response(JSON.stringify({ success: true, results }), {
+    return new Response(JSON.stringify({ success: true, scheduled: schedules.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
