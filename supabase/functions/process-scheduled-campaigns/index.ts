@@ -182,12 +182,14 @@ Deno.serve(async (req) => {
         const result = await resolveInstances(campaign);
 
         if ('error' in result) {
-          console.error(`${result.error} for retry campaign ${campaign.id}`);
+          // Desconexão transitória: NÃO falhar a campanha. Adia retry em 5 min.
+          const newRetryAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+          console.warn(`${result.error} for retry campaign ${campaign.id} - postponing retry to ${newRetryAt}`);
           await supabase
             .from('campaigns')
-            .update({ status: 'failed', completed_at: new Date().toISOString(), retry_at: null })
+            .update({ retry_at: newRetryAt })
             .eq('id', campaign.id);
-          results.push({ campaignId: campaign.id, status: 'failed', reason: result.error, type: 'retry' });
+          results.push({ campaignId: campaign.id, status: 'postponed', reason: result.error, type: 'retry', retry_at: newRetryAt });
           continue;
         }
 

@@ -29,11 +29,15 @@ Deno.serve(async (req: Request) => {
     console.log(`Looking for campaigns stuck since before: ${thresholdTime.toISOString()}`);
 
     // Buscar campanhas com status 'sending' que não foram atualizadas nos últimos 30 min
+    // IMPORTANTE: ignorar campanhas com retry_at no futuro (estão pausadas legitimamente
+    // por batch_pause_minutes ou fora da janela horária permitida).
+    const nowIso = new Date().toISOString();
     const { data: stuckCampaigns, error: campaignsError } = await supabase
       .from('campaigns')
-      .select('id, name, user_id, instance_ids, sending_mode, sent, total_contacts, updated_at')
+      .select('id, name, user_id, instance_ids, sending_mode, sent, total_contacts, updated_at, retry_at')
       .eq('status', 'sending')
-      .lt('updated_at', thresholdTime.toISOString());
+      .lt('updated_at', thresholdTime.toISOString())
+      .or(`retry_at.is.null,retry_at.lte.${nowIso}`);
 
     if (campaignsError) {
       console.error('Error fetching stuck campaigns:', campaignsError);
@@ -143,21 +147,22 @@ Deno.serve(async (req: Request) => {
         console.log(`Connected instances: ${connectedInstances?.length || 0} of ${instanceIds.length}`);
 
         if (!connectedInstances || connectedInstances.length === 0) {
-          console.log(`No connected instances - marking campaign as failed`);
-          
+          // NÃO marcar como failed em desconexão transitória.
+          // Adia retry em 5 minutos para tentar de novo quando a instância reconectar.
+          const retryAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+          console.log(`No connected instances - postponing campaign retry to ${retryAt}`);
+
           await supabase
             .from('campaigns')
-            .update({
-              status: 'failed'
-            })
+            .update({ retry_at: retryAt, updated_at: new Date().toISOString() })
             .eq('id', campaign.id);
 
-          failedCount++;
-          results.push({ 
-            campaignId: campaign.id, 
+          results.push({
+            campaignId: campaign.id,
             name: campaign.name,
-            action: 'failed',
-            reason: 'All instances disconnected'
+            action: 'postponed',
+            reason: 'All instances disconnected - will retry in 5 minutes',
+            retry_at: retryAt
           });
           continue;
         }
