@@ -12,7 +12,7 @@ interface TemplateComponent {
   type: string;
   format?: string;
   text?: string;
-  example?: { header_text?: string[]; body_text?: string[][] };
+  example?: { header_text?: string[]; body_text?: string[][]; header_handle?: string[] };
   buttons?: Array<{
     type: string;
     text: string;
