@@ -46,6 +46,16 @@ function getRandomItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Sleep helper
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Batch / pacing config
+const BATCH_PER_RUN = 4;
+const MIN_DELAY_MS = 8000;
+const MAX_DELAY_MS = 25000;
+
 // Check if current hour is within allowed warming hours (8h-22h Brazil time)
 function isWithinWarmingHours(): boolean {
   const now = new Date();
