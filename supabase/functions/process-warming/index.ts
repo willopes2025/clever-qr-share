@@ -176,7 +176,7 @@ Deno.serve(async (req: Request) => {
         // Skip if instance is not connected
         if (schedule.instance?.status !== 'connected') {
           console.log(`Instance ${schedule.instance?.instance_name} not connected, skipping`);
-          continue;
+          return;
         }
 
         const progression = getProgression(schedule.current_day || 1);
