@@ -162,7 +162,7 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
         })
       );
 
-      return funnelsWithDeals as Funnel[];
+      return funnelsWithDeals as unknown as Funnel[];
     },
     enabled: !!user?.id
   });
