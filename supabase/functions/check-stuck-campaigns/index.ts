@@ -147,21 +147,22 @@ Deno.serve(async (req: Request) => {
         console.log(`Connected instances: ${connectedInstances?.length || 0} of ${instanceIds.length}`);
 
         if (!connectedInstances || connectedInstances.length === 0) {
-          console.log(`No connected instances - marking campaign as failed`);
-          
+          // NÃO marcar como failed em desconexão transitória.
+          // Adia retry em 5 minutos para tentar de novo quando a instância reconectar.
+          const retryAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+          console.log(`No connected instances - postponing campaign retry to ${retryAt}`);
+
           await supabase
             .from('campaigns')
-            .update({
-              status: 'failed'
-            })
+            .update({ retry_at: retryAt, updated_at: new Date().toISOString() })
             .eq('id', campaign.id);
 
-          failedCount++;
-          results.push({ 
-            campaignId: campaign.id, 
+          results.push({
+            campaignId: campaign.id,
             name: campaign.name,
-            action: 'failed',
-            reason: 'All instances disconnected'
+            action: 'postponed',
+            reason: 'All instances disconnected - will retry in 5 minutes',
+            retry_at: retryAt
           });
           continue;
         }
