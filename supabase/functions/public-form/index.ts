@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const slug = url.searchParams.get('slug');
     const staticParamsJson = url.searchParams.get('static_params');
+    const utmParamsJson = url.searchParams.get('utm_params');
     const embed = url.searchParams.get('embed') === 'true';
     const originUrl = req.headers.get('origin') || req.headers.get('referer')?.replace(/\/$/, '') || 'https://clever-qr-share.lovable.app';
 
@@ -94,6 +95,16 @@ Deno.serve(async (req) => {
         staticParams = JSON.parse(staticParamsJson);
       } catch (e) {
         console.log('Error parsing static params:', e);
+      }
+    }
+
+    // Parse UTM params (used to pre-fill fields by their settings.utm_param_key)
+    let utmParams: Record<string, string> = {};
+    if (utmParamsJson) {
+      try {
+        utmParams = JSON.parse(utmParamsJson) || {};
+      } catch (e) {
+        console.log('Error parsing utm params:', e);
       }
     }
 
