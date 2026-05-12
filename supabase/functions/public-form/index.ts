@@ -163,11 +163,23 @@ Deno.serve(async (req) => {
 
     const formFields = fields || [];
 
-    // Generate form HTML with static params and embed mode
-    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl);
+    // Merge UTM params into staticParams so they're forwarded to submit-form
+    // (so utm_host_deal_id and any utm_* values are persisted in submission metadata
+    // and can be used to set parent_deal_id, source_form_id, etc.)
+    if (utmParams && Object.keys(utmParams).length > 0) {
+      const existingKeys = new Set(staticParams.map(p => p.key));
+      for (const [k, v] of Object.entries(utmParams)) {
+        if (v && !existingKeys.has(k)) {
+          staticParams.push({ key: k, value: String(v) });
+        }
+      }
+    }
+
+    // Generate form HTML with static params, embed mode, and UTM pre-fill values
+    const html = generateFormHTML(form, formFields, staticParams, embed, originUrl, utmParams);
 
     return new Response(html, {
-      headers: { 
+      headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
       },
