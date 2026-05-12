@@ -65,6 +65,9 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
   const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [activeTab, setActiveTab] = useState("basic");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaFileName, setMediaFileName] = useState<string>("");
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<CreateTemplateData>({
     name: "",
     language: "pt_BR",
@@ -72,6 +75,7 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
     header_type: "NONE",
     header_content: "",
     header_example: "",
+    header_handle: "",
     body_text: "",
     body_examples: [],
     footer_text: "",
