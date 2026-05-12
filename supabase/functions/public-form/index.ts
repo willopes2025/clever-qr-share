@@ -194,10 +194,10 @@ Deno.serve(async (req) => {
   }
 });
 
-function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = ''): string {
+function generateFormHTML(form: any, fields: any[], staticParams: { key: string; value: string }[], embed: boolean = false, originUrl: string = '', utmParams: Record<string, string> = {}): string {
   const fieldsHTML = fields
     .filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type) || f.field_type === 'heading' || f.field_type === 'paragraph' || f.field_type === 'divider')
-    .map(field => generateFieldHTML(field))
+    .map(field => generateFieldHTML(field, utmParams))
     .join('\n');
 
   // Generate hidden fields for static params
