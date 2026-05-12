@@ -549,7 +549,28 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             title: dealNativeFields.title || contactData.name || 'Lead do Formulário',
             source: `Formulário: ${form.name}`,
+            source_form_id: formId,
           };
+
+          // Link to host deal (anfitrião) when utm_host_deal_id is provided
+          const hostDealId = staticParams.utm_host_deal_id;
+          if (hostDealId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hostDealId)) {
+            const { data: hostDeal } = await supabase
+              .from('funnel_deals')
+              .select('id, user_id')
+              .eq('id', hostDealId)
+              .maybeSingle();
+            if (hostDeal && hostDeal.user_id) {
+              const { data: orgIds } = await supabase.rpc('get_organization_member_ids', { _user_id: form.user_id });
+              const memberIds: string[] = (orgIds || []).map((r: any) => typeof r === 'string' ? r : r.get_organization_member_ids);
+              if (memberIds.includes(hostDeal.user_id) || hostDeal.user_id === form.user_id) {
+                dealInsertData.parent_deal_id = hostDealId;
+                console.log(`Linking new deal to host deal ${hostDealId}`);
+              } else {
+                console.warn(`utm_host_deal_id ${hostDealId} not in form owner's org — skipping link`);
+              }
+            }
+          }
           
           // Include deal native fields (value, etc)
           if (dealNativeFields.value !== undefined) {
