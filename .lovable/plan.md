@@ -1,95 +1,81 @@
-## Objetivo
+# Por que está lento
 
-Criar **Equipes** dentro da organização. Uma equipe é um "perfil pronto" que guarda:
+A função `process-warming` envia **apenas 1 mensagem por schedule por execução**, e o cron `process-warming` está agendado para rodar **a cada 30 minutos** (`*/30 11-23,0 * * *`).
 
-- Permissões granulares (Inbox, Funis, Campanhas, etc.)
-- Instâncias WhatsApp (Evolution) liberadas
-- Números Meta WhatsApp liberados
-- Funis liberados (acesso padrão)
+Isso significa, na melhor das hipóteses:
+- Janela permitida: 8h–22h (Brasil) = 14h
+- 2 execuções/hora × 14h = **~28 mensagens/dia por instância**
 
-Ao anexar um membro a uma equipe, todas essas configurações são aplicadas automaticamente — sem precisar configurar manualmente um por um. Trocar a equipe do membro troca todo o pacote.
+Confirmado no banco para o cliente `supervisor@aliancaempresas...`:
 
-Apenas o **Owner** da organização pode criar, editar ou excluir equipes.
+| Instância | Dia | Meta diária (progressão) | Enviadas hoje |
+|---|---|---|---|
+| Supervisor | 9 | 45–80 | 4 |
+| Aquecimento Cristiane | 8 | 40–70 | 5 |
+| Aquecimento Tatiana | 8 | 40–70 | 5 |
+| Aquecimento José Luiz | 2 | 8–15 | 13 |
+| Fran Aquecimento | 2 | 8–15 | 10 |
 
----
+Ou seja: instâncias em estágio inicial (dia 1–2) até conseguem cumprir a meta, mas a partir do dia 3+ o cron não tem cadência suficiente para acompanhar a progressão (que vai até 250 msg/dia no dia 21).
 
-## Como vai funcionar (UX)
+Causa-raiz: **cadência do cron + 1 envio por schedule por execução**, não há nada de errado com a chamada Evolution em si (logs mostram envios bem-sucedidos).
 
-**Configurações → Equipe** ganha uma nova aba **"Equipes"** ao lado da lista de membros.
+# Mudanças propostas
 
-```text
-[ Membros ]  [ Equipes ]
+## 1. Enviar lote por schedule a cada execução (não 1 só)
+
+Em `supabase/functions/process-warming/index.ts`, dentro do loop `for (const schedule of schedules)`, em vez de selecionar um único `target`/`content` e dar `continue`, envolver a parte de seleção + verificação WhatsApp + envio + log + update num **loop interno** que envia até `BATCH_PER_RUN` mensagens (ex.: 3–5) ou até atingir `targetToday`. Entre cada envio do lote, esperar um delay aleatório curto (ex.: 8–25s) para parecer humano.
+
+Pseudo:
+```ts
+const BATCH_PER_RUN = 4;
+let sentInThisRun = 0;
+let sentToday = schedule.messages_sent_today;
+while (sentInThisRun < BATCH_PER_RUN && sentToday < targetToday) {
+  // escolher target + content (lógica atual)
+  // checkWhatsAppNumber
+  // enviar
+  // insert warming_activities
+  // sentToday++ se sucesso; sentInThisRun++
+  // await sleep(random 8000–25000)
+}
+// um único update no schedule no final (com sentToday e total)
 ```
 
-### Aba "Equipes" (visível só para Owner)
-- Lista de equipes criadas (ex: "SDR", "Atendimento", "Financeiro").
-- Botão **+ Nova Equipe** abre um wizard com 4 passos:
-  1. **Nome e descrição** da equipe
-  2. **Permissões** (mesma UI atual de `MemberPermissionsDialog`, mas salvando no template)
-  3. **Instâncias WhatsApp** liberadas (mesma UI de `MemberInstancesDialog`)
-  4. **Números Meta + Funis** liberados
-- Cada equipe pode ser **editada** (mesmo wizard) ou **excluída** (com confirmação se houver membros anexados — pede para reatribuir antes).
+Benefícios:
+- Reduz round-trips de update no `warming_schedules`
+- Mantém aleatoriedade entre envios
+- Respeita o `targetToday` aleatório do dia (nada muda na progressão)
 
-### Aba "Membros" (mudança)
-No card de cada membro aparece um **seletor "Equipe"** ao lado do papel (admin/membro):
+## 2. Aumentar a frequência do cron
 
-```text
-João Silva    [ Membro ▾ ]   [ Equipe: SDR ▾ ]   [ ⚙ Editar ]
-```
+Trocar `*/30 11-23,0 * * *` por `*/5 * * * *` (a cada 5 min). A própria função já bloqueia fora de 8h–22h via `isWithinWarmingHours()`, então não há risco de envio noturno.
 
-Ao trocar a equipe:
-- Permissões, instâncias, números Meta e funis do membro são **substituídos** pelos da equipe.
-- O membro pode continuar sendo `admin` ou `member` — o papel é independente da equipe.
-- Botão **"Sobrescrever individualmente"** continua disponível (caso queira ajuste pontual fora da equipe).
+Capacidade resultante (com batch=4 e cron=5min): até ~672 envios/dia por instância em teoria, mas o `targetToday` continua limitando ao máximo da progressão (~250 no dia 21). Vai apenas distribuir os envios ao longo do dia em vez de bater o teto cedo.
 
-### Convite de novo membro
-O `InviteMemberDialog` ganha um campo opcional **"Equipe"**. Se selecionado, ao aceitar o convite o membro já entra com o pacote aplicado.
+## 3. (Opcional, recomendado) Pequena otimização de queries
 
----
+Hoje, para cada schedule, o código consulta `warming_pairs`, `warming_contacts`, `warming_pool`, `warming_pool_pairs`, `warming_content` e ainda invoca a função `check-connection-status` para cada par. Como agora chamaremos várias vezes por execução, mover essas consultas para **antes do loop interno** e reaproveitar a lista de `targets`/`contents`. Só `checkWhatsAppNumber` precisa rodar por envio.
 
-## Estrutura técnica
+# Detalhes técnicos
 
-### Banco de dados (migrations)
+- Arquivo: `supabase/functions/process-warming/index.ts` (única edição de código).
+- Cron: rodar via tool de inserção SQL:
+  ```sql
+  SELECT cron.unschedule('process-warming');
+  SELECT cron.schedule('process-warming', '*/5 * * * *', $$ ... mesmo http_post atual ... $$);
+  ```
+- Constantes sugeridas no topo do arquivo:
+  ```ts
+  const BATCH_PER_RUN = 4;
+  const MIN_DELAY_MS = 8000;
+  const MAX_DELAY_MS = 25000;
+  ```
+- Não alterar `WARMING_PROGRESSION` nem a janela 8h–22h.
+- Não alterar UI nem hooks.
 
-**Nova tabela `team_groups`** (perfis salvos):
-- `id`, `organization_id`, `name`, `description`
-- `permissions jsonb` — mesmo formato de `team_members.permissions`
-- `created_at`, `updated_at`
-- RLS: SELECT para membros ativos da org; INSERT/UPDATE/DELETE só para `owner_id` da organização.
+# Validação
 
-**Tabelas de relacionamento N:N** (espelham as tabelas atuais por membro):
-- `team_group_instances (team_group_id, instance_id)`
-- `team_group_meta_numbers (team_group_id, meta_number_id)`
-- `team_group_funnels (team_group_id, funnel_id)` — caso ainda não exista controle por funil, criar também `team_member_funnels` para manter paridade.
-
-**Coluna em `team_members`:**
-- `team_group_id uuid null references team_groups(id) on delete set null`
-
-### Função aplicadora
-Função SQL `apply_team_group_to_member(_member_id uuid, _group_id uuid)` (security definer) que, dentro de uma transação:
-1. Copia `permissions` do grupo para o membro
-2. Substitui linhas em `team_member_instances` pelas do grupo
-3. Substitui linhas em `team_member_meta_numbers` pelas do grupo
-4. Substitui linhas em `team_member_funnels` pelas do grupo
-5. Atualiza `team_members.team_group_id`
-
-Chamada via `supabase.rpc()` ao trocar a equipe na UI ou ao aceitar convite.
-
-### Frontend
-- Novo hook `useTeamGroups` (CRUD + listagem).
-- Novo componente `TeamGroupsManager.tsx` (lista + wizard).
-- Novo componente `TeamGroupFormDialog.tsx` reaproveitando os 3 dialogs existentes (`MemberPermissionsDialog`, `MemberInstancesDialog`, `MemberMetaNumbersDialog`) em modo "template".
-- `TeamSettings.tsx`: adicionar abas internas **Membros / Equipes** (essa última só renderiza se `isOwner`).
-- `EditMemberDialog.tsx` / cards de membro: adicionar seletor de Equipe + botão "Aplicar equipe".
-- `InviteMemberDialog.tsx`: campo opcional "Equipe inicial".
-
-### Compatibilidade
-- Membros existentes ficam com `team_group_id = null` e continuam funcionando exatamente como hoje (configurações individuais permanecem intactas).
-- Nada muda para quem não criar equipes.
-
----
-
-## Fora do escopo
-- Múltiplas equipes por membro (foi escolhido **1 equipe por membro**).
-- Admins gerenciarem equipes (apenas Owner).
-- Sincronização contínua: se a equipe for alterada depois, **não** propaga automaticamente para os membros já anexados — será oferecido botão "Re-sincronizar membros desta equipe" na tela da equipe (ação manual).
+1. Após deploy, observar logs `process-warming` por ~10 min e confirmar múltiplos `Sending ${type} to ...` por execução.
+2. Query: `SELECT instance_name, current_day, messages_sent_today FROM warming_schedules ws JOIN whatsapp_instances wi ON wi.id=ws.instance_id WHERE ws.user_id = '56244cf5-...';` — esperar `messages_sent_today` evoluir até bater `min` da progressão do dia em poucas horas.
+3. Conferir `warming_activities` para garantir distribuição temporal (não rajada).
