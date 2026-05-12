@@ -273,7 +273,7 @@ Deno.serve(async (req: Request) => {
 
         if (targets.length === 0) {
           console.log(`[WARMING] No targets available for schedule ${schedule.id}`);
-          continue;
+          return;
         }
 
         // ===== BATCH LOOP: send multiple messages per run =====
