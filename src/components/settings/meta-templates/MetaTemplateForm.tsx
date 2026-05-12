@@ -329,6 +329,55 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
                       />
                     </div>
                   )}
+
+                  {(formData.header_type === "IMAGE" ||
+                    formData.header_type === "VIDEO" ||
+                    formData.header_type === "DOCUMENT") && (
+                    <div className="space-y-2 mt-2 rounded-md border border-dashed p-3">
+                      <input
+                        ref={mediaInputRef}
+                        type="file"
+                        className="hidden"
+                        accept={
+                          formData.header_type === "IMAGE"
+                            ? "image/jpeg,image/png"
+                            : formData.header_type === "VIDEO"
+                              ? "video/mp4,video/3gpp"
+                              : "application/pdf"
+                        }
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleMediaUpload(f);
+                        }}
+                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs text-muted-foreground">
+                          {formData.header_handle
+                            ? `Arquivo enviado: ${mediaFileName || "mídia carregada"}`
+                            : `Envie um arquivo de exemplo (${
+                                formData.header_type === "IMAGE"
+                                  ? "JPG/PNG"
+                                  : formData.header_type === "VIDEO"
+                                    ? "MP4/3GPP"
+                                    : "PDF"
+                              }). O Meta exige um exemplo para aprovar o template.`}
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={uploadingMedia}
+                          onClick={() => mediaInputRef.current?.click()}
+                        >
+                          {uploadingMedia
+                            ? "Enviando..."
+                            : formData.header_handle
+                              ? "Trocar"
+                              : "Selecionar arquivo"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
