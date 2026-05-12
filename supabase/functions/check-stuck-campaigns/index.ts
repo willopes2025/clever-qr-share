@@ -29,11 +29,15 @@ Deno.serve(async (req: Request) => {
     console.log(`Looking for campaigns stuck since before: ${thresholdTime.toISOString()}`);
 
     // Buscar campanhas com status 'sending' que não foram atualizadas nos últimos 30 min
+    // IMPORTANTE: ignorar campanhas com retry_at no futuro (estão pausadas legitimamente
+    // por batch_pause_minutes ou fora da janela horária permitida).
+    const nowIso = new Date().toISOString();
     const { data: stuckCampaigns, error: campaignsError } = await supabase
       .from('campaigns')
-      .select('id, name, user_id, instance_ids, sending_mode, sent, total_contacts, updated_at')
+      .select('id, name, user_id, instance_ids, sending_mode, sent, total_contacts, updated_at, retry_at')
       .eq('status', 'sending')
-      .lt('updated_at', thresholdTime.toISOString());
+      .lt('updated_at', thresholdTime.toISOString())
+      .or(`retry_at.is.null,retry_at.lte.${nowIso}`);
 
     if (campaignsError) {
       console.error('Error fetching stuck campaigns:', campaignsError);
