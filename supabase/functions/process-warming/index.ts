@@ -187,7 +187,7 @@ Deno.serve(async (req: Request) => {
         // Check if already sent enough messages today
         if (schedule.messages_sent_today >= targetToday) {
           console.log(`Schedule ${schedule.id} already reached target for today (${schedule.messages_sent_today}/${targetToday})`);
-          continue;
+          return;
         }
 
         // ===== Collect targets ONCE per run (reused across the batch) =====
