@@ -12,7 +12,7 @@ interface TemplateComponent {
   type: string;
   format?: string;
   text?: string;
-  example?: { header_text?: string[]; body_text?: string[][] };
+  example?: { header_text?: string[]; body_text?: string[][]; header_handle?: string[] };
   buttons?: Array<{
     type: string;
     text: string;
@@ -154,6 +154,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
             if (templateData.header_example) {
               headerComponent.example = { header_text: [templateData.header_example] };
             }
+          } else if (
+            ["IMAGE", "VIDEO", "DOCUMENT"].includes(templateData.header_type) &&
+            templateData.header_handle
+          ) {
+            headerComponent.example = { header_handle: [templateData.header_handle] };
           }
           components.push(headerComponent);
         }

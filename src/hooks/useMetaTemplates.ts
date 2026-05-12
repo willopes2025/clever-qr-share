@@ -37,6 +37,7 @@ export interface CreateTemplateData {
   header_type?: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "LOCATION" | "NONE";
   header_content?: string;
   header_example?: string;
+  header_handle?: string;
   body_text: string;
   body_examples?: string[];
   footer_text?: string;
