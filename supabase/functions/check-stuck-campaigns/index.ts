@@ -195,7 +195,7 @@ Deno.serve(async (req: Request) => {
         
         const instances = connectedInstances.map((i: any) => ({
           id: i.id,
-          instance_name: i.instance_name,
+          instance_name: i.evolution_instance_name || i.instance_name,
           warming_level: i.warming_level || 1
         }));
 
