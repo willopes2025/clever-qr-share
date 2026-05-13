@@ -51,6 +51,7 @@ const nodeTypes = {
   ai_response: AIResponseNode,
   end: EndNode,
   list_message: ListMessageNode,
+  buttons: ButtonsNode,
   validation: ValidationNode,
   sub_flow: SubFlowNode,
   round_robin: RoundRobinNode,
