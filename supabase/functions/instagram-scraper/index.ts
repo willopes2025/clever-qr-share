@@ -22,6 +22,11 @@ async function rapidPostForm(path: string, body: Record<string, string>, apiKey:
   const text = await resp.text();
   if (!resp.ok) {
     console.error(`[StableAPI] ${path} error [${resp.status}]:`, text.slice(0, 500));
+    try {
+      ensureApiSuccess(JSON.parse(text), path);
+    } catch (err) {
+      if (err instanceof Error) throw err;
+    }
     throw new Error(`Stable API ${path} falhou: ${resp.status}`);
   }
   try {
@@ -30,6 +35,17 @@ async function rapidPostForm(path: string, body: Record<string, string>, apiKey:
     console.error(`[StableAPI] ${path} parse error:`, text.slice(0, 300));
     throw new Error(`Resposta inválida da Stable API em ${path}`);
   }
+}
+
+function ensureApiSuccess(json: any, path: string) {
+  const message = json?.error || json?.message;
+  if (typeof message === 'string' && message.trim()) {
+    console.error(`[StableAPI] ${path} returned error:`, message.slice(0, 500));
+    throw new Error(message.includes('quota') || message.includes('exceeded')
+      ? 'Cota da RapidAPI excedida para a Instagram Scraper Stable API. Faça upgrade/renove o plano na RapidAPI ou troque a chave.'
+      : message);
+  }
+  return json;
 }
 
 function pickList(json: any): any[] {
@@ -57,32 +73,26 @@ async function fetchFollowersOrFollowing(
   // Most variants of this provider use the same `/get_ig_user_followers.php` for both,
   // but the catalog also has a separate "Following List". Try a `kind` param fallback.
   const all: any[] = [];
-  let startFrom = 0;
+  let paginationToken: string | null = null;
   let safety = 0;
 
   while (all.length < limit && safety < 25) {
     safety++;
     const body: Record<string, string> = {
       username_or_url: username,
+      data: type === 'Followers' ? 'followers' : 'followings',
       amount: String(Math.min(50, limit - all.length)),
-      start_from: String(startFrom),
     };
-    if (type === 'Following') body.kind = 'following';
+    if (paginationToken) body.pagination_token = paginationToken;
 
-    const json = await rapidPostForm(path, body, apiKey);
+    const json = ensureApiSuccess(await rapidPostForm(path, body, apiKey), path);
     const list = pickList(json);
     if (!Array.isArray(list) || list.length === 0) break;
 
     all.push(...list);
 
-    // Try multiple pagination shapes
-    const nextOffset =
-      json?.data?.next_offset ?? json?.next_offset ?? json?.data?.start_from ?? null;
-    if (typeof nextOffset === 'number' && nextOffset > startFrom) {
-      startFrom = nextOffset;
-    } else {
-      startFrom += list.length;
-    }
+    paginationToken = json?.pagination_token || json?.data?.pagination_token || json?.next_pagination_token || null;
+    if (!paginationToken) break;
     if (list.length < 50) break; // last page
   }
 
@@ -170,6 +180,7 @@ Deno.serve(async (req) => {
     }
 
     const scrapedProfiles: any[] = [];
+    const scrapeErrors: string[] = [];
 
     for (const sourceUsername of limitedUsernames) {
       try {
@@ -215,11 +226,26 @@ Deno.serve(async (req) => {
           }
         }
       } catch (err) {
-        console.error(`Error scraping ${sourceUsername}:`, err instanceof Error ? err.message : err);
+        const message = err instanceof Error ? err.message : String(err);
+        scrapeErrors.push(`${sourceUsername}: ${message}`);
+        console.error(`Error scraping ${sourceUsername}:`, message);
       }
     }
 
     console.log(`Saved ${scrapedProfiles.length} profiles`);
+
+    if (scrapedProfiles.length === 0 && scrapeErrors.length > 0) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: scrapeErrors[0],
+          errors: scrapeErrors,
+          data: [],
+          total: 0,
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
