@@ -164,9 +164,10 @@ Deno.serve(async (req) => {
     } // end instanceIds.length > 0
 
     // Create instances array with id, name, and warming_level
-    const validInstances: Instance[] = instances.map(i => ({
+    const validInstances: Instance[] = instances.map((i: any) => ({
       id: i.id,
-      instance_name: i.instance_name,
+      // IMPORTANT: pass evolution_instance_name (real name on Evolution server)
+      instance_name: i.evolution_instance_name || i.instance_name,
       warming_level: i.warming_level || 1
     }));
 
