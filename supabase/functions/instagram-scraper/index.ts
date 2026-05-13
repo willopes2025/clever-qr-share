@@ -5,7 +5,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAPIDAPI_HOST = 'instagram120.p.rapidapi.com';
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
+
+async function rapidPostForm(path: string, body: Record<string, string>, apiKey: string) {
+  const url = `https://${RAPIDAPI_HOST}${path}`;
+  const form = new URLSearchParams(body);
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-RapidAPI-Key': apiKey,
+      'X-RapidAPI-Host': RAPIDAPI_HOST,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+  });
+  const text = await resp.text();
+  if (!resp.ok) {
+    console.error(`[StableAPI] ${path} error [${resp.status}]:`, text.slice(0, 500));
+    throw new Error(`Stable API ${path} falhou: ${resp.status}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(`[StableAPI] ${path} parse error:`, text.slice(0, 300));
+    throw new Error(`Resposta inválida da Stable API em ${path}`);
+  }
+}
+
+function pickList(json: any): any[] {
+  return (
+    json?.data?.items ||
+    json?.data?.users ||
+    json?.data ||
+    json?.items ||
+    json?.users ||
+    json?.followers ||
+    json?.followings ||
+    (Array.isArray(json) ? json : [])
+  );
+}
 
 async function fetchFollowersOrFollowing(
   username: string,
@@ -13,40 +51,39 @@ async function fetchFollowersOrFollowing(
   limit: number,
   apiKey: string
 ): Promise<any[]> {
-  const endpoint = type === 'Followers' ? 'followers' : 'following';
+  // v2 endpoint returns up to 50 per call, paginate with start_from
+  const path = '/get_ig_user_followers_v2.php';
+  // The same endpoint serves followers/following; the API differentiates by another flag.
+  // Most variants of this provider use the same `/get_ig_user_followers.php` for both,
+  // but the catalog also has a separate "Following List". Try a `kind` param fallback.
   const all: any[] = [];
-  let nextMaxId: string | null = null;
+  let startFrom = 0;
   let safety = 0;
 
-  while (all.length < limit && safety < 20) {
+  while (all.length < limit && safety < 25) {
     safety++;
-    const url = new URL(`https://${RAPIDAPI_HOST}/api/instagram/${endpoint}`);
-    url.searchParams.set('username', username);
-    if (nextMaxId) url.searchParams.set('max_id', nextMaxId);
+    const body: Record<string, string> = {
+      username_or_url: username,
+      amount: String(Math.min(50, limit - all.length)),
+      start_from: String(startFrom),
+    };
+    if (type === 'Following') body.kind = 'following';
 
-    const resp = await fetch(url.toString(), {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': RAPIDAPI_HOST,
-      },
-    });
-
-    if (!resp.ok) {
-      const txt = await resp.text();
-      console.error(`RapidAPI ${endpoint} error [${resp.status}]:`, txt);
-      throw new Error(`RapidAPI ${endpoint} falhou: ${resp.status}`);
-    }
-
-    const json = await resp.json();
-    // Possible shapes: { users: [...] } or { data: { users: [...] } } or array
-    const list: any[] =
-      json?.users || json?.data?.users || json?.result || json?.data || (Array.isArray(json) ? json : []);
-
+    const json = await rapidPostForm(path, body, apiKey);
+    const list = pickList(json);
     if (!Array.isArray(list) || list.length === 0) break;
+
     all.push(...list);
 
-    nextMaxId = json?.next_max_id || json?.data?.next_max_id || json?.pagination?.next_max_id || null;
-    if (!nextMaxId) break;
+    // Try multiple pagination shapes
+    const nextOffset =
+      json?.data?.next_offset ?? json?.next_offset ?? json?.data?.start_from ?? null;
+    if (typeof nextOffset === 'number' && nextOffset > startFrom) {
+      startFrom = nextOffset;
+    } else {
+      startFrom += list.length;
+    }
+    if (list.length < 50) break; // last page
   }
 
   return all.slice(0, limit);
@@ -99,7 +136,7 @@ Deno.serve(async (req) => {
     const limitedUsernames: string[] = usernames.slice(0, 5).map((u: string) => u.trim().replace('@', ''));
     const resultsLimit = Math.min(Math.max(1, limit), 500);
 
-    console.log(`[RapidAPI] Scraping ${scrapeType} for ${limitedUsernames.length} profiles, limit ${resultsLimit}, user ${user.id}`);
+    console.log(`[StableAPI] Scraping ${scrapeType} for ${limitedUsernames.length} profiles, limit ${resultsLimit}, user ${user.id}`);
 
     const apiKey = Deno.env.get('RAPIDAPI_KEY');
     if (!apiKey) {
@@ -140,17 +177,18 @@ Deno.serve(async (req) => {
         console.log(`[${sourceUsername}] got ${items.length} ${scrapeType}`);
 
         for (const item of items) {
+          const u = item.user || item;
           const profileData = {
             user_id: user.id,
-            username: (item.username || item.user_name || '')?.toLowerCase(),
-            full_name: item.full_name || item.fullName || null,
+            username: (u.username || u.user_name || '')?.toLowerCase(),
+            full_name: u.full_name || u.fullName || null,
             biography: null,
-            profile_pic_url: item.profile_pic_url || item.profilePicUrl || null,
+            profile_pic_url: u.profile_pic_url || u.profilePicUrl || u.profile_pic || null,
             followers_count: 0,
             following_count: 0,
             posts_count: 0,
             is_business_account: false,
-            is_verified: item.is_verified ?? item.verified ?? false,
+            is_verified: u.is_verified ?? u.verified ?? false,
             business_category: null,
             external_url: null,
             email: null,
@@ -159,7 +197,7 @@ Deno.serve(async (req) => {
             scraped_at: new Date().toISOString(),
             source_username: sourceUsername.toLowerCase(),
             scrape_type: scrapeType.toLowerCase(),
-            is_private: item.is_private ?? false,
+            is_private: u.is_private ?? false,
           };
 
           if (!profileData.username) continue;

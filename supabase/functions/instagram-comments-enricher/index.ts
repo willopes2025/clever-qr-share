@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAPIDAPI_HOST = 'instagram120.p.rapidapi.com';
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 
 function extractEmail(text: string | null): string | null {
   if (!text) return null;
@@ -30,16 +30,23 @@ function extractPhone(text: string | null, url: string | null): string | null {
 }
 
 async function fetchProfile(username: string, apiKey: string): Promise<any | null> {
-  const url = `https://${RAPIDAPI_HOST}/api/instagram/profile?username=${encodeURIComponent(username)}`;
+  const url = `https://${RAPIDAPI_HOST}/ig_get_fb_profile_v3.php`;
+  const form = new URLSearchParams({ username_or_url: username });
   const resp = await fetch(url, {
-    headers: { 'X-RapidAPI-Key': apiKey, 'X-RapidAPI-Host': RAPIDAPI_HOST },
+    method: 'POST',
+    headers: {
+      'X-RapidAPI-Key': apiKey,
+      'X-RapidAPI-Host': RAPIDAPI_HOST,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
   });
   if (!resp.ok) {
     console.error(`Profile ${username} failed [${resp.status}]`);
     return null;
   }
   const json = await resp.json();
-  return json?.user || json?.data?.user || json?.data || json;
+  return json?.data?.user || json?.user || json?.data || json;
 }
 
 Deno.serve(async (req) => {
