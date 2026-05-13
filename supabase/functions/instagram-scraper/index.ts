@@ -32,6 +32,17 @@ async function rapidPostForm(path: string, body: Record<string, string>, apiKey:
   }
 }
 
+function ensureApiSuccess(json: any, path: string) {
+  const message = json?.error || json?.message;
+  if (typeof message === 'string' && message.trim()) {
+    console.error(`[StableAPI] ${path} returned error:`, message.slice(0, 500));
+    throw new Error(message.includes('quota') || message.includes('exceeded')
+      ? 'Cota da RapidAPI excedida para a Instagram Scraper Stable API. Faça upgrade/renove o plano na RapidAPI ou troque a chave.'
+      : message);
+  }
+  return json;
+}
+
 function pickList(json: any): any[] {
   return (
     json?.data?.items ||
@@ -57,32 +68,26 @@ async function fetchFollowersOrFollowing(
   // Most variants of this provider use the same `/get_ig_user_followers.php` for both,
   // but the catalog also has a separate "Following List". Try a `kind` param fallback.
   const all: any[] = [];
-  let startFrom = 0;
+  let paginationToken: string | null = null;
   let safety = 0;
 
   while (all.length < limit && safety < 25) {
     safety++;
     const body: Record<string, string> = {
       username_or_url: username,
+      data: type === 'Followers' ? 'followers' : 'followings',
       amount: String(Math.min(50, limit - all.length)),
-      start_from: String(startFrom),
     };
-    if (type === 'Following') body.kind = 'following';
+    if (paginationToken) body.pagination_token = paginationToken;
 
-    const json = await rapidPostForm(path, body, apiKey);
+    const json = ensureApiSuccess(await rapidPostForm(path, body, apiKey), path);
     const list = pickList(json);
     if (!Array.isArray(list) || list.length === 0) break;
 
     all.push(...list);
 
-    // Try multiple pagination shapes
-    const nextOffset =
-      json?.data?.next_offset ?? json?.next_offset ?? json?.data?.start_from ?? null;
-    if (typeof nextOffset === 'number' && nextOffset > startFrom) {
-      startFrom = nextOffset;
-    } else {
-      startFrom += list.length;
-    }
+    paginationToken = json?.pagination_token || json?.data?.pagination_token || json?.next_pagination_token || null;
+    if (!paginationToken) break;
     if (list.length < 50) break; // last page
   }
 
