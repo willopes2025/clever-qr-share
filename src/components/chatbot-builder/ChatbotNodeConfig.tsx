@@ -863,6 +863,7 @@ const MessageNodeConfig = ({
                     metaTemplateId: v,
                     metaTemplateName: tpl?.name || "",
                     metaTemplateLanguage: tpl?.language || "pt_BR",
+                    metaTemplateButtons: tpl?.buttons || [],
                   });
                 }}
               >
@@ -890,6 +891,38 @@ const MessageNodeConfig = ({
             <div className="rounded-lg bg-muted/50 p-3 space-y-2 border">
               <p className="text-xs font-medium text-muted-foreground">Preview:</p>
               <p className="text-sm whitespace-pre-line line-clamp-5">{selectedMetaTemplate.body_text}</p>
+              {selectedMetaTemplate.buttons && selectedMetaTemplate.buttons.length > 0 && (
+                <div className="space-y-1 pt-2 border-t border-border/60">
+                  <p className="text-[11px] font-medium text-muted-foreground">Botões do template:</p>
+                  {selectedMetaTemplate.buttons.map((b, i) => (
+                    <div
+                      key={i}
+                      className="text-xs px-2 py-1 rounded border border-blue-500/30 bg-blue-500/5 flex items-center justify-between"
+                    >
+                      <span className="truncate">{i + 1}. {b.text}</span>
+                      <span className="text-[10px] text-muted-foreground ml-2">{b.type}</span>
+                    </div>
+                  ))}
+                  {selectedMetaTemplate.buttons.some(b => b.type === 'QUICK_REPLY') && (
+                    <>
+                      <div className="space-y-1 pt-2">
+                        <Label htmlFor="meta-btn-timeout" className="text-xs">Tempo de espera (minutos)</Label>
+                        <Input
+                          id="meta-btn-timeout"
+                          type="number"
+                          min={1}
+                          value={data?.timeoutMinutes ?? 60}
+                          onChange={(e) => handleChange("timeoutMinutes", parseInt(e.target.value) || 60)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Cada botão <strong>QUICK_REPLY</strong> gera uma saída no nó. Botões URL/PHONE não roteiam o fluxo.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
