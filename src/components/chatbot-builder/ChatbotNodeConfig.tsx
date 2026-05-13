@@ -92,6 +92,9 @@ interface NodeData {
   targetFlowId?: string;
   // Round robin fields
   members?: string[];
+  // Buttons / list response routing
+  buttons?: Array<{ label: string }>;
+  timeoutMinutes?: number;
 }
 
 interface ChatbotNodeConfigProps {
