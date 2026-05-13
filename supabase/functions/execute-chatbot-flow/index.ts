@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue, dealId } = await req.json();
+    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue, dealId, overrideInstanceId, overrideMetaPhoneNumberId } = await req.json();
 
     if (!flowId || !contactId || !userId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
