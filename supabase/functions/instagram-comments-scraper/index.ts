@@ -37,6 +37,13 @@ async function fetchComments(shortcode: string, limit: number, apiKey: string): 
     }
 
     const json = await resp.json();
+    const message = json?.error || json?.message;
+    if (typeof message === 'string' && message.trim()) {
+      console.error(`Comments ${shortcode} returned error:`, message.slice(0, 500));
+      throw new Error(message.includes('quota') || message.includes('exceeded')
+        ? 'Cota da RapidAPI excedida para a Instagram Scraper Stable API. Faça upgrade/renove o plano na RapidAPI ou troque a chave.'
+        : message);
+    }
     const list: any[] =
       json?.data?.items ||
       json?.data?.comments ||
@@ -120,6 +127,7 @@ Deno.serve(async (req) => {
     }
 
     const scrapedComments: any[] = [];
+    const scrapeErrors: string[] = [];
 
     for (const postUrl of limitedUrls) {
       const shortcode = extractShortcode(postUrl);
@@ -166,8 +174,17 @@ Deno.serve(async (req) => {
           else if (inserted) scrapedComments.push(inserted);
         }
       } catch (err) {
-        console.error(`Scrape ${postUrl} error:`, err instanceof Error ? err.message : err);
+        const message = err instanceof Error ? err.message : String(err);
+        scrapeErrors.push(`${postUrl}: ${message}`);
+        console.error(`Scrape ${postUrl} error:`, message);
       }
+    }
+
+    if (scrapedComments.length === 0 && scrapeErrors.length > 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: scrapeErrors[0], errors: scrapeErrors, data: [], total: 0 }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     return new Response(
