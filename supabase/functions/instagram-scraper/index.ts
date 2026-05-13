@@ -22,6 +22,11 @@ async function rapidPostForm(path: string, body: Record<string, string>, apiKey:
   const text = await resp.text();
   if (!resp.ok) {
     console.error(`[StableAPI] ${path} error [${resp.status}]:`, text.slice(0, 500));
+    try {
+      ensureApiSuccess(JSON.parse(text), path);
+    } catch (err) {
+      if (err instanceof Error) throw err;
+    }
     throw new Error(`Stable API ${path} falhou: ${resp.status}`);
   }
   try {
