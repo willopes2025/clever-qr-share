@@ -18,7 +18,7 @@ Deno.serve(async (req: Request) => {
     // Find scheduled executions whose resume time has passed
     const { data: scheduledExecs, error } = await supabase
       .from('chatbot_executions')
-      .select('id, flow_id, conversation_id, contact_id, user_id, current_node_id')
+      .select('id, flow_id, conversation_id, contact_id, user_id, current_node_id, variables')
       .eq('status', 'scheduled')
       .lte('scheduled_resume_at', new Date().toISOString())
       .limit(10);
