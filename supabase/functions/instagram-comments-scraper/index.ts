@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAPIDAPI_HOST = 'instagram120.p.rapidapi.com';
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 
 function extractShortcode(url: string): string | null {
   const m = url.match(/\/(?:p|reel|tv)\/([^\/?#]+)/);
@@ -14,14 +14,14 @@ function extractShortcode(url: string): string | null {
 
 async function fetchComments(shortcode: string, limit: number, apiKey: string): Promise<any[]> {
   const all: any[] = [];
-  let nextMinId: string | null = null;
+  let paginationToken: string | null = null;
   let safety = 0;
 
-  while (all.length < limit && safety < 20) {
+  while (all.length < limit && safety < 25) {
     safety++;
-    const url = new URL(`https://${RAPIDAPI_HOST}/api/instagram/post_comments`);
-    url.searchParams.set('shortcode', shortcode);
-    if (nextMinId) url.searchParams.set('min_id', nextMinId);
+    const url = new URL(`https://${RAPIDAPI_HOST}/get_post_comments.php`);
+    url.searchParams.set('code', shortcode);
+    if (paginationToken) url.searchParams.set('pagination_token', paginationToken);
 
     const resp = await fetch(url.toString(), {
       headers: {
@@ -32,19 +32,25 @@ async function fetchComments(shortcode: string, limit: number, apiKey: string): 
 
     if (!resp.ok) {
       const txt = await resp.text();
-      console.error(`Comments ${shortcode} error [${resp.status}]:`, txt);
-      throw new Error(`RapidAPI comments falhou: ${resp.status}`);
+      console.error(`Comments ${shortcode} error [${resp.status}]:`, txt.slice(0, 300));
+      throw new Error(`Stable API comments falhou: ${resp.status}`);
     }
 
     const json = await resp.json();
     const list: any[] =
-      json?.comments || json?.data?.comments || json?.data || (Array.isArray(json) ? json : []);
+      json?.data?.items ||
+      json?.data?.comments ||
+      json?.comments ||
+      json?.items ||
+      json?.data ||
+      (Array.isArray(json) ? json : []);
 
     if (!Array.isArray(list) || list.length === 0) break;
     all.push(...list);
 
-    nextMinId = json?.next_min_id || json?.data?.next_min_id || null;
-    if (!nextMinId) break;
+    paginationToken =
+      json?.pagination_token || json?.data?.pagination_token || json?.next_pagination_token || null;
+    if (!paginationToken) break;
   }
 
   return all.slice(0, limit);
