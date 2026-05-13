@@ -260,17 +260,30 @@ export const DealCustomFieldsEditor = ({ values, onChange, funnelId, stageId }: 
   );
 };
 
+function isSafeYmd(s: string): boolean {
+  // Strict YYYY-MM-DD with 4-digit year between 1900-2999 to avoid date-fns parse crashes
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const y = Number(s.slice(0, 4));
+  return y >= 1900 && y <= 2999;
+}
+
+function safeFormatYmd(d: Date | undefined): string {
+  if (!d) return '';
+  const time = d.getTime();
+  if (Number.isNaN(time)) return '';
+  const y = d.getFullYear();
+  if (y < 1900 || y > 2999) return '';
+  return format(d, 'yyyy-MM-dd');
+}
+
 function normalizeDateLikeValue(raw: string): string {
   if (!raw) return '';
-  // Already YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  const parsed = parseAnyDateValue(raw);
-  if (!parsed) return '';
-  return format(parsed, 'yyyy-MM-dd');
+  if (isSafeYmd(raw)) return raw;
+  return safeFormatYmd(parseAnyDateValue(raw));
 }
 
 function DateFieldPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const normalized = value ? (/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : (parseAnyDateValue(value) ? format(parseAnyDateValue(value)!, 'yyyy-MM-dd') : '')) : '';
+  const normalized = isSafeYmd(value) ? value : safeFormatYmd(parseAnyDateValue(value));
   const selected = normalized ? parse(normalized, 'yyyy-MM-dd', new Date()) : undefined;
   return (
     <Popover>
