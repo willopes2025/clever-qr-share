@@ -464,7 +464,13 @@ Deno.serve(async (req: Request) => {
         .eq('id', execution.id);
 
       // Log node execution for analytics tracking
-      const isInputNode = node.type === 'question' || node.type === 'list_message' || node.type === 'buttons';
+      const messageHasButtons = node.type === 'message' && (
+        ((((node.data?.messageMode as string) || 'text') === 'text' &&
+          (((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim()).length > 0))) ||
+        ((((node.data?.messageMode as string) || 'text') === 'meta_template' &&
+          ((((node.data?.config as any)?.metaTemplateButtons as Array<{ type: string }>) || []).some(b => b?.type === 'QUICK_REPLY'))))
+      );
+      const isInputNode = node.type === 'question' || node.type === 'list_message' || node.type === 'buttons' || messageHasButtons;
       if (!isInputNode) {
         await logNodeExecution(node.id, node.type, 'processed');
       }
