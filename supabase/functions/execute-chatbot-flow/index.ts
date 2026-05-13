@@ -469,9 +469,23 @@ Deno.serve(async (req: Request) => {
         await logNodeExecution(node.id, node.type, 'processed');
       }
 
-      // Resume routing for choice nodes (buttons / list_message)
+      // Resume routing for choice nodes (buttons / list_message / message-with-buttons)
+      const messageEffectiveButtons = (() => {
+        if (node.type !== 'message') return [];
+        const mode = (node.data?.messageMode as string) || 'text';
+        if (mode === 'text') {
+          return ((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim());
+        }
+        if (mode === 'meta_template') {
+          const tplBtns = ((node.data?.config as any)?.metaTemplateButtons as Array<{ type: string; text: string }>) || [];
+          return tplBtns.filter(b => b?.type === 'QUICK_REPLY').map(b => ({ label: b.text }));
+        }
+        return [];
+      })();
+      const isMessageWithButtons = node.type === 'message' && messageEffectiveButtons.length > 0;
+
       if (
-        (node.type === 'buttons' || node.type === 'list_message') &&
+        (node.type === 'buttons' || node.type === 'list_message' || isMessageWithButtons) &&
         execution.current_node_id === node.id &&
         (inputValue !== undefined || resumingFromSchedule)
       ) {
@@ -487,10 +501,15 @@ Deno.serve(async (req: Request) => {
                   handle: `btn_${i}`,
                   label: (b?.label || '').toLowerCase(),
                 }))
-              : ((node.data?.items as Array<{ title: string }>) || []).map((it, i) => ({
-                  handle: `option_${i}`,
-                  label: (it?.title || '').toLowerCase(),
-                }));
+              : node.type === 'list_message'
+                ? ((node.data?.items as Array<{ title: string }>) || []).map((it, i) => ({
+                    handle: `option_${i}`,
+                    label: (it?.title || '').toLowerCase(),
+                  }))
+                : messageEffectiveButtons.map((b, i) => ({
+                    handle: `btn_${i}`,
+                    label: (b.label || '').toLowerCase(),
+                  }));
 
           // 1) numeric (1, 2, 3...)
           const numMatch = txt.match(/^\s*(\d+)\s*$/);
@@ -520,6 +539,7 @@ Deno.serve(async (req: Request) => {
         inputValue = undefined;
         resumingFromSchedule = false;
         continue;
+      }
 
       switch (node.type) {
         case 'start':
