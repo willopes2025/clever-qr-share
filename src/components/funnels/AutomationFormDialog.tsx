@@ -1321,6 +1321,25 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   ⚠️ Todos os fluxos estão inativos. Ative pelo menos um em Chatbots.
                 </p>
               )}
+
+              <div className="space-y-2 pt-2">
+                <Label>Número de envio</Label>
+                <Select
+                  value={(actionConfig.sender as string) || 'auto'}
+                  onValueChange={(v) => setActionConfig({ ...actionConfig, sender: v === 'auto' ? '' : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Automático (conversa do contato)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Automático (conversa do contato)</SelectItem>
+                    <ChatbotSenderOptions />
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Escolha por qual número o fluxo do chatbot será disparado. Padrão: usa o número da conversa existente do contato.
+                </p>
+              </div>
             </div>
           )}
 
