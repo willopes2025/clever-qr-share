@@ -80,6 +80,10 @@ export const ChatbotFlowFormDialog = ({ open, onOpenChange }: ChatbotFlowFormDia
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Número padrão usado quando este chatbot for acionado. Se a automação que dispara o fluxo
+              definir um número específico, ela tem prioridade sobre este.
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
