@@ -17,7 +17,8 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue, dealId, overrideInstanceId, overrideMetaPhoneNumberId } = await req.json();
+    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue: rawInputValue, dealId, overrideInstanceId, overrideMetaPhoneNumberId } = await req.json();
+    let inputValue = rawInputValue;
 
     if (!flowId || !contactId || !userId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -463,10 +464,62 @@ Deno.serve(async (req: Request) => {
         .eq('id', execution.id);
 
       // Log node execution for analytics tracking
-      const isInputNode = node.type === 'question' || node.type === 'list_message';
+      const isInputNode = node.type === 'question' || node.type === 'list_message' || node.type === 'buttons';
       if (!isInputNode) {
         await logNodeExecution(node.id, node.type, 'processed');
       }
+
+      // Resume routing for choice nodes (buttons / list_message)
+      if (
+        (node.type === 'buttons' || node.type === 'list_message') &&
+        execution.current_node_id === node.id &&
+        (inputValue !== undefined || resumingFromSchedule)
+      ) {
+        let handle: string | null = null;
+
+        if (resumingFromSchedule && inputValue === undefined) {
+          handle = 'timeout';
+        } else if (typeof inputValue === 'string') {
+          const txt = inputValue.trim().toLowerCase();
+          const options: Array<{ handle: string; label: string }> =
+            node.type === 'buttons'
+              ? ((node.data?.buttons as Array<{ label: string }>) || []).map((b, i) => ({
+                  handle: `btn_${i}`,
+                  label: (b?.label || '').toLowerCase(),
+                }))
+              : ((node.data?.items as Array<{ title: string }>) || []).map((it, i) => ({
+                  handle: `option_${i}`,
+                  label: (it?.title || '').toLowerCase(),
+                }));
+
+          // 1) numeric (1, 2, 3...)
+          const numMatch = txt.match(/^\s*(\d+)\s*$/);
+          if (numMatch) {
+            const idx = parseInt(numMatch[1], 10) - 1;
+            if (idx >= 0 && idx < options.length) handle = options[idx].handle;
+          }
+          // 2) exact label
+          if (!handle) {
+            const found = options.find((o) => o.label && o.label === txt);
+            if (found) handle = found.handle;
+          }
+          // 3) starts with / contains label
+          if (!handle) {
+            const found = options.find(
+              (o) => o.label && (txt.startsWith(o.label) || txt.includes(o.label)),
+            );
+            if (found) handle = found.handle;
+          }
+          if (!handle) handle = 'other';
+        }
+
+        const branchId = handle ? getNextNode(node.id, handle) : null;
+        const fallbackId = getNextNode(node.id);
+        currentId = branchId || fallbackId;
+        // Clear inputValue / resume flags so we don't re-route on the next iteration
+        inputValue = undefined;
+        resumingFromSchedule = false;
+        continue;
 
       switch (node.type) {
         case 'start':
@@ -1045,20 +1098,18 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'list_message': {
-          // Send WhatsApp interactive list message
           const header = substituteVars(node.data?.header || '');
           const body = substituteVars(node.data?.body || '');
           const buttonText = node.data?.buttonText || 'Ver opções';
           const items = (node.data?.items as Array<{ title: string; description?: string }>) || [];
+          const timeoutMin = parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60;
+          let sendFailed = false;
 
           if (instanceName && contact?.phone && items.length > 0) {
             try {
               const listPayload = {
-                number: contact.phone,
-                title: header,
-                description: body,
-                buttonText: buttonText,
-                footerText: '',
+                number: contact.phone, title: header, description: body,
+                buttonText, footerText: '',
                 sections: [{
                   title: header || 'Opções',
                   rows: items.map((item, i) => ({
@@ -1068,49 +1119,134 @@ Deno.serve(async (req: Request) => {
                   })),
                 }],
               };
-
               const response = await fetch(`${evolutionApiUrl}/message/sendList/${instanceName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
                 body: JSON.stringify(listPayload),
               });
-
+              if (!response.ok) sendFailed = true;
               let result: any;
               try { result = await response.json(); } catch { result = {}; }
               const whatsappMessageId = result?.key?.id || null;
-
               await supabase.from('inbox_messages').insert({
-                user_id: userId,
-                conversation_id: conversationId,
-                content: `${body}\n\n📋 ${items.map(i => `• ${i.title}`).join('\n')}`,
-                direction: 'outbound',
-                status: 'sent',
-                message_type: 'text',
-                whatsapp_message_id: whatsappMessageId,
+                user_id: userId, conversation_id: conversationId,
+                content: `${body}\n\n📋 ${items.map((it, i) => `${i + 1}. ${it.title}`).join('\n')}`,
+                direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
+                message_type: 'text', whatsapp_message_id: whatsappMessageId,
                 sent_at: new Date().toISOString(),
               });
-
               await supabase.from('conversations').update({
                 last_message_at: new Date().toISOString(),
                 last_message_preview: body.substring(0, 100),
                 last_message_direction: 'outbound',
               }).eq('id', conversationId);
-
-              console.log('[FLOW] List message sent');
             } catch (err) {
               console.error('[FLOW] Error sending list message:', err);
+              sendFailed = true;
             }
+          } else {
+            sendFailed = true;
           }
 
-          // Wait for user selection
+          if (sendFailed) {
+            const failedNext = getNextNode(node.id, 'failed');
+            currentId = failedNext || getNextNode(node.id);
+            break;
+          }
+
           await logNodeExecution(node.id, node.type, 'waiting_input');
-          await supabase
-            .from('chatbot_executions')
-            .update({ status: 'waiting_input', current_node_id: node.id })
-            .eq('id', execution.id);
+          await supabase.from('chatbot_executions').update({
+            status: 'waiting_input',
+            current_node_id: node.id,
+            scheduled_resume_at: new Date(Date.now() + timeoutMin * 60 * 1000).toISOString(),
+          }).eq('id', execution.id);
           currentId = null;
           break;
         }
+
+        case 'buttons': {
+          const text = substituteVars(node.data?.message || '');
+          const buttons = ((node.data?.buttons as Array<{ label: string }>) || [])
+            .filter((b) => b?.label?.trim())
+            .slice(0, 3);
+          const timeoutMin = parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60;
+          let sendFailed = false;
+
+          if (!contact?.phone || buttons.length === 0) {
+            sendFailed = true;
+          } else if (metaPhoneNumberId && metaAccessToken) {
+            // Meta interactive buttons
+            try {
+              const payload = {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: contact.phone,
+                type: 'interactive',
+                interactive: {
+                  type: 'button',
+                  body: { text: text || ' ' },
+                  action: {
+                    buttons: buttons.map((b, i) => ({
+                      type: 'reply',
+                      reply: { id: `btn_${i}`, title: b.label.slice(0, 20) },
+                    })),
+                  },
+                },
+              };
+              const res = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${metaAccessToken}` },
+                body: JSON.stringify(payload),
+              });
+              if (!res.ok) sendFailed = true;
+              const result: any = await res.json().catch(() => ({}));
+              const wid = result?.messages?.[0]?.id || null;
+              await supabase.from('inbox_messages').insert({
+                user_id: userId, conversation_id: conversationId,
+                content: `${text}\n\n${buttons.map((b, i) => `${i + 1}. ${b.label}`).join('\n')}`,
+                direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
+                message_type: 'text', whatsapp_message_id: wid,
+                sent_at: new Date().toISOString(),
+              });
+            } catch (err) {
+              console.error('[FLOW] Error sending Meta buttons:', err);
+              sendFailed = true;
+            }
+          } else if (instanceName) {
+            // Evolution: try interactive buttons, fallback to numbered text
+            try {
+              const numbered = `${text}\n\n${buttons.map((b, i) => `${i + 1} - ${b.label}`).join('\n')}\n\nResponda com o número da opção.`;
+              await sendMessage(numbered);
+            } catch (err) {
+              console.error('[FLOW] Error sending Evolution buttons:', err);
+              sendFailed = true;
+            }
+          } else {
+            sendFailed = true;
+          }
+
+          if (sendFailed) {
+            const failedNext = getNextNode(node.id, 'failed');
+            currentId = failedNext || getNextNode(node.id);
+            break;
+          }
+
+          await supabase.from('conversations').update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: text.substring(0, 100),
+            last_message_direction: 'outbound',
+          }).eq('id', conversationId);
+
+          await logNodeExecution(node.id, node.type, 'waiting_input');
+          await supabase.from('chatbot_executions').update({
+            status: 'waiting_input',
+            current_node_id: node.id,
+            scheduled_resume_at: new Date(Date.now() + timeoutMin * 60 * 1000).toISOString(),
+          }).eq('id', execution.id);
+          currentId = null;
+          break;
+        }
+
 
         case 'validation': {
           const varToValidate = execution.variables?.[node.data?.variable || '_last_input'] || '';

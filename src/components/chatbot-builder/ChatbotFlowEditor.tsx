@@ -36,6 +36,7 @@ import { AIResponseNode } from './nodes/AIResponseNode';
 import { EndNode } from './nodes/EndNode';
 import { QuestionNode } from './nodes/QuestionNode';
 import { ListMessageNode } from './nodes/ListMessageNode';
+import { ButtonsNode } from './nodes/ButtonsNode';
 import { ValidationNode } from './nodes/ValidationNode';
 import { SubFlowNode } from './nodes/SubFlowNode';
 import { RoundRobinNode } from './nodes/RoundRobinNode';
@@ -50,6 +51,7 @@ const nodeTypes = {
   ai_response: AIResponseNode,
   end: EndNode,
   list_message: ListMessageNode,
+  buttons: ButtonsNode,
   validation: ValidationNode,
   sub_flow: SubFlowNode,
   round_robin: RoundRobinNode,
@@ -347,7 +349,9 @@ function getDefaultDataForType(type: string): Record<string, any> {
     case 'end':
       return { label: 'Fim' };
     case 'list_message':
-      return { header: '', body: '', buttonText: 'Ver opções', items: [] };
+      return { header: '', body: '', buttonText: 'Ver opções', items: [], timeoutMinutes: 60 };
+    case 'buttons':
+      return { message: '', buttons: [{ label: '' }], timeoutMinutes: 60 };
     case 'validation':
       return { validationType: 'not_empty', variable: '', errorMessage: '' };
     case 'sub_flow':

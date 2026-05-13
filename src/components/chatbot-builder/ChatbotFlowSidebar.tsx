@@ -1,4 +1,4 @@
-import { MessageSquare, GitBranch, Clock, Bot, Tag, Play, Square, HelpCircle, List, ShieldCheck, Workflow, RefreshCw } from "lucide-react";
+import { MessageSquare, GitBranch, Clock, Bot, Tag, Play, Square, HelpCircle, List, ShieldCheck, Workflow, RefreshCw, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nodeCategories = [
@@ -15,6 +15,7 @@ const nodeCategories = [
       { type: "message", label: "Mensagem", icon: MessageSquare, color: "bg-blue-500" },
       { type: "question", label: "Pergunta", icon: HelpCircle, color: "bg-purple-500" },
       { type: "list_message", label: "List Message", icon: List, color: "bg-green-600" },
+      { type: "buttons", label: "Botões", icon: MousePointerClick, color: "bg-sky-500" },
     ],
   },
   {
