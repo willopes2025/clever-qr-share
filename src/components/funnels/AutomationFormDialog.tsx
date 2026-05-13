@@ -1364,15 +1364,15 @@ export const AutomationFormDialog = ({ open, onOpenChange, funnelId, automation,
                   onValueChange={(v) => setActionConfig({ ...actionConfig, sender: v === 'auto' ? '' : v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Automático (conversa do contato)" />
+                    <SelectValue placeholder="Automático (padrão do chatbot ou conversa)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Automático (conversa do contato)</SelectItem>
+                    <SelectItem value="auto">Automático (padrão do chatbot ou conversa)</SelectItem>
                     <ChatbotSenderOptions />
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Escolha por qual número o fluxo do chatbot será disparado. Padrão: usa o número da conversa existente do contato.
+                  Prioridade: número escolhido aqui &gt; número padrão configurado no chatbot &gt; número da conversa do contato.
                 </p>
               </div>
             </div>
