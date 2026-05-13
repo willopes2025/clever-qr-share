@@ -693,6 +693,77 @@ const MessageNodeConfig = ({
               compact
             />
           </div>
+
+          {/* Botões interativos (estilo Kommo) */}
+          {(() => {
+            const buttons = (data?.buttons as Array<{ label: string }>) || [];
+            const setButtons = (next: Array<{ label: string }>) => handleChange("buttons", next);
+            return (
+              <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Botões de resposta (opcional)</Label>
+                  <span className="text-xs text-muted-foreground">{buttons.length}/3</span>
+                </div>
+                {buttons.map((btn, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <span className="text-xs text-muted-foreground w-4">{index + 1}.</span>
+                    <Input
+                      value={btn.label}
+                      onChange={(e) => {
+                        const next = [...buttons];
+                        next[index] = { ...next[index], label: e.target.value };
+                        setButtons(next);
+                      }}
+                      placeholder={`Texto do botão ${index + 1}`}
+                      maxLength={20}
+                      className="h-8 text-sm"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => {
+                        const next = [...buttons];
+                        next.splice(index, 1);
+                        setButtons(next);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                {buttons.length < 3 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setButtons([...buttons, { label: "" }])}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Adicionar botão
+                  </Button>
+                )}
+                {buttons.length > 0 && (
+                  <>
+                    <div className="space-y-1 pt-2">
+                      <Label htmlFor="msg-btn-timeout" className="text-xs">Tempo de espera (minutos)</Label>
+                      <Input
+                        id="msg-btn-timeout"
+                        type="number"
+                        min={1}
+                        value={data?.timeoutMinutes ?? 60}
+                        onChange={(e) => handleChange("timeoutMinutes", parseInt(e.target.value) || 60)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Cada botão gera sua própria saída. Respostas fora das opções caem em <strong>"Outra resposta"</strong>; sem resposta no tempo, em <strong>"Sem resposta"</strong>.
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
 
