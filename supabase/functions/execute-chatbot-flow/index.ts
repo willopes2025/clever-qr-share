@@ -463,9 +463,62 @@ Deno.serve(async (req: Request) => {
         .eq('id', execution.id);
 
       // Log node execution for analytics tracking
-      const isInputNode = node.type === 'question' || node.type === 'list_message';
+      const isInputNode = node.type === 'question' || node.type === 'list_message' || node.type === 'buttons';
       if (!isInputNode) {
         await logNodeExecution(node.id, node.type, 'processed');
+      }
+
+      // Resume routing for choice nodes (buttons / list_message)
+      if (
+        (node.type === 'buttons' || node.type === 'list_message') &&
+        execution.current_node_id === node.id &&
+        (inputValue !== undefined || resumingFromSchedule)
+      ) {
+        let handle: string | null = null;
+
+        if (resumingFromSchedule && inputValue === undefined) {
+          handle = 'timeout';
+        } else if (typeof inputValue === 'string') {
+          const txt = inputValue.trim().toLowerCase();
+          const options: Array<{ handle: string; label: string }> =
+            node.type === 'buttons'
+              ? ((node.data?.buttons as Array<{ label: string }>) || []).map((b, i) => ({
+                  handle: `btn_${i}`,
+                  label: (b?.label || '').toLowerCase(),
+                }))
+              : ((node.data?.items as Array<{ title: string }>) || []).map((it, i) => ({
+                  handle: `option_${i}`,
+                  label: (it?.title || '').toLowerCase(),
+                }));
+
+          // 1) numeric (1, 2, 3...)
+          const numMatch = txt.match(/^\s*(\d+)\s*$/);
+          if (numMatch) {
+            const idx = parseInt(numMatch[1], 10) - 1;
+            if (idx >= 0 && idx < options.length) handle = options[idx].handle;
+          }
+          // 2) exact label
+          if (!handle) {
+            const found = options.find((o) => o.label && o.label === txt);
+            if (found) handle = found.handle;
+          }
+          // 3) starts with / contains label
+          if (!handle) {
+            const found = options.find(
+              (o) => o.label && (txt.startsWith(o.label) || txt.includes(o.label)),
+            );
+            if (found) handle = found.handle;
+          }
+          if (!handle) handle = 'other';
+        }
+
+        const branchId = handle ? getNextNode(node.id, handle) : null;
+        const fallbackId = getNextNode(node.id);
+        currentId = branchId || fallbackId;
+        // Clear inputValue / resume flags so we don't re-route on the next iteration
+        inputValue = undefined;
+        resumingFromSchedule = false;
+        break;
       }
 
       switch (node.type) {
