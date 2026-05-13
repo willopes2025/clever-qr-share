@@ -179,6 +179,41 @@ const SendMessageInstanceSelector = ({ value, onChange }: { value: string; onCha
   );
 };
 
+// Options list (Evolution + Meta) used inside the chatbot trigger selector
+const ChatbotSenderOptions = () => {
+  const { instances: scopedInstances } = useWhatsAppInstances();
+  const { metaNumbers: scopedMetaNumbers } = useMetaWhatsAppNumbers();
+
+  const instances = (scopedInstances || [])
+    .map((i) => ({ id: i.id, instance_name: i.instance_name, phone_number: i.phone_number, status: i.status }))
+    .sort((a, b) => (a.instance_name || '').localeCompare(b.instance_name || ''));
+
+  const metaNumbers = (scopedMetaNumbers || [])
+    .filter((m) => m.is_active)
+    .map((m) => ({ phone_number_id: m.phone_number_id, phone_number: m.phone_number, display_name: m.display_name }))
+    .sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+
+  return (
+    <>
+      {instances.length > 0 && (
+        <SelectItem disabled value="__group_evo_chatbot" className="text-xs font-semibold text-muted-foreground">── WhatsApp (Evolution) ──</SelectItem>
+      )}
+      {instances.map((inst) => (
+        <SelectItem key={`evo:${inst.id}`} value={`evo:${inst.id}`}>
+          {inst.instance_name}{inst.phone_number ? ` (${inst.phone_number})` : ''}{inst.status !== 'connected' ? ' • desconectado' : ''}
+        </SelectItem>
+      ))}
+      {metaNumbers.length > 0 && (
+        <SelectItem disabled value="__group_meta_chatbot" className="text-xs font-semibold text-muted-foreground">── WhatsApp Oficial (Meta) ──</SelectItem>
+      )}
+      {metaNumbers.map((m) => (
+        <SelectItem key={`meta:${m.phone_number_id}`} value={`meta:${m.phone_number_id}`}>
+          {m.display_name || m.phone_number || m.phone_number_id}{m.phone_number && m.display_name ? ` (${m.phone_number})` : ''}
+        </SelectItem>
+      ))}
+    </>
+  );
+};
 
 const WebhookTriggerConfig = ({ 
   automationId, 
