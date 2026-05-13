@@ -5,15 +5,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ApifyFollowerResult {
-  username_scrape: string;
-  type: string;
-  full_name: string | null;
-  id: string;
-  is_private: boolean;
-  is_verified: boolean;
-  profile_pic_url: string | null;
-  username: string;
+const RAPIDAPI_HOST = 'instagram120.p.rapidapi.com';
+
+async function fetchFollowersOrFollowing(
+  username: string,
+  type: 'Followers' | 'Following',
+  limit: number,
+  apiKey: string
+): Promise<any[]> {
+  const endpoint = type === 'Followers' ? 'followers' : 'following';
+  const all: any[] = [];
+  let nextMaxId: string | null = null;
+  let safety = 0;
+
+  while (all.length < limit && safety < 20) {
+    safety++;
+    const url = new URL(`https://${RAPIDAPI_HOST}/api/instagram/${endpoint}`);
+    url.searchParams.set('username', username);
+    if (nextMaxId) url.searchParams.set('max_id', nextMaxId);
+
+    const resp = await fetch(url.toString(), {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': RAPIDAPI_HOST,
+      },
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      console.error(`RapidAPI ${endpoint} error [${resp.status}]:`, txt);
+      throw new Error(`RapidAPI ${endpoint} falhou: ${resp.status}`);
+    }
+
+    const json = await resp.json();
+    // Possible shapes: { users: [...] } or { data: { users: [...] } } or array
+    const list: any[] =
+      json?.users || json?.data?.users || json?.result || json?.data || (Array.isArray(json) ? json : []);
+
+    if (!Array.isArray(list) || list.length === 0) break;
+    all.push(...list);
+
+    nextMaxId = json?.next_max_id || json?.data?.next_max_id || json?.pagination?.next_max_id || null;
+    if (!nextMaxId) break;
+  }
+
+  return all.slice(0, limit);
 }
 
 Deno.serve(async (req) => {
@@ -33,7 +69,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { headers: { Authorization: authHeader } },
     });
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -53,7 +89,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate scrapeType
     if (!['Followers', 'Following'].includes(scrapeType)) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tipo de scrape inválido' }),
@@ -61,22 +96,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Limit to 5 usernames per request and max 500 results per username
-    const limitedUsernames = usernames.slice(0, 5).map((u: string) => u.trim().replace('@', ''));
+    const limitedUsernames: string[] = usernames.slice(0, 5).map((u: string) => u.trim().replace('@', ''));
     const resultsLimit = Math.min(Math.max(1, limit), 500);
-    
-    console.log(`Scraping ${scrapeType} for ${limitedUsernames.length} profiles, limit: ${resultsLimit}, user: ${user.id}`);
 
-    const apifyToken = Deno.env.get('APIFY_API_TOKEN');
-    if (!apifyToken) {
+    console.log(`[RapidAPI] Scraping ${scrapeType} for ${limitedUsernames.length} profiles, limit ${resultsLimit}, user ${user.id}`);
+
+    const apiKey = Deno.env.get('RAPIDAPI_KEY');
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Token da Apify não configurado' }),
+        JSON.stringify({ success: false, error: 'RAPIDAPI_KEY não configurada' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check for recently scraped results (last 24h) with same source and type
-    const cacheKey = `${limitedUsernames.join(',')}_${scrapeType}_${resultsLimit}`;
+    // Cache check (last 24h)
     const { data: existingResults } = await supabase
       .from('instagram_scrape_results')
       .select('*')
@@ -85,87 +118,66 @@ Deno.serve(async (req) => {
       .eq('scrape_type', scrapeType.toLowerCase())
       .gte('scraped_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-    // If we have cached results, return them
     if (existingResults && existingResults.length > 0) {
-      console.log(`Returning ${existingResults.length} cached results`);
+      console.log(`Cache hit: ${existingResults.length} results`);
       return new Response(
         JSON.stringify({
           success: true,
           data: existingResults,
           total: existingResults.length,
           fromCache: existingResults.length,
-          newlyScraped: 0
+          newlyScraped: 0,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Calling Apify for ${limitedUsernames.length} profiles`);
-    
-    // Prepare input for Apify actor - scraping_solutions/instagram-scraper-followers-following-no-cookies
-    const apifyInput = {
-      Account: limitedUsernames,
-      resultsLimit: resultsLimit,
-      dataToScrape: scrapeType
-    };
-
-    console.log('Apify input:', JSON.stringify(apifyInput));
-
-    // Call Apify Instagram Followers/Following Scraper
-    const apifyResponse = await fetch(
-      'https://api.apify.com/v2/acts/scraping_solutions~instagram-scraper-followers-following-no-cookies/run-sync-get-dataset-items?token=' + apifyToken,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(apifyInput)
-      }
-    );
-
-    if (!apifyResponse.ok) {
-      const errorText = await apifyResponse.text();
-      console.error('Apify error:', errorText);
-      throw new Error(`Erro na API Apify: ${apifyResponse.status}`);
-    }
-
-    const apifyData: ApifyFollowerResult[] = await apifyResponse.json();
-    console.log(`Apify returned ${apifyData.length} results`);
-
     const scrapedProfiles: any[] = [];
 
-    // Process and save results
-    for (const item of apifyData) {
-      const profileData = {
-        user_id: user.id,
-        username: item.username?.toLowerCase() || '',
-        full_name: item.full_name || null,
-        biography: null,
-        profile_pic_url: item.profile_pic_url || null,
-        followers_count: 0,
-        following_count: 0,
-        posts_count: 0,
-        is_business_account: false,
-        is_verified: item.is_verified || false,
-        business_category: null,
-        external_url: null,
-        email: null,
-        phone: null,
-        raw_data: item,
-        scraped_at: new Date().toISOString(),
-        source_username: item.username_scrape?.toLowerCase() || null,
-        scrape_type: scrapeType.toLowerCase(),
-        is_private: item.is_private || false
-      };
+    for (const sourceUsername of limitedUsernames) {
+      try {
+        const items = await fetchFollowersOrFollowing(sourceUsername, scrapeType, resultsLimit, apiKey);
+        console.log(`[${sourceUsername}] got ${items.length} ${scrapeType}`);
 
-      const { data: inserted, error: insertError } = await supabase
-        .from('instagram_scrape_results')
-        .insert(profileData)
-        .select()
-        .single();
+        for (const item of items) {
+          const profileData = {
+            user_id: user.id,
+            username: (item.username || item.user_name || '')?.toLowerCase(),
+            full_name: item.full_name || item.fullName || null,
+            biography: null,
+            profile_pic_url: item.profile_pic_url || item.profilePicUrl || null,
+            followers_count: 0,
+            following_count: 0,
+            posts_count: 0,
+            is_business_account: false,
+            is_verified: item.is_verified ?? item.verified ?? false,
+            business_category: null,
+            external_url: null,
+            email: null,
+            phone: null,
+            raw_data: item,
+            scraped_at: new Date().toISOString(),
+            source_username: sourceUsername.toLowerCase(),
+            scrape_type: scrapeType.toLowerCase(),
+            is_private: item.is_private ?? false,
+          };
 
-      if (insertError) {
-        console.error('Error inserting profile:', insertError);
-      } else if (inserted) {
-        scrapedProfiles.push(inserted);
+          if (!profileData.username) continue;
+
+          const { data: inserted, error: insertError } = await supabase
+            .from('instagram_scrape_results')
+            .insert(profileData)
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Insert error:', insertError.message);
+          } else if (inserted) {
+            scrapedProfiles.push(inserted);
+          }
+        }
+      } catch (err) {
+        console.error(`Error scraping ${sourceUsername}:`, err instanceof Error ? err.message : err);
       }
     }
 
@@ -177,17 +189,16 @@ Deno.serve(async (req) => {
         data: scrapedProfiles,
         total: scrapedProfiles.length,
         fromCache: 0,
-        newlyScraped: scrapedProfiles.length
+        newlyScraped: scrapedProfiles.length,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error('Instagram scraper error:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Erro interno do servidor' 
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno do servidor',
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
