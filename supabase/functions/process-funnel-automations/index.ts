@@ -1070,6 +1070,12 @@ Deno.serve(async (req: Request) => {
 
           case 'trigger_chatbot_flow': {
             const flowId = actionConfig.flow_id as string;
+            const sender = (actionConfig.sender as string) || '';
+            let overrideInstanceId: string | null = null;
+            let overrideMetaPhoneNumberId: string | null = null;
+            if (sender.startsWith('evo:')) overrideInstanceId = sender.slice(4) || null;
+            else if (sender.startsWith('meta:')) overrideMetaPhoneNumberId = sender.slice(5) || null;
+
             if (flowId && deal.contact_id) {
               const { data: chatbotFlow, error: flowError } = await supabase
                 .from('chatbot_flows')
@@ -1099,7 +1105,9 @@ Deno.serve(async (req: Request) => {
                   contact_name: deal.contact?.name,
                   contact_phone: deal.contact?.phone,
                   funnel_name: deal.funnel?.name,
-                  stage_name: deal.stage?.name
+                  stage_name: deal.stage?.name,
+                  override_instance_id: overrideInstanceId,
+                  override_meta_phone_number_id: overrideMetaPhoneNumberId,
                 }
               }).select('id').single();
 
@@ -1107,7 +1115,6 @@ Deno.serve(async (req: Request) => {
                 console.error(`[FUNNEL-AUTOMATIONS] Error creating chatbot execution:`, execError);
                 results.push({ automationId: automation.id, success: false, error: execError?.message || 'Failed to create execution' });
               } else {
-                // Actually call the execute-chatbot-flow function to start the flow
                 try {
                   const execResponse = await fetch(`${supabaseUrl}/functions/v1/execute-chatbot-flow`, {
                     method: 'POST',
@@ -1122,6 +1129,8 @@ Deno.serve(async (req: Request) => {
                       userId: deal.user_id,
                       executionId: newExec.id,
                       dealId: dealId,
+                      overrideInstanceId,
+                      overrideMetaPhoneNumberId,
                     }),
                   });
                   const execResult = await execResponse.json();
@@ -1129,7 +1138,7 @@ Deno.serve(async (req: Request) => {
                 } catch (flowExecErr) {
                   console.error(`[FUNNEL-AUTOMATIONS] Error calling execute-chatbot-flow:`, flowExecErr);
                 }
-                console.log(`[FUNNEL-AUTOMATIONS] Triggered chatbot flow: ${chatbotFlow.name} for contact ${deal.contact_id}`);
+                console.log(`[FUNNEL-AUTOMATIONS] Triggered chatbot flow: ${chatbotFlow.name} for contact ${deal.contact_id} (sender=${sender || 'auto'})`);
                 results.push({ automationId: automation.id, success: true });
               }
             } else {
