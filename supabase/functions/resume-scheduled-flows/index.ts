@@ -40,6 +40,10 @@ Deno.serve(async (req: Request) => {
     const results = await Promise.allSettled(
       scheduledExecs.map(async (exec) => {
         try {
+          const vars = (exec as { variables?: Record<string, unknown> }).variables || {};
+          const overrideInstanceId = (vars.override_instance_id as string | null) || null;
+          const overrideMetaPhoneNumberId = (vars.override_meta_phone_number_id as string | null) || null;
+
           const response = await fetch(`${supabaseUrl}/functions/v1/execute-chatbot-flow`, {
             method: 'POST',
             headers: {
@@ -53,6 +57,8 @@ Deno.serve(async (req: Request) => {
               userId: exec.user_id,
               executionId: exec.id,
               currentNodeId: exec.current_node_id,
+              overrideInstanceId,
+              overrideMetaPhoneNumberId,
             }),
           });
 
