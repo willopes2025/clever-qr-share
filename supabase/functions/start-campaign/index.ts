@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
         console.log('User is system admin - accessing all instances');
         const result = await supabase
           .from('whatsapp_instances')
-          .select('id, instance_name, status, warming_level')
+          .select('id, instance_name, evolution_instance_name, status, warming_level')
           .in('id', instanceIds);
         instances = result.data || [];
         instancesError = result.error;
@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
 
         const result = await supabase
           .from('whatsapp_instances')
-          .select('id, instance_name, status, warming_level')
+          .select('id, instance_name, evolution_instance_name, status, warming_level')
           .in('id', instanceIds)
           .in('user_id', allowedUserIds);
         instances = result.data || [];
@@ -164,9 +164,10 @@ Deno.serve(async (req) => {
     } // end instanceIds.length > 0
 
     // Create instances array with id, name, and warming_level
-    const validInstances: Instance[] = instances.map(i => ({
+    const validInstances: Instance[] = instances.map((i: any) => ({
       id: i.id,
-      instance_name: i.instance_name,
+      // IMPORTANT: pass evolution_instance_name (real name on Evolution server)
+      instance_name: i.evolution_instance_name || i.instance_name,
       warming_level: i.warming_level || 1
     }));
 

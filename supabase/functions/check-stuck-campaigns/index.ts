@@ -135,7 +135,7 @@ Deno.serve(async (req: Request) => {
         // Verificar se pelo menos uma instância está conectada
         const { data: connectedInstances, error: instancesError } = await supabase
           .from('whatsapp_instances')
-          .select('id, instance_name, warming_level')
+          .select('id, instance_name, evolution_instance_name, warming_level')
           .in('id', instanceIds)
           .eq('status', 'connected');
 
@@ -195,7 +195,7 @@ Deno.serve(async (req: Request) => {
         
         const instances = connectedInstances.map((i: any) => ({
           id: i.id,
-          instance_name: i.instance_name,
+          instance_name: i.evolution_instance_name || i.instance_name,
           warming_level: i.warming_level || 1
         }));
 

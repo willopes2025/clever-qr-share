@@ -95,10 +95,18 @@ Deno.serve(async (req) => {
         return { error: 'No instances configured' };
       }
 
-      const { data: instances, error: instancesError } = await supabase
+      const { data: instancesRaw, error: instancesError } = await supabase
         .from('whatsapp_instances')
-        .select('id, instance_name, status, warming_level')
+        .select('id, instance_name, evolution_instance_name, status, warming_level')
         .in('id', instanceIds);
+
+      // Use evolution_instance_name (real name on Evolution server) when available
+      const instances = (instancesRaw || []).map((i: any) => ({
+        id: i.id,
+        instance_name: i.evolution_instance_name || i.instance_name,
+        status: i.status,
+        warming_level: i.warming_level,
+      }));
 
       if (instancesError || !instances || instances.length === 0) {
         if (isMetaCampaign) {
