@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const RAPIDAPI_HOST = 'instagram120.p.rapidapi.com';
+const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
 
 function extractEmail(text: string | null): string | null {
   if (!text) return null;
