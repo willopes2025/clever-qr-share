@@ -781,11 +781,108 @@ Deno.serve(async (req: Request) => {
             await new Promise(r => setTimeout(r, 1500));
 
           } else {
-            // Plain text message
+            // Plain text message - check for interactive buttons (Kommo style)
             const text = substituteVars(node.data?.message || node.data?.text || '');
+            const txtButtons = ((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim());
+
+            if (text && txtButtons.length > 0 && contact?.phone) {
+              // Send as interactive buttons
+              let sendError: string | null = null;
+              if (metaPhoneNumberId && metaAccessToken) {
+                try {
+                  const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+                  const payload = {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: formattedPhone,
+                    type: 'interactive',
+                    interactive: {
+                      type: 'button',
+                      body: { text },
+                      action: {
+                        buttons: txtButtons.slice(0, 3).map((b, i) => ({
+                          type: 'reply',
+                          reply: { id: `btn_${i}`, title: (b.label || `Opção ${i + 1}`).slice(0, 20) },
+                        })),
+                      },
+                    },
+                  };
+                  const resp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${metaAccessToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                  });
+                  const result = await resp.json();
+                  if (!resp.ok) {
+                    sendError = result?.error?.message || `Meta buttons HTTP ${resp.status}`;
+                  } else {
+                    await supabase.from('inbox_messages').insert({
+                      user_id: userId, conversation_id: conversationId,
+                      content: `${text}\n\n${txtButtons.map((b, i) => `[${i + 1}] ${b.label}`).join('\n')}`,
+                      direction: 'outbound', status: 'sent', message_type: 'interactive',
+                      whatsapp_message_id: result?.messages?.[0]?.id || null,
+                      sent_at: new Date().toISOString(),
+                      sent_via_meta_number_id: metaPhoneNumberId,
+                    });
+                  }
+                } catch (err: any) {
+                  sendError = err?.message || 'Meta buttons exception';
+                }
+              } else {
+                // Evolution fallback: numbered text
+                const numbered = `${text}\n\n${txtButtons.map((b, i) => `${i + 1} - ${b.label}`).join('\n')}\n\nResponda com o número da opção.`;
+                try {
+                  await sendMessage(numbered);
+                } catch (err: any) {
+                  sendError = err?.message || 'Evolution send exception';
+                }
+              }
+
+              if (sendError) {
+                console.error('[FLOW] Message buttons send error:', sendError);
+                const failedNext = getNextNode(node.id, 'failed');
+                currentId = failedNext || getNextNode(node.id);
+                break;
+              }
+
+              // Schedule timeout resume and pause
+              const timeoutMin = Math.max(1, parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60);
+              await supabase
+                .from('chatbot_executions')
+                .update({
+                  status: 'waiting_input',
+                  current_node_id: node.id,
+                  scheduled_resume_at: new Date(Date.now() + timeoutMin * 60 * 1000).toISOString(),
+                })
+                .eq('id', execution.id);
+              await logNodeExecution(node.id, node.type, 'waiting_input');
+              currentId = null;
+              break;
+            }
+
             if (text) {
               await sendMessage(text);
               await new Promise(r => setTimeout(r, 1500));
+            }
+          }
+
+          // If meta_template has QUICK_REPLY buttons, pause and wait for response
+          if ((node.data?.messageMode as string) === 'meta_template') {
+            const tplBtns = (((node.data?.config as any)?.metaTemplateButtons as Array<{ type: string }>) || [])
+              .filter(b => b?.type === 'QUICK_REPLY');
+            if (tplBtns.length > 0) {
+              const timeoutMin = Math.max(1, parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60);
+              await supabase
+                .from('chatbot_executions')
+                .update({
+                  status: 'waiting_input',
+                  current_node_id: node.id,
+                  scheduled_resume_at: new Date(Date.now() + timeoutMin * 60 * 1000).toISOString(),
+                })
+                .eq('id', execution.id);
+              await logNodeExecution(node.id, node.type, 'waiting_input');
+              currentId = null;
+              break;
             }
           }
 
