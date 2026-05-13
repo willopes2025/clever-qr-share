@@ -349,7 +349,9 @@ function getDefaultDataForType(type: string): Record<string, any> {
     case 'end':
       return { label: 'Fim' };
     case 'list_message':
-      return { header: '', body: '', buttonText: 'Ver opções', items: [] };
+      return { header: '', body: '', buttonText: 'Ver opções', items: [], timeoutMinutes: 60 };
+    case 'buttons':
+      return { message: '', buttons: [{ label: '' }], timeoutMinutes: 60 };
     case 'validation':
       return { validationType: 'not_empty', variable: '', errorMessage: '' };
     case 'sub_flow':
