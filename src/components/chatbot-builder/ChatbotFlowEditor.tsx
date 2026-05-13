@@ -36,6 +36,7 @@ import { AIResponseNode } from './nodes/AIResponseNode';
 import { EndNode } from './nodes/EndNode';
 import { QuestionNode } from './nodes/QuestionNode';
 import { ListMessageNode } from './nodes/ListMessageNode';
+import { ButtonsNode } from './nodes/ButtonsNode';
 import { ValidationNode } from './nodes/ValidationNode';
 import { SubFlowNode } from './nodes/SubFlowNode';
 import { RoundRobinNode } from './nodes/RoundRobinNode';
