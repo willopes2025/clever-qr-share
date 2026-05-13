@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
         console.log('User is system admin - accessing all instances');
         const result = await supabase
           .from('whatsapp_instances')
-          .select('id, instance_name, status, warming_level')
+          .select('id, instance_name, evolution_instance_name, status, warming_level')
           .in('id', instanceIds);
         instances = result.data || [];
         instancesError = result.error;
