@@ -90,15 +90,31 @@ Deno.serve(async (req: Request) => {
     let metaAccessToken: string | null = null;
     const usingOverride = !!(overrideInstanceId || overrideMetaPhoneNumberId);
 
-    // Apply automation override (chosen sender on the funnel automation)
+    // Precedence (most specific wins):
+    // 1) Automation override (sender chosen on the funnel automation card)
+    // 2) Chatbot flow default (chatbot_flows.instance_id)
+    // 3) Conversation's instance_id / meta_phone_number_id
+    // 4) Auto fallback (user's connected instance / Meta number)
     if (overrideInstanceId) {
       resolvedInstanceId = overrideInstanceId;
       metaPhoneNumberId = null;
-      console.log(`[FLOW] Using override Evolution instance: ${overrideInstanceId}`);
+      console.log(`[FLOW] Using override Evolution instance (automation): ${overrideInstanceId}`);
     } else if (overrideMetaPhoneNumberId) {
       metaPhoneNumberId = overrideMetaPhoneNumberId;
       resolvedInstanceId = null;
-      console.log(`[FLOW] Using override Meta phone_number_id: ${overrideMetaPhoneNumberId}`);
+      console.log(`[FLOW] Using override Meta phone_number_id (automation): ${overrideMetaPhoneNumberId}`);
+    } else {
+      // No automation override: try the chatbot flow's own default instance_id
+      const { data: flowDefaults } = await supabase
+        .from('chatbot_flows')
+        .select('instance_id')
+        .eq('id', flowId)
+        .maybeSingle();
+      if (flowDefaults?.instance_id) {
+        resolvedInstanceId = flowDefaults.instance_id;
+        metaPhoneNumberId = null;
+        console.log(`[FLOW] Using chatbot flow default Evolution instance: ${flowDefaults.instance_id}`);
+      }
     }
 
     if (resolvedInstanceId) {
