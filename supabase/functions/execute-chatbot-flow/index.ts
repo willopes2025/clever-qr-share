@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue, dealId } = await req.json();
+    const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue, dealId, overrideInstanceId, overrideMetaPhoneNumberId } = await req.json();
 
     if (!flowId || !contactId || !userId) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
@@ -88,7 +88,19 @@ Deno.serve(async (req: Request) => {
     let resolvedInstanceId = conversation.instance_id;
     let metaPhoneNumberId = conversation.meta_phone_number_id || null;
     let metaAccessToken: string | null = null;
-    
+    const usingOverride = !!(overrideInstanceId || overrideMetaPhoneNumberId);
+
+    // Apply automation override (chosen sender on the funnel automation)
+    if (overrideInstanceId) {
+      resolvedInstanceId = overrideInstanceId;
+      metaPhoneNumberId = null;
+      console.log(`[FLOW] Using override Evolution instance: ${overrideInstanceId}`);
+    } else if (overrideMetaPhoneNumberId) {
+      metaPhoneNumberId = overrideMetaPhoneNumberId;
+      resolvedInstanceId = null;
+      console.log(`[FLOW] Using override Meta phone_number_id: ${overrideMetaPhoneNumberId}`);
+    }
+
     if (resolvedInstanceId) {
       const { data: instance } = await supabase
         .from('whatsapp_instances')
@@ -98,8 +110,8 @@ Deno.serve(async (req: Request) => {
       instanceName = instance?.evolution_instance_name || instance?.instance_name || '';
     }
     
-    // Fallback: if conversation has no instance, find a connected instance for this user
-    if (!instanceName) {
+    // Fallback: if conversation has no instance AND no override, find a connected instance for this user
+    if (!instanceName && !usingOverride && !metaPhoneNumberId) {
       const { data: defaultInstance } = await supabase
         .from('whatsapp_instances')
         .select('id, instance_name, evolution_instance_name')
