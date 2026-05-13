@@ -464,14 +464,34 @@ Deno.serve(async (req: Request) => {
         .eq('id', execution.id);
 
       // Log node execution for analytics tracking
-      const isInputNode = node.type === 'question' || node.type === 'list_message' || node.type === 'buttons';
+      const messageHasButtons = node.type === 'message' && (
+        ((((node.data?.messageMode as string) || 'text') === 'text' &&
+          (((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim()).length > 0))) ||
+        ((((node.data?.messageMode as string) || 'text') === 'meta_template' &&
+          ((((node.data?.config as any)?.metaTemplateButtons as Array<{ type: string }>) || []).some(b => b?.type === 'QUICK_REPLY'))))
+      );
+      const isInputNode = node.type === 'question' || node.type === 'list_message' || node.type === 'buttons' || messageHasButtons;
       if (!isInputNode) {
         await logNodeExecution(node.id, node.type, 'processed');
       }
 
-      // Resume routing for choice nodes (buttons / list_message)
+      // Resume routing for choice nodes (buttons / list_message / message-with-buttons)
+      const messageEffectiveButtons = (() => {
+        if (node.type !== 'message') return [];
+        const mode = (node.data?.messageMode as string) || 'text';
+        if (mode === 'text') {
+          return ((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim());
+        }
+        if (mode === 'meta_template') {
+          const tplBtns = ((node.data?.config as any)?.metaTemplateButtons as Array<{ type: string; text: string }>) || [];
+          return tplBtns.filter(b => b?.type === 'QUICK_REPLY').map(b => ({ label: b.text }));
+        }
+        return [];
+      })();
+      const isMessageWithButtons = node.type === 'message' && messageEffectiveButtons.length > 0;
+
       if (
-        (node.type === 'buttons' || node.type === 'list_message') &&
+        (node.type === 'buttons' || node.type === 'list_message' || isMessageWithButtons) &&
         execution.current_node_id === node.id &&
         (inputValue !== undefined || resumingFromSchedule)
       ) {
@@ -487,10 +507,15 @@ Deno.serve(async (req: Request) => {
                   handle: `btn_${i}`,
                   label: (b?.label || '').toLowerCase(),
                 }))
-              : ((node.data?.items as Array<{ title: string }>) || []).map((it, i) => ({
-                  handle: `option_${i}`,
-                  label: (it?.title || '').toLowerCase(),
-                }));
+              : node.type === 'list_message'
+                ? ((node.data?.items as Array<{ title: string }>) || []).map((it, i) => ({
+                    handle: `option_${i}`,
+                    label: (it?.title || '').toLowerCase(),
+                  }))
+                : messageEffectiveButtons.map((b, i) => ({
+                    handle: `btn_${i}`,
+                    label: (b.label || '').toLowerCase(),
+                  }));
 
           // 1) numeric (1, 2, 3...)
           const numMatch = txt.match(/^\s*(\d+)\s*$/);
@@ -520,6 +545,7 @@ Deno.serve(async (req: Request) => {
         inputValue = undefined;
         resumingFromSchedule = false;
         continue;
+      }
 
       switch (node.type) {
         case 'start':
@@ -755,11 +781,108 @@ Deno.serve(async (req: Request) => {
             await new Promise(r => setTimeout(r, 1500));
 
           } else {
-            // Plain text message
+            // Plain text message - check for interactive buttons (Kommo style)
             const text = substituteVars(node.data?.message || node.data?.text || '');
+            const txtButtons = ((node.data?.buttons as Array<{ label: string }>) || []).filter(b => b?.label?.trim());
+
+            if (text && txtButtons.length > 0 && contact?.phone) {
+              // Send as interactive buttons
+              let sendError: string | null = null;
+              if (metaPhoneNumberId && metaAccessToken) {
+                try {
+                  const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+                  const payload = {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: formattedPhone,
+                    type: 'interactive',
+                    interactive: {
+                      type: 'button',
+                      body: { text },
+                      action: {
+                        buttons: txtButtons.slice(0, 3).map((b, i) => ({
+                          type: 'reply',
+                          reply: { id: `btn_${i}`, title: (b.label || `Opção ${i + 1}`).slice(0, 20) },
+                        })),
+                      },
+                    },
+                  };
+                  const resp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${metaAccessToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                  });
+                  const result = await resp.json();
+                  if (!resp.ok) {
+                    sendError = result?.error?.message || `Meta buttons HTTP ${resp.status}`;
+                  } else {
+                    await supabase.from('inbox_messages').insert({
+                      user_id: userId, conversation_id: conversationId,
+                      content: `${text}\n\n${txtButtons.map((b, i) => `[${i + 1}] ${b.label}`).join('\n')}`,
+                      direction: 'outbound', status: 'sent', message_type: 'interactive',
+                      whatsapp_message_id: result?.messages?.[0]?.id || null,
+                      sent_at: new Date().toISOString(),
+                      sent_via_meta_number_id: metaPhoneNumberId,
+                    });
+                  }
+                } catch (err: any) {
+                  sendError = err?.message || 'Meta buttons exception';
+                }
+              } else {
+                // Evolution fallback: numbered text
+                const numbered = `${text}\n\n${txtButtons.map((b, i) => `${i + 1} - ${b.label}`).join('\n')}\n\nResponda com o número da opção.`;
+                try {
+                  await sendMessage(numbered);
+                } catch (err: any) {
+                  sendError = err?.message || 'Evolution send exception';
+                }
+              }
+
+              if (sendError) {
+                console.error('[FLOW] Message buttons send error:', sendError);
+                const failedNext = getNextNode(node.id, 'failed');
+                currentId = failedNext || getNextNode(node.id);
+                break;
+              }
+
+              // Schedule timeout resume and pause
+              const timeoutMin = Math.max(1, parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60);
+              await supabase
+                .from('chatbot_executions')
+                .update({
+                  status: 'waiting_input',
+                  current_node_id: node.id,
+                  scheduled_resume_at: new Date(Date.now() + timeoutMin * 60 * 1000).toISOString(),
+                })
+                .eq('id', execution.id);
+              await logNodeExecution(node.id, node.type, 'waiting_input');
+              currentId = null;
+              break;
+            }
+
             if (text) {
               await sendMessage(text);
               await new Promise(r => setTimeout(r, 1500));
+            }
+          }
+
+          // If meta_template has QUICK_REPLY buttons, pause and wait for response
+          if ((node.data?.messageMode as string) === 'meta_template') {
+            const tplBtns = (((node.data?.config as any)?.metaTemplateButtons as Array<{ type: string }>) || [])
+              .filter(b => b?.type === 'QUICK_REPLY');
+            if (tplBtns.length > 0) {
+              const timeoutMin = Math.max(1, parseInt(String(node.data?.timeoutMinutes ?? 60)) || 60);
+              await supabase
+                .from('chatbot_executions')
+                .update({
+                  status: 'waiting_input',
+                  current_node_id: node.id,
+                  scheduled_resume_at: new Date(Date.now() + timeoutMin * 60 * 1000).toISOString(),
+                })
+                .eq('id', execution.id);
+              await logNodeExecution(node.id, node.type, 'waiting_input');
+              currentId = null;
+              break;
             }
           }
 
