@@ -74,20 +74,24 @@ function detectSuspicious(p: {
 }
 
 async function fetchProfile(username: string, apiKey: string): Promise<any | null> {
-  const url = `https://${RAPIDAPI_HOST}/api/instagram/profile?username=${encodeURIComponent(username)}`;
+  const url = `https://${RAPIDAPI_HOST}/ig_get_fb_profile_v3.php`;
+  const form = new URLSearchParams({ username_or_url: username });
   const resp = await fetch(url, {
+    method: 'POST',
     headers: {
       'X-RapidAPI-Key': apiKey,
       'X-RapidAPI-Host': RAPIDAPI_HOST,
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
+    body: form.toString(),
   });
   if (!resp.ok) {
-    console.error(`Profile ${username} failed [${resp.status}]:`, await resp.text());
+    console.error(`Profile ${username} failed [${resp.status}]:`, (await resp.text()).slice(0, 300));
     return null;
   }
   const json = await resp.json();
-  // Normalize: profile may be at root, .data, .user, .data.user
-  return json?.user || json?.data?.user || json?.data || json;
+  // Stable API typically returns { data: { user: {...} } } or { data: {...} }
+  return json?.data?.user || json?.user || json?.data || json;
 }
 
 Deno.serve(async (req) => {
