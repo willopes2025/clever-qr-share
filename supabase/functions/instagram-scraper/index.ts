@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
     }
 
     const scrapedProfiles: any[] = [];
+    const scrapeErrors: string[] = [];
 
     for (const sourceUsername of limitedUsernames) {
       try {
@@ -220,11 +221,26 @@ Deno.serve(async (req) => {
           }
         }
       } catch (err) {
-        console.error(`Error scraping ${sourceUsername}:`, err instanceof Error ? err.message : err);
+        const message = err instanceof Error ? err.message : String(err);
+        scrapeErrors.push(`${sourceUsername}: ${message}`);
+        console.error(`Error scraping ${sourceUsername}:`, message);
       }
     }
 
     console.log(`Saved ${scrapedProfiles.length} profiles`);
+
+    if (scrapedProfiles.length === 0 && scrapeErrors.length > 0) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: scrapeErrors[0],
+          errors: scrapeErrors,
+          data: [],
+          total: 0,
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
