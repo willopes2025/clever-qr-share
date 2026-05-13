@@ -519,8 +519,7 @@ Deno.serve(async (req: Request) => {
         // Clear inputValue / resume flags so we don't re-route on the next iteration
         inputValue = undefined;
         resumingFromSchedule = false;
-        break;
-      }
+        continue;
 
       switch (node.type) {
         case 'start':
