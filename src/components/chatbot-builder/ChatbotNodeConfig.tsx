@@ -1130,10 +1130,113 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 Adicionar Item
               </Button>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="list-timeout">Tempo de espera (minutos)</Label>
+              <Input
+                id="list-timeout"
+                type="number"
+                min={1}
+                value={data?.timeoutMinutes ?? 60}
+                onChange={(e) => handleChange("timeoutMinutes", parseInt(e.target.value) || 60)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Após esse tempo sem resposta, o fluxo segue pela saída <strong>"Sem resposta"</strong>.
+                Cada item gera sua própria saída; respostas fora das opções caem em <strong>"Outra resposta"</strong>.
+              </p>
+            </div>
           </div>
         );
 
-      case "validation":
+      case "buttons": {
+        const buttons = (data?.buttons as Array<{ label: string }>) || [];
+        const setButtons = (next: Array<{ label: string }>) => handleChange("buttons", next);
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="btn-message">Mensagem</Label>
+              <Textarea
+                id="btn-message"
+                value={data?.message || ""}
+                onChange={(e) => handleChange("message", e.target.value)}
+                placeholder="Como podemos te ajudar?"
+                rows={3}
+              />
+              <VariableChipsSelector
+                onInsert={(variable) => handleChange("message", (data?.message || "") + " " + variable)}
+                compact
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Botões (até 3)</Label>
+              {buttons.map((btn, index) => (
+                <div key={index} className="flex gap-2 items-center">
+                  <span className="text-xs text-muted-foreground w-4">{index + 1}.</span>
+                  <Input
+                    value={btn.label}
+                    onChange={(e) => {
+                      const next = [...buttons];
+                      next[index] = { ...next[index], label: e.target.value };
+                      setButtons(next);
+                    }}
+                    placeholder={`Texto do botão ${index + 1}`}
+                    maxLength={20}
+                    className="h-8 text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => {
+                      const next = [...buttons];
+                      next.splice(index, 1);
+                      setButtons(next);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              {buttons.length < 3 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setButtons([...buttons, { label: "" }])}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Adicionar Botão
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Limite de 3 botões (WhatsApp). Para mais opções, use o nó <strong>List Message</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="btn-timeout">Tempo de espera (minutos)</Label>
+              <Input
+                id="btn-timeout"
+                type="number"
+                min={1}
+                value={data?.timeoutMinutes ?? 60}
+                onChange={(e) => handleChange("timeoutMinutes", parseInt(e.target.value) || 60)}
+              />
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Saídas:</strong></p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>Uma para cada botão configurado</li>
+                <li><strong>Outra resposta</strong> — qualquer texto fora das opções</li>
+                <li><strong>Sem resposta</strong> — timeout estourou</li>
+                <li><strong>Falha ao enviar</strong> — erro no envio</li>
+              </ul>
+            </div>
+          </div>
+        );
+      }
+
         return (
           <div className="space-y-4">
             <div className="space-y-2">
