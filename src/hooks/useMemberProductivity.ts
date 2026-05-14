@@ -43,7 +43,7 @@ export interface MemberProductivityResult {
   };
 }
 
-const STATUS_PRIORITY = ['meeting', 'lunch', 'break', 'work'] as const;
+
 
 export const useMemberProductivity = (
   dateRange: DateRange = '7d',
@@ -120,20 +120,22 @@ export const useMemberProductivity = (
         .gte('metric_date', start.toISOString().slice(0, 10))
         .lte('metric_date', end.toISOString().slice(0, 10));
 
-      // 4. Activity sessions in date range
+      // 4. Activity sessions in date range (filter by user_id IN org members,
+      // because organization_id is often NULL on legacy/early sessions)
       const { data: sessions } = await supabase
         .from('user_activity_sessions')
         .select('user_id, session_type, started_at, ended_at, duration_seconds')
-        .eq('organization_id', orgId)
+        .in('user_id', userIdList)
         .gte('started_at', start.toISOString())
         .lte('started_at', end.toISOString());
 
-      // 5. Open sessions for current status
+      // 5. Open sessions for current status — also include last_activity to detect stale sessions
       const { data: openSessions } = await supabase
         .from('user_activity_sessions')
-        .select('user_id, session_type, started_at')
-        .eq('organization_id', orgId)
-        .is('ended_at', null);
+        .select('user_id, session_type, started_at, last_activity')
+        .in('user_id', userIdList)
+        .is('ended_at', null)
+        .order('started_at', { ascending: false });
 
       // 6. Outbound messages -> chars + audio + media (last 1000 in range to avoid huge fetch)
       const { data: outMessages } = await supabase
@@ -243,16 +245,39 @@ export const useMemberProductivity = (
         m.lunchSeconds = Math.max(m.lunchSeconds, Math.round(v.lunch));
       });
 
-      // Current status from open sessions (highest priority wins)
+      // Current status from open sessions.
+      // Rule: pick the MOST RECENT open session per user (latest started_at).
+      // If last_activity (or started_at) is older than IDLE_THRESHOLD, mark offline.
+      const IDLE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+      const now = Date.now();
+      const latestOpen = new Map<string, { type: string; ts: number; activity: number }>();
       (openSessions || []).forEach((s) => {
-        const m = memberMap.get(s.user_id);
+        if (!s.user_id) return;
+        const startedTs = new Date(s.started_at).getTime();
+        const activityTs = s.last_activity ? new Date(s.last_activity).getTime() : startedTs;
+        const existing = latestOpen.get(s.user_id);
+        if (!existing || startedTs > existing.ts) {
+          latestOpen.set(s.user_id, { type: s.session_type, ts: startedTs, activity: activityTs });
+        }
+      });
+      latestOpen.forEach((entry, uid) => {
+        const m = memberMap.get(uid);
         if (!m) return;
-        const currentIdx = STATUS_PRIORITY.indexOf(m.currentStatus as any);
-        const newIdx = STATUS_PRIORITY.indexOf(s.session_type as any);
-        if (newIdx >= 0 && newIdx >= currentIdx) {
-          m.currentStatus = s.session_type as any;
-        } else if (m.currentStatus === 'offline' && newIdx < 0 && s.session_type === 'meeting') {
-          m.currentStatus = 'meeting';
+        const isStale = now - entry.activity > IDLE_THRESHOLD_MS;
+        if (isStale) {
+          m.currentStatus = 'offline';
+        } else if (
+          entry.type === 'work' ||
+          entry.type === 'break' ||
+          entry.type === 'lunch' ||
+          entry.type === 'meeting'
+        ) {
+          m.currentStatus = entry.type as MemberProductivity['currentStatus'];
+        }
+        // Update lastActivityAt with the freshest signal
+        const activityIso = new Date(entry.activity).toISOString();
+        if (!m.lastActivityAt || activityIso > m.lastActivityAt) {
+          m.lastActivityAt = activityIso;
         }
       });
 
