@@ -385,16 +385,26 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
+    const quotedPayload = replyingTo ? {
+      id: replyingTo.id,
+      whatsapp_message_id: replyingTo.whatsapp_message_id,
+      content: replyingTo.content,
+      message_type: replyingTo.message_type,
+      from_me: replyingTo.direction === 'outbound',
+    } : undefined;
+    setReplyingTo(null);
     sendMessage.mutateAsync(useMetaSender ? {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedMetaNumberId,
       targetPhone,
+      quotedMessage: quotedPayload,
     } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
       targetPhone,
+      quotedMessage: quotedPayload,
     }).then(() => {
       // Mark as read when user replies
       if (conversation.unread_count > 0 && onMarkAsRead) {
