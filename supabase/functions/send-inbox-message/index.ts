@@ -451,6 +451,12 @@ Deno.serve(async (req) => {
           sent_at: new Date().toISOString(),
           sent_by_user_id: senderUserId,
           sent_via_meta_number_id: phoneNumberId,
+          quoted_message: quotedMessage ? {
+            whatsapp_message_id: quotedMessage.whatsapp_message_id,
+            content: quotedMessage.content,
+            message_type: quotedMessage.message_type,
+            from_me: !!quotedMessage.from_me,
+          } : null,
         })
         .select()
         .single();
@@ -458,13 +464,17 @@ Deno.serve(async (req) => {
       if (msgError) throw new Error('Failed to create message record');
 
       // Send via Meta API
-      const messagePayload = {
+      const messagePayload: any = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
         to: formattedPhone,
         type: 'text',
         text: { body: content },
       };
+
+      if (quotedMessage?.whatsapp_message_id) {
+        messagePayload.context = { message_id: quotedMessage.whatsapp_message_id };
+      }
 
       console.log(`[SEND-META] Sending to ${formattedPhone} via phone_number_id ${phoneNumberId}`);
 
