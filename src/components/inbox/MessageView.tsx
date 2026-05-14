@@ -1642,6 +1642,28 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         )}
         
+        {replyingTo && (
+          <div className="max-w-3xl mx-auto mb-2 flex items-stretch gap-2 rounded-md bg-white dark:bg-[#2a3942] border-l-4 border-primary px-3 py-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-primary mb-0.5">
+                Respondendo {replyingTo.direction === 'outbound' ? 'você mesmo' : (conversation.contact?.name || 'cliente')}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {replyingTo.content || `[${replyingTo.message_type || 'mensagem'}]`}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => setReplyingTo(null)}
+              title="Cancelar resposta"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           
