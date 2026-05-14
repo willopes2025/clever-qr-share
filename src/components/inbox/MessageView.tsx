@@ -1496,6 +1496,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                           instanceId: selectedInstanceId,
                         });
                       }}
+                      onReply={(msg) => {
+                        setReplyingTo(msg);
+                        setTimeout(() => textareaRef.current?.focus(), 50);
+                      }}
                     />
                   </Fragment>
                 );
