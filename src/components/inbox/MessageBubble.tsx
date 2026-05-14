@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy, Reply } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { LocationMessage } from "./LocationMessage";
@@ -24,9 +24,10 @@ interface MessageBubbleProps {
   isOptimistic?: boolean;
   instancePhoneNumber?: string | null;
   onReact?: (messageId: string, emoji: string) => void;
+  onReply?: (message: InboxMessage) => void;
 }
 
-export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onReact }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply }: MessageBubbleProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const isOutbound = message.direction === "outbound";
   const isFailed = message.status === "failed";
@@ -140,6 +141,20 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
             isOutbound={isOutbound}
             onReact={(emoji) => onReact(message.id, emoji)}
           />
+        )}
+
+        {/* Reply button on hover */}
+        {isHovered && onReply && !isOptimistic && (
+          <button
+            onClick={() => onReply(message)}
+            className={cn(
+              "absolute -top-7 z-10 h-6 w-6 rounded-full bg-background border border-border shadow-sm flex items-center justify-center hover:bg-accent transition",
+              isOutbound ? "right-10" : "left-10"
+            )}
+            title="Responder"
+          >
+            <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
         )}
 
         {/* Tail */}

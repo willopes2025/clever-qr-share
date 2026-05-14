@@ -123,7 +123,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const [showSenderName, setShowSenderName] = useState(() => {
     return localStorage.getItem('inbox-show-sender-name') === 'true';
   });
-  
+  const [replyingTo, setReplyingTo] = useState<InboxMessage | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -367,6 +367,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       media_url: null,
       whatsapp_message_id: null,
       user_id: '',
+      quoted_message: replyingTo ? {
+        whatsapp_message_id: replyingTo.whatsapp_message_id,
+        content: replyingTo.content,
+        message_type: replyingTo.message_type,
+        from_me: replyingTo.direction === 'outbound',
+      } : null,
       isOptimistic: true,
     };
     
@@ -385,16 +391,26 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
+    const quotedPayload = replyingTo ? {
+      id: replyingTo.id,
+      whatsapp_message_id: replyingTo.whatsapp_message_id,
+      content: replyingTo.content,
+      message_type: replyingTo.message_type,
+      from_me: replyingTo.direction === 'outbound',
+    } : undefined;
+    setReplyingTo(null);
     sendMessage.mutateAsync(useMetaSender ? {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedMetaNumberId,
       targetPhone,
+      quotedMessage: quotedPayload,
     } : {
       content: messageContent,
       conversationId: conversation.id,
       instanceId: selectedInstanceId,
       targetPhone,
+      quotedMessage: quotedPayload,
     }).then(() => {
       // Mark as read when user replies
       if (conversation.unread_count > 0 && onMarkAsRead) {
@@ -1486,6 +1502,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                           instanceId: selectedInstanceId,
                         });
                       }}
+                      onReply={(msg) => {
+                        setReplyingTo(msg);
+                        setTimeout(() => textareaRef.current?.focus(), 50);
+                      }}
                     />
                   </Fragment>
                 );
@@ -1628,6 +1648,28 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         )}
         
+        {replyingTo && (
+          <div className="max-w-3xl mx-auto mb-2 flex items-stretch gap-2 rounded-md bg-white dark:bg-[#2a3942] border-l-4 border-primary px-3 py-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-primary mb-0.5">
+                Respondendo {replyingTo.direction === 'outbound' ? 'você mesmo' : (conversation.contact?.name || 'cliente')}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {replyingTo.content || `[${replyingTo.message_type || 'mensagem'}]`}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => setReplyingTo(null)}
+              title="Cancelar resposta"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-2 max-w-3xl mx-auto items-end">
           {!isMobile && <EmojiPicker onEmojiSelect={handleEmojiSelect} />}
           

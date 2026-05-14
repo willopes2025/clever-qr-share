@@ -477,7 +477,7 @@ export const useMessages = (conversationId: string | null) => {
   });
 
   const sendMessage = useMutation({
-    mutationFn: async ({ content, conversationId, instanceId, messageType, metaTemplate, targetPhone }: { content: string; conversationId: string; instanceId: string; messageType?: string; metaTemplate?: any; targetPhone?: string }) => {
+    mutationFn: async ({ content, conversationId, instanceId, messageType, metaTemplate, targetPhone, quotedMessage }: { content: string; conversationId: string; instanceId: string; messageType?: string; metaTemplate?: any; targetPhone?: string; quotedMessage?: { id: string; whatsapp_message_id: string | null; content: string | null; message_type: string | null; from_me: boolean; participant?: string | null } }) => {
       const { data, error } = await supabase.functions.invoke('send-inbox-message', {
         body: {
           conversationId,
@@ -486,6 +486,7 @@ export const useMessages = (conversationId: string | null) => {
           ...(messageType && { messageType }),
           ...(metaTemplate && { metaTemplate }),
           ...(targetPhone && { targetPhone }),
+          ...(quotedMessage && { quotedMessage }),
         },
       });
 
