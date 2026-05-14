@@ -1394,7 +1394,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         message?.audioMessage?.contextInfo ||
         message?.documentMessage?.contextInfo ||
         message?.stickerMessage?.contextInfo ||
-        message?.contextInfo;
+        message?.contextInfo ||
+        msg?.contextInfo ||
+        data?.contextInfo;
 
       if (ctxInfo && (ctxInfo.stanzaId || ctxInfo.quotedMessage)) {
         const qm = ctxInfo.quotedMessage || {};
