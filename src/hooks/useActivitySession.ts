@@ -178,10 +178,24 @@ export const useActivitySession = () => {
     return startSession(newType);
   }, [endSession, startSession]);
 
-  // Track user activity (called on user interactions)
+  // Track user activity (called on user interactions).
+  // Updates local ref AND persists to DB (throttled) so other clients/admins see them as online.
+  const lastDbUpdateRef = useRef<number>(0);
   const trackActivity = useCallback(() => {
-    lastActivityRef.current = new Date();
-  }, []);
+    const now = new Date();
+    lastActivityRef.current = now;
+    // Persist to DB at most every 2 minutes
+    if (currentSession && now.getTime() - lastDbUpdateRef.current > 2 * 60 * 1000) {
+      lastDbUpdateRef.current = now.getTime();
+      supabase
+        .from('user_activity_sessions')
+        .update({ last_activity: now.toISOString() })
+        .eq('id', currentSession.id)
+        .then(({ error }) => {
+          if (error) console.error('Error updating last_activity:', error);
+        });
+    }
+  }, [currentSession]);
 
   // Auto-end session after inactivity
   useEffect(() => {
