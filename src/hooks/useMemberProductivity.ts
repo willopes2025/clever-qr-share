@@ -120,20 +120,22 @@ export const useMemberProductivity = (
         .gte('metric_date', start.toISOString().slice(0, 10))
         .lte('metric_date', end.toISOString().slice(0, 10));
 
-      // 4. Activity sessions in date range
+      // 4. Activity sessions in date range (filter by user_id IN org members,
+      // because organization_id is often NULL on legacy/early sessions)
       const { data: sessions } = await supabase
         .from('user_activity_sessions')
         .select('user_id, session_type, started_at, ended_at, duration_seconds')
-        .eq('organization_id', orgId)
+        .in('user_id', userIdList)
         .gte('started_at', start.toISOString())
         .lte('started_at', end.toISOString());
 
-      // 5. Open sessions for current status
+      // 5. Open sessions for current status — also include last_activity to detect stale sessions
       const { data: openSessions } = await supabase
         .from('user_activity_sessions')
-        .select('user_id, session_type, started_at')
-        .eq('organization_id', orgId)
-        .is('ended_at', null);
+        .select('user_id, session_type, started_at, last_activity')
+        .in('user_id', userIdList)
+        .is('ended_at', null)
+        .order('started_at', { ascending: false });
 
       // 6. Outbound messages -> chars + audio + media (last 1000 in range to avoid huge fetch)
       const { data: outMessages } = await supabase
