@@ -43,7 +43,7 @@ export interface MemberProductivityResult {
   };
 }
 
-const STATUS_PRIORITY = ['meeting', 'lunch', 'break', 'work'] as const;
+
 
 export const useMemberProductivity = (
   dateRange: DateRange = '7d',
