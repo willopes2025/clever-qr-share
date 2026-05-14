@@ -1,0 +1,1 @@
+ALTER TABLE public.inbox_messages ADD COLUMN IF NOT EXISTS quoted_message jsonb;

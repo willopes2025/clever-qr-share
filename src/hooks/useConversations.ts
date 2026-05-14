@@ -92,6 +92,14 @@ export interface InboxMessage {
   sent_via_meta_number_id?: string | null;
   // Reactions
   reactions?: MessageReaction[];
+  // Quoted/replied message
+  quoted_message?: {
+    whatsapp_message_id?: string | null;
+    content?: string | null;
+    message_type?: string | null;
+    from_me?: boolean | null;
+    participant?: string | null;
+  } | null;
 }
 
 export const useConversations = () => {

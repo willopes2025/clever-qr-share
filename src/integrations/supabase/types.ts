@@ -3544,6 +3544,7 @@ export type Database = {
           is_ai_generated: boolean | null
           media_url: string | null
           message_type: string
+          quoted_message: Json | null
           read_at: string | null
           sent_at: string | null
           sent_by_ai_agent_id: string | null
@@ -3567,6 +3568,7 @@ export type Database = {
           is_ai_generated?: boolean | null
           media_url?: string | null
           message_type?: string
+          quoted_message?: Json | null
           read_at?: string | null
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
@@ -3590,6 +3592,7 @@ export type Database = {
           is_ai_generated?: boolean | null
           media_url?: string | null
           message_type?: string
+          quoted_message?: Json | null
           read_at?: string | null
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null

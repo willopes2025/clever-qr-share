@@ -163,6 +163,27 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
             isFailed && "border border-red-500/30"
           )}
         >
+          {message.quoted_message && (message.quoted_message.content || message.quoted_message.whatsapp_message_id) && (
+            <div
+              className={cn(
+                "mb-1 rounded-md px-2 py-1.5 border-l-4 text-[12.5px] leading-snug",
+                isOutbound
+                  ? "bg-black/5 dark:bg-black/20 border-[#06cf9c]"
+                  : "bg-black/5 dark:bg-white/5 border-primary"
+              )}
+            >
+              <p className={cn(
+                "font-medium text-[12px] mb-0.5",
+                isOutbound ? "text-[#06cf9c]" : "text-primary"
+              )}>
+                {message.quoted_message.from_me ? "Você" : "Cliente"}
+              </p>
+              <p className="opacity-80 line-clamp-2 break-words">
+                {message.quoted_message.content || `[${message.quoted_message.message_type || 'mensagem'}]`}
+              </p>
+            </div>
+          )}
+
           {message.media_url && (
             <div className="mb-1">
               <MediaMessage
