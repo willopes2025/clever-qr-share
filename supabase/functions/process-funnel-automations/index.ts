@@ -1569,6 +1569,8 @@ Não adicione explicações, apenas o número.`
               .update({
                 ai_handled: true,
                 ai_paused: false,
+                ai_handoff_requested: false,
+                ai_handoff_reason: null,
                 ai_interactions_count: 0,
               })
               .eq('id', aiConversationId);
