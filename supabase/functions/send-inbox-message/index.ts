@@ -582,6 +582,13 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
         sent_by_user_id: senderUserId,
         sent_via_instance_id: instanceId,
+        quoted_message: quotedMessage ? {
+          whatsapp_message_id: quotedMessage.whatsapp_message_id,
+          content: quotedMessage.content,
+          message_type: quotedMessage.message_type,
+          from_me: !!quotedMessage.from_me,
+          participant: quotedMessage.participant ?? null,
+        } : null,
       })
       .select()
       .single();
@@ -589,9 +596,23 @@ Deno.serve(async (req) => {
     if (msgError) throw new Error('Failed to create message record');
 
     const isLidMessage = remoteJid.endsWith('@lid');
-    const sendPayload = isLidMessage 
+    const sendPayload: any = isLidMessage 
       ? { number: remoteJid, options: { presence: 'composing' }, text: content }
       : { number: phone, text: content };
+
+    if (quotedMessage?.whatsapp_message_id) {
+      sendPayload.quoted = {
+        key: {
+          remoteJid,
+          fromMe: !!quotedMessage.from_me,
+          id: quotedMessage.whatsapp_message_id,
+          ...(quotedMessage.participant ? { participant: quotedMessage.participant } : {}),
+        },
+        message: {
+          conversation: quotedMessage.content || '',
+        },
+      };
+    }
 
     const { response, attempts, lastTransientError } = await fetchWithRetry(
       `${evolutionApiUrl}/message/sendText/${evolutionName}`,
