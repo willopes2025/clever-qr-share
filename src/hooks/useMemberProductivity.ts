@@ -248,7 +248,7 @@ export const useMemberProductivity = (
       // Current status from open sessions.
       // Rule: pick the MOST RECENT open session per user (latest started_at).
       // If last_activity (or started_at) is older than IDLE_THRESHOLD, mark offline.
-      const IDLE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+      const IDLE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
       const now = Date.now();
       const latestOpen = new Map<string, { type: string; ts: number; activity: number }>();
       (openSessions || []).forEach((s) => {
