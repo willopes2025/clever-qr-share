@@ -381,25 +381,29 @@ export const useMessages = (conversationId: string | null) => {
     queryFn: async () => {
       if (!conversationId) return [];
       
-      // Fetch messages
+      // Fetch latest messages first to avoid Supabase's default 1000-row cap
+      // showing only the oldest history in long conversations.
       const { data: messagesData, error } = await supabase
         .from('inbox_messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (error) throw error;
+
+      const orderedMessages = [...(messagesData || [])].reverse();
       
       // Get unique sender IDs (users)
       const senderIds = [...new Set(
-        messagesData
+        orderedMessages
           ?.filter(m => m.sent_by_user_id)
           .map(m => m.sent_by_user_id) || []
       )] as string[];
 
       // Get unique AI agent IDs
       const aiAgentIds = [...new Set(
-        messagesData
+        orderedMessages
           ?.filter(m => m.sent_by_ai_agent_id)
           .map(m => m.sent_by_ai_agent_id) || []
       )] as string[];
@@ -453,7 +457,7 @@ export const useMessages = (conversationId: string | null) => {
       }
       
       // Map messages with sender info and reactions
-      return messagesData?.map(msg => ({
+      return orderedMessages.map(msg => ({
         ...msg,
         direction: msg.direction as 'inbound' | 'outbound',
         sent_by_user: msg.sent_by_user_id ? profilesMap[msg.sent_by_user_id] || null : null,
