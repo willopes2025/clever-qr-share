@@ -1,88 +1,100 @@
-# Botões com roteamento por resposta (estilo Kommo)
 
-## O que vai mudar (visão de produto)
+# Revisão do Dashboard + Painel de Produtividade por Membro
 
-Hoje o construtor de Chatbot tem o nó **"List Message"** (lista do WhatsApp) e **"Pergunta"** (texto livre), mas:
+## Contexto
 
-- A lista até é enviada com opções, **mas o fluxo não bifurca** pela opção que o lead clica — sempre segue um único caminho.
-- Não existe um nó de **botões rápidos** (Meta reply buttons / opções 1, 2, 3) com uma saída para cada botão.
-- Não há saídas para **"Outra resposta"** (digitou algo fora das opções), **"Sem resposta"** (timeout) e **"Falha ao enviar"** — exatamente o que o Kommo mostra na captura de tela.
+Hoje o dashboard (`TraditionalDashboard.tsx`) já tem seções de overview, WhatsApp, leads, funil, financeiro, automações e um `AgentPerformanceSection` minimalista (top 5 atendentes). Existe também `TeamPerformanceTable` (não plugado no dashboard principal) e a tabela `user_performance_metrics` que já guarda mensagens enviadas/recebidas, conversas, deals, tarefas e tempo de trabalho por dia/usuário, além de `user_activity_sessions` (work/break/lunch/meeting/offline com duração).
 
-A proposta é igualar o comportamento do Kommo: cada botão/opção vira uma saída independente do nó, e o fluxo é roteado pela resposta do lead.
+O usuário (owner) quer mais visão e controle sobre o que cada membro está fazendo. Vou consolidar isso num painel novo dedicado, e revisar o restante do dashboard para coerência (não vou reescrever lógica de negócio, só ajustes de organização e estado vazio).
 
-## Mudanças
+## O que será feito
 
-### 1. Novo nó "Botões" (`buttons`)
+### 1. Novo componente `MemberProductivitySection` (owner-only)
 
-- Adicionar à barra lateral do builder, na categoria **Mensagens**.
-- Configuração:
-  - Texto da mensagem (com chips de variáveis).
-  - Lista de **1 a 3 botões** (limite do WhatsApp Cloud API), cada um com um rótulo curto.
-  - Toggle opcional **"Aguardar resposta"** com timeout em minutos (padrão 60).
-- Envio:
-  - **Canal Meta:** envia como `interactive` do tipo `button` com `reply.id = btn_<n>`.
-  - **Canal Evolution:** envia como texto numerado ("1 - X / 2 - Y / 3 - Z") como fallback, aceitando o número digitado.
-- Saídas (handles na borda inferior do nó):
-  - Uma saída para cada botão configurado.
-  - Saída **"Outra resposta"** (qualquer texto fora das opções).
-  - Saída **"Sem resposta"** (timeout estourou).
-  - Saída **"Falha ao enviar"** (erro no envio do interactive).
+Card grande, agrupando todas as métricas por membro num único lugar — substitui o `AgentPerformanceSection` atual e absorve o `TeamPerformanceTable`.
 
-### 2. List Message ganha roteamento por opção
+Conteúdo:
 
-- Cada item da lista vira uma saída separada (`option_0`, `option_1`, ...).
-- Mesmas saídas extras: **"Outra resposta"**, **"Sem resposta"**, **"Falha ao enviar"**.
-- Compatibilidade: fluxos existentes que tem só uma aresta saindo do List Message continuam caindo no caminho default (a primeira aresta sem `source_handle`).
+- **KPIs do time (cards no topo)**: total horas trabalhadas, total mensagens enviadas, total mensagens recebidas, total conversas atendidas, total deals fechados, ticket médio, tempo médio de 1ª resposta.
+- **Tabela "Produtividade por Membro"** com colunas filtráveis:
+  - Membro (avatar + nome)
+  - Horas trabalhadas (de `user_activity_sessions` tipo `work`)
+  - Pausas (break + lunch)
+  - Mensagens enviadas / recebidas (split em duas colunas)
+  - Caracteres digitados (somatório do `length` de `inbox_messages.content` onde `from_me = true` e `sender_user_id = membro`) — métrica nova
+  - Conversas atendidas / resolvidas
+  - Tempo médio de 1ª resposta
+  - Deals criados / ganhos / valor R$
+  - Tarefas concluídas
+  - Notas criadas (de `conversation_notes`)
+  - Última atividade (relative time)
+  - Status atual (online/pausa/almoço/offline) baseado em sessão aberta
+- **Heatmap de horários ativos** (dia da semana × hora), por membro selecionado — usando `user_activity_sessions`.
+- **Drill-down**: clicar num membro abre `MemberDetailDrawer` com gráfico diário de mensagens, conversas, tempo de resposta e timeline de sessões do período.
 
-### 3. Captura da resposta (resume)
+### 2. Sugestões adicionais de métricas (a incluir)
 
-- Quando chega mensagem do lead enquanto a execução está em `waiting_input` no nó `buttons` ou `list_message`:
-  - Identificar o `id` do botão clicado / `rowId` da lista (Meta envia em `interactive.button_reply.id` / `list_reply.id`; Evolution em `selectedRowId` / `selectedButtonId`).
-  - Se vier texto puro, tentar casar com o número (1/2/3) ou com o rótulo do botão (case-insensitive).
-  - Resolver a aresta pelo `source_handle` correspondente (`btn_0`, `option_0`, `other`, `timeout`, `failed`).
-  - Se nenhuma aresta combinar, cair no `getNextNode` default (igual hoje).
+Além do que você pediu (mensagens enviadas/recebidas, tempo de trabalho, caracteres digitados, conversas), adiciono:
 
-### 4. Visual do nó no canvas
+- Tempo médio e mediano de **primeira resposta** por membro (SLA)
+- Tempo médio de **resolução** de conversa
+- **Áudios enviados** vs texto vs mídia (split de `inbox_messages.message_type`)
+- **Templates Meta** disparados pelo membro
+- **Taxa de conversão** (deals ganhos / conversas atendidas)
+- **Pico de atividade** (hora do dia com mais mensagens)
+- **Conversas abandonadas** sob responsabilidade do membro
+- **Tarefas criadas vs concluídas** + tarefas em atraso
+- **Movimentações de funil** feitas pelo membro (de `funnel_deal_history`)
+- **Notas e tags** adicionadas
+- **Inatividade**: tempo desde a última mensagem enviada
+- **Status atual** em tempo real (work / break / lunch / meeting / offline)
 
-- Nó com header próprio (ícone de botão), preview do texto e lista de botões com bolinha colorida em cada saída — espelha o card que aparece na captura do Kommo (PIX / BOLETO / DEPÓSITO + Outra/Sem resposta/Falha).
+### 3. Nova hook `useMemberProductivity`
+
+Em `src/hooks/useMemberProductivity.ts`. Para cada membro ativo da org no período:
+1. Soma de `user_performance_metrics` (já tem messages_sent/received, conversations, deals, tasks, work seconds).
+2. `user_activity_sessions` para horas detalhadas e status atual.
+3. Query agregada em `inbox_messages` para **caracteres digitados**, áudios, templates, pico de hora.
+4. `conversation_notes`, `funnel_deal_history`, `tasks` para complementos.
+5. Escopo via `get_organization_member_ids(auth.uid())` (regra do projeto).
+
+### 4. Revisão do dashboard existente
+
+- `TraditionalDashboard.tsx`: substituir o par `AgentPerformanceSection + AlertsSection` pelo novo `MemberProductivitySection` em largura total; mover `AlertsSection` para baixo de `AutomationSection`.
+- `OverviewSection`: adicionar KPI "Mensagens enviadas/recebidas (time todo)" no período.
+- Estados vazios padronizados (mesmo componente em todas as seções).
+- Skeletons unificados.
+- Filtro de data já existe (`DashboardDateFilter`) — passar para a nova seção também.
+- Visibilidade: a nova seção só aparece para owner/admin (`useUserRole`); membros comuns só veem suas próprias métricas (versão reduzida).
+
+### 5. Arquivos novos / modificados
+
+Novos:
+- `src/components/dashboard/MemberProductivitySection.tsx`
+- `src/components/dashboard/MemberDetailDrawer.tsx`
+- `src/components/dashboard/MemberActivityHeatmap.tsx`
+- `src/hooks/useMemberProductivity.ts`
+
+Modificados:
+- `src/components/dashboard/TraditionalDashboard.tsx` (recompor layout)
+- `src/components/dashboard/OverviewSection.tsx` (KPIs de mensagens do time)
+- `src/components/dashboard/AgentPerformanceSection.tsx` (deprecar/remover)
+- `src/hooks/useDashboardMetricsV2.ts` (expor agregados extras se faltar)
+
+### 6. Performance e RLS
+
+- Todas as queries usam `organization_id` e RLS já existente em `user_performance_metrics` e `user_activity_sessions`.
+- "Caracteres digitados" e agregados em `inbox_messages` ficam atrás de `useQuery` com `staleTime` de 60s para não pesar.
+- Período padrão: 7d (igual ao dashboard atual). Para "today" o status atual é em tempo real via realtime já configurado em `user_activity_sessions`.
 
 ## Detalhes técnicos
 
-### Frontend (sem mudança de schema visual)
+- Sem migração de DB necessária — todas as métricas saem de tabelas existentes.
+- "Caracteres digitados" = `SUM(char_length(content))` em `inbox_messages` filtrado por `from_me = true` e `sender_user_id`. Se `sender_user_id` não estiver populado em mensagens antigas, fallback para `instance_id → user_id`.
+- Status em tempo real: subscribe em `user_activity_sessions` filtrado por `organization_id`.
 
-- `src/components/chatbot-builder/nodes/ButtonsNode.tsx` (novo) — renderiza handle por botão + 3 handles fixos (`other`, `timeout`, `failed`).
-- `src/components/chatbot-builder/nodes/ListMessageNode.tsx` — adicionar handles por item (`option_<i>`) e os 3 handles fixos.
-- `src/components/chatbot-builder/ChatbotFlowSidebar.tsx` — entrada nova `{ type: "buttons", label: "Botões", icon: MousePointerClick, color: "bg-sky-500" }`.
-- `src/components/chatbot-builder/ChatbotFlowEditor.tsx` — registrar o novo `nodeType` no `nodeTypes`.
-- `src/components/chatbot-builder/ChatbotNodeConfig.tsx` — painel de config com lista de botões (CRUD) + toggle de timeout. Reaproveitar `VariableChipsSelector`.
+## Fora de escopo
 
-### Backend (`supabase/functions/execute-chatbot-flow/index.ts`)
-
-- Adicionar `case 'buttons':`
-  - Tenta enviar via Meta (`interactive.button`) se `metaPhoneNumberId` estiver resolvido; senão, fallback para texto numerado via Evolution.
-  - Em caso de erro de envio, segue imediatamente pela aresta `failed` (sem entrar em waiting_input).
-  - Em sucesso, marca `waiting_input` + `scheduled_resume_at = now + timeoutMin` para acionar saída `timeout`.
-- Atualizar `case 'list_message':` para também marcar `scheduled_resume_at` e passar a resolver a aresta pelo `source_handle`.
-- Atualizar bloco de resume (linhas ~250-275) para:
-  - Ler `inputValue` + `inputMeta` (novo campo opcional vindo do webhook com `buttonId` / `rowId`).
-  - Função `resolveBranch(node, inputValue, inputMeta)` que devolve `source_handle` ou `null`.
-  - Se a execução foi acordada por `scheduled_resume_at` sem novo input → usar handle `timeout`.
-- Quando bifurcar, usar `getNextNode(node.id, handle)` que já existe (linhas 329-337).
-
-### Webhook de entrada (Meta + Evolution)
-
-- Confirmar nas funções de webhook (`meta-whatsapp-webhook`, `evolution-webhook`) que, ao chamar `execute-chatbot-flow` para resumir, é repassado `inputValue` (texto) e um novo campo `inputMeta` com `{ buttonId, rowId }`. Pequeno ajuste, sem mudança de contrato externo.
-
-## Validação
-
-1. Criar fluxo: Início → Botões (PIX / Boleto / Depósito) com 3 saídas + Outra/Sem resposta/Falha.
-2. Testar em Meta: clicar em "PIX" → segue caminho PIX. Digitar "qualquer coisa" → cai em "Outra resposta". Não responder em 1 min → cai em "Sem resposta".
-3. Testar em Evolution: receber "1 - PIX / 2 - Boleto / 3 - Depósito"; responder "2" → segue caminho Boleto.
-4. Repetir os mesmos cenários com List Message.
-5. Forçar erro de envio (número Meta sem template aprovado) → confirmar saída "Falha ao enviar".
-6. Fluxos antigos com List Message de uma saída só continuam funcionando.
-
-## Fora do escopo
-
-- Botões com URL ou call-to-action (Meta `cta_url`) — pode entrar depois.
-- Mais de 3 botões (limite do WhatsApp; usar List Message).
+- Não vou alterar o tracking em si (ActivityTracker já existe e popula as tabelas).
+- Não vou criar gravação de tela / keystroke logger — apenas agregados já capturados.
+- Não vou mexer no dashboard mobile (`MobileHome`) nesta etapa.

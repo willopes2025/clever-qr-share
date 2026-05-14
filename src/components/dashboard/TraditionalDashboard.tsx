@@ -11,10 +11,13 @@ import { FinancialSection } from './FinancialSection';
 import { AutomationSection } from './AutomationSection';
 import { AgentPerformanceSection } from './AgentPerformanceSection';
 import { AlertsSection } from './AlertsSection';
+import { MemberProductivitySection } from './MemberProductivitySection';
+import { useUserRole } from '@/hooks/useUserRole';
 
 export const TraditionalDashboard = () => {
   const [dateRange, setDateRange] = useState<DateRange>('7d');
   const [customRange, setCustomRange] = useState<CustomDateRange | undefined>(undefined);
+  const { isAdmin } = useUserRole();
 
   return (
     <div className="space-y-6">
@@ -47,6 +50,10 @@ export const TraditionalDashboard = () => {
         <FinancialSection dateRange={dateRange} customRange={customRange} />
         <AutomationSection dateRange={dateRange} customRange={customRange} />
       </div>
+
+      {isAdmin && (
+        <MemberProductivitySection dateRange={dateRange} customRange={customRange} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AgentPerformanceSection dateRange={dateRange} customRange={customRange} />
