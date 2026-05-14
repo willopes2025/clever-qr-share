@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       senderUserId = user?.id || null;
     }
 
-    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone, action, messageId, emoji } = await req.json();
+    const { conversationId, content, instanceId, messageType, metaTemplate, targetPhone, action, messageId, emoji, quotedMessage } = await req.json();
 
     // =========================================
     // REACTION ACTION
