@@ -367,6 +367,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       media_url: null,
       whatsapp_message_id: null,
       user_id: '',
+      quoted_message: replyingTo ? {
+        whatsapp_message_id: replyingTo.whatsapp_message_id,
+        content: replyingTo.content,
+        message_type: replyingTo.message_type,
+        from_me: replyingTo.direction === 'outbound',
+      } : null,
       isOptimistic: true,
     };
     
