@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy } from "lucide-react";
+import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy, Reply } from "lucide-react";
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { LocationMessage } from "./LocationMessage";
