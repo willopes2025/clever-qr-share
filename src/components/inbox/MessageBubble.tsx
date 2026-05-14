@@ -143,6 +143,20 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
           />
         )}
 
+        {/* Reply button on hover */}
+        {isHovered && onReply && !isOptimistic && (
+          <button
+            onClick={() => onReply(message)}
+            className={cn(
+              "absolute -top-7 z-10 h-6 w-6 rounded-full bg-background border border-border shadow-sm flex items-center justify-center hover:bg-accent transition",
+              isOutbound ? "right-10" : "left-10"
+            )}
+            title="Responder"
+          >
+            <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
+
         {/* Tail */}
         <div
           className={cn(
