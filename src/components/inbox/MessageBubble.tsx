@@ -131,25 +131,31 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
       
       {/* Message bubble with tail and reaction picker */}
       <div 
-        className="relative"
+        className="relative group/bubble pt-7"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         {/* Reaction picker on hover */}
-        {isHovered && onReact && !isOptimistic && (
-          <ReactionPicker
-            isOutbound={isOutbound}
-            onReact={(emoji) => onReact(message.id, emoji)}
-          />
+        {onReact && !isOptimistic && (
+          <div className={cn(
+            "transition-opacity",
+            isHovered ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}>
+            <ReactionPicker
+              isOutbound={isOutbound}
+              onReact={(emoji) => onReact(message.id, emoji)}
+            />
+          </div>
         )}
 
         {/* Reply button on hover */}
-        {isHovered && onReply && !isOptimistic && (
+        {onReply && !isOptimistic && (
           <button
             onClick={() => onReply(message)}
             className={cn(
-              "absolute -top-7 z-10 h-6 w-6 rounded-full bg-background border border-border shadow-sm flex items-center justify-center hover:bg-accent transition",
-              isOutbound ? "right-10" : "left-10"
+              "absolute top-0 z-10 h-6 w-6 rounded-full bg-background border border-border shadow-sm flex items-center justify-center hover:bg-accent transition-opacity",
+              isOutbound ? "right-10" : "left-10",
+              isHovered ? "opacity-100" : "opacity-0 pointer-events-none"
             )}
             title="Responder"
           >
