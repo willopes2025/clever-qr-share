@@ -1384,6 +1384,47 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       }
     }
 
+    // Extract quoted/replied message info from contextInfo (Evolution / Baileys)
+    let quotedMessage: any = null;
+    try {
+      const ctxInfo =
+        message?.extendedTextMessage?.contextInfo ||
+        message?.imageMessage?.contextInfo ||
+        message?.videoMessage?.contextInfo ||
+        message?.audioMessage?.contextInfo ||
+        message?.documentMessage?.contextInfo ||
+        message?.stickerMessage?.contextInfo ||
+        message?.contextInfo;
+
+      if (ctxInfo && (ctxInfo.stanzaId || ctxInfo.quotedMessage)) {
+        const qm = ctxInfo.quotedMessage || {};
+        let qContent = '';
+        let qType = 'text';
+        if (qm.conversation) { qContent = qm.conversation; qType = 'text'; }
+        else if (qm.extendedTextMessage?.text) { qContent = qm.extendedTextMessage.text; qType = 'text'; }
+        else if (qm.imageMessage) { qContent = qm.imageMessage.caption || '📷 Imagem'; qType = 'image'; }
+        else if (qm.videoMessage) { qContent = qm.videoMessage.caption || '🎥 Vídeo'; qType = 'video'; }
+        else if (qm.audioMessage) { qContent = qm.audioMessage.ptt ? '🎤 Áudio' : '🎵 Áudio'; qType = qm.audioMessage.ptt ? 'voice' : 'audio'; }
+        else if (qm.documentMessage) { qContent = qm.documentMessage.fileName || '📄 Documento'; qType = 'document'; }
+        else if (qm.stickerMessage) { qContent = '💟 Sticker'; qType = 'sticker'; }
+        else if (qm.locationMessage) { qContent = '📍 Localização'; qType = 'location'; }
+        else if (qm.contactMessage) { qContent = '👤 Contato'; qType = 'contact'; }
+
+        const qParticipant = ctxInfo.participant || '';
+        const qFromMe = qParticipant ? false : true;
+
+        quotedMessage = {
+          whatsapp_message_id: ctxInfo.stanzaId || null,
+          content: qContent,
+          message_type: qType,
+          from_me: qFromMe,
+          participant: qParticipant || null,
+        };
+      }
+    } catch (e) {
+      console.error('Error extracting quoted message:', e);
+    }
+
     // Insert message with media support
     // Note: direction must be 'inbound' or 'outbound' per database constraint
     // Uses upsert with onConflict on whatsapp_message_id to prevent duplicates from race conditions
@@ -1400,6 +1441,7 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         whatsapp_message_id: key.id,
         sent_at: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
         sent_via_instance_id: instanceId,
+        quoted_message: quotedMessage,
       });
 
     // Check if error is a unique constraint violation (duplicate whatsapp_message_id)
