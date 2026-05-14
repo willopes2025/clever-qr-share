@@ -840,6 +840,24 @@ Deno.serve(async (req) => {
                 continue;
               }
 
+              // Extract quoted/replied message context (Meta sends only id+from)
+              let quotedMessage: any = null;
+              if (message.context?.id) {
+                const quotedId = message.context.id;
+                const { data: quotedRow } = await supabase
+                  .from('inbox_messages')
+                  .select('content, message_type, direction')
+                  .eq('whatsapp_message_id', quotedId)
+                  .maybeSingle();
+                quotedMessage = {
+                  whatsapp_message_id: quotedId,
+                  content: quotedRow?.content || '',
+                  message_type: quotedRow?.message_type || 'text',
+                  from_me: quotedRow?.direction === 'outbound',
+                  participant: message.context.from || null,
+                };
+              }
+
               // Save message to inbox_messages table (CORRECTED SCHEMA)
               const { error: msgError } = await supabase
                 .from('inbox_messages')
@@ -854,6 +872,7 @@ Deno.serve(async (req) => {
                   message_type: messageType,
                   created_at: timestamp,
                   sent_via_meta_number_id: webhookPhoneNumberId,
+                  quoted_message: quotedMessage,
                 });
 
               if (msgError) {
