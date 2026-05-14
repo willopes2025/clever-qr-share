@@ -903,6 +903,58 @@ Deno.serve(async (req) => {
                 .from('contacts')
                 .update({ last_message_at: timestamp })
                 .eq('id', contact.id);
+
+              // Trigger funnel automations for on_message_received (open deals of this contact)
+              try {
+                const { data: openDeals } = await supabase
+                  .from('funnel_deals')
+                  .select('id, stage_id, funnel_id')
+                  .eq('contact_id', contact.id)
+                  .is('closed_at', null);
+
+                if (openDeals && openDeals.length > 0) {
+                  console.log(`[META-WEBHOOK] Triggering on_message_received for ${openDeals.length} deals`);
+                  for (const d of openDeals) {
+                    try {
+                      await fetch(`${SUPABASE_URL}/functions/v1/process-funnel-automations`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                        },
+                        body: JSON.stringify({
+                          dealId: d.id,
+                          triggerType: 'on_message_received',
+                          messageContent: content,
+                        }),
+                      });
+                    } catch (e) {
+                      console.error(`[META-WEBHOOK] Error triggering automation for deal ${d.id}:`, e);
+                    }
+                  }
+                }
+              } catch (autoErr) {
+                console.error('[META-WEBHOOK] Error fetching deals for automation:', autoErr);
+              }
+
+              // Trigger AI agent if enabled on the conversation
+              try {
+                await fetch(`${SUPABASE_URL}/functions/v1/ai-campaign-agent`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                  },
+                  body: JSON.stringify({
+                    conversationId: conversation.id,
+                    messageContent: content,
+                    metaPhoneNumberId: webhookPhoneNumberId,
+                    incomingMessageType: messageType,
+                  }),
+                });
+              } catch (aiErr) {
+                console.error('[META-WEBHOOK] Error triggering AI agent:', aiErr);
+              }
             }
 
             // Process status updates for sent messages
