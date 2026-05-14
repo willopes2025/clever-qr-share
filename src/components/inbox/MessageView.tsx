@@ -123,7 +123,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const [showSenderName, setShowSenderName] = useState(() => {
     return localStorage.getItem('inbox-show-sender-name') === 'true';
   });
-  
+  const [replyingTo, setReplyingTo] = useState<InboxMessage | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
