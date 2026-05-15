@@ -205,12 +205,37 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Load contact info for variable substitution
+    // Load contact info for variable substitution (includes custom_fields)
     const { data: contact } = await supabase
       .from('contacts')
-      .select('id, name, phone, email')
+      .select('id, name, phone, email, custom_fields')
       .eq('id', contactId)
       .single();
+
+    // Load most recent deal for this contact (for {{valor}}, {{etapa}}, {{funil}}, lead custom fields)
+    let activeDeal: any = null;
+    let activeStage: any = null;
+    let activeFunnel: any = null;
+    try {
+      const { data: dealRow } = await supabase
+        .from('funnel_deals')
+        .select('id, title, value, stage_id, funnel_id, custom_fields')
+        .eq('contact_id', contactId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      activeDeal = dealRow || null;
+      if (activeDeal?.stage_id) {
+        const { data: s } = await supabase.from('funnel_stages').select('name').eq('id', activeDeal.stage_id).maybeSingle();
+        activeStage = s;
+      }
+      if (activeDeal?.funnel_id) {
+        const { data: f } = await supabase.from('funnels').select('name').eq('id', activeDeal.funnel_id).maybeSingle();
+        activeFunnel = f;
+      }
+    } catch (e) {
+      console.log('[FLOW] Failed to load deal context:', e);
+    }
 
     // Load flow nodes and edges
     const [{ data: nodes }, { data: edges }] = await Promise.all([
