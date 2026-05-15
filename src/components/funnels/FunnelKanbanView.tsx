@@ -318,6 +318,13 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
           }}
         />
       )}
+
+      <CardFieldsConfigDialog
+        open={showCardFieldsConfig}
+        onOpenChange={setShowCardFieldsConfig}
+        selectedKeys={cardFieldKeys}
+        onSave={setCardFieldKeys}
+      />
     </>
   );
 };
