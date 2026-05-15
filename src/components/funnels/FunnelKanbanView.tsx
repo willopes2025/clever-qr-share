@@ -231,6 +231,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
                         onDragStart={(e) => handleDragStart(e, deal.id)}
                         onDragEnd={handleDragEnd}
                         isDragging={draggedDealId === deal.id}
+                        cardFieldKeys={cardFieldKeys}
                       />
                     </motion.div>
                   ))}
