@@ -137,7 +137,7 @@ export const useMemberProductivity = (
         .is('ended_at', null)
         .order('started_at', { ascending: false });
 
-      // 6. Outbound messages -> chars + audio + media (last 1000 in range to avoid huge fetch)
+      // 6. Outbound messages -> chars + audio + media + sent count
       const { data: outMessages } = await supabase
         .from('inbox_messages')
         .select('sent_by_user_id, content, message_type')
@@ -146,6 +146,30 @@ export const useMemberProductivity = (
         .gte('sent_at', start.toISOString())
         .lte('sent_at', end.toISOString())
         .limit(20000);
+
+      // 6b. Inbound messages -> count received per assigned member
+      const { data: inMessages } = await supabase
+        .from('inbox_messages')
+        .select('conversation_id')
+        .eq('direction', 'inbound')
+        .gte('sent_at', start.toISOString())
+        .lte('sent_at', end.toISOString())
+        .limit(20000);
+
+      const inboundConvIds = Array.from(
+        new Set((inMessages || []).map((m: any) => m.conversation_id).filter(Boolean)),
+      );
+      const { data: inboundConvs } = inboundConvIds.length
+        ? await supabase
+            .from('conversations')
+            .select('id, assigned_to, user_id')
+            .in('id', inboundConvIds)
+        : { data: [] as any[] };
+      const convOwnerMap = new Map<string, string>();
+      (inboundConvs || []).forEach((c: any) => {
+        const owner = c.assigned_to || c.user_id;
+        if (owner) convOwnerMap.set(c.id, owner);
+      });
 
       // 7. Notes created in range
       const { data: notes } = await supabase
