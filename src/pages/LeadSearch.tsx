@@ -157,7 +157,7 @@ const LeadSearch = () => {
     
     try {
       const { data, error } = await supabase.functions.invoke('search-companies', {
-        body: { filters: overrideFilters ?? filters, page, limit: 20 }
+        body: { filters: overrideFilters ?? filters, page, limit: 100 }
       });
 
       if (error) throw error;

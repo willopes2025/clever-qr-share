@@ -33,7 +33,7 @@ export const LeadSearchResults = ({
   isLoading,
   onImport,
 }: LeadSearchResultsProps) => {
-  const totalPages = Math.ceil(totalResults / 20);
+  const totalPages = Math.ceil(totalResults / 100);
   const currentPageSelected = companies.filter(c => selectedCompanies.has(c.cnpj)).length;
   const allCurrentPageSelected = companies.length > 0 && currentPageSelected === companies.length;
   const otherPagesSelected = totalSelected - currentPageSelected;
