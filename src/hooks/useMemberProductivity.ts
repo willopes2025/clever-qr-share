@@ -218,8 +218,8 @@ export const useMemberProductivity = (
       (metrics || []).forEach((m) => {
         const member = memberMap.get(m.user_id);
         if (!member) return;
-        member.messagesSent += m.messages_sent || 0;
-        member.messagesReceived += m.messages_received || 0;
+        // messagesSent / messagesReceived são calculados a partir de inbox_messages
+        // (fonte de verdade) mais abaixo, em vez do cache user_performance_metrics.
         member.conversationsHandled += m.conversations_handled || 0;
         member.conversationsResolved += m.conversations_resolved || 0;
         member.dealsCreated += m.deals_created || 0;
