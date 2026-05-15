@@ -57,6 +57,14 @@ const formatFieldValue = (value: unknown, type?: string): string => {
   if (type === "number" && typeof value === "number") {
     return value.toLocaleString("pt-BR");
   }
+  // Auto-detect ISO date strings (YYYY-MM-DD) even when type is not declared
+  if (typeof value === "string") {
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})(T.*)?$/);
+    if (isoMatch) {
+      const [, y, m, d] = isoMatch;
+      return `${d}/${m}/${y}`;
+    }
+  }
   return String(value);
 };
 
