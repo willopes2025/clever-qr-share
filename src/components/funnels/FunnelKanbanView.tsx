@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Settings2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,12 +8,14 @@ import { Funnel, FunnelStage, FunnelDeal, useFunnels } from "@/hooks/useFunnels"
 import { useStageDealCounts, useLoadMoreDeals, DEALS_PER_PAGE } from "@/hooks/useFunnelDeals";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { useFunnelCardFields } from "@/hooks/useFunnelCardFields";
 import { getMissingRequiredFields } from "@/lib/required-fields";
 import { FunnelDealCard } from "./FunnelDealCard";
 import { DealFormDialog } from "./DealFormDialog";
 import { StageFormDialog } from "./StageFormDialog";
 import { StageContextMenu } from "./StageContextMenu";
 import { RequiredFieldsCheckDialog } from "./RequiredFieldsCheckDialog";
+import { CardFieldsConfigDialog } from "./CardFieldsConfigDialog";
 import type { CustomFieldDefinition } from "@/hooks/useCustomFields";
 
 interface FunnelKanbanViewProps {
