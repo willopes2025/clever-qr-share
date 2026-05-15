@@ -515,15 +515,19 @@ export const useCampaignDispatchMetrics = (dateRange: DateRange = '7d', customRa
     queryFn: async (): Promise<CampaignDispatchMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
+      // Buscar campanhas criadas OU iniciadas no range, para não perder campanhas
+      // que foram criadas antes mas dispararam dentro do período.
       const { data: campaigns } = await supabase
         .from('campaigns')
-        .select('id, name, status, sent, delivered, failed, total_contacts, started_at, completed_at')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
+        .select('id, name, status, total_contacts, started_at, completed_at, created_at')
+        .or(
+          `and(created_at.gte.${start.toISOString()},created_at.lte.${end.toISOString()}),` +
+          `and(started_at.gte.${start.toISOString()},started_at.lte.${end.toISOString()})`
+        )
         .order('created_at', { ascending: false });
 
       const campaignList = campaigns || [];
-      
+
       const totalCampaigns = campaignList.length;
       const sending = campaignList.filter(c => c.status === 'sending').length;
       const completed = campaignList.filter(c => c.status === 'completed').length;
@@ -531,35 +535,87 @@ export const useCampaignDispatchMetrics = (dateRange: DateRange = '7d', customRa
       const failed = campaignList.filter(c => c.status === 'failed').length;
       const cancelled = campaignList.filter(c => c.status === 'cancelled').length;
 
-      const totalMessagesSent = campaignList.reduce((sum, c) => sum + (c.sent || 0), 0);
-      const totalMessagesDelivered = campaignList.reduce((sum, c) => sum + (c.delivered || 0), 0);
-      const totalMessagesFailed = campaignList.reduce((sum, c) => sum + (c.failed || 0), 0);
-
-      // Count queued messages for active campaigns
-      const activeCampaignIds = campaignList
-        .filter(c => c.status === 'sending' || c.status === 'scheduled')
-        .map(c => c.id);
-
+      // Agregar contadores reais de campaign_messages (fonte de verdade),
+      // em vez dos campos cacheados em campaigns que ficam dessincronizados.
+      const messageCountsByCampaign = new Map<
+        string,
+        { sent: number; delivered: number; failed: number; queued: number }
+      >();
+      let totalMessagesSent = 0;
+      let totalMessagesDelivered = 0;
+      let totalMessagesFailed = 0;
       let totalMessagesQueued = 0;
-      if (activeCampaignIds.length > 0) {
-        const { count } = await supabase
-          .from('campaign_messages')
-          .select('*', { count: 'exact', head: true })
-          .in('campaign_id', activeCampaignIds)
-          .eq('status', 'queued');
-        totalMessagesQueued = count || 0;
+
+      if (campaignList.length > 0) {
+        const campaignIds = campaignList.map(c => c.id);
+        // Paginação para evitar limite de 1000 linhas
+        let from = 0;
+        const pageSize = 1000;
+        while (true) {
+          const { data: msgs, error } = await supabase
+            .from('campaign_messages')
+            .select('campaign_id, status')
+            .in('campaign_id', campaignIds)
+            .range(from, from + pageSize - 1);
+          if (error || !msgs || msgs.length === 0) break;
+          for (const m of msgs) {
+            const bucket = messageCountsByCampaign.get(m.campaign_id) || {
+              sent: 0,
+              delivered: 0,
+              failed: 0,
+              queued: 0,
+            };
+            switch (m.status) {
+              case 'sent':
+                bucket.sent += 1;
+                totalMessagesSent += 1;
+                break;
+              case 'delivered':
+              case 'read':
+                bucket.delivered += 1;
+                bucket.sent += 1; // entregue conta como enviada
+                totalMessagesDelivered += 1;
+                totalMessagesSent += 1;
+                break;
+              case 'failed':
+                bucket.failed += 1;
+                totalMessagesFailed += 1;
+                break;
+              case 'queued':
+              case 'pending':
+                bucket.queued += 1;
+                totalMessagesQueued += 1;
+                break;
+            }
+            messageCountsByCampaign.set(m.campaign_id, bucket);
+          }
+          if (msgs.length < pageSize) break;
+          from += pageSize;
+        }
       }
 
-      const recentCampaigns = campaignList.slice(0, 10).map(c => ({
-        id: c.id,
-        name: c.name,
-        status: c.status,
-        sent: c.sent || 0,
-        delivered: c.delivered || 0,
-        failed: c.failed || 0,
-        totalContacts: c.total_contacts || 0,
-        startedAt: c.started_at,
-      }));
+      const recentCampaigns = campaignList.slice(0, 10).map(c => {
+        const counts = messageCountsByCampaign.get(c.id) || {
+          sent: 0,
+          delivered: 0,
+          failed: 0,
+          queued: 0,
+        };
+        const totalMessages =
+          counts.sent + counts.delivered + counts.failed + counts.queued;
+        return {
+          id: c.id,
+          name: c.name,
+          status: c.status,
+          sent: counts.sent,
+          delivered: counts.delivered,
+          failed: counts.failed,
+          // Mostra o maior valor entre o cadastrado e o real em mensagens,
+          // pra refletir filas que estouraram o total_contacts cacheado.
+          totalContacts: Math.max(c.total_contacts || 0, totalMessages),
+          startedAt: c.started_at,
+        };
+      });
 
       return {
         totalCampaigns,
