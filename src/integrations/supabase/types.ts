@@ -6822,6 +6822,17 @@ export type Database = {
         }[]
       }
       get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
+      get_member_message_productivity: {
+        Args: { p_end: string; p_start: string; p_user_ids: string[] }
+        Returns: {
+          audios_sent: number
+          characters_typed: number
+          media_sent: number
+          messages_received: number
+          messages_sent: number
+          user_id: string
+        }[]
+      }
       get_member_meta_number_ids: {
         Args: { _user_id: string }
         Returns: string[]

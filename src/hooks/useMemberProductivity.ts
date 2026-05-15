@@ -137,39 +137,21 @@ export const useMemberProductivity = (
         .is('ended_at', null)
         .order('started_at', { ascending: false });
 
-      // 6. Outbound messages -> chars + audio + media + sent count
-      const { data: outMessages } = await supabase
-        .from('inbox_messages')
-        .select('sent_by_user_id, content, message_type')
-        .eq('direction', 'outbound')
-        .in('sent_by_user_id', userIdList)
-        .gte('sent_at', start.toISOString())
-        .lte('sent_at', end.toISOString())
-        .limit(20000);
-
-      // 6b. Inbound messages -> count received per assigned member
-      const { data: inMessages } = await supabase
-        .from('inbox_messages')
-        .select('conversation_id')
-        .eq('direction', 'inbound')
-        .gte('sent_at', start.toISOString())
-        .lte('sent_at', end.toISOString())
-        .limit(20000);
-
-      const inboundConvIds = Array.from(
-        new Set((inMessages || []).map((m: any) => m.conversation_id).filter(Boolean)),
+      // 6. Message productivity aggregated in the database.
+      // Direct inbox_messages queries were capped by the API/page limit and timed out
+      // on 30d/90d, so sent/received totals were incomplete.
+      const { data: messageProductivity, error: messageProductivityError } = await supabase.rpc(
+        'get_member_message_productivity' as any,
+        {
+          p_start: start.toISOString(),
+          p_end: end.toISOString(),
+          p_user_ids: userIdList,
+        } as any,
       );
-      const { data: inboundConvs } = inboundConvIds.length
-        ? await supabase
-            .from('conversations')
-            .select('id, assigned_to, user_id')
-            .in('id', inboundConvIds)
-        : { data: [] as any[] };
-      const convOwnerMap = new Map<string, string>();
-      (inboundConvs || []).forEach((c: any) => {
-        const owner = c.assigned_to || c.user_id;
-        if (owner) convOwnerMap.set(c.id, owner);
-      });
+
+      if (messageProductivityError) {
+        console.error('[useMemberProductivity] message productivity error:', messageProductivityError);
+      }
 
       // 7. Notes created in range
       const { data: notes } = await supabase
@@ -305,22 +287,15 @@ export const useMemberProductivity = (
         }
       });
 
-      // Outbound messages aggregation: count enviados + chars + media split
-      (outMessages || []).forEach((msg) => {
-        const m = memberMap.get(msg.sent_by_user_id as string);
+      // Sent/received messages aggregation from RPC (no API row limit)
+      ((messageProductivity || []) as any[]).forEach((msg) => {
+        const m = memberMap.get(msg.user_id as string);
         if (!m) return;
-        m.messagesSent += 1;
-        m.charactersTyped += (msg.content || '').length;
-        if (msg.message_type === 'audio') m.audiosSent += 1;
-        else if (msg.message_type && msg.message_type !== 'text') m.mediaSent += 1;
-      });
-
-      // Inbound messages aggregation: count recebidos por membro responsável da conversa
-      (inMessages || []).forEach((msg: any) => {
-        const owner = convOwnerMap.get(msg.conversation_id);
-        if (!owner) return;
-        const m = memberMap.get(owner);
-        if (m) m.messagesReceived += 1;
+        m.messagesSent += Number(msg.messages_sent || 0);
+        m.messagesReceived += Number(msg.messages_received || 0);
+        m.charactersTyped += Number(msg.characters_typed || 0);
+        m.audiosSent += Number(msg.audios_sent || 0);
+        m.mediaSent += Number(msg.media_sent || 0);
       });
 
       // Notes
