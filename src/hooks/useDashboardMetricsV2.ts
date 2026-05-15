@@ -1035,6 +1035,8 @@ export const useAlertMetrics = () => {
         .in('id', recentConvIds.length > 0 ? recentConvIds : ['']);
 
       alertInstances?.forEach(instance => {
+        if (instance.is_notification_only) return; // ignora instâncias internas de notificação
+
         const instanceConvIds = recentConversations?.filter(c => c.instance_id === instance.id).map(c => c.id) || [];
         const instanceMessages = recentMessages?.filter(m => instanceConvIds.includes(m.conversation_id)) || [];
         const failedMessages = instanceMessages.filter(m => m.status === 'failed').length;
