@@ -989,12 +989,28 @@ export const useAlertMetrics = () => {
       const thirtyMinutesAgo = subHours(now, 0.5);
       const twentyFourHoursAgo = subHours(now, 24);
 
-      const { count: unansweredCount } = await supabase
+      // Buscar instâncias para excluir notification-only do alerta de "leads sem resposta"
+      const { data: alertInstances } = await supabase
+        .from('whatsapp_instances')
+        .select('id, instance_name, status, is_notification_only');
+
+      const notificationInstanceIds = (alertInstances || [])
+        .filter(i => i.is_notification_only)
+        .map(i => i.id);
+
+      let unansweredQuery = supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'open')
         .gt('unread_count', 0)
+        .eq('last_message_direction', 'inbound')
         .lt('last_message_at', thirtyMinutesAgo.toISOString());
+
+      if (notificationInstanceIds.length > 0) {
+        unansweredQuery = unansweredQuery.not('instance_id', 'in', `(${notificationInstanceIds.join(',')})`);
+      }
+
+      const { count: unansweredCount } = await unansweredQuery;
 
       if (unansweredCount && unansweredCount > 0) {
         alerts.push({
@@ -1005,10 +1021,6 @@ export const useAlertMetrics = () => {
           count: unansweredCount,
         });
       }
-
-      const { data: alertInstances } = await supabase
-        .from('whatsapp_instances')
-        .select('id, instance_name, status');
 
       const { data: recentMessages } = await supabase
         .from('inbox_messages')
