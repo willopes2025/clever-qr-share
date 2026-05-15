@@ -32,10 +32,12 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   const [showDealForm, setShowDealForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
+  const [showCardFieldsConfig, setShowCardFieldsConfig] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [loadingStageId, setLoadingStageId] = useState<string | null>(null);
+  const { fieldKeys: cardFieldKeys, setFieldKeys: setCardFieldKeys } = useFunnelCardFields(funnel.id);
 
   // Estado do dialog de validação de campos obrigatórios
   const [pendingMove, setPendingMove] = useState<{
