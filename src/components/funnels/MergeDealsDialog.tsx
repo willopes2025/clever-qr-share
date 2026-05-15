@@ -214,7 +214,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 pr-4 -mr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2">
           <div className="space-y-6">
             {/* 1. Master selection */}
             <section className="space-y-2">
