@@ -137,7 +137,7 @@ export const useMemberProductivity = (
         .is('ended_at', null)
         .order('started_at', { ascending: false });
 
-      // 6. Outbound messages -> chars + audio + media (last 1000 in range to avoid huge fetch)
+      // 6. Outbound messages -> chars + audio + media + sent count
       const { data: outMessages } = await supabase
         .from('inbox_messages')
         .select('sent_by_user_id, content, message_type')
@@ -146,6 +146,30 @@ export const useMemberProductivity = (
         .gte('sent_at', start.toISOString())
         .lte('sent_at', end.toISOString())
         .limit(20000);
+
+      // 6b. Inbound messages -> count received per assigned member
+      const { data: inMessages } = await supabase
+        .from('inbox_messages')
+        .select('conversation_id')
+        .eq('direction', 'inbound')
+        .gte('sent_at', start.toISOString())
+        .lte('sent_at', end.toISOString())
+        .limit(20000);
+
+      const inboundConvIds = Array.from(
+        new Set((inMessages || []).map((m: any) => m.conversation_id).filter(Boolean)),
+      );
+      const { data: inboundConvs } = inboundConvIds.length
+        ? await supabase
+            .from('conversations')
+            .select('id, assigned_to, user_id')
+            .in('id', inboundConvIds)
+        : { data: [] as any[] };
+      const convOwnerMap = new Map<string, string>();
+      (inboundConvs || []).forEach((c: any) => {
+        const owner = c.assigned_to || c.user_id;
+        if (owner) convOwnerMap.set(c.id, owner);
+      });
 
       // 7. Notes created in range
       const { data: notes } = await supabase
@@ -194,8 +218,8 @@ export const useMemberProductivity = (
       (metrics || []).forEach((m) => {
         const member = memberMap.get(m.user_id);
         if (!member) return;
-        member.messagesSent += m.messages_sent || 0;
-        member.messagesReceived += m.messages_received || 0;
+        // messagesSent / messagesReceived são calculados a partir de inbox_messages
+        // (fonte de verdade) mais abaixo, em vez do cache user_performance_metrics.
         member.conversationsHandled += m.conversations_handled || 0;
         member.conversationsResolved += m.conversations_resolved || 0;
         member.dealsCreated += m.deals_created || 0;
@@ -281,13 +305,22 @@ export const useMemberProductivity = (
         }
       });
 
-      // Outbound messages aggregation: chars + media split
+      // Outbound messages aggregation: count enviados + chars + media split
       (outMessages || []).forEach((msg) => {
         const m = memberMap.get(msg.sent_by_user_id as string);
         if (!m) return;
+        m.messagesSent += 1;
         m.charactersTyped += (msg.content || '').length;
         if (msg.message_type === 'audio') m.audiosSent += 1;
         else if (msg.message_type && msg.message_type !== 'text') m.mediaSent += 1;
+      });
+
+      // Inbound messages aggregation: count recebidos por membro responsável da conversa
+      (inMessages || []).forEach((msg: any) => {
+        const owner = convOwnerMap.get(msg.conversation_id);
+        if (!owner) return;
+        const m = memberMap.get(owner);
+        if (m) m.messagesReceived += 1;
       });
 
       // Notes
