@@ -83,7 +83,16 @@ export const AsaasTransferList = () => {
                 transfers.map((transfer) => (
                   <TableRow key={transfer.id}>
                     <TableCell>
-                      {format(new Date(transfer.dateCreated), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      {(() => {
+                        const raw = transfer.dateCreated;
+                        if (!raw) return '-';
+                        const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+                        if (isDateOnly) {
+                          const [y, m, d] = raw.split('-').map(Number);
+                          return format(new Date(y, m - 1, d), "dd/MM/yyyy", { locale: ptBR });
+                        }
+                        return format(new Date(raw), "dd/MM/yyyy HH:mm", { locale: ptBR });
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{transfer.type}</Badge>
