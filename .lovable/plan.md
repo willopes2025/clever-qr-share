@@ -1,100 +1,56 @@
+## Diagnóstico
 
-# Revisão do Dashboard + Painel de Produtividade por Membro
+O número que aparece ao lado do **Inbox** na sidebar e no **título da aba do Chrome** (`(N) Wide…`) vem de `useUnreadCount` (`src/hooks/useUnreadCount.ts`). Hoje esse hook faz:
 
-## Contexto
+```ts
+supabase.from('conversations')
+  .select('unread_count')
+  .gt('unread_count', 0)
+  .neq('status', 'archived');
+// retorna SUM(unread_count)
+```
 
-Hoje o dashboard (`TraditionalDashboard.tsx`) já tem seções de overview, WhatsApp, leads, funil, financeiro, automações e um `AgentPerformanceSection` minimalista (top 5 atendentes). Existe também `TeamPerformanceTable` (não plugado no dashboard principal) e a tabela `user_performance_metrics` que já guarda mensagens enviadas/recebidas, conversas, deals, tarefas e tempo de trabalho por dia/usuário, além de `user_activity_sessions` (work/break/lunch/meeting/offline com duração).
+Isso não bate com o número real visto no Inbox por **5 motivos**:
 
-O usuário (owner) quer mais visão e controle sobre o que cada membro está fazendo. Vou consolidar isso num painel novo dedicado, e revisar o restante do dashboard para coerência (não vou reescrever lógica de negócio, só ajustes de organização e estado vazio).
+1. **Não exclui instâncias `is_notification_only`** — conversas dessas instâncias contam aqui, mas são ocultadas no Inbox (`useConversations` filtra `notificationInstanceIds`).
+2. **Não exclui instâncias ocultadas pelo usuário** (`useInboxHiddenInstances` / `hiddenInstanceIds`) — também ocultas no Inbox, mas contadas no badge.
+3. **Não exclui conversas do ecossistema de aquecimento** (`warming_contacts` / `warming_pool` — `warmingPhones`) — poluem o badge.
+4. **Não exclui conversas "fantasmas"** (sem `last_message_preview`, sem `last_message_direction` e sem nome de contato) — o Inbox filtra, o badge não.
+5. **Métrica diferente**: o badge soma `unread_count` (ex.: 1 conversa com 7 mensagens não lidas = 7), enquanto o Inbox/aba "Não lidas" mostra **número de conversas** com `unread_count > 0` (`ConversationList.tsx` linha 446: `conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length`).
 
-## O que será feito
+Resultado típico: badge mostra um número bem maior que o do Inbox, e que muda sozinho conforme novas mensagens entram em conversas escondidas/aquecimento.
 
-### 1. Novo componente `MemberProductivitySection` (owner-only)
+## Correção proposta
 
-Card grande, agrupando todas as métricas por membro num único lugar — substitui o `AgentPerformanceSection` atual e absorve o `TeamPerformanceTable`.
+Reescrever `src/hooks/useUnreadCount.ts` para usar exatamente os mesmos filtros do `useConversations` e a mesma métrica do Inbox (contagem de conversas, não soma).
 
-Conteúdo:
+Passos:
 
-- **KPIs do time (cards no topo)**: total horas trabalhadas, total mensagens enviadas, total mensagens recebidas, total conversas atendidas, total deals fechados, ticket médio, tempo médio de 1ª resposta.
-- **Tabela "Produtividade por Membro"** com colunas filtráveis:
-  - Membro (avatar + nome)
-  - Horas trabalhadas (de `user_activity_sessions` tipo `work`)
-  - Pausas (break + lunch)
-  - Mensagens enviadas / recebidas (split em duas colunas)
-  - Caracteres digitados (somatório do `length` de `inbox_messages.content` onde `from_me = true` e `sender_user_id = membro`) — métrica nova
-  - Conversas atendidas / resolvidas
-  - Tempo médio de 1ª resposta
-  - Deals criados / ganhos / valor R$
-  - Tarefas concluídas
-  - Notas criadas (de `conversation_notes`)
-  - Última atividade (relative time)
-  - Status atual (online/pausa/almoço/offline) baseado em sessão aberta
-- **Heatmap de horários ativos** (dia da semana × hora), por membro selecionado — usando `user_activity_sessions`.
-- **Drill-down**: clicar num membro abre `MemberDetailDrawer` com gráfico diário de mensagens, conversas, tempo de resposta e timeline de sessões do período.
+1. Buscar em paralelo (cacheáveis e já existentes em outros hooks):
+   - IDs de instâncias `is_notification_only` (reaproveitar a mesma queryKey `['notification-instance-ids', user?.id]`).
+   - `hiddenInstanceIds` via `useInboxHiddenInstances`.
+   - `allowedInstanceIds` + `hasInstanceRestriction` quando o membro tem restrição.
+   - Conjunto `warmingPhones` (phones de `warming_contacts` + `warming_pool`).
+2. Consultar `conversations` selecionando apenas o necessário para filtrar e contar:
+   `id, instance_id, contact_id, unread_count, status, last_message_preview, last_message_direction`, com `gt('unread_count', 0)` e `neq('status', 'archived')`, aplicando o mesmo filtro de `instance_id` (incluindo `instance_id IS NULL`) usado em `useConversations`.
+3. Buscar `contacts(id, name, phone)` em chunks só para os `contact_id` retornados (mesmo padrão da listagem).
+4. Aplicar client-side os mesmos filtros do Inbox:
+   - remover `instance_id` em `notificationInstanceIds`;
+   - remover `instance_id` em `hiddenInstanceIds`;
+   - remover "fantasmas" (sem preview/direction/nome);
+   - remover phones presentes em `warmingPhones`.
+5. Retornar **`filtered.length`** (número de conversas não lidas), e não a soma de `unread_count`. Isso fica idêntico ao número do badge "Não lidas" da aba do Inbox e ao indicador na sidebar.
+6. Manter `staleTime: 30_000` e a invalidação já existente em `useGlobalRealtime` (`['unread-count']`).
+7. `useUnreadBadge` continua igual — ele só formata `(${n})` no `document.title`, então passa a refletir o novo valor automaticamente.
 
-### 2. Sugestões adicionais de métricas (a incluir)
+## Validação
 
-Além do que você pediu (mensagens enviadas/recebidas, tempo de trabalho, caracteres digitados, conversas), adiciono:
+- Abrir Inbox e comparar: número exibido na aba "Não lidas" do `ConversationList` deve ser igual ao badge da sidebar e ao `(N)` no título da aba do Chrome.
+- Ocultar uma instância em "Ocultar do inbox": badge deve cair junto com a lista.
+- Marcar uma conversa do aquecimento como não lida no banco: não deve afetar o badge.
+- Marcar `is_notification_only` em uma instância: conversas dela não devem mais contar no badge.
 
-- Tempo médio e mediano de **primeira resposta** por membro (SLA)
-- Tempo médio de **resolução** de conversa
-- **Áudios enviados** vs texto vs mídia (split de `inbox_messages.message_type`)
-- **Templates Meta** disparados pelo membro
-- **Taxa de conversão** (deals ganhos / conversas atendidas)
-- **Pico de atividade** (hora do dia com mais mensagens)
-- **Conversas abandonadas** sob responsabilidade do membro
-- **Tarefas criadas vs concluídas** + tarefas em atraso
-- **Movimentações de funil** feitas pelo membro (de `funnel_deal_history`)
-- **Notas e tags** adicionadas
-- **Inatividade**: tempo desde a última mensagem enviada
-- **Status atual** em tempo real (work / break / lunch / meeting / offline)
+## Arquivos afetados
 
-### 3. Nova hook `useMemberProductivity`
-
-Em `src/hooks/useMemberProductivity.ts`. Para cada membro ativo da org no período:
-1. Soma de `user_performance_metrics` (já tem messages_sent/received, conversations, deals, tasks, work seconds).
-2. `user_activity_sessions` para horas detalhadas e status atual.
-3. Query agregada em `inbox_messages` para **caracteres digitados**, áudios, templates, pico de hora.
-4. `conversation_notes`, `funnel_deal_history`, `tasks` para complementos.
-5. Escopo via `get_organization_member_ids(auth.uid())` (regra do projeto).
-
-### 4. Revisão do dashboard existente
-
-- `TraditionalDashboard.tsx`: substituir o par `AgentPerformanceSection + AlertsSection` pelo novo `MemberProductivitySection` em largura total; mover `AlertsSection` para baixo de `AutomationSection`.
-- `OverviewSection`: adicionar KPI "Mensagens enviadas/recebidas (time todo)" no período.
-- Estados vazios padronizados (mesmo componente em todas as seções).
-- Skeletons unificados.
-- Filtro de data já existe (`DashboardDateFilter`) — passar para a nova seção também.
-- Visibilidade: a nova seção só aparece para owner/admin (`useUserRole`); membros comuns só veem suas próprias métricas (versão reduzida).
-
-### 5. Arquivos novos / modificados
-
-Novos:
-- `src/components/dashboard/MemberProductivitySection.tsx`
-- `src/components/dashboard/MemberDetailDrawer.tsx`
-- `src/components/dashboard/MemberActivityHeatmap.tsx`
-- `src/hooks/useMemberProductivity.ts`
-
-Modificados:
-- `src/components/dashboard/TraditionalDashboard.tsx` (recompor layout)
-- `src/components/dashboard/OverviewSection.tsx` (KPIs de mensagens do time)
-- `src/components/dashboard/AgentPerformanceSection.tsx` (deprecar/remover)
-- `src/hooks/useDashboardMetricsV2.ts` (expor agregados extras se faltar)
-
-### 6. Performance e RLS
-
-- Todas as queries usam `organization_id` e RLS já existente em `user_performance_metrics` e `user_activity_sessions`.
-- "Caracteres digitados" e agregados em `inbox_messages` ficam atrás de `useQuery` com `staleTime` de 60s para não pesar.
-- Período padrão: 7d (igual ao dashboard atual). Para "today" o status atual é em tempo real via realtime já configurado em `user_activity_sessions`.
-
-## Detalhes técnicos
-
-- Sem migração de DB necessária — todas as métricas saem de tabelas existentes.
-- "Caracteres digitados" = `SUM(char_length(content))` em `inbox_messages` filtrado por `from_me = true` e `sender_user_id`. Se `sender_user_id` não estiver populado em mensagens antigas, fallback para `instance_id → user_id`.
-- Status em tempo real: subscribe em `user_activity_sessions` filtrado por `organization_id`.
-
-## Fora de escopo
-
-- Não vou alterar o tracking em si (ActivityTracker já existe e popula as tabelas).
-- Não vou criar gravação de tela / keystroke logger — apenas agregados já capturados.
-- Não vou mexer no dashboard mobile (`MobileHome`) nesta etapa.
+- `src/hooks/useUnreadCount.ts` (reescrita)
+- Nenhuma mudança de schema, RLS, edge function ou UI.
