@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { startOfDay, subDays, format, differenceInSeconds } from 'date-fns';
+import { startOfDay, endOfDay, subDays, format, differenceInSeconds } from 'date-fns';
 
 export type DateRange = '7d' | '30d' | '90d' | 'today';
 
@@ -80,27 +80,20 @@ export interface Insight {
 }
 
 function getDateRange(range: DateRange): { start: Date; end: Date } {
-  const end = new Date();
-  let start: Date;
-  
+  const now = new Date();
+
   switch (range) {
     case 'today':
-      start = startOfDay(new Date());
-      break;
+      return { start: startOfDay(now), end: endOfDay(now) };
     case '7d':
-      start = subDays(end, 7);
-      break;
+      return { start: startOfDay(subDays(now, 6)), end: endOfDay(now) };
     case '30d':
-      start = subDays(end, 30);
-      break;
+      return { start: startOfDay(subDays(now, 29)), end: endOfDay(now) };
     case '90d':
-      start = subDays(end, 90);
-      break;
+      return { start: startOfDay(subDays(now, 89)), end: endOfDay(now) };
     default:
-      start = subDays(end, 7);
+      return { start: startOfDay(subDays(now, 6)), end: endOfDay(now) };
   }
-  
-  return { start, end };
 }
 
 export function useSalesMetrics(dateRange: DateRange = '7d') {
@@ -400,7 +393,7 @@ export function useTeamProductivityMetrics(dateRange: DateRange = '7d') {
 
 export function useConversationMetrics(dateRange: DateRange = '7d') {
   const { user } = useAuth();
-  const { start } = getDateRange(dateRange);
+  const { start, end } = getDateRange(dateRange);
 
   return useQuery({
     queryKey: ['conversationMetrics', user?.id, dateRange],
@@ -410,7 +403,8 @@ export function useConversationMetrics(dateRange: DateRange = '7d') {
       const { data: conversations, error } = await supabase
         .from('conversations')
         .select('status, ai_handled, ai_handoff_requested, unread_count')
-        .gte('created_at', start.toISOString());
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
       if (error) throw error;
 
@@ -476,7 +470,7 @@ export function useFunnelStageMetrics() {
 
 export function useDealStatusMetrics(dateRange: DateRange = '7d') {
   const { user } = useAuth();
-  const { start } = getDateRange(dateRange);
+  const { start, end } = getDateRange(dateRange);
 
   return useQuery({
     queryKey: ['dealStatusMetrics', user?.id, dateRange],
@@ -493,7 +487,8 @@ export function useDealStatusMetrics(dateRange: DateRange = '7d') {
             final_type
           )
         `)
-        .gte('created_at', start.toISOString());
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
 
       if (error) throw error;
 

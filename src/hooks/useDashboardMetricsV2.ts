@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { startOfDay, subDays, subHours, differenceInMinutes } from 'date-fns';
+import { startOfDay, endOfDay, subDays, subHours, differenceInMinutes } from 'date-fns';
 
 export type DateRange = 'today' | '7d' | '30d' | '90d' | 'custom';
 
@@ -15,34 +15,27 @@ export interface CustomDateRange {
 }
 
 export const getDateRange = (range: DateRange, customRange?: CustomDateRange): DateRangeResult => {
-  const end = new Date();
-  let start: Date;
+  const now = new Date();
 
   if (range === 'custom' && customRange) {
     return {
       start: startOfDay(customRange.from),
-      end: new Date(customRange.to.getFullYear(), customRange.to.getMonth(), customRange.to.getDate(), 23, 59, 59, 999),
+      end: endOfDay(customRange.to),
     };
   }
-  
+
   switch (range) {
     case 'today':
-      start = startOfDay(end);
-      break;
+      return { start: startOfDay(now), end: endOfDay(now) };
     case '7d':
-      start = subDays(end, 7);
-      break;
+      return { start: startOfDay(subDays(now, 6)), end: endOfDay(now) };
     case '30d':
-      start = subDays(end, 30);
-      break;
+      return { start: startOfDay(subDays(now, 29)), end: endOfDay(now) };
     case '90d':
-      start = subDays(end, 90);
-      break;
+      return { start: startOfDay(subDays(now, 89)), end: endOfDay(now) };
     default:
-      start = subDays(end, 7);
+      return { start: startOfDay(subDays(now, 6)), end: endOfDay(now) };
   }
-  
-  return { start, end };
 };
 
 // ==================== OVERVIEW METRICS ====================
@@ -403,16 +396,28 @@ export const useLeadChannelMetrics = (dateRange: DateRange = '7d', customRange?:
       }
 
       // Get conversations for these contacts to determine channel
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select('contact_id, provider, instance_id, meta_phone_number_id')
-        .in('contact_id', contactIds.slice(0, 500));
+      // Process in batches of 500 to avoid query size limits
+      const batchSize = 500;
+      const conversationBatches = await Promise.all(
+        Array.from({ length: Math.ceil(contactIds.length / batchSize) }, (_, i) =>
+          supabase
+            .from('conversations')
+            .select('contact_id, provider, instance_id, meta_phone_number_id')
+            .in('contact_id', contactIds.slice(i * batchSize, (i + 1) * batchSize))
+        )
+      );
+      const conversations = conversationBatches.flatMap(r => r.data || []);
 
       // Get form submissions for these contacts
-      const { data: formSubmissions } = await supabase
-        .from('form_submissions')
-        .select('contact_id, form_id')
-        .in('contact_id', contactIds.slice(0, 500));
+      const formSubmissionBatches = await Promise.all(
+        Array.from({ length: Math.ceil(contactIds.length / batchSize) }, (_, i) =>
+          supabase
+            .from('form_submissions')
+            .select('contact_id, form_id')
+            .in('contact_id', contactIds.slice(i * batchSize, (i + 1) * batchSize))
+        )
+      );
+      const formSubmissions = formSubmissionBatches.flatMap(r => r.data || []);
 
       // Get form names
       const formIds = [...new Set(formSubmissions?.map(fs => fs.form_id).filter(Boolean) || [])];
@@ -743,7 +748,6 @@ export const useAutomationMetrics = (dateRange: DateRange = '7d', customRange?: 
     queryKey: ['automation-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<AutomationMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
-      const todayStart = startOfDay(new Date());
 
       const { count: activeFlows } = await supabase
         .from('chatbot_flows')
@@ -753,7 +757,8 @@ export const useAutomationMetrics = (dateRange: DateRange = '7d', customRange?: 
       const { count: flowsTriggeredToday } = await supabase
         .from('chatbot_executions')
         .select('*', { count: 'exact', head: true })
-        .gte('started_at', todayStart.toISOString());
+        .gte('started_at', start.toISOString())
+        .lte('started_at', end.toISOString());
 
       const { data: botConversations } = await supabase
         .from('conversations')
@@ -911,27 +916,35 @@ export const useFinancialMetrics = (dateRange: DateRange = '30d', customRange?: 
 
       const wonStageIds = stages?.filter(s => s.final_type === 'won').map(s => s.id) || [];
 
-      const { data: deals } = await supabase
-        .from('funnel_deals')
-        .select('id, stage_id, value, closed_at, created_at');
+      // Won deals filtered server-side by closed_at within the period
+      const { data: wonDealsRaw } = wonStageIds.length > 0
+        ? await supabase
+            .from('funnel_deals')
+            .select('id, stage_id, value, closed_at, created_at')
+            .in('stage_id', wonStageIds)
+            .gte('closed_at', start.toISOString())
+            .lte('closed_at', end.toISOString())
+        : { data: [] };
 
-      // Won deals in period
-      const wonDeals = deals?.filter(d => 
-        wonStageIds.includes(d.stage_id) && 
-        d.closed_at && 
-        new Date(d.closed_at) >= start &&
-        new Date(d.closed_at) <= end
-      ) || [];
+      const wonDeals = wonDealsRaw || [];
       
       const salesTotal = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
       // Fix: filter deals with value > 0 for average ticket to avoid distortion
       const wonDealsWithValue = wonDeals.filter(d => (d.value || 0) > 0);
       const avgTicket = wonDealsWithValue.length > 0 ? wonDealsWithValue.reduce((sum, d) => sum + (d.value || 0), 0) / wonDealsWithValue.length : 0;
 
-      // Value in negotiation (pipeline total - always current state)
+      // Value in negotiation (pipeline total - always current state, no date filter)
       const lostStageIds = stages?.filter(s => s.final_type === 'lost').map(s => s.id) || [];
       const finalStageIds = [...wonStageIds, ...lostStageIds];
-      const openDeals = deals?.filter(d => !finalStageIds.includes(d.stage_id)) || [];
+      const allStageIds = stages?.map(s => s.id) || [];
+      const openStageIds = allStageIds.filter(id => !finalStageIds.includes(id));
+      const { data: openDealsRaw } = openStageIds.length > 0
+        ? await supabase
+            .from('funnel_deals')
+            .select('id, stage_id, value')
+            .in('stage_id', openStageIds)
+        : { data: [] };
+      const openDeals = openDealsRaw || [];
       const valueInNegotiation = openDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
       let estimatedRevenue = 0;
