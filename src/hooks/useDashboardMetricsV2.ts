@@ -179,36 +179,22 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
     queryFn: async (): Promise<WhatsAppMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
-      // Count sent, delivered, failed in parallel
-      const [sentResult, deliveredResult, failedResult] = await Promise.all([
-        supabase
-          .from('inbox_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('direction', 'outbound')
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString()),
-        // "Entregues" = todas que saíram com sucesso (sent/delivered/received/read).
-        // Evolution API não atualiza status para 'delivered', fica em 'sent' permanentemente.
-        // Excluímos apenas falhas e em trânsito (pending/sending/queued).
-        supabase
-          .from('inbox_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('direction', 'outbound')
-          .in('status', ['sent', 'delivered', 'received', 'read'])
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString()),
-        supabase
-          .from('inbox_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('direction', 'outbound')
-          .eq('status', 'failed')
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString()),
-      ]);
+      // Usa RPC com aggregate em uma única varredura para evitar statement timeout
+      // em janelas grandes (30d/90d). Antes usávamos 3 count(*) separados, que estouravam
+      // o timeout do Postgres em ranges longos e devolviam 0.
+      const { data: statsData, error: statsError } = await supabase.rpc('get_whatsapp_message_stats', {
+        p_start: start.toISOString(),
+        p_end: end.toISOString(),
+      });
 
-      const messagesSent = sentResult.count || 0;
-      const messagesDelivered = deliveredResult.count || 0;
-      const messagesFailed = failedResult.count || 0;
+      if (statsError) {
+        console.error('[useWhatsAppMetrics] stats error:', statsError);
+      }
+
+      const stats = Array.isArray(statsData) ? statsData[0] : statsData;
+      const messagesSent = Number(stats?.sent || 0);
+      const messagesDelivered = Number(stats?.delivered || 0);
+      const messagesFailed = Number(stats?.failed || 0);
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
       // Fetch messages with conversation details including provider and meta_phone_number_id
