@@ -515,14 +515,17 @@ export const useCampaignDispatchMetrics = (dateRange: DateRange = '7d', customRa
     queryFn: async (): Promise<CampaignDispatchMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
-      // Buscar campanhas criadas OU iniciadas no range, para não perder campanhas
-      // que foram criadas antes mas dispararam dentro do período.
+      // Buscar campanhas que:
+      //  - foram criadas OU iniciadas no range; OU
+      //  - estão com status ativo (sending/scheduled), independente da data,
+      //    pra não esconder campanhas em andamento de períodos antigos.
       const { data: campaigns } = await supabase
         .from('campaigns')
         .select('id, name, status, total_contacts, started_at, completed_at, created_at')
         .or(
           `and(created_at.gte.${start.toISOString()},created_at.lte.${end.toISOString()}),` +
-          `and(started_at.gte.${start.toISOString()},started_at.lte.${end.toISOString()})`
+          `and(started_at.gte.${start.toISOString()},started_at.lte.${end.toISOString()}),` +
+          `status.in.(sending,scheduled)`
         )
         .order('created_at', { ascending: false });
 
