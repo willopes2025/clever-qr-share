@@ -156,6 +156,17 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   return (
     <>
+      <div className="flex items-center justify-end mb-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCardFieldsConfig(true)}
+          className="gap-2"
+        >
+          <Settings2 className="h-4 w-4" />
+          Campos do card
+        </Button>
+      </div>
       <div
         ref={grabScroll.ref}
         className={cn(
