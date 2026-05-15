@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
@@ -20,6 +20,12 @@ const formatCurrency = (value: number): string => {
 export const FunnelSection = ({ dateRange, customRange }: FunnelSectionProps) => {
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | undefined>(undefined);
   const { data: funnels } = useFunnelsList();
+
+  useEffect(() => {
+    if (!selectedFunnelId && funnels?.length) {
+      setSelectedFunnelId(funnels[0].id);
+    }
+  }, [funnels, selectedFunnelId]);
   const { data, isLoading } = useFunnelMetrics(dateRange, selectedFunnelId, customRange);
 
   const summaryCards = [
@@ -65,14 +71,13 @@ export const FunnelSection = ({ dateRange, customRange }: FunnelSectionProps) =>
             🔄 Funil / CRM
           </CardTitle>
           <Select 
-            value={selectedFunnelId || 'all'} 
-            onValueChange={(value) => setSelectedFunnelId(value === 'all' ? undefined : value)}
+            value={selectedFunnelId || ''} 
+            onValueChange={(value) => setSelectedFunnelId(value)}
           >
             <SelectTrigger className="w-[180px] h-8 text-sm">
-              <SelectValue placeholder="Todos os funis" />
+              <SelectValue placeholder="Selecionar funil" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os funis</SelectItem>
               {funnels?.map((funnel) => (
                 <SelectItem key={funnel.id} value={funnel.id}>
                   {funnel.name}
