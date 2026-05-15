@@ -41,7 +41,14 @@ const formatFieldValue = (value: unknown, type?: string): string => {
   if (typeof value === "boolean") return value ? "Sim" : "Não";
   if (type === "date" || type === "datetime") {
     try {
-      const d = typeof value === "string" ? parseISO(value) : new Date(value as string);
+      let d: Date;
+      const num = typeof value === "number" ? value : (typeof value === "string" && /^\d+(\.\d+)?$/.test(value.trim()) ? Number(value) : NaN);
+      if (!isNaN(num) && num > 20000 && num < 80000) {
+        // Excel serial date (days since 1899-12-30)
+        d = new Date(Math.round((num - 25569) * 86400 * 1000));
+      } else {
+        d = typeof value === "string" ? parseISO(value) : new Date(value as string);
+      }
       if (!isNaN(d.getTime())) {
         return format(d, type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy", { locale: ptBR });
       }
