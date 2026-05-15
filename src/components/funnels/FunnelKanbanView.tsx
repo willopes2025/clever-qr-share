@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Settings2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,12 +8,14 @@ import { Funnel, FunnelStage, FunnelDeal, useFunnels } from "@/hooks/useFunnels"
 import { useStageDealCounts, useLoadMoreDeals, DEALS_PER_PAGE } from "@/hooks/useFunnelDeals";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
+import { useFunnelCardFields } from "@/hooks/useFunnelCardFields";
 import { getMissingRequiredFields } from "@/lib/required-fields";
 import { FunnelDealCard } from "./FunnelDealCard";
 import { DealFormDialog } from "./DealFormDialog";
 import { StageFormDialog } from "./StageFormDialog";
 import { StageContextMenu } from "./StageContextMenu";
 import { RequiredFieldsCheckDialog } from "./RequiredFieldsCheckDialog";
+import { CardFieldsConfigDialog } from "./CardFieldsConfigDialog";
 import type { CustomFieldDefinition } from "@/hooks/useCustomFields";
 
 interface FunnelKanbanViewProps {
@@ -30,10 +32,12 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   const [showDealForm, setShowDealForm] = useState(false);
   const [showStageForm, setShowStageForm] = useState(false);
+  const [showCardFieldsConfig, setShowCardFieldsConfig] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [loadingStageId, setLoadingStageId] = useState<string | null>(null);
+  const { fieldKeys: cardFieldKeys, setFieldKeys: setCardFieldKeys } = useFunnelCardFields(funnel.id);
 
   // Estado do dialog de validação de campos obrigatórios
   const [pendingMove, setPendingMove] = useState<{
@@ -152,6 +156,17 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
 
   return (
     <>
+      <div className="flex items-center justify-end mb-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCardFieldsConfig(true)}
+          className="gap-2"
+        >
+          <Settings2 className="h-4 w-4" />
+          Campos do card
+        </Button>
+      </div>
       <div
         ref={grabScroll.ref}
         className={cn(
@@ -216,6 +231,7 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
                         onDragStart={(e) => handleDragStart(e, deal.id)}
                         onDragEnd={handleDragEnd}
                         isDragging={draggedDealId === deal.id}
+                        cardFieldKeys={cardFieldKeys}
                       />
                     </motion.div>
                   ))}
@@ -302,6 +318,13 @@ export const FunnelKanbanView = ({ funnel }: FunnelKanbanViewProps) => {
           }}
         />
       )}
+
+      <CardFieldsConfigDialog
+        open={showCardFieldsConfig}
+        onOpenChange={setShowCardFieldsConfig}
+        selectedKeys={cardFieldKeys}
+        onSave={setCardFieldKeys}
+      />
     </>
   );
 };

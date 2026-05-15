@@ -23,7 +23,8 @@ import { formatForDisplay } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
 import { useDealTasks } from "@/hooks/useDealTasks";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
-import { differenceInHours, differenceInDays, format, isPast, isToday } from "date-fns";
+import { useCustomFields } from "@/hooks/useCustomFields";
+import { differenceInHours, differenceInDays, format, isPast, isToday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface FunnelDealCardProps {
@@ -31,9 +32,39 @@ interface FunnelDealCardProps {
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   isDragging?: boolean;
+  cardFieldKeys?: string[];
 }
 
-export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: FunnelDealCardProps) => {
+const formatFieldValue = (value: unknown, type?: string): string => {
+  if (value === null || value === undefined || value === "") return "";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (type === "date" || type === "datetime") {
+    try {
+      const d = typeof value === "string" ? parseISO(value) : new Date(value as string);
+      if (!isNaN(d.getTime())) {
+        return format(d, type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy", { locale: ptBR });
+      }
+    } catch { /* noop */ }
+  }
+  if (type === "number" && typeof value === "number") {
+    return value.toLocaleString("pt-BR");
+  }
+  return String(value);
+};
+
+export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardFieldKeys = [] }: FunnelDealCardProps) => {
+  const { fieldDefinitions } = useCustomFields();
+  const dealCustom = (deal.custom_fields as Record<string, unknown>) || {};
+  const contactCustom = ((deal.contact as any)?.custom_fields as Record<string, unknown>) || {};
+  const cardFields = cardFieldKeys
+    .map((key) => {
+      const def = fieldDefinitions?.find((f) => f.field_key === key);
+      const raw = def?.entity_type === "contact" ? contactCustom[key] : dealCustom[key];
+      const value = raw !== undefined && raw !== null && raw !== "" ? raw : (dealCustom[key] ?? contactCustom[key]);
+      return { key, def, value, label: def?.field_name || key };
+    })
+    .filter((f) => f.value !== undefined && f.value !== null && f.value !== "");
   const navigate = useNavigate();
   const { deleteDeal } = useFunnels();
   const [showEdit, setShowEdit] = useState(false);
@@ -238,6 +269,20 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging }: Fun
                 {getTimeInStage()}
               </div>
             </div>
+
+            {/* Custom fields chosen by the user */}
+            {cardFields.length > 0 && (
+              <div className="space-y-0.5 pt-1 border-t border-border/30">
+                {cardFields.map((f) => (
+                  <div key={f.key} className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-muted-foreground truncate">{f.label}:</span>
+                    <span className="font-medium truncate">
+                      {formatFieldValue(f.value, f.def?.field_type)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Next Action Badge */}
             {nextActionDisplay && (
