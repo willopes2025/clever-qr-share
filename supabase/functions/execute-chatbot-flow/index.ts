@@ -205,12 +205,37 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Load contact info for variable substitution
+    // Load contact info for variable substitution (includes custom_fields)
     const { data: contact } = await supabase
       .from('contacts')
-      .select('id, name, phone, email')
+      .select('id, name, phone, email, custom_fields')
       .eq('id', contactId)
       .single();
+
+    // Load most recent deal for this contact (for {{valor}}, {{etapa}}, {{funil}}, lead custom fields)
+    let activeDeal: any = null;
+    let activeStage: any = null;
+    let activeFunnel: any = null;
+    try {
+      const { data: dealRow } = await supabase
+        .from('funnel_deals')
+        .select('id, title, value, stage_id, funnel_id, custom_fields')
+        .eq('contact_id', contactId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      activeDeal = dealRow || null;
+      if (activeDeal?.stage_id) {
+        const { data: s } = await supabase.from('funnel_stages').select('name').eq('id', activeDeal.stage_id).maybeSingle();
+        activeStage = s;
+      }
+      if (activeDeal?.funnel_id) {
+        const { data: f } = await supabase.from('funnels').select('name').eq('id', activeDeal.funnel_id).maybeSingle();
+        activeFunnel = f;
+      }
+    } catch (e) {
+      console.log('[FLOW] Failed to load deal context:', e);
+    }
 
     // Load flow nodes and edges
     const [{ data: nodes }, { data: edges }] = await Promise.all([
@@ -310,6 +335,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // Helper: substitute variables in text
+    const formatVarValue = (v: any): string => {
+      if (v === null || v === undefined) return '';
+      if (Array.isArray(v)) return v.join(', ');
+      if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return ''; } }
+      return String(v);
+    };
+    const contactCustom = (contact?.custom_fields as Record<string, any>) || {};
+    const dealCustom = (activeDeal?.custom_fields as Record<string, any>) || {};
     const substituteVars = (text: string): string => {
       if (!text) return '';
       const fullName = (contact?.name || '').trim();
@@ -324,7 +357,18 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{telefone\}\}/gi, contact?.phone || '')
         .replace(/\{\{phone\}\}/gi, contact?.phone || '')
         .replace(/\{\{email\}\}/gi, contact?.email || '')
-        .replace(/\{\{(\w+)\}\}/g, (_, key) => execution?.variables?.[key] || '');
+        .replace(/\{\{valor\}\}/gi, activeDeal?.value != null ? String(activeDeal.value) : '')
+        .replace(/\{\{titulo\}\}/gi, activeDeal?.title || '')
+        .replace(/\{\{etapa\}\}/gi, activeStage?.name || '')
+        .replace(/\{\{stage\}\}/gi, activeStage?.name || '')
+        .replace(/\{\{funil\}\}/gi, activeFunnel?.name || '')
+        .replace(/\{\{funnel\}\}/gi, activeFunnel?.name || '')
+        .replace(/\{\{(\w+)\}\}/g, (_, key) => {
+          if (execution?.variables?.[key] !== undefined) return formatVarValue(execution.variables[key]);
+          if (dealCustom[key] !== undefined) return formatVarValue(dealCustom[key]);
+          if (contactCustom[key] !== undefined) return formatVarValue(contactCustom[key]);
+          return '';
+        });
     };
 
     // Helper: get next node from edges
