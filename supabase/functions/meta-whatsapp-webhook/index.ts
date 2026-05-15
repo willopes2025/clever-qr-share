@@ -990,6 +990,9 @@ Deno.serve(async (req) => {
                   updateData.status = 'failed';
                   if (status.errors?.length > 0) {
                     console.error('[META-WEBHOOK] Message failed:', status.errors);
+                    const err = status.errors[0];
+                    const details = err.error_data?.details ? ` — ${err.error_data.details}` : '';
+                    updateData.error_message = `[${err.code}] ${err.title || err.message || 'Falha no envio'}${details}`;
                   }
                   break;
                 default:
