@@ -335,6 +335,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // Helper: substitute variables in text
+    const formatVarValue = (v: any): string => {
+      if (v === null || v === undefined) return '';
+      if (Array.isArray(v)) return v.join(', ');
+      if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return ''; } }
+      return String(v);
+    };
+    const contactCustom = (contact?.custom_fields as Record<string, any>) || {};
+    const dealCustom = (activeDeal?.custom_fields as Record<string, any>) || {};
     const substituteVars = (text: string): string => {
       if (!text) return '';
       const fullName = (contact?.name || '').trim();
@@ -349,7 +357,18 @@ Deno.serve(async (req: Request) => {
         .replace(/\{\{telefone\}\}/gi, contact?.phone || '')
         .replace(/\{\{phone\}\}/gi, contact?.phone || '')
         .replace(/\{\{email\}\}/gi, contact?.email || '')
-        .replace(/\{\{(\w+)\}\}/g, (_, key) => execution?.variables?.[key] || '');
+        .replace(/\{\{valor\}\}/gi, activeDeal?.value != null ? String(activeDeal.value) : '')
+        .replace(/\{\{titulo\}\}/gi, activeDeal?.title || '')
+        .replace(/\{\{etapa\}\}/gi, activeStage?.name || '')
+        .replace(/\{\{stage\}\}/gi, activeStage?.name || '')
+        .replace(/\{\{funil\}\}/gi, activeFunnel?.name || '')
+        .replace(/\{\{funnel\}\}/gi, activeFunnel?.name || '')
+        .replace(/\{\{(\w+)\}\}/g, (_, key) => {
+          if (execution?.variables?.[key] !== undefined) return formatVarValue(execution.variables[key]);
+          if (dealCustom[key] !== undefined) return formatVarValue(dealCustom[key]);
+          if (contactCustom[key] !== undefined) return formatVarValue(contactCustom[key]);
+          return '';
+        });
     };
 
     // Helper: get next node from edges
