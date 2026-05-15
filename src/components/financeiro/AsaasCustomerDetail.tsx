@@ -108,6 +108,13 @@ export const AsaasCustomerDetail = ({ customer, onClose, onCreatePayment }: Asaa
 
   const formatDate = (dateStr: string) => {
     try {
+      if (!dateStr) return '-';
+      // Asaas retorna datas no formato "YYYY-MM-DD" — parse local pra evitar shift de timezone (UTC -> BRT = D-1)
+      const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+      if (isDateOnly) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return format(new Date(y, m - 1, d), "dd/MM/yyyy", { locale: ptBR });
+      }
       return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return dateStr;
