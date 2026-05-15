@@ -343,7 +343,7 @@ export const MergeDealsDialog = ({ open, onOpenChange, deals, funnel, onMerged }
               </p>
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mergeDeals.isPending}>
