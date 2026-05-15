@@ -6854,6 +6854,14 @@ export type Database = {
       }
       get_user_organization_id: { Args: { _user_id: string }; Returns: string }
       get_user_team_role: { Args: { _user_id: string }; Returns: string }
+      get_whatsapp_message_stats: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          delivered: number
+          failed: number
+          sent: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
