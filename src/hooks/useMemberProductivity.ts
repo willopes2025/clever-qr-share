@@ -137,14 +137,14 @@ export const useMemberProductivity = (
         .is('ended_at', null)
         .order('started_at', { ascending: false });
 
-      // 6. Outbound messages -> chars + audio + media (last 1000 in range to avoid huge fetch)
+      // 6. Outbound messages -> chars + audio + media (last 20000 in range to avoid huge fetch)
       const { data: outMessages } = await supabase
         .from('inbox_messages')
         .select('sent_by_user_id, content, message_type')
         .eq('direction', 'outbound')
         .in('sent_by_user_id', userIdList)
-        .gte('sent_at', start.toISOString())
-        .lte('sent_at', end.toISOString())
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
         .limit(20000);
 
       // 7. Notes created in range
@@ -189,8 +189,11 @@ export const useMemberProductivity = (
       }
 
       // Performance metrics aggregation
-      let respSum = 0;
-      let respCount = 0;
+      // Track weighted response time per member: weight = conversations_handled that day
+      const memberRespData = new Map<string, { sum: number; count: number }>();
+      let globalRespSum = 0;
+      let globalRespCount = 0;
+
       (metrics || []).forEach((m) => {
         const member = memberMap.get(m.user_id);
         if (!member) return;
@@ -205,12 +208,17 @@ export const useMemberProductivity = (
         member.workSeconds += m.total_work_seconds || 0;
         member.breakSeconds += m.total_break_seconds || 0;
         member.lunchSeconds += m.total_lunch_seconds || 0;
-        if (m.avg_response_time_seconds) {
-          respSum += m.avg_response_time_seconds;
-          respCount += 1;
-          member.avgResponseSeconds =
-            (member.avgResponseSeconds || 0) + m.avg_response_time_seconds;
+
+        if (m.avg_response_time_seconds && m.conversations_handled > 0) {
+          const weight = m.conversations_handled as number;
+          const resp = memberRespData.get(m.user_id) || { sum: 0, count: 0 };
+          resp.sum += m.avg_response_time_seconds * weight;
+          resp.count += weight;
+          memberRespData.set(m.user_id, resp);
+          globalRespSum += m.avg_response_time_seconds * weight;
+          globalRespCount += weight;
         }
+
         if (m.last_activity_at) {
           if (!member.lastActivityAt || m.last_activity_at > member.lastActivityAt) {
             member.lastActivityAt = m.last_activity_at;
@@ -218,18 +226,22 @@ export const useMemberProductivity = (
         }
       });
 
+      // Apply weighted average response time per member
+      memberRespData.forEach((resp, uid) => {
+        const m = memberMap.get(uid);
+        if (m) m.avgResponseSeconds = resp.count > 0 ? Math.round(resp.sum / resp.count) : null;
+      });
+
       // Sessions aggregation (overrides perf metrics if more accurate)
       const sessionWork = new Map<string, { work: number; break: number; lunch: number }>();
+      const nowMs = Date.now();
       (sessions || []).forEach((s) => {
         if (!s.user_id) return;
         const dur =
           s.duration_seconds ??
           (s.ended_at
-            ? Math.max(
-                0,
-                (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000,
-              )
-            : 0);
+            ? Math.max(0, (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000)
+            : Math.max(0, (nowMs - new Date(s.started_at).getTime()) / 1000)); // ongoing session
         const cur = sessionWork.get(s.user_id) || { work: 0, break: 0, lunch: 0 };
         if (s.session_type === 'work') cur.work += dur;
         else if (s.session_type === 'break') cur.break += dur;
@@ -319,7 +331,7 @@ export const useMemberProductivity = (
           conversationsHandled: 0,
           dealsWon: 0,
           dealsValue: 0,
-          avgResponseSeconds: respCount > 0 ? Math.round(respSum / respCount) : 0,
+          avgResponseSeconds: globalRespCount > 0 ? Math.round(globalRespSum / globalRespCount) : 0,
         },
       );
 
