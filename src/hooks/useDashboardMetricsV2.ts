@@ -187,11 +187,14 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
           .eq('direction', 'outbound')
           .gte('created_at', start.toISOString())
           .lte('created_at', end.toISOString()),
+        // "Entregues" = todas que saíram com sucesso (sent/delivered/received/read).
+        // Evolution API não atualiza status para 'delivered', fica em 'sent' permanentemente.
+        // Excluímos apenas falhas e em trânsito (pending/sending/queued).
         supabase
           .from('inbox_messages')
           .select('*', { count: 'exact', head: true })
           .eq('direction', 'outbound')
-          .in('status', ['delivered', 'received', 'read'])
+          .in('status', ['sent', 'delivered', 'received', 'read'])
           .gte('created_at', start.toISOString())
           .lte('created_at', end.toISOString()),
         supabase
