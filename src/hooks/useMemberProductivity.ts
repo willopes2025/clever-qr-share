@@ -305,13 +305,22 @@ export const useMemberProductivity = (
         }
       });
 
-      // Outbound messages aggregation: chars + media split
+      // Outbound messages aggregation: count enviados + chars + media split
       (outMessages || []).forEach((msg) => {
         const m = memberMap.get(msg.sent_by_user_id as string);
         if (!m) return;
+        m.messagesSent += 1;
         m.charactersTyped += (msg.content || '').length;
         if (msg.message_type === 'audio') m.audiosSent += 1;
         else if (msg.message_type && msg.message_type !== 'text') m.mediaSent += 1;
+      });
+
+      // Inbound messages aggregation: count recebidos por membro responsável da conversa
+      (inMessages || []).forEach((msg: any) => {
+        const owner = convOwnerMap.get(msg.conversation_id);
+        if (!owner) return;
+        const m = memberMap.get(owner);
+        if (m) m.messagesReceived += 1;
       });
 
       // Notes
