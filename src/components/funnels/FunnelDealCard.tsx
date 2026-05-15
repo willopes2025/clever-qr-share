@@ -270,6 +270,20 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
               </div>
             </div>
 
+            {/* Custom fields chosen by the user */}
+            {cardFields.length > 0 && (
+              <div className="space-y-0.5 pt-1 border-t border-border/30">
+                {cardFields.map((f) => (
+                  <div key={f.key} className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-muted-foreground truncate">{f.label}:</span>
+                    <span className="font-medium truncate">
+                      {formatFieldValue(f.value, f.def?.field_type)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Next Action Badge */}
             {nextActionDisplay && (
               <div className={cn(
