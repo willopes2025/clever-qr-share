@@ -335,7 +335,7 @@ export const SlashCommandPopup = ({
                   )}
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             {/* Footer with keyboard hints */}
             {totalItems > 0 && (
