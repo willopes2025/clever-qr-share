@@ -70,7 +70,7 @@ export const SlashCommandPopup = ({
       template.content.toLowerCase().includes(search) ||
       CATEGORY_LABELS[template.category].toLowerCase().includes(search)
     );
-  }).slice(0, 8);
+  });
 
   // Filter Meta templates (only approved)
   const filteredMetaTemplates = metaTemplates.filter(template => {
@@ -82,7 +82,7 @@ export const SlashCommandPopup = ({
       template.body_text.toLowerCase().includes(search) ||
       (META_CATEGORY_LABELS[template.category] || '').toLowerCase().includes(search)
     );
-  }).slice(0, 8);
+  });
 
   // Filter flows based on search term
   const filteredFlows = flows.filter(flow => {
