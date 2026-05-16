@@ -70,7 +70,7 @@ export const SlashCommandPopup = ({
       template.content.toLowerCase().includes(search) ||
       CATEGORY_LABELS[template.category].toLowerCase().includes(search)
     );
-  }).slice(0, 8);
+  });
 
   // Filter Meta templates (only approved)
   const filteredMetaTemplates = metaTemplates.filter(template => {
@@ -82,7 +82,7 @@ export const SlashCommandPopup = ({
       template.body_text.toLowerCase().includes(search) ||
       (META_CATEGORY_LABELS[template.category] || '').toLowerCase().includes(search)
     );
-  }).slice(0, 8);
+  });
 
   // Filter flows based on search term
   const filteredFlows = flows.filter(flow => {
@@ -165,7 +165,11 @@ export const SlashCommandPopup = ({
             </div>
 
             {/* Template and Flow list */}
-            <ScrollArea className="max-h-[350px]" ref={listRef}>
+            <div
+              ref={listRef}
+              className="max-h-[350px] overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
+              style={{ scrollbarWidth: 'thin' }}
+            >
               {totalItems === 0 ? (
                 <div className="p-4 text-center text-muted-foreground">
                   <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -331,7 +335,7 @@ export const SlashCommandPopup = ({
                   )}
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             {/* Footer with keyboard hints */}
             {totalItems > 0 && (
