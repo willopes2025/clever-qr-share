@@ -763,17 +763,58 @@ Deno.serve(async (req: Request) => {
                 if (accessToken) {
                   const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
                   const components: any[] = [];
-                  const bodyExamples = metaTemplate.body_examples || [];
-                  if (bodyExamples.length > 0) {
-                    const resolvedVars = bodyExamples.map((ex: string) => {
-                      return ex
-                        .replace(/\{\{nome\}\}/gi, contact?.name || '')
-                        .replace(/\{\{telefone\}\}/gi, contact?.phone || '')
-                        .replace(/\{\{email\}\}/gi, contact?.email || '');
-                    });
+
+                  // Resolve body variables using node-level mappings (preferred),
+                  // template-level mappings, or sensible defaults.
+                  const bodyText: string = metaTemplate.body_text || '';
+                  const detected = [...new Set((bodyText.match(/\{\{(\d+)\}\}/g) || [])
+                    .map((m: string) => parseInt(m.replace(/[{}]/g, ''))))]
+                    .sort((a, b) => a - b);
+
+                  const nodeMappings = Array.isArray(metaConfig.metaVariableMappings)
+                    ? metaConfig.metaVariableMappings
+                    : null;
+                  const tplMappings = Array.isArray(metaTemplate.variable_mappings)
+                    ? metaTemplate.variable_mappings
+                    : null;
+                  const mappings: any[] | null = nodeMappings && nodeMappings.length > 0
+                    ? nodeMappings
+                    : (tplMappings && tplMappings.length > 0 ? tplMappings : null);
+
+                  const fullName = (contact?.name || '').trim();
+                  const isValidName = fullName && !/^\+?\d+$/.test(fullName);
+
+                  const resolveMapping = (idx: number): string => {
+                    const m = mappings?.find((mm: any) => mm.variable_index === idx);
+                    if (m) {
+                      switch (m.source) {
+                        case 'contact_name': return isValidName ? fullName : ' ';
+                        case 'contact_phone': return contact?.phone || '';
+                        case 'contact_email': return contact?.email || '';
+                        case 'contact_custom_field':
+                          return formatVarValue(contactCustom?.[m.field_key]);
+                        case 'lead_custom_field':
+                          return formatVarValue(dealCustom?.[m.field_key]);
+                        case 'deal_value':
+                          return activeDeal?.value != null ? String(activeDeal.value) : '';
+                        case 'deal_name':
+                          return activeDeal?.title || '';
+                        case 'fixed_text':
+                          return m.fixed_value || '';
+                      }
+                    }
+                    // Default fallback: {{1}}=name, {{2}}=phone, rest empty
+                    if (idx === 1) return isValidName ? fullName : ' ';
+                    if (idx === 2) return contact?.phone || '';
+                    return '';
+                  };
+
+                  const resolvedBodyVars: string[] = detected.map((i) => resolveMapping(i) || ' ');
+
+                  if (resolvedBodyVars.length > 0) {
                     components.push({
                       type: 'body',
-                      parameters: resolvedVars.map((v: string) => ({ type: 'text', text: v })),
+                      parameters: resolvedBodyVars.map((v) => ({ type: 'text', text: String(v) || ' ' })),
                     });
                   }
 
@@ -807,8 +848,11 @@ Deno.serve(async (req: Request) => {
                     console.log('[FLOW] Meta template sent OK:', result?.messages?.[0]?.id);
                   }
 
-                  // Save to inbox (record outcome either way for diagnostics)
-                  const previewText = metaTemplate.body_text || `[Template: ${metaTemplate.name}]`;
+                  // Save resolved preview to inbox so UI shows actual values (not {{1}})
+                  let previewText = bodyText || `[Template: ${metaTemplate.name}]`;
+                  detected.forEach((i, idx) => {
+                    previewText = previewText.replaceAll(`{{${i}}}`, resolvedBodyVars[idx] ?? '');
+                  });
                   await supabase.from('inbox_messages').insert({
                     user_id: userId, conversation_id: conversationId,
                     content: previewText, direction: 'outbound',
