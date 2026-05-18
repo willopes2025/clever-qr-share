@@ -801,15 +801,23 @@ Deno.serve(async (req: Request) => {
                     body: JSON.stringify(messagePayload),
                   });
                   const result = await resp.json();
-                  console.log('[FLOW] Meta template sent:', result);
+                  if (!resp.ok || result?.error) {
+                    console.error('[FLOW] Meta template send FAILED:', resp.status, JSON.stringify(result));
+                  } else {
+                    console.log('[FLOW] Meta template sent OK:', result?.messages?.[0]?.id);
+                  }
 
-                  // Save to inbox
+                  // Save to inbox (record outcome either way for diagnostics)
                   const previewText = metaTemplate.body_text || `[Template: ${metaTemplate.name}]`;
                   await supabase.from('inbox_messages').insert({
                     user_id: userId, conversation_id: conversationId,
-                    content: previewText, direction: 'outbound', status: 'sent',
+                    content: previewText, direction: 'outbound',
+                    status: resp.ok && !result?.error ? 'sent' : 'failed',
                     message_type: 'template',
                     sent_at: new Date().toISOString(),
+                    sent_via_meta_number_id: phoneNumberId,
+                    whatsapp_message_id: result?.messages?.[0]?.id || null,
+                    error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
                   });
                   await supabase.from('conversations').update({
                     last_message_at: new Date().toISOString(),
