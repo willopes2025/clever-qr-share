@@ -16,6 +16,15 @@ import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VariableChipsSelector } from "@/components/shared/VariableChipsSelector";
+import { useCustomFields } from "@/hooks/useCustomFields";
+
+interface MetaVariableMapping {
+  variable_index: number;
+  source: 'contact_name' | 'contact_phone' | 'contact_email' | 'contact_custom_field' | 'lead_custom_field' | 'deal_value' | 'deal_name' | 'fixed_text';
+  field_key?: string;
+  fixed_value?: string;
+  label?: string;
+}
 
 interface ConditionItem {
   id: string;
