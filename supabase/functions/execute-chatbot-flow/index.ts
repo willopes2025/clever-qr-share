@@ -1177,14 +1177,8 @@ Deno.serve(async (req: Request) => {
                   .eq('phone_number_id', config.metaPhoneNumberId)
                   .single();
 
-                // Get access token from meta_whatsapp_config
-                const { data: metaConfig } = await supabase
-                  .from('meta_whatsapp_config')
-                  .select('credentials')
-                  .eq('user_id', userId)
-                  .single();
-
-                const accessToken = (metaConfig?.credentials as any)?.access_token;
+                // Get access token (integrations table, with org-member + env fallback)
+                const accessToken = await resolveMetaAccessToken(userId);
                 if (!accessToken) {
                   console.error('[FLOW] No Meta access token found');
                 } else {
