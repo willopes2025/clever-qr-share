@@ -16,6 +16,15 @@ import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VariableChipsSelector } from "@/components/shared/VariableChipsSelector";
+import { useCustomFields } from "@/hooks/useCustomFields";
+
+interface MetaVariableMapping {
+  variable_index: number;
+  source: 'contact_name' | 'contact_phone' | 'contact_email' | 'contact_custom_field' | 'lead_custom_field' | 'deal_value' | 'deal_name' | 'fixed_text';
+  field_key?: string;
+  fixed_value?: string;
+  label?: string;
+}
 
 interface ConditionItem {
   id: string;
@@ -70,6 +79,8 @@ interface NodeData {
     metaTemplateId?: string;
     metaTemplateName?: string;
     metaTemplateLanguage?: string;
+    metaTemplateButtons?: Array<{ text: string; type: string }>;
+    metaVariableMappings?: MetaVariableMapping[];
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
@@ -647,6 +658,49 @@ const MessageNodeConfig = ({
   const selectedTemplate = activeTemplates.find(t => t.id === data?.templateId);
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === data?.config?.metaTemplateId);
 
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
+
+  const detectedMetaVars: number[] = (() => {
+    if (!selectedMetaTemplate?.body_text) return [];
+    const matches = selectedMetaTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches.map(m => parseInt(m.replace(/[{}]/g, ''))))].sort((a, b) => a - b);
+  })();
+
+  const metaVariableMappings: MetaVariableMapping[] = (() => {
+    const existing = (data?.config?.metaVariableMappings as MetaVariableMapping[] | undefined) || [];
+    if (detectedMetaVars.length === 0) return [];
+    return detectedMetaVars.map((idx) => {
+      const found = existing.find(e => e.variable_index === idx);
+      if (found) return found;
+      return {
+        variable_index: idx,
+        source: (idx === 1 ? 'contact_name' : idx === 2 ? 'contact_phone' : 'fixed_text') as MetaVariableMapping['source'],
+        label: idx === 1 ? 'Nome' : idx === 2 ? 'Telefone' : `Variável ${idx}`,
+        fixed_value: idx > 2 ? '' : undefined,
+      };
+    });
+  })();
+
+  const variableSourceOptions: { value: string; label: string; source: MetaVariableMapping['source']; field_key?: string }[] = [
+    { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
+    { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
+    { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+    { value: 'deal_value', label: '💰 Valor da Venda', source: 'deal_value' },
+    { value: 'deal_name', label: '📌 Nome do Lead', source: 'deal_name' },
+    ...(contactFieldDefinitions || []).map(f => ({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field' as const, field_key: f.field_key })),
+    ...(leadFieldDefinitions || []).map(f => ({ value: `lead_cf_${f.field_key}`, label: `🎯 ${f.field_name}`, source: 'lead_custom_field' as const, field_key: f.field_key })),
+    { value: 'fixed_text', label: 'Texto Fixo', source: 'fixed_text' },
+  ];
+
+  const updateMetaMapping = (idx: number, updater: (m: MetaVariableMapping) => MetaVariableMapping) => {
+    const current = metaVariableMappings.map(m => ({ ...m }));
+    const target = current.find(m => m.variable_index === idx);
+    if (!target) return;
+    const next = current.map(m => (m.variable_index === idx ? updater(m) : m));
+    handleChange("config", { ...(data?.config || {}), metaVariableMappings: next });
+  };
+
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -923,6 +977,63 @@ const MessageNodeConfig = ({
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {selectedMetaTemplate && detectedMetaVars.length > 0 && (
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-xs font-medium">Mapeamento de Variáveis ({detectedMetaVars.length})</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Defina quais dados preenchem cada variável do template.
+              </p>
+              <div className="space-y-2">
+                {metaVariableMappings.map((mapping) => {
+                  const currentValue =
+                    mapping.source === 'contact_custom_field' ? `contact_cf_${mapping.field_key}` :
+                    mapping.source === 'lead_custom_field' ? `lead_cf_${mapping.field_key}` :
+                    mapping.source;
+                  return (
+                    <div key={mapping.variable_index} className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono bg-primary/10 text-primary px-2 py-1 rounded min-w-[44px] text-center">
+                        {`{{${mapping.variable_index}}}`}
+                      </span>
+                      <Select
+                        value={currentValue}
+                        onValueChange={(val) => {
+                          const opt = variableSourceOptions.find(o => o.value === val);
+                          if (!opt) return;
+                          updateMetaMapping(mapping.variable_index, (m) => ({
+                            ...m,
+                            source: opt.source,
+                            field_key: opt.field_key,
+                            label: opt.label,
+                            fixed_value: opt.source === 'fixed_text' ? (m.fixed_value || '') : undefined,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="flex-1 h-8 text-xs">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {variableSourceOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {mapping.source === 'fixed_text' && (
+                        <Input
+                          className="flex-1 h-8 text-xs"
+                          placeholder="Texto fixo"
+                          value={mapping.fixed_value || ''}
+                          onChange={(e) => updateMetaMapping(mapping.variable_index, (m) => ({ ...m, fixed_value: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
