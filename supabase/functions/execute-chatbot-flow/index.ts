@@ -17,6 +17,42 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Resolve Meta WhatsApp access token: try integrations table (per user, then org members),
+    // then fall back to system env var META_WHATSAPP_ACCESS_TOKEN.
+    // Note: the previous code queried a non-existent `meta_whatsapp_config` table, which always
+    // returned null and caused meta_template nodes to be silently skipped.
+    const resolveMetaAccessToken = async (uid: string): Promise<string | null> => {
+      const { data: own } = await supabase
+        .from('integrations')
+        .select('credentials')
+        .eq('user_id', uid)
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
+      const ownToken = (own?.credentials as any)?.access_token;
+      if (ownToken) return ownToken;
+
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: uid });
+      if (orgMemberIds && Array.isArray(orgMemberIds)) {
+        for (const memberId of orgMemberIds) {
+          if (memberId === uid) continue;
+          const { data: memberInt } = await supabase
+            .from('integrations')
+            .select('credentials')
+            .eq('user_id', memberId)
+            .eq('provider', 'meta_whatsapp')
+            .eq('is_active', true)
+            .maybeSingle();
+          const t = (memberInt?.credentials as any)?.access_token;
+          if (t) {
+            console.log(`[FLOW] Using Meta access token from org member: ${memberId}`);
+            return t;
+          }
+        }
+      }
+      return Deno.env.get('META_WHATSAPP_ACCESS_TOKEN') || null;
+    };
+
     const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue: rawInputValue, dealId, overrideInstanceId, overrideMetaPhoneNumberId } = await req.json();
     let inputValue = rawInputValue;
 
@@ -152,31 +188,7 @@ Deno.serve(async (req: Request) => {
     // If no Evolution instance but we have a Meta phone number, prepare Meta sending
     if (!instanceName && metaPhoneNumberId) {
       console.log(`[FLOW] No Evolution instance, will use Meta phone_number_id: ${metaPhoneNumberId}`);
-      const { data: metaCfg } = await supabase
-        .from('meta_whatsapp_config')
-        .select('credentials')
-        .eq('user_id', userId)
-        .single();
-      metaAccessToken = (metaCfg?.credentials as any)?.access_token || null;
-      if (!metaAccessToken) {
-        // Try org members
-        const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: userId });
-        if (orgMemberIds && orgMemberIds.length > 0) {
-          for (const memberId of orgMemberIds) {
-            if (memberId === userId) continue;
-            const { data: memberCfg } = await supabase
-              .from('meta_whatsapp_config')
-              .select('credentials')
-              .eq('user_id', memberId)
-              .single();
-            if ((memberCfg?.credentials as any)?.access_token) {
-              metaAccessToken = (memberCfg?.credentials as any)?.access_token;
-              console.log(`[FLOW] Using Meta access token from org member: ${memberId}`);
-              break;
-            }
-          }
-        }
-      }
+      metaAccessToken = await resolveMetaAccessToken(userId);
       if (metaAccessToken) {
         console.log('[FLOW] Meta access token found, ready to send via Meta Cloud API');
       } else {
@@ -196,12 +208,7 @@ Deno.serve(async (req: Request) => {
       if (metaNumber) {
         metaPhoneNumberId = metaNumber.phone_number_id;
         console.log(`[FLOW] Found Meta number for user: ${metaPhoneNumberId}`);
-        const { data: metaCfg } = await supabase
-          .from('meta_whatsapp_config')
-          .select('credentials')
-          .eq('user_id', userId)
-          .single();
-        metaAccessToken = (metaCfg?.credentials as any)?.access_token || null;
+        metaAccessToken = await resolveMetaAccessToken(userId);
       }
     }
 
@@ -752,13 +759,7 @@ Deno.serve(async (req: Request) => {
                 .single();
 
               if (metaTemplate && contact?.phone) {
-                const { data: metaCfg } = await supabase
-                  .from('meta_whatsapp_config')
-                  .select('credentials')
-                  .eq('user_id', userId)
-                  .single();
-
-                const accessToken = (metaCfg?.credentials as any)?.access_token;
+                const accessToken = await resolveMetaAccessToken(userId);
                 if (accessToken) {
                   const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
                   const components: any[] = [];
@@ -800,15 +801,23 @@ Deno.serve(async (req: Request) => {
                     body: JSON.stringify(messagePayload),
                   });
                   const result = await resp.json();
-                  console.log('[FLOW] Meta template sent:', result);
+                  if (!resp.ok || result?.error) {
+                    console.error('[FLOW] Meta template send FAILED:', resp.status, JSON.stringify(result));
+                  } else {
+                    console.log('[FLOW] Meta template sent OK:', result?.messages?.[0]?.id);
+                  }
 
-                  // Save to inbox
+                  // Save to inbox (record outcome either way for diagnostics)
                   const previewText = metaTemplate.body_text || `[Template: ${metaTemplate.name}]`;
                   await supabase.from('inbox_messages').insert({
                     user_id: userId, conversation_id: conversationId,
-                    content: previewText, direction: 'outbound', status: 'sent',
+                    content: previewText, direction: 'outbound',
+                    status: resp.ok && !result?.error ? 'sent' : 'failed',
                     message_type: 'template',
                     sent_at: new Date().toISOString(),
+                    sent_via_meta_number_id: phoneNumberId,
+                    whatsapp_message_id: result?.messages?.[0]?.id || null,
+                    error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
                   });
                   await supabase.from('conversations').update({
                     last_message_at: new Date().toISOString(),
@@ -1168,14 +1177,8 @@ Deno.serve(async (req: Request) => {
                   .eq('phone_number_id', config.metaPhoneNumberId)
                   .single();
 
-                // Get access token from meta_whatsapp_config
-                const { data: metaConfig } = await supabase
-                  .from('meta_whatsapp_config')
-                  .select('credentials')
-                  .eq('user_id', userId)
-                  .single();
-
-                const accessToken = (metaConfig?.credentials as any)?.access_token;
+                // Get access token (integrations table, with org-member + env fallback)
+                const accessToken = await resolveMetaAccessToken(userId);
                 if (!accessToken) {
                   console.error('[FLOW] No Meta access token found');
                 } else {
