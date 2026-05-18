@@ -17,6 +17,42 @@ Deno.serve(async (req: Request) => {
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Resolve Meta WhatsApp access token: try integrations table (per user, then org members),
+    // then fall back to system env var META_WHATSAPP_ACCESS_TOKEN.
+    // Note: the previous code queried a non-existent `meta_whatsapp_config` table, which always
+    // returned null and caused meta_template nodes to be silently skipped.
+    const resolveMetaAccessToken = async (uid: string): Promise<string | null> => {
+      const { data: own } = await supabase
+        .from('integrations')
+        .select('credentials')
+        .eq('user_id', uid)
+        .eq('provider', 'meta_whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
+      const ownToken = (own?.credentials as any)?.access_token;
+      if (ownToken) return ownToken;
+
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: uid });
+      if (orgMemberIds && Array.isArray(orgMemberIds)) {
+        for (const memberId of orgMemberIds) {
+          if (memberId === uid) continue;
+          const { data: memberInt } = await supabase
+            .from('integrations')
+            .select('credentials')
+            .eq('user_id', memberId)
+            .eq('provider', 'meta_whatsapp')
+            .eq('is_active', true)
+            .maybeSingle();
+          const t = (memberInt?.credentials as any)?.access_token;
+          if (t) {
+            console.log(`[FLOW] Using Meta access token from org member: ${memberId}`);
+            return t;
+          }
+        }
+      }
+      return Deno.env.get('META_WHATSAPP_ACCESS_TOKEN') || null;
+    };
+
     const { flowId, conversationId: inputConversationId, contactId, userId, executionId, currentNodeId, inputValue: rawInputValue, dealId, overrideInstanceId, overrideMetaPhoneNumberId } = await req.json();
     let inputValue = rawInputValue;
 
