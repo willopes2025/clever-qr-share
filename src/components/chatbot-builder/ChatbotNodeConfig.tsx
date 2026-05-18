@@ -979,6 +979,63 @@ const MessageNodeConfig = ({
               )}
             </div>
           )}
+
+          {selectedMetaTemplate && detectedMetaVars.length > 0 && (
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-xs font-medium">Mapeamento de Variáveis ({detectedMetaVars.length})</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Defina quais dados preenchem cada variável do template.
+              </p>
+              <div className="space-y-2">
+                {metaVariableMappings.map((mapping) => {
+                  const currentValue =
+                    mapping.source === 'contact_custom_field' ? `contact_cf_${mapping.field_key}` :
+                    mapping.source === 'lead_custom_field' ? `lead_cf_${mapping.field_key}` :
+                    mapping.source;
+                  return (
+                    <div key={mapping.variable_index} className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono bg-primary/10 text-primary px-2 py-1 rounded min-w-[44px] text-center">
+                        {`{{${mapping.variable_index}}}`}
+                      </span>
+                      <Select
+                        value={currentValue}
+                        onValueChange={(val) => {
+                          const opt = variableSourceOptions.find(o => o.value === val);
+                          if (!opt) return;
+                          updateMetaMapping(mapping.variable_index, (m) => ({
+                            ...m,
+                            source: opt.source,
+                            field_key: opt.field_key,
+                            label: opt.label,
+                            fixed_value: opt.source === 'fixed_text' ? (m.fixed_value || '') : undefined,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger className="flex-1 h-8 text-xs">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {variableSourceOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {mapping.source === 'fixed_text' && (
+                        <Input
+                          className="flex-1 h-8 text-xs"
+                          placeholder="Texto fixo"
+                          value={mapping.fixed_value || ''}
+                          onChange={(e) => updateMetaMapping(mapping.variable_index, (m) => ({ ...m, fixed_value: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
