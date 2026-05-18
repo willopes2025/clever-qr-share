@@ -759,13 +759,7 @@ Deno.serve(async (req: Request) => {
                 .single();
 
               if (metaTemplate && contact?.phone) {
-                const { data: metaCfg } = await supabase
-                  .from('meta_whatsapp_config')
-                  .select('credentials')
-                  .eq('user_id', userId)
-                  .single();
-
-                const accessToken = (metaCfg?.credentials as any)?.access_token;
+                const accessToken = await resolveMetaAccessToken(userId);
                 if (accessToken) {
                   const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
                   const components: any[] = [];
