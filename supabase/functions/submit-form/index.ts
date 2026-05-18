@@ -594,21 +594,15 @@ Deno.serve(async (req: Request) => {
           } else {
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
             // Trigger on_funnel_enter and on_stage_enter automations for the new deal
+            // Single invocation: isNewDeal=true causes the processor to evaluate
+            // both on_funnel_enter and on_stage_enter in one pass (prevents duplicate sends).
             try {
               await supabase.functions.invoke('process-funnel-automations', {
                 body: {
                   dealId: newDeal.id,
                   funnelId: form.target_funnel_id,
                   toStageId: stageId,
-                  triggerType: 'on_funnel_enter',
-                },
-              });
-              await supabase.functions.invoke('process-funnel-automations', {
-                body: {
-                  dealId: newDeal.id,
-                  funnelId: form.target_funnel_id,
-                  toStageId: stageId,
-                  triggerType: 'on_stage_enter',
+                  isNewDeal: true,
                 },
               });
               console.log(`Triggered on_funnel_enter + on_stage_enter for new deal ${newDeal.id}`);
