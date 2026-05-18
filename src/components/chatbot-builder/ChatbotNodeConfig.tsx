@@ -656,6 +656,49 @@ const MessageNodeConfig = ({
   const selectedTemplate = activeTemplates.find(t => t.id === data?.templateId);
   const selectedMetaTemplate = approvedMetaTemplates.find(t => t.id === data?.config?.metaTemplateId);
 
+  const { contactFieldDefinitions, leadFieldDefinitions } = useCustomFields();
+
+  const detectedMetaVars: number[] = (() => {
+    if (!selectedMetaTemplate?.body_text) return [];
+    const matches = selectedMetaTemplate.body_text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches.map(m => parseInt(m.replace(/[{}]/g, ''))))].sort((a, b) => a - b);
+  })();
+
+  const metaVariableMappings: MetaVariableMapping[] = (() => {
+    const existing = (data?.config?.metaVariableMappings as MetaVariableMapping[] | undefined) || [];
+    if (detectedMetaVars.length === 0) return [];
+    return detectedMetaVars.map((idx) => {
+      const found = existing.find(e => e.variable_index === idx);
+      if (found) return found;
+      return {
+        variable_index: idx,
+        source: (idx === 1 ? 'contact_name' : idx === 2 ? 'contact_phone' : 'fixed_text') as MetaVariableMapping['source'],
+        label: idx === 1 ? 'Nome' : idx === 2 ? 'Telefone' : `Variável ${idx}`,
+        fixed_value: idx > 2 ? '' : undefined,
+      };
+    });
+  })();
+
+  const variableSourceOptions: { value: string; label: string; source: MetaVariableMapping['source']; field_key?: string }[] = [
+    { value: 'contact_name', label: 'Nome do Contato', source: 'contact_name' },
+    { value: 'contact_phone', label: 'Telefone', source: 'contact_phone' },
+    { value: 'contact_email', label: 'E-mail', source: 'contact_email' },
+    { value: 'deal_value', label: '💰 Valor da Venda', source: 'deal_value' },
+    { value: 'deal_name', label: '📌 Nome do Lead', source: 'deal_name' },
+    ...(contactFieldDefinitions || []).map(f => ({ value: `contact_cf_${f.field_key}`, label: `📋 ${f.field_name}`, source: 'contact_custom_field' as const, field_key: f.field_key })),
+    ...(leadFieldDefinitions || []).map(f => ({ value: `lead_cf_${f.field_key}`, label: `🎯 ${f.field_name}`, source: 'lead_custom_field' as const, field_key: f.field_key })),
+    { value: 'fixed_text', label: 'Texto Fixo', source: 'fixed_text' },
+  ];
+
+  const updateMetaMapping = (idx: number, updater: (m: MetaVariableMapping) => MetaVariableMapping) => {
+    const current = metaVariableMappings.map(m => ({ ...m }));
+    const target = current.find(m => m.variable_index === idx);
+    if (!target) return;
+    const next = current.map(m => (m.variable_index === idx ? updater(m) : m));
+    handleChange("config", { ...(data?.config || {}), metaVariableMappings: next });
+  };
+
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
