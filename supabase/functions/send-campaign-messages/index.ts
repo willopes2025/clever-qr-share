@@ -968,14 +968,14 @@ Deno.serve(async (req: Request) => {
         let contactData: any = null;
         let dealData: any = null;
         const needsContactData = mappings?.some(m => m.source === 'contact_custom_field' || m.source === 'contact_email');
-        const needsDealData = mappings?.some(m => m.source === 'lead_custom_field');
+        const needsDealData = mappings?.some(m => m.source === 'lead_custom_field' || m.source === 'deal_value' || m.source === 'deal_name');
         
         if (needsContactData) {
           const { data } = await supabase.from('contacts').select('email, custom_fields').eq('id', message.contact_id).single();
           contactData = data;
         }
         if (needsDealData) {
-          const { data } = await supabase.from('funnel_deals').select('custom_fields').eq('contact_id', message.contact_id).order('created_at', { ascending: false }).limit(1).single();
+          const { data } = await supabase.from('funnel_deals').select('custom_fields, value, name').eq('contact_id', message.contact_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
           dealData = data;
         }
 
@@ -996,10 +996,16 @@ Deno.serve(async (req: Request) => {
                 value = contactData?.email || '';
                 break;
               case 'contact_custom_field':
-                value = contactData?.custom_fields?.[mapping.field_key] || '';
+                value = String(contactData?.custom_fields?.[mapping.field_key] ?? '');
                 break;
               case 'lead_custom_field':
-                value = dealData?.custom_fields?.[mapping.field_key] || '';
+                value = String(dealData?.custom_fields?.[mapping.field_key] ?? '');
+                break;
+              case 'deal_value':
+                value = dealData?.value != null ? String(dealData.value) : '';
+                break;
+              case 'deal_name':
+                value = dealData?.name || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';
