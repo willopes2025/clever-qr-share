@@ -12,6 +12,7 @@ import { AutomationSection } from './AutomationSection';
 import { AgentPerformanceSection } from './AgentPerformanceSection';
 import { AlertsSection } from './AlertsSection';
 import { MemberProductivitySection } from './MemberProductivitySection';
+import { MessagesByHourChart } from './MessagesByHourChart';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export const TraditionalDashboard = () => {
