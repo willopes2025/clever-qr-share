@@ -186,6 +186,24 @@ export const useActivitySession = () => {
   const trackActivity = useCallback(() => {
     const now = new Date();
     lastActivityRef.current = now;
+
+    // If user was idle, immediately mark as active again
+    if (isIdleRef.current) {
+      isIdleRef.current = false;
+      setIsIdle(false);
+      if (currentSession) {
+        lastDbUpdateRef.current = now.getTime();
+        supabase
+          .from('user_activity_sessions')
+          .update({ last_activity: now.toISOString(), is_idle: false } as any)
+          .eq('id', currentSession.id)
+          .then(({ error }) => {
+            if (error) console.error('Error clearing idle:', error);
+          });
+        return;
+      }
+    }
+
     // Persist to DB at most every 2 minutes
     if (currentSession && now.getTime() - lastDbUpdateRef.current > 2 * 60 * 1000) {
       lastDbUpdateRef.current = now.getTime();
@@ -199,21 +217,39 @@ export const useActivitySession = () => {
     }
   }, [currentSession]);
 
-  // Auto-end session after inactivity
+  // Idle detection + auto-end after long inactivity
   useEffect(() => {
-    if (!currentSession || currentSession.session_type !== 'work') return;
+    if (!currentSession || currentSession.session_type !== 'work') {
+      setIsIdle(false);
+      isIdleRef.current = false;
+      return;
+    }
 
     const checkInactivity = () => {
       const now = new Date();
       const inactiveMinutes = (now.getTime() - lastActivityRef.current.getTime()) / 1000 / 60;
 
-      // Auto-end after 30 minutes of inactivity
-      if (inactiveMinutes >= 30) {
+      // Mark as idle after 10 minutes (without ending session)
+      if (inactiveMinutes >= 10 && !isIdleRef.current) {
+        isIdleRef.current = true;
+        setIsIdle(true);
+        supabase
+          .from('user_activity_sessions')
+          .update({ is_idle: true } as any)
+          .eq('id', currentSession.id)
+          .then(({ error }) => {
+            if (error) console.error('Error marking idle:', error);
+          });
+      }
+
+      // Auto-end after 60 minutes of inactivity
+      if (inactiveMinutes >= 60) {
         endSession();
       }
     };
 
-    activityTimeoutRef.current = setInterval(checkInactivity, 60000); // Check every minute
+    // Check every 30 seconds
+    activityTimeoutRef.current = setInterval(checkInactivity, 30000);
 
     return () => {
       if (activityTimeoutRef.current) {
@@ -221,6 +257,7 @@ export const useActivitySession = () => {
       }
     };
   }, [currentSession, endSession]);
+
 
   // Fetch session on mount
   useEffect(() => {
