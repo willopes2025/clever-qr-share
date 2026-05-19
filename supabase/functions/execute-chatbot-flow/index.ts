@@ -1473,13 +1473,15 @@ Deno.serve(async (req: Request) => {
               sendFailed = true;
             }
           } else if (instanceName) {
-            // Evolution: try interactive buttons, fallback to numbered text
-            try {
-              const numbered = `${text}\n\n${buttons.map((b, i) => `${i + 1} - ${b.label}`).join('\n')}\n\nResponda com o número da opção.`;
-              await sendMessage(numbered);
-            } catch (err) {
-              console.error('[FLOW] Error sending Evolution buttons:', err);
-              sendFailed = true;
+            // Evolution: try real interactive buttons; fallback to plain text WITHOUT numbered list
+            const ok = await sendEvolutionButtons(text, buttons);
+            if (!ok) {
+              try {
+                await sendMessage(text || ' ');
+              } catch (err) {
+                console.error('[FLOW] Error sending Evolution buttons fallback:', err);
+                sendFailed = true;
+              }
             }
           } else {
             sendFailed = true;
