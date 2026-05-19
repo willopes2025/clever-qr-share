@@ -56,6 +56,7 @@ const statusConfig: Record<MemberProductivity['currentStatus'], { label: string;
   break: { label: 'Pausa', cls: 'bg-amber-500/15 text-amber-600 border-amber-500/30' },
   lunch: { label: 'Almoço', cls: 'bg-orange-500/15 text-orange-600 border-orange-500/30' },
   meeting: { label: 'Reunião', cls: 'bg-blue-500/15 text-blue-600 border-blue-500/30' },
+  idle: { label: 'Ocioso', cls: 'bg-slate-500/15 text-slate-500 border-slate-500/30' },
   offline: { label: 'Offline', cls: 'bg-muted text-muted-foreground border-border' },
 };
 
