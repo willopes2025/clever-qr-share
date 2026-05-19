@@ -477,6 +477,82 @@ Deno.serve(async (req: Request) => {
       }
     };
 
+    // Helper: send media (image/video/audio/document) via Evolution or Meta
+    const sendMediaMessage = async (
+      mediaType: 'image' | 'video' | 'audio' | 'document',
+      mediaUrl: string,
+      caption?: string,
+      filename?: string,
+    ) => {
+      if (!contact?.phone || !mediaUrl) return;
+      if (instanceName) {
+        try {
+          const isAudio = mediaType === 'audio';
+          const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
+          const body: any = isAudio
+            ? { number: contact.phone, audio: mediaUrl }
+            : { number: contact.phone, mediatype: mediaType, media: mediaUrl };
+          if (!isAudio && caption) body.caption = caption;
+          if (!isAudio && filename && mediaType === 'document') body.fileName = filename;
+          const resp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+            body: JSON.stringify(body),
+          });
+          const result = await resp.json();
+          await supabase.from('inbox_messages').insert({
+            user_id: userId, conversation_id: conversationId,
+            content: caption || `[${mediaType}]`, direction: 'outbound', status: 'sent',
+            message_type: mediaType, media_url: mediaUrl,
+            whatsapp_message_id: result?.key?.id || null,
+            sent_at: new Date().toISOString(),
+          });
+          await supabase.from('conversations').update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: (caption || `[${mediaType}]`).substring(0, 100),
+            last_message_direction: 'outbound',
+          }).eq('id', conversationId);
+        } catch (err) {
+          console.error('[FLOW] Error sending media via Evolution:', err);
+        }
+      } else if (metaPhoneNumberId && metaAccessToken) {
+        try {
+          const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+          const payload: any = {
+            messaging_product: 'whatsapp', recipient_type: 'individual',
+            to: formattedPhone, type: mediaType,
+          };
+          if (mediaType === 'audio') payload.audio = { link: mediaUrl };
+          else if (mediaType === 'image') payload.image = { link: mediaUrl, ...(caption ? { caption } : {}) };
+          else if (mediaType === 'video') payload.video = { link: mediaUrl, ...(caption ? { caption } : {}) };
+          else payload.document = { link: mediaUrl, ...(caption ? { caption } : {}), ...(filename ? { filename } : {}) };
+          const resp = await fetch(`${META_API_URL}/${metaPhoneNumberId}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${metaAccessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const result = await resp.json();
+          await supabase.from('inbox_messages').insert({
+            user_id: userId, conversation_id: conversationId,
+            content: caption || `[${mediaType}]`, direction: 'outbound',
+            status: resp.ok ? 'sent' : 'failed',
+            message_type: mediaType, media_url: mediaUrl,
+            whatsapp_message_id: result?.messages?.[0]?.id || null,
+            sent_at: new Date().toISOString(),
+            sent_via_meta_number_id: metaPhoneNumberId,
+            error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
+          });
+          await supabase.from('conversations').update({
+            last_message_at: new Date().toISOString(),
+            last_message_preview: (caption || `[${mediaType}]`).substring(0, 100),
+            last_message_direction: 'outbound',
+            meta_phone_number_id: metaPhoneNumberId,
+          }).eq('id', conversationId);
+        } catch (err) {
+          console.error('[FLOW] Error sending media via Meta:', err);
+        }
+      }
+
     // Helper: send Evolution interactive buttons (real WhatsApp buttons, no numbered text in body)
     const sendEvolutionButtons = async (text: string, btns: Array<{ label: string }>): Promise<boolean> => {
       if (!instanceName || !contact?.phone) return false;
