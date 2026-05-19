@@ -1081,7 +1081,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                   onClick={onMarkAsRead}
                 >
                   <MailCheck className="h-4 w-4" />
-                  <span className="hidden md:inline">Marcar como lida</span>
+                  <span className="hidden 2xl:inline">Marcar como lida</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Marcar como lida</TooltipContent>
@@ -1277,7 +1277,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    <span className="hidden lg:inline">Acionar IA</span>
+                    <span className="hidden 2xl:inline">Acionar IA</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>

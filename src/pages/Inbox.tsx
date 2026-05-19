@@ -12,6 +12,7 @@ import { Conversation, useConversations } from "@/hooks/useConversations";
 import { useFusionPBXConfig } from "@/hooks/useFusionPBXConfig";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -25,10 +26,25 @@ const Inbox = () => {
   const [mobileShowMessages, setMobileShowMessages] = useState(false);
   const [showSoftphone, setShowSoftphone] = useState(false);
   const isMobile = useIsMobile();
-  
+  const { width: viewportWidth, isAtLeast } = useBreakpoint();
+
+  // Adaptive widths for the conversation list and the lead panel
+  const listWidth = isAtLeast("2xl") ? 320 : isAtLeast("xl") ? 296 : 272;
+  const rightWidth = isAtLeast("2xl") ? 384 : isAtLeast("xl") ? 340 : 312;
+
   // State for panel visibility
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
+  // Right panel default-collapsed on tight desktops (<xl) to give the chat enough room
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 1280
+  );
+  const [userTouchedRightPanel, setUserTouchedRightPanel] = useState(false);
+
+  // Auto-adapt right panel visibility to viewport (until user overrides)
+  useEffect(() => {
+    if (userTouchedRightPanel || isMobile) return;
+    setIsRightPanelCollapsed(viewportWidth < 1280);
+  }, [viewportWidth, userTouchedRightPanel, isMobile]);
 
   // Handle selection from URL params (reactive to changes)
   useEffect(() => {
@@ -91,6 +107,7 @@ const Inbox = () => {
 
   const handleOpenRightPanel = () => {
     if (isRightPanelCollapsed) {
+      setUserTouchedRightPanel(true);
       setIsRightPanelCollapsed(false);
     }
   };
@@ -100,6 +117,7 @@ const Inbox = () => {
   };
 
   const toggleRightPanel = () => {
+    setUserTouchedRightPanel(true);
     setIsRightPanelCollapsed(prev => !prev);
   };
 
@@ -217,12 +235,10 @@ const Inbox = () => {
           <div className="flex h-full w-full">
             {/* Sidebar - Conversation List */}
             <div 
-              className={cn(
-                "border-r border-border bg-card transition-all duration-300 overflow-hidden shrink-0",
-                isSidebarCollapsed ? "w-0" : "w-80"
-              )}
+              className="border-r border-border bg-card transition-all duration-300 overflow-hidden shrink-0"
+              style={{ width: isSidebarCollapsed ? 0 : listWidth }}
             >
-              <div className="w-80 h-full">
+              <div className="h-full" style={{ width: listWidth }}>
                 <ConversationList
                   conversations={conversations || []}
                   selectedId={selectedConversation?.id || null}
@@ -248,12 +264,10 @@ const Inbox = () => {
             {/* Right Panel - Lead Info */}
             {selectedConversation && (
               <div 
-                className={cn(
-                  "border-l border-border bg-card transition-all duration-300 overflow-hidden shrink-0",
-                  isRightPanelCollapsed ? "w-0" : "w-96"
-                )}
+                className="border-l border-border bg-card transition-all duration-300 overflow-hidden shrink-0"
+                style={{ width: isRightPanelCollapsed ? 0 : rightWidth }}
               >
-                <div className="w-96 h-full min-w-0 overflow-hidden">
+                <div className="h-full min-w-0 overflow-hidden" style={{ width: rightWidth }}>
                   <RightSidePanel
                     conversation={selectedConversation}
                     isOpen={true}
