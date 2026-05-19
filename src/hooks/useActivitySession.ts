@@ -50,10 +50,12 @@ export const useActivitySession = () => {
   const [currentSession, setCurrentSession] = useState<ActivitySession | null>(() => getCachedSession());
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isIdle, setIsIdle] = useState(false);
   
   const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<Date>(new Date());
   const startSessionCalledRef = useRef(false);
+  const isIdleRef = useRef(false);
 
   // Update state and cache together
   const updateSession = useCallback((session: ActivitySession | null) => {
