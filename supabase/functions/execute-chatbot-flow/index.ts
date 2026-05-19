@@ -970,12 +970,14 @@ Deno.serve(async (req: Request) => {
                   sendError = err?.message || 'Meta buttons exception';
                 }
               } else {
-                // Evolution fallback: numbered text
-                const numbered = `${text}\n\n${txtButtons.map((b, i) => `${i + 1} - ${b.label}`).join('\n')}\n\nResponda com o número da opção.`;
-                try {
-                  await sendMessage(numbered);
-                } catch (err: any) {
-                  sendError = err?.message || 'Evolution send exception';
+                // Evolution: try real interactive buttons; fallback to plain text WITHOUT numbered list
+                const ok = await sendEvolutionButtons(text, txtButtons);
+                if (!ok) {
+                  try {
+                    await sendMessage(text);
+                  } catch (err: any) {
+                    sendError = err?.message || 'Evolution send exception';
+                  }
                 }
               }
 
