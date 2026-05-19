@@ -1079,7 +1079,19 @@ Deno.serve(async (req: Request) => {
               break;
             }
 
-            if (text) {
+            const mediaUrl = node.data?.mediaUrl as string | undefined;
+            const mediaType = node.data?.mediaType as 'image' | 'video' | 'audio' | 'document' | undefined;
+            const mediaFilename = node.data?.mediaFilename as string | undefined;
+
+            if (mediaUrl && mediaType) {
+              // Send text first (if any), then media (matches campaign media convention)
+              if (text) {
+                await sendMessage(text);
+                await new Promise(r => setTimeout(r, 2000));
+              }
+              await sendMediaMessage(mediaType, mediaUrl, undefined, mediaFilename);
+              await new Promise(r => setTimeout(r, 1500));
+            } else if (text) {
               await sendMessage(text);
               await new Promise(r => setTimeout(r, 1500));
             }
