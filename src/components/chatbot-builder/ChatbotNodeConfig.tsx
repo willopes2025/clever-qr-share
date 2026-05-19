@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VariableChipsSelector } from "@/components/shared/VariableChipsSelector";
 import { useCustomFields } from "@/hooks/useCustomFields";
+import { TemplateMediaUpload, MediaType } from "@/components/templates/TemplateMediaUpload";
 
 interface MetaVariableMapping {
   variable_index: number;
@@ -43,6 +44,9 @@ interface NodeData {
   message?: string;
   messageMode?: 'text' | 'template' | 'meta_template';
   templateId?: string;
+  mediaType?: MediaType;
+  mediaUrl?: string | null;
+  mediaFilename?: string | null;
   delay?: number;
   question?: string;
   variable?: string;
@@ -747,6 +751,18 @@ const MessageNodeConfig = ({
               compact
             />
           </div>
+
+          <TemplateMediaUpload
+            mediaType={(data?.mediaType as MediaType) || null}
+            mediaUrl={(data?.mediaUrl as string) || null}
+            mediaFilename={(data?.mediaFilename as string) || null}
+            onMediaChange={(type, url, filename) => {
+              handleChange("mediaType", type);
+              handleChange("mediaUrl", url);
+              handleChange("mediaFilename", filename);
+            }}
+            templateContent={(data?.message as string) || ''}
+          />
 
           {/* Botões interativos (estilo Kommo) */}
           {(() => {
