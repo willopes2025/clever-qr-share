@@ -309,6 +309,7 @@ export const useActivitySession = () => {
     endSession,
     switchSession,
     trackActivity,
+    isIdle,
     isWorking: currentSession?.session_type === 'work',
     isOnBreak: currentSession?.session_type === 'break',
     isOnLunch: currentSession?.session_type === 'lunch',
