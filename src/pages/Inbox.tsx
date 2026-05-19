@@ -235,12 +235,10 @@ const Inbox = () => {
           <div className="flex h-full w-full">
             {/* Sidebar - Conversation List */}
             <div 
-              className={cn(
-                "border-r border-border bg-card transition-all duration-300 overflow-hidden shrink-0",
-                isSidebarCollapsed ? "w-0" : "w-80"
-              )}
+              className="border-r border-border bg-card transition-all duration-300 overflow-hidden shrink-0"
+              style={{ width: isSidebarCollapsed ? 0 : listWidth }}
             >
-              <div className="w-80 h-full">
+              <div className="h-full" style={{ width: listWidth }}>
                 <ConversationList
                   conversations={conversations || []}
                   selectedId={selectedConversation?.id || null}
@@ -266,12 +264,10 @@ const Inbox = () => {
             {/* Right Panel - Lead Info */}
             {selectedConversation && (
               <div 
-                className={cn(
-                  "border-l border-border bg-card transition-all duration-300 overflow-hidden shrink-0",
-                  isRightPanelCollapsed ? "w-0" : "w-96"
-                )}
+                className="border-l border-border bg-card transition-all duration-300 overflow-hidden shrink-0"
+                style={{ width: isRightPanelCollapsed ? 0 : rightWidth }}
               >
-                <div className="w-96 h-full min-w-0 overflow-hidden">
+                <div className="h-full min-w-0 overflow-hidden" style={{ width: rightWidth }}>
                   <RightSidePanel
                     conversation={selectedConversation}
                     isOpen={true}
