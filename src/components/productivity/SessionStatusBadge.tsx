@@ -61,6 +61,13 @@ export const SessionStatusBadge = () => {
 
     switch (currentSession.session_type) {
       case 'work':
+        if (isIdle) {
+          return {
+            icon: Moon,
+            label: 'Ocioso',
+            color: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+          };
+        }
         return {
           icon: Play,
           label: 'Trabalhando',
