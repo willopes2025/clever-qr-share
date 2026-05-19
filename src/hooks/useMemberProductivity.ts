@@ -26,7 +26,7 @@ export interface MemberProductivity {
   notesCreated: number;
   avgResponseSeconds: number | null;
   lastActivityAt: string | null;
-  currentStatus: 'work' | 'break' | 'lunch' | 'meeting' | 'offline';
+  currentStatus: 'work' | 'break' | 'lunch' | 'meeting' | 'idle' | 'offline';
 }
 
 export interface MemberProductivityResult {
