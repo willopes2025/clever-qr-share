@@ -44,6 +44,9 @@ interface NodeData {
   message?: string;
   messageMode?: 'text' | 'template' | 'meta_template';
   templateId?: string;
+  mediaType?: MediaType;
+  mediaUrl?: string | null;
+  mediaFilename?: string | null;
   delay?: number;
   question?: string;
   variable?: string;
