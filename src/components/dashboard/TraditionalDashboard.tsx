@@ -56,6 +56,12 @@ export const TraditionalDashboard = () => {
         <MemberProductivitySection dateRange={dateRange} customRange={customRange} />
       )}
 
+      {isAdmin && (
+        <MessagesByHourChart dateRange={dateRange} customRange={customRange} />
+      )}
+
+
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AgentPerformanceSection dateRange={dateRange} customRange={customRange} />
         <AlertsSection />
