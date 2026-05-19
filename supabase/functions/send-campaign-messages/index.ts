@@ -739,9 +739,16 @@ Deno.serve(async (req: Request) => {
           selectedInstance = instances[Math.floor(Math.random() * instances.length)];
           break;
         case 'sequential':
-        default:
-          selectedInstance = instances[messageIndex % instances.length];
+        default: {
+          // Use persisted counters (sent+failed+skipped) as rotation offset so
+          // round-robin survives across cron re-entries (retry_at) where
+          // messageIndex would otherwise restart at 0 and always hit the same instance.
+          const persistedOffset =
+            (campaign.sent || 0) + (campaign.failed || 0) + ((campaign as any).skipped || 0);
+          const rotationIndex = persistedOffset + messageIndex;
+          selectedInstance = instances[rotationIndex % instances.length];
           break;
+        }
       }
 
       console.log(`Selected instance: ${selectedInstance.instance_name} (warming level: ${selectedInstance.warming_level})`);
