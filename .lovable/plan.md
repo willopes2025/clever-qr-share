@@ -1,56 +1,60 @@
 ## Diagnóstico
 
-O número que aparece ao lado do **Inbox** na sidebar e no **título da aba do Chrome** (`(N) Wide…`) vem de `useUnreadCount` (`src/hooks/useUnreadCount.ts`). Hoje esse hook faz:
+O sistema usa larguras **fixas** em pixels nos painéis principais, sem breakpoints intermediários. No seu monitor (~1126px de largura útil), a soma é:
 
-```ts
-supabase.from('conversations')
-  .select('unread_count')
-  .gt('unread_count', 0)
-  .neq('status', 'archived');
-// retorna SUM(unread_count)
+```
+Sidebar global (256)  +  Lista de conversas (320)  +  Painel do lead (384)  =  960px fixos
+                                                                Sobra: ~166px para o CHAT
 ```
 
-Isso não bate com o número real visto no Inbox por **5 motivos**:
+Por isso as mensagens aparecem espremidas no centro, exatamente como mostra o seu print. O problema se repete em outras telas (Funis, Calendário, CRM) porque o `DashboardSidebar` também é fixo em `w-64` e nenhuma página tem breakpoint para telas entre 1024–1440px.
 
-1. **Não exclui instâncias `is_notification_only`** — conversas dessas instâncias contam aqui, mas são ocultadas no Inbox (`useConversations` filtra `notificationInstanceIds`).
-2. **Não exclui instâncias ocultadas pelo usuário** (`useInboxHiddenInstances` / `hiddenInstanceIds`) — também ocultas no Inbox, mas contadas no badge.
-3. **Não exclui conversas do ecossistema de aquecimento** (`warming_contacts` / `warming_pool` — `warmingPhones`) — poluem o badge.
-4. **Não exclui conversas "fantasmas"** (sem `last_message_preview`, sem `last_message_direction` e sem nome de contato) — o Inbox filtra, o badge não.
-5. **Métrica diferente**: o badge soma `unread_count` (ex.: 1 conversa com 7 mensagens não lidas = 7), enquanto o Inbox/aba "Não lidas" mostra **número de conversas** com `unread_count > 0` (`ConversationList.tsx` linha 446: `conversations.filter(c => c.unread_count > 0 && c.status !== "archived").length`).
+### Pontos identificados
+- `src/pages/Inbox.tsx`: lista `w-80` e painel `w-96` hardcoded; sem auto‑colapso em telas médias.
+- `src/components/DashboardSidebar.tsx`: largura `w-64` / `w-16` sem considerar viewport.
+- Falta um breakpoint intermediário (`lg`/`xl`) – tudo trata só `mobile` vs `desktop`.
+- Outras páginas com grids (`Dashboard`, `Funis`, `Campaigns`) usam colunas fixas sem `xl:`/`2xl:` adicionais.
 
-Resultado típico: badge mostra um número bem maior que o do Inbox, e que muda sozinho conforme novas mensagens entram em conversas escondidas/aquecimento.
+---
 
-## Correção proposta
+## Plano de melhoria
 
-Reescrever `src/hooks/useUnreadCount.ts` para usar exatamente os mesmos filtros do `useConversations` e a mesma métrica do Inbox (contagem de conversas, não soma).
+### 1. Inbox responsivo de verdade (prioridade alta)
+- Tornar a lista de conversas e o painel do lead **proporcionais e adaptáveis**:
+  - Telas `<1280px`: lista 280px, painel do lead **colapsado por padrão** (abre como overlay/sheet sobre o chat).
+  - Telas `1280–1536px`: lista 300px, painel 340px.
+  - Telas `≥1536px`: lista 320px, painel 384px (atual).
+- Detectar largura via hook novo `useBreakpoint()` (md/lg/xl/2xl) e auto‑colapsar painel direito quando não couber.
+- Painel do lead vira **overlay flutuante** em telas médias (igual mobile usa Sheet), mantendo o chat sempre com largura mínima de ~520px.
 
-Passos:
+### 2. Sidebar global adaptativa
+- `DashboardSidebar`: auto‑colapsar para `w-16` (ícones) quando viewport `<1280px`, mantendo possibilidade do usuário expandir manualmente.
+- Persistir a preferência manual (já existe em `SidebarContext`), mas usar o auto‑colapso como **default inteligente** baseado no tamanho.
 
-1. Buscar em paralelo (cacheáveis e já existentes em outros hooks):
-   - IDs de instâncias `is_notification_only` (reaproveitar a mesma queryKey `['notification-instance-ids', user?.id]`).
-   - `hiddenInstanceIds` via `useInboxHiddenInstances`.
-   - `allowedInstanceIds` + `hasInstanceRestriction` quando o membro tem restrição.
-   - Conjunto `warmingPhones` (phones de `warming_contacts` + `warming_pool`).
-2. Consultar `conversations` selecionando apenas o necessário para filtrar e contar:
-   `id, instance_id, contact_id, unread_count, status, last_message_preview, last_message_direction`, com `gt('unread_count', 0)` e `neq('status', 'archived')`, aplicando o mesmo filtro de `instance_id` (incluindo `instance_id IS NULL`) usado em `useConversations`.
-3. Buscar `contacts(id, name, phone)` em chunks só para os `contact_id` retornados (mesmo padrão da listagem).
-4. Aplicar client-side os mesmos filtros do Inbox:
-   - remover `instance_id` em `notificationInstanceIds`;
-   - remover `instance_id` em `hiddenInstanceIds`;
-   - remover "fantasmas" (sem preview/direction/nome);
-   - remover phones presentes em `warmingPhones`.
-5. Retornar **`filtered.length`** (número de conversas não lidas), e não a soma de `unread_count`. Isso fica idêntico ao número do badge "Não lidas" da aba do Inbox e ao indicador na sidebar.
-6. Manter `staleTime: 30_000` e a invalidação já existente em `useGlobalRealtime` (`['unread-count']`).
-7. `useUnreadBadge` continua igual — ele só formata `(${n})` no `document.title`, então passa a refletir o novo valor automaticamente.
+### 3. Header da Inbox enxuto em telas médias
+No print, o header do chat tem "Marcar como lida", seletor de responsável, "Acionar IA", chip do lead — tudo competindo por espaço. Vamos:
+- Esconder rótulos de texto em `<1280px` (manter só ícones com tooltip).
+- Agrupar ações secundárias em menu "…" quando a largura disponível for insuficiente.
 
-## Validação
+### 4. Grids genéricas com mais breakpoints
+- Adicionar `xl:` e `2xl:` nos grids de Dashboard/Funnels/Campaigns para aproveitar telas grandes e evitar quebras feias em telas médias.
+- Padronizar containers com `min-w-0` onde estiver faltando (evita overflow horizontal).
 
-- Abrir Inbox e comparar: número exibido na aba "Não lidas" do `ConversationList` deve ser igual ao badge da sidebar e ao `(N)` no título da aba do Chrome.
-- Ocultar uma instância em "Ocultar do inbox": badge deve cair junto com a lista.
-- Marcar uma conversa do aquecimento como não lida no banco: não deve afetar o badge.
-- Marcar `is_notification_only` em uma instância: conversas dela não devem mais contar no badge.
+### 5. Painel direito do lead
+- Adicionar barra de **resize** (drag) entre chat e painel do lead, com largura mínima/máxima e persistência por usuário em `localStorage`.
 
-## Arquivos afetados
+### 6. Verificação
+- Testar em viewports: 1024, 1280, 1366, 1440, 1536, 1920 via preview do navegador.
+- Validar especificamente a tela do print (1126px) — chat deve ficar com ≥520px.
 
-- `src/hooks/useUnreadCount.ts` (reescrita)
-- Nenhuma mudança de schema, RLS, edge function ou UI.
+---
+
+## Detalhes técnicos
+
+- Novo hook `src/hooks/useBreakpoint.ts` baseado em `matchMedia` (md=768, lg=1024, xl=1280, 2xl=1536).
+- `src/pages/Inbox.tsx`: substituir `w-80`/`w-96` por classes condicionais ao breakpoint; auto‑colapsar painel direito ao detectar `xl` ou menos.
+- `src/components/DashboardSidebar.tsx`: aplicar auto‑colapso inicial ouvindo o mesmo hook.
+- `src/components/inbox/MessageView.tsx` (header): tornar labels `hidden xl:inline`.
+- Componente novo `src/components/inbox/ResizeHandle.tsx` para o drag entre chat e painel.
+
+Sem mudanças de back‑end nem de regras de negócio — apenas frontend e layout.
