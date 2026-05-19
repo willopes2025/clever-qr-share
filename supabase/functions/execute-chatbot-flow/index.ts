@@ -477,6 +477,50 @@ Deno.serve(async (req: Request) => {
       }
     };
 
+    // Helper: send Evolution interactive buttons (real WhatsApp buttons, no numbered text in body)
+    const sendEvolutionButtons = async (text: string, btns: Array<{ label: string }>): Promise<boolean> => {
+      if (!instanceName || !contact?.phone) return false;
+      const buttonsPayload = btns.slice(0, 3).map((b, i) => ({
+        buttonId: `btn_${i}`,
+        buttonText: { displayText: (b.label || `Opção ${i + 1}`).slice(0, 20) },
+        type: 1,
+      }));
+      try {
+        const resp = await fetch(`${evolutionApiUrl}/message/sendButtons/${instanceName}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
+          body: JSON.stringify({
+            number: contact.phone,
+            title: '',
+            description: text,
+            footer: '',
+            buttons: buttonsPayload,
+          }),
+        });
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok || result?.error) {
+          console.error('[FLOW] Evolution sendButtons failed:', resp.status, JSON.stringify(result));
+          return false;
+        }
+        const wid = result?.key?.id || null;
+        await supabase.from('inbox_messages').insert({
+          user_id: userId, conversation_id: conversationId,
+          content: text, direction: 'outbound', status: 'sent',
+          message_type: 'interactive', whatsapp_message_id: wid,
+          sent_at: new Date().toISOString(),
+        });
+        await supabase.from('conversations').update({
+          last_message_at: new Date().toISOString(),
+          last_message_preview: text.substring(0, 100),
+          last_message_direction: 'outbound',
+        }).eq('id', conversationId);
+        return true;
+      } catch (err) {
+        console.error('[FLOW] Evolution sendButtons exception:', err);
+        return false;
+      }
+    };
+
     // Helper: log node execution for analytics
     const logNodeExecution = async (nodeId: string, nodeType: string, status: string = 'processed') => {
       try {
