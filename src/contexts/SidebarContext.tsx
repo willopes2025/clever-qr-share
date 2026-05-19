@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { BREAKPOINTS } from "@/hooks/useBreakpoint";
 
 interface SidebarContextType {
   isCollapsed: boolean;
@@ -15,12 +16,19 @@ interface SidebarContextType {
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 const STORAGE_KEY = "sidebar-collapsed";
+const USER_PREF_KEY = "sidebar-user-pref"; // tracks if user manually toggled
 
 export const SidebarProvider = ({ children }: { children: ReactNode }) => {
   const isMobile = useIsMobile();
-  const [isCollapsed, setIsCollapsed] = useState(() => {
+  const [userTouched, setUserTouched] = useState<boolean>(() => {
+    return localStorage.getItem(USER_PREF_KEY) === "true";
+  });
+  const [isCollapsed, setIsCollapsedState] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === "true";
+    if (stored !== null) return stored === "true";
+    // Default: auto-collapse on narrower desktops
+    if (typeof window !== "undefined" && window.innerWidth < BREAKPOINTS.xl) return true;
+    return false;
   });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -28,12 +36,36 @@ export const SidebarProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(STORAGE_KEY, String(isCollapsed));
   }, [isCollapsed]);
 
+  // Auto-adapt to viewport unless the user has explicitly set a preference
+  useEffect(() => {
+    if (userTouched || isMobile) return;
+    const apply = () => {
+      const shouldCollapse = window.innerWidth < BREAKPOINTS.xl;
+      setIsCollapsedState(shouldCollapse);
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [userTouched, isMobile]);
+
   // Close mobile sidebar on route change or resize to desktop
   useEffect(() => {
     if (!isMobile) {
       setIsMobileOpen(false);
     }
   }, [isMobile]);
+
+  const markTouched = () => {
+    if (!userTouched) {
+      setUserTouched(true);
+      localStorage.setItem(USER_PREF_KEY, "true");
+    }
+  };
+
+  const setIsCollapsed: typeof setIsCollapsedState = (value) => {
+    markTouched();
+    setIsCollapsedState(value);
+  };
 
   // Keyboard shortcut: Ctrl/Cmd + B
   useEffect(() => {
