@@ -26,7 +26,7 @@ export interface MemberProductivity {
   notesCreated: number;
   avgResponseSeconds: number | null;
   lastActivityAt: string | null;
-  currentStatus: 'work' | 'break' | 'lunch' | 'meeting' | 'offline';
+  currentStatus: 'work' | 'break' | 'lunch' | 'meeting' | 'idle' | 'offline';
 }
 
 export interface MemberProductivityResult {
@@ -253,8 +253,9 @@ export const useMemberProductivity = (
 
       // Current status from open sessions.
       // Rule: pick the MOST RECENT open session per user (latest started_at).
-      // If last_activity (or started_at) is older than IDLE_THRESHOLD, mark offline.
-      const IDLE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+      // If last_activity is 10-15min old → idle. >15min → offline.
+      const IDLE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+      const OFFLINE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
       const now = Date.now();
       const latestOpen = new Map<string, { type: string; ts: number; activity: number }>();
       (openSessions || []).forEach((s) => {
@@ -269,9 +270,11 @@ export const useMemberProductivity = (
       latestOpen.forEach((entry, uid) => {
         const m = memberMap.get(uid);
         if (!m) return;
-        const isStale = now - entry.activity > IDLE_THRESHOLD_MS;
-        if (isStale) {
+        const inactiveMs = now - entry.activity;
+        if (inactiveMs > OFFLINE_THRESHOLD_MS) {
           m.currentStatus = 'offline';
+        } else if (entry.type === 'work' && inactiveMs > IDLE_THRESHOLD_MS) {
+          m.currentStatus = 'idle';
         } else if (
           entry.type === 'work' ||
           entry.type === 'break' ||

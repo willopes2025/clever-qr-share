@@ -5671,6 +5671,7 @@ export type Database = {
           duration_seconds: number | null
           ended_at: string | null
           id: string
+          is_idle: boolean
           last_activity: string | null
           notes: string | null
           organization_id: string | null
@@ -5683,6 +5684,7 @@ export type Database = {
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
+          is_idle?: boolean
           last_activity?: string | null
           notes?: string | null
           organization_id?: string | null
@@ -5695,6 +5697,7 @@ export type Database = {
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
+          is_idle?: boolean
           last_activity?: string | null
           notes?: string | null
           organization_id?: string | null
@@ -6840,6 +6843,14 @@ export type Database = {
       get_member_meta_phone_number_ids: {
         Args: { _user_id: string }
         Returns: string[]
+      }
+      get_messages_by_hour: {
+        Args: { p_end: string; p_start: string; p_user_ids: string[] }
+        Returns: {
+          hour: number
+          message_count: number
+          user_id: string
+        }[]
       }
       get_organization_member_ids: {
         Args: { _user_id: string }

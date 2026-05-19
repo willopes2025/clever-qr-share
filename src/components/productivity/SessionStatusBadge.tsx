@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Coffee, Utensils, Clock, Play, Pause } from 'lucide-react';
+import { Coffee, Utensils, Clock, Play, Pause, Moon } from 'lucide-react';
 import { badgeVariants } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import { useActivitySession } from '@/hooks/useActivitySession';
 import { cn } from '@/lib/utils';
 
 export const SessionStatusBadge = () => {
-  const { currentSession, switchSession, startSession, endSession, loading } = useActivitySession();
+  const { currentSession, switchSession, startSession, endSession, loading, isIdle } = useActivitySession();
   const [elapsed, setElapsed] = useState('00:00');
 
   // Update elapsed time every second
@@ -61,6 +61,13 @@ export const SessionStatusBadge = () => {
 
     switch (currentSession.session_type) {
       case 'work':
+        if (isIdle) {
+          return {
+            icon: Moon,
+            label: 'Ocioso',
+            color: 'bg-slate-500/10 text-slate-500 border-slate-500/20',
+          };
+        }
         return {
           icon: Play,
           label: 'Trabalhando',

@@ -1,60 +1,58 @@
-## Diagnóstico
 
-O sistema usa larguras **fixas** em pixels nos painéis principais, sem breakpoints intermediários. No seu monitor (~1126px de largura útil), a soma é:
+## 1. Status "Ocioso" após 10 minutos sem digitar
 
-```
-Sidebar global (256)  +  Lista de conversas (320)  +  Painel do lead (384)  =  960px fixos
-                                                                Sobra: ~166px para o CHAT
-```
+**Onde:** `src/hooks/useActivitySession.ts` e `src/components/productivity/SessionStatusBadge.tsx`
 
-Por isso as mensagens aparecem espremidas no centro, exatamente como mostra o seu print. O problema se repete em outras telas (Funis, Calendário, CRM) porque o `DashboardSidebar` também é fixo em `w-64` e nenhuma página tem breakpoint para telas entre 1024–1440px.
+- Adicionar estado derivado `isIdle` no hook `useActivitySession`:
+  - Verificar inatividade a cada 30s (em vez de só checar 30min).
+  - Se sessão for `work` e `lastActivityRef` > 10 min sem evento → marcar `isIdle = true` e atualizar coluna `last_activity` (mas NÃO encerrar a sessão).
+  - Quando o usuário voltar a interagir (`trackActivity`) → `isIdle = false`.
+  - Manter o encerramento automático atual em 30min (ou ajustar para 60min, opcional).
+- Adicionar nova coluna opcional `is_idle boolean default false` em `user_activity_sessions` para que admins vejam o status real em tempo real (atualizada junto com `last_activity`).
+- Em `SessionStatusBadge`:
+  - Quando `isIdle` for true e houver sessão `work`, exibir badge **"Ocioso"** (ícone `Moon` ou `PauseCircle`, cor `bg-slate-500/10 text-slate-500`) ao invés de "Trabalhando".
+  - Mantém o cronômetro rodando.
+- Em `MemberProductivitySection.tsx` e `useMemberProductivity.ts`:
+  - Adicionar tipo de status `'idle'` em `currentStatus`.
+  - Lógica: se há sessão `work` ativa mas `last_activity` > 10min → status = `idle` (label "Ocioso").
+  - Substituir o label "Offline" do badge atual por "Ocioso" apenas quando o usuário tem sessão ativa porém parada; "Offline" continua para quem não tem sessão alguma. (User pediu "ao invés de aparecer offline aparece Ocioso" — interpretado como: quem está logado mas ficou 10min parado vira Ocioso, não Offline.)
 
-### Pontos identificados
-- `src/pages/Inbox.tsx`: lista `w-80` e painel `w-96` hardcoded; sem auto‑colapso em telas médias.
-- `src/components/DashboardSidebar.tsx`: largura `w-64` / `w-16` sem considerar viewport.
-- Falta um breakpoint intermediário (`lg`/`xl`) – tudo trata só `mobile` vs `desktop`.
-- Outras páginas com grids (`Dashboard`, `Funis`, `Campaigns`) usam colunas fixas sem `xl:`/`2xl:` adicionais.
+## 2. Novo gráfico: Mensagens enviadas por hora
 
----
+**Novo componente:** `src/components/dashboard/MessagesByHourChart.tsx`
 
-## Plano de melhoria
+- Card com:
+  - Título "Mensagens enviadas por hora"
+  - Toggle (Tabs ou Select) com 2 modos:
+    - **Geral** — barras únicas por hora, somando todos os usuários.
+    - **Por usuário** — barras agrupadas/empilhadas por hora, uma cor por usuário, com legenda.
+  - Filtro de data usa o `dateRange`/`customRange` já vindos do dashboard (mesma faixa dos outros widgets).
+- Gráfico em barras (Recharts `BarChart`) — eixo X = 0h..23h, eixo Y = nº de mensagens.
+- Cores via tokens do design system (`hsl(var(--primary))`, `--chart-1..5` etc.).
 
-### 1. Inbox responsivo de verdade (prioridade alta)
-- Tornar a lista de conversas e o painel do lead **proporcionais e adaptáveis**:
-  - Telas `<1280px`: lista 280px, painel do lead **colapsado por padrão** (abre como overlay/sheet sobre o chat).
-  - Telas `1280–1536px`: lista 300px, painel 340px.
-  - Telas `≥1536px`: lista 320px, painel 384px (atual).
-- Detectar largura via hook novo `useBreakpoint()` (md/lg/xl/2xl) e auto‑colapsar painel direito quando não couber.
-- Painel do lead vira **overlay flutuante** em telas médias (igual mobile usa Sheet), mantendo o chat sempre com largura mínima de ~520px.
+**Novo hook:** `src/hooks/useMessagesByHour.ts`
 
-### 2. Sidebar global adaptativa
-- `DashboardSidebar`: auto‑colapsar para `w-16` (ícones) quando viewport `<1280px`, mantendo possibilidade do usuário expandir manualmente.
-- Persistir a preferência manual (já existe em `SidebarContext`), mas usar o auto‑colapso como **default inteligente** baseado no tamanho.
+- Query nas `inbox_messages` (direction='outbound') agrupando por `EXTRACT(HOUR FROM sent_at AT TIME ZONE 'America/Sao_Paulo')` e `sent_by_user_id`.
+- Reusa autorização via `get_organization_member_ids` (já presente em outras queries).
+- Implementação: criar RPC `get_messages_by_hour(p_start, p_end)` retornando `(user_id uuid, hour int, count bigint)` — segue padrão do `get_member_message_productivity`.
+- Hook retorna 2 estruturas memoizadas:
+  - `aggregate`: array com 24 itens `{ hour, total }`.
+  - `byUser`: array com 24 itens `{ hour, [userName]: count, ... }` + lista `users[]` para legenda.
 
-### 3. Header da Inbox enxuto em telas médias
-No print, o header do chat tem "Marcar como lida", seletor de responsável, "Acionar IA", chip do lead — tudo competindo por espaço. Vamos:
-- Esconder rótulos de texto em `<1280px` (manter só ícones com tooltip).
-- Agrupar ações secundárias em menu "…" quando a largura disponível for insuficiente.
+**Integração:** `TraditionalDashboard.tsx`
 
-### 4. Grids genéricas com mais breakpoints
-- Adicionar `xl:` e `2xl:` nos grids de Dashboard/Funnels/Campaigns para aproveitar telas grandes e evitar quebras feias em telas médias.
-- Padronizar containers com `min-w-0` onde estiver faltando (evita overflow horizontal).
-
-### 5. Painel direito do lead
-- Adicionar barra de **resize** (drag) entre chat e painel do lead, com largura mínima/máxima e persistência por usuário em `localStorage`.
-
-### 6. Verificação
-- Testar em viewports: 1024, 1280, 1366, 1440, 1536, 1920 via preview do navegador.
-- Validar especificamente a tela do print (1126px) — chat deve ficar com ≥520px.
-
----
+- Adicionar `<MessagesByHourChart dateRange={dateRange} customRange={customRange} />` em um novo bloco logo abaixo de `MemberProductivitySection`.
 
 ## Detalhes técnicos
 
-- Novo hook `src/hooks/useBreakpoint.ts` baseado em `matchMedia` (md=768, lg=1024, xl=1280, 2xl=1536).
-- `src/pages/Inbox.tsx`: substituir `w-80`/`w-96` por classes condicionais ao breakpoint; auto‑colapsar painel direito ao detectar `xl` ou menos.
-- `src/components/DashboardSidebar.tsx`: aplicar auto‑colapso inicial ouvindo o mesmo hook.
-- `src/components/inbox/MessageView.tsx` (header): tornar labels `hidden xl:inline`.
-- Componente novo `src/components/inbox/ResizeHandle.tsx` para o drag entre chat e painel.
+- Migration necessária:
+  - `ALTER TABLE user_activity_sessions ADD COLUMN is_idle boolean NOT NULL DEFAULT false;`
+  - Criar função `get_messages_by_hour(p_start timestamptz, p_end timestamptz)` (SECURITY DEFINER, mesmo padrão de autorização do `get_member_message_productivity`).
+- Throttle: o update de `is_idle` no DB acontece junto com o update de `last_activity` que já existe (a cada 2min). Quando idle vira true, faz 1 update extra imediato; idem ao voltar a digitar.
+- Eventos rastreados para `trackActivity`: já existem listeners globais nos layouts (manter); confirmar `mousemove`, `keydown`, `click`, `scroll`.
+- Sem mudanças em business logic de mensagens — apenas leitura agregada.
 
-Sem mudanças de back‑end nem de regras de negócio — apenas frontend e layout.
+## Fora de escopo
+
+- Não alterar lógica de fechamento de sessões abandonadas (`close_abandoned_sessions`).
+- Não mudar o cálculo de horas trabalhadas existente (problema separado já discutido).

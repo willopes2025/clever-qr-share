@@ -12,6 +12,7 @@ import { AutomationSection } from './AutomationSection';
 import { AgentPerformanceSection } from './AgentPerformanceSection';
 import { AlertsSection } from './AlertsSection';
 import { MemberProductivitySection } from './MemberProductivitySection';
+import { MessagesByHourChart } from './MessagesByHourChart';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export const TraditionalDashboard = () => {
@@ -54,6 +55,12 @@ export const TraditionalDashboard = () => {
       {isAdmin && (
         <MemberProductivitySection dateRange={dateRange} customRange={customRange} />
       )}
+
+      {isAdmin && (
+        <MessagesByHourChart dateRange={dateRange} customRange={customRange} />
+      )}
+
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AgentPerformanceSection dateRange={dateRange} customRange={customRange} />
