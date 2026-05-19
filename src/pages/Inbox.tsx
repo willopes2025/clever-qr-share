@@ -107,6 +107,7 @@ const Inbox = () => {
 
   const handleOpenRightPanel = () => {
     if (isRightPanelCollapsed) {
+      setUserTouchedRightPanel(true);
       setIsRightPanelCollapsed(false);
     }
   };
