@@ -749,6 +749,18 @@ const MessageNodeConfig = ({
             />
           </div>
 
+          <TemplateMediaUpload
+            mediaType={(data?.mediaType as MediaType) || null}
+            mediaUrl={(data?.mediaUrl as string) || null}
+            mediaFilename={(data?.mediaFilename as string) || null}
+            onMediaChange={(type, url, filename) => {
+              handleChange("mediaType", type);
+              handleChange("mediaUrl", url);
+              handleChange("mediaFilename", filename);
+            }}
+            templateContent={(data?.message as string) || ''}
+          />
+
           {/* Botões interativos (estilo Kommo) */}
           {(() => {
             const buttons = (data?.buttons as Array<{ label: string }>) || [];
