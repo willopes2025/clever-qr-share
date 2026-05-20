@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Settings, Bot, Plus, Trash2, GitBranch, Sparkles, Loader2, Send, FileText } from "lucide-react";
+import { X, Settings, Bot, Plus, Trash2, GitBranch, Sparkles, Loader2, Send, FileText, Bell } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAllAgentConfigs } from "@/hooks/useAIAgentConfig";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useFunnels } from "@/hooks/useFunnels";
 import { useMetaTemplates } from "@/hooks/useMetaTemplates";
 import { useMetaWhatsAppNumbers } from "@/hooks/useMetaWhatsAppNumbers";
@@ -85,6 +87,8 @@ interface NodeData {
     metaTemplateLanguage?: string;
     metaTemplateButtons?: Array<{ text: string; type: string }>;
     metaVariableMappings?: MetaVariableMapping[];
+    notifyUserIds?: string[];
+    notifyMessage?: string;
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
@@ -1072,6 +1076,7 @@ const MessageNodeConfig = ({
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
   const { funnels } = useFunnels({ includeDeals: false });
+  const { members } = useTeamMembers();
   
   const handleChange = (key: string, value: any) => {
     onUpdate(node.id, { [key]: value });
@@ -1273,6 +1278,7 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                   <SelectItem value="complete_tasks">Completar Tarefas</SelectItem>
                   <SelectItem value="change_responsible">Mudar Responsável</SelectItem>
                   <SelectItem value="send_meta_template">Enviar Template Meta</SelectItem>
+                  <SelectItem value="notify_user">Notificar Usuário</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1926,6 +1932,67 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
         );
       case "send_meta_template":
         return <MetaTemplateActionConfig config={config} handleChange={handleChange} data={data} />;
+      case "notify_user": {
+        const selectedIds: string[] = (config.notifyUserIds as string[]) || [];
+        return (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Usuários para notificar via WhatsApp
+              </Label>
+              <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                {members && members.length > 0 ? (
+                  members.filter((m: any) => m.status === 'active').map((member: any) => {
+                    const memberUserId = member.user_id || member.id;
+                    const isChecked = selectedIds.includes(memberUserId);
+                    return (
+                      <label
+                        key={member.id}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            const newIds = checked
+                              ? [...selectedIds, memberUserId]
+                              : selectedIds.filter((id: string) => id !== memberUserId);
+                            handleChange("config", { ...config, notifyUserIds: newIds });
+                          }}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{member.profile?.full_name || member.email}</span>
+                          {member.profile?.full_name && member.email && (
+                            <span className="text-xs text-muted-foreground">{member.email}</span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Nenhum membro da equipe encontrado
+                  </p>
+                )}
+              </div>
+              {selectedIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedIds.length} usuário(s) selecionado(s)
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Mensagem (opcional)</Label>
+              <Textarea
+                value={config.notifyMessage || ''}
+                onChange={(e) => handleChange("config", { ...config, notifyMessage: e.target.value })}
+                placeholder="Use {{nome}}, {{telefone}}, {{email}} para variáveis do contato"
+                rows={3}
+              />
+            </div>
+          </div>
+        );
+      }
       default:
         return null;
     }
