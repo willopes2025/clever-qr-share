@@ -787,33 +787,69 @@ Deno.serve(async (req: Request) => {
             error_message: 'Execução já em andamento (skipped)'
           }).eq('id', message.id);
         } else {
-          // Find or create conversation tied to selected instance
-          let conversationId: string | null = null;
-          const { data: existingConv } = await supabase
-            .from('conversations')
-            .select('id')
-            .eq('contact_id', message.contact_id)
-            .eq('user_id', campaign.user_id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          // Determine sender: Meta has priority if configured on the campaign
+          const chatbotMetaPhoneNumberId: string | null = (campaign as any).meta_phone_number_id || null;
+          const useMetaSender = !!chatbotMetaPhoneNumberId;
 
-          if (existingConv) {
-            conversationId = existingConv.id;
-          } else if (selectedInstance) {
-            const { data: newConv } = await supabase
+          // Find or create conversation tied to selected sender
+          let conversationId: string | null = null;
+
+          if (useMetaSender) {
+            const { data: existingMetaConv } = await supabase
               .from('conversations')
-              .insert({
-                contact_id: message.contact_id,
-                user_id: campaign.user_id,
-                status: 'open',
-                instance_id: selectedInstance.id,
-                campaign_id: campaignId,
-                provider: 'evolution',
-              })
               .select('id')
-              .single();
-            if (newConv) conversationId = newConv.id;
+              .eq('contact_id', message.contact_id)
+              .eq('user_id', campaign.user_id)
+              .eq('provider', 'meta')
+              .eq('meta_phone_number_id', chatbotMetaPhoneNumberId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (existingMetaConv) {
+              conversationId = existingMetaConv.id;
+            } else {
+              const { data: newConv } = await supabase
+                .from('conversations')
+                .insert({
+                  contact_id: message.contact_id,
+                  user_id: campaign.user_id,
+                  status: 'open',
+                  provider: 'meta',
+                  meta_phone_number_id: chatbotMetaPhoneNumberId,
+                  campaign_id: campaignId,
+                })
+                .select('id')
+                .single();
+              if (newConv) conversationId = newConv.id;
+            }
+          } else {
+            const { data: existingConv } = await supabase
+              .from('conversations')
+              .select('id')
+              .eq('contact_id', message.contact_id)
+              .eq('user_id', campaign.user_id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (existingConv) {
+              conversationId = existingConv.id;
+            } else if (selectedInstance) {
+              const { data: newConv } = await supabase
+                .from('conversations')
+                .insert({
+                  contact_id: message.contact_id,
+                  user_id: campaign.user_id,
+                  status: 'open',
+                  instance_id: selectedInstance.id,
+                  campaign_id: campaignId,
+                  provider: 'evolution',
+                })
+                .select('id')
+                .single();
+              if (newConv) conversationId = newConv.id;
+            }
           }
 
           // Create chatbot execution record with trigger_campaign_id
@@ -828,7 +864,9 @@ Deno.serve(async (req: Request) => {
               started_at: new Date().toISOString(),
               trigger_source: 'campaign',
               trigger_campaign_id: campaignId,
-              variables: {},
+              variables: useMetaSender
+                ? { override_meta_phone_number_id: chatbotMetaPhoneNumberId }
+                : {},
             })
             .select()
             .single();
@@ -850,6 +888,8 @@ Deno.serve(async (req: Request) => {
               contactId: message.contact_id,
               userId: campaign.user_id,
               executionId: execution.id,
+              overrideMetaPhoneNumberId: useMetaSender ? chatbotMetaPhoneNumberId : null,
+              overrideInstanceId: !useMetaSender && selectedInstance ? selectedInstance.id : null,
             }),
           });
 
