@@ -103,9 +103,10 @@ Deno.serve(async (req) => {
     }
 
     const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
+    const isChatbotMetaCampaign = campaign.dispatch_mode === 'chatbot' && !!campaign.meta_phone_number_id;
 
     // For non-Meta campaigns, instance IDs are required
-    if (!isMetaTemplateCampaign && (!instanceIds || instanceIds.length === 0)) {
+    if (!isMetaTemplateCampaign && !isChatbotMetaCampaign && (!instanceIds || instanceIds.length === 0)) {
       throw new Error('Campaign ID and at least one Instance ID are required');
     }
 
@@ -1160,8 +1161,8 @@ ${availableVariables}`;
       if (!campaign.chatbot_flow_id) {
         throw new Error('Modo chatbot selecionado mas nenhum fluxo configurado');
       }
-      if (validInstances.length === 0) {
-        throw new Error('Modo chatbot requer ao menos uma instância WhatsApp conectada');
+      if (validInstances.length === 0 && !campaign.meta_phone_number_id) {
+        throw new Error('Modo chatbot requer ao menos uma instância WhatsApp conectada ou um número Meta selecionado');
       }
       // Validate flow exists and belongs to org
       const { data: flow } = await supabase

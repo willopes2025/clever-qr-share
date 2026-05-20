@@ -319,7 +319,7 @@ export const CampaignFormDialog = ({
       name,
       template_id: isMetaMode || isChatbotMode ? null : templateId || null,
       meta_template_id: isMetaMode ? templateId || null : null,
-      meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId || null : null,
+      meta_phone_number_id: (isMetaMode || isChatbotMode) ? selectedMetaPhoneNumberId || null : null,
       list_id: listId || null,
       scheduled_at: scheduledAt,
       message_interval_min: intervalMin,
@@ -408,7 +408,7 @@ export const CampaignFormDialog = ({
                 const nextMode = value as 'template' | 'meta_template' | 'chatbot';
                 setMessageMode(nextMode);
                 setTemplateId('');
-                if (nextMode !== 'meta_template') {
+                if (nextMode === 'template') {
                   setSelectedMetaPhoneNumberId('');
                 }
                 if (nextMode !== 'chatbot') {
@@ -455,8 +455,40 @@ export const CampaignFormDialog = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                O fluxo será disparado para cada contato da lista, respeitando os intervalos e janelas de envio. Requer instâncias do WhatsApp conectadas.
+                O fluxo será disparado para cada contato da lista, respeitando os intervalos e janelas de envio.
               </p>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Canal de envio
+                </Label>
+                <Select
+                  value={selectedMetaPhoneNumberId || 'evolution'}
+                  onValueChange={(val) => setSelectedMetaPhoneNumberId(val === 'evolution' ? '' : val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="evolution">Instâncias WhatsApp selecionadas (Evolution)</SelectItem>
+                    {activeMetaNumbers.map((number) => (
+                      <SelectItem key={number.id} value={number.phone_number_id}>
+                        <div className="flex items-center gap-2">
+                          <Cloud className="h-3 w-3" />
+                          <span>Meta — {number.display_name || number.phone_number || number.phone_number_id}</span>
+                          {number.phone_number && number.display_name && (
+                            <span className="text-xs text-muted-foreground">({number.phone_number})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Escolha um número Meta Oficial para disparar o fluxo via WhatsApp Cloud API, ou mantenha as instâncias Evolution selecionadas na campanha.
+                </p>
+              </div>
             </div>
           ) : messageMode === 'template' ? (
             <div className="space-y-2">
