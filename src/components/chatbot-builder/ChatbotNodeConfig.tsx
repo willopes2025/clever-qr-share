@@ -1076,6 +1076,7 @@ const MessageNodeConfig = ({
 export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfigProps) => {
   const data = node.data as NodeData;
   const { funnels } = useFunnels({ includeDeals: false });
+  const { members } = useTeamMembers();
   
   const handleChange = (key: string, value: any) => {
     onUpdate(node.id, { [key]: value });
