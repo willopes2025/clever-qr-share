@@ -1932,6 +1932,67 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
         );
       case "send_meta_template":
         return <MetaTemplateActionConfig config={config} handleChange={handleChange} data={data} />;
+      case "notify_user": {
+        const selectedIds: string[] = (config.notifyUserIds as string[]) || [];
+        return (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Usuários para notificar via WhatsApp
+              </Label>
+              <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                {members && members.length > 0 ? (
+                  members.filter((m: any) => m.status === 'active').map((member: any) => {
+                    const memberUserId = member.user_id || member.id;
+                    const isChecked = selectedIds.includes(memberUserId);
+                    return (
+                      <label
+                        key={member.id}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => {
+                            const newIds = checked
+                              ? [...selectedIds, memberUserId]
+                              : selectedIds.filter((id: string) => id !== memberUserId);
+                            handleChange("config", { ...config, notifyUserIds: newIds });
+                          }}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{member.profile?.full_name || member.email}</span>
+                          {member.profile?.full_name && member.email && (
+                            <span className="text-xs text-muted-foreground">{member.email}</span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    Nenhum membro da equipe encontrado
+                  </p>
+                )}
+              </div>
+              {selectedIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedIds.length} usuário(s) selecionado(s)
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Mensagem (opcional)</Label>
+              <Textarea
+                value={config.notifyMessage || ''}
+                onChange={(e) => handleChange("config", { ...config, notifyMessage: e.target.value })}
+                placeholder="Use {{nome}}, {{telefone}}, {{email}} para variáveis do contato"
+                rows={3}
+              />
+            </div>
+          </div>
+        );
+      }
       default:
         return null;
     }
