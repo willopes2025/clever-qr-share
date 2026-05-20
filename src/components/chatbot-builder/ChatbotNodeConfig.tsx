@@ -85,6 +85,8 @@ interface NodeData {
     metaTemplateLanguage?: string;
     metaTemplateButtons?: Array<{ text: string; type: string }>;
     metaVariableMappings?: MetaVariableMapping[];
+    notifyUserIds?: string[];
+    notifyMessage?: string;
   };
   // Condition fields
   conditionMode?: 'variable' | 'ai_intent';
