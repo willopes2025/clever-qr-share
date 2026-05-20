@@ -60,7 +60,8 @@ export const useMemberProductivity = (
       customRange?.to?.toISOString(),
     ],
     enabled: !!organization?.id,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
     queryFn: async (): Promise<MemberProductivityResult> => {
       const { start, end } = getDateRange(dateRange, customRange);
       const orgId = organization!.id;
@@ -224,18 +225,23 @@ export const useMemberProductivity = (
         }
       });
 
-      // Sessions aggregation (overrides perf metrics if more accurate)
+      // Sessions aggregation (overrides perf metrics if more accurate).
+      // IMPORTANT: open sessions (ended_at = null) precisam contar as horas
+      // até agora (ou até o fim do range, se o range for histórico). Sem isso,
+      // a sessão do dia atual ficava com duração 0 e as horas não apareciam.
+      const endMs = new Date(end).getTime();
+      const nowMs = Date.now();
       const sessionWork = new Map<string, { work: number; break: number; lunch: number }>();
       (sessions || []).forEach((s) => {
         if (!s.user_id) return;
-        const dur =
-          s.duration_seconds ??
-          (s.ended_at
-            ? Math.max(
-                0,
-                (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000,
-              )
-            : 0);
+        let dur = s.duration_seconds ?? 0;
+        if (!s.duration_seconds) {
+          const startedMs = new Date(s.started_at).getTime();
+          const refEnd = s.ended_at
+            ? new Date(s.ended_at).getTime()
+            : Math.min(nowMs, endMs);
+          dur = Math.max(0, (refEnd - startedMs) / 1000);
+        }
         const cur = sessionWork.get(s.user_id) || { work: 0, break: 0, lunch: 0 };
         if (s.session_type === 'work') cur.work += dur;
         else if (s.session_type === 'break') cur.break += dur;
@@ -253,7 +259,7 @@ export const useMemberProductivity = (
 
       // Current status from open sessions.
       // Rule: pick the MOST RECENT open session per user (latest started_at).
-      // If last_activity is 10-15min old → idle. >15min → offline.
+      // If last_activity is 10-15min old → idle. >5min → offline.
       const IDLE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
       const OFFLINE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
       const now = Date.now();
