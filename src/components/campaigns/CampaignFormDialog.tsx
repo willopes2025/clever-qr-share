@@ -408,7 +408,7 @@ export const CampaignFormDialog = ({
                 const nextMode = value as 'template' | 'meta_template' | 'chatbot';
                 setMessageMode(nextMode);
                 setTemplateId('');
-                if (nextMode !== 'meta_template') {
+                if (nextMode === 'template') {
                   setSelectedMetaPhoneNumberId('');
                 }
                 if (nextMode !== 'chatbot') {
