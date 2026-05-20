@@ -127,8 +127,8 @@ export const useMemberProductivity = (
         .from('user_activity_sessions')
         .select('user_id, session_type, started_at, ended_at, duration_seconds')
         .in('user_id', userIdList)
-        .gte('started_at', start.toISOString())
-        .lte('started_at', end.toISOString());
+        .lte('started_at', end.toISOString())
+        .or(`ended_at.is.null,ended_at.gte.${start.toISOString()}`);
 
       // 5. Open sessions for current status — also include last_activity to detect stale sessions
       const { data: openSessions } = await supabase
@@ -232,16 +232,14 @@ export const useMemberProductivity = (
       const endMs = new Date(end).getTime();
       const nowMs = Date.now();
       const sessionWork = new Map<string, { work: number; break: number; lunch: number }>();
+      const startMs = new Date(start).getTime();
       (sessions || []).forEach((s) => {
         if (!s.user_id) return;
-        let dur = s.duration_seconds ?? 0;
-        if (!s.duration_seconds) {
-          const startedMs = new Date(s.started_at).getTime();
-          const refEnd = s.ended_at
-            ? new Date(s.ended_at).getTime()
-            : Math.min(nowMs, endMs);
-          dur = Math.max(0, (refEnd - startedMs) / 1000);
-        }
+        const startedMs = new Date(s.started_at).getTime();
+        const sessionEndMs = s.ended_at ? new Date(s.ended_at).getTime() : nowMs;
+        const refStart = Math.max(startedMs, startMs);
+        const refEnd = Math.min(sessionEndMs, endMs, nowMs);
+        const dur = Math.max(0, (refEnd - refStart) / 1000);
         const cur = sessionWork.get(s.user_id) || { work: 0, break: 0, lunch: 0 };
         if (s.session_type === 'work') cur.work += dur;
         else if (s.session_type === 'break') cur.break += dur;
