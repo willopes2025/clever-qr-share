@@ -150,7 +150,10 @@ const Campaigns = () => {
   };
 
   const handleResume = (campaign: Campaign) => {
-    if (campaign.meta_template_id && campaign.meta_phone_number_id) {
+    const isMetaCampaign =
+      (campaign.meta_template_id && campaign.meta_phone_number_id) ||
+      (campaign.dispatch_mode === 'chatbot' && campaign.meta_phone_number_id);
+    if (isMetaCampaign) {
       handleResumeMetaCampaign(campaign);
     } else {
       setResumingCampaign(campaign);
