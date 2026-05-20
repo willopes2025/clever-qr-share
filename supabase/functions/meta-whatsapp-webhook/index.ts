@@ -937,6 +937,40 @@ Deno.serve(async (req) => {
                 console.error('[META-WEBHOOK] Error fetching deals for automation:', autoErr);
               }
 
+              // Continue active chatbot flow execution waiting for input
+              try {
+                const { data: activeExecution } = await supabase
+                  .from('chatbot_executions')
+                  .select('id, flow_id, current_node_id')
+                  .eq('conversation_id', conversation.id)
+                  .eq('status', 'waiting_input')
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+
+                if (activeExecution) {
+                  console.log(`[META-WEBHOOK] Continuing chatbot execution ${activeExecution.id}`);
+                  await fetch(`${SUPABASE_URL}/functions/v1/execute-chatbot-flow`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      flowId: activeExecution.flow_id,
+                      conversationId: conversation.id,
+                      contactId: contact.id,
+                      userId,
+                      executionId: activeExecution.id,
+                      currentNodeId: activeExecution.current_node_id,
+                      inputValue: content,
+                    }),
+                  });
+                }
+              } catch (cbErr) {
+                console.error('[META-WEBHOOK] Error continuing chatbot flow:', cbErr);
+              }
+
               // Trigger AI agent if enabled on the conversation
               try {
                 await fetch(`${SUPABASE_URL}/functions/v1/ai-campaign-agent`, {
