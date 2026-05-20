@@ -1439,6 +1439,45 @@ Deno.serve(async (req: Request) => {
             } catch (err) {
               console.error('[FLOW] Error sending Meta template:', err);
             }
+          } else if (actionType === 'notify_user') {
+            const notifyUserIds = (config.notifyUserIds as string[]) || [];
+            if (notifyUserIds.length === 0) {
+              console.log('[FLOW] notify_user: no users configured');
+            } else {
+              const contactName = contact?.name || 'Sem nome';
+              const contactPhone = contact?.phone || '';
+              const contactEmail = contact?.email || '';
+              const defaultMsg = `🔔 *Notificação do Chatbot*\n\nContato: *{{nome}}*\nTelefone: {{telefone}}`;
+              let notifyMessage = (config.notifyMessage as string) || defaultMsg;
+              notifyMessage = notifyMessage
+                .replace(/\{\{nome\}\}/g, contactName)
+                .replace(/\{\{telefone\}\}/g, contactPhone)
+                .replace(/\{\{email\}\}/g, contactEmail);
+
+              for (const notifyUserId of notifyUserIds) {
+                try {
+                  const notifResp = await fetch(`${supabaseUrl}/functions/v1/send-whatsapp-notification`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${supabaseServiceKey}`,
+                    },
+                    body: JSON.stringify({
+                      type: 'chatbot_notify',
+                      data: {
+                        contactName,
+                        contactPhone,
+                        message: notifyMessage,
+                      },
+                      recipientUserId: notifyUserId,
+                    }),
+                  });
+                  console.log(`[FLOW] notify_user sent to ${notifyUserId}: ${notifResp.status}`);
+                } catch (notifErr) {
+                  console.error(`[FLOW] notify_user error for ${notifyUserId}:`, notifErr);
+                }
+              }
+            }
           }
 
           currentId = getNextNode(node.id);
