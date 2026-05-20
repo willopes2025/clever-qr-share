@@ -6914,6 +6914,10 @@ export type Database = {
         Returns: boolean
       }
       reset_leads_monthly: { Args: never; Returns: undefined }
+      resolve_user_organization_id: {
+        Args: { _user_id: string }
+        Returns: string
+      }
       resync_team_group_members: {
         Args: { _group_id: string }
         Returns: number
