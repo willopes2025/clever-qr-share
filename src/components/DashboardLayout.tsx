@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { SidebarProvider, useSidebarContext } from "@/contexts/SidebarContext";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
-import { ActivityTracker } from "@/components/productivity/ActivityTracker";
+import { ActivitySessionProvider } from "@/hooks/useActivitySession";
 import { WilAssistant } from "@/components/WilAssistant";
 import { cn } from "@/lib/utils";
 
@@ -18,26 +18,25 @@ const LayoutContent = ({ children, className }: DashboardLayoutProps) => {
   const { isCollapsed } = useSidebarContext();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Activity Tracker - invisible, tracks user sessions */}
-      <ActivityTracker />
-      
-      {/* Desktop Sidebar */}
-      <DashboardSidebar />
-      
-      <main
-        className={cn(
-          "transition-all duration-300 ease-in-out min-h-screen",
-          isCollapsed ? "ml-16" : "ml-64",
-          className
-        )}
-      >
-        {children}
-      </main>
-      
-      {/* Wil AI Assistant */}
-      <WilAssistant />
-    </div>
+    <ActivitySessionProvider>
+      <div className="min-h-screen bg-background">
+        {/* Desktop Sidebar */}
+        <DashboardSidebar />
+
+        <main
+          className={cn(
+            "transition-all duration-300 ease-in-out min-h-screen",
+            isCollapsed ? "ml-16" : "ml-64",
+            className
+          )}
+        >
+          {children}
+        </main>
+
+        {/* Wil AI Assistant */}
+        <WilAssistant />
+      </div>
+    </ActivitySessionProvider>
   );
 };
 
