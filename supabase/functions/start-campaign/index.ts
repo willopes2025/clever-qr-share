@@ -103,9 +103,10 @@ Deno.serve(async (req) => {
     }
 
     const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
+    const isChatbotMetaCampaign = campaign.dispatch_mode === 'chatbot' && !!campaign.meta_phone_number_id;
 
     // For non-Meta campaigns, instance IDs are required
-    if (!isMetaTemplateCampaign && (!instanceIds || instanceIds.length === 0)) {
+    if (!isMetaTemplateCampaign && !isChatbotMetaCampaign && (!instanceIds || instanceIds.length === 0)) {
       throw new Error('Campaign ID and at least one Instance ID are required');
     }
 
