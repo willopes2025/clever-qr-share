@@ -5,7 +5,7 @@ import { SidebarProvider } from "@/contexts/SidebarContext";
 import { MobileHeader } from "@/mobile/components/MobileHeader";
 import { MobileBottomNav } from "@/mobile/components/MobileBottomNav";
 import { MobileSidebarDrawer } from "@/components/MobileSidebarDrawer";
-import { ActivityTracker } from "@/components/productivity/ActivityTracker";
+import { ActivitySessionProvider } from "@/hooks/useActivitySession";
 import { cn } from "@/lib/utils";
 
 interface MobileAppLayoutProps {
@@ -30,39 +30,38 @@ const MobileLayoutContent = ({ children, pageTitle, className }: MobileAppLayout
   const location = useLocation();
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* Activity Tracker - invisible, tracks user sessions */}
-      <ActivityTracker />
-      
-      {/* Fixed Header */}
-      <MobileHeader pageTitle={pageTitle} />
-      
-      {/* Mobile Sidebar Drawer */}
-      <MobileSidebarDrawer />
-      
-      {/* Scrollable Content Area */}
-      <AnimatePresence mode="wait">
-        <motion.main
-          key={location.pathname}
-          initial="initial"
-          animate="in"
-          exit="out"
-          variants={pageVariants}
-          transition={pageTransition}
-          className={cn(
-            "flex-1 overflow-y-auto overscroll-contain",
-            "pt-14 pb-20", // Header height + bottom nav + extra padding
-            "mobile-scroll",
-            className
-          )}
-        >
-          {children}
-        </motion.main>
-      </AnimatePresence>
-      
-      {/* Fixed Bottom Navigation */}
-      <MobileBottomNav />
-    </div>
+    <ActivitySessionProvider>
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
+        {/* Fixed Header */}
+        <MobileHeader pageTitle={pageTitle} />
+
+        {/* Mobile Sidebar Drawer */}
+        <MobileSidebarDrawer />
+
+        {/* Scrollable Content Area */}
+        <AnimatePresence mode="wait">
+          <motion.main
+            key={location.pathname}
+            initial="initial"
+            animate="in"
+            exit="out"
+            variants={pageVariants}
+            transition={pageTransition}
+            className={cn(
+              "flex-1 overflow-y-auto overscroll-contain",
+              "pt-14 pb-20", // Header height + bottom nav + extra padding
+              "mobile-scroll",
+              className
+            )}
+          >
+            {children}
+          </motion.main>
+        </AnimatePresence>
+
+        {/* Fixed Bottom Navigation */}
+        <MobileBottomNav />
+      </div>
+    </ActivitySessionProvider>
   );
 };
 
