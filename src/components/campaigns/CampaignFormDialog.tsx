@@ -319,7 +319,7 @@ export const CampaignFormDialog = ({
       name,
       template_id: isMetaMode || isChatbotMode ? null : templateId || null,
       meta_template_id: isMetaMode ? templateId || null : null,
-      meta_phone_number_id: isMetaMode ? selectedMetaPhoneNumberId || null : null,
+      meta_phone_number_id: (isMetaMode || isChatbotMode) ? selectedMetaPhoneNumberId || null : null,
       list_id: listId || null,
       scheduled_at: scheduledAt,
       message_interval_min: intervalMin,
