@@ -39,8 +39,10 @@ Deno.serve(async (req) => {
     }
 
     const isMetaTemplateCampaign = !!campaign.meta_template_id && !!campaign.meta_phone_number_id;
+    const isChatbotMetaCampaign = campaign.dispatch_mode === 'chatbot' && !!campaign.meta_phone_number_id;
+    const isMetaCampaign = isMetaTemplateCampaign || isChatbotMetaCampaign;
 
-    if (!isMetaTemplateCampaign && instanceIds.length === 0) {
+    if (!isMetaCampaign && instanceIds.length === 0) {
       throw new Error('Campaign ID and instance IDs are required');
     }
 
@@ -201,7 +203,7 @@ Deno.serve(async (req) => {
 
     let instances: Array<{ id: string; instance_name: string; warming_level: number | null }> = [];
 
-    if (!isMetaTemplateCampaign) {
+    if (!isMetaCampaign) {
       const { data: fetchedInstances, error: instancesError } = await supabase
         .from('whatsapp_instances')
         .select('id, instance_name, evolution_instance_name, warming_level')
@@ -226,7 +228,7 @@ Deno.serve(async (req) => {
         status: 'sending',
         started_at: campaign.started_at || new Date().toISOString(),
         completed_at: null,
-        instance_ids: isMetaTemplateCampaign ? [] : instanceIds,
+        instance_ids: isMetaCampaign ? [] : instanceIds,
         sending_mode: sendingMode
       })
       .eq('id', campaignId);
