@@ -168,7 +168,7 @@ export interface WhatsAppMetrics {
   messagesDelivered: number;
   messagesFailed: number;
   deliveryRate: number;
-  messagesByInstance: Array<{ instanceId: string; instanceName: string; count: number }>;
+  messagesByInstance: Array<{ instanceId: string; instanceName: string; sent: number; received: number; delivered: number }>;
   activeChips: number;
   inactiveChips: number;
 }
@@ -197,37 +197,53 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
       const messagesFailed = Number(stats?.failed || 0);
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
-      // Fetch messages with conversation details including provider and meta_phone_number_id
+      // Fetch messages with direction + status for per-instance breakdown
       const { data: messagesData } = await supabase
         .from('inbox_messages')
-        .select('conversation_id')
-        .eq('direction', 'outbound')
+        .select('conversation_id, direction, status')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .limit(5000);
 
       const conversationIds = [...new Set(messagesData?.map(m => m.conversation_id).filter(Boolean) || [])];
-      
+
       // Fetch conversations with provider info to distinguish Evolution vs Meta
       const { data: conversationsData } = await supabase
         .from('conversations')
         .select('id, instance_id, provider, meta_phone_number_id')
         .in('id', conversationIds.length > 0 ? conversationIds : ['']);
 
-      // Group messages by chip: Evolution instances + Meta phone numbers
-      const chipCounts = new Map<string, number>();
+      const convMap = new Map(conversationsData?.map(c => [c.id, c]) || []);
+
+      type ChipStats = { sent: number; received: number; delivered: number };
+      const chipStats = new Map<string, ChipStats>();
+      const getStats = (key: string): ChipStats => {
+        let s = chipStats.get(key);
+        if (!s) {
+          s = { sent: 0, received: 0, delivered: 0 };
+          chipStats.set(key, s);
+        }
+        return s;
+      };
+
       messagesData?.forEach(m => {
-        const conv = conversationsData?.find(c => c.id === m.conversation_id);
+        const conv = convMap.get(m.conversation_id);
         if (!conv) return;
-        
+
+        let key: string | null = null;
         if (conv.provider === 'meta' && conv.meta_phone_number_id) {
-          // Meta conversations: group by meta_phone_number_id
-          const key = `meta:${conv.meta_phone_number_id}`;
-          chipCounts.set(key, (chipCounts.get(key) || 0) + 1);
+          key = `meta:${conv.meta_phone_number_id}`;
         } else if (conv.instance_id) {
-          // Evolution conversations: group by instance_id
-          const key = `evo:${conv.instance_id}`;
-          chipCounts.set(key, (chipCounts.get(key) || 0) + 1);
+          key = `evo:${conv.instance_id}`;
+        }
+        if (!key) return;
+
+        const s = getStats(key);
+        if (m.direction === 'outbound') {
+          s.sent += 1;
+          if (m.status === 'delivered' || m.status === 'read') s.delivered += 1;
+        } else if (m.direction === 'inbound') {
+          s.received += 1;
         }
       });
 
@@ -240,15 +256,15 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
       const instances = instancesResult.data || [];
       const metaNumbers = metaNumbersResult.data || [];
 
-      const messagesByInstance = Array.from(chipCounts.entries())
-        .map(([key, count]) => {
+      const messagesByInstance = Array.from(chipStats.entries())
+        .map(([key, s]) => {
           if (key.startsWith('meta:')) {
             const phoneNumberId = key.replace('meta:', '');
             const metaNum = metaNumbers.find(mn => mn.phone_number_id === phoneNumberId);
             return {
               instanceId: key,
               instanceName: metaNum?.display_name ? `📱 ${metaNum.display_name}` : `Meta ${phoneNumberId.slice(-4)}`,
-              count,
+              ...s,
             };
           } else {
             const instanceId = key.replace('evo:', '');
@@ -256,18 +272,18 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
             return {
               instanceId: key,
               instanceName: instance?.instance_name || 'Desconhecido',
-              count,
+              ...s,
             };
           }
         })
-        .sort((a, b) => b.count - a.count);
+        .sort((a, b) => (b.sent + b.received) - (a.sent + a.received));
 
       // Active/inactive chips: Evolution instances + Meta numbers count as active chips
       const activeEvolution = instances.filter(i => i.status === 'connected').length;
       const inactiveEvolution = instances.filter(i => i.status !== 'connected').length;
       // Meta numbers are always "active" if they exist and have messages
       const activeMetaCount = new Set(
-        Array.from(chipCounts.keys()).filter(k => k.startsWith('meta:'))
+        Array.from(chipStats.keys()).filter(k => k.startsWith('meta:'))
       ).size;
 
       const activeChips = activeEvolution + activeMetaCount;
