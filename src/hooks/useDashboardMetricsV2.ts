@@ -179,24 +179,6 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
     queryFn: async (): Promise<WhatsAppMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
-      // Usa RPC com aggregate em uma única varredura para evitar statement timeout
-      // em janelas grandes (30d/90d). Antes usávamos 3 count(*) separados, que estouravam
-      // o timeout do Postgres em ranges longos e devolviam 0.
-      const { data: statsData, error: statsError } = await supabase.rpc('get_whatsapp_message_stats', {
-        p_start: start.toISOString(),
-        p_end: end.toISOString(),
-      });
-
-      if (statsError) {
-        console.error('[useWhatsAppMetrics] stats error:', statsError);
-      }
-
-      const stats = Array.isArray(statsData) ? statsData[0] : statsData;
-      const messagesSent = Number(stats?.sent || 0);
-      const messagesDelivered = Number(stats?.delivered || 0);
-      const messagesFailed = Number(stats?.failed || 0);
-      const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
-
       const { data: byInstanceData, error: byInstanceError } = await (supabase as any).rpc('get_whatsapp_message_stats_by_instance', {
         p_start: start.toISOString(),
         p_end: end.toISOString(),
@@ -210,7 +192,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
 
       const instances = instancesResult.data || [];
 
-      const messagesByInstance = ((byInstanceData || []) as Array<{ instance_id: string; instance_name: string; sent: number; delivered: number; received: number }>)
+      const messagesByInstance = ((byInstanceData || []) as Array<{ instance_id: string; instance_name: string; sent: number; delivered: number; failed: number; received: number }>)
         .map(row => {
           const sent = Number(row.sent || 0);
           const received = Number(row.received || 0);
@@ -226,6 +208,11 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
           };
         })
         .sort((a, b) => (b.sent + b.received) - (a.sent + a.received));
+
+      const messagesSent = messagesByInstance.reduce((sum, row) => sum + row.sent, 0);
+      const messagesDelivered = messagesByInstance.reduce((sum, row) => sum + row.delivered, 0);
+      const messagesFailed = ((byInstanceData || []) as Array<{ failed: number }>).reduce((sum, row) => sum + Number(row.failed || 0), 0);
+      const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
       // Active/inactive chips: Evolution instances + Meta numbers count as active chips
       const activeEvolution = instances.filter(i => i.status === 'connected').length;
