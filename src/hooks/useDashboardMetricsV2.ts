@@ -220,15 +220,26 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
       }
 
 
-      const conversationIds = [...new Set(messagesData?.map(m => m.conversation_id).filter(Boolean) || [])];
+      const conversationIds = [...new Set(messagesData?.map(m => m.conversation_id).filter(Boolean) || [])] as string[];
 
-      // Fetch conversations with provider info to distinguish Evolution vs Meta
-      const { data: conversationsData } = await supabase
-        .from('conversations')
-        .select('id, instance_id, provider, meta_phone_number_id')
-        .in('id', conversationIds.length > 0 ? conversationIds : ['']);
+      // Fetch conversations in chunks to avoid URL length limits (long ranges → many IDs)
+      type ConvRow = { id: string; instance_id: string | null; provider: string | null; meta_phone_number_id: string | null };
+      const conversationsData: ConvRow[] = [];
+      const CONV_CHUNK = 200;
+      for (let i = 0; i < conversationIds.length; i += CONV_CHUNK) {
+        const slice = conversationIds.slice(i, i + CONV_CHUNK);
+        const { data: chunk, error: convErr } = await supabase
+          .from('conversations')
+          .select('id, instance_id, provider, meta_phone_number_id')
+          .in('id', slice);
+        if (convErr) {
+          console.error('[useWhatsAppMetrics] conv chunk error:', convErr);
+          continue;
+        }
+        if (chunk) conversationsData.push(...(chunk as ConvRow[]));
+      }
 
-      const convMap = new Map(conversationsData?.map(c => [c.id, c]) || []);
+      const convMap = new Map(conversationsData.map(c => [c.id, c]));
 
       type ChipStats = { sent: number; received: number; delivered: number };
       const chipStats = new Map<string, ChipStats>();
