@@ -748,10 +748,19 @@ Deno.serve(async (req) => {
                   });
                   messageType = 'location';
                   break;
-                case 'contacts':
-                  content = `[Contato: ${message.contacts?.[0]?.name?.formatted_name || 'Desconhecido'}]`;
-                  messageType = 'contacts';
+                case 'contacts': {
+                  const parsedContacts = (message.contacts || []).map((c: any) => {
+                    const name = c?.name?.formatted_name
+                      || [c?.name?.first_name, c?.name?.last_name].filter(Boolean).join(' ')
+                      || 'Contato';
+                    const rawPhone = c?.phones?.[0]?.phone || c?.phones?.[0]?.wa_id || '';
+                    const phone = String(rawPhone).replace(/[^\d+]/g, '');
+                    return { name, phone };
+                  });
+                  content = JSON.stringify({ type: 'vcard', contacts: parsedContacts });
+                  messageType = 'contact';
                   break;
+                }
                 case 'button':
                   content = message.button?.text || '[Botão]';
                   break;
