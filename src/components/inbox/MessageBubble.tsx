@@ -218,7 +218,7 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
           )}
           
           {/* vCard contact message */}
-          {message.message_type === 'contact' && message.content && (() => {
+          {(message.message_type === 'contact' || message.message_type === 'contacts') && message.content && (() => {
             try {
               const parsed = JSON.parse(message.content);
               if (parsed?.type === 'vcard' && parsed?.contacts) {
@@ -263,7 +263,7 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
             </div>
           )}
           
-          {message.content && message.message_type !== 'contact' && message.message_type !== 'location' && (
+          {message.content && message.message_type !== 'contact' && message.message_type !== 'contacts' && message.message_type !== 'location' && (
             <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
               {message.content}
             </p>
