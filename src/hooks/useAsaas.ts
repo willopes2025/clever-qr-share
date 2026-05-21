@@ -179,14 +179,17 @@ export const useAsaas = () => {
   };
 
   // Balance
-  const { data: balance, isLoading: isLoadingBalance, refetch: refetchBalance } = useQuery({
+  const { data: balance, isLoading: isLoadingBalance, isError: isErrorBalance, error: errorBalance, refetch: refetchBalance } = useQuery({
     queryKey: ['asaas', 'balance'],
     queryFn: () => callAsaasApi('get-balance'),
     enabled: hasAsaas,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
   });
 
   // Customers - buscar todos com paginação automática
-  const { data: customersData, isLoading: isLoadingCustomers, refetch: refetchCustomers } = useQuery({
+  const { data: customersData, isLoading: isLoadingCustomers, isError: isErrorCustomers, error: errorCustomers, refetch: refetchCustomers } = useQuery({
     queryKey: ['asaas', 'all-customers'],
     queryFn: async () => {
       const result = await callAsaasApi('list-all-customers', {});
@@ -194,12 +197,14 @@ export const useAsaas = () => {
       return result;
     },
     enabled: hasAsaas,
-    staleTime: 2 * 60 * 1000, // Cache por 2 minutos
-    gcTime: 5 * 60 * 1000,    // Manter em memória por 5 minutos
+    retry: 1,
+    refetchOnWindowFocus: false,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 
   // Payments - buscar todos com paginação automática
-  const { data: paymentsData, isLoading: isLoadingPayments, refetch: refetchPayments } = useQuery({
+  const { data: paymentsData, isLoading: isLoadingPayments, isError: isErrorPayments, error: errorPayments, refetch: refetchPayments } = useQuery({
     queryKey: ['asaas', 'all-payments'],
     queryFn: async () => {
       const result = await callAsaasApi('list-all-payments', {});
@@ -207,12 +212,14 @@ export const useAsaas = () => {
       return result;
     },
     enabled: hasAsaas,
+    retry: 1,
+    refetchOnWindowFocus: false,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
 
   // Subscriptions - buscar todos com paginação automática
-  const { data: subscriptionsData, isLoading: isLoadingSubscriptions, refetch: refetchSubscriptions } = useQuery({
+  const { data: subscriptionsData, isLoading: isLoadingSubscriptions, isError: isErrorSubscriptions, error: errorSubscriptions, refetch: refetchSubscriptions } = useQuery({
     queryKey: ['asaas', 'all-subscriptions'],
     queryFn: async () => {
       const result = await callAsaasApi('list-all-subscriptions', {});
@@ -220,6 +227,8 @@ export const useAsaas = () => {
       return result;
     },
     enabled: hasAsaas,
+    retry: 1,
+    refetchOnWindowFocus: false,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
