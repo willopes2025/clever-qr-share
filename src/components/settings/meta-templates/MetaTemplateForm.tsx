@@ -166,18 +166,33 @@ export function MetaTemplateForm({ open, onOpenChange, onSubmit, isSubmitting }:
       const fd = new FormData();
       fd.append("file", file);
       const { supabase } = await import("@/integrations/supabase/client");
-      const { data, error } = await supabase.functions.invoke("meta-template-upload-media", {
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-template-upload-media`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
         body: fd,
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      handleChange("header_handle", data.handle);
+      const raw = await res.text();
+      let payload: any = {};
+      try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { error: raw }; }
+      if (!res.ok || payload?.error) {
+        const detail = payload?.details?.error?.message
+          || payload?.details?.message
+          || payload?.error
+          || `HTTP ${res.status}`;
+        throw new Error(detail);
+      }
+      handleChange("header_handle", payload.handle);
       setMediaFileName(file.name);
       const { toast } = await import("sonner");
       toast.success("Mídia enviada ao Meta com sucesso");
     } catch (err) {
       const { toast } = await import("sonner");
-      toast.error(`Falha no upload: ${(err as Error).message}`);
+      toast.error(`Falha no upload: ${(err as Error).message}`, { duration: 10000 });
     } finally {
       setUploadingMedia(false);
     }
