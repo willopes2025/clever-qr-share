@@ -273,13 +273,15 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
 
       const messagesByInstance = Array.from(chipStats.entries())
         .map(([key, s]) => {
+          const rate = s.received > 0 ? (s.sent / s.received) * 100 : (s.sent > 0 ? 100 : 0);
+          const base = { sent: s.sent, received: s.received, delivered: s.delivered, sentVsReceivedRate: rate };
           if (key.startsWith('meta:')) {
             const phoneNumberId = key.replace('meta:', '');
             const metaNum = metaNumbers.find(mn => mn.phone_number_id === phoneNumberId);
             return {
               instanceId: key,
               instanceName: metaNum?.display_name ? `📱 ${metaNum.display_name}` : `Meta ${phoneNumberId.slice(-4)}`,
-              ...s,
+              ...base,
             };
           } else {
             const instanceId = key.replace('evo:', '');
@@ -287,7 +289,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
             return {
               instanceId: key,
               instanceName: instance?.instance_name || 'Desconhecido',
-              ...s,
+              ...base,
             };
           }
         })
