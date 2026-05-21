@@ -775,7 +775,7 @@ Deno.serve(async (req) => {
 
               // Download media from Meta Graph API and persist to Supabase Storage
               let persistedMediaUrl: string | null = null;
-              if (mediaUrl && messageType !== 'text' && messageType !== 'location' && messageType !== 'contacts') {
+              if (mediaUrl && messageType !== 'text' && messageType !== 'location' && messageType !== 'contact' && messageType !== 'contacts') {
                 try {
                   const metaAccessToken = integration.credentials?.access_token || Deno.env.get('META_WHATSAPP_ACCESS_TOKEN');
                   if (metaAccessToken) {
