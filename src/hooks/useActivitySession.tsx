@@ -248,7 +248,7 @@ export const ActivitySessionProvider = ({ children }: { children: ReactNode }) =
           }
         });
     }
-  }, []);
+  }, [updateSession]);
 
   // Window event listeners (singleton — só uma instância no app)
   useEffect(() => {
