@@ -1,64 +1,46 @@
-# Plano: deixar o Inbox abrir mais rápido
-
 ## Diagnóstico
 
-O hook `useConversations` (que alimenta a tela inteira) hoje faz a carga inicial em **4 etapas sequenciais**, todas indo até o banco:
+O Dashboard Financeiro fica preso em "Carregando dados financeiros..." porque o `useFinancialMetrics` só sai de `isLoading=false` quando **TODAS** as 4 queries do `useAsaas` terminam: `balance`, `customers`, `payments`, `subscriptions`.
 
-```
-STEP 1  →  conversations (lista crua, 200 linhas)   ~1ms no banco
-STEP 2  →  contacts.in(contactIds)                  loop sequencial em chunks de 200
-STEP 3  →  conversation_tag_assignments.in(...)     loop sequencial em chunks de 200
-STEP 4  →  funnel_deals.in(contact_ids) + joins     loop sequencial em chunks de 200
-```
+Olhando os logs do `asaas-api`:
+- A query `list-all-payments` atinge o limite de segurança de **5000 registros** e leva ~43s.
+- `list-all-customers` e `list-all-subscriptions` também rodam em paralelo, cada uma puxando até 5000 itens.
+- O `useAsaas()` é instanciado **duas vezes** na página `AsaasDashboard` (uma direta, outra dentro de `useFinancialMetrics`), o que pode estar duplicando o estado (não as queries, mas a leitura).
 
-Com 11.299 conversas e 12.585 deals em aberto, o `EXPLAIN ANALYZE` da query principal roda em **<1ms** — o gargalo não é o Postgres, são as 3 idas e voltas extras que rodam **em série** (cada round-trip do PostgREST custa 100–400 ms na Cloud). Resultado: a tela só pinta a lista quando todas terminam, então o tempo total acumula ~600–1500 ms só na primeira renderização, e cada invalidação por realtime repete o ciclo todo.
+Resultado: payloads gigantes (15-20k registros somados), o navegador tenta processar tudo em uma única passada de `useMemo`, o JSON parsing + filter/reduce trava a UI, e se qualquer uma das 3 paginadas estourar timeout/erro silencioso o `isLoading` nunca volta para `false`.
 
-Outros pontos pequenos que somam:
+## Plano de correção
 
-- O `select` da STEP 2 puxa `custom_fields` e `notes` dos contatos. A lista do inbox não usa esses campos (são usados só no painel direito ao abrir a conversa).
-- `hasInstanceRestriction` e `notification-instance-ids` ficam pendurados como pré-requisitos do `enabled` da query principal. Como duas chamadas separadas, somam mais uma rodada antes de a lista começar a carregar.
-- `useGlobalRealtime` reinvalida `['conversations']` em *qualquer* mudança em `contacts`/`conversations`/`inbox_messages`, refazendo a carga completa de 4 passos toda vez que chega uma mensagem.
+### 1. Liberar a UI antes de tudo carregar
+Em `src/components/financeiro/AsaasDashboard.tsx`:
+- Trocar o gate `metrics.isLoading` por gates **granulares**: mostrar KPIs já com `balance` carregado, gráficos quando `payments` chegar, MRR quando `subscriptions` chegar.
+- Cada card/seção mostra seu próprio skeleton enquanto a query dele está pendente. Nada bloqueia o resto.
 
-## O que vou mudar
+### 2. Tornar `useFinancialMetrics` resiliente
+Em `src/hooks/useFinancialMetrics.ts`:
+- Não exigir todos os 4 loadings para retornar dados. Calcular o que dá com o que já chegou.
+- Expor flags separadas: `isLoadingPayments`, `isLoadingSubscriptions`, etc., além de um `isPartial`.
 
-### 1. Paralelizar STEP 2/3/4 em `src/hooks/useConversations.ts`
+### 3. Reduzir o volume puxado no dashboard
+Hoje a página puxa **todos** os 5000+ pagamentos só para calcular métricas dos últimos 30 dias.
 
-Trocar o `await` sequencial por um `Promise.all` único:
+Opção A (recomendada, rápida): no edge function `asaas-api`, adicionar suporte ao parâmetro `dateRange` em `list-all-payments` e enviar `dueDate[ge]`/`dueDate[le]` no filtro da Asaas, limitando aos últimos ~90 dias para o dashboard. Continua existindo um `list-all-payments` sem filtro para as outras abas (Cobranças), mas o dashboard usa o filtrado.
 
-```ts
-const [contactsMap, tagsMap, dealsMap] = await Promise.all([
-  fetchContacts(contactIds),
-  fetchTagAssignments(conversationIds),
-  fetchOpenDeals(contactIds),
-]);
-```
+Opção B (maior refactor, opcional): criar um endpoint `get-dashboard-metrics` na edge function que faça a agregação no servidor e devolva só os números, evitando trafegar milhares de registros.
 
-Cada função interna mantém o loop de chunks (limite de 200 do PostgREST), mas as três rodam em paralelo. Ganho esperado: ~2 round-trips a menos por carga (≈ 400–800 ms na rede).
+### 4. Garantir que erros não deixem o loading travado
+- No `useAsaas`, adicionar `retry: 1` e `refetchOnWindowFocus: false` nas 4 queries pesadas.
+- Tratar `isError` no `AsaasDashboard` com mensagem clara + botão "Tentar novamente", em vez de spinner eterno.
 
-### 2. Enxugar o `select` de contatos da lista
+### 5. Evitar dupla instância do `useAsaas`
+`AsaasDashboard` chama `useAsaas()` e também `useFinancialMetrics()` (que chama `useAsaas()` de novo). Como as queries são chaveadas pelo `queryKey`, o React Query deduplica — mas há `useState` locais (`lastSync`, `isSyncing`) que ficam fora de sincronia. Mover `lastSync`/`isSyncing` para um pequeno contexto ou usar `useMutationState`/atom, para não criar dois "componentes" de sync independentes.
 
-Remover `custom_fields` e `notes` do select da STEP 2. O `RightSidePanel`/`ContactInfoPanel` já carrega o contato completo via hook próprio quando a conversa é aberta, então a lista do inbox não precisa carregar isso para todas as 200 linhas.
+## Detalhes técnicos
 
-### 3. Disparar as queries de "gating" em paralelo com a principal
+Arquivos a editar:
+- `src/components/financeiro/AsaasDashboard.tsx` — gates granulares + tratamento de erro.
+- `src/hooks/useFinancialMetrics.ts` — remover dependência total do loading agregado, aceitar dados parciais.
+- `src/hooks/useAsaas.ts` — `retry: 1`, `refetchOnWindowFocus: false`, opcionalmente aceitar `dateRange` no `list-all-payments`.
+- `supabase/functions/asaas-api/index.ts` — aceitar filtro `dueDate[ge]`/`dueDate[le]` para a action `list-all-payments` quando o cliente enviar.
 
-- Manter `hasInstanceRestriction` e `notification-instance-ids` como hooks separados.
-- Mudar o `enabled` da query principal para iniciar assim que `user` estiver pronto, usando `undefined` como "sem filtro ainda" e refazendo quando os dados de restrição chegam. Hoje a query só começa depois que `hasInstanceRestriction` resolve — isso adiciona uma rodada bloqueante.
-
-### 4. Reduzir invalidações em cascata do realtime
-
-Em `src/hooks/useGlobalRealtime.ts`:
-
-- Trocar a invalidação de `['conversations']` por uma atualização otimista no cache quando o payload do realtime já trouxer os campos necessários (`last_message_preview`, `last_message_at`, `unread_count`), caindo para `invalidateQueries` só quando o payload não bastar.
-- Para `UPDATE` em `contacts`, invalidar somente quando o contato pertencer a alguma conversa atualmente em cache (em vez de refazer a lista inteira a cada edição de contato).
-
-## Validação
-
-1. Abrir a aba Network do preview, recarregar o Inbox e confirmar que as chamadas `contacts`, `conversation_tag_assignments` e `funnel_deals` agora saem em paralelo (mesmo `startedAt`), e que o tempo até "conversas pintadas" cai visivelmente.
-2. Enviar/receber uma mensagem de teste e confirmar que o card sobe na lista sem o flash de "Carregando" (ou seja, sem refetch completo).
-3. `EXPLAIN ANALYZE` da query principal continua usando `idx_conversations_pinned_last_msg` (sem regressão de plano).
-
-## Fora de escopo
-
-- Não vou mexer no layout, cores ou UX — só nas chamadas de dados.
-- Não vou criar nova RPC consolidada agora (é uma opção futura se ainda estiver lento); o ganho da paralelização já costuma resolver casos como esse.
-- Não vou alterar `useMessages` (carregamento da conversa aberta) nesta rodada — o relato é sobre "abrir a caixa", que é a lista.
+Sem mudanças de schema. Sem mudanças nas outras abas (Clientes/Cobranças/Assinaturas) — elas continuam puxando tudo.
