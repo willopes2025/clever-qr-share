@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsAppMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
-import { Send, CheckCheck, XCircle, Percent, Smartphone, ArrowDownLeft } from 'lucide-react';
+import { Send, CheckCheck, XCircle, Percent, Smartphone, ArrowDownLeft, ArrowLeftRight } from 'lucide-react';
 
 interface WhatsAppSectionProps {
   dateRange: DateRange;
@@ -91,6 +91,11 @@ export const WhatsAppSection = ({ dateRange, customRange }: WhatsAppSectionProps
                         <ArrowDownLeft className="h-3.5 w-3.5 text-purple-500" /> Recebidas
                       </span>
                     </th>
+                    <th className="px-3 py-2 font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        <ArrowLeftRight className="h-3.5 w-3.5 text-amber-500" /> % Env/Rec
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -102,6 +107,7 @@ export const WhatsAppSection = ({ dateRange, customRange }: WhatsAppSectionProps
                       <td className="px-3 py-2 tabular-nums">{row.sent.toLocaleString()}</td>
                       <td className="px-3 py-2 tabular-nums">{row.delivered.toLocaleString()}</td>
                       <td className="px-3 py-2 tabular-nums">{row.received.toLocaleString()}</td>
+                      <td className="px-3 py-2 tabular-nums">{row.sentVsReceivedRate.toFixed(1)}%</td>
                     </tr>
                   ))}
                 </tbody>

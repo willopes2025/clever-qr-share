@@ -168,7 +168,7 @@ export interface WhatsAppMetrics {
   messagesDelivered: number;
   messagesFailed: number;
   deliveryRate: number;
-  messagesByInstance: Array<{ instanceId: string; instanceName: string; sent: number; received: number; delivered: number }>;
+  messagesByInstance: Array<{ instanceId: string; instanceName: string; sent: number; received: number; delivered: number; sentVsReceivedRate: number }>;
   activeChips: number;
   inactiveChips: number;
 }
@@ -197,13 +197,28 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
       const messagesFailed = Number(stats?.failed || 0);
       const deliveryRate = messagesSent > 0 ? (messagesDelivered / messagesSent) * 100 : 0;
 
-      // Fetch messages with direction + status for per-instance breakdown
-      const { data: messagesData } = await supabase
-        .from('inbox_messages')
-        .select('conversation_id, direction, status')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
-        .limit(5000);
+      // Fetch ALL messages with direction + status for the period (paginated to bypass 1000 row default)
+      const PAGE_SIZE = 1000;
+      const MAX_ROWS = 200000;
+      type MsgRow = { conversation_id: string | null; direction: string | null; status: string | null };
+      const messagesData: MsgRow[] = [];
+      for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
+        const { data: page, error: pageErr } = await supabase
+          .from('inbox_messages')
+          .select('conversation_id, direction, status')
+          .gte('created_at', start.toISOString())
+          .lte('created_at', end.toISOString())
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (pageErr) {
+          console.error('[useWhatsAppMetrics] page error:', pageErr);
+          break;
+        }
+        if (!page || page.length === 0) break;
+        messagesData.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+
 
       const conversationIds = [...new Set(messagesData?.map(m => m.conversation_id).filter(Boolean) || [])];
 
@@ -258,13 +273,15 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
 
       const messagesByInstance = Array.from(chipStats.entries())
         .map(([key, s]) => {
+          const rate = s.received > 0 ? (s.sent / s.received) * 100 : (s.sent > 0 ? 100 : 0);
+          const base = { sent: s.sent, received: s.received, delivered: s.delivered, sentVsReceivedRate: rate };
           if (key.startsWith('meta:')) {
             const phoneNumberId = key.replace('meta:', '');
             const metaNum = metaNumbers.find(mn => mn.phone_number_id === phoneNumberId);
             return {
               instanceId: key,
               instanceName: metaNum?.display_name ? `📱 ${metaNum.display_name}` : `Meta ${phoneNumberId.slice(-4)}`,
-              ...s,
+              ...base,
             };
           } else {
             const instanceId = key.replace('evo:', '');
@@ -272,7 +289,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
             return {
               instanceId: key,
               instanceName: instance?.instance_name || 'Desconhecido',
-              ...s,
+              ...base,
             };
           }
         })
