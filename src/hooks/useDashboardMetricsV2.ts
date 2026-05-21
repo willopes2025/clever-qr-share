@@ -168,7 +168,7 @@ export interface WhatsAppMetrics {
   messagesDelivered: number;
   messagesFailed: number;
   deliveryRate: number;
-  messagesByInstance: Array<{ instanceId: string; instanceName: string; sent: number; received: number; delivered: number }>;
+  messagesByInstance: Array<{ instanceId: string; instanceName: string; sent: number; received: number; delivered: number; sentVsReceivedRate: number }>;
   activeChips: number;
   inactiveChips: number;
 }
