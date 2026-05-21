@@ -283,7 +283,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
       const inactiveEvolution = instances.filter(i => i.status !== 'connected').length;
       // Meta numbers are always "active" if they exist and have messages
       const activeMetaCount = new Set(
-        Array.from(chipCounts.keys()).filter(k => k.startsWith('meta:'))
+        Array.from(chipStats.keys()).filter(k => k.startsWith('meta:'))
       ).size;
 
       const activeChips = activeEvolution + activeMetaCount;
