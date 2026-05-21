@@ -70,15 +70,32 @@ export const AsaasDashboard = () => {
       {/* Date filter */}
       <FinancialDateFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
 
-      {/* Loading indicator */}
-      {metrics.isLoading && (
+      {/* Erro ao carregar pagamentos */}
+      {metrics.isErrorPayments && (
+        <Card className="border-destructive/40">
+          <CardContent className="text-center py-8">
+            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
+            <h3 className="text-lg font-medium mb-2">Falha ao carregar dados financeiros</h3>
+            <p className="text-muted-foreground mb-4 text-sm">
+              {metrics.errorPayments?.message || 'Erro desconhecido ao buscar cobranças do Asaas.'}
+            </p>
+            <Button onClick={() => metrics.refetchPayments()} disabled={isSyncing}>
+              <RefreshCw className={cn('h-4 w-4 mr-2', isSyncing && 'animate-spin')} />
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading indicator (apenas pagamentos) */}
+      {!metrics.isErrorPayments && metrics.isLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="ml-2 text-muted-foreground">Carregando dados financeiros...</span>
         </div>
       )}
 
-      {!metrics.isLoading && metrics.totalPaymentsCount === 0 && (
+      {!metrics.isErrorPayments && !metrics.isLoading && metrics.totalPaymentsCount === 0 && (
         <Card className="p-8">
           <CardContent className="text-center py-8">
             <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -94,7 +111,8 @@ export const AsaasDashboard = () => {
         </Card>
       )}
 
-      {!metrics.isLoading && metrics.totalPaymentsCount > 0 && (
+      {!metrics.isErrorPayments && !metrics.isLoading && metrics.totalPaymentsCount > 0 && (
+
         <>
           {/* KPI Cards */}
           {/* Today's Due Payments */}

@@ -95,7 +95,11 @@ const isPaymentInRange = (payment: AsaasPayment, range: DateRange, usePaymentDat
   return isWithinInterval(date, { start: range.start, end: range.end });
 };
 
-export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
+export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics & {
+  isErrorPayments: boolean;
+  errorPayments: Error | null;
+  refetchPayments: () => void;
+} => {
   const {
     balance,
     payments,
@@ -103,8 +107,9 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
     customers,
     isLoadingBalance,
     isLoadingPayments,
-    isLoadingSubscriptions,
-    isLoadingCustomers,
+    isErrorPayments,
+    errorPayments,
+    refetchPayments,
   } = useAsaas();
 
   const metrics = useMemo(() => {
@@ -342,9 +347,11 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics => {
       dailyPending,
       totalPaymentsValue: totalBilledInPeriod,
       totalPaymentsCount: billedInPeriod.length,
-      isLoading: isLoadingBalance || isLoadingPayments || isLoadingSubscriptions || isLoadingCustomers,
+      // Só bloqueia a UI enquanto os pagamentos (dataset principal) carregam.
+      // Saldo, clientes e assinaturas atualizam seções específicas, mas não travam o dashboard.
+      isLoading: isLoadingPayments,
     };
-  }, [balance, payments, subscriptions, customers, dateRange, isLoadingBalance, isLoadingPayments, isLoadingSubscriptions, isLoadingCustomers]);
+  }, [balance, payments, subscriptions, customers, dateRange, isLoadingBalance, isLoadingPayments]);
 
-  return metrics;
+  return { ...metrics, isErrorPayments, errorPayments: errorPayments as Error | null, refetchPayments };
 };
