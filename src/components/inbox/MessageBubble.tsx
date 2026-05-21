@@ -263,7 +263,7 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
             </div>
           )}
           
-          {message.content && message.message_type !== 'contact' && message.message_type !== 'location' && (
+          {message.content && message.message_type !== 'contact' && message.message_type !== 'contacts' && message.message_type !== 'location' && (
             <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
               {message.content}
             </p>
