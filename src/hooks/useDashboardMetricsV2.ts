@@ -206,14 +206,9 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
         console.error('[useWhatsAppMetrics] by instance error:', byInstanceError);
       }
 
-      // Fetch Evolution instances and Meta numbers in parallel
-      const [instancesResult, metaNumbersResult] = await Promise.all([
-        supabase.from('whatsapp_instances').select('id, instance_name, status'),
-        supabase.from('meta_whatsapp_numbers').select('id, phone_number_id, display_name'),
-      ]);
+      const instancesResult = await supabase.from('whatsapp_instances').select('id, instance_name, status');
 
       const instances = instancesResult.data || [];
-      const metaNumbers = metaNumbersResult.data || [];
 
       const messagesByInstance = ((byInstanceData || []) as Array<{ instance_id: string; instance_name: string; sent: number; delivered: number; received: number }>)
         .map(row => {
