@@ -812,6 +812,11 @@ export interface AgentMetric {
   dealsValue: number;
 }
 
+type AgentMetricWithResponseAccumulator = AgentMetric & {
+  _responseTimeSum: number;
+  _responseTimeCount: number;
+};
+
 export interface AgentPerformanceMetrics {
   agents: AgentMetric[];
   totalAttendances: number;
@@ -836,7 +841,7 @@ export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d', customRa
         .from('profiles')
         .select('id, full_name');
 
-      const agentMap = new Map<string, AgentMetric & { _responseTimeSum: number; _responseTimeCount: number }>();
+      const agentMap = new Map<string, AgentMetricWithResponseAccumulator>();
       
       metricsData?.forEach(m => {
         const existing = agentMap.get(m.user_id);
@@ -873,8 +878,8 @@ export const useAgentPerformanceMetrics = (dateRange: DateRange = '7d', customRa
       const totalAttendances = agents.reduce((sum, a) => sum + a.attendances, 0);
       
       // Fix: weighted average for global response time
-      const totalResponseTimeSum = agents.reduce((sum, a) => sum + (a as any)._responseTimeSum, 0);
-      const totalResponseTimeCount = agents.reduce((sum, a) => sum + (a as any)._responseTimeCount, 0);
+      const totalResponseTimeSum = agents.reduce((sum, a) => sum + a._responseTimeSum, 0);
+      const totalResponseTimeCount = agents.reduce((sum, a) => sum + a._responseTimeCount, 0);
       const avgResponseTime = totalResponseTimeCount > 0 ? totalResponseTimeSum / totalResponseTimeCount : 0;
 
       const { count: abandonedConversations } = await supabase
