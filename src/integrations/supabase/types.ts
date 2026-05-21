@@ -6884,6 +6884,17 @@ export type Database = {
           sent: number
         }[]
       }
+      get_whatsapp_message_stats_by_instance: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          delivered: number
+          failed: number
+          instance_id: string
+          instance_name: string
+          received: number
+          sent: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
