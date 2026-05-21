@@ -219,8 +219,8 @@ Deno.serve(async (req) => {
     const fetchAllPages = async (endpoint: string, filters: string = '') => {
       const pageLimit = 100;
       const maxRecords = 5000;
-      const batchSize = 3;     // 3 páginas em paralelo (Asaas tem rate limit agressivo)
-      const batchDelayMs = 400; // pausa entre batches
+      const batchSize = 10;    // 10 páginas em paralelo para caber nos 150s do edge runtime
+      const batchDelayMs = 0;  // sem pausa: asaasRequest já trata 429/backoff
       const allData: unknown[] = [];
 
       console.log(`Starting parallel pagination for ${endpoint}${filters}`);
