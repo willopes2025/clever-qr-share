@@ -1,70 +1,64 @@
-## Problemas identificados
+# Plano: deixar o Inbox abrir mais rápido
 
-### 1. Badge "Ocioso 46:59" mesmo com o usuário ativo
-`useActivitySession` é chamado em **5 componentes diferentes** (`ActivityTracker`, `SessionStatusBadge`, `DashboardSidebar`, `MobileSidebarDrawer`, `Admin`). Como é um hook normal (não Context), **cada componente cria sua própria instância de estado**, com seus próprios:
-- `lastActivityRef`
-- `isIdle`/`isIdleRef`
-- `setInterval` de inatividade
-- listeners de eventos
+## Diagnóstico
 
-Só o `ActivityTracker` registra listeners de mouse/teclado em `window`. O `SessionStatusBadge` **não tem listeners** — então o `lastActivityRef` dessa instância **nunca é atualizado** e, depois de 10 min do mount, o `checkInactivity` da própria instância marca `isIdle = true`. Resultado: badge mostra "Ocioso" eternamente, embora o `ActivityTracker` saiba que o usuário está ativo e o `last_activity` no banco esteja sendo gravado normalmente.
+O hook `useConversations` (que alimenta a tela inteira) hoje faz a carga inicial em **4 etapas sequenciais**, todas indo até o banco:
 
-### 2. Painel de membros mostrando "Offline" e horas zeradas
-
-Em `useMemberProductivity.ts`:
-
-**Horas zeradas (sessões abertas):**
-```ts
-const dur = s.duration_seconds ?? (s.ended_at ? (ended-started)/1000 : 0);
 ```
-Para a sessão de hoje (aberta: `ended_at = null`, `duration_seconds = null`) o cálculo retorna **0**. Ou seja, todo o trabalho do dia corrente não conta enquanto o usuário não fizer logout. Por isso "Horas trabalhadas" aparece zerado e o ranking individual também.
-
-**Status "Offline":**
-A regra usa `last_activity` da sessão aberta. Como `trackActivity` só persiste no DB a cada 2 minutos **e** muitos consumidores duplicados estão chamando `startSession` (que encerra a sessão atual e abre outra) — vimos no banco sessões de 30s sendo criadas em loop — frequentemente a sessão "aberta" mais recente tem `last_activity` antigo ou igual ao `started_at`, ultrapassando o threshold de 15 min ⇒ vira "Offline".
-
----
-
-## Plano de correção
-
-### A. Tornar `useActivitySession` um singleton via Context
-Criar `ActivitySessionProvider` (montado uma única vez em `AppLayout`/`MobileAppLayout`) que:
-- Mantém **um único** `currentSession`, `lastActivityRef`, `isIdle`, intervalos e listeners.
-- Expõe `useActivitySession()` que apenas lê o context.
-- Move os event listeners (mousedown/keydown/scroll/touchstart/mousemove) e a lógica de auto-start para dentro do provider, eliminando a necessidade do componente `ActivityTracker` (ou deixando-o como no-op para compatibilidade).
-- Adiciona evento `visibilitychange` e `focus` da janela como sinais extras de atividade (volta de aba é sinal forte de presença).
-
-Efeito: o badge passa a refletir o `isIdle` real (só vai para "Ocioso" depois de 10 min sem qualquer interação real do usuário).
-
-### B. Reduzir intervalo de persistência de `last_activity`
-Hoje: 2 min. Mudar para **30 s** (alinhado ao throttle de eventos). Isso garante que outros membros vejam o status atualizado quase em tempo real sem custo perceptível.
-
-### C. Calcular corretamente horas de sessões abertas
-Em `useMemberProductivity.ts`, para sessões **sem `ended_at`**:
-```ts
-const refEnd = s.ended_at
-  ? new Date(s.ended_at).getTime()
-  : Math.min(Date.now(), new Date(end).getTime()); // hoje: agora; range passado: fim do range
-const dur = s.duration_seconds ?? Math.max(0, (refEnd - new Date(s.started_at).getTime()) / 1000);
+STEP 1  →  conversations (lista crua, 200 linhas)   ~1ms no banco
+STEP 2  →  contacts.in(contactIds)                  loop sequencial em chunks de 200
+STEP 3  →  conversation_tag_assignments.in(...)     loop sequencial em chunks de 200
+STEP 4  →  funnel_deals.in(contact_ids) + joins     loop sequencial em chunks de 200
 ```
-Assim a sessão de trabalho em andamento conta as horas até `now()` (ou até o fim do range, se o range for histórico).
 
-### D. Ajustar regra de status no painel
-- `OFFLINE_THRESHOLD_MS`: 15 → **5 min** (mais coerente com persistência de 30 s).
-- `IDLE_THRESHOLD_MS`: manter 10 min.
-- Continuar usando o `last_activity` como sinal — agora confiável.
-- Adicionar refetch automático no `useMemberProductivity` (`refetchInterval: 60_000`) para o painel "respirar" sem reload.
+Com 11.299 conversas e 12.585 deals em aberto, o `EXPLAIN ANALYZE` da query principal roda em **<1ms** — o gargalo não é o Postgres, são as 3 idas e voltas extras que rodam **em série** (cada round-trip do PostgREST custa 100–400 ms na Cloud). Resultado: a tela só pinta a lista quando todas terminam, então o tempo total acumula ~600–1500 ms só na primeira renderização, e cada invalidação por realtime repete o ciclo todo.
 
-### E. Limpeza
-- Remover a auto-criação concorrente de sessões quando múltiplos componentes ainda usavam o hook (resolvido pelo Provider).
-- Manter `ActivityTracker` apenas como wrapper vazio para evitar quebrar imports existentes, ou removê-lo dos layouts.
+Outros pontos pequenos que somam:
 
----
+- O `select` da STEP 2 puxa `custom_fields` e `notes` dos contatos. A lista do inbox não usa esses campos (são usados só no painel direito ao abrir a conversa).
+- `hasInstanceRestriction` e `notification-instance-ids` ficam pendurados como pré-requisitos do `enabled` da query principal. Como duas chamadas separadas, somam mais uma rodada antes de a lista começar a carregar.
+- `useGlobalRealtime` reinvalida `['conversations']` em *qualquer* mudança em `contacts`/`conversations`/`inbox_messages`, refazendo a carga completa de 4 passos toda vez que chega uma mensagem.
 
-## Arquivos a alterar
+## O que vou mudar
 
-- `src/hooks/useActivitySession.ts` — refatorar em Provider + hook consumidor; intervalo de persistência 30 s.
-- `src/components/productivity/ActivityTracker.tsx` — esvaziar (lógica migra para o Provider).
-- `src/layouts/AppLayout.tsx` e `src/mobile/layouts/MobileAppLayout.tsx` — envolver com `<ActivitySessionProvider>`.
-- `src/hooks/useMemberProductivity.ts` — calcular duração de sessões abertas; thresholds 5 min/10 min; `refetchInterval`.
+### 1. Paralelizar STEP 2/3/4 em `src/hooks/useConversations.ts`
 
-Nenhuma mudança de schema é necessária.
+Trocar o `await` sequencial por um `Promise.all` único:
+
+```ts
+const [contactsMap, tagsMap, dealsMap] = await Promise.all([
+  fetchContacts(contactIds),
+  fetchTagAssignments(conversationIds),
+  fetchOpenDeals(contactIds),
+]);
+```
+
+Cada função interna mantém o loop de chunks (limite de 200 do PostgREST), mas as três rodam em paralelo. Ganho esperado: ~2 round-trips a menos por carga (≈ 400–800 ms na rede).
+
+### 2. Enxugar o `select` de contatos da lista
+
+Remover `custom_fields` e `notes` do select da STEP 2. O `RightSidePanel`/`ContactInfoPanel` já carrega o contato completo via hook próprio quando a conversa é aberta, então a lista do inbox não precisa carregar isso para todas as 200 linhas.
+
+### 3. Disparar as queries de "gating" em paralelo com a principal
+
+- Manter `hasInstanceRestriction` e `notification-instance-ids` como hooks separados.
+- Mudar o `enabled` da query principal para iniciar assim que `user` estiver pronto, usando `undefined` como "sem filtro ainda" e refazendo quando os dados de restrição chegam. Hoje a query só começa depois que `hasInstanceRestriction` resolve — isso adiciona uma rodada bloqueante.
+
+### 4. Reduzir invalidações em cascata do realtime
+
+Em `src/hooks/useGlobalRealtime.ts`:
+
+- Trocar a invalidação de `['conversations']` por uma atualização otimista no cache quando o payload do realtime já trouxer os campos necessários (`last_message_preview`, `last_message_at`, `unread_count`), caindo para `invalidateQueries` só quando o payload não bastar.
+- Para `UPDATE` em `contacts`, invalidar somente quando o contato pertencer a alguma conversa atualmente em cache (em vez de refazer a lista inteira a cada edição de contato).
+
+## Validação
+
+1. Abrir a aba Network do preview, recarregar o Inbox e confirmar que as chamadas `contacts`, `conversation_tag_assignments` e `funnel_deals` agora saem em paralelo (mesmo `startedAt`), e que o tempo até "conversas pintadas" cai visivelmente.
+2. Enviar/receber uma mensagem de teste e confirmar que o card sobe na lista sem o flash de "Carregando" (ou seja, sem refetch completo).
+3. `EXPLAIN ANALYZE` da query principal continua usando `idx_conversations_pinned_last_msg` (sem regressão de plano).
+
+## Fora de escopo
+
+- Não vou mexer no layout, cores ou UX — só nas chamadas de dados.
+- Não vou criar nova RPC consolidada agora (é uma opção futura se ainda estiver lento); o ganho da paralelização já costuma resolver casos como esse.
+- Não vou alterar `useMessages` (carregamento da conversa aberta) nesta rodada — o relato é sobre "abrir a caixa", que é a lista.
