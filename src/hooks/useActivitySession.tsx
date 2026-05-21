@@ -212,8 +212,17 @@ export const ActivitySessionProvider = ({ children }: { children: ReactNode }) =
           .from('user_activity_sessions')
           .update({ last_activity: now.toISOString(), is_idle: false } as any)
           .eq('id', session.id)
-          .then(({ error }) => {
-            if (error) console.error('Error clearing idle:', error);
+          .is('ended_at', null)
+          .select('id')
+          .then(({ data, error }) => {
+            if (error) {
+              console.error('Error clearing idle:', error);
+              return;
+            }
+            // Session was closed remotely — drop local cache so we re-fetch/start fresh.
+            if (!data || data.length === 0) {
+              updateSession(null);
+            }
           });
         return;
       }
@@ -226,11 +235,20 @@ export const ActivitySessionProvider = ({ children }: { children: ReactNode }) =
         .from('user_activity_sessions')
         .update({ last_activity: now.toISOString() } as any)
         .eq('id', session.id)
-        .then(({ error }) => {
-          if (error) console.error('Error updating last_activity:', error);
+        .is('ended_at', null)
+        .select('id')
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('Error updating last_activity:', error);
+            return;
+          }
+          if (!data || data.length === 0) {
+            // Server already closed this session — clear stale local reference.
+            updateSession(null);
+          }
         });
     }
-  }, []);
+  }, [updateSession]);
 
   // Window event listeners (singleton — só uma instância no app)
   useEffect(() => {
