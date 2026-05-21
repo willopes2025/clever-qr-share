@@ -184,13 +184,6 @@ export const useConversations = () => {
     queryKey: ['conversations', user?.id, allowedInstanceIds, hasInstanceRestriction, notificationInstanceIds, warmingPhones?.size ?? 0, hiddenInstanceIds.join(',')],
     queryFn: async () => {
       // STEP 1 — Light query: only fields needed by the list itself.
-      // We deliberately removed the embedded `contact` and
-      // `conversation_tag_assignments` joins from this call — embedding
-      // those in a single PostgREST request was triggering
-      // "canceling statement due to statement timeout" (HTTP 500) on
-      // accounts with thousands of conversations. We now fetch contacts
-      // and tag assignments separately, in chunks, only for the page we
-      // actually render.
       let query = supabase
         .from('conversations')
         .select(`
@@ -207,11 +200,6 @@ export const useConversations = () => {
         .order('last_message_at', { ascending: false })
         .limit(INBOX_PAGE_SIZE);
 
-      // Filter by instance IDs if member has instance restrictions.
-      // We use a single `.in()` (with a sentinel uuid for null) instead of
-      // an `.or(...)` chain because PostgREST's `or()` filter cannot use
-      // an index on (instance_id, last_message_at) and was a major cause
-      // of statement timeouts on large datasets.
       if (hasInstanceRestriction && allowedInstanceIds !== undefined) {
         if (allowedInstanceIds.length > 0) {
           query = query.or(`instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`);
@@ -219,13 +207,6 @@ export const useConversations = () => {
           query = query.is('instance_id', null);
         }
       }
-
-      // Notification-only instances: NÃO filtramos no servidor porque
-      // PostgREST traduz `not.in` para SQL `NOT IN (...)`, que em Postgres
-      // descarta linhas com `instance_id IS NULL` (NULL NOT IN (...) → NULL → falso).
-      // Isso fazia conversas órfãs (sem instância) sumirem do inbox.
-      // Filtramos client-side abaixo, depois do fetch, preservando o índice
-      // (is_pinned, last_message_at) usado pela query principal.
 
       const { data, error } = await query;
       if (error) throw error;
@@ -240,26 +221,31 @@ export const useConversations = () => {
       const conversationIds = rows.map(r => r.id);
       const contactIds = Array.from(new Set(rows.map(r => r.contact_id).filter(Boolean)));
 
-      // STEP 2 — Fetch contacts (just what the list needs) in chunks.
-      const contactsMap: Record<string, any> = {};
-      if (contactIds.length > 0) {
-        const CHUNK = 200;
+      const CHUNK = 200;
+
+      // STEP 2/3/4 — em PARALELO (eram 3 round-trips sequenciais antes).
+      // Cada subtarefa mantém o chunk de 200 do PostgREST, mas a página
+      // pinta assim que as três terminam juntas.
+      const fetchContacts = async () => {
+        const map: Record<string, any> = {};
+        if (contactIds.length === 0) return map;
+        // Removidos `custom_fields` e `notes` — não são usados pela lista
+        // (apenas pelo painel direito, que carrega o contato completo
+        // por hook próprio quando a conversa é aberta).
         for (let i = 0; i < contactIds.length; i += CHUNK) {
           const slice = contactIds.slice(i, i + CHUNK);
           const { data: cs } = await supabase
             .from('contacts')
-            .select('id, name, phone, avatar_url, contact_display_id, notes, custom_fields')
+            .select('id, name, phone, avatar_url, contact_display_id')
             .in('id', slice);
-          if (cs) {
-            for (const c of cs as any[]) contactsMap[c.id] = c;
-          }
+          if (cs) for (const c of cs as any[]) map[c.id] = c;
         }
-      }
+        return map;
+      };
 
-      // STEP 3 — Fetch tag assignments for the visible conversations only.
-      const tagsMap: Record<string, { tag_id: string }[]> = {};
-      if (conversationIds.length > 0) {
-        const CHUNK = 200;
+      const fetchTags = async () => {
+        const map: Record<string, { tag_id: string }[]> = {};
+        if (conversationIds.length === 0) return map;
         for (let i = 0; i < conversationIds.length; i += CHUNK) {
           const slice = conversationIds.slice(i, i + CHUNK);
           const { data: tagRows } = await supabase
@@ -268,17 +254,17 @@ export const useConversations = () => {
             .in('conversation_id', slice);
           if (tagRows) {
             for (const t of tagRows as any[]) {
-              if (!tagsMap[t.conversation_id]) tagsMap[t.conversation_id] = [];
-              tagsMap[t.conversation_id].push({ tag_id: t.tag_id });
+              if (!map[t.conversation_id]) map[t.conversation_id] = [];
+              map[t.conversation_id].push({ tag_id: t.tag_id });
             }
           }
         }
-      }
+        return map;
+      };
 
-      // STEP 4 — Fetch open deals for visible contacts only.
-      const dealsMap: Record<string, ConversationDeal> = {};
-      if (contactIds.length > 0) {
-        const CHUNK = 200;
+      const fetchDeals = async () => {
+        const map: Record<string, ConversationDeal> = {};
+        if (contactIds.length === 0) return map;
         for (let i = 0; i < contactIds.length; i += CHUNK) {
           const slice = contactIds.slice(i, i + CHUNK);
           const { data: deals } = await supabase
@@ -290,11 +276,10 @@ export const useConversations = () => {
             `)
             .is('closed_at', null)
             .in('contact_id', slice);
-
           if (deals) {
             for (const deal of deals as any[]) {
-              if (deal.contact_id && !dealsMap[deal.contact_id]) {
-                dealsMap[deal.contact_id] = {
+              if (deal.contact_id && !map[deal.contact_id]) {
+                map[deal.contact_id] = {
                   id: deal.id,
                   stage_id: deal.stage_id,
                   funnel_id: deal.funnel_id,
@@ -306,11 +291,15 @@ export const useConversations = () => {
             }
           }
         }
-      }
+        return map;
+      };
 
-      // Filter out "ghost" conversations (created via "Nova Conversa" but
-      // never had a message exchanged AND no real contact name) and
-      // also hide warming-pool conversations from the regular inbox.
+      const [contactsMap, tagsMap, dealsMap] = await Promise.all([
+        fetchContacts(),
+        fetchTags(),
+        fetchDeals(),
+      ]);
+
       const cleaned = rows.filter((conv: any) => {
         const hasPreview = !!conv.last_message_preview;
         const hasDirection = !!conv.last_message_direction;
@@ -329,7 +318,11 @@ export const useConversations = () => {
         deal: dealsMap[conv.contact_id] || null,
       })) as (Conversation & { tag_assignments?: { tag_id: string }[] })[];
     },
-    enabled: !!user && (hasInstanceRestriction === false || allowedInstanceIds !== undefined),
+    // Dispara assim que o usuário estiver pronto. Quando
+    // `hasInstanceRestriction` chegar depois, o queryKey muda e o React Query
+    // refaz automaticamente — mas a primeira tela já pinta sem esperar a
+    // round-trip de gating.
+    enabled: !!user,
     staleTime: 15_000,
   });
 
