@@ -173,13 +173,29 @@ export interface WhatsAppMetrics {
   inactiveChips: number;
 }
 
+type WhatsAppInstanceStatsRow = {
+  instance_id: string;
+  instance_name: string;
+  sent: number;
+  delivered: number;
+  failed: number;
+  received: number;
+};
+
+type SupabaseWithWhatsAppInstanceStats = typeof supabase & {
+  rpc(
+    fn: 'get_whatsapp_message_stats_by_instance',
+    args: { p_start: string; p_end: string }
+  ): Promise<{ data: WhatsAppInstanceStatsRow[] | null; error: Error | null }>;
+};
+
 export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: CustomDateRange) => {
   return useQuery({
     queryKey: ['whatsapp-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<WhatsAppMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
-      const { data: byInstanceData, error: byInstanceError } = await (supabase as any).rpc('get_whatsapp_message_stats_by_instance', {
+      const { data: byInstanceData, error: byInstanceError } = await (supabase as SupabaseWithWhatsAppInstanceStats).rpc('get_whatsapp_message_stats_by_instance', {
         p_start: start.toISOString(),
         p_end: end.toISOString(),
       });
@@ -192,7 +208,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
 
       const instances = instancesResult.data || [];
 
-      const messagesByInstance = ((byInstanceData || []) as Array<{ instance_id: string; instance_name: string; sent: number; delivered: number; failed: number; received: number }>)
+      const messagesByInstance = (byInstanceData || [])
         .map(row => {
           const sent = Number(row.sent || 0);
           const received = Number(row.received || 0);
