@@ -347,9 +347,11 @@ export const useFinancialMetrics = (dateRange: DateRange): FinancialMetrics & {
       dailyPending,
       totalPaymentsValue: totalBilledInPeriod,
       totalPaymentsCount: billedInPeriod.length,
-      isLoading: isLoadingBalance || isLoadingPayments || isLoadingSubscriptions || isLoadingCustomers,
+      // Só bloqueia a UI enquanto os pagamentos (dataset principal) carregam.
+      // Saldo, clientes e assinaturas atualizam seções específicas, mas não travam o dashboard.
+      isLoading: isLoadingPayments,
     };
-  }, [balance, payments, subscriptions, customers, dateRange, isLoadingBalance, isLoadingPayments, isLoadingSubscriptions, isLoadingCustomers]);
+  }, [balance, payments, subscriptions, customers, dateRange, isLoadingBalance, isLoadingPayments]);
 
-  return metrics;
+  return { ...metrics, isErrorPayments, errorPayments: errorPayments as Error | null, refetchPayments };
 };
