@@ -182,7 +182,7 @@ type WhatsAppInstanceStatsRow = {
   received: number;
 };
 
-type SupabaseWithWhatsAppInstanceStats = typeof supabase & {
+type SupabaseWithWhatsAppInstanceStats = {
   rpc(
     fn: 'get_whatsapp_message_stats_by_instance',
     args: { p_start: string; p_end: string }
@@ -195,7 +195,7 @@ export const useWhatsAppMetrics = (dateRange: DateRange = '7d', customRange?: Cu
     queryFn: async (): Promise<WhatsAppMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
 
-      const { data: byInstanceData, error: byInstanceError } = await (supabase as SupabaseWithWhatsAppInstanceStats).rpc('get_whatsapp_message_stats_by_instance', {
+      const { data: byInstanceData, error: byInstanceError } = await (supabase as unknown as SupabaseWithWhatsAppInstanceStats).rpc('get_whatsapp_message_stats_by_instance', {
         p_start: start.toISOString(),
         p_end: end.toISOString(),
       });
