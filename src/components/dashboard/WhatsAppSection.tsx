@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useWhatsAppMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
-import { Send, CheckCheck, XCircle, Percent, Smartphone, ArrowDownLeft } from 'lucide-react';
+import { Send, CheckCheck, XCircle, Percent, Smartphone, ArrowDownLeft, ArrowLeftRight } from 'lucide-react';
 
 interface WhatsAppSectionProps {
   dateRange: DateRange;
