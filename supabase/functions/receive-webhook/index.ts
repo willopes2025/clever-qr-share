@@ -51,6 +51,43 @@ function normalizePhoneDigits(phone: string | undefined | null): string {
   return (phone || '').replace(/\D/g, '');
 }
 
+/**
+ * Para celulares brasileiros (DDI 55), gera variantes com e sem o 9
+ * adicional. Ex.: 5571987524943 <-> 557187524943.
+ * Também inclui a variante sem DDI quando aplicável.
+ */
+function brazilianPhoneVariants(phone: string | undefined | null): string[] {
+  const n = normalizePhoneDigits(phone);
+  if (!n) return [];
+  const set = new Set<string>([n]);
+
+  // Trabalhar sempre com DDI 55 quando possível
+  let withCC = n;
+  if (!withCC.startsWith('55') && (withCC.length === 10 || withCC.length === 11)) {
+    withCC = '55' + withCC;
+  }
+  if (withCC.startsWith('55')) {
+    set.add(withCC);
+    const national = withCC.slice(2); // sem 55
+    set.add(national);
+    if (national.length >= 10) {
+      const ddd = national.slice(0, 2);
+      const rest = national.slice(2);
+      // 9 dígitos no rest = celular com 9; 8 = sem 9
+      if (rest.length === 9 && rest.startsWith('9')) {
+        const without9 = rest.slice(1);
+        set.add(`55${ddd}${without9}`);
+        set.add(`${ddd}${without9}`);
+      } else if (rest.length === 8) {
+        const with9 = `9${rest}`;
+        set.add(`55${ddd}${with9}`);
+        set.add(`${ddd}${with9}`);
+      }
+    }
+  }
+  return Array.from(set);
+}
+
 function phonesMatch(a: string | undefined | null, b: string | undefined | null): boolean {
   const na = normalizePhoneDigits(a);
   const nb = normalizePhoneDigits(b);
@@ -58,6 +95,10 @@ function phonesMatch(a: string | undefined | null, b: string | undefined | null)
   if (na === nb) return true;
   if (na.startsWith('55') && na.slice(2) === nb) return true;
   if (nb.startsWith('55') && nb.slice(2) === na) return true;
+  // Variantes brasileiras com/sem o 9 em celulares
+  const va = brazilianPhoneVariants(na);
+  const vb = brazilianPhoneVariants(nb);
+  for (const x of va) if (vb.includes(x)) return true;
   return false;
 }
 
