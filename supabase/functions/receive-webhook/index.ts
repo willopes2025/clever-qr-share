@@ -989,15 +989,17 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.log('[LID] Found existing contact by label_id:', contact.id);
       }
     } else if (!contact) {
-      // Normal phone search
+      // Normal phone search — também tenta variantes com/sem o "9" em celulares BR
+      const phoneVariants = brazilianPhoneVariants(phone);
+      console.log('[PHONE-LOOKUP] Searching contact with variants:', phoneVariants);
       const { data: contactByPhone } = await supabase
         .from('contacts')
         .select('id, label_id, phone, name')
         .in('user_id', organizationMemberIds)
-        .or(`phone.eq.${phone},phone.eq.${phoneWithoutCountry}`)
+        .in('phone', phoneVariants)
         .order('updated_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       contact = contactByPhone;
 
