@@ -1184,17 +1184,21 @@ Deno.serve(async (req: Request) => {
         // hijacking Evolution conversations and routing replies to the wrong lead.
         const { data: existingConv } = await supabase
           .from('conversations')
-          .select('id')
+          .select('id, provider, meta_phone_number_id')
           .eq('contact_id', message.contact_id)
           .eq('user_id', campaign.user_id)
-          .eq('provider', 'meta')
-          .eq('meta_phone_number_id', phoneNumberId)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (existingConv) {
           conversationId = existingConv.id;
+          if (existingConv.provider !== 'meta' || existingConv.meta_phone_number_id !== phoneNumberId) {
+            await supabase.from('conversations').update({
+              provider: 'meta',
+              meta_phone_number_id: phoneNumberId,
+            }).eq('id', conversationId);
+          }
         } else {
           const { data: newConv } = await supabase
             .from('conversations')
