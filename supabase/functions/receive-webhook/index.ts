@@ -960,7 +960,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
 
     const matchedOrgConversation = (orgConversations || []).find((conv: any) => {
       const convContact = conv.contact;
-      return (labelId && convContact?.label_id === labelId) || phonesMatch(convContact?.phone, phone) || phonesMatch(convContact?.phone, phoneWithoutCountry);
+      if (labelId && convContact?.label_id === labelId) return true;
+      // phonesMatch já considera variantes com/sem o "9" em celulares BR
+      return phonesMatch(convContact?.phone, phone) || phonesMatch(convContact?.phone, phoneWithoutCountry);
     });
 
     if (matchedOrgConversation) {
