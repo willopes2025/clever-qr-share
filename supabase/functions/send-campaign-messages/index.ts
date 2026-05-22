@@ -1115,15 +1115,13 @@ Deno.serve(async (req: Request) => {
 
       // Also persist failed message in inbox for visibility
         try {
-          // CRITICAL: Match conversation by (contact, meta_phone_number_id) to avoid
-          // hijacking Evolution conversations and routing replies to the wrong lead.
+          // Unique (user_id, contact_id) — get any existing conv for this contact,
+          // then upgrade it to Meta provider if needed.
           const { data: existingConv } = await supabase
             .from('conversations')
-            .select('id')
+            .select('id, provider, meta_phone_number_id')
             .eq('contact_id', message.contact_id)
             .eq('user_id', campaign.user_id)
-            .eq('provider', 'meta')
-            .eq('meta_phone_number_id', phoneNumberId)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -1143,6 +1141,11 @@ Deno.serve(async (req: Request) => {
               .select('id')
               .single();
             failConvId = newConv?.id;
+          } else if (existingConv.provider !== 'meta' || existingConv.meta_phone_number_id !== phoneNumberId) {
+            await supabase.from('conversations').update({
+              provider: 'meta',
+              meta_phone_number_id: phoneNumberId,
+            }).eq('id', failConvId);
           }
 
           if (failConvId) {
