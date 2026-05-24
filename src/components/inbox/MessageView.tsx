@@ -1069,7 +1069,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           </div>
         </div>
         
-        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+        <div className="flex items-center gap-1 md:gap-2 shrink-0 flex-wrap justify-end">
           {/* Mark as Read Button */}
           {conversation.unread_count > 0 && onMarkAsRead && (
             <Tooltip>
