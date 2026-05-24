@@ -171,22 +171,30 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Found ${conversations.length} conversations to analyze`);
 
-    // Get messages from these conversations
+    // Get messages from these conversations (chunked to avoid URL length limit)
     const conversationIds = conversations.map(c => c.id);
-    const { data: messages, error: msgError } = await supabase
-      .from("inbox_messages")
-      .select("id, content, direction, created_at, conversation_id")
-      .in("conversation_id", conversationIds)
-      .eq("message_type", "text")
-      .not("content", "is", null)
-      .order("created_at", { ascending: true });
+    const CHUNK = 200;
+    const messages: Message[] = [];
+    for (let i = 0; i < conversationIds.length; i += CHUNK) {
+      const chunk = conversationIds.slice(i, i + CHUNK);
+      const { data: chunkMsgs, error: msgError } = await supabase
+        .from("inbox_messages")
+        .select("id, content, direction, created_at, conversation_id")
+        .in("conversation_id", chunk)
+        .eq("message_type", "text")
+        .not("content", "is", null)
+        .order("created_at", { ascending: true })
+        .limit(5000);
 
-    if (msgError) {
-      console.error("Error fetching messages:", msgError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch messages" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (msgError) {
+        console.error("Error fetching messages:", msgError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch messages" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (chunkMsgs) messages.push(...chunkMsgs);
+      if (messages.length > 8000) break;
     }
 
     if (!messages || messages.length < 2) {
