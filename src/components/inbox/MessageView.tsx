@@ -1094,17 +1094,17 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                 {conversation.ai_handoff_requested ? (
                   <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 gap-1 h-8 px-2 cursor-default">
                     <User className="h-3 w-3" />
-                    <span className="hidden xl:inline">Aguardando</span>
+                    <span className="hidden 2xl:inline">Aguardando</span>
                   </Badge>
                 ) : conversation.ai_paused ? (
                   <Badge variant="outline" className="bg-muted text-muted-foreground gap-1 h-8 px-2 cursor-default">
                     <Pause className="h-3 w-3" />
-                    <span className="hidden xl:inline">Pausada</span>
+                    <span className="hidden 2xl:inline">Pausada</span>
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 gap-1 h-8 px-2 cursor-default">
                     <Bot className="h-3 w-3" />
-                    <span className="hidden xl:inline">IA Ativa</span>
+                    <span className="hidden 2xl:inline">IA Ativa</span>
                   </Badge>
                 )}
               </TooltipTrigger>
