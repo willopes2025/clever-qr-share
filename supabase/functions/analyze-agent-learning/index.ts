@@ -129,20 +129,25 @@ Deno.serve(async (req: Request) => {
         .lte("last_message_at", endDate.toISOString());
     }
 
-    // If funnel is linked, also filter by deals in that funnel
+    // If funnel is linked, fetch deal contact IDs into a Set (filter in memory to avoid URL length limit)
+    let funnelContactIds: Set<string> | null = null;
     if (agentConfig.funnel_id && !conversationId) {
       const { data: funnelDeals } = await supabase
         .from("funnel_deals")
         .select("contact_id")
         .eq("funnel_id", agentConfig.funnel_id);
 
-      if (funnelDeals && funnelDeals.length > 0) {
-        const contactIds = funnelDeals.map(d => d.contact_id);
-        conversationsQuery = conversationsQuery.in("contact_id", contactIds);
+      if (!funnelDeals || funnelDeals.length === 0) {
+        return new Response(
+          JSON.stringify({ message: "No conversations found for analysis", suggestionsCount: 0, suggestions: [] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
+      funnelContactIds = new Set(funnelDeals.map(d => d.contact_id).filter(Boolean));
+      console.log(`Funnel filter: ${funnelContactIds.size} contacts`);
     }
 
-    const { data: conversations, error: convError } = await conversationsQuery;
+    const { data: allConversations, error: convError } = await conversationsQuery.limit(5000);
 
     if (convError) {
       console.error("Error fetching conversations:", convError);
@@ -151,6 +156,10 @@ Deno.serve(async (req: Request) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const conversations = funnelContactIds
+      ? (allConversations || []).filter(c => c.contact_id && funnelContactIds!.has(c.contact_id))
+      : allConversations;
 
     if (!conversations || conversations.length === 0) {
       console.log("No conversations found for analysis");
