@@ -1155,7 +1155,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     }
                   }}
                 >
-                  <SelectTrigger className="w-[140px] h-9">
+                  <SelectTrigger className="w-[120px] xl:w-[140px] h-9">
+
                     <div className="flex items-center min-w-0 flex-1">
                       {metaUsingEvoInstance ? (
                         <Smartphone className="h-4 w-4 mr-1 text-muted-foreground shrink-0" />
