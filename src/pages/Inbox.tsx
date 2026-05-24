@@ -29,21 +29,21 @@ const Inbox = () => {
   const { width: viewportWidth, isAtLeast } = useBreakpoint();
 
   // Adaptive widths for the conversation list and the lead panel
-  const listWidth = isAtLeast("2xl") ? 320 : isAtLeast("xl") ? 296 : 272;
-  const rightWidth = isAtLeast("2xl") ? 384 : isAtLeast("xl") ? 340 : 312;
+  const listWidth = isAtLeast("2xl") ? 304 : isAtLeast("xl") ? 280 : 260;
+  const rightWidth = isAtLeast("2xl") ? 360 : isAtLeast("xl") ? 320 : 296;
 
   // State for panel visibility
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  // Right panel default-collapsed on tight desktops (<xl) to give the chat enough room
+  // Right panel default-collapsed on tight desktops to give the chat enough room
   const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 1280
+    () => typeof window !== "undefined" && window.innerWidth < 1440
   );
   const [userTouchedRightPanel, setUserTouchedRightPanel] = useState(false);
 
   // Auto-adapt right panel visibility to viewport (until user overrides)
   useEffect(() => {
     if (userTouchedRightPanel || isMobile) return;
-    setIsRightPanelCollapsed(viewportWidth < 1280);
+    setIsRightPanelCollapsed(viewportWidth < 1440);
   }, [viewportWidth, userTouchedRightPanel, isMobile]);
 
   // Handle selection from URL params (reactive to changes)
