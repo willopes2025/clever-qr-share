@@ -129,20 +129,25 @@ Deno.serve(async (req: Request) => {
         .lte("last_message_at", endDate.toISOString());
     }
 
-    // If funnel is linked, also filter by deals in that funnel
+    // If funnel is linked, fetch deal contact IDs into a Set (filter in memory to avoid URL length limit)
+    let funnelContactIds: Set<string> | null = null;
     if (agentConfig.funnel_id && !conversationId) {
       const { data: funnelDeals } = await supabase
         .from("funnel_deals")
         .select("contact_id")
         .eq("funnel_id", agentConfig.funnel_id);
 
-      if (funnelDeals && funnelDeals.length > 0) {
-        const contactIds = funnelDeals.map(d => d.contact_id);
-        conversationsQuery = conversationsQuery.in("contact_id", contactIds);
+      if (!funnelDeals || funnelDeals.length === 0) {
+        return new Response(
+          JSON.stringify({ message: "No conversations found for analysis", suggestionsCount: 0, suggestions: [] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
+      funnelContactIds = new Set(funnelDeals.map(d => d.contact_id).filter(Boolean));
+      console.log(`Funnel filter: ${funnelContactIds.size} contacts`);
     }
 
-    const { data: conversations, error: convError } = await conversationsQuery;
+    const { data: allConversations, error: convError } = await conversationsQuery.limit(5000);
 
     if (convError) {
       console.error("Error fetching conversations:", convError);
@@ -151,6 +156,10 @@ Deno.serve(async (req: Request) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const conversations = funnelContactIds
+      ? (allConversations || []).filter(c => c.contact_id && funnelContactIds!.has(c.contact_id))
+      : allConversations;
 
     if (!conversations || conversations.length === 0) {
       console.log("No conversations found for analysis");
@@ -162,22 +171,30 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Found ${conversations.length} conversations to analyze`);
 
-    // Get messages from these conversations
+    // Get messages from these conversations (chunked to avoid URL length limit)
     const conversationIds = conversations.map(c => c.id);
-    const { data: messages, error: msgError } = await supabase
-      .from("inbox_messages")
-      .select("id, content, direction, created_at, conversation_id")
-      .in("conversation_id", conversationIds)
-      .eq("message_type", "text")
-      .not("content", "is", null)
-      .order("created_at", { ascending: true });
+    const CHUNK = 200;
+    const messages: Message[] = [];
+    for (let i = 0; i < conversationIds.length; i += CHUNK) {
+      const chunk = conversationIds.slice(i, i + CHUNK);
+      const { data: chunkMsgs, error: msgError } = await supabase
+        .from("inbox_messages")
+        .select("id, content, direction, created_at, conversation_id")
+        .in("conversation_id", chunk)
+        .eq("message_type", "text")
+        .not("content", "is", null)
+        .order("created_at", { ascending: true })
+        .limit(5000);
 
-    if (msgError) {
-      console.error("Error fetching messages:", msgError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch messages" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (msgError) {
+        console.error("Error fetching messages:", msgError);
+        return new Response(
+          JSON.stringify({ error: "Failed to fetch messages" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (chunkMsgs) messages.push(...chunkMsgs);
+      if (messages.length > 8000) break;
     }
 
     if (!messages || messages.length < 2) {
