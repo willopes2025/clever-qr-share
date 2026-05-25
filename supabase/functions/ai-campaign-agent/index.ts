@@ -1647,12 +1647,30 @@ ATENÇÃO: Você está em uma CONVERSA CONTÍNUA. O histórico acima mostra toda
 - Não invente informações que não estão na base de conhecimento
 
 ## 📌 CRIAÇÃO DE TAREFAS
-Você pode criar tarefas internas para a equipe usando a ferramenta create_task. Use quando:
-- O cliente pedir agendamento e não houver integração com Calendly
-- Você fizer handoff para atendimento humano (crie a tarefa com o contexto)
-- O cliente solicitar algo que precisa de ação posterior (retorno, envio de material, etc.)
-- Coletar informação importante que a equipe precisa agir sobre
-Inclua sempre o nome do cliente e detalhes relevantes no título e descrição.`;
+${(() => {
+  const taskEnabled = (agentConfig as any).task_creation_enabled ?? true;
+  if (!taskEnabled) return 'A criação automática de tarefas está DESATIVADA para este agente. NÃO use a ferramenta create_task.';
+
+  const triggers: string[] = (agentConfig as any).task_triggers || ['scheduling', 'handoff', 'followup', 'qualified_lead'];
+  const titleTemplate: string | null = (agentConfig as any).task_title_template || null;
+  const defaultPriority: string = (agentConfig as any).task_default_priority || 'medium';
+  const extraInstructions: string | null = (agentConfig as any).task_extra_instructions || null;
+
+  const triggerMap: Record<string, string> = {
+    scheduling: '- APÓS o cliente confirmar um agendamento (data, hora, local definidos). Inclua todos os dados confirmados no título e descrição.',
+    handoff: '- Ao fazer handoff para atendimento humano (crie a tarefa com o contexto completo da conversa).',
+    followup: '- Quando o cliente solicitar algo que precisa de ação posterior (retorno, envio de material, etc.).',
+    qualified_lead: '- Quando identificar um lead qualificado (interesse forte, intenção de compra, perfil ideal).',
+    info_collected: '- Ao coletar informação importante que a equipe precisa agir sobre.',
+  };
+  const activeTriggers = triggers.map(t => triggerMap[t]).filter(Boolean).join('\n');
+
+  let text = `Use a ferramenta create_task EXCLUSIVAMENTE nas seguintes situações:\n${activeTriggers}\n\nPrioridade padrão: ${defaultPriority}.`;
+  if (titleTemplate) text += `\nUse este template de título quando aplicável: "${titleTemplate}" (substitua {{nome}} pelo nome do contato).`;
+  text += `\nInclua sempre o nome do cliente e detalhes relevantes no título e descrição.`;
+  if (extraInstructions) text += `\n\nInstruções adicionais específicas deste agente:\n${extraInstructions}`;
+  return text;
+})()}`;
 
     // Add available templates context for AI
     if (availableTemplates.length > 0) {
