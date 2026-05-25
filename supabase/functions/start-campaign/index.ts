@@ -1224,14 +1224,14 @@ ${availableVariables}`;
 
       // Pre-fetch deal data if any mapping uses lead_custom_field, deal_value, or deal_name
       const needsDealData = mappings?.some((m: any) => m.source === 'lead_custom_field' || m.source === 'deal_value' || m.source === 'deal_name');
-      let dealDataMap: Record<string, { custom_fields: Record<string, unknown>; value: number | null; name: string | null }> = {};
+      let dealDataMap: Record<string, { custom_fields: Record<string, unknown>; value: number | null; title: string | null }> = {};
       
       if (needsDealData) {
         const contactIds = filteredContacts.map((c: Contact) => c.id);
         // Fetch most recent deal for each contact
         const { data: deals } = await supabase
           .from('funnel_deals')
-          .select('contact_id, custom_fields, value, name')
+          .select('contact_id, custom_fields, value, title')
           .in('contact_id', contactIds)
           .order('created_at', { ascending: false });
         
@@ -1241,7 +1241,7 @@ ${availableVariables}`;
               dealDataMap[deal.contact_id] = {
                 custom_fields: (deal.custom_fields as Record<string, unknown>) || {},
                 value: deal.value,
-                name: deal.name,
+                title: deal.title,
               };
             }
           }
@@ -1279,7 +1279,7 @@ ${availableVariables}`;
                 value = dealVal != null ? String(dealVal) : '';
                 break;
               case 'deal_name':
-                value = dealDataMap[contact.id]?.name || '';
+                value = dealDataMap[contact.id]?.title || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';

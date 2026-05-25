@@ -1022,7 +1022,7 @@ Deno.serve(async (req: Request) => {
           contactData = data;
         }
         if (needsDealData) {
-          const { data } = await supabase.from('funnel_deals').select('custom_fields, value, name').eq('contact_id', message.contact_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+          const { data } = await supabase.from('funnel_deals').select('custom_fields, value, title').eq('contact_id', message.contact_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
           dealData = data;
         }
 
@@ -1052,7 +1052,7 @@ Deno.serve(async (req: Request) => {
                 value = dealData?.value != null ? String(dealData.value) : '';
                 break;
               case 'deal_name':
-                value = dealData?.name || '';
+                value = dealData?.title || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';
