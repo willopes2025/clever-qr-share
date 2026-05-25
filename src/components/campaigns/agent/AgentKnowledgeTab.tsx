@@ -39,9 +39,13 @@ export const AgentKnowledgeTab = ({
   const [textContent, setTextContent] = useState('');
   const [urlTitle, setUrlTitle] = useState('');
   const [urlValue, setUrlValue] = useState('');
+  const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editUrl, setEditUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { addTextKnowledge, addUrlKnowledge, uploadPdfKnowledge, deleteKnowledge } = useKnowledgeItemMutations();
+  const { addTextKnowledge, addUrlKnowledge, uploadPdfKnowledge, deleteKnowledge, updateKnowledge } = useKnowledgeItemMutations();
 
   const handleAddText = () => {
     if (!agentConfigId || !textTitle.trim() || !textContent.trim()) return;
