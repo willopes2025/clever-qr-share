@@ -2200,6 +2200,34 @@ ${mapeamento}
               });
             } else {
               console.log(`[AI-AGENT] Task created successfully: ${newTask.id}`);
+
+              // Send notifications to configured users
+              try {
+                const notifyUserIds: string[] = (agentConfig as any).task_notify_user_ids || [];
+                // Always include the assignee if not in list
+                const assignee = conversation.assigned_to || conversation.user_id;
+                const allRecipients = Array.from(new Set([
+                  ...notifyUserIds,
+                  ...(assignee ? [assignee] : []),
+                ]));
+
+                for (const recipientUserId of allRecipients) {
+                  try {
+                    await supabase.functions.invoke('send-whatsapp-notification', {
+                      body: {
+                        type: 'task_created',
+                        data: { taskId: newTask.id, taskTitle },
+                        recipientUserId,
+                      },
+                    });
+                  } catch (notifyErr) {
+                    console.error(`[AI-AGENT] Failed to notify ${recipientUserId}:`, notifyErr);
+                  }
+                }
+              } catch (notifyOuter) {
+                console.error('[AI-AGENT] Notification dispatch failed:', notifyOuter);
+              }
+
               toolResults.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
