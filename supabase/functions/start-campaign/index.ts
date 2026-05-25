@@ -1279,7 +1279,7 @@ ${availableVariables}`;
                 value = dealVal != null ? String(dealVal) : '';
                 break;
               case 'deal_name':
-                value = dealDataMap[contact.id]?.name || '';
+                value = dealDataMap[contact.id]?.title || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';
