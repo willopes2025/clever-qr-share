@@ -8,14 +8,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo, Bell, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AgentIntegrationsTab } from "@/components/campaigns/agent/AgentIntegrationsTab";
 import { AgentCalendarTab } from "@/components/campaigns/agent/AgentCalendarTab";
 import { AIAgentTestDialog } from "./AIAgentTestDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { toast } from "sonner";
 import { AIAgentTemplate } from "@/data/ai-agent-templates";
 import { AgentStagesTab } from "@/components/campaigns/agent/AgentStagesTab";
@@ -90,6 +93,16 @@ export const AIAgentFormDialog = ({
   const [taskDefaultPriority, setTaskDefaultPriority] = useState<string>("medium");
   const [taskTitleTemplate, setTaskTitleTemplate] = useState("");
   const [taskExtraInstructions, setTaskExtraInstructions] = useState("");
+  const [taskNotifyUserIds, setTaskNotifyUserIds] = useState<string[]>([]);
+
+  const { members } = useTeamMembers();
+  const activeMembers = (members || []).filter((m) => m.status === "active" && m.user_id);
+
+  const toggleNotifyUser = (userId: string) => {
+    setTaskNotifyUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((u) => u !== userId) : [...prev, userId]
+    );
+  };
 
   const toggleTrigger = (key: string) => {
     setTaskTriggers((prev) =>
@@ -325,6 +338,7 @@ export const AIAgentFormDialog = ({
       setTaskDefaultPriority((data as any).task_default_priority || "medium");
       setTaskTitleTemplate((data as any).task_title_template || "");
       setTaskExtraInstructions((data as any).task_extra_instructions || "");
+      setTaskNotifyUserIds(((data as any).task_notify_user_ids as string[]) || []);
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
@@ -368,6 +382,7 @@ export const AIAgentFormDialog = ({
         task_default_priority: taskDefaultPriority,
         task_title_template: taskTitleTemplate.trim() || null,
         task_extra_instructions: taskExtraInstructions.trim() || null,
+        task_notify_user_ids: taskNotifyUserIds,
       } as any;
 
       if (agentId) {
@@ -936,6 +951,76 @@ export const AIAgentFormDialog = ({
                       onChange={(e) => setTaskExtraInstructions(e.target.value)}
                       className="min-h-[100px]"
                     />
+                  </div>
+
+                  <div className={taskCreationEnabled ? "" : "opacity-50 pointer-events-none"}>
+                    <Label className="font-medium flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-primary" />
+                      Notificar usuários
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Selecione um ou mais membros da equipe que receberão notificação no WhatsApp sempre que o agente criar uma tarefa.
+                    </p>
+
+                    {taskNotifyUserIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {taskNotifyUserIds.map((uid) => {
+                          const m = activeMembers.find((mm) => mm.user_id === uid);
+                          const name = m?.profile?.full_name || m?.email || uid;
+                          return (
+                            <Badge key={uid} variant="secondary" className="gap-1">
+                              {name}
+                              <button
+                                type="button"
+                                onClick={() => toggleNotifyUser(uid)}
+                                className="ml-1 rounded-full hover:bg-muted"
+                                aria-label={`Remover ${name}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="gap-2">
+                          <Bell className="h-3.5 w-3.5" />
+                          {taskNotifyUserIds.length === 0
+                            ? "Selecionar usuários"
+                            : `${taskNotifyUserIds.length} selecionado(s)`}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-2" align="start">
+                        {activeMembers.length === 0 ? (
+                          <p className="text-xs text-muted-foreground p-2">
+                            Nenhum membro ativo encontrado.
+                          </p>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto space-y-1">
+                            {activeMembers.map((m) => {
+                              const uid = m.user_id!;
+                              const checked = taskNotifyUserIds.includes(uid);
+                              const name = m.profile?.full_name || m.email;
+                              return (
+                                <label
+                                  key={m.id}
+                                  className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => toggleNotifyUser(uid)}
+                                  />
+                                  <span className="text-sm">{name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </TabsContent>
               </Tabs>
