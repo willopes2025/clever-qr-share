@@ -339,6 +339,77 @@ export const AgentKnowledgeTab = ({
           ))}
         </div>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Conhecimento</DialogTitle>
+          </DialogHeader>
+          {editingItem && (
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Título</Label>
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Título do conhecimento"
+                />
+              </div>
+
+              {editingItem.source_type === 'text' && (
+                <div className="space-y-2">
+                  <Label>Conteúdo</Label>
+                  <Textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={10}
+                    className="resize-none"
+                  />
+                </div>
+              )}
+
+              {editingItem.source_type === 'url' && (
+                <div className="space-y-2">
+                  <Label>URL</Label>
+                  <Input
+                    type="url"
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ao salvar, a URL será reprocessada e o conteúdo extraído novamente.
+                  </p>
+                </div>
+              )}
+
+              {editingItem.source_type === 'pdf' && (
+                <p className="text-xs text-muted-foreground">
+                  Para substituir o arquivo PDF, remova este item e faça upload de um novo. Aqui você pode apenas renomear o título.
+                </p>
+              )}
+
+              <Button
+                onClick={handleSaveEdit}
+                disabled={
+                  !editTitle.trim() ||
+                  updateKnowledge.isPending ||
+                  (editingItem.source_type === 'url' && !editUrl.trim())
+                }
+                className="w-full"
+              >
+                {updateKnowledge.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Pencil className="h-4 w-4 mr-2" />
+                )}
+                Salvar alterações
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
