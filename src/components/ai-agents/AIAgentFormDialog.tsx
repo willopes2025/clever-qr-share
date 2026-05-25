@@ -696,24 +696,57 @@ export const AIAgentFormDialog = ({
                   </div>
 
                   <div>
-                    <Label>Horário de Funcionamento: {activeHoursStart}h - {activeHoursEnd}h</Label>
+                    <Label>Horários de Funcionamento</Label>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Período em que o agente responde automaticamente
+                      Faixas de horário em que o agente responde automaticamente. Para faixas que cruzam a meia-noite, use ex.: início 24h e fim 8h em uma faixa separada.
                     </p>
-                    <div className="flex gap-4 items-center mt-2">
-                      <span className="text-sm w-10">{activeHoursStart}h</span>
-                      <Slider
-                        value={[activeHoursStart, activeHoursEnd]}
-                        onValueChange={([start, end]) => {
-                          setActiveHoursStart(start);
-                          setActiveHoursEnd(end);
-                        }}
-                        min={0}
-                        max={24}
-                        step={1}
-                        className="flex-1"
-                      />
-                      <span className="text-sm w-10">{activeHoursEnd}h</span>
+                    <div className="space-y-2 mt-2">
+                      {activeHoursWindows.map((win, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={24}
+                            value={win.start}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.min(24, parseInt(e.target.value) || 0));
+                              setActiveHoursWindows(activeHoursWindows.map((w, i) => i === idx ? { ...w, start: v } : w));
+                            }}
+                            className="w-20"
+                          />
+                          <span className="text-sm text-muted-foreground">h até</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={24}
+                            value={win.end}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.min(24, parseInt(e.target.value) || 0));
+                              setActiveHoursWindows(activeHoursWindows.map((w, i) => i === idx ? { ...w, end: v } : w));
+                            }}
+                            className="w-20"
+                          />
+                          <span className="text-sm text-muted-foreground">h</span>
+                          {activeHoursWindows.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setActiveHoursWindows(activeHoursWindows.filter((_, i) => i !== idx))}
+                            >
+                              Remover
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActiveHoursWindows([...activeHoursWindows, { start: 0, end: 8 }])}
+                      >
+                        + Adicionar faixa
+                      </Button>
                     </div>
                   </div>
 
