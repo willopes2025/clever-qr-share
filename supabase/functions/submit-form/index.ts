@@ -89,6 +89,53 @@ Deno.serve(async (req: Request) => {
     // Additional phones to save
     let additionalPhones: Array<{ phone: string; label: string }> = [];
 
+  // Map a form field type to the corresponding custom_field_definitions.field_type.
+  // Critical for date/time triggers: a 'scheduling' form field must become 'datetime'
+  // in custom_field_definitions, otherwise the automation builder won't list it.
+  const mapFormFieldTypeToCustomFieldType = (formFieldType: string | null | undefined): string => {
+    switch (formFieldType) {
+      case 'scheduling':
+      case 'datetime':
+        return 'datetime';
+      case 'date':
+        return 'date';
+      case 'time':
+        return 'time';
+      case 'number':
+        return 'number';
+      case 'email':
+        return 'email';
+      case 'phone':
+        return 'phone';
+      case 'url':
+        return 'url';
+      case 'select':
+      case 'radio':
+        return 'select';
+      case 'multi_select':
+      case 'checkbox':
+        return 'multi_select';
+      case 'switch':
+      case 'boolean':
+        return 'boolean';
+      default:
+        return 'text';
+    }
+  };
+
+  // Normalize scheduling/date/time field values for storage in custom_fields,
+  // so that process-scheduled-automations can parse them reliably.
+  const normalizeFieldValueForStorage = (formFieldType: string | null | undefined, value: any): any => {
+    if (value === null || value === undefined || value === '') return value;
+    if (formFieldType === 'scheduling') {
+      const str = String(value).trim();
+      const m = str.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(:\d{2})?$/);
+      if (m) return `${m[1]}T${m[2]}${m[3] || ':00'}`;
+    }
+    return value;
+  };
+
+
   // Check for lookup_by_display_id field first
   let lookupDisplayId: string | null = null;
   for (const field of formFields) {
@@ -157,15 +204,17 @@ Deno.serve(async (req: Request) => {
         }
       }
     } else if (field.mapping_type === 'custom_field' && field.mapping_target && fieldValue) {
-      contactData.custom_fields![field.mapping_target] = fieldValue;
+      contactData.custom_fields![field.mapping_target] = normalizeFieldValueForStorage(field.field_type, fieldValue);
     } else if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
-      dealCustomFields[field.mapping_target] = fieldValue;
+      dealCustomFields[field.mapping_target] = normalizeFieldValueForStorage(field.field_type, fieldValue);
+
     } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      
+      const inferredType = mapFormFieldTypeToCustomFieldType(field.field_type);
+
       const { data: existingField } = await supabase
         .from('custom_field_definitions')
-        .select('id')
+        .select('id, field_type')
         .eq('user_id', form.user_id)
         .eq('field_key', fieldKey)
         .eq('entity_type', 'contact')
@@ -178,14 +227,25 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             field_name: field.mapping_target,
             field_key: fieldKey,
-            field_type: 'text',
+            field_type: inferredType,
             is_required: false,
             display_order: 999,
             entity_type: 'contact',
           });
+      } else if (
+        existingField.field_type === 'text' &&
+        ['date', 'datetime', 'time'].includes(inferredType)
+      ) {
+        // Promote a legacy text-typed field to its real date/datetime/time type
+        // so it shows up in automation date-trigger selectors.
+        await supabase
+          .from('custom_field_definitions')
+          .update({ field_type: inferredType })
+          .eq('id', existingField.id);
       }
 
-      contactData.custom_fields![fieldKey] = fieldValue;
+      contactData.custom_fields![fieldKey] = normalizeFieldValueForStorage(field.field_type, fieldValue);
+
     } else if (field.mapping_type === 'deal_native_field' && field.mapping_target && fieldValue) {
       // Map to native deal columns (value, title)
       if (field.mapping_target === 'value') {
@@ -204,10 +264,11 @@ Deno.serve(async (req: Request) => {
       }
     } else if (field.mapping_type === 'new_lead_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      
+      const inferredType = mapFormFieldTypeToCustomFieldType(field.field_type);
+
       const { data: existingField } = await supabase
         .from('custom_field_definitions')
-        .select('id')
+        .select('id, field_type')
         .eq('user_id', form.user_id)
         .eq('field_key', fieldKey)
         .eq('entity_type', 'lead')
@@ -220,16 +281,25 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             field_name: field.mapping_target,
             field_key: fieldKey,
-            field_type: 'text',
+            field_type: inferredType,
             is_required: false,
             display_order: 999,
             entity_type: 'lead',
           });
+      } else if (
+        existingField.field_type === 'text' &&
+        ['date', 'datetime', 'time'].includes(inferredType)
+      ) {
+        await supabase
+          .from('custom_field_definitions')
+          .update({ field_type: inferredType })
+          .eq('id', existingField.id);
       }
 
-      dealCustomFields[fieldKey] = fieldValue;
+      dealCustomFields[fieldKey] = normalizeFieldValueForStorage(field.field_type, fieldValue);
     }
   }
+
 
     let contactId: string | null = null;
 

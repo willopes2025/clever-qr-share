@@ -1,41 +1,52 @@
-## Problema
+## Diagnóstico
 
-Na tela **Inbox**, quando o navegador está em zoom 100% (real, sem zoom out), os elementos do **header do chat** (avatar/nome do contato + botões "Marcar como lida", "IA Ativa", seletor de número, "Acionar IA", pausar IA) se sobrepõem porque a soma das larguras fixas das 3 colunas (lista de conversas + chat + painel do lead) + barra lateral principal estoura o espaço útil em telas onde a viewport efetiva fica perto de 1280–1536 px.
+Olhei o fluxo do formulário com campo **Agendamento (scheduling)** e encontrei **dois problemas** que impedem o uso desse campo como gatilho de data/hora nas automações:
 
-Os labels de texto dos botões aparecem em breakpoints muito agressivos (`xl` e `2xl`), o que faz com que apareçam exatamente na faixa em que ainda não há folga, empurrando o título do contato e gerando overlap visual.
+### Problema 1 — O campo personalizado é criado como `text`, não como `datetime`
 
-## Mudanças
+Em `supabase/functions/submit-form/index.ts` (linhas 163–188 e 205–230), quando o formulário tem `mapping_type = 'new_custom_field'` ou `'new_lead_field'` com auto-criação, o `field_type` é **fixo em `'text'`**, independente do tipo real do campo no formulário (scheduling, date, time, datetime).
 
-### 1. `src/pages/Inbox.tsx` — colunas mais enxutas em telas médias
-Reduzir as larguras fixas das colunas laterais para liberar espaço ao chat:
+Consequência: na tela de criar automação (`AutomationFormDialog.tsx` linha 440), o seletor de campo de data filtra somente `field_type === 'date' || 'datetime'`. Como o campo recém-criado está como `text`, **ele não aparece na lista** de gatilhos "antes/depois de data do campo".
 
-```text
-listWidth:  2xl=304, xl=280, default=260   (era 320 / 296 / 272)
-rightWidth: 2xl=360, xl=320, default=296   (era 384 / 340 / 312)
-```
+### Problema 2 — O valor do agendamento nunca é salvo em `custom_fields`
 
-Também elevar o ponto em que o painel direito recolhe automaticamente: passar de `< 1280` para `< 1440`, evitando que ele apareça aberto justamente na faixa apertada.
+O bloco em `submit-form/index.ts` (linhas 676–736) que trata `field.field_type === 'scheduling'` **só cria uma `conversation_task`**. O valor "YYYY-MM-DD HH:mm" do agendamento **não é gravado em `contacts.custom_fields` nem em `funnel_deals.custom_fields`**.
 
-### 2. `src/components/inbox/MessageView.tsx` — header mais tolerante
-- Adicionar `gap-2` consistente e `flex-wrap` controlado **apenas no grupo de ações** (lado direito do header) para que, se faltar espaço, os botões quebrem em vez de sobrepor o nome.
-- Elevar os breakpoints dos labels para não tentarem aparecer em telas apertadas:
-  - "Marcar como lida": `hidden 2xl:inline` → manter, mas o botão usa `size="icon"` quando não há label (largura fixa h-8 w-8) em vez de `h-8 gap-1.5`.
-  - "IA Ativa" / "Aguardando" / "Pausada": `hidden xl:inline` → `hidden 2xl:inline`.
-  - "Acionar IA": já é `2xl` — manter, mas botão vira `size="icon"` quando o label some.
-- Reduzir o `SelectTrigger` de número de `w-[140px]` para `w-[120px] xl:w-[140px]`.
-- Garantir `min-w-0` no wrapper esquerdo (já existe) e adicionar `truncate` no `<h3>` (já existe) — apenas reforçar `flex-1 min-w-0` no contêiner pai dos botões está NÃO setado: o lado direito mantém `shrink-0`, então a correção real vem do conjunto acima reduzindo a largura desse bloco.
+Consequência: mesmo se o `field_type` estivesse correto, o processador de automações (`process-scheduled-automations/index.ts` linha 342) não encontraria valor algum em `custom_fields[dateFieldKey]` para esse contato/deal.
 
-### 3. Validação
-- Abrir o Inbox no preview em viewport ~1366, ~1440, ~1536 e 1920 px e conferir que:
-  - Nome do contato não é coberto pelos botões.
-  - Botões do header não quebram em duas linhas (exceto opcionalmente em <1366).
-  - Painel do lead à direita não corta campos.
+## Correções (somente backend — edge function `submit-form`)
 
-## Escopo
+### Passo 1 — Inferir o `field_type` correto ao auto-criar
+Mapear o tipo do campo do formulário para o `field_type` da `custom_field_definitions`:
+- `scheduling` → `datetime`
+- `date` → `date`
+- `time` → `time`
+- `datetime` → `datetime`
+- `number` → `number`
+- `email` → `email`
+- `phone` → `phone`
+- `url` → `url`
+- default → `text`
 
-Mudanças apenas em 2 arquivos de UI:
+Aplicar nas duas branches (`new_custom_field` e `new_lead_field`). Se o campo já existir mas estiver com `field_type='text'` indevidamente, fazer um UPDATE corrigindo (apenas quando o novo tipo for `date`/`datetime`/`time`, para não sobrescrever escolhas manuais legítimas).
 
-- `src/pages/Inbox.tsx`
-- `src/components/inbox/MessageView.tsx`
+### Passo 2 — Persistir o valor do agendamento em `custom_fields`
+Quando o campo for `scheduling` E tiver `mapping_target`/`mapping_type` definido (contato ou lead), também gravar o valor em `contacts.custom_fields[key]` ou `funnel_deals.custom_fields[key]`, no formato ISO `YYYY-MM-DDTHH:mm:00` (parseável tanto pelo trigger quanto pela UI). Isso é independente da criação da task (a task continua sendo criada como hoje).
 
-Sem mexer em lógica de negócio, dados, backend ou outras páginas.
+### Passo 3 — Aviso ao usuário
+Após o deploy, o campo "Agendamento Consulta CSV" **existente** vai precisar de uma correção manual única:
+- abrir Configurações → Campos Personalizados
+- localizar o campo e mudar o tipo de "Texto" para "Data e Hora"
+
+(ou eu posso rodar uma migration pontual que converte campos com `field_key` específico — me diga se quer assim.)
+
+## Validação
+1. Submeter o formulário com o campo de agendamento preenchido.
+2. Verificar em `contacts.custom_fields` / `funnel_deals.custom_fields` que a chave do campo tem o valor ISO.
+3. Verificar em `custom_field_definitions` que `field_type = 'datetime'`.
+4. Abrir o builder de automação → trigger "Antes de data do campo" → o novo campo deve aparecer na lista.
+
+## Arquivos alterados
+- `supabase/functions/submit-form/index.ts` (somente)
+
+Nenhuma mudança em UI, schema ou outras edge functions.
