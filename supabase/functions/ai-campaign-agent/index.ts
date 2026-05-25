@@ -981,7 +981,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Check if within active hours (only for automatic trigger)
-      if (!isWithinActiveHours(config.active_hours_start, config.active_hours_end)) {
+      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end)) {
         console.log('[AI-AGENT] Outside active hours');
         return new Response(
           JSON.stringify({ success: false, reason: 'Outside active hours' }),
