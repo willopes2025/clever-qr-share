@@ -102,6 +102,30 @@ export const AgentKnowledgeTab = ({
     }
   };
 
+  const handleOpenEdit = (item: KnowledgeItem) => {
+    setEditingItem(item);
+    setEditTitle(item.title || '');
+    setEditContent(item.content || '');
+    setEditUrl(item.website_url || '');
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingItem || !editTitle.trim()) return;
+    updateKnowledge.mutate(
+      {
+        id: editingItem.id,
+        agentConfigId: editingItem.agent_config_id,
+        sourceType: editingItem.source_type,
+        title: editTitle.trim(),
+        content: editingItem.source_type === 'text' ? editContent : undefined,
+        url: editingItem.source_type === 'url' ? editUrl.trim() : undefined,
+      },
+      {
+        onSuccess: () => setEditingItem(null),
+      }
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
