@@ -2157,7 +2157,7 @@ ${mapeamento}
           const taskTitle = args.title || 'Tarefa da IA';
           const taskDescription = args.description || '';
           const taskDueDate = args.due_date || null;
-          const taskPriority = args.priority || 'medium';
+          const taskPriority = args.priority || (agentConfig as any).task_default_priority || 'medium';
           
           console.log(`[AI-AGENT] create_task called: "${taskTitle}"`);
           
