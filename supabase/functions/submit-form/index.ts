@@ -210,10 +210,11 @@ Deno.serve(async (req: Request) => {
 
     } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      
+      const inferredType = mapFormFieldTypeToCustomFieldType(field.field_type);
+
       const { data: existingField } = await supabase
         .from('custom_field_definitions')
-        .select('id')
+        .select('id, field_type')
         .eq('user_id', form.user_id)
         .eq('field_key', fieldKey)
         .eq('entity_type', 'contact')
@@ -226,14 +227,25 @@ Deno.serve(async (req: Request) => {
             user_id: form.user_id,
             field_name: field.mapping_target,
             field_key: fieldKey,
-            field_type: 'text',
+            field_type: inferredType,
             is_required: false,
             display_order: 999,
             entity_type: 'contact',
           });
+      } else if (
+        existingField.field_type === 'text' &&
+        ['date', 'datetime', 'time'].includes(inferredType)
+      ) {
+        // Promote a legacy text-typed field to its real date/datetime/time type
+        // so it shows up in automation date-trigger selectors.
+        await supabase
+          .from('custom_field_definitions')
+          .update({ field_type: inferredType })
+          .eq('id', existingField.id);
       }
 
-      contactData.custom_fields![fieldKey] = fieldValue;
+      contactData.custom_fields![fieldKey] = normalizeFieldValueForStorage(field.field_type, fieldValue);
+
     } else if (field.mapping_type === 'deal_native_field' && field.mapping_target && fieldValue) {
       // Map to native deal columns (value, title)
       if (field.mapping_target === 'value') {
