@@ -17,7 +17,8 @@ import {
   AlertCircle,
   Loader2,
   Globe,
-  File
+  File,
+  Pencil
 } from 'lucide-react';
 import { KnowledgeItem, useKnowledgeItemMutations } from '@/hooks/useAIAgentConfig';
 
@@ -38,9 +39,13 @@ export const AgentKnowledgeTab = ({
   const [textContent, setTextContent] = useState('');
   const [urlTitle, setUrlTitle] = useState('');
   const [urlValue, setUrlValue] = useState('');
+  const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editUrl, setEditUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { addTextKnowledge, addUrlKnowledge, uploadPdfKnowledge, deleteKnowledge } = useKnowledgeItemMutations();
+  const { addTextKnowledge, addUrlKnowledge, uploadPdfKnowledge, deleteKnowledge, updateKnowledge } = useKnowledgeItemMutations();
 
   const handleAddText = () => {
     if (!agentConfigId || !textTitle.trim() || !textContent.trim()) return;
@@ -95,6 +100,30 @@ export const AgentKnowledgeTab = ({
         fileUrl: item.file_url,
       });
     }
+  };
+
+  const handleOpenEdit = (item: KnowledgeItem) => {
+    setEditingItem(item);
+    setEditTitle(item.title || '');
+    setEditContent(item.content || '');
+    setEditUrl(item.website_url || '');
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingItem || !editTitle.trim()) return;
+    updateKnowledge.mutate(
+      {
+        id: editingItem.id,
+        agentConfigId: editingItem.agent_config_id,
+        sourceType: editingItem.source_type,
+        title: editTitle.trim(),
+        content: editingItem.source_type === 'text' ? editContent : undefined,
+        url: editingItem.source_type === 'url' ? editUrl.trim() : undefined,
+      },
+      {
+        onSuccess: () => setEditingItem(null),
+      }
+    );
   };
 
   const getStatusBadge = (status: string) => {
@@ -268,6 +297,15 @@ export const AgentKnowledgeTab = ({
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleOpenEdit(item)}
+                      title="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
                       onClick={() => handleDelete(item)}
                     >
@@ -301,6 +339,77 @@ export const AgentKnowledgeTab = ({
           ))}
         </div>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Conhecimento</DialogTitle>
+          </DialogHeader>
+          {editingItem && (
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Título</Label>
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Título do conhecimento"
+                />
+              </div>
+
+              {editingItem.source_type === 'text' && (
+                <div className="space-y-2">
+                  <Label>Conteúdo</Label>
+                  <Textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={10}
+                    className="resize-none"
+                  />
+                </div>
+              )}
+
+              {editingItem.source_type === 'url' && (
+                <div className="space-y-2">
+                  <Label>URL</Label>
+                  <Input
+                    type="url"
+                    value={editUrl}
+                    onChange={(e) => setEditUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ao salvar, a URL será reprocessada e o conteúdo extraído novamente.
+                  </p>
+                </div>
+              )}
+
+              {editingItem.source_type === 'pdf' && (
+                <p className="text-xs text-muted-foreground">
+                  Para substituir o arquivo PDF, remova este item e faça upload de um novo. Aqui você pode apenas renomear o título.
+                </p>
+              )}
+
+              <Button
+                onClick={handleSaveEdit}
+                disabled={
+                  !editTitle.trim() ||
+                  updateKnowledge.isPending ||
+                  (editingItem.source_type === 'url' && !editUrl.trim())
+                }
+                className="w-full"
+              >
+                {updateKnowledge.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Pencil className="h-4 w-4 mr-2" />
+                )}
+                Salvar alterações
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
