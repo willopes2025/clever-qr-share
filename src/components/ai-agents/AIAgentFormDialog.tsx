@@ -83,6 +83,19 @@ export const AIAgentFormDialog = ({
   const [pauseEmoji, setPauseEmoji] = useState("🛑");
   const [resumeEmoji, setResumeEmoji] = useState("✅");
 
+  // Task creation config
+  const [taskCreationEnabled, setTaskCreationEnabled] = useState(true);
+  const [taskTriggers, setTaskTriggers] = useState<string[]>(["scheduling", "handoff", "followup", "qualified_lead"]);
+  const [taskDefaultPriority, setTaskDefaultPriority] = useState<string>("medium");
+  const [taskTitleTemplate, setTaskTitleTemplate] = useState("");
+  const [taskExtraInstructions, setTaskExtraInstructions] = useState("");
+
+  const toggleTrigger = (key: string) => {
+    setTaskTriggers((prev) =>
+      prev.includes(key) ? prev.filter((t) => t !== key) : [...prev, key]
+    );
+  };
+
   // Load company context when dialog opens
   useEffect(() => {
     if (open && organization?.id) {
