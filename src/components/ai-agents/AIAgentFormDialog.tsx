@@ -310,6 +310,11 @@ export const AIAgentFormDialog = ({
       setElevenlabsAgentId(data.elevenlabs_agent_id || "");
       setPauseEmoji(data.pause_emoji || "🛑");
       setResumeEmoji(data.resume_emoji || "✅");
+      setTaskCreationEnabled((data as any).task_creation_enabled ?? true);
+      setTaskTriggers((data as any).task_triggers || ["scheduling", "handoff", "followup", "qualified_lead"]);
+      setTaskDefaultPriority((data as any).task_default_priority || "medium");
+      setTaskTitleTemplate((data as any).task_title_template || "");
+      setTaskExtraInstructions((data as any).task_extra_instructions || "");
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
