@@ -352,7 +352,12 @@ export const AIAgentFormDialog = ({
         elevenlabs_agent_id: elevenlabsAgentId.trim() || null,
         pause_emoji: pauseEmoji.trim() || "🛑",
         resume_emoji: resumeEmoji.trim() || "✅",
-      };
+        task_creation_enabled: taskCreationEnabled,
+        task_triggers: taskTriggers,
+        task_default_priority: taskDefaultPriority,
+        task_title_template: taskTitleTemplate.trim() || null,
+        task_extra_instructions: taskExtraInstructions.trim() || null,
+      } as any;
 
       if (agentId) {
         const { error } = await supabase
