@@ -952,6 +952,76 @@ export const AIAgentFormDialog = ({
                       className="min-h-[100px]"
                     />
                   </div>
+
+                  <div className={taskCreationEnabled ? "" : "opacity-50 pointer-events-none"}>
+                    <Label className="font-medium flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-primary" />
+                      Notificar usuários
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Selecione um ou mais membros da equipe que receberão notificação no WhatsApp sempre que o agente criar uma tarefa.
+                    </p>
+
+                    {taskNotifyUserIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {taskNotifyUserIds.map((uid) => {
+                          const m = activeMembers.find((mm) => mm.user_id === uid);
+                          const name = m?.profile?.full_name || m?.email || uid;
+                          return (
+                            <Badge key={uid} variant="secondary" className="gap-1">
+                              {name}
+                              <button
+                                type="button"
+                                onClick={() => toggleNotifyUser(uid)}
+                                className="ml-1 rounded-full hover:bg-muted"
+                                aria-label={`Remover ${name}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="gap-2">
+                          <Bell className="h-3.5 w-3.5" />
+                          {taskNotifyUserIds.length === 0
+                            ? "Selecionar usuários"
+                            : `${taskNotifyUserIds.length} selecionado(s)`}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-2" align="start">
+                        {activeMembers.length === 0 ? (
+                          <p className="text-xs text-muted-foreground p-2">
+                            Nenhum membro ativo encontrado.
+                          </p>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto space-y-1">
+                            {activeMembers.map((m) => {
+                              const uid = m.user_id!;
+                              const checked = taskNotifyUserIds.includes(uid);
+                              const name = m.profile?.full_name || m.email;
+                              return (
+                                <label
+                                  key={m.id}
+                                  className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => toggleNotifyUser(uid)}
+                                  />
+                                  <span className="text-sm">{name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </TabsContent>
               </Tabs>
 
