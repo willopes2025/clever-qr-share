@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_agent_configs ADD COLUMN IF NOT EXISTS active_hours_windows jsonb NOT NULL DEFAULT '[]'::jsonb;
