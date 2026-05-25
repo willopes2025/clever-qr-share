@@ -1780,6 +1780,8 @@ ${templatesList}
         },
       },
     });
+    }
+
 
     if (tools.length > 0) {
       aiRequestBody.tools = tools;
