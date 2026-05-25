@@ -61,106 +61,34 @@ export const useOverviewMetrics = (dateRange: DateRange = 'today', customRange?:
     queryKey: ['overview-metrics', dateRange, customRange?.from?.toISOString(), customRange?.to?.toISOString()],
     queryFn: async (): Promise<OverviewMetrics> => {
       const { start, end } = getDateRange(dateRange, customRange);
-      
-      const { count: leadsToday } = await supabase
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
 
-      // Active conversations within selected period
-      const { count: activeConversations } = await supabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'open')
-        .gte('last_message_at', start.toISOString())
-        .lte('last_message_at', end.toISOString());
+      const { data, error } = await supabase.rpc('get_overview_metrics', {
+        p_start: start.toISOString(),
+        p_end: end.toISOString(),
+      });
 
-      const { count: autoAttendances } = await supabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('ai_handled', true)
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+      if (error) throw error;
 
-      const { count: humanAttendances } = await supabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .eq('ai_handled', false)
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-
-      const totalConversationsCount = (autoAttendances || 0) + (humanAttendances || 0);
-
-      const { count: unansweredLeads } = await supabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true })
-        .gt('unread_count', 0)
-        .eq('status', 'open');
-
-      // Count distinct conversations with at least 1 outbound message in the period
-      const { count: respondedConversations } = await supabase
-        .from('inbox_messages')
-        .select('conversation_id', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-
-      const responseRate = totalConversationsCount > 0 ? ((respondedConversations || 0) / totalConversationsCount) * 100 : 0;
-
-      // Still fetch a sample for avg response time calculation
-      const { data: messagesData } = await supabase
-        .from('inbox_messages')
-        .select('conversation_id, direction, created_at')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
-        .order('created_at', { ascending: true })
-        .limit(5000);
-
-      let totalResponseTime = 0;
-      let responseCount = 0;
-      
-      if (messagesData) {
-        const conversationMessages = new Map<string, { inbound?: Date; outbound?: Date }>();
-        
-        for (const msg of messagesData) {
-          const convId = msg.conversation_id;
-          if (!convId) continue;
-          
-          if (!conversationMessages.has(convId)) {
-            conversationMessages.set(convId, {});
-          }
-          
-          const conv = conversationMessages.get(convId)!;
-          const msgDate = new Date(msg.created_at);
-          
-          if (msg.direction === 'inbound' && !conv.inbound) {
-            conv.inbound = msgDate;
-          } else if (msg.direction === 'outbound' && conv.inbound && !conv.outbound) {
-            conv.outbound = msgDate;
-            const responseTime = differenceInMinutes(conv.outbound, conv.inbound);
-            if (responseTime >= 0 && responseTime < 1440) {
-              totalResponseTime += responseTime * 60;
-              responseCount++;
-            }
-          }
-        }
-      }
-
-      const avgFirstResponseTime = responseCount > 0 ? totalResponseTime / responseCount : 0;
+      const row = Array.isArray(data) ? data[0] : data;
+      const auto = Number(row?.auto_attendances || 0);
+      const human = Number(row?.human_attendances || 0);
+      const responded = Number(row?.responded_conversations || 0);
+      const total = auto + human;
+      const responseRate = total > 0 ? Math.min(100, (responded / total) * 100) : 0;
 
       return {
-        leadsToday: leadsToday || 0,
-        activeConversations: activeConversations || 0,
-        autoAttendances: autoAttendances || 0,
-        humanAttendances: humanAttendances || 0,
-        unansweredLeads: unansweredLeads || 0,
-        avgFirstResponseTime,
+        leadsToday: Number(row?.leads_today || 0),
+        activeConversations: Number(row?.active_conversations || 0),
+        autoAttendances: auto,
+        humanAttendances: human,
+        unansweredLeads: Number(row?.unanswered_leads || 0),
+        avgFirstResponseTime: Number(row?.avg_first_response_seconds || 0),
         responseRate,
       };
     },
   });
 };
+
 
 // ==================== WHATSAPP METRICS ====================
 export interface WhatsAppMetrics {
