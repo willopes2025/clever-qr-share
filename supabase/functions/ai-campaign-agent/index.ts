@@ -105,6 +105,18 @@ const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
   return currentHour >= startHour || currentHour <= endHour;
 };
 
+// Check if current time matches any of the provided active hour windows
+const isWithinAnyActiveWindow = (
+  windows: Array<{ start: number; end: number }> | null | undefined,
+  fallbackStart: number,
+  fallbackEnd: number,
+): boolean => {
+  if (!windows || windows.length === 0) {
+    return isWithinActiveHours(fallbackStart, fallbackEnd);
+  }
+  return windows.some((w) => isWithinActiveHours(Number(w.start) || 0, Number(w.end) || 0));
+};
+
 // Check if message contains handoff keywords
 const containsHandoffKeyword = (message: string, keywords: string[]): boolean => {
   const lowerMessage = message.toLowerCase();
