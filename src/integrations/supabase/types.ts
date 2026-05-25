@@ -41,6 +41,7 @@ export type Database = {
           task_creation_enabled: boolean
           task_default_priority: string
           task_extra_instructions: string | null
+          task_notify_user_ids: string[]
           task_title_template: string | null
           task_triggers: string[]
           template_type: string | null
@@ -74,6 +75,7 @@ export type Database = {
           task_creation_enabled?: boolean
           task_default_priority?: string
           task_extra_instructions?: string | null
+          task_notify_user_ids?: string[]
           task_title_template?: string | null
           task_triggers?: string[]
           template_type?: string | null
@@ -107,6 +109,7 @@ export type Database = {
           task_creation_enabled?: boolean
           task_default_priority?: string
           task_extra_instructions?: string | null
+          task_notify_user_ids?: string[]
           task_title_template?: string | null
           task_triggers?: string[]
           template_type?: string | null
