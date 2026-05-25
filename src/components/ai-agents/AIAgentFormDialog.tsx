@@ -494,7 +494,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-8 w-full">
+                <TabsList className="grid grid-cols-9 w-full">
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
