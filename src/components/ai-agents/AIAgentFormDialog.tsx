@@ -305,6 +305,12 @@ export const AIAgentFormDialog = ({
       setResponseDelayMax(data.response_delay_max || 8);
       setActiveHoursStart(data.active_hours_start || 8);
       setActiveHoursEnd(data.active_hours_end || 20);
+      const loadedWindows = Array.isArray((data as any).active_hours_windows) ? (data as any).active_hours_windows : [];
+      setActiveHoursWindows(
+        loadedWindows.length > 0
+          ? loadedWindows.map((w: any) => ({ start: Number(w.start) || 0, end: Number(w.end) || 0 }))
+          : [{ start: data.active_hours_start ?? 8, end: data.active_hours_end ?? 20 }]
+      );
       setMaxInteractions(data.max_interactions || 15);
       setIsActive(data.is_active ?? false);
       setTemplateType(data.template_type);
