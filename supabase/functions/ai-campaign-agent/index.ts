@@ -1748,7 +1748,8 @@ ${templatesList}
       });
     }
     
-    // Always add create_task tool (doesn't depend on any integration)
+    // Conditionally add create_task tool based on agent config
+    if ((agentConfig as any).task_creation_enabled ?? true) {
     tools.push({
       type: 'function',
       function: {
