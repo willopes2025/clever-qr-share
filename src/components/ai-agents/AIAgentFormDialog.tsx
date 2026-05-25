@@ -93,6 +93,16 @@ export const AIAgentFormDialog = ({
   const [taskDefaultPriority, setTaskDefaultPriority] = useState<string>("medium");
   const [taskTitleTemplate, setTaskTitleTemplate] = useState("");
   const [taskExtraInstructions, setTaskExtraInstructions] = useState("");
+  const [taskNotifyUserIds, setTaskNotifyUserIds] = useState<string[]>([]);
+
+  const { members } = useTeamMembers();
+  const activeMembers = (members || []).filter((m) => m.status === "active" && m.user_id);
+
+  const toggleNotifyUser = (userId: string) => {
+    setTaskNotifyUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((u) => u !== userId) : [...prev, userId]
+    );
+  };
 
   const toggleTrigger = (key: string) => {
     setTaskTriggers((prev) =>
