@@ -955,6 +955,7 @@ Deno.serve(async (req: Request) => {
       response_delay_max: agentConfig.response_delay_max || 8,
       active_hours_start: agentConfig.active_hours_start || 8,
       active_hours_end: agentConfig.active_hours_end || 20,
+      active_hours_windows: (agentConfig as any).active_hours_windows || null,
       handoff_keywords: agentConfig.handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'],
       is_active: agentConfig.is_active ?? true,
       response_mode: agentConfig.response_mode || 'text',
