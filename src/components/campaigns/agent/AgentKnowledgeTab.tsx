@@ -17,7 +17,8 @@ import {
   AlertCircle,
   Loader2,
   Globe,
-  File
+  File,
+  Pencil
 } from 'lucide-react';
 import { KnowledgeItem, useKnowledgeItemMutations } from '@/hooks/useAIAgentConfig';
 
