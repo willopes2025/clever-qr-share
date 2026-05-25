@@ -6874,6 +6874,18 @@ export type Database = {
         Args: { _user_id: string }
         Returns: string[]
       }
+      get_overview_metrics: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          active_conversations: number
+          auto_attendances: number
+          avg_first_response_seconds: number
+          human_attendances: number
+          leads_today: number
+          responded_conversations: number
+          unanswered_leads: number
+        }[]
+      }
       get_sdr_instance_ids: { Args: { _user_id: string }; Returns: string[] }
       get_sdr_meta_number_ids: { Args: { _user_id: string }; Returns: string[] }
       get_sdr_meta_phone_number_ids: {
