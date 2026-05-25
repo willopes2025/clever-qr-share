@@ -265,12 +265,19 @@ export const AIAgentFormDialog = ({
     setActiveHoursStart(8);
     setActiveHoursEnd(20);
     setMaxInteractions(15);
-    setIsActive(false);
-    setTemplateType(null);
-    setAgentId(null);
-    setActiveTab("personality");
-    setElevenlabsAgentId("");
-    setPauseEmoji("🛑");
+      setIsActive(false);
+      setTemplateType(null);
+      setAgentId(null);
+      setActiveTab("personality");
+      setElevenlabsAgentId("");
+      setPauseEmoji("🛑");
+      setResumeEmoji("✅");
+      setTaskCreationEnabled(true);
+      setTaskTriggers(["scheduling", "handoff", "followup", "qualified_lead"]);
+      setTaskDefaultPriority("medium");
+      setTaskTitleTemplate("");
+      setTaskExtraInstructions("");
+    };
     setResumeEmoji("✅");
   };
 
