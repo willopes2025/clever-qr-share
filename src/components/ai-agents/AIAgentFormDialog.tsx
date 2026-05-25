@@ -246,6 +246,7 @@ export const AIAgentFormDialog = ({
     setResponseDelayMax(tmpl.responseDelayMax);
     setActiveHoursStart(tmpl.activeHoursStart);
     setActiveHoursEnd(tmpl.activeHoursEnd);
+    setActiveHoursWindows([{ start: tmpl.activeHoursStart, end: tmpl.activeHoursEnd }]);
     setMaxInteractions(tmpl.maxInteractions);
     setTemplateType(tmpl.id);
     setIsActive(false);
