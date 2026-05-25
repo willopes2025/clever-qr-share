@@ -204,9 +204,10 @@ Deno.serve(async (req: Request) => {
         }
       }
     } else if (field.mapping_type === 'custom_field' && field.mapping_target && fieldValue) {
-      contactData.custom_fields![field.mapping_target] = fieldValue;
+      contactData.custom_fields![field.mapping_target] = normalizeFieldValueForStorage(field.field_type, fieldValue);
     } else if (field.mapping_type === 'lead_field' && field.mapping_target && fieldValue) {
-      dealCustomFields[field.mapping_target] = fieldValue;
+      dealCustomFields[field.mapping_target] = normalizeFieldValueForStorage(field.field_type, fieldValue);
+
     } else if (field.mapping_type === 'new_custom_field' && field.mapping_target && field.create_custom_field_on_submit && fieldValue) {
       const fieldKey = field.mapping_target.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       
