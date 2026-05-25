@@ -76,6 +76,7 @@ export const AIAgentFormDialog = ({
   const [responseDelayMax, setResponseDelayMax] = useState(8);
   const [activeHoursStart, setActiveHoursStart] = useState(8);
   const [activeHoursEnd, setActiveHoursEnd] = useState(20);
+  const [activeHoursWindows, setActiveHoursWindows] = useState<Array<{ start: number; end: number }>>([{ start: 8, end: 20 }]);
   const [maxInteractions, setMaxInteractions] = useState(15);
   const [isActive, setIsActive] = useState(false);
   const [templateType, setTemplateType] = useState<string | null>(null);
