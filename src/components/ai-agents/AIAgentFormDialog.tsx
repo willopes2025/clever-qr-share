@@ -382,6 +382,7 @@ export const AIAgentFormDialog = ({
         task_default_priority: taskDefaultPriority,
         task_title_template: taskTitleTemplate.trim() || null,
         task_extra_instructions: taskExtraInstructions.trim() || null,
+        task_notify_user_ids: taskNotifyUserIds,
       } as any;
 
       if (agentId) {
