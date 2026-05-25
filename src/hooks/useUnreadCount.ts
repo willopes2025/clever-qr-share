@@ -4,19 +4,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
 
 /**
- * Counts unread conversations exactly the same way the Inbox list does.
+ * Counts unread conversations exactly the same way the Inbox "Não lidas"
+ * tab does.
  *
- * Must mirror the filters in `useConversations` so that the badge in the
- * sidebar and the `(N)` prefix in the browser tab title match the number
- * the user sees in the Inbox "Não lidas" tab.
+ * IMPORTANT: the Inbox's `useConversations` hook loads the top
+ * INBOX_PAGE_SIZE (=200) most recent conversations and only THEN filters
+ * them client-side for `unread_count > 0 && status != 'archived'`.
+ * If we counted server-side with `gt('unread_count', 0)` we would
+ * include conversations that the Inbox list never shows (older unread,
+ * conversations whose contact later changed, conversations from
+ * instances the user later hid, etc.), and the sidebar badge would not
+ * match the `(N)` shown in the Inbox tab.
  *
- * Filters applied (after the SQL `unread_count > 0 AND status != 'archived'`):
- *  - respect per-member instance restriction (`get_member_instance_ids`)
- *  - exclude conversations whose instance is `is_notification_only`
- *  - exclude conversations whose instance the user hid from the Inbox
- *  - exclude "ghost" conversations (no preview, no direction, no contact name)
- *  - exclude conversations whose contact phone belongs to the warming pool
+ * To stay in sync we replicate the same query and filters here.
  */
+const INBOX_PAGE_SIZE = 200;
+
 export const useUnreadCount = () => {
   const { user } = useAuth();
   const { hiddenIds } = useInboxHiddenInstances();
@@ -57,12 +60,15 @@ export const useUnreadCount = () => {
         if (r.phone_number) warmingPhones.add(r.phone_number.replace(/\D/g, ''));
       });
 
-      // Fetch only fields needed for filtering / counting
+      // Mirror useConversations: load top-N most recent (NOT filtered by
+      // unread on the server) so we count from the EXACT same set the
+      // Inbox list shows.
       let query = supabase
         .from('conversations')
-        .select('id, instance_id, contact_id, last_message_preview, last_message_direction')
-        .gt('unread_count', 0)
-        .neq('status', 'archived');
+        .select('id, instance_id, contact_id, last_message_preview, last_message_direction, unread_count, status')
+        .order('is_pinned', { ascending: false })
+        .order('last_message_at', { ascending: false })
+        .limit(INBOX_PAGE_SIZE);
 
       if (hasInstanceRestriction && allowedInstanceIds !== null) {
         if (allowedInstanceIds.length > 0) {
@@ -116,7 +122,12 @@ export const useUnreadCount = () => {
         return true;
       });
 
-      return visible.length;
+      // Final tab filter — same as Inbox "Não lidas" tab
+      const unread = visible.filter(
+        (c) => (c.unread_count ?? 0) > 0 && c.status !== 'archived'
+      );
+
+      return unread.length;
     },
     enabled: !!user?.id,
     staleTime: 30_000,
