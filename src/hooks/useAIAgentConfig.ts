@@ -438,7 +438,75 @@ export const useKnowledgeItemMutations = () => {
     },
   });
 
-  return { addTextKnowledge, addUrlKnowledge, uploadPdfKnowledge, deleteKnowledge };
+  const updateKnowledge = useMutation({
+    mutationFn: async ({
+      id,
+      agentConfigId,
+      sourceType,
+      title,
+      content,
+      url,
+    }: {
+      id: string;
+      agentConfigId: string;
+      sourceType: 'text' | 'pdf' | 'url';
+      title: string;
+      content?: string;
+      url?: string;
+    }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      const updatePayload: Record<string, unknown> = { title };
+
+      if (sourceType === 'text') {
+        updatePayload.content = content ?? '';
+        updatePayload.processed_content = content ?? '';
+        updatePayload.status = 'completed';
+      } else if (sourceType === 'url') {
+        updatePayload.website_url = url ?? '';
+        updatePayload.status = 'pending';
+        updatePayload.processed_content = null;
+      }
+
+      const { data, error } = await supabase
+        .from('ai_agent_knowledge_items')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (sourceType === 'url') {
+        const { data: processData, error: processError } = await supabase.functions.invoke(
+          'process-knowledge-url',
+          { body: { knowledgeItemId: id } }
+        );
+        if (processError) throw new Error(processError.message || 'Erro ao reprocessar URL');
+        if (
+          processData &&
+          typeof processData === 'object' &&
+          'success' in processData &&
+          !processData.success
+        ) {
+          throw new Error(
+            typeof processData.error === 'string' ? processData.error : 'Erro ao reprocessar URL'
+          );
+        }
+      }
+
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-items', variables.agentConfigId] });
+      toast.success('Conhecimento atualizado');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar: ' + error.message);
+    },
+  });
+
+  return { addTextKnowledge, addUrlKnowledge, uploadPdfKnowledge, deleteKnowledge, updateKnowledge };
 };
 
 // Mutations for variables
