@@ -1052,7 +1052,7 @@ Deno.serve(async (req: Request) => {
                 value = dealData?.value != null ? String(dealData.value) : '';
                 break;
               case 'deal_name':
-                value = dealData?.name || '';
+                value = dealData?.title || '';
                 break;
               case 'fixed_text':
                 value = mapping.fixed_value || '';
