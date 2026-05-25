@@ -338,6 +338,7 @@ export const AIAgentFormDialog = ({
       setTaskDefaultPriority((data as any).task_default_priority || "medium");
       setTaskTitleTemplate((data as any).task_title_template || "");
       setTaskExtraInstructions((data as any).task_extra_instructions || "");
+      setTaskNotifyUserIds(((data as any).task_notify_user_ids as string[]) || []);
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
