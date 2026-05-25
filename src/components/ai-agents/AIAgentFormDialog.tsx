@@ -527,6 +527,10 @@ export const AIAgentFormDialog = ({
                     <Plug className="h-4 w-4" />
                     <span className="hidden sm:inline">Integrações</span>
                   </TabsTrigger>
+                  <TabsTrigger value="tasks" className="flex items-center gap-1">
+                    <ListTodo className="h-4 w-4" />
+                    <span className="hidden sm:inline">Tarefas</span>
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="personality" className="space-y-4 mt-4">
