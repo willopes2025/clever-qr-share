@@ -37,6 +37,11 @@ export type Database = {
           response_delay_min: number | null
           response_mode: string | null
           resume_emoji: string | null
+          task_creation_enabled: boolean
+          task_default_priority: string
+          task_extra_instructions: string | null
+          task_title_template: string | null
+          task_triggers: string[]
           template_type: string | null
           updated_at: string | null
           user_id: string
@@ -64,6 +69,11 @@ export type Database = {
           response_delay_min?: number | null
           response_mode?: string | null
           resume_emoji?: string | null
+          task_creation_enabled?: boolean
+          task_default_priority?: string
+          task_extra_instructions?: string | null
+          task_title_template?: string | null
+          task_triggers?: string[]
           template_type?: string | null
           updated_at?: string | null
           user_id: string
@@ -91,6 +101,11 @@ export type Database = {
           response_delay_min?: number | null
           response_mode?: string | null
           resume_emoji?: string | null
+          task_creation_enabled?: boolean
+          task_default_priority?: string
+          task_extra_instructions?: string | null
+          task_title_template?: string | null
+          task_triggers?: string[]
           template_type?: string | null
           updated_at?: string | null
           user_id?: string
