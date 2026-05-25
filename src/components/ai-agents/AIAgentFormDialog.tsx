@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AgentIntegrationsTab } from "@/components/campaigns/agent/AgentIntegrationsTab";
 import { AgentCalendarTab } from "@/components/campaigns/agent/AgentCalendarTab";
 import { AIAgentTestDialog } from "./AIAgentTestDialog";
@@ -81,6 +82,19 @@ export const AIAgentFormDialog = ({
   const [elevenlabsAgentId, setElevenlabsAgentId] = useState("");
   const [pauseEmoji, setPauseEmoji] = useState("🛑");
   const [resumeEmoji, setResumeEmoji] = useState("✅");
+
+  // Task creation config
+  const [taskCreationEnabled, setTaskCreationEnabled] = useState(true);
+  const [taskTriggers, setTaskTriggers] = useState<string[]>(["scheduling", "handoff", "followup", "qualified_lead"]);
+  const [taskDefaultPriority, setTaskDefaultPriority] = useState<string>("medium");
+  const [taskTitleTemplate, setTaskTitleTemplate] = useState("");
+  const [taskExtraInstructions, setTaskExtraInstructions] = useState("");
+
+  const toggleTrigger = (key: string) => {
+    setTaskTriggers((prev) =>
+      prev.includes(key) ? prev.filter((t) => t !== key) : [...prev, key]
+    );
+  };
 
   // Load company context when dialog opens
   useEffect(() => {
@@ -258,6 +272,11 @@ export const AIAgentFormDialog = ({
     setElevenlabsAgentId("");
     setPauseEmoji("🛑");
     setResumeEmoji("✅");
+    setTaskCreationEnabled(true);
+    setTaskTriggers(["scheduling", "handoff", "followup", "qualified_lead"]);
+    setTaskDefaultPriority("medium");
+    setTaskTitleTemplate("");
+    setTaskExtraInstructions("");
   };
 
   const loadAgentData = async (id: string) => {
@@ -291,6 +310,11 @@ export const AIAgentFormDialog = ({
       setElevenlabsAgentId(data.elevenlabs_agent_id || "");
       setPauseEmoji(data.pause_emoji || "🛑");
       setResumeEmoji(data.resume_emoji || "✅");
+      setTaskCreationEnabled((data as any).task_creation_enabled ?? true);
+      setTaskTriggers((data as any).task_triggers || ["scheduling", "handoff", "followup", "qualified_lead"]);
+      setTaskDefaultPriority((data as any).task_default_priority || "medium");
+      setTaskTitleTemplate((data as any).task_title_template || "");
+      setTaskExtraInstructions((data as any).task_extra_instructions || "");
     } catch (error: any) {
       toast.error("Erro ao carregar agente: " + error.message);
     }
@@ -328,7 +352,12 @@ export const AIAgentFormDialog = ({
         elevenlabs_agent_id: elevenlabsAgentId.trim() || null,
         pause_emoji: pauseEmoji.trim() || "🛑",
         resume_emoji: resumeEmoji.trim() || "✅",
-      };
+        task_creation_enabled: taskCreationEnabled,
+        task_triggers: taskTriggers,
+        task_default_priority: taskDefaultPriority,
+        task_title_template: taskTitleTemplate.trim() || null,
+        task_extra_instructions: taskExtraInstructions.trim() || null,
+      } as any;
 
       if (agentId) {
         const { error } = await supabase
@@ -465,7 +494,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-8 w-full">
+                <TabsList className="grid grid-cols-9 w-full">
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
@@ -497,6 +526,10 @@ export const AIAgentFormDialog = ({
                   <TabsTrigger value="integrations" disabled={!agentId} className="flex items-center gap-1">
                     <Plug className="h-4 w-4" />
                     <span className="hidden sm:inline">Integrações</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="tasks" className="flex items-center gap-1">
+                    <ListTodo className="h-4 w-4" />
+                    <span className="hidden sm:inline">Tarefas</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -756,6 +789,110 @@ export const AIAgentFormDialog = ({
 
                 <TabsContent value="integrations" className="mt-4">
                   <AgentIntegrationsTab agentConfigId={agentId} />
+                </TabsContent>
+
+                <TabsContent value="tasks" className="space-y-6 mt-4">
+                  <div className="p-4 rounded-lg border bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="taskCreationEnabled" className="font-medium flex items-center gap-2">
+                          <ListTodo className="h-4 w-4 text-primary" />
+                          Criar tarefas automaticamente
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Quando ativado, o agente pode criar tarefas internas para a equipe durante as conversas.
+                        </p>
+                      </div>
+                      <Switch
+                        id="taskCreationEnabled"
+                        checked={taskCreationEnabled}
+                        onCheckedChange={setTaskCreationEnabled}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={taskCreationEnabled ? "" : "opacity-50 pointer-events-none"}>
+                    <Label className="font-medium">Gatilhos — quando o agente deve criar uma tarefa</Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Marque as situações em que o agente deve gerar tarefas automaticamente.
+                    </p>
+                    <div className="space-y-2">
+                      {[
+                        { key: "scheduling", label: "Após agendamento", desc: "Quando o cliente confirma um agendamento (data, hora, local)" },
+                        { key: "handoff", label: "Ao transferir para humano (handoff)", desc: "Quando o agente passa o atendimento para a equipe" },
+                        { key: "followup", label: "Para follow-up posterior", desc: "Quando promete retorno, envio de material ou contato futuro" },
+                        { key: "qualified_lead", label: "Lead qualificado", desc: "Quando identifica interesse forte ou intenção de compra" },
+                        { key: "info_collected", label: "Informação importante coletada", desc: "Quando coleta dados que a equipe precisa agir sobre" },
+                      ].map((trigger) => (
+                        <div
+                          key={trigger.key}
+                          className="flex items-start gap-3 p-3 rounded-md border bg-card hover:bg-accent/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={`trigger-${trigger.key}`}
+                            checked={taskTriggers.includes(trigger.key)}
+                            onCheckedChange={() => toggleTrigger(trigger.key)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1">
+                            <Label
+                              htmlFor={`trigger-${trigger.key}`}
+                              className="font-normal cursor-pointer"
+                            >
+                              {trigger.label}
+                            </Label>
+                            <p className="text-xs text-muted-foreground">{trigger.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className={`grid grid-cols-2 gap-4 ${taskCreationEnabled ? "" : "opacity-50 pointer-events-none"}`}>
+                    <div>
+                      <Label htmlFor="taskDefaultPriority">Prioridade padrão</Label>
+                      <Select value={taskDefaultPriority} onValueChange={setTaskDefaultPriority}>
+                        <SelectTrigger id="taskDefaultPriority" className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Baixa</SelectItem>
+                          <SelectItem value="medium">Média</SelectItem>
+                          <SelectItem value="high">Alta</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Usada quando o agente não definir uma prioridade explícita.
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="taskTitleTemplate">Template do título (opcional)</Label>
+                      <Input
+                        id="taskTitleTemplate"
+                        placeholder="Ex: Agendamento - {{nome}}"
+                        value={taskTitleTemplate}
+                        onChange={(e) => setTaskTitleTemplate(e.target.value)}
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Use <code>{`{{nome}}`}</code> para o nome do contato. Deixe vazio para o agente criar livremente.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={taskCreationEnabled ? "" : "opacity-50 pointer-events-none"}>
+                    <Label htmlFor="taskExtraInstructions">Instruções extras (opcional)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Adicione orientações específicas sobre quando e como criar tarefas neste agente.
+                    </p>
+                    <Textarea
+                      id="taskExtraInstructions"
+                      placeholder="Ex: Sempre crie tarefa após agendamento incluindo a clínica escolhida e o horário confirmado."
+                      value={taskExtraInstructions}
+                      onChange={(e) => setTaskExtraInstructions(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                  </div>
                 </TabsContent>
               </Tabs>
 
