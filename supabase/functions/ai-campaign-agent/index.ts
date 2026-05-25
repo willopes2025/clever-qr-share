@@ -23,6 +23,7 @@ interface AgentConfig {
   response_delay_max: number;
   active_hours_start: number;
   active_hours_end: number;
+  active_hours_windows?: Array<{ start: number; end: number }> | null;
   handoff_keywords: string[];
   is_active: boolean;
   response_mode: 'text' | 'audio' | 'both' | 'adaptive';
@@ -103,6 +104,18 @@ const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
 
   // Overnight window, e.g. 18 -> 09
   return currentHour >= startHour || currentHour <= endHour;
+};
+
+// Check if current time matches any of the provided active hour windows
+const isWithinAnyActiveWindow = (
+  windows: Array<{ start: number; end: number }> | null | undefined,
+  fallbackStart: number,
+  fallbackEnd: number,
+): boolean => {
+  if (!windows || windows.length === 0) {
+    return isWithinActiveHours(fallbackStart, fallbackEnd);
+  }
+  return windows.some((w) => isWithinActiveHours(Number(w.start) || 0, Number(w.end) || 0));
 };
 
 // Check if message contains handoff keywords
@@ -942,6 +955,7 @@ Deno.serve(async (req: Request) => {
       response_delay_max: agentConfig.response_delay_max || 8,
       active_hours_start: agentConfig.active_hours_start || 8,
       active_hours_end: agentConfig.active_hours_end || 20,
+      active_hours_windows: (agentConfig as any).active_hours_windows || null,
       handoff_keywords: agentConfig.handoff_keywords || ['atendente', 'humano', 'pessoa', 'falar com alguém'],
       is_active: agentConfig.is_active ?? true,
       response_mode: agentConfig.response_mode || 'text',
@@ -967,7 +981,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // Check if within active hours (only for automatic trigger)
-      if (!isWithinActiveHours(config.active_hours_start, config.active_hours_end)) {
+      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end)) {
         console.log('[AI-AGENT] Outside active hours');
         return new Response(
           JSON.stringify({ success: false, reason: 'Outside active hours' }),

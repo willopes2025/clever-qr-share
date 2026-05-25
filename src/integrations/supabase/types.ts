@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           active_hours_end: number | null
           active_hours_start: number | null
+          active_hours_windows: Json
           agent_name: string
           behavior_rules: string | null
           campaign_id: string | null
@@ -50,6 +51,7 @@ export type Database = {
         Insert: {
           active_hours_end?: number | null
           active_hours_start?: number | null
+          active_hours_windows?: Json
           agent_name?: string
           behavior_rules?: string | null
           campaign_id?: string | null
@@ -82,6 +84,7 @@ export type Database = {
         Update: {
           active_hours_end?: number | null
           active_hours_start?: number | null
+          active_hours_windows?: Json
           agent_name?: string
           behavior_rules?: string | null
           campaign_id?: string | null
