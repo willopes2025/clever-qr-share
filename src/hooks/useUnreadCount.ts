@@ -8,16 +8,14 @@ import { useInboxHiddenInstances } from "@/hooks/useInboxHiddenInstances";
  *
  * Must mirror the filters in `useConversations` so that the badge in the
  * sidebar and the `(N)` prefix in the browser tab title match the number
- * the user sees in the Inbox "Não lidas" tab. See `.lovable/plan.md`.
+ * the user sees in the Inbox "Não lidas" tab.
  *
  * Filters applied (after the SQL `unread_count > 0 AND status != 'archived'`):
+ *  - respect per-member instance restriction (`get_member_instance_ids`)
  *  - exclude conversations whose instance is `is_notification_only`
  *  - exclude conversations whose instance the user hid from the Inbox
  *  - exclude "ghost" conversations (no preview, no direction, no contact name)
  *  - exclude conversations whose contact phone belongs to the warming pool
- *
- * Returns the number of conversations with unread messages (NOT the sum of
- * `unread_count`), to match `ConversationList.tsx` line 446.
  */
 export const useUnreadCount = () => {
   const { user } = useAuth();
@@ -27,6 +25,20 @@ export const useUnreadCount = () => {
     queryKey: ['unread-count', user?.id, hiddenIds.join(',')],
     queryFn: async () => {
       if (!user?.id) return 0;
+
+      // Per-member instance restriction (same as useConversations)
+      const { data: hasRestrictionData } = await supabase.rpc(
+        'member_has_instance_restriction',
+        { _user_id: user.id },
+      );
+      const hasInstanceRestriction = !!hasRestrictionData;
+      let allowedInstanceIds: string[] | null = null;
+      if (hasInstanceRestriction) {
+        const { data: allowed } = await supabase.rpc('get_member_instance_ids', {
+          _user_id: user.id,
+        });
+        allowedInstanceIds = (allowed as string[] | null) ?? [];
+      }
 
       // Parallel: notification-only instances + warming phones set
       const [notifRes, wcRes, wpRes] = await Promise.all([
@@ -46,12 +58,23 @@ export const useUnreadCount = () => {
       });
 
       // Fetch only fields needed for filtering / counting
-      const { data, error } = await supabase
+      let query = supabase
         .from('conversations')
         .select('id, instance_id, contact_id, last_message_preview, last_message_direction')
         .gt('unread_count', 0)
         .neq('status', 'archived');
 
+      if (hasInstanceRestriction && allowedInstanceIds !== null) {
+        if (allowedInstanceIds.length > 0) {
+          query = query.or(
+            `instance_id.in.(${allowedInstanceIds.join(',')}),instance_id.is.null`,
+          );
+        } else {
+          query = query.is('instance_id', null);
+        }
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       const rows = (data as any[]) ?? [];
       if (rows.length === 0) return 0;
