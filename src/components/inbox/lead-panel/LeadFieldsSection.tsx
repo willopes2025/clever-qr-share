@@ -245,10 +245,10 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
       case 'datetime': {
         const parsedDt = parseDateValue(value);
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-end gap-1 flex-wrap min-w-0 max-w-full">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
+                <Button variant="outline" size="sm" className="h-8 px-2 text-xs justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5 shrink-0">
                   {parsedDt ? format(parsedDt, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
                 </Button>
               </PopoverTrigger>
@@ -276,7 +276,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
                 d.setHours(hours, minutes);
                 handleSave(definition.field_key, d.toISOString());
               }}
-              className="h-8 w-24 text-sm border-border/50 hover:border-primary/50 hover:bg-primary/5"
+              className="h-8 w-[88px] px-2 text-xs border-border/50 hover:border-primary/50 hover:bg-primary/5 shrink-0"
             />
           </div>
         );
