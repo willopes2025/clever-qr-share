@@ -24,8 +24,9 @@ import { cn } from "@/lib/utils";
 import { useDealTasks } from "@/hooks/useDealTasks";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useCustomFields } from "@/hooks/useCustomFields";
-import { differenceInHours, differenceInDays, format, isPast, isToday, parseISO } from "date-fns";
+import { differenceInHours, differenceInDays, format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatCustomFieldValue, parseAnyDateValue } from "@/lib/date-utils";
 
 interface FunnelDealCardProps {
   deal: FunnelDeal;
@@ -35,37 +36,23 @@ interface FunnelDealCardProps {
   cardFieldKeys?: string[];
 }
 
-const formatFieldValue = (value: unknown, type?: string): string => {
+const formatFieldValue = (value: unknown, type?: string, fieldName?: string): string => {
   if (value === null || value === undefined || value === "") return "";
-  if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "Sim" : "Não";
-  if (type === "date" || type === "datetime") {
-    try {
-      let d: Date;
-      const num = typeof value === "number" ? value : (typeof value === "string" && /^\d+(\.\d+)?$/.test(value.trim()) ? Number(value) : NaN);
-      if (!isNaN(num) && num > 20000 && num < 80000) {
-        // Excel serial date (days since 1899-12-30)
-        d = new Date(Math.round((num - 25569) * 86400 * 1000));
-      } else {
-        d = typeof value === "string" ? parseISO(value) : new Date(value as string);
-      }
-      if (!isNaN(d.getTime())) {
-        return format(d, type === "datetime" ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy", { locale: ptBR });
-      }
-    } catch { /* noop */ }
-  }
-  if (type === "number" && typeof value === "number") {
-    return value.toLocaleString("pt-BR");
-  }
-  // Auto-detect ISO date strings (YYYY-MM-DD) even when type is not declared
-  if (typeof value === "string") {
-    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})(T.*)?$/);
-    if (isoMatch) {
-      const [, y, m, d] = isoMatch;
-      return `${d}/${m}/${y}`;
+
+  // Datetime: precisa preservar hora — formatCustomFieldValue cai em dd/MM/yyyy.
+  if (type === "datetime") {
+    const d = parseAnyDateValue(value);
+    if (d && !isNaN(d.getTime())) {
+      return format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
     }
   }
-  return String(value);
+
+  if (Array.isArray(value)) {
+    return value.map((v) => formatCustomFieldValue(v, fieldName, type)).filter(Boolean).join(", ");
+  }
+
+  return formatCustomFieldValue(value, fieldName, type);
 };
 
 export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardFieldKeys = [] }: FunnelDealCardProps) => {
