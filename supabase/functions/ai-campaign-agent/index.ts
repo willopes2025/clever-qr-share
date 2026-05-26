@@ -2507,11 +2507,17 @@ ${mapeamento}
           const captionArg = args.caption ? String(args.caption) : null;
           console.log(`[AI-AGENT] send_stage_media called: ${mediaIdArg}`);
           const item = onDemandStageMedia.find(i => i.id === mediaIdArg);
-          if (!item || !item.media) {
+          const itemType = item?.attachment_type || 'media';
+          const itemValid = !!item && (
+            (itemType === 'media' && !!item.media) ||
+            (itemType === 'template' && !!item.template) ||
+            (itemType === 'meta_template' && !!item.meta_template)
+          );
+          if (!itemValid || !item) {
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `❌ Mídia não encontrada para esta etapa (id=${mediaIdArg}).`,
+              content: `❌ Anexo não encontrado para esta etapa (id=${mediaIdArg}).`,
             });
           } else {
             // Compute phone locally (same logic as the main send block)
@@ -2526,7 +2532,7 @@ ${mapeamento}
               phoneSm = rawP.replace(/\D/g, '');
               if (!phoneSm.startsWith('55')) phoneSm = '55' + phoneSm;
             }
-            const itemForSend: StageMediaItem = captionArg
+            const itemForSend: StageMediaItem = captionArg && itemType === 'media'
               ? { ...item, caption_override: captionArg }
               : item;
             const res = await sendSingleStageMedia({
@@ -2539,13 +2545,20 @@ ${mapeamento}
               conversationUserId: conversation.user_id,
               agentConfigId: agentConfig.id,
               item: itemForSend,
+              contact: cd,
+              deal: (conversation as any).funnel_deals?.[0] || null,
             });
+            const label = itemType === 'template'
+              ? `Template "${item.template?.name}"`
+              : itemType === 'meta_template'
+              ? `Template Meta "${item.meta_template?.name}"`
+              : `Mídia "${item.media?.name}"`;
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
               content: res.ok
-                ? `✅ Mídia "${item.media.name}" enviada ao cliente.`
-                : `❌ Erro ao enviar mídia: ${res.error || 'desconhecido'}`,
+                ? `✅ ${label} enviado ao cliente.`
+                : `❌ Erro ao enviar: ${res.error || 'desconhecido'}`,
             });
           }
         } else if (functionName === 'create_task') {
