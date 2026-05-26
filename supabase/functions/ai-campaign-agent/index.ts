@@ -2845,10 +2845,14 @@ ${mapeamento}
       throw new Error('Failed to send any message via Evolution API');
     }
 
-    // === STAGE MEDIA DISPATCH ===
-    // Fire on_enter media of the stage we just entered, then after_message media of the current stage.
+    // === STAGE ATTACHMENT DISPATCH (mídia/template/template Meta) ===
     try {
       if (currentStage && agentConfig?.id) {
+        // deno-lint-ignore no-explicit-any
+        const cfpForAttach = conversation.contacts as any;
+        const contactForAttach = Array.isArray(cfpForAttach) ? cfpForAttach[0] : cfpForAttach;
+        // deno-lint-ignore no-explicit-any
+        const dealForAttach = ((conversation as any).funnel_deals?.[0]) || null;
         if (stageJustEntered) {
           await sendStageMediaForTrigger({
             supabase,
@@ -2861,6 +2865,8 @@ ${mapeamento}
             conversationId,
             conversationUserId: conversation.user_id,
             agentConfigId: agentConfig.id,
+            contact: contactForAttach,
+            deal: dealForAttach,
           });
         }
         await sendStageMediaForTrigger({
@@ -2874,10 +2880,12 @@ ${mapeamento}
           conversationId,
           conversationUserId: conversation.user_id,
           agentConfigId: agentConfig.id,
+          contact: contactForAttach,
+          deal: dealForAttach,
         });
       }
     } catch (stageMediaErr) {
-      console.error('[AI-AGENT] stage media dispatch error:', stageMediaErr);
+      console.error('[AI-AGENT] stage attachment dispatch error:', stageMediaErr);
     }
 
 
