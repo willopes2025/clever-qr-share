@@ -109,7 +109,9 @@ Deno.serve(async (req: Request) => {
         .eq('trigger_type', 'on_scheduled_daily');
 
       let processed = 0, errors = 0;
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      // BRT time (UTC-3)
+      const brt = new Date(now.getTime() - 3 * 3600000);
+      const currentTime = `${brt.getUTCHours().toString().padStart(2, '0')}:${brt.getUTCMinutes().toString().padStart(2, '0')}`;
 
       for (const auto of automations || []) {
         const config = (auto.trigger_config as Record<string, unknown>) || {};
@@ -118,9 +120,9 @@ Deno.serve(async (req: Request) => {
 
         const [targetH, targetM] = dailyTime.split(':').map(Number);
         const [nowH, nowM] = currentTime.split(':').map(Number);
-        if (targetH !== nowH || Math.abs(targetM - nowM) > 0) continue;
+        if (targetH !== nowH || Math.abs(targetM - nowM) > 1) continue;
 
-        const today = now.toISOString().split('T')[0];
+        const today = `${brt.getUTCFullYear()}-${String(brt.getUTCMonth()+1).padStart(2,'0')}-${String(brt.getUTCDate()).padStart(2,'0')}`;
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
           const triggerKey = `daily_${today}`;
