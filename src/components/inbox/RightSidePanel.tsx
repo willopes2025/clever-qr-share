@@ -62,6 +62,8 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
         <LeadPanelFunnelBar 
           contactId={conversation.contact_id} 
           conversationId={conversation.id}
+          selectedDealId={selectedDealId}
+          onSelectDeal={setSelectedDealId}
         />
 
         {/* Custom Tabs */}
