@@ -298,12 +298,19 @@ Deno.serve(async (req: Request) => {
       }
     }
     
+    // Track recipients that were explicitly requested by the caller — these
+    // bypass the only_if_responsible / isResponsible filter (the caller already
+    // decided they should be notified, e.g. AI agent task_notify_user_ids).
+    const explicitRecipientIds = new Set<string>();
+
     // Fallback to provided recipientUserId or organizationUserIds
     if (userIds.length === 0) {
       if (recipientUserId) {
         userIds = [recipientUserId];
+        explicitRecipientIds.add(recipientUserId);
       } else if (organizationUserIds && organizationUserIds.length > 0) {
         userIds = organizationUserIds;
+        organizationUserIds.forEach((uid) => explicitRecipientIds.add(uid));
       }
     }
 
