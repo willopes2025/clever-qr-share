@@ -844,6 +844,11 @@ export const AIAgentFormDialog = ({
                   )}
                 </TabsContent>
 
+                <TabsContent value="media" className="mt-4">
+                  <AgentMediaLibraryTab />
+                </TabsContent>
+
+
                 <TabsContent value="learning" className="mt-4">
                   <AgentLearningTab agentConfigId={agentId} />
                 </TabsContent>
