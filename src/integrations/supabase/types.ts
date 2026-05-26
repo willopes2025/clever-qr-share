@@ -273,6 +273,102 @@ export type Database = {
           },
         ]
       }
+      ai_agent_media_library: {
+        Row: {
+          caption: string | null
+          created_at: string
+          description: string | null
+          file_size: number | null
+          id: string
+          media_type: string
+          media_url: string
+          mime_type: string | null
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          description?: string | null
+          file_size?: number | null
+          id?: string
+          media_type: string
+          media_url: string
+          mime_type?: string | null
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          description?: string | null
+          file_size?: number | null
+          id?: string
+          media_type?: string
+          media_url?: string
+          mime_type?: string | null
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_agent_stage_media: {
+        Row: {
+          caption_override: string | null
+          created_at: string
+          delay_seconds: number
+          id: string
+          media_id: string
+          order_index: number
+          stage_id: string
+          trigger_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption_override?: string | null
+          created_at?: string
+          delay_seconds?: number
+          id?: string
+          media_id: string
+          order_index?: number
+          stage_id: string
+          trigger_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption_override?: string | null
+          created_at?: string
+          delay_seconds?: number
+          id?: string
+          media_id?: string
+          order_index?: number
+          stage_id?: string
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_stage_media_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_media_library"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_stage_media_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_stages: {
         Row: {
           actions: Json | null
