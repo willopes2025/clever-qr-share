@@ -71,6 +71,31 @@ export const LeadPanelFunnelBar = ({ contactId, conversationId, selectedDealId, 
 
   return (
     <div className="px-3 py-2 border-b border-border/30 space-y-2">
+      {/* Deal switcher: only if contact has multiple open deals */}
+      {openDeals && openDeals.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Lead</span>
+          <Select
+            value={activeDeal.id}
+            onValueChange={(v) => onSelectDeal?.(v)}
+          >
+            <SelectTrigger className="h-7 text-xs flex-1 min-w-0 border border-border/50 bg-muted/30 px-2 rounded-md">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="z-[100]">
+              {openDeals.map((d: any) => (
+                <SelectItem key={d.id} value={d.id} className="cursor-pointer text-xs">
+                  <span className="font-mono mr-1">#{d.lead_number ?? '—'}</span>
+                  <span className="text-muted-foreground">{d.funnel?.name}</span>
+                  <span className="mx-1">·</span>
+                  <span>{d.stage?.name}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Funnel + Stage Dropdown */}
       <div className="flex items-center gap-2">
         <Target className="h-4 w-4 text-muted-foreground shrink-0" />
