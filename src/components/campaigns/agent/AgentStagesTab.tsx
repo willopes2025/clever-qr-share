@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { Plus, GripVertical, Trash2, Edit, ArrowRight, CheckCircle2, X } from 'lucide-react';
 import { Json } from '@/integrations/supabase/types';
+import { StageMediaManager } from '@/components/ai-agents/StageMediaManager';
 
 interface CollectedField {
   key: string;
@@ -387,7 +388,15 @@ export function AgentStagesTab({ agentConfigId }: AgentStagesTabProps) {
               />
               <Label htmlFor="is_final" className="cursor-pointer">Estágio final</Label>
             </div>
+
+            {editingStageId && (
+              <div className="border-t pt-4">
+                <StageMediaManager stageId={editingStageId} />
+              </div>
+            )}
           </div>
+
+
 
           <DialogFooter>
             <Button variant="outline" onClick={resetForm}>Cancelar</Button>

@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo, Bell, X } from "lucide-react";
+import { Loader2, Save, Bot, MessageSquare, Clock, Building2, ArrowRight, SkipForward, Phone, ExternalLink, Beaker, Plug, Calendar, Brain, Workflow, GraduationCap, ListTodo, Bell, X, Image as ImageIcon } from "lucide-react";
+import { AgentMediaLibraryTab } from "@/components/ai-agents/AgentMediaLibraryTab";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -520,7 +521,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-9 w-full">
+                <TabsList className="grid grid-cols-10 w-full">
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
@@ -541,6 +542,11 @@ export const AIAgentFormDialog = ({
                     <Workflow className="h-4 w-4" />
                     <span className="hidden sm:inline">Etapas</span>
                   </TabsTrigger>
+                  <TabsTrigger value="media" className="flex items-center gap-1">
+                    <ImageIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Mídias</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="learning" disabled={!agentId} className="flex items-center gap-1">
                     <GraduationCap className="h-4 w-4" />
                     <span className="hidden sm:inline">Aprendizado</span>
@@ -837,6 +843,11 @@ export const AIAgentFormDialog = ({
                     </p>
                   )}
                 </TabsContent>
+
+                <TabsContent value="media" className="mt-4">
+                  <AgentMediaLibraryTab />
+                </TabsContent>
+
 
                 <TabsContent value="learning" className="mt-4">
                   <AgentLearningTab agentConfigId={agentId} />

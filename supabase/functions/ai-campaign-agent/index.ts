@@ -714,6 +714,139 @@ Exemplo de resposta: {"nome": "João", "email": "joao@email.com"}`
   return existingData;
 };
 
+// Interface para mídia de etapa carregada
+interface StageMediaItem {
+  id: string;
+  stage_id: string;
+  trigger_type: 'on_enter' | 'on_demand' | 'after_message';
+  order_index: number;
+  delay_seconds: number;
+  caption_override: string | null;
+  media: {
+    id: string;
+    name: string;
+    description: string | null;
+    media_type: 'image' | 'video' | 'audio' | 'document';
+    media_url: string;
+    mime_type: string | null;
+    caption: string | null;
+  };
+}
+
+// Envia uma única mídia da biblioteca via Evolution e registra no inbox
+async function sendSingleStageMedia(params: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  evolutionApiUrl: string;
+  evolutionApiKey: string;
+  evolutionInstanceName: string;
+  phone: string;
+  conversationId: string;
+  conversationUserId: string;
+  agentConfigId: string;
+  item: StageMediaItem;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName, phone, conversationId, conversationUserId, agentConfigId, item } = params;
+  const m = item.media;
+  const caption = item.caption_override ?? m.caption ?? '';
+
+  try {
+    let endpoint: string;
+    // deno-lint-ignore no-explicit-any
+    let body: Record<string, any>;
+    if (m.media_type === 'audio') {
+      endpoint = `${evolutionApiUrl}/message/sendWhatsAppAudio/${evolutionInstanceName}`;
+      body = { number: phone, audio: m.media_url };
+    } else {
+      endpoint = `${evolutionApiUrl}/message/sendMedia/${evolutionInstanceName}`;
+      body = {
+        number: phone,
+        media: m.media_url,
+        mediatype: m.media_type === 'document' ? 'document' : m.media_type,
+        caption,
+      };
+      if (m.media_type === 'document' && m.name) {
+        body.fileName = m.name;
+      }
+    }
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
+      body: JSON.stringify(body),
+    });
+    const result = await resp.json();
+    const msgId = result.key?.id || null;
+
+    await supabase.from('inbox_messages').insert({
+      user_id: conversationUserId,
+      conversation_id: conversationId,
+      content: caption || m.name || m.media_type,
+      direction: 'outbound',
+      status: resp.ok && msgId ? 'sent' : 'failed',
+      message_type: m.media_type,
+      media_url: m.media_url,
+      whatsapp_message_id: msgId,
+      sent_at: new Date().toISOString(),
+      is_ai_generated: true,
+      sent_by_ai_agent_id: agentConfigId,
+      error_message: resp.ok && msgId ? null : JSON.stringify(result).substring(0, 500),
+    });
+
+    if (!resp.ok || !msgId) {
+      return { ok: false, error: JSON.stringify(result).substring(0, 200) };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[AI-AGENT][stage-media] send error:', msg);
+    return { ok: false, error: msg };
+  }
+}
+
+// Envia todas as mídias de um stage para um determinado trigger
+async function sendStageMediaForTrigger(params: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  stageId: string;
+  trigger: 'on_enter' | 'after_message';
+  evolutionApiUrl: string;
+  evolutionApiKey: string;
+  evolutionInstanceName: string;
+  phone: string;
+  conversationId: string;
+  conversationUserId: string;
+  agentConfigId: string;
+}): Promise<number> {
+  const { supabase, stageId, trigger } = params;
+  const { data, error } = await supabase
+    .from('ai_agent_stage_media')
+    .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+    .eq('stage_id', stageId)
+    .eq('trigger_type', trigger)
+    .order('order_index', { ascending: true });
+
+  if (error) {
+    console.error('[AI-AGENT][stage-media] query error:', error.message);
+    return 0;
+  }
+  const items = (data || []) as StageMediaItem[];
+  if (items.length === 0) return 0;
+
+  console.log(`[AI-AGENT][stage-media] sending ${items.length} item(s) for stage=${stageId} trigger=${trigger}`);
+  let sent = 0;
+  for (const item of items) {
+    if (!item.media) continue;
+    const delayMs = Math.max(0, (item.delay_seconds ?? 2)) * 1000;
+    if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+    const res = await sendSingleStageMedia({ ...params, item });
+    if (res.ok) sent++;
+  }
+  return sent;
+}
+
+
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1176,6 +1309,9 @@ Deno.serve(async (req: Request) => {
     let stageData: StageData | null = null;
     let currentStage: AgentStage | null = null;
     
+    // Track stage just entered (to fire on_enter media after AI text)
+    let stageJustEntered: string | null = null;
+
     if (stages.length > 0) {
       const { data: existingStageData } = await supabase
         .from('conversation_stage_data')
@@ -1202,8 +1338,10 @@ Deno.serve(async (req: Request) => {
         
         stageData = newStageData as StageData;
         currentStage = initialStage;
+        stageJustEntered = initialStage.id;
       }
     }
+
 
     // Extract fields from message if we have a current stage
     let collectedData: Record<string, unknown> = stageData?.collected_data || {};
@@ -1246,8 +1384,10 @@ Deno.serve(async (req: Request) => {
           .eq('id', stageData.id);
         
         currentStage = nextStage;
+        stageJustEntered = nextStage.id;
         console.log(`[AI-AGENT] Advanced to stage: ${nextStage.stage_name}`);
       }
+
     }
 
     // Fetch conversation history for context
@@ -1302,6 +1442,8 @@ Deno.serve(async (req: Request) => {
                        hasSlotPlaceholders(config.personality_prompt || '');
 
     const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
+
+
     let slot1Formatted = '';
     let slot2Formatted = '';
     let slot1Iso = '';
@@ -1796,11 +1938,51 @@ ${templatesList}
     });
     }
 
+    // Fetch on_demand stage media for the current stage so the agent can pick & send by id
+    let onDemandStageMedia: StageMediaItem[] = [];
+    if (currentStage) {
+      const { data: odm } = await supabase
+        .from('ai_agent_stage_media')
+        .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+        .eq('stage_id', currentStage.id)
+        .eq('trigger_type', 'on_demand')
+        .order('order_index', { ascending: true });
+      onDemandStageMedia = (odm || []) as StageMediaItem[];
+
+      if (onDemandStageMedia.length > 0) {
+        const mediaList = onDemandStageMedia
+          .filter(i => i.media)
+          .map(i => `[${i.id}] ${i.media.name} (${i.media.media_type})${i.media.description ? ' - ' + i.media.description : ''}`)
+          .join('\n');
+        tools.push({
+          type: 'function',
+          function: {
+            name: 'send_stage_media',
+            description: `Envia uma mídia disponível para esta etapa quando for útil para a conversa. Mídias disponíveis nesta etapa:\n${mediaList}`,
+            parameters: {
+              type: 'object',
+              properties: {
+                media_id: {
+                  type: 'string',
+                  description: 'ID da mídia da biblioteca (entre colchetes na lista acima).',
+                },
+                caption: {
+                  type: 'string',
+                  description: 'Legenda opcional para acompanhar a mídia.',
+                },
+              },
+              required: ['media_id'],
+            },
+          },
+        });
+      }
+    }
 
     if (tools.length > 0) {
       aiRequestBody.tools = tools;
       aiRequestBody.tool_choice = 'auto';
     }
+
 
     // Call Lovable AI
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -2167,7 +2349,54 @@ ${mapeamento}
               });
             }
           }
+        } else if (functionName === 'send_stage_media') {
+          const mediaIdArg = String(args.media_id || '').trim();
+          const captionArg = args.caption ? String(args.caption) : null;
+          console.log(`[AI-AGENT] send_stage_media called: ${mediaIdArg}`);
+          const item = onDemandStageMedia.find(i => i.id === mediaIdArg);
+          if (!item || !item.media) {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `❌ Mídia não encontrada para esta etapa (id=${mediaIdArg}).`,
+            });
+          } else {
+            // Compute phone locally (same logic as the main send block)
+            // deno-lint-ignore no-explicit-any
+            const cfp = conversation.contacts as any;
+            const cd = Array.isArray(cfp) ? cfp[0] : cfp;
+            const rawP = cd?.phone || '';
+            let phoneSm: string;
+            if (rawP.startsWith('LID_')) {
+              phoneSm = `${rawP.replace('LID_', '')}@lid`;
+            } else {
+              phoneSm = rawP.replace(/\D/g, '');
+              if (!phoneSm.startsWith('55')) phoneSm = '55' + phoneSm;
+            }
+            const itemForSend: StageMediaItem = captionArg
+              ? { ...item, caption_override: captionArg }
+              : item;
+            const res = await sendSingleStageMedia({
+              supabase,
+              evolutionApiUrl,
+              evolutionApiKey,
+              evolutionInstanceName,
+              phone: phoneSm,
+              conversationId,
+              conversationUserId: conversation.user_id,
+              agentConfigId: agentConfig.id,
+              item: itemForSend,
+            });
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: res.ok
+                ? `✅ Mídia "${item.media.name}" enviada ao cliente.`
+                : `❌ Erro ao enviar mídia: ${res.error || 'desconhecido'}`,
+            });
+          }
         } else if (functionName === 'create_task') {
+
           const taskTitle = args.title || 'Tarefa da IA';
           const taskDescription = args.description || '';
           const taskDueDate = args.due_date || null;
@@ -2449,6 +2678,43 @@ ${mapeamento}
     if (!textMessageId && !audioMessageId) {
       throw new Error('Failed to send any message via Evolution API');
     }
+
+    // === STAGE MEDIA DISPATCH ===
+    // Fire on_enter media of the stage we just entered, then after_message media of the current stage.
+    try {
+      if (currentStage && agentConfig?.id) {
+        if (stageJustEntered) {
+          await sendStageMediaForTrigger({
+            supabase,
+            stageId: stageJustEntered,
+            trigger: 'on_enter',
+            evolutionApiUrl,
+            evolutionApiKey,
+            evolutionInstanceName,
+            phone,
+            conversationId,
+            conversationUserId: conversation.user_id,
+            agentConfigId: agentConfig.id,
+          });
+        }
+        await sendStageMediaForTrigger({
+          supabase,
+          stageId: currentStage.id,
+          trigger: 'after_message',
+          evolutionApiUrl,
+          evolutionApiKey,
+          evolutionInstanceName,
+          phone,
+          conversationId,
+          conversationUserId: conversation.user_id,
+          agentConfigId: agentConfig.id,
+        });
+      }
+    } catch (stageMediaErr) {
+      console.error('[AI-AGENT] stage media dispatch error:', stageMediaErr);
+    }
+
+
 
     // Update conversation AI counters
     await supabase
