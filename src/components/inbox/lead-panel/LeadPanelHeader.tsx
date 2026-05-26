@@ -19,9 +19,10 @@ interface LeadPanelHeaderProps {
   onClose?: () => void;
   isMobile?: boolean;
   dealTitle?: string | null;
+  leadNumber?: number | null;
 }
 
-export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle }: LeadPanelHeaderProps) => {
+export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle, leadNumber }: LeadPanelHeaderProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState("");
   const queryClient = useQueryClient();
