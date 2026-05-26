@@ -542,6 +542,11 @@ export const AIAgentFormDialog = ({
                     <Workflow className="h-4 w-4" />
                     <span className="hidden sm:inline">Etapas</span>
                   </TabsTrigger>
+                  <TabsTrigger value="media" className="flex items-center gap-1">
+                    <ImageIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Mídias</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="learning" disabled={!agentId} className="flex items-center gap-1">
                     <GraduationCap className="h-4 w-4" />
                     <span className="hidden sm:inline">Aprendizado</span>
