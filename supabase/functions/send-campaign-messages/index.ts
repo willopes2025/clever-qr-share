@@ -385,7 +385,7 @@ Deno.serve(async (req: Request) => {
         if (body.campaignId) {
           const { data: campaignCheck } = await supabase
             .from('campaigns')
-            .select('allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
+            .select('user_id, allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
             .eq('id', body.campaignId)
             .single();
           
@@ -399,11 +399,12 @@ Deno.serve(async (req: Request) => {
               );
             }
             
+            const orgTzCheck = await resolveOrgTimezone(supabase, { userId: campaignCheck.user_id as string });
             const timeCheck = isWithinAllowedTime(
               campaignCheck.allowed_start_hour ?? DEFAULT_START_HOUR,
               campaignCheck.allowed_end_hour ?? DEFAULT_END_HOUR,
               campaignCheck.allowed_days ?? DEFAULT_ALLOWED_DAYS,
-              campaignCheck.timezone ?? DEFAULT_TIMEZONE
+              campaignCheck.timezone ?? orgTzCheck
             );
             
             if (timeCheck.allowed) {
