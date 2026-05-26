@@ -714,6 +714,139 @@ Exemplo de resposta: {"nome": "João", "email": "joao@email.com"}`
   return existingData;
 };
 
+// Interface para mídia de etapa carregada
+interface StageMediaItem {
+  id: string;
+  stage_id: string;
+  trigger_type: 'on_enter' | 'on_demand' | 'after_message';
+  order_index: number;
+  delay_seconds: number;
+  caption_override: string | null;
+  media: {
+    id: string;
+    name: string;
+    description: string | null;
+    media_type: 'image' | 'video' | 'audio' | 'document';
+    media_url: string;
+    mime_type: string | null;
+    caption: string | null;
+  };
+}
+
+// Envia uma única mídia da biblioteca via Evolution e registra no inbox
+async function sendSingleStageMedia(params: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  evolutionApiUrl: string;
+  evolutionApiKey: string;
+  evolutionInstanceName: string;
+  phone: string;
+  conversationId: string;
+  conversationUserId: string;
+  agentConfigId: string;
+  item: StageMediaItem;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName, phone, conversationId, conversationUserId, agentConfigId, item } = params;
+  const m = item.media;
+  const caption = item.caption_override ?? m.caption ?? '';
+
+  try {
+    let endpoint: string;
+    // deno-lint-ignore no-explicit-any
+    let body: Record<string, any>;
+    if (m.media_type === 'audio') {
+      endpoint = `${evolutionApiUrl}/message/sendWhatsAppAudio/${evolutionInstanceName}`;
+      body = { number: phone, audio: m.media_url };
+    } else {
+      endpoint = `${evolutionApiUrl}/message/sendMedia/${evolutionInstanceName}`;
+      body = {
+        number: phone,
+        media: m.media_url,
+        mediatype: m.media_type === 'document' ? 'document' : m.media_type,
+        caption,
+      };
+      if (m.media_type === 'document' && m.name) {
+        body.fileName = m.name;
+      }
+    }
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
+      body: JSON.stringify(body),
+    });
+    const result = await resp.json();
+    const msgId = result.key?.id || null;
+
+    await supabase.from('inbox_messages').insert({
+      user_id: conversationUserId,
+      conversation_id: conversationId,
+      content: caption || m.name || m.media_type,
+      direction: 'outbound',
+      status: resp.ok && msgId ? 'sent' : 'failed',
+      message_type: m.media_type,
+      media_url: m.media_url,
+      whatsapp_message_id: msgId,
+      sent_at: new Date().toISOString(),
+      is_ai_generated: true,
+      sent_by_ai_agent_id: agentConfigId,
+      error_message: resp.ok && msgId ? null : JSON.stringify(result).substring(0, 500),
+    });
+
+    if (!resp.ok || !msgId) {
+      return { ok: false, error: JSON.stringify(result).substring(0, 200) };
+    }
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[AI-AGENT][stage-media] send error:', msg);
+    return { ok: false, error: msg };
+  }
+}
+
+// Envia todas as mídias de um stage para um determinado trigger
+async function sendStageMediaForTrigger(params: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  stageId: string;
+  trigger: 'on_enter' | 'after_message';
+  evolutionApiUrl: string;
+  evolutionApiKey: string;
+  evolutionInstanceName: string;
+  phone: string;
+  conversationId: string;
+  conversationUserId: string;
+  agentConfigId: string;
+}): Promise<number> {
+  const { supabase, stageId, trigger } = params;
+  const { data, error } = await supabase
+    .from('ai_agent_stage_media')
+    .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+    .eq('stage_id', stageId)
+    .eq('trigger_type', trigger)
+    .order('order_index', { ascending: true });
+
+  if (error) {
+    console.error('[AI-AGENT][stage-media] query error:', error.message);
+    return 0;
+  }
+  const items = (data || []) as StageMediaItem[];
+  if (items.length === 0) return 0;
+
+  console.log(`[AI-AGENT][stage-media] sending ${items.length} item(s) for stage=${stageId} trigger=${trigger}`);
+  let sent = 0;
+  for (const item of items) {
+    if (!item.media) continue;
+    const delayMs = Math.max(0, (item.delay_seconds ?? 2)) * 1000;
+    if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+    const res = await sendSingleStageMedia({ ...params, item });
+    if (res.ok) sent++;
+  }
+  return sent;
+}
+
+
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
