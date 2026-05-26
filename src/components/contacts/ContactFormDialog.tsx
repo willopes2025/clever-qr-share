@@ -93,6 +93,7 @@ export const ContactFormDialog = ({
   contact,
   isLoading,
   currentDeal,
+  existingDeals,
 }: ContactFormDialogProps) => {
   const { fieldDefinitions, updateField, createField, deleteField } = useCustomFields();
   const { funnels } = useFunnels({ includeDeals: false });
