@@ -714,10 +714,11 @@ Exemplo de resposta: {"nome": "João", "email": "joao@email.com"}`
   return existingData;
 };
 
-// Interface para mídia de etapa carregada
+// Interface para anexo de etapa (mídia, template interno ou template Meta)
 interface StageMediaItem {
   id: string;
   stage_id: string;
+  attachment_type?: 'media' | 'template' | 'meta_template';
   trigger_type: 'on_enter' | 'on_demand' | 'after_message';
   order_index: number;
   delay_seconds: number;
@@ -730,10 +731,85 @@ interface StageMediaItem {
     media_url: string;
     mime_type: string | null;
     caption: string | null;
-  };
+  } | null;
+  template?: {
+    id: string;
+    name: string;
+    content: string | null;
+    media_type: string | null;
+    media_url: string | null;
+  } | null;
+  meta_template?: {
+    id: string;
+    name: string;
+    language: string;
+    body_text: string;
+  } | null;
 }
 
-// Envia uma única mídia da biblioteca via Evolution e registra no inbox
+// Substitui variáveis {{var}} no conteúdo usando dados do contato/deal
+// deno-lint-ignore no-explicit-any
+function renderTemplateVars(text: string, contact: any, deal: any): string {
+  if (!text) return '';
+  const ctx: Record<string, string> = {
+    nome: contact?.name || '',
+    name: contact?.name || '',
+    primeiro_nome: (contact?.name || '').split(' ')[0] || '',
+    telefone: contact?.phone || '',
+    email: contact?.email || '',
+    empresa: contact?.company || '',
+  };
+  const cf = (contact?.custom_fields || {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(cf)) ctx[k] = String(v ?? '');
+  const df = (deal?.custom_fields || {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(df)) ctx[k] = String(v ?? '');
+  return text.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_m, key) => ctx[key] ?? '');
+}
+
+// Envia mensagem de texto via Evolution e registra no inbox
+async function sendEvolutionText(params: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  evolutionApiUrl: string;
+  evolutionApiKey: string;
+  evolutionInstanceName: string;
+  phone: string;
+  conversationId: string;
+  conversationUserId: string;
+  agentConfigId: string;
+  text: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName, phone, conversationId, conversationUserId, agentConfigId, text } = params;
+  try {
+    const resp = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
+      body: JSON.stringify({ number: phone, text }),
+    });
+    const result = await resp.json();
+    const msgId = result.key?.id || null;
+    await supabase.from('inbox_messages').insert({
+      user_id: conversationUserId,
+      conversation_id: conversationId,
+      content: text,
+      direction: 'outbound',
+      status: resp.ok && msgId ? 'sent' : 'failed',
+      message_type: 'text',
+      whatsapp_message_id: msgId,
+      sent_at: new Date().toISOString(),
+      is_ai_generated: true,
+      sent_by_ai_agent_id: agentConfigId,
+      error_message: resp.ok && msgId ? null : JSON.stringify(result).substring(0, 500),
+    });
+    if (!resp.ok || !msgId) return { ok: false, error: JSON.stringify(result).substring(0, 200) };
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+// Envia um único anexo da etapa (mídia, template interno ou template Meta)
 async function sendSingleStageMedia(params: {
   // deno-lint-ignore no-explicit-any
   supabase: any;
@@ -745,8 +821,59 @@ async function sendSingleStageMedia(params: {
   conversationUserId: string;
   agentConfigId: string;
   item: StageMediaItem;
+  // deno-lint-ignore no-explicit-any
+  contact?: any;
+  // deno-lint-ignore no-explicit-any
+  deal?: any;
 }): Promise<{ ok: boolean; error?: string }> {
-  const { supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName, phone, conversationId, conversationUserId, agentConfigId, item } = params;
+  const { supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName, phone, conversationId, conversationUserId, agentConfigId, item, contact, deal } = params;
+  const type = item.attachment_type || 'media';
+
+  // Template interno: envia texto renderizado e, se houver, a mídia anexa do template
+  if (type === 'template' && item.template) {
+    const renderedText = renderTemplateVars(item.template.content || '', contact, deal);
+    let textRes: { ok: boolean; error?: string } = { ok: true };
+    if (renderedText.trim()) {
+      textRes = await sendEvolutionText({
+        supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName,
+        phone, conversationId, conversationUserId, agentConfigId, text: renderedText,
+      });
+    }
+    if (item.template.media_url && item.template.media_type) {
+      await new Promise(r => setTimeout(r, 2000));
+      const mediaType = item.template.media_type as 'image'|'video'|'audio'|'document';
+      const pseudo: StageMediaItem = {
+        ...item,
+        attachment_type: 'media',
+        template: null,
+        media: {
+          id: item.template.id,
+          name: item.template.name,
+          description: null,
+          media_type: mediaType,
+          media_url: item.template.media_url,
+          mime_type: null,
+          caption: null,
+        },
+      };
+      const mediaRes = await sendSingleStageMedia({ ...params, item: pseudo });
+      return mediaRes.ok ? textRes : mediaRes;
+    }
+    return textRes;
+  }
+
+  // Template Meta: envia o body_text renderizado via Evolution (fallback texto)
+  if (type === 'meta_template' && item.meta_template) {
+    const renderedText = renderTemplateVars(item.meta_template.body_text || '', contact, deal);
+    if (!renderedText.trim()) return { ok: false, error: 'meta_template body_text vazio' };
+    return await sendEvolutionText({
+      supabase, evolutionApiUrl, evolutionApiKey, evolutionInstanceName,
+      phone, conversationId, conversationUserId, agentConfigId, text: renderedText,
+    });
+  }
+
+  // Mídia da biblioteca
+  if (!item.media) return { ok: false, error: 'anexo sem conteúdo' };
   const m = item.media;
   const caption = item.caption_override ?? m.caption ?? '';
 
@@ -804,7 +931,14 @@ async function sendSingleStageMedia(params: {
   }
 }
 
-// Envia todas as mídias de um stage para um determinado trigger
+const STAGE_ATTACHMENT_SELECT = `
+  id, stage_id, attachment_type, trigger_type, order_index, delay_seconds, caption_override,
+  media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption),
+  template:message_templates!template_id(id,name,content,media_type,media_url),
+  meta_template:meta_templates!meta_template_id(id,name,language,body_text)
+`;
+
+// Envia todos os anexos de um stage para um determinado trigger
 async function sendStageMediaForTrigger(params: {
   // deno-lint-ignore no-explicit-any
   supabase: any;
@@ -817,11 +951,15 @@ async function sendStageMediaForTrigger(params: {
   conversationId: string;
   conversationUserId: string;
   agentConfigId: string;
+  // deno-lint-ignore no-explicit-any
+  contact?: any;
+  // deno-lint-ignore no-explicit-any
+  deal?: any;
 }): Promise<number> {
   const { supabase, stageId, trigger } = params;
   const { data, error } = await supabase
     .from('ai_agent_stage_media')
-    .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+    .select(STAGE_ATTACHMENT_SELECT)
     .eq('stage_id', stageId)
     .eq('trigger_type', trigger)
     .order('order_index', { ascending: true });
@@ -836,7 +974,10 @@ async function sendStageMediaForTrigger(params: {
   console.log(`[AI-AGENT][stage-media] sending ${items.length} item(s) for stage=${stageId} trigger=${trigger}`);
   let sent = 0;
   for (const item of items) {
-    if (!item.media) continue;
+    const t = item.attachment_type || 'media';
+    if (t === 'media' && !item.media) continue;
+    if (t === 'template' && !item.template) continue;
+    if (t === 'meta_template' && !item.meta_template) continue;
     const delayMs = Math.max(0, (item.delay_seconds ?? 2)) * 1000;
     if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
     const res = await sendSingleStageMedia({ ...params, item });
@@ -1943,7 +2084,7 @@ ${templatesList}
     if (currentStage) {
       const { data: odm } = await supabase
         .from('ai_agent_stage_media')
-        .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+        .select(STAGE_ATTACHMENT_SELECT)
         .eq('stage_id', currentStage.id)
         .eq('trigger_type', 'on_demand')
         .order('order_index', { ascending: true });
@@ -1951,24 +2092,36 @@ ${templatesList}
 
       if (onDemandStageMedia.length > 0) {
         const mediaList = onDemandStageMedia
-          .filter(i => i.media)
-          .map(i => `[${i.id}] ${i.media.name} (${i.media.media_type})${i.media.description ? ' - ' + i.media.description : ''}`)
+          .map(i => {
+            const t = i.attachment_type || 'media';
+            if (t === 'template' && i.template) {
+              return `[${i.id}] (template) ${i.template.name}${i.template.media_type ? ' +' + i.template.media_type : ''}`;
+            }
+            if (t === 'meta_template' && i.meta_template) {
+              return `[${i.id}] (template Meta) ${i.meta_template.name} (${i.meta_template.language})`;
+            }
+            if (i.media) {
+              return `[${i.id}] (mídia ${i.media.media_type}) ${i.media.name}${i.media.description ? ' - ' + i.media.description : ''}`;
+            }
+            return null;
+          })
+          .filter(Boolean)
           .join('\n');
         tools.push({
           type: 'function',
           function: {
             name: 'send_stage_media',
-            description: `Envia uma mídia disponível para esta etapa quando for útil para a conversa. Mídias disponíveis nesta etapa:\n${mediaList}`,
+            description: `Envia um anexo (mídia, template do sistema ou template Meta) disponível para esta etapa quando for útil. Anexos disponíveis:\n${mediaList}`,
             parameters: {
               type: 'object',
               properties: {
                 media_id: {
                   type: 'string',
-                  description: 'ID da mídia da biblioteca (entre colchetes na lista acima).',
+                  description: 'ID do anexo (entre colchetes na lista acima).',
                 },
                 caption: {
                   type: 'string',
-                  description: 'Legenda opcional para acompanhar a mídia.',
+                  description: 'Legenda opcional para mídias (ignorada em templates).',
                 },
               },
               required: ['media_id'],
@@ -2354,11 +2507,17 @@ ${mapeamento}
           const captionArg = args.caption ? String(args.caption) : null;
           console.log(`[AI-AGENT] send_stage_media called: ${mediaIdArg}`);
           const item = onDemandStageMedia.find(i => i.id === mediaIdArg);
-          if (!item || !item.media) {
+          const itemType = item?.attachment_type || 'media';
+          const itemValid = !!item && (
+            (itemType === 'media' && !!item.media) ||
+            (itemType === 'template' && !!item.template) ||
+            (itemType === 'meta_template' && !!item.meta_template)
+          );
+          if (!itemValid || !item) {
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
-              content: `❌ Mídia não encontrada para esta etapa (id=${mediaIdArg}).`,
+              content: `❌ Anexo não encontrado para esta etapa (id=${mediaIdArg}).`,
             });
           } else {
             // Compute phone locally (same logic as the main send block)
@@ -2373,7 +2532,7 @@ ${mapeamento}
               phoneSm = rawP.replace(/\D/g, '');
               if (!phoneSm.startsWith('55')) phoneSm = '55' + phoneSm;
             }
-            const itemForSend: StageMediaItem = captionArg
+            const itemForSend: StageMediaItem = captionArg && itemType === 'media'
               ? { ...item, caption_override: captionArg }
               : item;
             const res = await sendSingleStageMedia({
@@ -2386,13 +2545,20 @@ ${mapeamento}
               conversationUserId: conversation.user_id,
               agentConfigId: agentConfig.id,
               item: itemForSend,
+              contact: cd,
+              deal: (conversation as any).funnel_deals?.[0] || null,
             });
+            const label = itemType === 'template'
+              ? `Template "${item.template?.name}"`
+              : itemType === 'meta_template'
+              ? `Template Meta "${item.meta_template?.name}"`
+              : `Mídia "${item.media?.name}"`;
             toolResults.push({
               role: 'tool',
               tool_call_id: toolCall.id,
               content: res.ok
-                ? `✅ Mídia "${item.media.name}" enviada ao cliente.`
-                : `❌ Erro ao enviar mídia: ${res.error || 'desconhecido'}`,
+                ? `✅ ${label} enviado ao cliente.`
+                : `❌ Erro ao enviar: ${res.error || 'desconhecido'}`,
             });
           }
         } else if (functionName === 'create_task') {
@@ -2679,10 +2845,14 @@ ${mapeamento}
       throw new Error('Failed to send any message via Evolution API');
     }
 
-    // === STAGE MEDIA DISPATCH ===
-    // Fire on_enter media of the stage we just entered, then after_message media of the current stage.
+    // === STAGE ATTACHMENT DISPATCH (mídia/template/template Meta) ===
     try {
       if (currentStage && agentConfig?.id) {
+        // deno-lint-ignore no-explicit-any
+        const cfpForAttach = conversation.contacts as any;
+        const contactForAttach = Array.isArray(cfpForAttach) ? cfpForAttach[0] : cfpForAttach;
+        // deno-lint-ignore no-explicit-any
+        const dealForAttach = ((conversation as any).funnel_deals?.[0]) || null;
         if (stageJustEntered) {
           await sendStageMediaForTrigger({
             supabase,
@@ -2695,6 +2865,8 @@ ${mapeamento}
             conversationId,
             conversationUserId: conversation.user_id,
             agentConfigId: agentConfig.id,
+            contact: contactForAttach,
+            deal: dealForAttach,
           });
         }
         await sendStageMediaForTrigger({
@@ -2708,10 +2880,12 @@ ${mapeamento}
           conversationId,
           conversationUserId: conversation.user_id,
           agentConfigId: agentConfig.id,
+          contact: contactForAttach,
+          deal: dealForAttach,
         });
       }
     } catch (stageMediaErr) {
-      console.error('[AI-AGENT] stage media dispatch error:', stageMediaErr);
+      console.error('[AI-AGENT] stage attachment dispatch error:', stageMediaErr);
     }
 
 

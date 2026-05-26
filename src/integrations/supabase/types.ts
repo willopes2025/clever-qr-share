@@ -317,37 +317,46 @@ export type Database = {
       }
       ai_agent_stage_media: {
         Row: {
+          attachment_type: string
           caption_override: string | null
           created_at: string
           delay_seconds: number
           id: string
-          media_id: string
+          media_id: string | null
+          meta_template_id: string | null
           order_index: number
           stage_id: string
+          template_id: string | null
           trigger_type: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          attachment_type?: string
           caption_override?: string | null
           created_at?: string
           delay_seconds?: number
           id?: string
-          media_id: string
+          media_id?: string | null
+          meta_template_id?: string | null
           order_index?: number
           stage_id: string
+          template_id?: string | null
           trigger_type?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          attachment_type?: string
           caption_override?: string | null
           created_at?: string
           delay_seconds?: number
           id?: string
-          media_id?: string
+          media_id?: string | null
+          meta_template_id?: string | null
           order_index?: number
           stage_id?: string
+          template_id?: string | null
           trigger_type?: string
           updated_at?: string
           user_id?: string
@@ -361,10 +370,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_agent_stage_media_meta_template_id_fkey"
+            columns: ["meta_template_id"]
+            isOneToOne: false
+            referencedRelation: "meta_templates"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ai_agent_stage_media_stage_id_fkey"
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "ai_agent_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_stage_media_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
             referencedColumns: ["id"]
           },
         ]
