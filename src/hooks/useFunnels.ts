@@ -901,6 +901,7 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     createAutomation,
     updateAutomation,
     deleteAutomation,
-    useContactDeal
+    useContactDeal,
+    useContactDeals
   };
 };
