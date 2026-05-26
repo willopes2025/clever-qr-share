@@ -178,6 +178,11 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
+                  {(deal as any).lead_number != null && (
+                    <Badge variant="outline" className="h-4 px-1 text-[10px] font-mono shrink-0">
+                      #{(deal as any).lead_number}
+                    </Badge>
+                  )}
                   <p className="font-semibold text-sm truncate flex-1">
                     {(deal.title && deal.title !== 'Lead - Cliente' ? deal.title : null) || deal.contact?.name || deal.title || 'Sem nome'}
                   </p>

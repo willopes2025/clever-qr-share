@@ -3108,6 +3108,7 @@ export type Database = {
           expected_close_date: string | null
           funnel_id: string
           id: string
+          lead_number: number | null
           next_action_required: boolean | null
           notes: string | null
           parent_deal_id: string | null
@@ -3132,6 +3133,7 @@ export type Database = {
           expected_close_date?: string | null
           funnel_id: string
           id?: string
+          lead_number?: number | null
           next_action_required?: boolean | null
           notes?: string | null
           parent_deal_id?: string | null
@@ -3156,6 +3158,7 @@ export type Database = {
           expected_close_date?: string | null
           funnel_id?: string
           id?: string
+          lead_number?: number | null
           next_action_required?: boolean | null
           notes?: string | null
           parent_deal_id?: string | null
