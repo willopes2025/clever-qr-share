@@ -76,6 +76,20 @@ const SchedulingSettings = ({ settings, onChange }: { settings: ScheduleConfig; 
         </Select>
       </div>
 
+      <div className="space-y-2">
+        <Label className="text-xs">Capacidade por horário (pessoas)</Label>
+        <Input
+          type="number"
+          min={1}
+          value={settings.max_per_slot ?? 1}
+          onChange={(e) => onChange({ ...settings, max_per_slot: Math.max(1, Number(e.target.value) || 1) })}
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Quantas pessoas podem agendar no mesmo horário antes do slot ser bloqueado.
+        </p>
+      </div>
+
+
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Antecedência mín. (horas)</Label>
