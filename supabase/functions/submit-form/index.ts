@@ -461,13 +461,8 @@ Deno.serve(async (req: Request) => {
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-        console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
-        return new Response(
-          JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
     }
+
 
 
 
