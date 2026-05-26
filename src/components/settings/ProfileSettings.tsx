@@ -302,15 +302,3 @@ export const ProfileSettings = () => {
     </div>
   );
 };
-
-      <Button 
-        onClick={handleSave} 
-        disabled={updateSettings.isPending || isSaving}
-        className="w-full"
-      >
-        <Save className="h-4 w-4 mr-2" />
-        {updateSettings.isPending || isSaving ? "Salvando..." : "Salvar Configurações de Perfil"}
-      </Button>
-    </div>
-  );
-};
