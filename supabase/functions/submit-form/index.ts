@@ -346,7 +346,7 @@ Deno.serve(async (req: Request) => {
       
       const { data: lookupContact } = await supabase
         .from('contacts')
-        .select('id, custom_fields, user_id')
+        .select('id, name, custom_fields, user_id')
         .in('user_id', memberIds)
         .eq('contact_display_id', paddedId)
         .limit(1)
@@ -355,6 +355,8 @@ Deno.serve(async (req: Request) => {
       if (lookupContact) {
         contactId = lookupContact.id;
         console.log(`Found contact by display_id ${paddedId}: ${contactId}`);
+
+        const oldName = (lookupContact as any).name as string | null;
 
         // Update contact data if provided
         const updateData: Record<string, any> = {};
@@ -374,6 +376,19 @@ Deno.serve(async (req: Request) => {
             .from('contacts')
             .update(updateData)
             .eq('id', contactId);
+        }
+
+        // Propagate new contact name to existing deals with generic/derived titles
+        if (contactData.name && contactData.name !== oldName) {
+          const genericTitles = ['Lead - Cliente', 'Sem nome', '', 'Cliente', 'Lead do Formulário'];
+          if (oldName) {
+            genericTitles.push(oldName, `Lead - ${oldName}`);
+          }
+          await supabase
+            .from('funnel_deals')
+            .update({ title: contactData.name })
+            .eq('contact_id', contactId)
+            .in('title', genericTitles);
         }
       } else {
         console.warn(`Contact not found for display_id: ${paddedId} across org members`);
