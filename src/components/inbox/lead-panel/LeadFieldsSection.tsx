@@ -282,22 +282,94 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
         );
       }
 
-      case 'select':
+      case 'select': {
+        // Unwrap single-element array (legacy from checkbox form fields)
+        const rawVal = Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+        const strVal = rawVal === null || rawVal === undefined ? '' : String(rawVal);
+        const opts = definition.options || [];
+        // Ensure current value appears as a SelectItem even if missing from options
+        const allOpts = strVal && !opts.includes(strVal) ? [strVal, ...opts] : opts;
         return (
-          <Select 
-            value={value || ''} 
+          <Select
+            value={strVal}
             onValueChange={(val) => handleSave(definition.field_key, val)}
           >
             <SelectTrigger className="h-8 text-sm border-border/50 bg-transparent shadow-none min-w-[120px] hover:border-primary/50">
               <SelectValue placeholder="Selecionar" />
             </SelectTrigger>
             <SelectContent>
-              {definition.options?.map((option) => (
+              {allOpts.map((option) => (
                 <SelectItem key={option} value={option}>{option}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         );
+      }
+
+      case 'multi_select': {
+        const arr: string[] = Array.isArray(value)
+          ? value.map(String)
+          : value === null || value === undefined || value === ''
+            ? []
+            : [String(value)];
+        const opts = definition.options || [];
+        const toggle = (opt: string) => {
+          const next = arr.includes(opt) ? arr.filter(v => v !== opt) : [...arr, opt];
+          handleSave(definition.field_key, next);
+        };
+        const remove = (opt: string) => {
+          handleSave(definition.field_key, arr.filter(v => v !== opt));
+        };
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-auto min-h-8 px-2 py-1 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5 flex-wrap gap-1 max-w-full">
+                {arr.length === 0 ? (
+                  <span className="text-muted-foreground">Selecionar</span>
+                ) : (
+                  arr.map(v => (
+                    <span
+                      key={v}
+                      className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded text-xs"
+                      onClick={(e) => { e.stopPropagation(); }}
+                    >
+                      {v}
+                      <X
+                        className="h-3 w-3 cursor-pointer hover:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); remove(v); }}
+                      />
+                    </span>
+                  ))
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="end">
+              {opts.length === 0 ? (
+                <p className="text-xs text-muted-foreground px-2 py-1">Sem opções definidas. Edite o campo nas configurações para adicionar opções.</p>
+              ) : (
+                <div className="flex flex-col gap-1 max-h-64 overflow-auto">
+                  {opts.map(opt => {
+                    const checked = arr.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggle(opt)}
+                        className="flex items-center gap-2 text-sm px-2 py-1.5 rounded hover:bg-muted text-left"
+                      >
+                        <span className={`h-4 w-4 rounded border flex items-center justify-center ${checked ? 'bg-primary border-primary text-primary-foreground' : 'border-border'}`}>
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="flex-1">{opt}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        );
+      }
 
       case 'number':
         if (isEditing) {
