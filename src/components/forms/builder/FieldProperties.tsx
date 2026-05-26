@@ -25,6 +25,7 @@ const DAY_NAMES: Record<string, string> = {
 
 interface ScheduleConfig {
   slot_duration?: number;
+  max_per_slot?: number;
   min_advance_hours?: number;
   max_advance_days?: number;
   blocked_dates?: string[];
