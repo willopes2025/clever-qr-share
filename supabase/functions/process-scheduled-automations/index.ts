@@ -75,9 +75,14 @@ Deno.serve(async (req: Request) => {
         const scheduledTime = config.scheduled_time as string;
         if (!scheduledDate || !scheduledTime) continue;
 
-        const scheduledMoment = new Date(`${scheduledDate}T${scheduledTime}:00`);
-        const diffMinutes = Math.abs((now.getTime() - scheduledMoment.getTime()) / 60000);
-        if (diffMinutes > 1) continue;
+        // Interpret scheduled date/time in America/Sao_Paulo (BRT, UTC-3, no DST)
+        const scheduledMoment = new Date(`${scheduledDate}T${scheduledTime}:00-03:00`);
+        const diffMs = now.getTime() - scheduledMoment.getTime();
+        // Fire if we're within +/-2 min OR if the time has passed and not yet executed (catch-up)
+        const diffMinutes = diffMs / 60000;
+        if (diffMinutes < -2) continue; // not yet
+        // If more than 24h late, skip (stale)
+        if (diffMinutes > 60 * 24) continue;
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
@@ -104,7 +109,9 @@ Deno.serve(async (req: Request) => {
         .eq('trigger_type', 'on_scheduled_daily');
 
       let processed = 0, errors = 0;
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      // BRT time (UTC-3)
+      const brt = new Date(now.getTime() - 3 * 3600000);
+      const currentTime = `${brt.getUTCHours().toString().padStart(2, '0')}:${brt.getUTCMinutes().toString().padStart(2, '0')}`;
 
       for (const auto of automations || []) {
         const config = (auto.trigger_config as Record<string, unknown>) || {};
@@ -113,9 +120,9 @@ Deno.serve(async (req: Request) => {
 
         const [targetH, targetM] = dailyTime.split(':').map(Number);
         const [nowH, nowM] = currentTime.split(':').map(Number);
-        if (targetH !== nowH || Math.abs(targetM - nowM) > 0) continue;
+        if (targetH !== nowH || Math.abs(targetM - nowM) > 1) continue;
 
-        const today = now.toISOString().split('T')[0];
+        const today = `${brt.getUTCFullYear()}-${String(brt.getUTCMonth()+1).padStart(2,'0')}-${String(brt.getUTCDate()).padStart(2,'0')}`;
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
           const triggerKey = `daily_${today}`;
