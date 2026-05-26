@@ -1,52 +1,39 @@
 ## Diagnóstico
 
-Olhei o fluxo do formulário com campo **Agendamento (scheduling)** e encontrei **dois problemas** que impedem o uso desse campo como gatilho de data/hora nas automações:
+A submissão do formulário **"Exame de Vista CSV"** identificou o lead pelo código `#3828` corretamente (campo `lookup_by_display_id`) e atualizou o contato. Mas o card do lead não recebeu os campos novos (Condição do Exame, Origem do Lead, Consultor, Data Exame) e o lead não foi movido de etapa.
 
-### Problema 1 — O campo personalizado é criado como `text`, não como `datetime`
+**Causa raiz:** o formulário está configurado **sem** `target_funnel_id` / `target_stage_id`. No edge function `submit-form`, toda a lógica que aplica `dealCustomFields` (campos do tipo `lead_field` / `new_lead_field`) e move a etapa do deal está dentro de um bloco `if (contactId && form.target_funnel_id) { ... }`. Sem funil-alvo, esse bloco é totalmente pulado — os campos de lead coletados são descartados.
 
-Em `supabase/functions/submit-form/index.ts` (linhas 163–188 e 205–230), quando o formulário tem `mapping_type = 'new_custom_field'` ou `'new_lead_field'` com auto-criação, o `field_type` é **fixo em `'text'`**, independente do tipo real do campo no formulário (scheduling, date, time, datetime).
+Confirmei no banco:
+- Form `Exame de Vista CSV`: `target_funnel_id = NULL`, `target_stage_id = NULL`
+- Campos de lead mapeados: Condição do Exame, Origem, Consultor, Data Exame Consultório
+- 2 submissões recentes do contato `#3828` salvas, mas o deal `06f6efac…` (funil "Programa Seven", etapa "Novo Lead") permaneceu com `custom_fields` vazio (só dados antigos da Ssotica) e na mesma etapa há 11 dias.
 
-Consequência: na tela de criar automação (`AutomationFormDialog.tsx` linha 440), o seletor de campo de data filtra somente `field_type === 'date' || 'datetime'`. Como o campo recém-criado está como `text`, **ele não aparece na lista** de gatilhos "antes/depois de data do campo".
+## Correção
 
-### Problema 2 — O valor do agendamento nunca é salvo em `custom_fields`
+### 1. `supabase/functions/submit-form/index.ts`
 
-O bloco em `submit-form/index.ts` (linhas 676–736) que trata `field.field_type === 'scheduling'` **só cria uma `conversation_task`**. O valor "YYYY-MM-DD HH:mm" do agendamento **não é gravado em `contacts.custom_fields` nem em `funnel_deals.custom_fields`**.
+Quando o formulário usa `lookup_by_display_id` e/ou já há `contactId` resolvido, aplicar os `dealCustomFields` aos deals abertos do contato mesmo quando o formulário não tem `target_funnel_id`:
 
-Consequência: mesmo se o `field_type` estivesse correto, o processador de automações (`process-scheduled-automations/index.ts` linha 342) não encontraria valor algum em `custom_fields[dateFieldKey]` para esse contato/deal.
+- Se `form.target_funnel_id` estiver definido → manter o comportamento atual (cria/atualiza deal nesse funil, move para `target_stage_id`).
+- Se `target_funnel_id` for `NULL` mas houver `dealCustomFields` (ou `dealNativeFields`) **e** o contato foi resolvido via `lookup_by_display_id`:
+  - Buscar todos os deals abertos (`closed_at IS NULL`) desse contato.
+  - Fazer merge dos `custom_fields` em cada um (preservando valores existentes, sobrescrevendo só as chaves novas).
+  - Atualizar `title`/`value` se vieram via `deal_native_field`.
+  - Não mexer em `stage_id` (sem destino configurado).
+  - Logar `Updated N open deals for contact X with form fields`.
 
-## Correções (somente backend — edge function `submit-form`)
+### 2. UI: avisar configuração incompleta
 
-### Passo 1 — Inferir o `field_type` correto ao auto-criar
-Mapear o tipo do campo do formulário para o `field_type` da `custom_field_definitions`:
-- `scheduling` → `datetime`
-- `date` → `date`
-- `time` → `time`
-- `datetime` → `datetime`
-- `number` → `number`
-- `email` → `email`
-- `phone` → `phone`
-- `url` → `url`
-- default → `text`
+Em `src/components/forms/` (editor do formulário) — quando o usuário tem pelo menos um campo mapeado como `lead_field` / `new_lead_field` e ainda **não** configurou um funil-alvo, mostrar um alerta amarelo no painel de configuração:
+> "Você tem campos mapeados para o lead, mas não definiu um funil/etapa de destino. Os campos serão aplicados aos leads existentes (via código do lead), mas o lead não será movido de etapa. Configure um funil-alvo para mover automaticamente."
 
-Aplicar nas duas branches (`new_custom_field` e `new_lead_field`). Se o campo já existir mas estiver com `field_type='text'` indevidamente, fazer um UPDATE corrigindo (apenas quando o novo tipo for `date`/`datetime`/`time`, para não sobrescrever escolhas manuais legítimas).
+### 3. Reprocessar a submissão de hoje (opcional, manual)
 
-### Passo 2 — Persistir o valor do agendamento em `custom_fields`
-Quando o campo for `scheduling` E tiver `mapping_target`/`mapping_type` definido (contato ou lead), também gravar o valor em `contacts.custom_fields[key]` ou `funnel_deals.custom_fields[key]`, no formato ISO `YYYY-MM-DDTHH:mm:00` (parseável tanto pelo trigger quanto pela UI). Isso é independente da criação da task (a task continua sendo criada como hoje).
+Após o deploy, aplicar manualmente os `custom_fields` da última submissão (`3ca34c33-…`) ao deal `06f6efac-…` para corrigir o caso atual do lead Brasil Visão Cidadã.
 
-### Passo 3 — Aviso ao usuário
-Após o deploy, o campo "Agendamento Consulta CSV" **existente** vai precisar de uma correção manual única:
-- abrir Configurações → Campos Personalizados
-- localizar o campo e mudar o tipo de "Texto" para "Data e Hora"
+## Detalhes técnicos
 
-(ou eu posso rodar uma migration pontual que converte campos com `field_key` específico — me diga se quer assim.)
-
-## Validação
-1. Submeter o formulário com o campo de agendamento preenchido.
-2. Verificar em `contacts.custom_fields` / `funnel_deals.custom_fields` que a chave do campo tem o valor ISO.
-3. Verificar em `custom_field_definitions` que `field_type = 'datetime'`.
-4. Abrir o builder de automação → trigger "Antes de data do campo" → o novo campo deve aparecer na lista.
-
-## Arquivos alterados
-- `supabase/functions/submit-form/index.ts` (somente)
-
-Nenhuma mudança em UI, schema ou outras edge functions.
+- O `lookupDisplayId` já fica registrado durante o loop de campos; basta passar uma flag `lookedUpByDisplayId = !!lookupDisplayId` para o novo bloco de update de deals.
+- Manter o trigger `process-funnel-automations` apenas no caminho onde realmente há mudança de etapa (evitar disparos duplicados).
+- Não afeta formulários públicos de captação nova (esses continuam dependendo de `target_funnel_id` para criar deal).
