@@ -60,6 +60,15 @@ const contactSchema = z.object({
 
 type ContactFormValues = z.infer<typeof contactSchema>;
 
+interface ExistingDealInfo {
+  id: string;
+  funnel_id: string;
+  stage_id: string;
+  funnel_name?: string | null;
+  stage_name?: string | null;
+  stage_color?: string | null;
+}
+
 interface ContactFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,6 +83,7 @@ interface ContactFormDialogProps {
     funnel_id: string;
     stage_id: string;
   } | null;
+  existingDeals?: ExistingDealInfo[];
 }
 
 export const ContactFormDialog = ({
