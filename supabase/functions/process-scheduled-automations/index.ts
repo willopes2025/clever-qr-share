@@ -75,9 +75,14 @@ Deno.serve(async (req: Request) => {
         const scheduledTime = config.scheduled_time as string;
         if (!scheduledDate || !scheduledTime) continue;
 
-        const scheduledMoment = new Date(`${scheduledDate}T${scheduledTime}:00`);
-        const diffMinutes = Math.abs((now.getTime() - scheduledMoment.getTime()) / 60000);
-        if (diffMinutes > 1) continue;
+        // Interpret scheduled date/time in America/Sao_Paulo (BRT, UTC-3, no DST)
+        const scheduledMoment = new Date(`${scheduledDate}T${scheduledTime}:00-03:00`);
+        const diffMs = now.getTime() - scheduledMoment.getTime();
+        // Fire if we're within +/-2 min OR if the time has passed and not yet executed (catch-up)
+        const diffMinutes = diffMs / 60000;
+        if (diffMinutes < -2) continue; // not yet
+        // If more than 24h late, skip (stale)
+        if (diffMinutes > 60 * 24) continue;
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
