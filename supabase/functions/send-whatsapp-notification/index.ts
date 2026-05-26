@@ -298,12 +298,19 @@ Deno.serve(async (req: Request) => {
       }
     }
     
+    // Track recipients that were explicitly requested by the caller — these
+    // bypass the only_if_responsible / isResponsible filter (the caller already
+    // decided they should be notified, e.g. AI agent task_notify_user_ids).
+    const explicitRecipientIds = new Set<string>();
+
     // Fallback to provided recipientUserId or organizationUserIds
     if (userIds.length === 0) {
       if (recipientUserId) {
         userIds = [recipientUserId];
+        explicitRecipientIds.add(recipientUserId);
       } else if (organizationUserIds && organizationUserIds.length > 0) {
         userIds = organizationUserIds;
+        organizationUserIds.forEach((uid) => explicitRecipientIds.add(uid));
       }
     }
 
@@ -428,22 +435,28 @@ Deno.serve(async (req: Request) => {
       // Check only_if_responsible filter
       // If only_if_responsible = true (default): receive notification when responsible
       // If only_if_responsible = false: user opted out, do NOT send notification
+      // Explicit recipients (e.g. AI agent task_notify_user_ids) bypass this filter.
+      const isExplicit = explicitRecipientIds.has(userId);
       const onlyIfResponsible = effectivePrefs.only_if_responsible ?? true;
-      
-      if (!onlyIfResponsible) {
+
+      if (!isExplicit && !onlyIfResponsible) {
         console.log(`User ${userId} has only_if_responsible=false, opted out of responsibility-based notifications, skipping`);
         skipped.opted_out.push(userId);
         continue;
       }
-      
-      // User wants notifications when responsible, check if they are
-      const isResponsible = await checkIfUserIsResponsible(userId, type, data);
-      if (!isResponsible) {
-        console.log(`User ${userId} is not responsible for ${type}, skipping`);
-        skipped.not_responsible.push(userId);
-        continue;
+
+      if (!isExplicit) {
+        // User wants notifications when responsible, check if they are
+        const isResponsible = await checkIfUserIsResponsible(userId, type, data);
+        if (!isResponsible) {
+          console.log(`User ${userId} is not responsible for ${type}, skipping`);
+          skipped.not_responsible.push(userId);
+          continue;
+        }
+        console.log(`User ${userId} is responsible for ${type}, proceeding with notification`);
+      } else {
+        console.log(`User ${userId} is an explicit recipient, bypassing responsibility check`);
       }
-      console.log(`User ${userId} is responsible for ${type}, proceeding with notification`);
 
       // Get team member for this user (for phone and organization)
       const teamMember = teamMembers?.find(tm => tm.user_id === userId);
