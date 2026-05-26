@@ -2084,7 +2084,7 @@ ${templatesList}
     if (currentStage) {
       const { data: odm } = await supabase
         .from('ai_agent_stage_media')
-        .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+        .select(STAGE_ATTACHMENT_SELECT)
         .eq('stage_id', currentStage.id)
         .eq('trigger_type', 'on_demand')
         .order('order_index', { ascending: true });
