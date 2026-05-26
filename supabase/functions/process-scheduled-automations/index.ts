@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveOrgTimezone, parseInTimezone, nowInTimezone } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,14 +76,13 @@ Deno.serve(async (req: Request) => {
         const scheduledTime = config.scheduled_time as string;
         if (!scheduledDate || !scheduledTime) continue;
 
-        // Interpret scheduled date/time in America/Sao_Paulo (BRT, UTC-3, no DST)
-        const scheduledMoment = new Date(`${scheduledDate}T${scheduledTime}:00-03:00`);
+        // Interpret the scheduled date/time in the organization's timezone
+        const tz = await resolveOrgTimezone(supabase, { userId: auto.user_id as string });
+        const scheduledMoment = parseInTimezone(scheduledDate, scheduledTime, tz);
         const diffMs = now.getTime() - scheduledMoment.getTime();
-        // Fire if we're within +/-2 min OR if the time has passed and not yet executed (catch-up)
         const diffMinutes = diffMs / 60000;
         if (diffMinutes < -2) continue; // not yet
-        // If more than 24h late, skip (stale)
-        if (diffMinutes > 60 * 24) continue;
+        if (diffMinutes > 60 * 24) continue; // stale
 
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
@@ -109,20 +109,19 @@ Deno.serve(async (req: Request) => {
         .eq('trigger_type', 'on_scheduled_daily');
 
       let processed = 0, errors = 0;
-      // BRT time (UTC-3)
-      const brt = new Date(now.getTime() - 3 * 3600000);
-      const currentTime = `${brt.getUTCHours().toString().padStart(2, '0')}:${brt.getUTCMinutes().toString().padStart(2, '0')}`;
 
       for (const auto of automations || []) {
         const config = (auto.trigger_config as Record<string, unknown>) || {};
         const dailyTime = config.daily_time as string;
         if (!dailyTime) continue;
 
-        const [targetH, targetM] = dailyTime.split(':').map(Number);
-        const [nowH, nowM] = currentTime.split(':').map(Number);
-        if (targetH !== nowH || Math.abs(targetM - nowM) > 1) continue;
+        const tz = await resolveOrgTimezone(supabase, { userId: auto.user_id as string });
+        const tzNow = nowInTimezone(tz, now);
 
-        const today = `${brt.getUTCFullYear()}-${String(brt.getUTCMonth()+1).padStart(2,'0')}-${String(brt.getUTCDate()).padStart(2,'0')}`;
+        const [targetH, targetM] = dailyTime.split(':').map(Number);
+        if (targetH !== tzNow.hour || Math.abs(targetM - tzNow.minute) > 1) continue;
+
+        const today = tzNow.isoDate;
         const deals = await getDeals(supabase, auto);
         for (const deal of deals) {
           const triggerKey = `daily_${today}`;
