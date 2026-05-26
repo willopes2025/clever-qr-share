@@ -552,6 +552,7 @@ Deno.serve(async (req: Request) => {
           console.error('[FLOW] Error sending media via Meta:', err);
         }
       }
+    };
 
     // Helper: send Evolution interactive buttons (real WhatsApp buttons, no numbered text in body)
     const sendEvolutionButtons = async (text: string, btns: Array<{ label: string }>): Promise<boolean> => {
