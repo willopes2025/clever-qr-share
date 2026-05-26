@@ -2349,7 +2349,54 @@ ${mapeamento}
               });
             }
           }
+        } else if (functionName === 'send_stage_media') {
+          const mediaIdArg = String(args.media_id || '').trim();
+          const captionArg = args.caption ? String(args.caption) : null;
+          console.log(`[AI-AGENT] send_stage_media called: ${mediaIdArg}`);
+          const item = onDemandStageMedia.find(i => i.id === mediaIdArg);
+          if (!item || !item.media) {
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: `❌ Mídia não encontrada para esta etapa (id=${mediaIdArg}).`,
+            });
+          } else {
+            // Compute phone locally (same logic as the main send block)
+            // deno-lint-ignore no-explicit-any
+            const cfp = conversation.contacts as any;
+            const cd = Array.isArray(cfp) ? cfp[0] : cfp;
+            const rawP = cd?.phone || '';
+            let phoneSm: string;
+            if (rawP.startsWith('LID_')) {
+              phoneSm = `${rawP.replace('LID_', '')}@lid`;
+            } else {
+              phoneSm = rawP.replace(/\D/g, '');
+              if (!phoneSm.startsWith('55')) phoneSm = '55' + phoneSm;
+            }
+            const itemForSend: StageMediaItem = captionArg
+              ? { ...item, caption_override: captionArg }
+              : item;
+            const res = await sendSingleStageMedia({
+              supabase,
+              evolutionApiUrl,
+              evolutionApiKey,
+              evolutionInstanceName,
+              phone: phoneSm,
+              conversationId,
+              conversationUserId: conversation.user_id,
+              agentConfigId: agentConfig.id,
+              item: itemForSend,
+            });
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: res.ok
+                ? `✅ Mídia "${item.media.name}" enviada ao cliente.`
+                : `❌ Erro ao enviar mídia: ${res.error || 'desconhecido'}`,
+            });
+          }
         } else if (functionName === 'create_task') {
+
           const taskTitle = args.title || 'Tarefa da IA';
           const taskDescription = args.description || '';
           const taskDueDate = args.due_date || null;
