@@ -2592,6 +2592,43 @@ ${mapeamento}
       throw new Error('Failed to send any message via Evolution API');
     }
 
+    // === STAGE MEDIA DISPATCH ===
+    // Fire on_enter media of the stage we just entered, then after_message media of the current stage.
+    try {
+      if (currentStage && agentConfig?.id) {
+        if (stageJustEntered) {
+          await sendStageMediaForTrigger({
+            supabase,
+            stageId: stageJustEntered,
+            trigger: 'on_enter',
+            evolutionApiUrl,
+            evolutionApiKey,
+            evolutionInstanceName,
+            phone,
+            conversationId,
+            conversationUserId: conversation.user_id,
+            agentConfigId: agentConfig.id,
+          });
+        }
+        await sendStageMediaForTrigger({
+          supabase,
+          stageId: currentStage.id,
+          trigger: 'after_message',
+          evolutionApiUrl,
+          evolutionApiKey,
+          evolutionInstanceName,
+          phone,
+          conversationId,
+          conversationUserId: conversation.user_id,
+          agentConfigId: agentConfig.id,
+        });
+      }
+    } catch (stageMediaErr) {
+      console.error('[AI-AGENT] stage media dispatch error:', stageMediaErr);
+    }
+
+
+
     // Update conversation AI counters
     await supabase
       .from('conversations')
