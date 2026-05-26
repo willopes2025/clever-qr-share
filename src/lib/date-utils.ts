@@ -152,10 +152,19 @@ export function parseAnyDateValue(val: any): Date | undefined {
       const [d, m, y] = val.split('/').map(Number);
       return new Date(y, m - 1, d);
     }
-    // YYYY-MM-DD or ISO
-    if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
-      const datePart = val.split('T')[0];
-      const [y, m, d] = datePart.split('-').map(Number);
+    // ISO with time part — preserve time (interpret naive timestamps as local)
+    const isoWithTime = val.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/);
+    if (isoWithTime) {
+      const [, y, mo, d, h, mi, s, , tz] = isoWithTime;
+      if (tz) {
+        const parsed = new Date(val);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+      return new Date(+y, +mo - 1, +d, +h, +mi, s ? +s : 0);
+    }
+    // Date-only YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y, m, d] = val.split('-').map(Number);
       if (y && m && d) return new Date(y, m - 1, d);
     }
     // Fallback
