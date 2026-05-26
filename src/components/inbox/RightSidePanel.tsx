@@ -52,6 +52,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
         onClose={onClose}
         isMobile={isMobile}
         dealTitle={activeDeal?.title}
+        leadNumber={(activeDeal as any)?.lead_number ?? null}
       />
 
       <ScrollArea className="flex-1 min-w-0 overflow-hidden">
