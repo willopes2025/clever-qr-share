@@ -1,13 +1,13 @@
 import { format, isSameDay as dateFnsIsSameDay, isToday as dateFnsIsToday, isYesterday as dateFnsIsYesterday } from "date-fns";
-
-const BRAZIL_TZ = 'America/Sao_Paulo';
+import { getActiveTimezone } from "@/lib/timezone";
 
 /**
- * Convert a UTC date to Brazil timezone (America/Sao_Paulo)
- * Returns a new Date object adjusted to display Brazil time when used with date-fns format()
+ * Convert a UTC date to the active organization timezone.
+ * Returns a new Date object adjusted to display wall-clock time when used with date-fns format().
  */
 export function toBrazilTime(date: Date): Date {
-  const brString = date.toLocaleString('en-US', { timeZone: BRAZIL_TZ });
+  const tz = getActiveTimezone();
+  const brString = date.toLocaleString('en-US', { timeZone: tz });
   return new Date(brString);
 }
 
