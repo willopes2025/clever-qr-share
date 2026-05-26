@@ -53,6 +53,7 @@ const Ajuda = lazy(() => import("./pages/Ajuda"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
 const InternalChat = lazy(() => import("./pages/InternalChat"));
 const Tasks = lazy(() => import("./pages/Tasks"));
+const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -286,6 +287,7 @@ const App = () => (
                   <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/terms" element={<TermsOfService />} />
                   <Route path="/data-deletion" element={<DataDeletion />} />
+                  <Route path="/unsubscribe" element={<Unsubscribe />} />
                   <Route path="/data-deletion-callback" element={<DataDeletionCallback />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/auth/meta/callback" element={<MetaAuthCallback />} />
