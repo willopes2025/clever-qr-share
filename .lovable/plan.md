@@ -1,33 +1,33 @@
-Diagnóstico encontrado:
+## Objetivo
 
-- O cadastro mais recente do formulário **Exame de Vista CSV** foi salvo às 10:43 BRT e os campos chegaram ao banco corretamente no lead `#3828`:
-  - `consultor: William`
-  - `origem_do_lead: Brasil Visão Cidadã`
-  - `condio_do_exame: [Gratuito]`
-  - `data_exame_consult: 2026-05-27T14:45:00`
-- O formulário está com **Funil de Destino vazio** (`target_funnel_id = null`). Por isso ele só atualiza o lead existente pelo código, mas **não move o card para a etapa correta**.
-- O realtime de `funnel_deals` invalida `funnel-deals`, métricas e contagens, mas **não invalida a query principal `funnels`**, que é a query usada pelo Kanban. Isso explica o card não refletir imediatamente todos os dados enquanto a tela está aberta.
-- O card do funil usa uma formatação própria de data em `FunnelDealCard.tsx`, diferente da função corrigida em `date-utils.ts`, então ainda pode exibir data/hora de forma inconsistente no card.
+Permitir definir, por campo de agendamento, **quantas pessoas podem agendar no mesmo horário** (capacidade do slot). Quando o limite for atingido, o horário fica bloqueado automaticamente no formulário público.
 
-Plano de correção:
+## Mudanças
 
-1. **Atualizar realtime do funil**
-   - Ajustar `src/hooks/useGlobalRealtime.ts` para invalidar também a query `funnels` quando `funnel_deals` mudar.
-   - Assim, quando o formulário atualizar o lead, o Kanban recarrega e o card mostra os dados novos sem depender de refresh manual.
+### 1. UI — `src/components/forms/builder/FieldProperties.tsx`
+Adicionar novo input em "Configurações de Agendamento", logo abaixo de "Duração do slot":
 
-2. **Unificar formatação de campos no card**
-   - Ajustar `src/components/funnels/FunnelDealCard.tsx` para usar `formatCustomFieldValue`/`parseAnyDateValue` de `src/lib/date-utils.ts`.
-   - Garantir que campos `datetime` mostrem **data + hora** no card, não apenas a data.
-   - Manter arrays como `Gratuito` ou múltiplos valores separados por vírgula.
+- **Campo:** "Capacidade por horário (pessoas)"
+- Tipo: number, mínimo 1, padrão 1
+- Salvo em `settings.schedule.max_per_slot`
+- Atualizar a interface `ScheduleConfig` com `max_per_slot?: number`
 
-3. **Corrigir o destino do formulário CSV no banco**
-   - Configurar o formulário **Exame de Vista CSV** para o funil correto **Brasil visão cidadã** e etapa **Lead Agendado**.
-   - Isso fará novos envios criarem/moverem o lead automaticamente para a etapa correta.
+### 2. Backend — `supabase/functions/check-availability/index.ts`
+Hoje a função marca um horário como ocupado se existir **qualquer** task naquele `due_time`. Vamos trocar por **contagem**:
 
-4. **Corrigir o lead recém-testado**
-   - Mover o lead `#3828` para a etapa correta, caso ele ainda esteja no funil/etapa antiga.
-   - Preservar os campos já atualizados no card.
+- Ler `schedule.max_per_slot` (default = 1, mantendo comportamento atual)
+- Substituir `occupiedTimes: Set<string>` por `slotCounts: Map<string, number>`
+- Incrementar contagem ao percorrer `conversation_tasks` e `deal_tasks` no mesmo dia
+- Slot fica indisponível quando `slotCounts.get(slot) >= max_per_slot`
 
-5. **Validar**
-   - Consultar novamente o formulário, o lead `#3828` e seus campos após a correção.
-   - Confirmar que o destino está configurado e que o card terá dados atualizados via realtime.
+### 3. Sem mudanças de schema
+`form_fields.settings` já é JSONB livre — não precisa de migration.
+
+## Como funciona depois
+- No builder, ao configurar o campo de agendamento, defina por exemplo `Capacidade por horário = 3`
+- O formulário público vai mostrar o slot das 10:00 disponível até 3 inscrições; a 4ª pessoa não verá mais esse horário
+- Datas/dias bloqueados e antecedência mínima continuam funcionando igual
+
+## Fora do escopo
+- Bloquear/desbloquear slots individuais manualmente (apenas datas inteiras já existem)
+- Mostrar contagem "2/3 vagas" no formulário público (pode ser adicionado depois se quiser)

@@ -118,14 +118,16 @@ Deno.serve(async (req) => {
       .in('user_id', ownerIds)
       .is('completed_at', null);
 
-    const occupiedTimes = new Set<string>();
+    const maxPerSlot = Math.max(1, Number((schedule as any).max_per_slot) || 1);
+    const slotCounts = new Map<string, number>();
+    const bump = (t: string | null | undefined) => {
+      if (!t) return;
+      const key = t.substring(0, 5);
+      slotCounts.set(key, (slotCounts.get(key) || 0) + 1);
+    };
+
     if (existingTasks) {
-      for (const task of existingTasks) {
-        if (task.due_time) {
-          // due_time is stored as HH:MM or HH:MM:SS
-          occupiedTimes.add(task.due_time.substring(0, 5));
-        }
-      }
+      for (const task of existingTasks) bump(task.due_time);
     }
 
     // Also check deal_tasks
@@ -137,17 +139,14 @@ Deno.serve(async (req) => {
       .is('completed_at', null);
 
     if (dealTasks) {
-      for (const task of dealTasks) {
-        if (task.due_time) {
-          occupiedTimes.add(task.due_time.substring(0, 5));
-        }
-      }
+      for (const task of dealTasks) bump(task.due_time);
     }
 
     // Filter available slots
     const availableSlots = allSlots.filter(slot => {
-      // Check if occupied
-      if (occupiedTimes.has(slot)) return false;
+      // Check capacity
+      if ((slotCounts.get(slot) || 0) >= maxPerSlot) return false;
+
 
       // Check min advance time
       if (minAdvanceHours > 0) {
