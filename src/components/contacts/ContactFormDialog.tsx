@@ -335,6 +335,40 @@ export const ContactFormDialog = ({
                 )}
               />
 
+              {/* Existing funnels the contact is already in */}
+              {contact && existingDeals && existingDeals.length > 0 && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
+                      <h4 className="text-sm font-medium text-muted-foreground">
+                        Funis em que este contato está ({existingDeals.length})
+                      </h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {existingDeals.map((d) => (
+                        <div
+                          key={d.id}
+                          className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1 text-xs"
+                          title={`${d.funnel_name ?? 'Funil'} • ${d.stage_name ?? 'Etapa'}`}
+                        >
+                          <span className="font-medium">{d.funnel_name ?? 'Funil'}</span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <span
+                              className="inline-block h-2 w-2 rounded-full"
+                              style={{ backgroundColor: d.stage_color ?? 'hsl(var(--muted-foreground))' }}
+                            />
+                            {d.stage_name ?? 'Etapa'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Funnel Selection - Show for both create and edit */}
               {funnels && funnels.length > 0 && (
                 <>
