@@ -743,6 +743,51 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Fallback: when form has no target_funnel_id but we collected lead fields
+  // and the contact was resolved via lookup_by_display_id, apply those fields
+  // to ALL open deals of that contact (don't move stage — no destination configured).
+  if (
+    contactId &&
+    !form.target_funnel_id &&
+    lookupDisplayId &&
+    (Object.keys(dealCustomFields).length > 0 || Object.keys(dealNativeFields).length > 0)
+  ) {
+    try {
+      const { data: openDeals } = await supabase
+        .from('funnel_deals')
+        .select('id, custom_fields')
+        .eq('contact_id', contactId)
+        .is('closed_at', null);
+
+      if (openDeals && openDeals.length > 0) {
+        for (const deal of openDeals) {
+          const updateData: Record<string, any> = {};
+          if (dealNativeFields.value !== undefined) updateData.value = dealNativeFields.value;
+          if (dealNativeFields.title) updateData.title = dealNativeFields.title;
+
+          if (Object.keys(dealCustomFields).length > 0) {
+            updateData.custom_fields = {
+              ...((deal.custom_fields as Record<string, any>) || {}),
+              ...dealCustomFields,
+            };
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await supabase
+              .from('funnel_deals')
+              .update(updateData)
+              .eq('id', deal.id);
+          }
+        }
+        console.log(`Updated ${openDeals.length} open deal(s) for contact ${contactId} with form lead fields (lookup mode, no target funnel)`);
+      }
+    } catch (lookupDealError) {
+      console.error('Error applying lead fields to looked-up contact deals:', lookupDealError);
+    }
+  }
+
+
+
   // Handle scheduling fields - create tasks
   for (const field of formFields) {
     if (field.field_type === 'scheduling') {
