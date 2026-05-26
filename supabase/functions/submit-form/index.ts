@@ -406,6 +406,40 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Lookup by lead_number: resolve the specific deal directly
+    let lookupDealId: string | null = null;
+    let lookupDealFunnelId: string | null = null;
+    let lookupDealStageId: string | null = null;
+    if (lookupLeadNumber !== null) {
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: form.user_id });
+      const memberIds = orgMemberIds?.map((r: any) => typeof r === 'string' ? r : r.get_organization_member_ids) || [form.user_id];
+
+      const { data: lookupDeal } = await supabase
+        .from('funnel_deals')
+        .select('id, contact_id, funnel_id, stage_id, user_id')
+        .in('user_id', memberIds)
+        .eq('lead_number', lookupLeadNumber)
+        .is('closed_at', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (lookupDeal) {
+        lookupDealId = lookupDeal.id;
+        lookupDealFunnelId = lookupDeal.funnel_id;
+        lookupDealStageId = lookupDeal.stage_id;
+        contactId = lookupDeal.contact_id;
+        console.log(`Found deal by lead_number ${lookupLeadNumber}: ${lookupDealId} (contact: ${contactId})`);
+      } else {
+        console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
+        return new Response(
+          JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+
+
     // Check if a static contact_id was provided (trackable form link from inbox)
     const staticContactId = staticParams.contact_id;
     if (staticContactId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(staticContactId)) {
