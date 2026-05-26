@@ -48,7 +48,7 @@ const Inbox = () => {
 
   // Handle selection from URL params (reactive to changes)
   useEffect(() => {
-    if (!conversations || conversations.length === 0) return;
+    if (!conversations) return;
     
     // Support both 'conversationId' and 'conversation' params for compatibility
     const conversationId = searchParams.get('conversationId') || searchParams.get('conversation');
