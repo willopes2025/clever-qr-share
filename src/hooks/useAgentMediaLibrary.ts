@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 export type AgentMediaType = 'image' | 'video' | 'audio' | 'document';
 export type StageMediaTrigger = 'on_enter' | 'on_demand' | 'after_message';
+export type StageAttachmentType = 'media' | 'template' | 'meta_template';
 
 export interface AgentMediaItem {
   id: string;
@@ -20,15 +21,36 @@ export interface AgentMediaItem {
   updated_at: string;
 }
 
+export interface AttachedTemplateRef {
+  id: string;
+  name: string;
+  content?: string | null;
+  media_type?: string | null;
+  media_url?: string | null;
+}
+
+export interface AttachedMetaTemplateRef {
+  id: string;
+  name: string;
+  language: string;
+  body_text: string;
+  status?: string | null;
+}
+
 export interface StageMediaAttachment {
   id: string;
   stage_id: string;
-  media_id: string;
+  attachment_type: StageAttachmentType;
+  media_id: string | null;
+  template_id: string | null;
+  meta_template_id: string | null;
   trigger_type: StageMediaTrigger;
   order_index: number;
   delay_seconds: number;
   caption_override: string | null;
   media: AgentMediaItem | null;
+  template: AttachedTemplateRef | null;
+  meta_template: AttachedMetaTemplateRef | null;
 }
 
 export const useAgentMediaLibrary = () => {
@@ -110,13 +132,51 @@ export const useStageMedia = (stageId: string | null) => {
       if (!stageId) return [];
       const { data, error } = await supabase
         .from('ai_agent_stage_media')
-        .select('*, media:ai_agent_media_library!media_id(*)')
+        .select(`
+          *,
+          media:ai_agent_media_library!media_id(*),
+          template:message_templates!template_id(id,name,content,media_type,media_url),
+          meta_template:meta_templates!meta_template_id(id,name,language,body_text,status)
+        `)
         .eq('stage_id', stageId)
         .order('order_index', { ascending: true });
       if (error) throw error;
-      return (data || []) as StageMediaAttachment[];
+      return (data || []) as unknown as StageMediaAttachment[];
     },
     enabled: !!stageId,
+  });
+};
+
+export const useInternalTemplatesForAttach = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['attach-internal-templates', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .select('id, name, category, content, media_type, media_url')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+};
+
+export const useMetaTemplatesForAttach = () => {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['attach-meta-templates', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('meta_templates')
+        .select('id, name, language, status, body_text, header_type')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
   });
 };
 
@@ -127,7 +187,10 @@ export const useStageMediaMutations = () => {
   const attach = useMutation({
     mutationFn: async (data: {
       stage_id: string;
-      media_id: string;
+      attachment_type: StageAttachmentType;
+      media_id?: string | null;
+      template_id?: string | null;
+      meta_template_id?: string | null;
       trigger_type: StageMediaTrigger;
       delay_seconds?: number;
       caption_override?: string | null;
@@ -135,16 +198,22 @@ export const useStageMediaMutations = () => {
     }) => {
       if (!user) throw new Error('Not authenticated');
       const { error } = await supabase.from('ai_agent_stage_media').insert({
-        ...data,
-        user_id: user.id,
+        stage_id: data.stage_id,
+        attachment_type: data.attachment_type,
+        media_id: data.attachment_type === 'media' ? data.media_id ?? null : null,
+        template_id: data.attachment_type === 'template' ? data.template_id ?? null : null,
+        meta_template_id: data.attachment_type === 'meta_template' ? data.meta_template_id ?? null : null,
+        trigger_type: data.trigger_type,
         delay_seconds: data.delay_seconds ?? 2,
+        caption_override: data.caption_override ?? null,
         order_index: data.order_index ?? 0,
+        user_id: user.id,
       });
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['stage-media', vars.stage_id] });
-      toast.success('Mídia anexada à etapa');
+      toast.success('Anexo vinculado à etapa');
     },
     onError: (e: Error) => toast.error('Erro: ' + e.message),
   });
@@ -171,7 +240,7 @@ export const useStageMediaMutations = () => {
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['stage-media', vars.stage_id] });
-      toast.success('Mídia desvinculada');
+      toast.success('Anexo removido');
     },
     onError: (e: Error) => toast.error('Erro: ' + e.message),
   });
