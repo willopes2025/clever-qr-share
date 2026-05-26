@@ -4818,6 +4818,7 @@ export type Database = {
           name: string
           notification_instance_id: string | null
           owner_id: string
+          timezone: string
           updated_at: string | null
         }
         Insert: {
@@ -4827,6 +4828,7 @@ export type Database = {
           name: string
           notification_instance_id?: string | null
           owner_id: string
+          timezone?: string
           updated_at?: string | null
         }
         Update: {
@@ -4836,6 +4838,7 @@ export type Database = {
           name?: string
           notification_instance_id?: string | null
           owner_id?: string
+          timezone?: string
           updated_at?: string | null
         }
         Relationships: [

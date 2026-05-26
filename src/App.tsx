@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { PageLoader } from "@/components/PageLoader";
+import { TimezoneBootstrap } from "@/components/TimezoneBootstrap";
 
 
 // Lazy load all pages for code splitting
@@ -69,6 +70,7 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SubscriptionProvider>
+          <TimezoneBootstrap />
           <TooltipProvider>
             <Toaster />
             <Sonner />

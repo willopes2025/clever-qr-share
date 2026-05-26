@@ -1,4 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveOrgTimezone } from "../_shared/timezone.ts";
+
 
 // Declare EdgeRuntime for Supabase Edge Functions
 declare const EdgeRuntime: {
@@ -383,7 +385,7 @@ Deno.serve(async (req: Request) => {
         if (body.campaignId) {
           const { data: campaignCheck } = await supabase
             .from('campaigns')
-            .select('allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
+            .select('user_id, allowed_start_hour, allowed_end_hour, allowed_days, timezone, status')
             .eq('id', body.campaignId)
             .single();
           
@@ -397,11 +399,12 @@ Deno.serve(async (req: Request) => {
               );
             }
             
+            const orgTzCheck = await resolveOrgTimezone(supabase, { userId: campaignCheck.user_id as string });
             const timeCheck = isWithinAllowedTime(
               campaignCheck.allowed_start_hour ?? DEFAULT_START_HOUR,
               campaignCheck.allowed_end_hour ?? DEFAULT_END_HOUR,
               campaignCheck.allowed_days ?? DEFAULT_ALLOWED_DAYS,
-              campaignCheck.timezone ?? DEFAULT_TIMEZONE
+              campaignCheck.timezone ?? orgTzCheck
             );
             
             if (timeCheck.allowed) {
@@ -548,7 +551,9 @@ Deno.serve(async (req: Request) => {
         .eq('id', campaignId);
     }
 
-    // Get campaign-specific settings (with defaults)
+    // Get campaign-specific settings (with defaults). Timezone falls back to
+    // the organization's configured timezone instead of a hardcoded BRT.
+    const orgTz = await resolveOrgTimezone(supabase, { userId: campaign.user_id as string });
     const settings: CampaignSettings = {
       message_interval_min: campaign.message_interval_min ?? DEFAULT_INTERVAL_MIN_S,
       message_interval_max: campaign.message_interval_max ?? DEFAULT_INTERVAL_MAX_S,
@@ -556,7 +561,7 @@ Deno.serve(async (req: Request) => {
       allowed_start_hour: campaign.allowed_start_hour ?? DEFAULT_START_HOUR,
       allowed_end_hour: campaign.allowed_end_hour ?? DEFAULT_END_HOUR,
       allowed_days: campaign.allowed_days ?? DEFAULT_ALLOWED_DAYS,
-      timezone: campaign.timezone ?? DEFAULT_TIMEZONE,
+      timezone: campaign.timezone ?? orgTz,
     };
 
     console.log(`Campaign settings: interval=${settings.message_interval_min}-${settings.message_interval_max}s, limit=${settings.daily_limit}, hours=${settings.allowed_start_hour}-${settings.allowed_end_hour}, days=${settings.allowed_days.join(',')}, tz=${settings.timezone}`);

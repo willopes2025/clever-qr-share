@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { useUserSettings } from "@/hooks/useUserSettings";
 import { useProfile } from "@/hooks/useProfile";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Globe, Save, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -25,11 +27,13 @@ export const ProfileSettings = () => {
   const { user } = useAuth();
   const { settings, updateSettings, defaultSettings } = useUserSettings();
   const { profile, updateProfile, isLoading: isProfileLoading } = useProfile();
-  
+  const { organization, isOwner } = useOrganization();
+  const queryClient = useQueryClient();
+
   const [timezone, setTimezone] = useState(defaultSettings.timezone);
   const [emailNotifications, setEmailNotifications] = useState(defaultSettings.email_notifications);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -40,11 +44,13 @@ export const ProfileSettings = () => {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
+    // Org timezone is the source of truth. Fall back to user settings for legacy.
+    const orgTz = organization?.timezone;
+    setTimezone(orgTz || settings?.timezone || defaultSettings.timezone);
     if (settings) {
-      setTimezone(settings.timezone ?? defaultSettings.timezone);
       setEmailNotifications(settings.email_notifications ?? defaultSettings.email_notifications);
     }
-  }, [settings, defaultSettings]);
+  }, [settings, organization, defaultSettings]);
 
 
   const handleChangePassword = async () => {
@@ -95,10 +101,23 @@ export const ProfileSettings = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Save to user settings (legacy / personal pref)
       updateSettings.mutate({
         timezone,
         email_notifications: emailNotifications,
       });
+      // If owner, also update the organization timezone (source of truth)
+      if (isOwner && organization?.id && timezone !== organization.timezone) {
+        const { error } = await supabase
+          .from('organizations')
+          .update({ timezone, updated_at: new Date().toISOString() })
+          .eq('id', organization.id);
+        if (error) {
+          toast.error('Erro ao salvar fuso da organização: ' + error.message);
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['organization'] });
+        }
+      }
     } finally {
       setIsSaving(false);
     }
@@ -251,7 +270,7 @@ export const ProfileSettings = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Fuso Horário</Label>
-            <Select value={timezone} onValueChange={setTimezone}>
+            <Select value={timezone} onValueChange={setTimezone} disabled={!isOwner}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione seu fuso horário" />
               </SelectTrigger>
@@ -264,7 +283,9 @@ export const ProfileSettings = () => {
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
-              Usado para agendamento de campanhas e restrições de horário
+              {isOwner
+                ? 'Define o fuso de toda a organização — usado em campanhas, automações agendadas, tarefas e exibição de datas.'
+                : 'Definido pelo dono da organização. Toda a plataforma respeita este fuso.'}
             </p>
           </div>
         </CardContent>
