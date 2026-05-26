@@ -300,6 +300,39 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Align select/multi_select shape with existing custom_field_definitions:
+  // - 'select' (single) expects a string → unwrap single-element arrays
+  // - 'multi_select' expects an array → wrap scalars in array
+  const alignWithDefinitions = async (
+    bag: Record<string, any>,
+    entityType: 'lead' | 'contact'
+  ) => {
+    const keys = Object.keys(bag);
+    if (keys.length === 0) return;
+    const { data: defs } = await supabase
+      .from('custom_field_definitions')
+      .select('field_key, field_type')
+      .eq('user_id', form.user_id)
+      .eq('entity_type', entityType)
+      .in('field_key', keys);
+    const typeByKey = new Map<string, string>((defs || []).map((d: any) => [d.field_key, d.field_type]));
+    for (const k of keys) {
+      const t = typeByKey.get(k);
+      const v = bag[k];
+      if (t === 'select') {
+        if (Array.isArray(v)) bag[k] = v.length > 0 ? String(v[0]) : '';
+      } else if (t === 'multi_select') {
+        if (!Array.isArray(v)) bag[k] = v === null || v === undefined || v === '' ? [] : [v];
+      }
+    }
+  };
+  await alignWithDefinitions(dealCustomFields, 'lead');
+  if (contactData.custom_fields) {
+    await alignWithDefinitions(contactData.custom_fields as Record<string, any>, 'contact');
+  }
+
+
+
 
     let contactId: string | null = null;
 
