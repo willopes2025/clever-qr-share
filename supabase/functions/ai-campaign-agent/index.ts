@@ -1384,8 +1384,10 @@ Deno.serve(async (req: Request) => {
           .eq('id', stageData.id);
         
         currentStage = nextStage;
+        stageJustEntered = nextStage.id;
         console.log(`[AI-AGENT] Advanced to stage: ${nextStage.stage_name}`);
       }
+
     }
 
     // Fetch conversation history for context
