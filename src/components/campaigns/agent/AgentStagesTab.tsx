@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { Plus, GripVertical, Trash2, Edit, ArrowRight, CheckCircle2, X } from 'lucide-react';
 import { Json } from '@/integrations/supabase/types';
+import { StageMediaManager } from '@/components/ai-agents/StageMediaManager';
 
 interface CollectedField {
   key: string;
