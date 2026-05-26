@@ -119,6 +119,10 @@ export const useGlobalRealtime = () => {
           queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
           queryClient.invalidateQueries({ queryKey: ['stage-deal-counts'] });
           queryClient.invalidateQueries({ queryKey: ['funnel-metrics'] });
+          // Kanban (Funis) lê a query 'funnels' com deals embutidos.
+          // Sem invalidar aqui, o card não reflete novos custom_fields/stage_id
+          // até o usuário recarregar a página.
+          queryClient.invalidateQueries({ queryKey: ['funnels'] });
         }
       )
       .on(
