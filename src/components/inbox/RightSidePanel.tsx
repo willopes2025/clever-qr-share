@@ -31,15 +31,17 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   
-  // Get the active deal for this contact
+  // Get the active deal for this contact (pinned to selectedDealId when set)
   const { useContactDeal } = useFunnels({ includeDeals: false });
-  const { data: activeDeal } = useContactDeal(conversation.contact_id);
+  const { data: activeDeal } = useContactDeal(conversation.contact_id, selectedDealId);
 
-  // Reset tab when conversation changes
+  // Reset tab + selected deal when conversation changes
   useEffect(() => {
     setActiveTab(null);
     setIsActivityOpen(false);
+    setSelectedDealId(null);
   }, [conversation.id]);
 
   const panelContent = (
