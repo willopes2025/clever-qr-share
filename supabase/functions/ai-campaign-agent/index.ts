@@ -1309,6 +1309,9 @@ Deno.serve(async (req: Request) => {
     let stageData: StageData | null = null;
     let currentStage: AgentStage | null = null;
     
+    // Track stage just entered (to fire on_enter media after AI text)
+    let stageJustEntered: string | null = null;
+
     if (stages.length > 0) {
       const { data: existingStageData } = await supabase
         .from('conversation_stage_data')
@@ -1335,8 +1338,10 @@ Deno.serve(async (req: Request) => {
         
         stageData = newStageData as StageData;
         currentStage = initialStage;
+        stageJustEntered = initialStage.id;
       }
     }
+
 
     // Extract fields from message if we have a current stage
     let collectedData: Record<string, unknown> = stageData?.collected_data || {};
