@@ -196,6 +196,11 @@ export const FormSettingsTab = ({ form }: FormSettingsTabProps) => {
             <p className="text-xs text-muted-foreground">
               Ao selecionar um funil, um deal será criado automaticamente para cada novo lead
             </p>
+            {!settings.target_funnel_id && (
+              <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-900 dark:text-yellow-200">
+                <strong>Atenção:</strong> sem funil de destino, os campos do tipo "Lead" só serão aplicados a leads já existentes (quando o formulário usa o campo "Código do Lead"). Novos leads não serão criados e nenhum lead será movido de etapa.
+              </div>
+            )}
           </div>
           
           {settings.target_funnel_id && selectedFunnel && (
