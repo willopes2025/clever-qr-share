@@ -702,8 +702,95 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Create deal in funnel if target_funnel_id is configured
-  if (contactId && form.target_funnel_id) {
+  // === LOOKUP BY LEAD_NUMBER: act on the specific resolved deal ===
+  // Move it to the form's target stage (if configured) and apply lead fields.
+  // This bypasses contact-based deal creation entirely.
+  let handledByLeadLookup = false;
+  if (lookupDealId) {
+    handledByLeadLookup = true;
+    try {
+      // Decide the target stage:
+      // - If form.target_stage_id is set, use it.
+      // - Else if form.target_funnel_id matches the deal's funnel, use first stage.
+      // - Else keep current stage (just update fields, no move).
+      let targetStageId: string | null = null;
+      if (form.target_stage_id) {
+        targetStageId = form.target_stage_id;
+      } else if (form.target_funnel_id && form.target_funnel_id === lookupDealFunnelId) {
+        const { data: firstStage } = await supabase
+          .from('funnel_stages')
+          .select('id')
+          .eq('funnel_id', lookupDealFunnelId)
+          .order('display_order')
+          .limit(1)
+          .maybeSingle();
+        targetStageId = firstStage?.id ?? null;
+      }
+
+      // Validate target stage belongs to the deal's funnel (avoid cross-funnel move)
+      if (targetStageId) {
+        const { data: stageCheck } = await supabase
+          .from('funnel_stages')
+          .select('id, funnel_id')
+          .eq('id', targetStageId)
+          .maybeSingle();
+        if (!stageCheck || stageCheck.funnel_id !== lookupDealFunnelId) {
+          console.warn(`Target stage ${targetStageId} does not belong to deal's funnel ${lookupDealFunnelId}; skipping stage move`);
+          targetStageId = null;
+        }
+      }
+
+      const dealUpdateData: Record<string, any> = {};
+      if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
+      if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
+
+      const shouldMove = targetStageId && targetStageId !== lookupDealStageId;
+      if (shouldMove) {
+        dealUpdateData.stage_id = targetStageId;
+        dealUpdateData.entered_stage_at = new Date().toISOString();
+        console.log(`[lead lookup] Moving deal ${lookupDealId} from ${lookupDealStageId} to ${targetStageId}`);
+      }
+
+      if (Object.keys(dealCustomFields).length > 0) {
+        const { data: dealRow } = await supabase
+          .from('funnel_deals')
+          .select('custom_fields')
+          .eq('id', lookupDealId)
+          .single();
+        dealUpdateData.custom_fields = {
+          ...((dealRow?.custom_fields as Record<string, any>) || {}),
+          ...dealCustomFields,
+        };
+      }
+
+      if (Object.keys(dealUpdateData).length > 0) {
+        await supabase.from('funnel_deals').update(dealUpdateData).eq('id', lookupDealId);
+        console.log(`[lead lookup] Updated deal ${lookupDealId}`);
+      }
+
+      if (shouldMove) {
+        try {
+          await supabase.functions.invoke('process-funnel-automations', {
+            body: {
+              dealId: lookupDealId,
+              funnelId: lookupDealFunnelId,
+              fromStageId: lookupDealStageId,
+              toStageId: targetStageId,
+              triggerType: 'on_stage_enter',
+            },
+          });
+          console.log(`[lead lookup] Triggered on_stage_enter for deal ${lookupDealId}`);
+        } catch (autoErr) {
+          console.error('[lead lookup] Error triggering on_stage_enter:', autoErr);
+        }
+      }
+    } catch (leadLookupErr) {
+      console.error('[lead lookup] Error processing lead lookup:', leadLookupErr);
+    }
+  }
+
+  // Create deal in funnel if target_funnel_id is configured (skipped when handled by lead lookup)
+  if (!handledByLeadLookup && contactId && form.target_funnel_id) {
     try {
       let stageId = form.target_stage_id;
       
