@@ -1938,11 +1938,51 @@ ${templatesList}
     });
     }
 
+    // Fetch on_demand stage media for the current stage so the agent can pick & send by id
+    let onDemandStageMedia: StageMediaItem[] = [];
+    if (currentStage) {
+      const { data: odm } = await supabase
+        .from('ai_agent_stage_media')
+        .select('id, stage_id, trigger_type, order_index, delay_seconds, caption_override, media:ai_agent_media_library!media_id(id,name,description,media_type,media_url,mime_type,caption)')
+        .eq('stage_id', currentStage.id)
+        .eq('trigger_type', 'on_demand')
+        .order('order_index', { ascending: true });
+      onDemandStageMedia = (odm || []) as StageMediaItem[];
+
+      if (onDemandStageMedia.length > 0) {
+        const mediaList = onDemandStageMedia
+          .filter(i => i.media)
+          .map(i => `[${i.id}] ${i.media.name} (${i.media.media_type})${i.media.description ? ' - ' + i.media.description : ''}`)
+          .join('\n');
+        tools.push({
+          type: 'function',
+          function: {
+            name: 'send_stage_media',
+            description: `Envia uma mídia disponível para esta etapa quando for útil para a conversa. Mídias disponíveis nesta etapa:\n${mediaList}`,
+            parameters: {
+              type: 'object',
+              properties: {
+                media_id: {
+                  type: 'string',
+                  description: 'ID da mídia da biblioteca (entre colchetes na lista acima).',
+                },
+                caption: {
+                  type: 'string',
+                  description: 'Legenda opcional para acompanhar a mídia.',
+                },
+              },
+              required: ['media_id'],
+            },
+          },
+        });
+      }
+    }
 
     if (tools.length > 0) {
       aiRequestBody.tools = tools;
       aiRequestBody.tool_choice = 'auto';
     }
+
 
     // Call Lovable AI
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
