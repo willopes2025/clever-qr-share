@@ -279,7 +279,7 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
                   <div key={f.key} className="flex items-center gap-1.5 text-[11px]">
                     <span className="text-muted-foreground truncate">{f.label}:</span>
                     <span className="font-medium truncate">
-                      {formatFieldValue(f.value, f.def?.field_type)}
+                      {formatFieldValue(f.value, f.def?.field_type, f.def?.field_name)}
                     </span>
                   </div>
                 ))}
