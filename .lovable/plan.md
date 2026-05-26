@@ -1,60 +1,61 @@
 ## Diagnóstico
 
-Verifiquei a configuração atual de instâncias da organização **Aliança Empresas** (`4533b774…`):
-
-| Membro | Restrição? | Instância atribuída |
-|---|---|---|
-| cristiane.demarque | ✅ | Aquecimento Cristiane |
-| francielle.siller | ✅ | Aquecimento Francielle Siller |
-| joseluiz.dias | ✅ | Aquecimento José Luiz |
-| karoline.cruz | ✅ | Karoline Aquecimento |
-| tatiana.souza | ✅ | Aquecimento Tatiana |
-| maristher (admin) | ❌ | (vê tudo) |
-| supervisor (admin) | ❌ | (vê tudo) |
-
-**A configuração está salva corretamente no banco.** Cada membro tem `team_member_instances` populado com sua instância, e `member_has_instance_restriction` retorna `true` para eles.
-
-### Causa real do problema
-
-O RLS de `conversations` usa a função `can_access_conversation_channel`. Quando uma conversa **não tem nem `instance_id` nem `meta_phone_number_id`**, a função retorna `true` para **qualquer membro da organização**, ignorando totalmente a restrição configurada:
-
-```sql
-IF _instance_id IS NULL AND _meta_phone_number_id IS NULL THEN
-  RETURN v_in_org;  -- 🐛 brecha
-END IF;
+O deal `06f6efac…` está com os 4 valores salvos no banco:
+```
+consultor: ['William']           ← array
+origem_do_lead: 'Brasil Visão Cidadã'
+condio_do_exame: ['Gratuito']
+data_exame_consult: '2026-05-28T09:15:00'
 ```
 
-Encontrei **64 conversas** órfãs (sem `instance_id`) nessa organização, todas pertencentes à `francielle.siller` (provider `evolution`, criadas em 11/05 e 18/05). Como cada membro restrito da organização as enxerga, dá a impressão de que "voltaram a ver tudo do grupo".
+Mas o card mostra:
+- **Consultor** vazio
+- **Origem do Lead** vazio
+- **Condição do Exame** "Gratuito" ✓
+- **Data Exame** com data cortada e hora `00:00`
+
+### Causas
+
+1. **Datetime — hora perdida.** `parseAnyDateValue` (`src/lib/date-utils.ts:156-159`) detecta strings que começam com `YYYY-MM-DD`, joga fora o `T09:15:00` e devolve só a data. O input de hora então sempre mostra `00:00`.
+
+2. **Consultor vazio.** O campo no formulário é `checkbox` com 1 opção marcada → submissão chega como `['option6']` → `resolveOptionLabel` converte para `['William']` (array). Mas a definição em `custom_field_definitions` é `select` (single). O `<Select>` no card recebe um array como `value` e não bate com nenhuma `SelectItem` → fica em branco.
+
+3. **Origem do Lead vazia.** Valor salvo corretamente como string `'Brasil Visão Cidadã'`, mas a definição `select` tem `options=[]`. Como o `<Select>` só renderiza `SelectItem`s a partir de `definition.options`, nada bate e o trigger fica vazio.
+
+4. **Condição do Exame "funciona por acaso":** definição é `multi_select`, mas o `switch` em `LeadFieldsSection.renderFieldValue` não trata `multi_select` e cai no `default: text`, que faz `String(['Gratuito']) → 'Gratuito'`. Com mais de um valor ficaria `'Gratuito,Pago'`.
 
 ## Correção
 
-### 1. Migration: corrigir `can_access_conversation_channel`
+### 1. `src/lib/date-utils.ts` — preservar hora em ISO datetime
 
-Quando o membro **tem restrição** de instância ou meta, conversas sem canal só devem ser visíveis ao próprio dono (`_conversation_user_id = _user_id`). Para membros sem restrição (admins/owners) o comportamento atual se mantém.
+Em `parseAnyDateValue`, quando a string for `YYYY-MM-DDTHH:mm…` (tem `T`), usar `new Date(val)` mantendo a hora local em vez de cortar no `T`. Manter a lógica atual para strings só-data (`YYYY-MM-DD`).
 
-```sql
--- Pseudo-mudança no final da função:
-IF _instance_id IS NULL AND _meta_phone_number_id IS NULL THEN
-  IF v_inst_restricted OR v_meta_restricted THEN
-    RETURN _conversation_user_id = _user_id;
-  END IF;
-  RETURN v_in_org;
-END IF;
-```
+### 2. `src/components/inbox/lead-panel/LeadFieldsSection.tsx`
 
-### 2. Backfill das 64 conversas órfãs
+- **`case 'select'`**: 
+  - Se `value` vier como array de 1 elemento, usar `value[0]` (cobre o legado de checkbox→select).
+  - Garantir que o valor atual sempre apareça: se não estiver em `definition.options`, injetar como `SelectItem` extra no topo (mantém a UI sempre mostrando o que está salvo, mesmo com `options=[]`).
+- **`case 'multi_select'`**: novo branch — renderizar lista de chips (Badges) com os valores atuais, mais um `Popover` com checkboxes das `options` para adicionar/remover; se `options` estiver vazia, mostrar só os chips com `x` para remover.
+- **Datetime**: nenhuma mudança aqui — o fix do parser já cobre.
 
-Preencher `instance_id = '494c466d-3aba-4eff-8381-4acb20c74dad'` (Aquecimento Francielle Siller) nas conversas da francielle que estão com `instance_id IS NULL` e `provider = 'evolution'`. Isso garante:
-- Higiene dos dados (conversas Evolution sempre referenciam uma instância).
-- Que essas conversas continuem visíveis para a francielle pelo caminho "instance restrito" e fiquem ocultas para outros membros restritos.
+### 3. `supabase/functions/submit-form/index.ts` — normalizar select vs multi_select
 
-### 3. Verificação final
+Antes de aplicar `dealCustomFields`/`contactData.custom_fields`, olhar a definição em `custom_field_definitions` para a chave:
+- Se definição é `select` (single) e o valor é array de 1 → desempacotar para string.
+- Se definição é `multi_select` e valor é string → embrulhar em array.
 
-Após as duas migrations, contar quantas conversas a tatiana (e os demais membros restritos) consegue ver — deve cair de ~64 conversas extras para zero.
+Isso resolve o descompasso form-checkbox × lead-select sem mexer no schema dos formulários.
+
+### 4. Backfill do deal atual
+
+Atualizar `funnel_deals.06f6efac…`:
+- `consultor`: `['William']` → `'William'`
+
+Os outros campos já estão corretos; após os fixes acima vão renderizar bem.
 
 ## Detalhes técnicos
 
-- Função afetada: `public.can_access_conversation_channel(uuid, uuid, uuid, text)` — `SECURITY DEFINER`, sem alteração de assinatura.
-- Não há mudança em RLS policy nem em hooks/UI; a UI de configuração de instâncias já funciona corretamente.
-- O backfill é seguro: limita a `user_id = francielle` + `provider = 'evolution'` + `instance_id IS NULL`.
-- Não afeta admins (supervisor, maristher) — eles continuam vendo todas as conversas pelo caminho `v_in_org`.
+- `parseAnyDateValue` passa a usar `new Date(val)` (interpretado como local) quando há parte de hora; manter `new Date(y, m-1, d)` quando é só `YYYY-MM-DD` para evitar shift de fuso.
+- O `Select` do shadcn precisa que o item exista para mostrar texto, daí a injeção do `value` corrente como `SelectItem` quando ausente.
+- O backfill é em 1 linha; sem side effects (mesma chave, só tipo).
+- Não há alteração de schema; nenhuma migration.
