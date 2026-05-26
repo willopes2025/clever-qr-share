@@ -267,9 +267,14 @@ Deno.serve(async (req: Request) => {
 
     // Determine recipients using unified function
     let userIds: string[] = [];
-    
-    // If type is task-related and no recipientUserId is provided, fetch from task
-    if (type.startsWith('task_') && data.taskId && !recipientUserId) {
+    // Track recipients that were explicitly requested by the caller — these
+    // bypass the only_if_responsible / isResponsible filter (the caller already
+    // decided they should be notified, e.g. AI agent task_notify_user_ids).
+    const explicitRecipientIds = new Set<string>();
+    const hasExplicitRecipients = !!recipientUserId || (organizationUserIds && organizationUserIds.length > 0);
+
+    // If type is task-related and no explicit recipients are provided, fetch from task
+    if (type.startsWith('task_') && data.taskId && !hasExplicitRecipients) {
       console.log('Resolving responsible for task:', data.taskId);
       const responsibleId = await resolveResponsibleUserId(type, data);
       if (responsibleId) {
@@ -278,8 +283,8 @@ Deno.serve(async (req: Request) => {
       }
     }
     
-    // If type is deal-related and no recipientUserId is provided, fetch responsible_id
-    if ((type.startsWith('deal_') || type === 'new_deal') && data.dealId && !recipientUserId && userIds.length === 0) {
+    // If type is deal-related and no explicit recipients are provided, fetch responsible_id
+    if ((type.startsWith('deal_') || type === 'new_deal') && data.dealId && !hasExplicitRecipients && userIds.length === 0) {
       console.log('Resolving responsible for deal:', data.dealId);
       const responsibleId = await resolveResponsibleUserId(type, data);
       if (responsibleId) {
@@ -289,7 +294,7 @@ Deno.serve(async (req: Request) => {
     }
     
     // If type is inbox-related (new_message or ai_handoff), fetch assigned_to
-    if ((type === 'new_message' || type === 'ai_handoff') && data.conversationId && !recipientUserId && userIds.length === 0) {
+    if ((type === 'new_message' || type === 'ai_handoff') && data.conversationId && !hasExplicitRecipients && userIds.length === 0) {
       console.log('Resolving responsible for conversation:', data.conversationId);
       const responsibleId = await resolveResponsibleUserId(type, data);
       if (responsibleId) {
@@ -297,11 +302,6 @@ Deno.serve(async (req: Request) => {
         console.log('Conversation responsible resolved to:', responsibleId);
       }
     }
-    
-    // Track recipients that were explicitly requested by the caller — these
-    // bypass the only_if_responsible / isResponsible filter (the caller already
-    // decided they should be notified, e.g. AI agent task_notify_user_ids).
-    const explicitRecipientIds = new Set<string>();
 
     // Fallback to provided recipientUserId or organizationUserIds
     if (userIds.length === 0) {
@@ -313,6 +313,7 @@ Deno.serve(async (req: Request) => {
         organizationUserIds.forEach((uid) => explicitRecipientIds.add(uid));
       }
     }
+
 
     if (userIds.length === 0) {
       console.log('No recipients determined');
