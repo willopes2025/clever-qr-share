@@ -19,11 +19,14 @@ import { ptBR } from "date-fns/locale";
 interface LeadPanelFunnelBarProps {
   contactId: string;
   conversationId?: string;
+  selectedDealId?: string | null;
+  onSelectDeal?: (dealId: string | null) => void;
 }
 
-export const LeadPanelFunnelBar = ({ contactId, conversationId }: LeadPanelFunnelBarProps) => {
-  const { funnels, updateDeal, useContactDeal } = useFunnels({ includeDeals: false });
-  const { data: activeDeal, isLoading } = useContactDeal(contactId);
+export const LeadPanelFunnelBar = ({ contactId, conversationId, selectedDealId, onSelectDeal }: LeadPanelFunnelBarProps) => {
+  const { funnels, updateDeal, useContactDeal, useContactDeals } = useFunnels({ includeDeals: false });
+  const { data: openDeals } = useContactDeals(contactId);
+  const { data: activeDeal, isLoading } = useContactDeal(contactId, selectedDealId);
   const [showDealForm, setShowDealForm] = useState(false);
   const [showMoveFunnel, setShowMoveFunnel] = useState(false);
   const navigate = useNavigate();
