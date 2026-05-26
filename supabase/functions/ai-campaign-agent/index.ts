@@ -2092,24 +2092,36 @@ ${templatesList}
 
       if (onDemandStageMedia.length > 0) {
         const mediaList = onDemandStageMedia
-          .filter(i => i.media)
-          .map(i => `[${i.id}] ${i.media.name} (${i.media.media_type})${i.media.description ? ' - ' + i.media.description : ''}`)
+          .map(i => {
+            const t = i.attachment_type || 'media';
+            if (t === 'template' && i.template) {
+              return `[${i.id}] (template) ${i.template.name}${i.template.media_type ? ' +' + i.template.media_type : ''}`;
+            }
+            if (t === 'meta_template' && i.meta_template) {
+              return `[${i.id}] (template Meta) ${i.meta_template.name} (${i.meta_template.language})`;
+            }
+            if (i.media) {
+              return `[${i.id}] (mídia ${i.media.media_type}) ${i.media.name}${i.media.description ? ' - ' + i.media.description : ''}`;
+            }
+            return null;
+          })
+          .filter(Boolean)
           .join('\n');
         tools.push({
           type: 'function',
           function: {
             name: 'send_stage_media',
-            description: `Envia uma mídia disponível para esta etapa quando for útil para a conversa. Mídias disponíveis nesta etapa:\n${mediaList}`,
+            description: `Envia um anexo (mídia, template do sistema ou template Meta) disponível para esta etapa quando for útil. Anexos disponíveis:\n${mediaList}`,
             parameters: {
               type: 'object',
               properties: {
                 media_id: {
                   type: 'string',
-                  description: 'ID da mídia da biblioteca (entre colchetes na lista acima).',
+                  description: 'ID do anexo (entre colchetes na lista acima).',
                 },
                 caption: {
                   type: 'string',
-                  description: 'Legenda opcional para acompanhar a mídia.',
+                  description: 'Legenda opcional para mídias (ignorada em templates).',
                 },
               },
               required: ['media_id'],
