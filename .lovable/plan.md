@@ -1,39 +1,60 @@
 ## Diagnóstico
 
-A submissão do formulário **"Exame de Vista CSV"** identificou o lead pelo código `#3828` corretamente (campo `lookup_by_display_id`) e atualizou o contato. Mas o card do lead não recebeu os campos novos (Condição do Exame, Origem do Lead, Consultor, Data Exame) e o lead não foi movido de etapa.
+Verifiquei a configuração atual de instâncias da organização **Aliança Empresas** (`4533b774…`):
 
-**Causa raiz:** o formulário está configurado **sem** `target_funnel_id` / `target_stage_id`. No edge function `submit-form`, toda a lógica que aplica `dealCustomFields` (campos do tipo `lead_field` / `new_lead_field`) e move a etapa do deal está dentro de um bloco `if (contactId && form.target_funnel_id) { ... }`. Sem funil-alvo, esse bloco é totalmente pulado — os campos de lead coletados são descartados.
+| Membro | Restrição? | Instância atribuída |
+|---|---|---|
+| cristiane.demarque | ✅ | Aquecimento Cristiane |
+| francielle.siller | ✅ | Aquecimento Francielle Siller |
+| joseluiz.dias | ✅ | Aquecimento José Luiz |
+| karoline.cruz | ✅ | Karoline Aquecimento |
+| tatiana.souza | ✅ | Aquecimento Tatiana |
+| maristher (admin) | ❌ | (vê tudo) |
+| supervisor (admin) | ❌ | (vê tudo) |
 
-Confirmei no banco:
-- Form `Exame de Vista CSV`: `target_funnel_id = NULL`, `target_stage_id = NULL`
-- Campos de lead mapeados: Condição do Exame, Origem, Consultor, Data Exame Consultório
-- 2 submissões recentes do contato `#3828` salvas, mas o deal `06f6efac…` (funil "Programa Seven", etapa "Novo Lead") permaneceu com `custom_fields` vazio (só dados antigos da Ssotica) e na mesma etapa há 11 dias.
+**A configuração está salva corretamente no banco.** Cada membro tem `team_member_instances` populado com sua instância, e `member_has_instance_restriction` retorna `true` para eles.
+
+### Causa real do problema
+
+O RLS de `conversations` usa a função `can_access_conversation_channel`. Quando uma conversa **não tem nem `instance_id` nem `meta_phone_number_id`**, a função retorna `true` para **qualquer membro da organização**, ignorando totalmente a restrição configurada:
+
+```sql
+IF _instance_id IS NULL AND _meta_phone_number_id IS NULL THEN
+  RETURN v_in_org;  -- 🐛 brecha
+END IF;
+```
+
+Encontrei **64 conversas** órfãs (sem `instance_id`) nessa organização, todas pertencentes à `francielle.siller` (provider `evolution`, criadas em 11/05 e 18/05). Como cada membro restrito da organização as enxerga, dá a impressão de que "voltaram a ver tudo do grupo".
 
 ## Correção
 
-### 1. `supabase/functions/submit-form/index.ts`
+### 1. Migration: corrigir `can_access_conversation_channel`
 
-Quando o formulário usa `lookup_by_display_id` e/ou já há `contactId` resolvido, aplicar os `dealCustomFields` aos deals abertos do contato mesmo quando o formulário não tem `target_funnel_id`:
+Quando o membro **tem restrição** de instância ou meta, conversas sem canal só devem ser visíveis ao próprio dono (`_conversation_user_id = _user_id`). Para membros sem restrição (admins/owners) o comportamento atual se mantém.
 
-- Se `form.target_funnel_id` estiver definido → manter o comportamento atual (cria/atualiza deal nesse funil, move para `target_stage_id`).
-- Se `target_funnel_id` for `NULL` mas houver `dealCustomFields` (ou `dealNativeFields`) **e** o contato foi resolvido via `lookup_by_display_id`:
-  - Buscar todos os deals abertos (`closed_at IS NULL`) desse contato.
-  - Fazer merge dos `custom_fields` em cada um (preservando valores existentes, sobrescrevendo só as chaves novas).
-  - Atualizar `title`/`value` se vieram via `deal_native_field`.
-  - Não mexer em `stage_id` (sem destino configurado).
-  - Logar `Updated N open deals for contact X with form fields`.
+```sql
+-- Pseudo-mudança no final da função:
+IF _instance_id IS NULL AND _meta_phone_number_id IS NULL THEN
+  IF v_inst_restricted OR v_meta_restricted THEN
+    RETURN _conversation_user_id = _user_id;
+  END IF;
+  RETURN v_in_org;
+END IF;
+```
 
-### 2. UI: avisar configuração incompleta
+### 2. Backfill das 64 conversas órfãs
 
-Em `src/components/forms/` (editor do formulário) — quando o usuário tem pelo menos um campo mapeado como `lead_field` / `new_lead_field` e ainda **não** configurou um funil-alvo, mostrar um alerta amarelo no painel de configuração:
-> "Você tem campos mapeados para o lead, mas não definiu um funil/etapa de destino. Os campos serão aplicados aos leads existentes (via código do lead), mas o lead não será movido de etapa. Configure um funil-alvo para mover automaticamente."
+Preencher `instance_id = '494c466d-3aba-4eff-8381-4acb20c74dad'` (Aquecimento Francielle Siller) nas conversas da francielle que estão com `instance_id IS NULL` e `provider = 'evolution'`. Isso garante:
+- Higiene dos dados (conversas Evolution sempre referenciam uma instância).
+- Que essas conversas continuem visíveis para a francielle pelo caminho "instance restrito" e fiquem ocultas para outros membros restritos.
 
-### 3. Reprocessar a submissão de hoje (opcional, manual)
+### 3. Verificação final
 
-Após o deploy, aplicar manualmente os `custom_fields` da última submissão (`3ca34c33-…`) ao deal `06f6efac-…` para corrigir o caso atual do lead Brasil Visão Cidadã.
+Após as duas migrations, contar quantas conversas a tatiana (e os demais membros restritos) consegue ver — deve cair de ~64 conversas extras para zero.
 
 ## Detalhes técnicos
 
-- O `lookupDisplayId` já fica registrado durante o loop de campos; basta passar uma flag `lookedUpByDisplayId = !!lookupDisplayId` para o novo bloco de update de deals.
-- Manter o trigger `process-funnel-automations` apenas no caminho onde realmente há mudança de etapa (evitar disparos duplicados).
-- Não afeta formulários públicos de captação nova (esses continuam dependendo de `target_funnel_id` para criar deal).
+- Função afetada: `public.can_access_conversation_channel(uuid, uuid, uuid, text)` — `SECURITY DEFINER`, sem alteração de assinatura.
+- Não há mudança em RLS policy nem em hooks/UI; a UI de configuração de instâncias já funciona corretamente.
+- O backfill é seguro: limita a `user_id = francielle` + `provider = 'evolution'` + `instance_id IS NULL`.
+- Não afeta admins (supervisor, maristher) — eles continuam vendo todas as conversas pelo caminho `v_in_org`.
