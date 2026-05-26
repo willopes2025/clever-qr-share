@@ -832,6 +832,16 @@ const Contacts = () => {
           funnel_id: editingContact.funnel_deals.find(d => !d.closed_at)!.funnel_id,
           stage_id: editingContact.funnel_deals.find(d => !d.closed_at)!.stage_id,
         } : null}
+        existingDeals={(editingContact?.funnel_deals ?? [])
+          .filter((d) => !d.closed_at)
+          .map((d) => ({
+            id: d.id,
+            funnel_id: d.funnel_id,
+            stage_id: d.stage_id,
+            funnel_name: d.funnels?.name ?? null,
+            stage_name: d.funnel_stages?.name ?? null,
+            stage_color: d.funnel_stages?.color ?? null,
+          }))}
       />
 
       <ImportContactsDialogV2
