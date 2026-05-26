@@ -136,15 +136,21 @@ Deno.serve(async (req: Request) => {
   };
 
 
-  // Check for lookup_by_display_id field first
+  // Check for lookup_by_display_id and lookup_by_lead_number fields first
   let lookupDisplayId: string | null = null;
+  let lookupLeadNumber: number | null = null;
   for (const field of formFields) {
     if (field.mapping_type === 'lookup_by_display_id') {
       const val = submissionData[field.id];
       if (val) {
         lookupDisplayId = String(val).trim();
       }
-      break;
+    } else if (field.mapping_type === 'lookup_by_lead_number') {
+      const val = submissionData[field.id];
+      if (val) {
+        const digits = String(val).replace(/\D/g, '');
+        if (digits) lookupLeadNumber = parseInt(digits, 10);
+      }
     }
   }
 
@@ -180,8 +186,9 @@ Deno.serve(async (req: Request) => {
     const hasNameParts = submissionData[`${field.id}_first`] !== undefined;
     const hasPhoneParts = submissionData[`${field.id}_country_code`] !== undefined;
     
-    // Skip lookup field from data processing and skip empty values
+    // Skip lookup fields from data processing and skip empty values
     if (field.mapping_type === 'lookup_by_display_id') continue;
+    if (field.mapping_type === 'lookup_by_lead_number') continue;
     if (!fieldValue && !hasNameParts && !hasPhoneParts) continue;
 
     if (field.mapping_type === 'contact_field') {
@@ -398,6 +405,66 @@ Deno.serve(async (req: Request) => {
         );
       }
     }
+
+    // Lookup by lead_number: resolve the specific deal directly
+    let lookupDealId: string | null = null;
+    let lookupDealFunnelId: string | null = null;
+    let lookupDealStageId: string | null = null;
+    if (lookupLeadNumber !== null) {
+      const { data: orgMemberIds } = await supabase.rpc('get_organization_member_ids', { _user_id: form.user_id });
+      const memberIds = orgMemberIds?.map((r: any) => typeof r === 'string' ? r : r.get_organization_member_ids) || [form.user_id];
+
+      const { data: lookupDeal } = await supabase
+        .from('funnel_deals')
+        .select('id, contact_id, funnel_id, stage_id, user_id')
+        .in('user_id', memberIds)
+        .eq('lead_number', lookupLeadNumber)
+        .is('closed_at', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (lookupDeal) {
+        lookupDealId = lookupDeal.id;
+        lookupDealFunnelId = lookupDeal.funnel_id;
+        lookupDealStageId = lookupDeal.stage_id;
+        contactId = lookupDeal.contact_id;
+        console.log(`Found deal by lead_number ${lookupLeadNumber}: ${lookupDealId} (contact: ${contactId})`);
+
+        // Update contact data if provided
+        if (contactId) {
+          const { data: existingContact } = await supabase
+            .from('contacts')
+            .select('id, name, custom_fields')
+            .eq('id', contactId)
+            .maybeSingle();
+
+          if (existingContact) {
+            const updateData: Record<string, any> = {};
+            if (contactData.name) updateData.name = contactData.name;
+            if (contactData.email) updateData.email = contactData.email;
+            if (contactData.phone) updateData.phone = contactData.phone;
+            if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
+              updateData.custom_fields = {
+                ...((existingContact.custom_fields as Record<string, any>) || {}),
+                ...contactData.custom_fields,
+              };
+            }
+            if (Object.keys(updateData).length > 0) {
+              await supabase.from('contacts').update(updateData).eq('id', contactId);
+            }
+          }
+        }
+      } else {
+        console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
+        return new Response(
+          JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+
+
 
     // Check if a static contact_id was provided (trackable form link from inbox)
     const staticContactId = staticParams.contact_id;
@@ -630,8 +697,95 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Create deal in funnel if target_funnel_id is configured
-  if (contactId && form.target_funnel_id) {
+  // === LOOKUP BY LEAD_NUMBER: act on the specific resolved deal ===
+  // Move it to the form's target stage (if configured) and apply lead fields.
+  // This bypasses contact-based deal creation entirely.
+  let handledByLeadLookup = false;
+  if (lookupDealId) {
+    handledByLeadLookup = true;
+    try {
+      // Decide the target stage:
+      // - If form.target_stage_id is set, use it.
+      // - Else if form.target_funnel_id matches the deal's funnel, use first stage.
+      // - Else keep current stage (just update fields, no move).
+      let targetStageId: string | null = null;
+      if (form.target_stage_id) {
+        targetStageId = form.target_stage_id;
+      } else if (form.target_funnel_id && form.target_funnel_id === lookupDealFunnelId) {
+        const { data: firstStage } = await supabase
+          .from('funnel_stages')
+          .select('id')
+          .eq('funnel_id', lookupDealFunnelId)
+          .order('display_order')
+          .limit(1)
+          .maybeSingle();
+        targetStageId = firstStage?.id ?? null;
+      }
+
+      // Validate target stage belongs to the deal's funnel (avoid cross-funnel move)
+      if (targetStageId) {
+        const { data: stageCheck } = await supabase
+          .from('funnel_stages')
+          .select('id, funnel_id')
+          .eq('id', targetStageId)
+          .maybeSingle();
+        if (!stageCheck || stageCheck.funnel_id !== lookupDealFunnelId) {
+          console.warn(`Target stage ${targetStageId} does not belong to deal's funnel ${lookupDealFunnelId}; skipping stage move`);
+          targetStageId = null;
+        }
+      }
+
+      const dealUpdateData: Record<string, any> = {};
+      if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
+      if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
+
+      const shouldMove = targetStageId && targetStageId !== lookupDealStageId;
+      if (shouldMove) {
+        dealUpdateData.stage_id = targetStageId;
+        dealUpdateData.entered_stage_at = new Date().toISOString();
+        console.log(`[lead lookup] Moving deal ${lookupDealId} from ${lookupDealStageId} to ${targetStageId}`);
+      }
+
+      if (Object.keys(dealCustomFields).length > 0) {
+        const { data: dealRow } = await supabase
+          .from('funnel_deals')
+          .select('custom_fields')
+          .eq('id', lookupDealId)
+          .single();
+        dealUpdateData.custom_fields = {
+          ...((dealRow?.custom_fields as Record<string, any>) || {}),
+          ...dealCustomFields,
+        };
+      }
+
+      if (Object.keys(dealUpdateData).length > 0) {
+        await supabase.from('funnel_deals').update(dealUpdateData).eq('id', lookupDealId);
+        console.log(`[lead lookup] Updated deal ${lookupDealId}`);
+      }
+
+      if (shouldMove) {
+        try {
+          await supabase.functions.invoke('process-funnel-automations', {
+            body: {
+              dealId: lookupDealId,
+              funnelId: lookupDealFunnelId,
+              fromStageId: lookupDealStageId,
+              toStageId: targetStageId,
+              triggerType: 'on_stage_enter',
+            },
+          });
+          console.log(`[lead lookup] Triggered on_stage_enter for deal ${lookupDealId}`);
+        } catch (autoErr) {
+          console.error('[lead lookup] Error triggering on_stage_enter:', autoErr);
+        }
+      }
+    } catch (leadLookupErr) {
+      console.error('[lead lookup] Error processing lead lookup:', leadLookupErr);
+    }
+  }
+
+  // Create deal in funnel if target_funnel_id is configured (skipped when handled by lead lookup)
+  if (!handledByLeadLookup && contactId && form.target_funnel_id) {
     try {
       let stageId = form.target_stage_id;
       
