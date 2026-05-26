@@ -387,7 +387,15 @@ export function AgentStagesTab({ agentConfigId }: AgentStagesTabProps) {
               />
               <Label htmlFor="is_final" className="cursor-pointer">Estágio final</Label>
             </div>
+
+            {editingStageId && (
+              <div className="border-t pt-4">
+                <StageMediaManager stageId={editingStageId} />
+              </div>
+            )}
           </div>
+
+
 
           <DialogFooter>
             <Button variant="outline" onClick={resetForm}>Cancelar</Button>
