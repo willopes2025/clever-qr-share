@@ -394,7 +394,8 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Não salvar no perfil</SelectItem>
-                    <SelectItem value="lookup_by_display_id">🔍 Buscar lead por código</SelectItem>
+                    <SelectItem value="lookup_by_lead_number">🎯 Buscar lead por código do lead (#)</SelectItem>
+                    <SelectItem value="lookup_by_display_id">🔍 Buscar contato por código</SelectItem>
                     <SelectItem value="contact_field">Campo nativo do contato</SelectItem>
                     <SelectItem value="custom_field">Campo personalizado (Contato)</SelectItem>
                     <SelectItem value="lead_field">Campo personalizado (Lead)</SelectItem>
@@ -405,9 +406,15 @@ export const FieldProperties = ({ field, allFields = [], onUpdate }: FieldProper
                   </SelectContent>
                 </Select>
 
+                {(localField.mapping_type as string) === 'lookup_by_lead_number' && (
+                  <p className="text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 p-2 rounded">
+                    Este campo busca um lead específico pelo seu código (ex: 4084). O lead encontrado será movido para a etapa-alvo do formulário, e os demais campos atualizam esse lead. Se o lead não existir, o envio falha (não cria novo).
+                  </p>
+                )}
+
                 {(localField.mapping_type as string) === 'lookup_by_display_id' && (
                   <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 p-2 rounded">
-                    Este campo será usado para buscar um lead existente pelo código (ex: 0042). Os demais campos do formulário atualizarão os dados desse lead.
+                    Busca um contato pelo código (ex: 0042). Se o contato tiver vários leads no funil-alvo, o comportamento pode ser ambíguo — prefira "Buscar lead por código do lead".
                   </p>
                 )}
 
