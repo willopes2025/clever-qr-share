@@ -718,12 +718,26 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     }
   });
 
-  // Get deal by contact
-  const useContactDeal = (contactId: string | undefined) => {
+  // Get deal by contact (most recent open). Optionally pin a specific dealId.
+  const useContactDeal = (contactId: string | undefined, dealId?: string | null) => {
     return useQuery({
-      queryKey: ['contact-deal', contactId],
+      queryKey: ['contact-deal', contactId, dealId || null],
       queryFn: async () => {
         if (!contactId) return null;
+        if (dealId) {
+          const { data, error } = await supabase
+            .from('funnel_deals')
+            .select(`
+              *,
+              funnel:funnels(id, name),
+              stage:funnel_stages(id, name, color),
+              contact:contacts(id, name, phone, email, custom_fields)
+            `)
+            .eq('id', dealId)
+            .maybeSingle();
+          if (error) throw error;
+          return data;
+        }
         const { data, error } = await supabase
           .from('funnel_deals')
           .select(`
@@ -739,6 +753,29 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
           .maybeSingle();
         if (error) throw error;
         return data;
+      },
+      enabled: !!contactId
+    });
+  };
+
+  // Get ALL open deals for a contact (when contact has deals across multiple funnels)
+  const useContactDeals = (contactId: string | undefined) => {
+    return useQuery({
+      queryKey: ['contact-deals', contactId],
+      queryFn: async () => {
+        if (!contactId) return [];
+        const { data, error } = await supabase
+          .from('funnel_deals')
+          .select(`
+            id, funnel_id, stage_id, created_at, updated_at, lead_number,
+            funnel:funnels(id, name),
+            stage:funnel_stages(id, name, color)
+          `)
+          .eq('contact_id', contactId)
+          .is('closed_at', null)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
       },
       enabled: !!contactId
     });
@@ -864,6 +901,7 @@ export const useFunnels = (options: { includeDeals?: boolean } = {}) => {
     createAutomation,
     updateAutomation,
     deleteAutomation,
-    useContactDeal
+    useContactDeal,
+    useContactDeals
   };
 };
