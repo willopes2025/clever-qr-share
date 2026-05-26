@@ -136,15 +136,21 @@ Deno.serve(async (req: Request) => {
   };
 
 
-  // Check for lookup_by_display_id field first
+  // Check for lookup_by_display_id and lookup_by_lead_number fields first
   let lookupDisplayId: string | null = null;
+  let lookupLeadNumber: number | null = null;
   for (const field of formFields) {
     if (field.mapping_type === 'lookup_by_display_id') {
       const val = submissionData[field.id];
       if (val) {
         lookupDisplayId = String(val).trim();
       }
-      break;
+    } else if (field.mapping_type === 'lookup_by_lead_number') {
+      const val = submissionData[field.id];
+      if (val) {
+        const digits = String(val).replace(/\D/g, '');
+        if (digits) lookupLeadNumber = parseInt(digits, 10);
+      }
     }
   }
 
