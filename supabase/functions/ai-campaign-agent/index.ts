@@ -1434,10 +1434,8 @@ Deno.serve(async (req: Request) => {
                        hasSlotPlaceholders(config.behavior_rules || '') ||
                        hasSlotPlaceholders(config.personality_prompt || '');
 
-    // Track stage just entered (to fire on_enter media after AI text)
-    let stageJustEntered: string | null = null;
-
     const hasCalendarIntegration = !!calendarIntegration && !!agentConfig?.id;
+
 
     let slot1Formatted = '';
     let slot2Formatted = '';
