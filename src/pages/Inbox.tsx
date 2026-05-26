@@ -59,15 +59,29 @@ const Inbox = () => {
       if (conv && selectedConversationId !== conv.id) {
         setSelectedConversationId(conv.id);
         if (isMobile) setMobileShowMessages(true);
-        // Clear params after selection
         setSearchParams({});
+      } else if (!conv && selectedConversationId !== conversationId) {
+        // Not in filtered list (instance restriction). Fetch directly so card→inbox works.
+        (async () => {
+          const { supabase } = await import('@/integrations/supabase/client');
+          const { data } = await supabase
+            .from('conversations')
+            .select('*, contact:contacts(*)')
+            .eq('id', conversationId)
+            .maybeSingle();
+          if (data) {
+            setFallbackConversation(data as unknown as Conversation);
+            setSelectedConversationId(conversationId);
+            if (isMobile) setMobileShowMessages(true);
+            setSearchParams({});
+          }
+        })();
       }
     } else if (contactId) {
       const conv = conversations.find(c => c.contact_id === contactId);
       if (conv && selectedConversationId !== conv.id) {
         setSelectedConversationId(conv.id);
         if (isMobile) setMobileShowMessages(true);
-        // Clear params after selection
         setSearchParams({});
       }
     }
