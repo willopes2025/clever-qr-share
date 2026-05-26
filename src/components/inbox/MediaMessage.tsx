@@ -132,21 +132,62 @@ export const MediaMessage = ({ mediaUrl, messageType, messageId, transcription, 
 
   // Image
   if (messageType === 'image' || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    const handleDownloadImage = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      try {
+        const res = await fetch(mediaUrl);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = getFileNameFromUrl(mediaUrl) || 'imagem.jpg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (err) {
+        console.error('Image download error:', err);
+        toast.error('Erro ao baixar imagem');
+      }
+    };
+
     return (
       <Dialog>
-        <DialogTrigger asChild>
-          <img
-            src={mediaUrl}
-            alt="Imagem"
-            className="max-w-[280px] max-h-[200px] rounded-md object-cover cursor-pointer hover:opacity-90 transition-opacity"
-          />
-        </DialogTrigger>
+        <div className="relative inline-block group">
+          <DialogTrigger asChild>
+            <img
+              src={mediaUrl}
+              alt="Imagem"
+              className="max-w-[280px] max-h-[200px] rounded-md object-cover cursor-pointer hover:opacity-90 transition-opacity"
+            />
+          </DialogTrigger>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            onClick={handleDownloadImage}
+            title="Baixar imagem"
+            className="absolute top-1.5 right-1.5 h-7 w-7 bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        </div>
         <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black/90">
           <img
             src={mediaUrl}
             alt="Imagem"
             className="w-full h-auto max-h-[90vh] object-contain"
           />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleDownloadImage}
+            className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white gap-2"
+          >
+            <Download className="h-4 w-4" /> Baixar
+          </Button>
         </DialogContent>
       </Dialog>
     );
