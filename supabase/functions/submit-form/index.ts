@@ -429,7 +429,38 @@ Deno.serve(async (req: Request) => {
         lookupDealStageId = lookupDeal.stage_id;
         contactId = lookupDeal.contact_id;
         console.log(`Found deal by lead_number ${lookupLeadNumber}: ${lookupDealId} (contact: ${contactId})`);
+
+        // Update contact data if provided
+        if (contactId) {
+          const { data: existingContact } = await supabase
+            .from('contacts')
+            .select('id, name, custom_fields')
+            .eq('id', contactId)
+            .maybeSingle();
+
+          if (existingContact) {
+            const updateData: Record<string, any> = {};
+            if (contactData.name) updateData.name = contactData.name;
+            if (contactData.email) updateData.email = contactData.email;
+            if (contactData.phone) updateData.phone = contactData.phone;
+            if (contactData.custom_fields && Object.keys(contactData.custom_fields).length > 0) {
+              updateData.custom_fields = {
+                ...((existingContact.custom_fields as Record<string, any>) || {}),
+                ...contactData.custom_fields,
+              };
+            }
+            if (Object.keys(updateData).length > 0) {
+              await supabase.from('contacts').update(updateData).eq('id', contactId);
+            }
+          }
+        }
       } else {
+        console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
+        return new Response(
+          JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
         console.warn(`Open deal not found for lead_number: ${lookupLeadNumber} across org members`);
         return new Response(
           JSON.stringify({ error: `Lead com código #${lookupLeadNumber} não encontrado (ou já está fechado)` }),
