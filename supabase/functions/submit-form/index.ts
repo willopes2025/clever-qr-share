@@ -186,8 +186,9 @@ Deno.serve(async (req: Request) => {
     const hasNameParts = submissionData[`${field.id}_first`] !== undefined;
     const hasPhoneParts = submissionData[`${field.id}_country_code`] !== undefined;
     
-    // Skip lookup field from data processing and skip empty values
+    // Skip lookup fields from data processing and skip empty values
     if (field.mapping_type === 'lookup_by_display_id') continue;
+    if (field.mapping_type === 'lookup_by_lead_number') continue;
     if (!fieldValue && !hasNameParts && !hasPhoneParts) continue;
 
     if (field.mapping_type === 'contact_field') {
