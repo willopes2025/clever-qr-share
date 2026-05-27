@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDate as formatDateActive } from "@/lib/timezone";
 import { parseAnyDateValue, isDateLikeFieldName, formatDateValue } from "@/lib/date-utils";
 import { useCustomFields, CustomFieldDefinition, FieldType, EntityType } from "@/hooks/useCustomFields";
 import { useLeadPanelTabs } from "@/hooks/useLeadPanelTabs";
@@ -216,7 +217,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 px-3 text-sm justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5">
-                {parsedDate ? format(parsedDate, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Selecionar</span>}
+                {parsedDate ? formatDateActive(parsedDate) : <span className="text-muted-foreground">Selecionar</span>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
@@ -249,7 +250,7 @@ export const LeadFieldsSection = ({ deal, activeTabId }: LeadFieldsSectionProps)
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 px-2 text-xs justify-start font-normal border-border/50 hover:border-primary/50 hover:bg-primary/5 shrink-0">
-                  {parsedDt ? format(parsedDt, "dd/MM/yyyy", { locale: ptBR }) : <span className="text-muted-foreground">Data</span>}
+                  {parsedDt ? formatDateActive(parsedDt) : <span className="text-muted-foreground">Data</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
