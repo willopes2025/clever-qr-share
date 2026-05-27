@@ -6,6 +6,7 @@ import { RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, Activity, Chevro
 import { useMetaWebhookEvents, MetaWebhookEvent } from "@/hooks/useMetaWebhookEvents";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeShort } from "@/lib/date-utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
