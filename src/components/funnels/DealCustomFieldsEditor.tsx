@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { format, parse } from "date-fns";
+import { formatDateOnly } from "@/lib/date-utils";
 import { CalendarIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -290,7 +291,7 @@ function DateFieldPicker({ value, onChange }: { value: string; onChange: (v: str
       <PopoverTrigger asChild>
         <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !normalized && "text-muted-foreground")}>
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {normalized ? format(parse(normalized, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy') : "Selecione uma data"}
+          {normalized ? formatDateOnly(normalized) : "Selecione uma data"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -325,7 +326,7 @@ function DateTimeFieldPicker({ value, onChange }: { value: string; onChange: (v:
         <PopoverTrigger asChild>
           <Button variant="outline" className={cn("flex-1 justify-start text-left font-normal", !datePart && "text-muted-foreground")}>
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {datePart ? format(parse(datePart, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy') : "Data"}
+            {datePart ? formatDateOnly(datePart) : "Data"}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

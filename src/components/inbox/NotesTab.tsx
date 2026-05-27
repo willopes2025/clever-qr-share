@@ -6,7 +6,7 @@ import { useConversationNotes, ConversationNote } from "@/hooks/useConversationN
 import { Plus, Pin, PinOff, Pencil, Trash2, Check, X, StickyNote } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toBrazilTime } from "@/lib/date-utils";
+import { toBrazilTime, formatFullDateTimeBR } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -192,7 +192,7 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      {format(toBrazilTime(new Date(note.created_at)), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                      {formatFullDateTimeBR(note.created_at)}
                     </p>
                   </>
                 )}
