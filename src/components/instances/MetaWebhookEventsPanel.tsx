@@ -168,7 +168,7 @@ export const MetaWebhookEventsPanel = () => {
                           {getEventTypeBadge(event.event_type)}
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(event.received_at), "dd/MM HH:mm:ss")}
+                          {formatDateTimeShort(event.received_at)}
                         </span>
                       </div>
                       {event.phone_number_id && (
