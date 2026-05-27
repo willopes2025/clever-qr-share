@@ -20,8 +20,7 @@ import {
   Ban,
   Bot
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateTimeFull } from '@/lib/date-utils';
 
 interface CampaignCardProps {
   campaign: Campaign;
