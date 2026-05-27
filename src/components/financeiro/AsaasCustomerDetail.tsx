@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -113,9 +114,9 @@ export const AsaasCustomerDetail = ({ customer, onClose, onCreatePayment }: Asaa
       const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
       if (isDateOnly) {
         const [y, m, d] = dateStr.split('-').map(Number);
-        return format(new Date(y, m - 1, d), "dd/MM/yyyy", { locale: ptBR });
+        return formatDateOnly(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
       }
-      return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR });
+      return formatDateOnly(dateStr);
     } catch {
       return dateStr;
     }

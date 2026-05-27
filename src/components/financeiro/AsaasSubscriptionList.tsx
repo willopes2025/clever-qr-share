@@ -8,6 +8,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,7 +108,7 @@ export const AsaasSubscriptionList = () => {
                       <Badge variant="outline">{cycleLabels[subscription.cycle] || subscription.cycle}</Badge>
                     </TableCell>
                     <TableCell>
-                      {format(new Date(subscription.nextDueDate), "dd/MM/yyyy", { locale: ptBR })}
+                      {formatDateOnly(subscription.nextDueDate)}
                     </TableCell>
                     <TableCell>
                       <Badge className={statusColors[subscription.status] || "bg-gray-500/20"}>

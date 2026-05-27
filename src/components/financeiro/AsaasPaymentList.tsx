@@ -8,6 +8,8 @@ import { Plus, Loader2, ExternalLink, Copy, Trash2, RefreshCw } from "lucide-rea
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
+import { formatTime as formatTimeActive } from "@/lib/timezone";
 import { AsaasPaymentForm } from "./AsaasPaymentForm";
 import { AsaasPaymentFilters, PaymentFilters, initialPaymentFilters } from "./AsaasPaymentFilters";
 import { toast } from "sonner";
@@ -148,7 +150,7 @@ export const AsaasPaymentList = () => {
         <div className="flex items-center gap-2">
           {lastSync && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              Atualizado: {format(new Date(lastSync), "HH:mm", { locale: ptBR })}
+              Atualizado: {formatTimeActive(lastSync)}
             </span>
           )}
           <Button
@@ -210,7 +212,7 @@ export const AsaasPaymentList = () => {
                     <TableCell className="font-medium">{getCustomerName(payment.customer)}</TableCell>
                     <TableCell>{payment.description || '-'}</TableCell>
                     <TableCell>
-                      {format(new Date(payment.dueDate), "dd/MM/yyyy", { locale: ptBR })}
+                      {formatDateOnly(payment.dueDate)}
                     </TableCell>
                     <TableCell className="font-medium">{formatCurrency(payment.value)}</TableCell>
                     <TableCell>

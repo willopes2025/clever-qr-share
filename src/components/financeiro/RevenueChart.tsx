@@ -3,6 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { DailyData } from '@/hooks/useFinancialMetrics';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 
 interface RevenueChartProps {
   data: DailyData[];
@@ -34,7 +35,7 @@ export const RevenueChart = ({
 }: RevenueChartProps) => {
   const chartData = data.map(item => ({
     ...item,
-    formattedDate: format(parseISO(item.date), 'dd/MM', { locale: ptBR }),
+    formattedDate: formatDateShort(item.date),
     fullDate: format(parseISO(item.date), "dd 'de' MMMM", { locale: ptBR }),
   }));
 

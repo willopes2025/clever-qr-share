@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bell, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { format, parseISO, differenceInDays, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort, formatDateTimeShort } from '@/lib/date-utils';
 import { DateRange } from '@/hooks/useFinancialMetrics';
 
 interface BillingRemindersChartProps {
@@ -94,7 +95,7 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
   const chartData = Object.entries(byDateType)
     .map(([date, types]) => ({
       date,
-      label: format(parseISO(date), 'dd/MM', { locale: ptBR }),
+      label: formatDateShort(date),
       ...types,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -167,7 +168,7 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
               <YAxis allowDecimals={false} className="text-xs" />
               <ChartTooltip content={<ChartTooltipContent />} />
               <ReferenceLine
-                x={format(new Date(), 'dd/MM', { locale: ptBR })}
+                x={formatDateShort(new Date().toISOString())}
                 stroke="hsl(var(--primary))"
                 strokeDasharray="4 4"
                 strokeWidth={2}
@@ -271,7 +272,7 @@ export const BillingRemindersChart = ({ dateRange }: BillingRemindersChartProps)
               {failedReminders.slice(0, 10).map((r, i) => (
                 <div key={i} className="text-xs flex items-start gap-2 p-2 rounded bg-destructive/5">
                   <span className="text-muted-foreground whitespace-nowrap">
-                    {format(parseISO(r.scheduled_for), 'dd/MM HH:mm')}
+                    {formatDateTimeShort(r.scheduled_for)}
                   </span>
                   <Badge variant="outline" className="text-xs shrink-0">
                     {REMINDER_TYPE_LABELS[r.reminder_type] || r.reminder_type}
