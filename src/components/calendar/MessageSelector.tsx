@@ -10,6 +10,7 @@ import { MessageSquare, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateShort } from "@/lib/date-utils";
 
 export type MessageMode = 'template' | 'manual';
 
@@ -82,8 +83,7 @@ export function MessageSelector({
 
   const getScheduledLabel = () => {
     if (!dueDate) return null;
-    const date = new Date(dueDate + 'T00:00:00');
-    const formattedDate = format(date, "dd/MM", { locale: ptBR });
+    const formattedDate = formatDateShort(dueDate);
     return dueTime ? `${formattedDate} às ${dueTime.slice(0, 5)}` : formattedDate;
   };
 
