@@ -342,11 +342,47 @@ Deno.serve(async (req: Request) => {
     }
 
     // Helper: substitute variables in text
+    // Detects date-like values and formats them to Brazilian format (DD/MM/YYYY[ HH:mm])
+    const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+    const ISO_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+    const formatDateBR = (v: string | Date): string | null => {
+      if (v instanceof Date) {
+        if (isNaN(v.getTime())) return null;
+        const dd = String(v.getUTCDate()).padStart(2, '0');
+        const mm = String(v.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = v.getUTCFullYear();
+        const hh = String(v.getUTCHours()).padStart(2, '0');
+        const mi = String(v.getUTCMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+      }
+      const s = String(v).trim();
+      const dOnly = s.match(DATE_ONLY_RE);
+      if (dOnly) return `${dOnly[3]}/${dOnly[2]}/${dOnly[1]}`;
+      const dTime = s.match(ISO_DATETIME_RE);
+      if (dTime) {
+        // Render in Brazil timezone (America/Sao_Paulo, UTC-3) by default
+        try {
+          const parsed = new Date(s.includes('T') ? s : s.replace(' ', 'T'));
+          if (!isNaN(parsed.getTime())) {
+            return new Intl.DateTimeFormat('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              day: '2-digit', month: '2-digit', year: 'numeric',
+              hour: '2-digit', minute: '2-digit', hour12: false,
+            }).format(parsed).replace(',', '');
+          }
+        } catch {}
+        return `${dTime[3]}/${dTime[2]}/${dTime[1]} ${dTime[4]}:${dTime[5]}`;
+      }
+      return null;
+    };
     const formatVarValue = (v: any): string => {
       if (v === null || v === undefined) return '';
-      if (Array.isArray(v)) return v.join(', ');
+      if (v instanceof Date) return formatDateBR(v) || v.toISOString();
+      if (Array.isArray(v)) return v.map((x) => formatVarValue(x)).join(', ');
       if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return ''; } }
-      return String(v);
+      const s = String(v);
+      const br = formatDateBR(s);
+      return br ?? s;
     };
     const contactCustom = (contact?.custom_fields as Record<string, any>) || {};
     const dealCustom = (activeDeal?.custom_fields as Record<string, any>) || {};
