@@ -90,6 +90,12 @@ export interface InboxMessage {
   // Origin tracking
   sent_via_instance_id?: string | null;
   sent_via_meta_number_id?: string | null;
+  sent_via_chatbot_flow_id?: string | null;
+  sent_via_template_id?: string | null;
+  sent_via_meta_template_id?: string | null;
+  chatbot_flow?: { name: string } | null;
+  template?: { name: string } | null;
+  meta_template?: { name: string } | null;
   // Reactions
   reactions?: MessageReaction[];
   // Quoted/replied message
