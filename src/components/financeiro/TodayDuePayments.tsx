@@ -8,6 +8,8 @@ import { useAsaas, AsaasPayment, AsaasCustomer } from '@/hooks/useAsaas';
 import { CalendarClock, ExternalLink, FileText, MessageCircle, CheckCircle2, XCircle, Clock, Send } from 'lucide-react';
 import { format, parseISO, isToday, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort, formatDateOnly } from '@/lib/date-utils';
+import { formatTime as formatTimeActive } from '@/lib/timezone';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -60,7 +62,7 @@ const reminderBadge = (info: ReminderInfo, paymentStatus: string) => {
         icon: Send,
         label: 'Enviado',
         className: 'bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400',
-        title: info.sentAt ? `Lembrete enviado em ${format(parseISO(info.sentAt), "dd/MM HH:mm", { locale: ptBR })}` : 'Lembrete enviado',
+        title: info.sentAt ? `Lembrete enviado em ${formatDateShort(info.sentAt)} ${formatTimeActive(info.sentAt)}` : 'Lembrete enviado',
       };
     case 'failed':
       return {
@@ -81,7 +83,7 @@ const reminderBadge = (info: ReminderInfo, paymentStatus: string) => {
         icon: Clock,
         label: 'Agendado',
         className: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30 dark:text-yellow-400',
-        title: info.scheduledFor ? `Agendado para ${format(parseISO(info.scheduledFor), "dd/MM HH:mm", { locale: ptBR })}` : 'Lembrete agendado',
+        title: info.scheduledFor ? `Agendado para ${formatDateShort(info.scheduledFor)} ${formatTimeActive(info.scheduledFor)}` : 'Lembrete agendado',
       };
     case 'paid':
       return {
@@ -214,7 +216,7 @@ export const TodayDuePayments = () => {
 
       // Build message
       const invoiceLink = row.payment.invoiceUrl || row.payment.bankSlipUrl || '';
-      const message = `Olá ${customer.name}! 👋\n\nSegue o lembrete da sua cobrança no valor de ${formatCurrency(row.payment.value)} com vencimento hoje (${format(parseISO(row.payment.dueDate), 'dd/MM/yyyy')}).\n\n${invoiceLink ? `📎 Link para pagamento: ${invoiceLink}` : 'Entre em contato para mais detalhes.'}`;
+      const message = `Olá ${customer.name}! 👋\n\nSegue o lembrete da sua cobrança no valor de ${formatCurrency(row.payment.value)} com vencimento hoje (${formatDateOnly(row.payment.dueDate)}).\n\n${invoiceLink ? `📎 Link para pagamento: ${invoiceLink}` : 'Entre em contato para mais detalhes.'}`;
 
       // Try to find existing conversation
       const normalizedPhone = phone.replace(/\D/g, '');

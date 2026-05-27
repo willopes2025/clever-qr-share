@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Wallet, TrendingUp, Receipt, AlertCircle, RefreshCw, Loader2, Calendar, TrendingDown } from 'lucide-react';
 import { startOfDay, endOfDay, subDays, format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateOnly } from '@/lib/date-utils';
+import { formatTime as formatTimeActive } from '@/lib/timezone';
 import { cn } from '@/lib/utils';
 
 const formatCurrency = (value: number): string => {
@@ -52,7 +54,7 @@ export const AsaasDashboard = () => {
         <div className="flex items-center gap-2">
           {lastSync && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              Atualizado: {format(new Date(lastSync), 'HH:mm', { locale: ptBR })}
+              Atualizado: {formatTimeActive(lastSync)}
             </span>
           )}
           <Button
@@ -220,7 +222,7 @@ export const AsaasDashboard = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Resumo do Período</CardTitle>
                 <CardDescription>
-                  {format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} - {format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}
+                  {formatDateOnly(dateRange.start.toISOString())} - {formatDateOnly(dateRange.end.toISOString())}
                 </CardDescription>
               </CardHeader>
               <CardContent>

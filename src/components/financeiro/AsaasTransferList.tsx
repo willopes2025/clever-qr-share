@@ -7,6 +7,7 @@ import { Plus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-yellow-500/20 text-yellow-500",
@@ -89,9 +90,9 @@ export const AsaasTransferList = () => {
                         const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
                         if (isDateOnly) {
                           const [y, m, d] = raw.split('-').map(Number);
-                          return format(new Date(y, m - 1, d), "dd/MM/yyyy", { locale: ptBR });
+                          return formatDateOnly(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
                         }
-                        return format(new Date(raw), "dd/MM/yyyy HH:mm", { locale: ptBR });
+                        return formatDateTimeFull(raw);
                       })()}
                     </TableCell>
                     <TableCell>
