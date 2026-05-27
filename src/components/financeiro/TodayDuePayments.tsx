@@ -62,7 +62,7 @@ const reminderBadge = (info: ReminderInfo, paymentStatus: string) => {
         icon: Send,
         label: 'Enviado',
         className: 'bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400',
-        title: info.sentAt ? `Lembrete enviado em ${format(parseISO(info.sentAt), "dd/MM HH:mm", { locale: ptBR })}` : 'Lembrete enviado',
+        title: info.sentAt ? `Lembrete enviado em ${formatDateShort(info.sentAt)} ${formatTimeActive(info.sentAt)}` : 'Lembrete enviado',
       };
     case 'failed':
       return {
