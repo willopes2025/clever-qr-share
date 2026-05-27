@@ -3,8 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useFinancialMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { DollarSign, TrendingUp, Target, Calculator } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 
 interface FinancialSectionProps {
   dateRange: DateRange;
