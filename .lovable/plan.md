@@ -1,62 +1,61 @@
-# Fuso horário unificado em toda a plataforma
+# Plano
 
-Hoje cada parte do sistema trata fuso de um jeito: o frontend usa `America/Sao_Paulo` fixo, algumas edge functions hardcodam `-03:00`, campanhas leem `campaign.timezone`, e a tela de Configurações já tem o seletor de fuso (`user_settings.timezone`) — mas ninguém respeita o que o usuário escolheu lá. A regra agora será: **o fuso do dono da organização vale para todo o sistema, em todas as telas e em todas as automações/agendamentos**, sem criar rotas/edge functions novas.
+Duas correções no Inbox e no motor de Chatbot.
 
-## O que muda para o usuário
+## 1) Datas em formato brasileiro nas variáveis do chatbot
 
-- O seletor de fuso em **Configurações → Perfil** passa a ser a fonte única de verdade. Só o dono da organização edita; membros veem em modo leitura.
-- Todos os horários exibidos (inbox, kanban, dashboards, listas de tarefas, datas em cards) passam a respeitar esse fuso.
-- Todos os campos de **data + hora** em formulários (automações “Em data e hora exata”, “Diariamente às”, “Antes/Depois de campo de data”, campanhas, tarefas/calendário, horários permitidos de envio) interpretam o valor digitado nesse fuso.
-- O cron de automações/campanhas dispara baseado no fuso da organização (não mais no UTC do servidor nem em um offset chumbado).
+Hoje, em `supabase/functions/execute-chatbot-flow/index.ts`, o helper `formatVarValue` (linha ~345) devolve o valor cru. Quando o custom field é uma data armazenada como `2026-05-27` (campo `vencimento_boleto`, etc), a mensagem sai com `YYYY-MM-DD`.
 
-## Onde está o problema hoje (auditoria)
+**Mudança:** detectar strings/valores de data em `formatVarValue` e formatar para `DD/MM/YYYY` (e `DD/MM/YYYY HH:mm` quando vier data + hora), usando o timezone da organização (já temos `_shared/timezone.ts` com `parseInTimezone`).
 
-1. `supabase/functions/process-scheduled-automations/index.ts` — usei `-03:00` chumbado no fix anterior. Precisa ler o fuso da org da automação.
-2. `supabase/functions/send-campaign-messages/index.ts` — já usa `campaign.timezone`, mas o default é `America/Sao_Paulo`. Trocar default para o fuso da org.
-3. `supabase/functions/send-whatsapp-notification/index.ts` — recebe `timezone` por parâmetro com default BRT. Quem chama precisa passar o fuso da org.
-4. `supabase/functions/process-scheduled-task-messages`, `process-notification-queue`, `process-warming`, `resume-scheduled-flows` — se interpretam data/hora, mesmo tratamento.
-5. `src/lib/date-utils.ts` — todas as funções de exibição estão chumbadas em `America/Sao_Paulo`. Trocar para ler de um store global alimentado por `useUserSettings`.
-6. Componentes de formulário com `<input type="datetime-local">` / `type="date"` + `type="time"` (AutomationFormDialog, CampaignFormDialog, CreateTaskDialog, DealFormDialog, SendingSettings, BulkEditDialog): hoje montam ISO sem indicar fuso, o que faz o backend tratar como UTC. Passar a montar o ISO **convertendo do fuso da org para UTC** antes de salvar.
+Regra de detecção:
+- `YYYY-MM-DD` → `DD/MM/YYYY`
+- ISO completo (`YYYY-MM-DDTHH:mm[:ss][Z|±hh:mm]`) → `DD/MM/YYYY HH:mm` no timezone da org
+- Instâncias de `Date` → idem ISO
 
-## Onde guardar o fuso da organização
+Aplica em todos os pontos que passam pelo `substituteVars` (mensagens texto, mídia caption, template, condições etc.) — sem mexer na lógica de fluxo.
 
-Sem rota nova: adicionar coluna `timezone TEXT DEFAULT 'America/Sao_Paulo'` em `public.organizations` e popular com o `user_settings.timezone` do `owner_id` (one-shot UPDATE). A partir daí toda leitura usa `organizations.timezone`.
+## 2) Mostrar nome do Chatbot / Template acima da mensagem (em vez de "Enviado pelo WhatsApp")
 
-- UI em ProfileSettings continua existindo, mas para o dono ela passa a gravar em `organizations.timezone` (além de manter em `user_settings` para retrocompat).
-- Membros só visualizam o fuso da org (somente leitura).
+A tabela `inbox_messages` não guarda hoje a origem (chatbot/template). Vou adicionar rastreamento.
 
-## Helpers compartilhados (sem rota nova)
+### Banco (migration)
 
-**Frontend** (`src/lib/timezone.ts`, novo arquivo utilitário):
-- `getOrgTimezone()` — lê via `useOrganization` (já existe) e cacheia.
-- `toUtcFromOrgTz(dateStr, timeStr)` — converte “2026-05-26” + “16:46” no fuso da org para um `Date` UTC correto (substitui `new Date('YYYY-MM-DDTHH:mm:00')`).
-- `formatInOrgTz(date, pattern)` — substitui as helpers chumbadas em `date-utils.ts`. As funções existentes (`formatBrazilDate`, etc.) viram thin wrappers que chamam isso.
+```sql
+ALTER TABLE public.inbox_messages
+  ADD COLUMN IF NOT EXISTS sent_via_chatbot_flow_id uuid REFERENCES public.chatbot_flows(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS sent_via_template_id uuid REFERENCES public.message_templates(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS sent_via_meta_template_id uuid REFERENCES public.meta_whatsapp_templates(id) ON DELETE SET NULL;
 
-**Edge functions** (`supabase/functions/_shared/timezone.ts`, novo arquivo compartilhado):
-- `resolveOrgTimezone(supabase, { userId? | organizationId? | dealId? | automationId? })` — devolve a string IANA (`America/Sao_Paulo` por default).
-- `parseInTimezone(dateStr, timeStr, tz)` — converte data+hora local da org para `Date` UTC (usando `Intl.DateTimeFormat` para descobrir o offset correto, inclui DST quando o fuso tiver).
-- `nowInTimezone(tz)` — devolve `{ year, month, day, hour, minute, weekday }` do “agora” na org.
+CREATE INDEX IF NOT EXISTS idx_inbox_messages_chatbot_flow ON public.inbox_messages(sent_via_chatbot_flow_id);
+```
 
-Aplicar em todas as edge functions listadas acima.
+(Sem mudança de RLS — colunas adicionais na mesma tabela já protegida.)
 
-## Passos
+### Edge functions (preencher origem)
 
-1. **Migration**: adicionar `organizations.timezone` (default `America/Sao_Paulo`, NOT NULL). Backfill com o valor atual do `user_settings.timezone` do `owner_id`.
-2. **ProfileSettings**: se o usuário logado é owner, salvar no `organizations.timezone`. Para não-owners, mostrar o fuso da org (read-only) com uma nota “definido pelo dono da conta”.
-3. **Helpers**: criar `src/lib/timezone.ts` e `supabase/functions/_shared/timezone.ts`.
-4. **Refatorar frontend**: substituir hardcodes em `src/lib/date-utils.ts` e adaptar os formulários com `datetime-local`/`date`+`time` para converter via `toUtcFromOrgTz` antes de salvar e via `formatInOrgTz` na exibição.
-5. **Refatorar edge functions** uma a uma para usar `resolveOrgTimezone` + `parseInTimezone`:
-   - `process-scheduled-automations` (remove o `-03:00` chumbado)
-   - `send-campaign-messages` (default vira tz da org)
-   - `send-whatsapp-notification`, `process-scheduled-task-messages`, `process-notification-queue`, `process-warming`, `resume-scheduled-flows`
-6. **Memória**: atualizar Core (`System Timezone`) para “fuso da organização (`organizations.timezone`)” e criar leaf `mem://infrastructure/timezone-org-resolution` com as regras de resolução.
+- `supabase/functions/execute-chatbot-flow/index.ts`: em **todos** os `insert` em `inbox_messages` para mensagens **outbound** (linhas 417, 456, 503, 535, 583, 850, 977, 1037, 1415, 1519, 1592), incluir `sent_via_chatbot_flow_id: flow.id` e, quando o nó for template normal, `sent_via_template_id`; quando for `meta_template`, `sent_via_meta_template_id`.
+- Demais paths de envio "manual via template/meta_template" (ex.: `send-campaign-messages`, e o envio do Inbox quando o usuário escolhe um template) só receberão `sent_via_template_id` / `sent_via_meta_template_id` se já tiverem essa informação à mão — escopo focado neste plano fica no chatbot, mas vou aproveitar os pontos óbvios em envio por template do Inbox para popular esses campos.
 
-## Não está no escopo
+### Frontend
 
-- Não vou criar novas edge functions / rotas.
-- Não vou mexer em integrações externas (Google Calendar, Asaas) — já recebem ISO com offset correto.
-- Histórico antigo de mensagens/logs continua armazenado em UTC — só a exibição muda.
+- `src/hooks/useConversations.ts`: incluir os novos campos no select e expor labels via joins leves (`chatbot_flows(name)`, `message_templates(name)`, `meta_whatsapp_templates(name)`).
+- `src/components/inbox/MessageBubble.tsx` (linhas 80–130):
+  - Nova prioridade de rótulo do cabeçalho outbound:
+    1. Agente IA (já existe).
+    2. Usuário humano (já existe — mostra `senderName`).
+    3. **Chatbot:** ícone `Bot` + “Chatbot: <nome do fluxo>”.
+    4. **Template:** ícone `FileText` + “Template: <nome>”.
+    5. **Meta Template:** ícone `Send` + “Template Meta: <nome>”.
+    6. Fallback atual “Enviado pelo WhatsApp” só quando realmente externo (sem nenhum dos IDs acima e sem `sent_by_user_id`/IA).
 
-## Observação
+## Arquivos tocados
 
-Para o caso específico que motivou a investigação (automação “Mover lead por hora” 16:46): com `organizations.timezone = 'America/Sao_Paulo'` e o `parseInTimezone` correto, o cron vai disparar exatamente às 16:46 BRT independente do servidor estar em UTC, e se você mudar o fuso para outro (ex: `America/Manaus`) tudo no sistema acompanha.
+- `supabase/migrations/<ts>_inbox_message_source.sql` (novo)
+- `supabase/functions/execute-chatbot-flow/index.ts`
+- `src/hooks/useConversations.ts`
+- `src/components/inbox/MessageBubble.tsx`
+
+## Fora de escopo
+
+- Não vou alterar o motor de campanhas/AI agent além do necessário para o chatbot; o histórico antigo de `inbox_messages` permanece com `Enviado pelo WhatsApp` (só novas mensagens terão a origem registrada).

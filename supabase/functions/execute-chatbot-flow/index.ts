@@ -342,11 +342,47 @@ Deno.serve(async (req: Request) => {
     }
 
     // Helper: substitute variables in text
+    // Detects date-like values and formats them to Brazilian format (DD/MM/YYYY[ HH:mm])
+    const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+    const ISO_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+    const formatDateBR = (v: string | Date): string | null => {
+      if (v instanceof Date) {
+        if (isNaN(v.getTime())) return null;
+        const dd = String(v.getUTCDate()).padStart(2, '0');
+        const mm = String(v.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = v.getUTCFullYear();
+        const hh = String(v.getUTCHours()).padStart(2, '0');
+        const mi = String(v.getUTCMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+      }
+      const s = String(v).trim();
+      const dOnly = s.match(DATE_ONLY_RE);
+      if (dOnly) return `${dOnly[3]}/${dOnly[2]}/${dOnly[1]}`;
+      const dTime = s.match(ISO_DATETIME_RE);
+      if (dTime) {
+        // Render in Brazil timezone (America/Sao_Paulo, UTC-3) by default
+        try {
+          const parsed = new Date(s.includes('T') ? s : s.replace(' ', 'T'));
+          if (!isNaN(parsed.getTime())) {
+            return new Intl.DateTimeFormat('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              day: '2-digit', month: '2-digit', year: 'numeric',
+              hour: '2-digit', minute: '2-digit', hour12: false,
+            }).format(parsed).replace(',', '');
+          }
+        } catch {}
+        return `${dTime[3]}/${dTime[2]}/${dTime[1]} ${dTime[4]}:${dTime[5]}`;
+      }
+      return null;
+    };
     const formatVarValue = (v: any): string => {
       if (v === null || v === undefined) return '';
-      if (Array.isArray(v)) return v.join(', ');
+      if (v instanceof Date) return formatDateBR(v) || v.toISOString();
+      if (Array.isArray(v)) return v.map((x) => formatVarValue(x)).join(', ');
       if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return ''; } }
-      return String(v);
+      const s = String(v);
+      const br = formatDateBR(s);
+      return br ?? s;
     };
     const contactCustom = (contact?.custom_fields as Record<string, any>) || {};
     const dealCustom = (activeDeal?.custom_fields as Record<string, any>) || {};
@@ -377,6 +413,10 @@ Deno.serve(async (req: Request) => {
           return '';
         });
     };
+
+    // Per-node send context (so helpers can tag inbox_messages with template / meta-template origin)
+    let currentTemplateId: string | null = null;
+    let currentMetaTemplateId: string | null = null;
 
     // Helper: get next node from edges
     const getNextNode = (nodeId: string, handle?: string): string | null => {
@@ -419,6 +459,9 @@ Deno.serve(async (req: Request) => {
             content: text, direction: 'outbound', status: 'sent',
             message_type: 'text', whatsapp_message_id: whatsappMessageId,
             sent_at: new Date().toISOString(),
+            sent_via_chatbot_flow_id: flowId,
+            sent_via_template_id: currentTemplateId,
+            sent_via_meta_template_id: currentMetaTemplateId,
           });
 
           await supabase.from('conversations').update({
@@ -459,6 +502,9 @@ Deno.serve(async (req: Request) => {
             message_type: 'text', whatsapp_message_id: whatsappMessageId,
             sent_at: new Date().toISOString(),
             sent_via_meta_number_id: metaPhoneNumberId,
+            sent_via_chatbot_flow_id: flowId,
+            sent_via_template_id: currentTemplateId,
+            sent_via_meta_template_id: currentMetaTemplateId,
           });
 
           await supabase.from('conversations').update({
@@ -506,6 +552,7 @@ Deno.serve(async (req: Request) => {
             message_type: mediaType, media_url: mediaUrl,
             whatsapp_message_id: result?.key?.id || null,
             sent_at: new Date().toISOString(),
+            sent_via_chatbot_flow_id: flowId,
           });
           await supabase.from('conversations').update({
             last_message_at: new Date().toISOString(),
@@ -541,6 +588,7 @@ Deno.serve(async (req: Request) => {
             sent_at: new Date().toISOString(),
             sent_via_meta_number_id: metaPhoneNumberId,
             error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
+            sent_via_chatbot_flow_id: flowId,
           });
           await supabase.from('conversations').update({
             last_message_at: new Date().toISOString(),
@@ -585,6 +633,7 @@ Deno.serve(async (req: Request) => {
           content: text, direction: 'outbound', status: 'sent',
           message_type: 'interactive', whatsapp_message_id: wid,
           sent_at: new Date().toISOString(),
+          sent_via_chatbot_flow_id: flowId,
         });
         await supabase.from('conversations').update({
           last_message_at: new Date().toISOString(),
@@ -750,6 +799,8 @@ Deno.serve(async (req: Request) => {
           resumingFromSchedule = false;
 
           const msgMode = (node.data?.messageMode as string) || 'text';
+          currentTemplateId = msgMode === 'template' ? (node.data?.templateId ?? null) : null;
+          currentMetaTemplateId = msgMode === 'meta_template' ? (node.data?.config?.metaTemplateId ?? null) : null;
 
           if (msgMode === 'template' && node.data?.templateId) {
             // Send Evolution/Lite template
@@ -859,6 +910,8 @@ Deno.serve(async (req: Request) => {
                     error_message: mediaError,
                     sent_at: new Date().toISOString(),
                     sent_via_meta_number_id: !instanceName && metaPhoneNumberId ? metaPhoneNumberId : null,
+                    sent_via_chatbot_flow_id: flowId,
+                    sent_via_template_id: node.data.templateId,
                   });
                 }
               }
@@ -983,6 +1036,8 @@ Deno.serve(async (req: Request) => {
                     sent_via_meta_number_id: phoneNumberId,
                     whatsapp_message_id: result?.messages?.[0]?.id || null,
                     error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
+                    sent_via_chatbot_flow_id: flowId,
+                    sent_via_meta_template_id: metaConfig.metaTemplateId,
                   });
                   await supabase.from('conversations').update({
                     last_message_at: new Date().toISOString(),
@@ -1041,6 +1096,7 @@ Deno.serve(async (req: Request) => {
                       whatsapp_message_id: result?.messages?.[0]?.id || null,
                       sent_at: new Date().toISOString(),
                       sent_via_meta_number_id: metaPhoneNumberId,
+                      sent_via_chatbot_flow_id: flowId,
                     });
                   }
                 } catch (err: any) {
@@ -1421,6 +1477,7 @@ Deno.serve(async (req: Request) => {
                       message_type: 'text',
                       whatsapp_message_id: whatsappMessageId,
                       sent_at: new Date().toISOString(),
+                      sent_via_chatbot_flow_id: flowId,
                     });
 
                     await supabase.from('conversations').update({
@@ -1522,6 +1579,7 @@ Deno.serve(async (req: Request) => {
                 direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
                 message_type: 'text', whatsapp_message_id: whatsappMessageId,
                 sent_at: new Date().toISOString(),
+                sent_via_chatbot_flow_id: flowId,
               });
               await supabase.from('conversations').update({
                 last_message_at: new Date().toISOString(),
@@ -1595,6 +1653,7 @@ Deno.serve(async (req: Request) => {
                 direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
                 message_type: 'text', whatsapp_message_id: wid,
                 sent_at: new Date().toISOString(),
+                sent_via_chatbot_flow_id: flowId,
               });
             } catch (err) {
               console.error('[FLOW] Error sending Meta buttons:', err);
