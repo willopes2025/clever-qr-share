@@ -75,7 +75,7 @@ export function DashboardDateFilter({ dateRange, onDateRangeChange }: DashboardD
     if (activePreset !== 'custom') {
       return presets.find(p => p.key === activePreset)?.label || '';
     }
-    return `${format(dateRange.start, 'dd/MM', { locale: ptBR })} - ${format(dateRange.end, 'dd/MM', { locale: ptBR })}`;
+    return `${formatDateShort(dateRange.start)} - ${formatDateShort(dateRange.end)}`;
   };
 
   return (
