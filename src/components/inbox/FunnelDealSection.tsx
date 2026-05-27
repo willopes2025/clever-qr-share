@@ -27,6 +27,7 @@ import { useCustomFields } from "@/hooks/useCustomFields";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 interface FunnelDealSectionProps {
@@ -199,7 +200,7 @@ export const FunnelDealSection = ({ contactId, conversationId }: FunnelDealSecti
         {activeDeal.expected_close_date && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            <span>Previsão: {format(new Date(activeDeal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+            <span>Previsão: {formatDateOnly(activeDeal.expected_close_date)}</span>
           </div>
         )}
 

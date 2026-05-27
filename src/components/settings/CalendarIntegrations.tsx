@@ -21,6 +21,7 @@ import {
 import { useCalendarIntegrations } from "@/hooks/useCalendarIntegrations";
 import { formatDistanceToNow, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly, formatTimeBR } from "@/lib/date-utils";
 
 export const CalendarIntegrations = () => {
   const [apiToken, setApiToken] = useState("");

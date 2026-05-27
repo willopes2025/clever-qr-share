@@ -31,6 +31,7 @@ import { MetaTemplateDeleteDialog } from "./MetaTemplateDeleteDialog";
 import { MetaTemplatePreviewDialog } from "./MetaTemplatePreviewDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeFull } from "@/lib/date-utils";
 
 const STATUS_CONFIG = {
   draft: { label: "Rascunho", variant: "secondary" as const, icon: FileText },
@@ -215,7 +216,7 @@ export function MetaTemplatesList() {
                     </TableCell>
                   )}
                   <TableCell>
-                    {format(new Date(template.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    {formatDateTimeFull(template.created_at)}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
