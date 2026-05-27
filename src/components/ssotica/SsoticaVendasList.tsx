@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useSsotica, SsoticaVenda } from "@/hooks/useSsotica";
 import { Loader2, Search, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
+import { formatDateOnly, formatFullDateTimeBR } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import {
   Table,
@@ -158,7 +159,7 @@ export const SsoticaVendasList = ({ dateRange }: SsoticaVendasListProps) => {
                       <TableCell>{venda.cliente?.nome || '-'}</TableCell>
                       <TableCell>
                         {venda.data_venda 
-                          ? format(new Date(venda.data_venda), "dd/MM/yyyy", { locale: ptBR })
+                          ? formatDateOnly(venda.data_venda)
                           : '-'}
                       </TableCell>
                       <TableCell>{venda.forma_pagamento || '-'}</TableCell>

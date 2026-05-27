@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSsotica } from "@/hooks/useSsotica";
 import { Loader2, DollarSign, TrendingUp, TrendingDown, AlertTriangle, Clock } from "lucide-react";
 import { format, differenceInDays, isPast, isToday } from "date-fns";
+import { formatDateOnly, formatFullDateTimeBR } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import {
   AreaChart,
@@ -364,7 +365,7 @@ export const SsoticaFinanceiro = ({ dateRange }: SsoticaFinanceiroProps) => {
                         </TableCell>
                         <TableCell>{p.cliente?.nome || 'N/D'}</TableCell>
                         <TableCell>
-                          {format(new Date(p.vencimento), 'dd/MM/yyyy', { locale: ptBR })}
+                          {formatDateOnly(p.vencimento)}
                         </TableCell>
                         <TableCell>
                           {isHoje ? (

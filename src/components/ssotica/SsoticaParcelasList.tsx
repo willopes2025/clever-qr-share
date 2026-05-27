@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSsotica, SsoticaParcela } from "@/hooks/useSsotica";
 import { Loader2, Search, Receipt, AlertTriangle } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
+import { formatDateOnly, formatFullDateTimeBR } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import {
   Table,
@@ -173,7 +174,7 @@ export const SsoticaParcelasList = () => {
                       </TableCell>
                       <TableCell>
                         {parcela.vencimento 
-                          ? format(new Date(parcela.vencimento), "dd/MM/yyyy", { locale: ptBR })
+                          ? formatDateOnly(parcela.vencimento)
                           : '-'}
                       </TableCell>
                       <TableCell>{getVencimentoBadge(parcela.vencimento)}</TableCell>
