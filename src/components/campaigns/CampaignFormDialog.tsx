@@ -102,7 +102,7 @@ export const CampaignFormDialog = ({
   const [startHour, setStartHour] = useState(8);
   const [endHour, setEndHour] = useState(20);
   const [allowedDays, setAllowedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri']);
-  const [timezone] = useState('America/Sao_Paulo');
+  const [timezone] = useState(getActiveTimezone());
 
   // Duplicate control settings
   const [skipAlreadySent, setSkipAlreadySent] = useState(true);
