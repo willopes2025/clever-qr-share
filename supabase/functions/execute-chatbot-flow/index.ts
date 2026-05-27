@@ -414,6 +414,10 @@ Deno.serve(async (req: Request) => {
         });
     };
 
+    // Per-node send context (so helpers can tag inbox_messages with template / meta-template origin)
+    let currentTemplateId: string | null = null;
+    let currentMetaTemplateId: string | null = null;
+
     // Helper: get next node from edges
     const getNextNode = (nodeId: string, handle?: string): string | null => {
       const edge = edges?.find((e: any) => {
