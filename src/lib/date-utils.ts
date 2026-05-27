@@ -1,5 +1,11 @@
 import { format, isSameDay as dateFnsIsSameDay, isToday as dateFnsIsToday, isYesterday as dateFnsIsYesterday } from "date-fns";
-import { getActiveTimezone } from "@/lib/timezone";
+import {
+  getActiveTimezone,
+  partsInTimezone,
+  formatDate as formatDateActive,
+  formatTime as formatTimeActive,
+  formatDateTime as formatDateTimeActive,
+} from "@/lib/timezone";
 
 /**
  * Convert a UTC date to the active organization timezone.
@@ -12,11 +18,10 @@ export function toBrazilTime(date: Date): Date {
 }
 
 /**
- * Format a date string (ISO/UTC) to HH:mm in Brazil timezone
+ * Format a date string (ISO/UTC) to HH:mm (or hh:mm AM/PM) honoring the org's time format.
  */
 export function formatTimeBR(dateString: string): string {
-  const date = toBrazilTime(new Date(dateString));
-  return format(date, "HH:mm");
+  return formatTimeActive(dateString);
 }
 
 /**
@@ -40,52 +45,60 @@ export function isYesterdayBR(dateString: string): boolean {
 }
 
 /**
- * Smart format for message/conversation timestamps in Brazil timezone
+ * Smart format for message/conversation timestamps — honors org date/time formats.
  */
 export function formatMessageTimeBR(dateString: string | null): string {
   if (!dateString) return "";
-  const brDate = toBrazilTime(new Date(dateString));
   if (isTodayBR(dateString)) {
-    return format(brDate, "HH:mm");
+    return formatTimeActive(dateString);
   }
   if (isYesterdayBR(dateString)) {
     return "Ontem";
   }
-  return format(brDate, "dd/MM");
+  // Short "day/month" using only the first two parts of the active date format.
+  const full = formatDateActive(dateString);
+  // DD/MM/YYYY -> DD/MM; MM/DD/YYYY -> MM/DD; YYYY-MM-DD -> MM-DD
+  const parts = full.split(/[/\-]/);
+  if (parts.length === 3) {
+    const sep = full.includes('/') ? '/' : '-';
+    // For YYYY-MM-DD show MM-DD; for the others show first two segments.
+    if (full.match(/^\d{4}/)) return `${parts[1]}${sep}${parts[2]}`;
+    return `${parts[0]}${sep}${parts[1]}`;
+  }
+  return full;
 }
 
 /**
- * Full format for message bubbles in Brazil timezone: "dd/MM/yyyy 'às' HH:mm"
+ * Full format for message bubbles: "<date> às <time>" using org formats.
  */
 export function formatFullDateTimeBR(dateString: string): string {
-  const brDate = toBrazilTime(new Date(dateString));
-  return format(brDate, "dd/MM/yyyy 'às' HH:mm");
+  return formatDateTimeActive(dateString, { separator: " às " });
 }
 
 /**
- * Format for message bubble time display in Brazil timezone
+ * Format for message bubble time display in the active timezone/format.
  */
 export function formatBubbleTimeBR(dateString: string): string {
-  const brDate = toBrazilTime(new Date(dateString));
   if (isTodayBR(dateString)) {
-    return format(brDate, "HH:mm");
+    return formatTimeActive(dateString);
   }
   if (isYesterdayBR(dateString)) {
-    return `Ontem ${format(brDate, "HH:mm")}`;
+    return `Ontem ${formatTimeActive(dateString)}`;
   }
-  return format(brDate, "dd/MM HH:mm");
+  return `${formatMessageTimeBR(dateString)} ${formatTimeActive(dateString)}`;
 }
 
 /**
- * Get the date label for DateSeparator in Brazil timezone
+ * Get the date label for DateSeparator in active timezone (long Portuguese form).
  */
 export function getDateLabelBR(dateString: string): string {
-  const brDate = toBrazilTime(new Date(dateString));
   if (isTodayBR(dateString)) return "Hoje";
   if (isYesterdayBR(dateString)) return "Ontem";
-  
+
+  const tz = getActiveTimezone();
+  const p = partsInTimezone(new Date(dateString), tz);
   const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  return `${brDate.getDate().toString().padStart(2,'0')} de ${months[brDate.getMonth()]} de ${brDate.getFullYear()}`;
+  return `${String(p.day).padStart(2,'0')} de ${months[p.month - 1]} de ${p.year}`;
 }
 
 /**
