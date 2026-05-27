@@ -241,7 +241,7 @@ export default function Analysis() {
                              report.status === 'processing' ? 'Processando...' : 'Erro'}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            {format(new Date(report.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            {formatFullDateTimeBR(report.created_at)}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">
