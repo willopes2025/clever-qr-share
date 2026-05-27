@@ -455,6 +455,7 @@ Deno.serve(async (req: Request) => {
             content: text, direction: 'outbound', status: 'sent',
             message_type: 'text', whatsapp_message_id: whatsappMessageId,
             sent_at: new Date().toISOString(),
+            sent_via_chatbot_flow_id: flowId,
           });
 
           await supabase.from('conversations').update({
