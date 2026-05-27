@@ -799,6 +799,8 @@ Deno.serve(async (req: Request) => {
           resumingFromSchedule = false;
 
           const msgMode = (node.data?.messageMode as string) || 'text';
+          currentTemplateId = msgMode === 'template' ? (node.data?.templateId ?? null) : null;
+          currentMetaTemplateId = msgMode === 'meta_template' ? (node.data?.config?.metaTemplateId ?? null) : null;
 
           if (msgMode === 'template' && node.data?.templateId) {
             // Send Evolution/Lite template
