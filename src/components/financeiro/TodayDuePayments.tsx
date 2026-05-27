@@ -216,7 +216,7 @@ export const TodayDuePayments = () => {
 
       // Build message
       const invoiceLink = row.payment.invoiceUrl || row.payment.bankSlipUrl || '';
-      const message = `Olá ${customer.name}! 👋\n\nSegue o lembrete da sua cobrança no valor de ${formatCurrency(row.payment.value)} com vencimento hoje (${format(parseISO(row.payment.dueDate), 'dd/MM/yyyy')}).\n\n${invoiceLink ? `📎 Link para pagamento: ${invoiceLink}` : 'Entre em contato para mais detalhes.'}`;
+      const message = `Olá ${customer.name}! 👋\n\nSegue o lembrete da sua cobrança no valor de ${formatCurrency(row.payment.value)} com vencimento hoje (${formatDateOnly(row.payment.dueDate)}).\n\n${invoiceLink ? `📎 Link para pagamento: ${invoiceLink}` : 'Entre em contato para mais detalhes.'}`;
 
       // Try to find existing conversation
       const normalizedPhone = phone.replace(/\D/g, '');
