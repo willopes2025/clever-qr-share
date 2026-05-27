@@ -52,7 +52,7 @@ export const ScheduledCampaigns = ({ campaigns, isLoading }: ScheduledCampaignsP
                   <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                     <Calendar className="h-3 w-3" />
                     <span>
-                      {format(new Date(campaign.scheduled_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      {formatDateTimeFull(campaign.scheduled_at)}
                     </span>
                   </div>
                 )}
