@@ -157,7 +157,7 @@ export const useConversationActions = () => {
       content += '\n---\n\n';
 
       messages.forEach((msg) => {
-        const msgDate = format(new Date(msg.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR });
+        const msgDate = formatDateTimeFull(msg.created_at);
         const sender = msg.direction === 'outgoing' ? 'Você' : (contactName || 'Contato');
         const msgType = msg.message_type !== 'text' ? ` [${msg.message_type}]` : '';
         content += `[${msgDate}] ${sender}${msgType}: ${msg.content}\n`;
