@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { toast } from "sonner";
 
 interface SsoticaDealSectionProps {
@@ -38,7 +39,7 @@ export const SsoticaDealSection = ({
   const formatDate = (dateStr: string | undefined) => {
     if (!dateStr || typeof dateStr !== 'string') return '-';
     try {
-      return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR });
+      return formatDateOnly(dateStr);
     } catch {
       return dateStr;
     }

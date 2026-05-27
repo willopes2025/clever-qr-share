@@ -26,6 +26,7 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { differenceInHours, differenceInDays, format, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeFull } from "@/lib/date-utils";
 import { formatCustomFieldValue, parseAnyDateValue } from "@/lib/date-utils";
 
 interface FunnelDealCardProps {
@@ -44,7 +45,7 @@ const formatFieldValue = (value: unknown, type?: string, fieldName?: string): st
   if (type === "datetime") {
     const d = parseAnyDateValue(value);
     if (d && !isNaN(d.getTime())) {
-      return format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+      return formatDateTimeFull(d.toISOString());
     }
   }
 

@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatTime as formatTimeActive } from '@/lib/timezone';
 
 interface CampaignTrackerProps {
   open: boolean;
@@ -252,7 +253,7 @@ export const CampaignTracker = ({
                           <TableCell className="font-medium">{msg.contact_name || '-'}</TableCell>
                           <TableCell className="font-mono text-sm">{formatPhone(msg.phone)}</TableCell>
                           <TableCell className="text-sm">
-                            {msg.sent_at ? format(new Date(msg.sent_at), 'HH:mm:ss', { locale: ptBR }) : '-'}
+                            {msg.sent_at ? formatTimeActive(msg.sent_at) : '-'}
                           </TableCell>
                         </TableRow>
                       ))
