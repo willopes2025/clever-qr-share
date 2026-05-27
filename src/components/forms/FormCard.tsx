@@ -34,6 +34,7 @@ import {
   Download,
 } from "lucide-react";
 import { format } from "date-fns";
+import { formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
