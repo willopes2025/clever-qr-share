@@ -43,7 +43,7 @@ export function ResponseTimeChart({ dateRange }: ResponseTimeChartProps) {
 
   const chartData = data?.dailyData.map(d => ({
     ...d,
-    dateFormatted: format(parseISO(d.date), 'dd/MM', { locale: ptBR }),
+    dateFormatted: formatDateShort(d.date),
     avgTimeMinutes: d.avgTime / 60,
   })) || [];
 
