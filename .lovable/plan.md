@@ -1,61 +1,96 @@
-# Plano
+# Padronização global de formato de data/hora
 
-Duas correções no Inbox e no motor de Chatbot.
+Objetivo: assim como o timezone, o **formato de data** e **formato de hora** passam a ser configurados em **Settings → Perfil/Organização** e respeitados por todo o app (frontend e edge functions). Default BR para todos os usuários.
 
-## 1) Datas em formato brasileiro nas variáveis do chatbot
+## Onda 1 — Infraestrutura + Configuração (base)
 
-Hoje, em `supabase/functions/execute-chatbot-flow/index.ts`, o helper `formatVarValue` (linha ~345) devolve o valor cru. Quando o custom field é uma data armazenada como `2026-05-27` (campo `vencimento_boleto`, etc), a mensagem sai com `YYYY-MM-DD`.
+**Banco**
+- Migration em `organizations`:
+  - `date_format text NOT NULL DEFAULT 'DD/MM/YYYY'` (opções: `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD`)
+  - `time_format text NOT NULL DEFAULT '24h'` (opções: `24h`, `12h`)
+- Backfill: `UPDATE organizations SET date_format='DD/MM/YYYY', time_format='24h'` (garante BR pra todo mundo).
 
-**Mudança:** detectar strings/valores de data em `formatVarValue` e formatar para `DD/MM/YYYY` (e `DD/MM/YYYY HH:mm` quando vier data + hora), usando o timezone da organização (já temos `_shared/timezone.ts` com `parseInTimezone`).
+**Helpers centralizados**
+- `src/lib/timezone.ts`: adicionar
+  - `setActiveDateFormat`, `setActiveTimeFormat`, `getActiveDateFormat`, `getActiveTimeFormat`
+  - `formatDate(value)` → ex. `27/05/2026`
+  - `formatTime(value)` → ex. `14:30` ou `02:30 PM`
+  - `formatDateTime(value)` → `formatDate + " " + formatTime`
+  - `formatDateSmart(value)` → detecta date-only vs datetime
+  - Todas respeitam timezone + formato ativos da org
+- `src/hooks/useOrgTimezone.ts` (ou novo `useOrgDateTime.ts`): popular também `date_format`/`time_format` no cache global
+- `src/components/TimezoneBootstrap.tsx`: já cobre, só usar o hook expandido
+- `supabase/functions/_shared/timezone.ts`: espelhar com `resolveOrgDateFormat`, `formatDate`, `formatDateTime`, `formatDateSmart`
 
-Regra de detecção:
-- `YYYY-MM-DD` → `DD/MM/YYYY`
-- ISO completo (`YYYY-MM-DDTHH:mm[:ss][Z|±hh:mm]`) → `DD/MM/YYYY HH:mm` no timezone da org
-- Instâncias de `Date` → idem ISO
+**Settings UI**
+- Adicionar 2 selects (Formato de data / Formato de hora) na tela onde hoje fica o timezone (Profile/Organization settings)
+- Preview ao vivo do exemplo formatado
 
-Aplica em todos os pontos que passam pelo `substituteVars` (mensagens texto, mídia caption, template, condições etc.) — sem mexer na lógica de fluxo.
+**Chatbot (refatorar fix anterior)**
+- `supabase/functions/execute-chatbot-flow/index.ts`: `formatVarValue` chama `formatDateSmart` do shared em vez da regex local
 
-## 2) Mostrar nome do Chatbot / Template acima da mensagem (em vez de "Enviado pelo WhatsApp")
+**Entrega:** infra pronta + configuração funcional + chatbot já consumindo o padrão. Peço **OK** antes de seguir.
 
-A tabela `inbox_messages` não guarda hoje a origem (chatbot/template). Vou adicionar rastreamento.
+---
 
-### Banco (migration)
+## Onda 2 — Áreas core do app (frontend)
 
-```sql
-ALTER TABLE public.inbox_messages
-  ADD COLUMN IF NOT EXISTS sent_via_chatbot_flow_id uuid REFERENCES public.chatbot_flows(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS sent_via_template_id uuid REFERENCES public.message_templates(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS sent_via_meta_template_id uuid REFERENCES public.meta_whatsapp_templates(id) ON DELETE SET NULL;
+Substituir `toLocaleDateString`, `toLocaleString`, `new Date().toLocale*`, `date-fns format(...)` hardcoded em PT-BR pelos helpers centralizados, nestas áreas:
+- `src/components/inbox/**` (bubbles, lista de conversas, anexos, tarefas)
+- `src/components/calendar/**` e `src/pages/Calendar.tsx`
+- `src/components/tasks/**` e `src/pages/Tasks.tsx`
+- `src/hooks/useConversations.ts`, `useDealTasks.ts`, `useCalendarTasks.ts`, `useAllTasks.ts`
 
-CREATE INDEX IF NOT EXISTS idx_inbox_messages_chatbot_flow ON public.inbox_messages(sent_via_chatbot_flow_id);
-```
+Critério: nenhuma string de data exibida nessas áreas com formato hardcoded.
 
-(Sem mudança de RLS — colunas adicionais na mesma tabela já protegida.)
+**Entrega:** OK do usuário antes da próxima.
 
-### Edge functions (preencher origem)
+---
 
-- `supabase/functions/execute-chatbot-flow/index.ts`: em **todos** os `insert` em `inbox_messages` para mensagens **outbound** (linhas 417, 456, 503, 535, 583, 850, 977, 1037, 1415, 1519, 1592), incluir `sent_via_chatbot_flow_id: flow.id` e, quando o nó for template normal, `sent_via_template_id`; quando for `meta_template`, `sent_via_meta_template_id`.
-- Demais paths de envio "manual via template/meta_template" (ex.: `send-campaign-messages`, e o envio do Inbox quando o usuário escolhe um template) só receberão `sent_via_template_id` / `sent_via_meta_template_id` se já tiverem essa informação à mão — escopo focado neste plano fica no chatbot, mas vou aproveitar os pontos óbvios em envio por template do Inbox para popular esses campos.
+## Onda 3 — CRM, Campanhas, Financeiro
 
-### Frontend
+- `src/components/funnels/**`, `src/pages/Funnels.tsx` (cards de lead, datas de entrada/saída de etapa, custom fields tipo data)
+- `src/components/contacts/**`
+- `src/components/campaigns/**`, `src/pages/Campaigns.tsx` (agendamento, histórico, tracker)
+- `src/components/financeiro/**`, `src/pages/Financeiro.tsx`, `src/pages/DebtorsManagement.tsx`
+- `src/components/ssotica/**`
+- `src/components/analysis/**`, `src/components/dashboard/**`
 
-- `src/hooks/useConversations.ts`: incluir os novos campos no select e expor labels via joins leves (`chatbot_flows(name)`, `message_templates(name)`, `meta_whatsapp_templates(name)`).
-- `src/components/inbox/MessageBubble.tsx` (linhas 80–130):
-  - Nova prioridade de rótulo do cabeçalho outbound:
-    1. Agente IA (já existe).
-    2. Usuário humano (já existe — mostra `senderName`).
-    3. **Chatbot:** ícone `Bot` + “Chatbot: <nome do fluxo>”.
-    4. **Template:** ícone `FileText` + “Template: <nome>”.
-    5. **Meta Template:** ícone `Send` + “Template Meta: <nome>”.
-    6. Fallback atual “Enviado pelo WhatsApp” só quando realmente externo (sem nenhum dos IDs acima e sem `sent_by_user_id`/IA).
+**Entrega:** OK do usuário antes da próxima.
 
-## Arquivos tocados
+---
 
-- `supabase/migrations/<ts>_inbox_message_source.sql` (novo)
-- `supabase/functions/execute-chatbot-flow/index.ts`
-- `src/hooks/useConversations.ts`
-- `src/components/inbox/MessageBubble.tsx`
+## Onda 4 — Resto + Edge functions + QA
+
+- Restante do `src/components/**` (templates, automations, warming, broadcasts, forms, admin, settings, instances, etc.)
+- `src/lib/date-utils.ts`, `src/lib/pdf-export.ts` (PDFs/relatórios)
+- Edge functions que escrevem datas em mensagens/notificações:
+  - `send-whatsapp-notification`, `send-campaign-messages`, `process-scheduled-campaigns`, automations, AI agent prompts (datas em contexto), Asaas reminders
+- QA final: grep no repo por `toLocaleDateString`, `toLocaleString(`, `format(.*'dd/MM`, `'pt-BR'` — só devem sobrar usos legítimos (ex.: parsing).
+- Atualizar memória do projeto: regra "Formato de data/hora também vem da org (`organizations.date_format`/`time_format`); usar helpers `formatDate*` de `lib/timezone.ts` (frontend) e `_shared/timezone.ts` (edge). Nunca hardcodar."
+
+**Entrega final:** todos os usuários existentes já em `DD/MM/YYYY` + `24h` (via backfill da Onda 1), com possibilidade de trocar.
+
+---
+
+## Detalhes técnicos
+
+- **HTML/CSS:** sem mudança visual além do conteúdo da string.
+- **i18n:** não estamos introduzindo i18n completo, só formato. Strings de UI continuam em PT-BR.
+- **Compatibilidade:** helpers aceitam `string | number | Date | null | undefined` e retornam `""` quando inválido, evitando crash em telas que hoje usam `?? ""`.
+- **Performance:** usa `Intl.DateTimeFormat` cacheado por (timezone, formato).
+- **Sem mudar lógica de negócio:** datas continuam armazenadas em UTC/ISO; só a apresentação muda.
+
+## Arquivos novos/principais
+
+- `supabase/migrations/<ts>_org_datetime_format.sql`
+- `src/lib/timezone.ts` (expandido)
+- `supabase/functions/_shared/timezone.ts` (expandido)
+- `src/hooks/useOrgTimezone.ts` (ou novo `useOrgDateTime.ts`)
+- Settings UI (arquivo onde hoje fica o seletor de timezone)
+- Varredura nas ondas 2–4 (sem novos arquivos, só substituições)
 
 ## Fora de escopo
 
-- Não vou alterar o motor de campanhas/AI agent além do necessário para o chatbot; o histórico antigo de `inbox_messages` permanece com `Enviado pelo WhatsApp` (só novas mensagens terão a origem registrada).
+- Não vou criar telas de admin para mudar formato de outras orgs (cada owner muda na própria).
+- Não vou tocar em conteúdo de mensagens já enviadas (histórico no banco).
