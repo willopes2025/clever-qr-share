@@ -9,6 +9,8 @@ import { Copy, Check, Trash2, ChevronDown, ChevronUp, RefreshCw, ExternalLink } 
 import { AgentIntegration, useWebhookLogs } from "@/hooks/useAgentIntegrations";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateShort, formatDateTimeFull } from "@/lib/date-utils";
+import { formatTime as formatTimeActive } from "@/lib/timezone";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -150,7 +152,7 @@ export const WebhookInCard = ({ integration, onToggle, onDelete, onUpdate }: Web
                     <div key={log.id} className="p-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">
-                          {format(new Date(log.created_at), "dd/MM HH:mm:ss", { locale: ptBR })}
+                          {formatDateShort(log.created_at)} {formatTimeActive(log.created_at)}
                         </span>
                         <Badge variant={log.error_message ? "destructive" : "outline"} className="text-xs">
                           {log.event_type || "evento"}
@@ -181,7 +183,7 @@ export const WebhookInCard = ({ integration, onToggle, onDelete, onUpdate }: Web
         {/* Last used info */}
         {integration.last_used_at && (
           <p className="text-xs text-muted-foreground">
-            Último uso: {format(new Date(integration.last_used_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+            Último uso: {formatDateTimeFull(integration.last_used_at)}
           </p>
         )}
       </CardContent>

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { Calendar as CalendarIcon, Users, Tag, Filter, Search, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import {
   Dialog,
@@ -410,7 +411,7 @@ export const ImportContactsToFunnelDialog = ({
                           !dateFrom && "text-muted-foreground"
                         )}
                       >
-                        {dateFrom ? format(dateFrom, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                        {dateFrom ? formatDateOnly(dateFrom.toISOString()) : "Selecionar data"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -434,7 +435,7 @@ export const ImportContactsToFunnelDialog = ({
                           !dateTo && "text-muted-foreground"
                         )}
                       >
-                        {dateTo ? format(dateTo, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                        {dateTo ? formatDateOnly(dateTo.toISOString()) : "Selecionar data"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">

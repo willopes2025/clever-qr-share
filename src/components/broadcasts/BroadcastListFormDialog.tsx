@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, AlertCircle, Plus, Users, GitBranch, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -496,7 +497,7 @@ export const BroadcastListFormDialog = ({
                               )}
                             >
                               <CalendarIcon className="mr-2 h-3 w-3" />
-                              {asaasDueDateFrom ? format(asaasDueDateFrom, "dd/MM/yyyy") : "Início"}
+                              {asaasDueDateFrom ? formatDateOnly(asaasDueDateFrom.toISOString()) : "Início"}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">
@@ -522,7 +523,7 @@ export const BroadcastListFormDialog = ({
                               )}
                             >
                               <CalendarIcon className="mr-2 h-3 w-3" />
-                              {asaasDueDateTo ? format(asaasDueDateTo, "dd/MM/yyyy") : "Fim"}
+                              {asaasDueDateTo ? formatDateOnly(asaasDueDateTo.toISOString()) : "Fim"}
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-0" align="start">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { formatCustomFieldValue } from "@/lib/date-utils";
 import {
   Table,
@@ -152,7 +153,7 @@ export function ContactsTableConfigurable({
       case 'created_at':
         return (
           <span className="text-muted-foreground text-sm">
-            {format(new Date(contact.created_at), "dd/MM/yy", { locale: ptBR })}
+            {formatDateOnly(contact.created_at)}
           </span>
         );
     }
@@ -187,7 +188,7 @@ export function ContactsTableConfigurable({
         if (!activeDeal?.expected_close_date) return <span className="text-muted-foreground">-</span>;
         return (
           <span className="text-sm">
-            {format(new Date(activeDeal.expected_close_date), "dd/MM/yy", { locale: ptBR })}
+            {formatDateOnly(activeDeal.expected_close_date)}
           </span>
         );
       case 'deal_time_in_stage':

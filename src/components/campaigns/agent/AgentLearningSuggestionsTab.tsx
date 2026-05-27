@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Brain, Check, X, Sparkles, Edit, MessageSquare, RefreshCw, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 
 interface AgentLearningSuggestionsTabProps {
   agentConfigId: string;
@@ -98,7 +99,7 @@ export function AgentLearningSuggestionsTab({ agentConfigId }: AgentLearningSugg
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            {format(new Date(suggestion.created_at), "dd/MM/yyyy", { locale: ptBR })}
+            {formatDateOnly(suggestion.created_at)}
           </div>
         </div>
         {suggestion.suggested_title && (

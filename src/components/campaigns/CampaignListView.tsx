@@ -9,6 +9,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateTimeFull } from '@/lib/date-utils';
 
 interface CampaignListViewProps {
   campaigns: Campaign[];
@@ -71,7 +72,7 @@ export const CampaignListView = ({
                     {campaign.scheduled_at && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                         <Calendar className="h-3 w-3" />
-                        {format(new Date(campaign.scheduled_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        {formatDateTimeFull(campaign.scheduled_at)}
                       </span>
                     )}
                   </div>
