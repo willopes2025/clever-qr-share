@@ -13,6 +13,7 @@ import { SsoticaDateFilter, SsoticaDateRange } from "@/components/ssotica/Ssotic
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Glasses } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 
 const Ssotica = () => {
