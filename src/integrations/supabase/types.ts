@@ -3779,8 +3779,11 @@ export type Database = {
           sent_at: string | null
           sent_by_ai_agent_id: string | null
           sent_by_user_id: string | null
+          sent_via_chatbot_flow_id: string | null
           sent_via_instance_id: string | null
           sent_via_meta_number_id: string | null
+          sent_via_meta_template_id: string | null
+          sent_via_template_id: string | null
           status: string
           transcription: string | null
           user_id: string
@@ -3803,8 +3806,11 @@ export type Database = {
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
+          sent_via_chatbot_flow_id?: string | null
           sent_via_instance_id?: string | null
           sent_via_meta_number_id?: string | null
+          sent_via_meta_template_id?: string | null
+          sent_via_template_id?: string | null
           status?: string
           transcription?: string | null
           user_id: string
@@ -3827,8 +3833,11 @@ export type Database = {
           sent_at?: string | null
           sent_by_ai_agent_id?: string | null
           sent_by_user_id?: string | null
+          sent_via_chatbot_flow_id?: string | null
           sent_via_instance_id?: string | null
           sent_via_meta_number_id?: string | null
+          sent_via_meta_template_id?: string | null
+          sent_via_template_id?: string | null
           status?: string
           transcription?: string | null
           user_id?: string
@@ -3850,10 +3859,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "inbox_messages_sent_via_chatbot_flow_id_fkey"
+            columns: ["sent_via_chatbot_flow_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_flows"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "inbox_messages_sent_via_instance_id_fkey"
             columns: ["sent_via_instance_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbox_messages_sent_via_meta_template_id_fkey"
+            columns: ["sent_via_meta_template_id"]
+            isOneToOne: false
+            referencedRelation: "meta_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbox_messages_sent_via_template_id_fkey"
+            columns: ["sent_via_template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
             referencedColumns: ["id"]
           },
         ]
