@@ -8,8 +8,9 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
-import { format, subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
+import { subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 import { DateRange } from '@/hooks/useWidgetData';
 
 type PresetKey = 'today' | '7d' | '30d' | '90d' | 'month' | 'custom';
