@@ -23,6 +23,7 @@ import { SelectInstanceDialog } from '@/components/campaigns/SelectInstanceDialo
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getActiveTimezone } from '@/lib/timezone';
 
 const DAYS_OF_WEEK = [
   { value: 'mon', label: 'Seg' },
@@ -273,7 +274,7 @@ export const OpportunityBroadcastDialog = ({
         allowed_start_hour: startHour,
         allowed_end_hour: endHour,
         allowed_days: allowedDays,
-        timezone: 'America/Sao_Paulo',
+        timezone: getActiveTimezone(),
         skip_already_sent: skipAlreadySent,
         skip_mode: skipMode,
         skip_days_period: skipDaysPeriod,
@@ -356,7 +357,7 @@ export const OpportunityBroadcastDialog = ({
               allowed_start_hour: startHour,
               allowed_end_hour: endHour,
               allowed_days: allowedDays,
-              timezone: 'America/Sao_Paulo',
+              timezone: getActiveTimezone(),
               skip_already_sent: skipAlreadySent,
               skip_mode: skipMode,
               skip_days_period: skipDaysPeriod,
