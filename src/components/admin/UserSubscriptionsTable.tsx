@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 import { Edit, History, UserPlus, Trash2, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -195,7 +196,7 @@ export const UserSubscriptionsTable = ({
                   </TableCell>
                   <TableCell>
                     {user.subscription?.current_period_end
-                      ? format(new Date(user.subscription.current_period_end), "dd/MM/yyyy", { locale: ptBR })
+                      ? formatDateOnly(user.subscription.current_period_end)
                       : "-"}
                   </TableCell>
                     <TableCell className="text-right">

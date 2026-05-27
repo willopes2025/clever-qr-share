@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toBrazilTime } from "@/lib/date-utils";
+import { toBrazilTime, formatDateOnly, formatDateTimeShort } from "@/lib/date-utils";
 import { Conversation } from "@/hooks/useConversations";
 import { TagSelector } from "./TagSelector";
 import { CustomFieldsEditor } from "./CustomFieldsEditor";
@@ -162,7 +162,7 @@ export const ContactInfoContent = ({ conversation }: ContactInfoContentProps) =>
           <div className="min-w-0">
             <p className="text-[10px] text-muted-foreground">Primeira conversa</p>
             <p className="text-xs font-medium">
-              {format(new Date(conversation.created_at), "dd/MM/yyyy", { locale: ptBR })}
+              {formatDateOnly(conversation.created_at)}
             </p>
           </div>
         </div>
@@ -175,7 +175,7 @@ export const ContactInfoContent = ({ conversation }: ContactInfoContentProps) =>
             <p className="text-[10px] text-muted-foreground">Última mensagem</p>
             <p className="text-xs font-medium">
               {conversation.last_message_at 
-                ? format(toBrazilTime(new Date(conversation.last_message_at)), "dd/MM HH:mm", { locale: ptBR })
+                ? formatDateTimeShort(conversation.last_message_at)
                 : "Nenhuma"}
             </p>
           </div>

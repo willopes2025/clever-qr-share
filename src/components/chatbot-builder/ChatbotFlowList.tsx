@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreVertical, Play, Pause, Trash2, Edit, GitBranch, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatFullDateTimeBR } from "@/lib/date-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -137,7 +138,7 @@ export const ChatbotFlowList = ({ flows, isLoading, onSelect, onCreateNew }: Cha
                 {flow.is_active ? 'Ativo' : 'Inativo'}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                {format(new Date(flow.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                {formatFullDateTimeBR(flow.updated_at)}
               </span>
             </div>
           </CardContent>

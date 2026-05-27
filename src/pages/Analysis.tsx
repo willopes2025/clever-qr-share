@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart3, CalendarIcon, FileText, Loader2, Sparkles, TrendingUp, TrendingDown, Clock, MessageSquare, Mic, Download, Trash2, ChevronRight, Star, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { format, subDays, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatDateOnly } from '@/lib/date-utils';
+import { formatDateOnly, formatFullDateTimeBR } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { useAnalysisReports, AnalysisReport } from '@/hooks/useAnalysisReports';
 import { useSubscription, hasFeatureAccess } from '@/hooks/useSubscription';
@@ -143,8 +143,8 @@ export default function Analysis() {
                 <Button variant="outline" className="justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange.to 
-                      ? `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`
-                      : format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })}
+                      ? `${formatDateOnly(dateRange.from.toISOString())} - ${formatDateOnly(dateRange.to.toISOString())}`
+                      : formatDateOnly(dateRange.from.toISOString())}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -241,7 +241,7 @@ export default function Analysis() {
                              report.status === 'processing' ? 'Processando...' : 'Erro'}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            {format(new Date(report.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            {formatFullDateTimeBR(report.created_at)}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">

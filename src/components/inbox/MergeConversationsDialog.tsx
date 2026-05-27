@@ -16,6 +16,7 @@ import { Merge, Calendar, ArrowLeft } from "lucide-react";
 import { useConversationActions } from "@/hooks/useConversationActions";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeShort } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { MergeFieldComparison, buildFieldRows, getAutoSelections } from "./MergeFieldComparison";
 
@@ -256,7 +257,7 @@ export const MergeConversationsDialog = ({
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {conv.last_message_at 
-                          ? format(new Date(conv.last_message_at), "dd/MM/yy HH:mm", { locale: ptBR })
+                          ? formatDateTimeShort(conv.last_message_at)
                           : 'Sem mensagens'}
                       </span>
                       {conv.unread_count > 0 && (

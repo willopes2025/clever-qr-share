@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { MetaTemplate } from "@/hooks/useMetaTemplates";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeFull } from "@/lib/date-utils";
 import { ReactNode } from "react";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -72,10 +73,10 @@ export function MetaTemplatePreviewDialog({ template, onClose, getStatusBadge }:
                 <p><strong>ID Meta:</strong> {template.meta_template_id}</p>
               )}
               {template.submitted_at && (
-                <p><strong>Enviado em:</strong> {format(new Date(template.submitted_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                <p><strong>Enviado em:</strong> {formatDateTimeFull(template.submitted_at)}</p>
               )}
               {template.approved_at && (
-                <p><strong>Aprovado em:</strong> {format(new Date(template.approved_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                <p><strong>Aprovado em:</strong> {formatDateTimeFull(template.approved_at)}</p>
               )}
             </div>
           </div>

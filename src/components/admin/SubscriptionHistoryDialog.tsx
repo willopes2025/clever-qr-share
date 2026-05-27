@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatFullDateTimeBR } from "@/lib/date-utils";
 import {
   Dialog,
   DialogContent,
@@ -126,7 +127,7 @@ export const SubscriptionHistoryDialog = ({
                       {entry.action}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(entry.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      {formatFullDateTimeBR(entry.created_at)}
                     </span>
                   </div>
 

@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Download, MessageCircle, ExternalLink, BadgeCheck, User, Heart, Reply, Loader2, Sparkles, Mail, Phone, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeShort } from "@/lib/date-utils";
 
 export interface InstagramComment {
   id: string;
@@ -322,8 +323,8 @@ export function InstagramCommentsResultsTable({
                   </TableCell>
                   <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
                     {comment.timestamp 
-                      ? format(new Date(comment.timestamp), "dd/MM/yy HH:mm", { locale: ptBR })
-                      : format(new Date(comment.scraped_at), "dd/MM/yy HH:mm", { locale: ptBR })
+                      ? formatDateTimeShort(comment.timestamp)
+                      : formatDateTimeShort(comment.scraped_at)
                     }
                   </TableCell>
                 </TableRow>

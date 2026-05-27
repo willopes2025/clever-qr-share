@@ -2,6 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly } from "@/lib/date-utils";
 
 interface StripeSubscription {
   id: string;
@@ -79,10 +80,10 @@ const StripeSubscriptionsTable = ({ subscriptions, loading }: Props) => {
             <TableCell className="text-right font-medium">{formatCurrency(sub.price)}</TableCell>
             <TableCell>{getStatusBadge(sub.status)}</TableCell>
             <TableCell>
-              {format(new Date(sub.current_period_end), "dd/MM/yyyy", { locale: ptBR })}
+              {formatDateOnly(sub.current_period_end)}
             </TableCell>
             <TableCell className="text-muted-foreground">
-              {format(new Date(sub.created), "dd/MM/yyyy", { locale: ptBR })}
+              {formatDateOnly(sub.created)}
             </TableCell>
           </TableRow>
         ))}

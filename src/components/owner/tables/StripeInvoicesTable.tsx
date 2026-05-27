@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeFull } from "@/lib/date-utils";
 
 interface StripeInvoice {
   id: string;
@@ -72,7 +73,7 @@ const StripeInvoicesTable = ({ invoices, loading }: Props) => {
             <TableCell className="text-right font-medium">{formatCurrency(invoice.amount_paid)}</TableCell>
             <TableCell>{getStatusBadge(invoice.status)}</TableCell>
             <TableCell>
-              {format(new Date(invoice.created), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+              {formatDateTimeFull(invoice.created)}
             </TableCell>
             <TableCell className="text-right">
               {invoice.invoice_pdf && (

@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { WebhookLog } from "@/hooks/useWebhookConnections";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateTimeShort } from "@/lib/date-utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Eye, ScrollText } from "lucide-react";
@@ -40,7 +41,7 @@ export function WebhookLogsTable({ logs }: Props) {
           {logs.map(log => (
             <TableRow key={log.id}>
               <TableCell className="text-xs">
-                {format(new Date(log.created_at), "dd/MM HH:mm:ss", { locale: ptBR })}
+                {formatDateTimeShort(log.created_at)}
               </TableCell>
               <TableCell>
                 <Badge variant="outline" className="text-xs">

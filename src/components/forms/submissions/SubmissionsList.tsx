@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -80,7 +81,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
   // Compute the displayed value for a submission/column
   const getCellValue = (sub: any, column: string): string => {
-    if (column === "date") return format(new Date(sub.created_at), "dd/MM/yyyy");
+    if (column === "date") return formatDateOnly(sub.created_at);
     if (column === "contact") return sub.contacts?.name || sub.contacts?.phone || "Anônimo";
     const field = visibleFields.find(f => f.id === column);
     const raw = sub.data[column] ?? "";
@@ -143,7 +144,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         return resolveDisplayValue(f, value);
       });
       return [
-        format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm'),
+        formatDateTimeFull(sub.created_at),
         contactName,
         ...fieldValues,
       ];
@@ -317,7 +318,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                     </Button>
                   </TableCell>
                   <TableCell className="text-sm">
-                    {format(new Date(submission.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    {formatDateTimeFull(submission.created_at)}
                   </TableCell>
                   <TableCell>
                     {submission.contacts ? (

@@ -7,8 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Download, Users, ExternalLink, BadgeCheck, Lock, User, Sparkles, Mail, Phone, Loader2, CheckCircle2, Clock, AlertTriangle, TrendingUp, MapPin, Link2 } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatDateTimeShort } from "@/lib/date-utils";
 
 type FilterType = 'not-enriched' | 'with-email' | 'with-phone' | 'with-contact' | 'suspicious' | 'high-engagement';
 
@@ -420,7 +419,7 @@ export function InstagramResultsTable({
                       )}
                     </TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
-                      {format(new Date(profile.scraped_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                      {formatDateTimeShort(profile.scraped_at)}
                     </TableCell>
                   </TableRow>
                 );

@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatFullDateTimeBR } from "@/lib/date-utils";
 import { useVoipCalls, VoipCall } from "@/hooks/useVoipCalls";
 import { useState } from "react";
 
@@ -146,7 +147,7 @@ export const CallHistoryTab = ({ contactId, conversationId }: CallHistoryTabProp
               Detalhes da Chamada
             </DialogTitle>
             <DialogDescription>
-              {selectedCall && format(new Date(selectedCall.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              {selectedCall && formatFullDateTimeBR(selectedCall.created_at)}
             </DialogDescription>
           </DialogHeader>
 

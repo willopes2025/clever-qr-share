@@ -1,6 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 
 interface Props {
   data: { date: string; count: number }[];
@@ -9,7 +10,7 @@ interface Props {
 const SignupsDailyChart = ({ data }: Props) => {
   const chartData = data.map(item => ({
     ...item,
-    dateLabel: format(parseISO(item.date), 'dd/MM', { locale: ptBR }),
+    dateLabel: formatDateShort(item.date),
   }));
 
   return (
