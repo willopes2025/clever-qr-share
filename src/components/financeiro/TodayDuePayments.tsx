@@ -83,7 +83,7 @@ const reminderBadge = (info: ReminderInfo, paymentStatus: string) => {
         icon: Clock,
         label: 'Agendado',
         className: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30 dark:text-yellow-400',
-        title: info.scheduledFor ? `Agendado para ${format(parseISO(info.scheduledFor), "dd/MM HH:mm", { locale: ptBR })}` : 'Lembrete agendado',
+        title: info.scheduledFor ? `Agendado para ${formatDateShort(info.scheduledFor)} ${formatTimeActive(info.scheduledFor)}` : 'Lembrete agendado',
       };
     case 'paid':
       return {
