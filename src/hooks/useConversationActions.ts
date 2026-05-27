@@ -148,7 +148,7 @@ export const useConversationActions = () => {
 
       // Format the export content
       const now = new Date();
-      const exportDate = format(now, "dd/MM/yyyy HH:mm", { locale: ptBR });
+      const exportDate = formatDateTimeFull(now.toISOString());
       
       let content = `Conversa com: ${contactName || 'Contato Desconhecido'}\n`;
       content += `Telefone: ${contactPhone}\n`;
