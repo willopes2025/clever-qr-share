@@ -41,7 +41,7 @@ export function DashboardDateFilter({ value, onChange, customRange, onCustomRang
 
   const formatCustomRange = () => {
     if (!customRange) return 'Personalizado';
-    return `${format(customRange.from, 'dd/MM', { locale: ptBR })} - ${format(customRange.to, 'dd/MM', { locale: ptBR })}`;
+    return `${formatDateShort(customRange.from)} - ${formatDateShort(customRange.to)}`;
   };
 
   return (
