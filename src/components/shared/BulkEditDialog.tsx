@@ -441,7 +441,7 @@ export const BulkEditDialog = ({
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {expectedCloseDate 
-                              ? format(expectedCloseDate, "dd/MM/yyyy", { locale: ptBR })
+                              ? formatDateOnly(expectedCloseDate.toISOString())
                               : "Selecione uma data"
                             }
                           </Button>
