@@ -77,7 +77,7 @@ const Ssotica = () => {
             <div className="flex items-center gap-3">
               {lastSync && (
                 <span className="text-xs text-muted-foreground">
-                  Atualizado: {format(new Date(lastSync), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                  Atualizado: {formatDateTimeFull(lastSync)}
                 </span>
               )}
               <Button 
