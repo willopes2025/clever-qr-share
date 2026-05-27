@@ -136,7 +136,7 @@ export const FormCard = ({ form }: FormCardProps) => {
         return resolveDisplayValue(f, value);
       });
       return [
-        format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm'),
+        formatDateTimeFull(sub.created_at),
         contactName,
         ...fieldValues,
       ];
