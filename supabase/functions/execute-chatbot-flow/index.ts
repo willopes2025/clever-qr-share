@@ -900,6 +900,8 @@ Deno.serve(async (req: Request) => {
                     error_message: mediaError,
                     sent_at: new Date().toISOString(),
                     sent_via_meta_number_id: !instanceName && metaPhoneNumberId ? metaPhoneNumberId : null,
+                    sent_via_chatbot_flow_id: flowId,
+                    sent_via_template_id: node.data.templateId,
                   });
                 }
               }
