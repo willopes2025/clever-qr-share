@@ -858,12 +858,12 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         getResponsibleName(deal.responsible_id),
         deal.next_action_required ? "Sim" : "Não",
         deal.expected_close_date
-          ? format(new Date(deal.expected_close_date), "dd/MM/yyyy")
+          ? formatDateOnly(deal.expected_close_date)
           : "",
         getTimeInStage(deal.entered_stage_at),
-        format(new Date(deal.entered_stage_at), "dd/MM/yyyy HH:mm"),
-        format(new Date(deal.created_at), "dd/MM/yyyy HH:mm"),
-        deal.closed_at ? format(new Date(deal.closed_at), "dd/MM/yyyy HH:mm") : "",
+        formatDateTimeFull(deal.entered_stage_at),
+        formatDateTimeFull(deal.created_at),
+        deal.closed_at ? formatDateTimeFull(deal.closed_at) : "",
         getCloseReasonName(deal.close_reason_id),
         ...Array.from(dealCustomFieldKeys).map((key) => {
           const fieldDef = fieldDefinitions?.find(f => f.field_key === key);
@@ -907,7 +907,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return getTimeInStage(deal.entered_stage_at);
       case "expected_close":
         return deal.expected_close_date
-          ? format(new Date(deal.expected_close_date), "dd/MM/yyyy")
+          ? formatDateOnly(deal.expected_close_date)
           : "-";
       default:
         if (columnId.startsWith("custom_")) {
@@ -1018,7 +1018,7 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
         return deal.expected_close_date ? (
           <div className="flex items-center gap-1 text-sm">
             <Calendar className="h-3 w-3 text-muted-foreground" />
-            {format(new Date(deal.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}
+            {formatDateOnly(deal.expected_close_date)}
           </div>
         ) : (
           <span className="text-muted-foreground">-</span>
