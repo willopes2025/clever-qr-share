@@ -12,6 +12,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Globe, Save, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DATE_FORMAT_OPTIONS,
+  TIME_FORMAT_OPTIONS,
+  formatDateTime,
+  type DateFormat,
+  type TimeFormat,
+} from "@/lib/timezone";
 
 const TIMEZONES = [
   { value: 'America/Sao_Paulo', label: 'São Paulo (GMT-3)' },
@@ -31,6 +38,8 @@ export const ProfileSettings = () => {
   const queryClient = useQueryClient();
 
   const [timezone, setTimezone] = useState(defaultSettings.timezone);
+  const [dateFormat, setDateFormat] = useState<DateFormat>('DD/MM/YYYY');
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>('24h');
   const [emailNotifications, setEmailNotifications] = useState(defaultSettings.email_notifications);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -47,6 +56,8 @@ export const ProfileSettings = () => {
     // Org timezone is the source of truth. Fall back to user settings for legacy.
     const orgTz = organization?.timezone;
     setTimezone(orgTz || settings?.timezone || defaultSettings.timezone);
+    setDateFormat((organization?.date_format as DateFormat) || 'DD/MM/YYYY');
+    setTimeFormat((organization?.time_format as TimeFormat) || '24h');
     if (settings) {
       setEmailNotifications(settings.email_notifications ?? defaultSettings.email_notifications);
     }
@@ -106,16 +117,23 @@ export const ProfileSettings = () => {
         timezone,
         email_notifications: emailNotifications,
       });
-      // If owner, also update the organization timezone (source of truth)
-      if (isOwner && organization?.id && timezone !== organization.timezone) {
-        const { error } = await supabase
-          .from('organizations')
-          .update({ timezone, updated_at: new Date().toISOString() })
-          .eq('id', organization.id);
-        if (error) {
-          toast.error('Erro ao salvar fuso da organização: ' + error.message);
-        } else {
-          queryClient.invalidateQueries({ queryKey: ['organization'] });
+      // If owner, also update the organization-level settings (source of truth)
+      if (isOwner && organization?.id) {
+        const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+        if (timezone !== organization.timezone) patch.timezone = timezone;
+        if (dateFormat !== organization.date_format) patch.date_format = dateFormat;
+        if (timeFormat !== organization.time_format) patch.time_format = timeFormat;
+        if (Object.keys(patch).length > 1) {
+          const { error } = await supabase
+            .from('organizations')
+            .update(patch)
+            .eq('id', organization.id);
+          if (error) {
+            toast.error('Erro ao salvar configurações da organização: ' + error.message);
+          } else {
+            queryClient.invalidateQueries({ queryKey: ['organization'] });
+            toast.success('Configurações atualizadas!');
+          }
         }
       }
     } finally {
@@ -264,7 +282,7 @@ export const ProfileSettings = () => {
             Regionalização
           </CardTitle>
           <CardDescription>
-            Configure seu fuso horário para agendamentos corretos
+            Configure fuso horário e formatos exibidos em todo o sistema
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -287,6 +305,46 @@ export const ProfileSettings = () => {
                 ? 'Define o fuso de toda a organização — usado em campanhas, automações agendadas, tarefas e exibição de datas.'
                 : 'Definido pelo dono da organização. Toda a plataforma respeita este fuso.'}
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Formato de Data</Label>
+              <Select value={dateFormat} onValueChange={(v) => setDateFormat(v as DateFormat)} disabled={!isOwner}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATE_FORMAT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label} — <span className="text-muted-foreground">{opt.example}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Formato de Hora</Label>
+              <Select value={timeFormat} onValueChange={(v) => setTimeFormat(v as TimeFormat)} disabled={!isOwner}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_FORMAT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label} — <span className="text-muted-foreground">{opt.example}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Pré-visualização: </span>
+            <span className="font-medium">
+              {formatDateTime(new Date(), { timezone, dateFormat, timeFormat })}
+            </span>
           </div>
         </CardContent>
       </Card>
