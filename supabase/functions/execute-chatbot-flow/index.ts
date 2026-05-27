@@ -503,6 +503,8 @@ Deno.serve(async (req: Request) => {
             sent_at: new Date().toISOString(),
             sent_via_meta_number_id: metaPhoneNumberId,
             sent_via_chatbot_flow_id: flowId,
+            sent_via_template_id: currentTemplateId,
+            sent_via_meta_template_id: currentMetaTemplateId,
           });
 
           await supabase.from('conversations').update({
