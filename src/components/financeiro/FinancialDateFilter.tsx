@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { DateRange } from '@/hooks/useFinancialMetrics';
 
@@ -115,7 +116,7 @@ export const FinancialDateFilter = ({ dateRange, onDateRangeChange }: FinancialD
             <CalendarIcon className="mr-2 h-3 w-3" />
             {activePreset === 'custom' ? (
               <>
-                {format(dateRange.start, 'dd/MM/yy', { locale: ptBR })} - {format(dateRange.end, 'dd/MM/yy', { locale: ptBR })}
+                {formatDateShort(dateRange.start.toISOString())} - {formatDateShort(dateRange.end.toISOString())}
               </>
             ) : (
               'Personalizado'
