@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { formatDateOnly, formatFullDateTimeBR } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -82,7 +83,7 @@ const formatValue = (key: string, value: any): React.ReactNode => {
     try {
       const date = new Date(value);
       if (!isNaN(date.getTime())) {
-        return format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+        return formatFullDateTimeBR(date.toISOString());
       }
     } catch {
       return String(value);

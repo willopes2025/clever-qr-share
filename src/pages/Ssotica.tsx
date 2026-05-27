@@ -13,6 +13,7 @@ import { SsoticaDateFilter, SsoticaDateRange } from "@/components/ssotica/Ssotic
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Glasses } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 
 const Ssotica = () => {
@@ -76,7 +77,7 @@ const Ssotica = () => {
             <div className="flex items-center gap-3">
               {lastSync && (
                 <span className="text-xs text-muted-foreground">
-                  Atualizado: {format(new Date(lastSync), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                  Atualizado: {formatDateTimeFull(lastSync)}
                 </span>
               )}
               <Button 

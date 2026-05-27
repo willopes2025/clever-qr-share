@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSsotica, SsoticaOS } from "@/hooks/useSsotica";
 import { Loader2, Search, FileText } from "lucide-react";
 import { format } from "date-fns";
+import { formatDateOnly, formatFullDateTimeBR } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import {
   Table,
@@ -153,12 +154,12 @@ export const SsoticaOSList = ({ dateRange }: SsoticaOSListProps) => {
                       <TableCell>{os.cliente?.nome || '-'}</TableCell>
                       <TableCell>
                         {os.data_entrada 
-                          ? format(new Date(os.data_entrada), "dd/MM/yyyy", { locale: ptBR })
+                          ? formatDateOnly(os.data_entrada)
                           : '-'}
                       </TableCell>
                       <TableCell>
                         {os.previsao_entrega 
-                          ? format(new Date(os.previsao_entrega), "dd/MM/yyyy", { locale: ptBR })
+                          ? formatDateOnly(os.previsao_entrega)
                           : '-'}
                       </TableCell>
                       <TableCell>{getStatusBadge(os.status)}</TableCell>

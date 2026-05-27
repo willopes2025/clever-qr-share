@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { GitBranch } from "lucide-react";
 import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
+import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useContacts, ContactWithDeals } from "@/hooks/useContacts";
@@ -400,13 +401,13 @@ const Contacts = () => {
         etapa: activeDeal?.funnel_stages?.name || "",
         valor_deal: activeDeal?.value?.toString() || "",
         data_entrada_etapa: activeDeal?.entered_stage_at
-          ? format(new Date(activeDeal.entered_stage_at), "dd/MM/yyyy HH:mm")
+          ? formatDateTimeFull(activeDeal.entered_stage_at)
           : "",
         previsao_fechamento: activeDeal?.expected_close_date
-          ? format(new Date(activeDeal.expected_close_date), "dd/MM/yyyy")
+          ? formatDateOnly(activeDeal.expected_close_date)
           : "",
         deal_fechado_em: activeDeal?.closed_at
-          ? format(new Date(activeDeal.closed_at), "dd/MM/yyyy HH:mm")
+          ? formatDateTimeFull(activeDeal.closed_at)
           : "",
         // Custom fields
         ...customFieldData,

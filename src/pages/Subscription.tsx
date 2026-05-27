@@ -34,6 +34,7 @@ import { useSubscription, PLANS } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
+import { formatDateOnly } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -331,7 +332,7 @@ const Subscription = () => {
                                 <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   Sua assinatura continuará ativa até o final do período atual 
-                                  ({subscription?.subscription_end ? format(new Date(subscription.subscription_end), "dd/MM/yyyy") : 'data de renovação'}). 
+                                  ({subscription?.subscription_end ? formatDateOnly(subscription.subscription_end) : 'data de renovação'}). 
                                   Após isso, você será movido para o plano gratuito com limites reduzidos.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>

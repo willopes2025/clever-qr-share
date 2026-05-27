@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
+import { formatDateOnly } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, Loader2, Tag } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -440,7 +441,7 @@ export const BulkEditDialog = ({
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {expectedCloseDate 
-                              ? format(expectedCloseDate, "dd/MM/yyyy", { locale: ptBR })
+                              ? formatDateOnly(expectedCloseDate.toISOString())
                               : "Selecione uma data"
                             }
                           </Button>
