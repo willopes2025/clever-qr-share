@@ -299,12 +299,12 @@ export const CalendarIntegrations = () => {
                       {event.event_start_time && (
                         <div className="text-right text-sm">
                           <p className="font-medium">
-                            {format(new Date(event.event_start_time), "dd/MM/yyyy")}
+                            {formatDateOnly(event.event_start_time)}
                           </p>
                           <p className="text-muted-foreground">
-                            {format(new Date(event.event_start_time), "HH:mm")}
+                            {formatTimeBR(event.event_start_time)}
                             {event.event_end_time && (
-                              <> - {format(new Date(event.event_end_time), "HH:mm")}</>
+                              <> - {formatTimeBR(event.event_end_time)}</>
                             )}
                           </p>
                         </div>
