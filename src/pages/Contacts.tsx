@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { GitBranch } from "lucide-react";
 import { format, isToday, isYesterday, subDays, isSameMonth, subMonths, startOfDay, endOfDay } from "date-fns";
+import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useContacts, ContactWithDeals } from "@/hooks/useContacts";
