@@ -1037,6 +1037,7 @@ Deno.serve(async (req: Request) => {
                     whatsapp_message_id: result?.messages?.[0]?.id || null,
                     error_message: result?.error ? (result.error?.message || JSON.stringify(result.error)) : null,
                     sent_via_chatbot_flow_id: flowId,
+                    sent_via_meta_template_id: metaConfig.metaTemplateId,
                   });
                   await supabase.from('conversations').update({
                     last_message_at: new Date().toISOString(),
