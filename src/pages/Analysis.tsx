@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart3, CalendarIcon, FileText, Loader2, Sparkles, TrendingUp, TrendingDown, Clock, MessageSquare, Mic, Download, Trash2, ChevronRight, Star, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { format, subDays, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatDateOnly } from '@/lib/date-utils';
+import { formatDateOnly, formatFullDateTimeBR } from '@/lib/date-utils';
 import { cn } from '@/lib/utils';
 import { useAnalysisReports, AnalysisReport } from '@/hooks/useAnalysisReports';
 import { useSubscription, hasFeatureAccess } from '@/hooks/useSubscription';
