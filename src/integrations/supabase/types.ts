@@ -5050,30 +5050,36 @@ export type Database = {
         Row: {
           company_context: string | null
           created_at: string | null
+          date_format: string
           id: string
           name: string
           notification_instance_id: string | null
           owner_id: string
+          time_format: string
           timezone: string
           updated_at: string | null
         }
         Insert: {
           company_context?: string | null
           created_at?: string | null
+          date_format?: string
           id?: string
           name: string
           notification_instance_id?: string | null
           owner_id: string
+          time_format?: string
           timezone?: string
           updated_at?: string | null
         }
         Update: {
           company_context?: string | null
           created_at?: string | null
+          date_format?: string
           id?: string
           name?: string
           notification_instance_id?: string | null
           owner_id?: string
+          time_format?: string
           timezone?: string
           updated_at?: string | null
         }

@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveOrgFormatConfig, formatDateSmart, DEFAULT_FORMAT_CONFIG, type OrgFormatConfig } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -341,48 +342,29 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Helper: substitute variables in text
-    // Detects date-like values and formats them to Brazilian format (DD/MM/YYYY[ HH:mm])
+    // Resolve org format config (timezone + date/time format) — single source of truth.
+    let orgFormatConfig: OrgFormatConfig = DEFAULT_FORMAT_CONFIG;
+    try {
+      orgFormatConfig = await resolveOrgFormatConfig(supabase, { userId });
+    } catch (e) {
+      console.warn('[FLOW] could not resolve org format config, using defaults', e);
+    }
+
+    // Helper: substitute variables in text — date-like values formatted via org config.
     const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
     const ISO_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
-    const formatDateBR = (v: string | Date): string | null => {
-      if (v instanceof Date) {
-        if (isNaN(v.getTime())) return null;
-        const dd = String(v.getUTCDate()).padStart(2, '0');
-        const mm = String(v.getUTCMonth() + 1).padStart(2, '0');
-        const yyyy = v.getUTCFullYear();
-        const hh = String(v.getUTCHours()).padStart(2, '0');
-        const mi = String(v.getUTCMinutes()).padStart(2, '0');
-        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-      }
-      const s = String(v).trim();
-      const dOnly = s.match(DATE_ONLY_RE);
-      if (dOnly) return `${dOnly[3]}/${dOnly[2]}/${dOnly[1]}`;
-      const dTime = s.match(ISO_DATETIME_RE);
-      if (dTime) {
-        // Render in Brazil timezone (America/Sao_Paulo, UTC-3) by default
-        try {
-          const parsed = new Date(s.includes('T') ? s : s.replace(' ', 'T'));
-          if (!isNaN(parsed.getTime())) {
-            return new Intl.DateTimeFormat('pt-BR', {
-              timeZone: 'America/Sao_Paulo',
-              day: '2-digit', month: '2-digit', year: 'numeric',
-              hour: '2-digit', minute: '2-digit', hour12: false,
-            }).format(parsed).replace(',', '');
-          }
-        } catch {}
-        return `${dTime[3]}/${dTime[2]}/${dTime[1]} ${dTime[4]}:${dTime[5]}`;
-      }
-      return null;
-    };
+    const looksLikeDate = (s: string) => DATE_ONLY_RE.test(s) || ISO_DATETIME_RE.test(s);
     const formatVarValue = (v: any): string => {
       if (v === null || v === undefined) return '';
-      if (v instanceof Date) return formatDateBR(v) || v.toISOString();
+      if (v instanceof Date) return formatDateSmart(v, orgFormatConfig);
       if (Array.isArray(v)) return v.map((x) => formatVarValue(x)).join(', ');
       if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return ''; } }
       const s = String(v);
-      const br = formatDateBR(s);
-      return br ?? s;
+      if (looksLikeDate(s.trim())) {
+        const out = formatDateSmart(s.trim(), orgFormatConfig);
+        if (out) return out;
+      }
+      return s;
     };
     const contactCustom = (contact?.custom_fields as Record<string, any>) || {};
     const dealCustom = (activeDeal?.custom_fields as Record<string, any>) || {};
