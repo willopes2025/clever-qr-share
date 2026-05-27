@@ -9,6 +9,8 @@ export interface Organization {
   owner_id: string;
   name: string;
   timezone: string;
+  date_format?: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+  time_format?: '24h' | '12h';
   created_at: string;
   updated_at: string;
 }

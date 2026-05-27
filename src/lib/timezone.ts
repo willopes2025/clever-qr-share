@@ -1,17 +1,41 @@
-// Frontend timezone helpers. The single source of truth is
-// `organizations.timezone`, set in Settings → Profile by the owner.
-// A small module-level cache lets non-React code (utilities) read it
-// synchronously after `setActiveTimezone` has been called once on app boot.
+// Frontend timezone + date/time format helpers.
+// Single source of truth: `public.organizations` (`timezone`, `date_format`, `time_format`).
+// Small module-level cache lets non-React code read the active values synchronously
+// after `setActiveTimezone` / `setActiveDateFormat` / `setActiveTimeFormat` are called once
+// on app boot (via <TimezoneBootstrap/>).
 
 const DEFAULT_TZ = "America/Sao_Paulo";
+const DEFAULT_DATE_FORMAT: DateFormat = "DD/MM/YYYY";
+const DEFAULT_TIME_FORMAT: TimeFormat = "24h";
+
+export type DateFormat = "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
+export type TimeFormat = "24h" | "12h";
+
 let activeTimezone: string = DEFAULT_TZ;
+let activeDateFormat: DateFormat = DEFAULT_DATE_FORMAT;
+let activeTimeFormat: TimeFormat = DEFAULT_TIME_FORMAT;
 
 export function setActiveTimezone(tz: string | null | undefined) {
   if (tz && typeof tz === "string") activeTimezone = tz;
 }
-
 export function getActiveTimezone(): string {
   return activeTimezone;
+}
+
+export function setActiveDateFormat(fmt: string | null | undefined) {
+  if (fmt === "DD/MM/YYYY" || fmt === "MM/DD/YYYY" || fmt === "YYYY-MM-DD") {
+    activeDateFormat = fmt;
+  }
+}
+export function getActiveDateFormat(): DateFormat {
+  return activeDateFormat;
+}
+
+export function setActiveTimeFormat(fmt: string | null | undefined) {
+  if (fmt === "24h" || fmt === "12h") activeTimeFormat = fmt;
+}
+export function getActiveTimeFormat(): TimeFormat {
+  return activeTimeFormat;
 }
 
 export function getTzOffsetMinutes(date: Date, tz: string = activeTimezone): number {
@@ -71,7 +95,6 @@ export function fromTimezoneToUtc(
 
 /** Convert a `<input type="datetime-local">` value (interpreted in the active tz) to ISO UTC. */
 export function localInputToUtcIso(value: string, tz: string = activeTimezone): string {
-  // value: "YYYY-MM-DDTHH:mm" (sometimes with :ss)
   const [datePart, timePart = "00:00"] = value.split("T");
   const [y, m, d] = datePart.split("-").map(Number);
   const [hh, mm, ss = 0] = timePart.split(":").map(Number);
@@ -89,4 +112,107 @@ export function utcToLocalInput(date: Date | string | null | undefined, tz: stri
   return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;
 }
 
+// ----------------------------------------------------------------------------
+// Formatting helpers (display only) — respect org timezone + date/time format.
+// ----------------------------------------------------------------------------
+
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+type AnyDateInput = Date | string | number | null | undefined;
+
+function toDate(value: AnyDateInput): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+  if (typeof value === "number") {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const s = String(value).trim();
+  if (!s) return null;
+  // Date-only strings (YYYY-MM-DD) should be interpreted as local-to-active-tz wall date,
+  // not as UTC midnight (which shifts the day backwards for BR).
+  const m = s.match(DATE_ONLY_RE);
+  if (m) {
+    return fromTimezoneToUtc(
+      { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) },
+      activeTimezone,
+    );
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatDateParts(d: Date, tz = activeTimezone, fmt = activeDateFormat): string {
+  const p = partsInTimezone(d, tz);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dd = pad(p.day);
+  const mm = pad(p.month);
+  const yyyy = String(p.year);
+  switch (fmt) {
+    case "MM/DD/YYYY": return `${mm}/${dd}/${yyyy}`;
+    case "YYYY-MM-DD": return `${yyyy}-${mm}-${dd}`;
+    case "DD/MM/YYYY":
+    default: return `${dd}/${mm}/${yyyy}`;
+  }
+}
+
+function formatTimeParts(d: Date, tz = activeTimezone, fmt = activeTimeFormat): string {
+  const p = partsInTimezone(d, tz);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (fmt === "12h") {
+    const hh24 = p.hour;
+    const period = hh24 >= 12 ? "PM" : "AM";
+    const hh12 = ((hh24 + 11) % 12) + 1;
+    return `${pad(hh12)}:${pad(p.minute)} ${period}`;
+  }
+  return `${pad(p.hour)}:${pad(p.minute)}`;
+}
+
+/** Format a date value as date-only string in the active org format/timezone. */
+export function formatDate(value: AnyDateInput, opts?: { timezone?: string; format?: DateFormat }): string {
+  const d = toDate(value);
+  if (!d) return "";
+  return formatDateParts(d, opts?.timezone || activeTimezone, opts?.format || activeDateFormat);
+}
+
+/** Format a date value as time-only string (HH:mm or hh:mm AM/PM) in the active org format/timezone. */
+export function formatTime(value: AnyDateInput, opts?: { timezone?: string; format?: TimeFormat }): string {
+  const d = toDate(value);
+  if (!d) return "";
+  return formatTimeParts(d, opts?.timezone || activeTimezone, opts?.format || activeTimeFormat);
+}
+
+/** Format a date value as date + time using the active org config. */
+export function formatDateTime(
+  value: AnyDateInput,
+  opts?: { timezone?: string; dateFormat?: DateFormat; timeFormat?: TimeFormat; separator?: string },
+): string {
+  const d = toDate(value);
+  if (!d) return "";
+  const tz = opts?.timezone || activeTimezone;
+  const datePart = formatDateParts(d, tz, opts?.dateFormat || activeDateFormat);
+  const timePart = formatTimeParts(d, tz, opts?.timeFormat || activeTimeFormat);
+  return `${datePart}${opts?.separator ?? " "}${timePart}`;
+}
+
+/** Smart formatting: pure `YYYY-MM-DD` strings return date only; everything else returns date + time. */
+export function formatDateSmart(value: AnyDateInput): string {
+  if (typeof value === "string" && DATE_ONLY_RE.test(value.trim())) return formatDate(value);
+  return formatDateTime(value);
+}
+
+/** Returns a sample formatted "now" string for previewing the active config. */
+export function previewDateTimeNow(opts?: { dateFormat?: DateFormat; timeFormat?: TimeFormat }): string {
+  return formatDateTime(new Date(), opts);
+}
+
 export const DEFAULT_TIMEZONE = DEFAULT_TZ;
+export const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; example: string }[] = [
+  { value: "DD/MM/YYYY", label: "Dia/Mês/Ano (Brasileiro)", example: "27/05/2026" },
+  { value: "MM/DD/YYYY", label: "Mês/Dia/Ano (US)", example: "05/27/2026" },
+  { value: "YYYY-MM-DD", label: "Ano-Mês-Dia (ISO)", example: "2026-05-27" },
+];
+export const TIME_FORMAT_OPTIONS: { value: TimeFormat; label: string; example: string }[] = [
+  { value: "24h", label: "24 horas", example: "14:30" },
+  { value: "12h", label: "12 horas (AM/PM)", example: "02:30 PM" },
+];
