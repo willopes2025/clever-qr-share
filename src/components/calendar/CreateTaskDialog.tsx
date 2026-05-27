@@ -13,6 +13,7 @@ import { TaskTypeSelector } from "./TaskTypeSelector";
 import { AssigneeSelector } from "./AssigneeSelector";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDate as formatDateActive } from "@/lib/timezone";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -154,7 +155,7 @@ export function CreateTaskDialog({ open, onOpenChange, defaultDate }: CreateTask
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dueDate ? format(dueDate, "dd/MM/yyyy") : "Selecionar"}
+                    {dueDate ? formatDateActive(dueDate) : "Selecionar"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">

@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Check, X, Pencil } from "lucide-react";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDate as formatDateActive, formatTime as formatTimeActive } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 import { CustomFieldDefinition, useCustomFields } from "@/hooks/useCustomFields";
 import { toast } from "sonner";
@@ -153,7 +154,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateValue ? format(dateValue, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                {dateValue ? formatDateActive(dateValue) : "Selecionar data"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -215,7 +216,7 @@ export const CustomFieldsEditor = ({ contactId, customFields, hideEmptyFields = 
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dtValue ? format(dtValue, "dd/MM/yyyy", { locale: ptBR }) : "Data"}
+                  {dtValue ? formatDateActive(dtValue) : "Data"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">

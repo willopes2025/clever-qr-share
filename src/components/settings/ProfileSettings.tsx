@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   DATE_FORMAT_OPTIONS,
   TIME_FORMAT_OPTIONS,
+  formatDate,
   formatDateTime,
   type DateFormat,
   type TimeFormat,
@@ -178,7 +179,7 @@ export const ProfileSettings = () => {
           <div className="space-y-2">
             <Label>Membro desde</Label>
             <Input 
-              value={user?.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : ''} 
+              value={user?.created_at ? formatDate(user.created_at) : ''} 
               disabled 
               className="bg-muted"
             />

@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAllTasks, AllTaskItem } from "@/hooks/useAllTasks";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDate as formatDateActive } from "@/lib/timezone";
 import { CheckCircle2, Circle, Calendar, AlertTriangle, Filter, ListTodo, CheckSquare, ExternalLink, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -303,7 +304,7 @@ const Tasks = () => {
                       <div className={cn("flex items-center gap-1 text-sm", isOverdue(task) && "text-destructive")}>
                         {isOverdue(task) && <AlertTriangle className="h-3 w-3" />}
                         <Calendar className="h-3 w-3" />
-                        {format(new Date(task.due_date + 'T00:00:00'), "dd/MM/yyyy", { locale: ptBR })}
+                        {formatDateActive(task.due_date)}
                         {task.due_time && <span className="text-xs text-muted-foreground ml-1">{task.due_time.slice(0, 5)}</span>}
                       </div>
                     ) : (
