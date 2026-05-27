@@ -143,8 +143,8 @@ export default function Analysis() {
                 <Button variant="outline" className="justify-start text-left font-normal">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange.to 
-                      ? `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} - ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`
-                      : format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })}
+                      ? `${formatDateOnly(dateRange.from.toISOString())} - ${formatDateOnly(dateRange.to.toISOString())}`
+                      : formatDateOnly(dateRange.from.toISOString())}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
