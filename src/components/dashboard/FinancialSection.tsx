@@ -52,7 +52,7 @@ export const FinancialSection = ({ dateRange, customRange }: FinancialSectionPro
 
   const chartData = data?.salesByPeriod.map(item => ({
     ...item,
-    dateFormatted: format(parseISO(item.date), 'dd/MM', { locale: ptBR }),
+    dateFormatted: formatDateShort(item.date),
   })) || [];
 
   return (
