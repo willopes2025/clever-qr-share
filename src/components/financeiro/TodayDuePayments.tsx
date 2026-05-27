@@ -8,6 +8,8 @@ import { useAsaas, AsaasPayment, AsaasCustomer } from '@/hooks/useAsaas';
 import { CalendarClock, ExternalLink, FileText, MessageCircle, CheckCircle2, XCircle, Clock, Send } from 'lucide-react';
 import { format, parseISO, isToday, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort, formatDateOnly } from '@/lib/date-utils';
+import { formatTime as formatTimeActive } from '@/lib/timezone';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
