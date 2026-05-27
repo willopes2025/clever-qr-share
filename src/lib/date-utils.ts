@@ -120,6 +120,43 @@ export function formatDateOnly(dateString: string): string {
 }
 
 /**
+ * Short date format honoring the active org format (day + month only).
+ * DD/MM/YYYY -> DD/MM ; MM/DD/YYYY -> MM/DD ; YYYY-MM-DD -> MM-DD
+ */
+export function formatDateShort(value: any): string {
+  if (value === null || value === undefined || value === "") return "";
+  const full = formatDateActive(value);
+  if (!full) return "";
+  const sep = full.includes("/") ? "/" : "-";
+  const parts = full.split(/[/\-]/);
+  if (parts.length === 3) {
+    if (full.match(/^\d{4}/)) return `${parts[1]}${sep}${parts[2]}`;
+    return `${parts[0]}${sep}${parts[1]}`;
+  }
+  return full;
+}
+
+/**
+ * Short date+time honoring the active org formats.
+ */
+export function formatDateTimeShort(value: any): string {
+  if (value === null || value === undefined || value === "") return "";
+  const d = formatDateShort(value);
+  const t = formatTimeActive(value);
+  if (!d) return t;
+  if (!t) return d;
+  return `${d} ${t}`;
+}
+
+/**
+ * Full date+time honoring the active org formats (e.g. "27/05/2026 14:30").
+ */
+export function formatDateTimeFull(value: any): string {
+  if (value === null || value === undefined || value === "") return "";
+  return formatDateTimeActive(value);
+}
+
+/**
  * Check if a date string (YYYY-MM-DD) is the same day as a Date object
  * This avoids timezone issues when comparing dates from the database
  */
