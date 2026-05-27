@@ -20,8 +20,7 @@ import {
   Ban,
   Bot
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateTimeFull } from '@/lib/date-utils';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -74,7 +73,7 @@ export const CampaignCard = ({
             {campaign.scheduled_at && (
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                {format(new Date(campaign.scheduled_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                {formatDateTimeFull(campaign.scheduled_at)}
               </span>
             )}
           </div>

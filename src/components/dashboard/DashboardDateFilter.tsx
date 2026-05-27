@@ -8,8 +8,8 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 import { DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 
 interface DashboardDateFilterProps {
@@ -41,7 +41,7 @@ export function DashboardDateFilter({ value, onChange, customRange, onCustomRang
 
   const formatCustomRange = () => {
     if (!customRange) return 'Personalizado';
-    return `${format(customRange.from, 'dd/MM', { locale: ptBR })} - ${format(customRange.to, 'dd/MM', { locale: ptBR })}`;
+    return `${formatDateShort(customRange.from)} - ${formatDateShort(customRange.to)}`;
   };
 
   return (

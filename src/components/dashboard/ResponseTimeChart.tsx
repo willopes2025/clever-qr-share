@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useResponseTimeMetrics, DateRange } from '@/hooks/useAdvancedDashboardMetrics';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, Area, ComposedChart } from 'recharts';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 import { Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,7 +43,7 @@ export function ResponseTimeChart({ dateRange }: ResponseTimeChartProps) {
 
   const chartData = data?.dailyData.map(d => ({
     ...d,
-    dateFormatted: format(parseISO(d.date), 'dd/MM', { locale: ptBR }),
+    dateFormatted: formatDateShort(d.date),
     avgTimeMinutes: d.avgTime / 60,
   })) || [];
 

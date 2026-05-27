@@ -3,8 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useFinancialMetrics, DateRange, CustomDateRange } from '@/hooks/useDashboardMetricsV2';
 import { DollarSign, TrendingUp, Target, Calculator } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 
 interface FinancialSectionProps {
   dateRange: DateRange;
@@ -53,7 +52,7 @@ export const FinancialSection = ({ dateRange, customRange }: FinancialSectionPro
 
   const chartData = data?.salesByPeriod.map(item => ({
     ...item,
-    dateFormatted: format(parseISO(item.date), 'dd/MM', { locale: ptBR }),
+    dateFormatted: formatDateShort(item.date),
   })) || [];
 
   return (

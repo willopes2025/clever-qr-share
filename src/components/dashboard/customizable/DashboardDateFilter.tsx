@@ -8,8 +8,9 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
-import { format, subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
+import { subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/date-utils';
 import { DateRange } from '@/hooks/useWidgetData';
 
 type PresetKey = 'today' | '7d' | '30d' | '90d' | 'month' | 'custom';
@@ -74,7 +75,7 @@ export function DashboardDateFilter({ dateRange, onDateRangeChange }: DashboardD
     if (activePreset !== 'custom') {
       return presets.find(p => p.key === activePreset)?.label || '';
     }
-    return `${format(dateRange.start, 'dd/MM', { locale: ptBR })} - ${format(dateRange.end, 'dd/MM', { locale: ptBR })}`;
+    return `${formatDateShort(dateRange.start)} - ${formatDateShort(dateRange.end)}`;
   };
 
   return (

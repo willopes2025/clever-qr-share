@@ -1,7 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Clock, Calendar, Users } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatDateTimeFull } from "@/lib/date-utils";
 
 interface ScheduledCampaign {
   id: string;
@@ -53,7 +52,7 @@ export const ScheduledCampaigns = ({ campaigns, isLoading }: ScheduledCampaignsP
                   <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                     <Calendar className="h-3 w-3" />
                     <span>
-                      {format(new Date(campaign.scheduled_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      {formatDateTimeFull(campaign.scheduled_at)}
                     </span>
                   </div>
                 )}
