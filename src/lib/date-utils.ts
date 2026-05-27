@@ -191,14 +191,14 @@ export function parseAnyDateValue(val: any): Date | undefined {
  */
 export function formatDateValue(val: any): string | null {
   if (val === null || val === undefined || val === '') return null;
-  // Already formatted
-  if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
+  // Already formatted as dd/MM/yyyy
+  if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
+    const [d, m, y] = val.split('/');
+    return formatDateActive(`${y}-${m}-${d}`);
+  }
   const parsed = parseAnyDateValue(val);
   if (!parsed) return null;
-  const day = parsed.getDate().toString().padStart(2, '0');
-  const month = (parsed.getMonth() + 1).toString().padStart(2, '0');
-  const year = parsed.getFullYear();
-  return `${day}/${month}/${year}`;
+  return formatDateActive(parsed);
 }
 
 /**
