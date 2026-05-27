@@ -419,7 +419,7 @@ export function InstagramResultsTable({
                       )}
                     </TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
-                      {format(new Date(profile.scraped_at), "dd/MM/yy HH:mm", { locale: ptBR })}
+                      {formatDateTimeShort(profile.scraped_at)}
                     </TableCell>
                   </TableRow>
                 );
