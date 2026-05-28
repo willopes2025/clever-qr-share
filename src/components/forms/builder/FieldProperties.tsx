@@ -77,17 +77,26 @@ const SchedulingSettings = ({ settings, onChange }: { settings: ScheduleConfig; 
       </div>
 
       <div className="space-y-2">
-        <Label className="text-xs">Capacidade por horário (pessoas)</Label>
-        <Input
-          type="number"
-          min={1}
-          value={settings.max_per_slot ?? 1}
-          onChange={(e) => onChange({ ...settings, max_per_slot: Math.max(1, Number(e.target.value) || 1) })}
-        />
+        <Label className="text-xs">Quantos agendamentos por horário</Label>
+        <Select
+          value={String(settings.max_per_slot ?? 1)}
+          onValueChange={(v) => onChange({ ...settings, max_per_slot: Number(v) })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">1 pessoa por horário (exclusivo)</SelectItem>
+            <SelectItem value="2">2 pessoas</SelectItem>
+            <SelectItem value="3">3 pessoas</SelectItem>
+            <SelectItem value="5">5 pessoas</SelectItem>
+            <SelectItem value="10">10 pessoas</SelectItem>
+            <SelectItem value="9999">Ilimitado</SelectItem>
+          </SelectContent>
+        </Select>
         <p className="text-[10px] text-muted-foreground">
-          Quantas pessoas podem agendar no mesmo horário antes do slot ser bloqueado.
+          Vale para todos os dias e horários do calendário deste formulário. Quando o limite é atingido, o horário fica bloqueado.
         </p>
       </div>
+
 
 
       <div className="grid grid-cols-2 gap-2">
