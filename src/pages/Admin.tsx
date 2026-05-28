@@ -257,6 +257,11 @@ const Admin = () => {
               </Card>
             </TabsContent>
 
+            {/* Tab Logins */}
+            <TabsContent value="logins">
+              <AdminLoginHistory />
+            </TabsContent>
+
             {/* Tab Métricas (Owner Overview) */}
             <TabsContent value="metricas">
               <OwnerOverview metrics={metrics} loading={metricsLoading} />
