@@ -200,11 +200,14 @@ const Admin = () => {
           </header>
 
           {/* Tabs com todo conteúdo */}
-          <Tabs defaultValue="usuarios" className="space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-card/50 backdrop-blur-sm">
+            <TabsList className="grid w-full max-w-3xl grid-cols-5 bg-card/50 backdrop-blur-sm">
               <TabsTrigger value="usuarios" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Usuários</span>
+              </TabsTrigger>
+              <TabsTrigger value="logins" className="gap-2">
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">Logins</span>
               </TabsTrigger>
               <TabsTrigger value="metricas" className="gap-2">
                 <LayoutDashboard className="h-4 w-4" />
@@ -218,6 +221,7 @@ const Admin = () => {
                 <Activity className="h-4 w-4" />
                 <span className="hidden sm:inline">Operacional</span>
               </TabsTrigger>
+            </TabsList>
             </TabsList>
 
             {/* Tab Usuários (Admin original) */}
