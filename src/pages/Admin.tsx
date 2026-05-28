@@ -4,7 +4,8 @@ import { useAdmin } from "@/hooks/useAdmin";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Shield, Users, RefreshCw, Coins, LogOut, LayoutDashboard, DollarSign, Activity } from "lucide-react";
+import { Shield, Users, RefreshCw, Coins, LogOut, LayoutDashboard, DollarSign, Activity, LogIn } from "lucide-react";
+import { AdminLoginHistory } from "@/components/admin/AdminLoginHistory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -200,10 +201,14 @@ const Admin = () => {
 
           {/* Tabs com todo conteúdo */}
           <Tabs defaultValue="usuarios" className="space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-card/50 backdrop-blur-sm">
+            <TabsList className="grid w-full max-w-3xl grid-cols-5 bg-card/50 backdrop-blur-sm">
               <TabsTrigger value="usuarios" className="gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Usuários</span>
+              </TabsTrigger>
+              <TabsTrigger value="logins" className="gap-2">
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">Logins</span>
               </TabsTrigger>
               <TabsTrigger value="metricas" className="gap-2">
                 <LayoutDashboard className="h-4 w-4" />
@@ -250,6 +255,11 @@ const Admin = () => {
                   />
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Tab Logins */}
+            <TabsContent value="logins">
+              <AdminLoginHistory />
             </TabsContent>
 
             {/* Tab Métricas (Owner Overview) */}

@@ -7125,6 +7125,17 @@ export type Database = {
           won_deals_value: number
         }[]
       }
+      get_login_history: {
+        Args: { _days?: number }
+        Returns: {
+          email: string
+          event_time: string
+          full_name: string
+          ip_address: string
+          provider: string
+          user_id: string
+        }[]
+      }
       get_member_instance_ids: { Args: { _user_id: string }; Returns: string[] }
       get_member_message_productivity: {
         Args: { p_end: string; p_start: string; p_user_ids: string[] }
