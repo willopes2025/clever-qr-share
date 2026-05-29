@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
 const ALLOWED_EMAILS = ["contato@wideic.com"];
-import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff } from "lucide-react";
+import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff, MousePointerClick, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -154,6 +154,45 @@ const Treinamentos = () => {
                                 <div className="rounded-lg border border-dashed bg-muted/40 p-6 flex items-center gap-3 text-sm text-muted-foreground">
                                   <ImageOff className="h-5 w-5" />
                                   Print ainda não disponível ({step.image})
+                                </div>
+                              )}
+
+                              {step.buttons && step.buttons.length > 0 && (
+                                <div className="rounded-lg border bg-card/50 p-4">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <MousePointerClick className="h-4 w-4 text-primary" />
+                                    <h4 className="text-sm font-semibold">Botões desta tela</h4>
+                                    <Badge variant="secondary" className="ml-auto text-xs">
+                                      {step.buttons.length}
+                                    </Badge>
+                                  </div>
+                                  <ol className="space-y-2.5">
+                                    {step.buttons.map((b, i) => (
+                                      <li key={i} className="flex gap-3 text-sm">
+                                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                                          {i + 1}
+                                        </span>
+                                        <div className="flex-1">
+                                          <span className="font-medium text-foreground">{b.label}</span>
+                                          <span className="text-muted-foreground"> — {b.description}</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ol>
+                                </div>
+                              )}
+
+                              {step.tips && step.tips.length > 0 && (
+                                <div className="rounded-lg border border-amber-200/40 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20 p-4">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                    <h4 className="text-sm font-semibold">Dicas</h4>
+                                  </div>
+                                  <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-5">
+                                    {step.tips.map((t, i) => (
+                                      <li key={i}>{t}</li>
+                                    ))}
+                                  </ul>
                                 </div>
                               )}
 
