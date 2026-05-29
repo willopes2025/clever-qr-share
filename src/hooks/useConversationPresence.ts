@@ -174,18 +174,11 @@ export function useConversationPresence(conversationId: string | null | undefine
   const notifyTyping = useCallback(() => {
     const ch = channelRef.current;
     const self = selfRef.current;
-    if (!ch || !self) {
-      console.log("[presence] notifyTyping skipped: no channel/self");
-      return;
-    }
-    if (!isSubscribedRef.current) {
-      console.log("[presence] notifyTyping skipped: not subscribed yet");
-      return;
-    }
+    if (!ch || !self) return;
+    if (!isSubscribedRef.current) return;
     const now = Date.now();
     if (now - lastTypingSentRef.current > 1500) {
       lastTypingSentRef.current = now;
-      console.log("[presence] broadcast typing sent (true)");
       ch.send({
         type: "broadcast",
         event: "typing",
@@ -200,7 +193,6 @@ export function useConversationPresence(conversationId: string | null | undefine
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
     stopTimerRef.current = setTimeout(() => {
       lastTypingSentRef.current = 0;
-      console.log("[presence] broadcast typing sent (false)");
       ch.send({
         type: "broadcast",
         event: "typing",
