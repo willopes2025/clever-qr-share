@@ -549,9 +549,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       return;
     }
 
-    const cursorPos = textareaRef.current?.selectionStart || newMessage.length;
-    const textBeforeCursor = newMessage.substring(0, cursorPos);
-    const textAfterCursor = newMessage.substring(cursorPos);
+    const currentMessage = composerRef.current?.getValue() ?? "";
+    const cursorPos = textareaRef.current?.selectionStart || currentMessage.length;
+    const textBeforeCursor = currentMessage.substring(0, cursorPos);
+    const textAfterCursor = currentMessage.substring(cursorPos);
     
     // Find where the /command starts
     const slashMatch = textBeforeCursor.match(/(?:^|\s)(\/\w*)$/);
@@ -566,7 +567,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     if (template.ai_prompt) {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
-      setNewMessage("");
+      composerRef.current?.clear();
       
       toast.info("Gerando mensagem com IA...");
       
@@ -591,10 +592,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         const prefixText = textBeforeCursor.substring(0, slashStart);
         const finalAiText = prefixText + generatedMessage + textAfterCursor;
 
-        setNewMessage(finalAiText);
+        composerRef.current?.setValue(finalAiText);
         toast.success("Mensagem gerada! Revise e envie.");
         
-        textareaRef.current?.focus();
+        composerRef.current?.focus();
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
