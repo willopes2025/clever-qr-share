@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, Send, Loader2, LayoutGrid, List } from "lucide-react";
+import { toast } from "sonner";
 import { useCampaigns, useCampaignMutations, Campaign, SendingMode } from "@/hooks/useCampaigns";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignFormDialog } from "@/components/campaigns/CampaignFormDialog";
@@ -114,6 +115,12 @@ const Campaigns = () => {
   };
 
   const handleStart = (campaign: Campaign) => {
+    if (!campaign.list_id) {
+      toast.error('Selecione uma lista de transmissão antes de iniciar a campanha.');
+      setEditingCampaign(campaign);
+      setIsFormOpen(true);
+      return;
+    }
     // Meta campaigns (template OR chatbot with Meta number) don't need instance selection
     const isMetaCampaign =
       (campaign.meta_template_id && campaign.meta_phone_number_id) ||
