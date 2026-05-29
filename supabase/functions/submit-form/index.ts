@@ -621,6 +621,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Track which deal (lead card) this submission ends up creating/updating
+    // so we can sync edits/deletes from the Submissions tab back to the card.
+    let resultingDealId: string | null = null;
+
+
+
     // Trigger webhooks (if any configured)
     const { data: webhooks } = await supabase
       .from('form_webhooks')
@@ -703,7 +709,10 @@ Deno.serve(async (req: Request) => {
   let handledByLeadLookup = false;
   if (lookupDealId) {
     handledByLeadLookup = true;
+    resultingDealId = lookupDealId;
     try {
+
+
       // Decide the target stage:
       // - If form.target_stage_id is set, use it.
       // - Else if form.target_funnel_id matches the deal's funnel, use first stage.
@@ -864,7 +873,9 @@ Deno.serve(async (req: Request) => {
           if (dealError) {
             console.error('Error creating deal:', dealError);
           } else {
+            resultingDealId = newDeal.id;
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
+
             // Trigger on_funnel_enter and on_stage_enter automations for the new deal
             // Single invocation: isNewDeal=true causes the processor to evaluate
             // both on_funnel_enter and on_stage_enter in one pass (prevents duplicate sends).
@@ -883,8 +894,10 @@ Deno.serve(async (req: Request) => {
             }
           }
         } else {
+          resultingDealId = existingDeal.id;
           // Update existing deal with native fields and custom fields
           const dealUpdateData: Record<string, any> = {};
+
           if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
           if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
           
@@ -1052,7 +1065,20 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  console.log(`Form submission saved: ${submission.id} for form ${formId}`);
+  // Persist the resulting deal id on the submission so the UI can sync
+  // edits/deletes of the response back to the lead card.
+  if (resultingDealId) {
+    try {
+      await supabase
+        .from('form_submissions')
+        .update({ deal_id: resultingDealId })
+        .eq('id', submission.id);
+    } catch (linkErr) {
+      console.error('Error linking submission to deal:', linkErr);
+    }
+  }
+
+  console.log(`Form submission saved: ${submission.id} for form ${formId} (deal_id=${resultingDealId ?? 'none'})`);
 
     return new Response(
       JSON.stringify({ 

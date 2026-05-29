@@ -2941,6 +2941,7 @@ export type Database = {
           contact_id: string | null
           created_at: string | null
           data: Json
+          deal_id: string | null
           form_id: string
           id: string
           metadata: Json | null
@@ -2950,6 +2951,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string | null
           data: Json
+          deal_id?: string | null
           form_id: string
           id?: string
           metadata?: Json | null
@@ -2959,6 +2961,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string | null
           data?: Json
+          deal_id?: string | null
           form_id?: string
           id?: string
           metadata?: Json | null
@@ -2970,6 +2973,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_deals"
             referencedColumns: ["id"]
           },
           {

@@ -59,11 +59,13 @@ export interface FormSubmission {
   id: string;
   form_id: string;
   contact_id: string | null;
+  deal_id: string | null;
   user_id: string;
   data: Record<string, any>;
   metadata: Record<string, any> | null;
   created_at: string;
 }
+
 
 export interface FormWebhook {
   id: string;
@@ -392,13 +394,130 @@ export const useFormSubmissions = (formId: string | undefined) => {
 
   const queryClient = useQueryClient();
 
-  const updateSubmission = async (submissionId: string, updatedData: Record<string, any>) => {
+  // Build the maps of lead/contact field updates from a submission payload,
+  // using the form field definitions to know which submission values map
+  // to deal custom fields, deal native fields, or contact fields.
+  const buildSyncPayload = (fields: FormField[], data: Record<string, any>) => {
+    const dealCustomFields: Record<string, any> = {};
+    const dealNativeFields: Record<string, any> = {};
+    const contactNativeFields: Record<string, any> = {};
+    const contactCustomFields: Record<string, any> = {};
+
+    for (const field of fields) {
+      const raw = data[field.id];
+      if (raw === undefined) continue;
+
+      if ((field.mapping_type === 'lead_field' || field.mapping_type === 'new_lead_field') && field.mapping_target) {
+        const target = field.mapping_target;
+        if (target === 'title' || target === 'value') {
+          dealNativeFields[target] = target === 'value' ? Number(raw) : raw;
+        } else {
+          dealCustomFields[target] = raw;
+        }
+      } else if (field.mapping_type === 'contact_field' && field.mapping_target) {
+        const target = field.mapping_target;
+        if (['name', 'phone', 'email'].includes(target)) {
+          contactNativeFields[target] = raw;
+        } else {
+          contactCustomFields[target] = raw;
+        }
+      } else if (field.mapping_type === 'custom_field' && field.mapping_target) {
+        contactCustomFields[field.mapping_target] = raw;
+      }
+    }
+
+    return { dealCustomFields, dealNativeFields, contactNativeFields, contactCustomFields };
+  };
+
+  const updateSubmission = async (
+    submissionId: string,
+    updatedData: Record<string, any>,
+    fields?: FormField[],
+  ) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('form_submissions')
+      .select('deal_id, contact_id')
+      .eq('id', submissionId)
+      .single();
+    if (fetchError) throw fetchError;
+
     const { error } = await supabase
       .from('form_submissions')
       .update({ data: updatedData as any })
       .eq('id', submissionId);
     if (error) throw error;
+
+    // Propagate edits to the linked lead card / contact.
+    if (fields && fields.length > 0) {
+      const sync = buildSyncPayload(fields, updatedData);
+
+      if (existing?.deal_id && (Object.keys(sync.dealCustomFields).length > 0 || Object.keys(sync.dealNativeFields).length > 0)) {
+        const { data: deal } = await supabase
+          .from('funnel_deals')
+          .select('custom_fields')
+          .eq('id', existing.deal_id)
+          .maybeSingle();
+        const merged = {
+          ...((deal?.custom_fields as Record<string, any>) || {}),
+          ...sync.dealCustomFields,
+        };
+        await supabase
+          .from('funnel_deals')
+          .update({ ...sync.dealNativeFields, custom_fields: merged })
+          .eq('id', existing.deal_id);
+      }
+
+      if (existing?.contact_id) {
+        if (Object.keys(sync.contactNativeFields).length > 0) {
+          await supabase
+            .from('contacts')
+            .update(sync.contactNativeFields)
+            .eq('id', existing.contact_id);
+        }
+        if (Object.keys(sync.contactCustomFields).length > 0) {
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('custom_fields')
+            .eq('id', existing.contact_id)
+            .maybeSingle();
+          const merged = {
+            ...((contact?.custom_fields as Record<string, any>) || {}),
+            ...sync.contactCustomFields,
+          };
+          await supabase
+            .from('contacts')
+            .update({ custom_fields: merged })
+            .eq('id', existing.contact_id);
+        }
+      }
+    }
+
     queryClient.invalidateQueries({ queryKey: ['form-submissions', formId] });
+    queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
+  };
+
+  const deleteSubmission = async (submissionId: string, opts?: { deleteLead?: boolean }) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('form_submissions')
+      .select('deal_id')
+      .eq('id', submissionId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    // Delete the linked deal first (cascade clears the FK via ON DELETE SET NULL,
+    // but we want both gone when the user asks to remove the lead too).
+    if (opts?.deleteLead !== false && existing?.deal_id) {
+      await supabase.from('funnel_deals').delete().eq('id', existing.deal_id);
+    }
+
+    const { error } = await supabase
+      .from('form_submissions')
+      .delete()
+      .eq('id', submissionId);
+    if (error) throw error;
+
+    queryClient.invalidateQueries({ queryKey: ['form-submissions', formId] });
+    queryClient.invalidateQueries({ queryKey: ['funnel-deals'] });
   };
 
   return {
@@ -406,5 +525,7 @@ export const useFormSubmissions = (formId: string | undefined) => {
     isLoading,
     error,
     updateSubmission,
+    deleteSubmission,
   };
 };
+

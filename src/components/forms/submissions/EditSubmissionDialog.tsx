@@ -16,10 +16,12 @@ interface EditSubmissionDialogProps {
     contacts?: { name: string | null; phone: string; email: string | null } | null;
   } | null;
   fields: FormField[];
+  hasLinkedDeal?: boolean;
   onSave: (submissionId: string, updatedData: Record<string, any>) => Promise<void>;
 }
 
-export const EditSubmissionDialog = ({ open, onOpenChange, submission, fields, onSave }: EditSubmissionDialogProps) => {
+export const EditSubmissionDialog = ({ open, onOpenChange, submission, fields, hasLinkedDeal, onSave }: EditSubmissionDialogProps) => {
+
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
@@ -52,6 +54,12 @@ export const EditSubmissionDialog = ({ open, onOpenChange, submission, fields, o
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {hasLinkedDeal && (
+            <div className="p-3 rounded-md border border-primary/30 bg-primary/5 text-sm text-foreground">
+              As alterações também serão aplicadas ao cartão do lead vinculado.
+            </div>
+          )}
+
           {submission.contacts && (
             <div className="p-3 rounded-md bg-muted text-sm">
               <p className="font-medium">{submission.contacts.name || 'Sem nome'}</p>

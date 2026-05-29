@@ -1,42 +1,33 @@
-## Diagnóstico
+## Objetivo
 
-As mensagens "Padrão" do **Banco de Conteúdos** (aba `Padrão (0)` na tela de Aquecimento) são inseridas por um cron job diário.
+Na aba **Respostas** do formulário, permitir:
+1. **Excluir** uma resposta → também exclui o cartão (lead/deal) gerado por ela.
+2. **Editar** uma resposta → os campos editados também são atualizados no cartão do lead correspondente (ex.: Agendamento, Nome Completo, Condição do Exame, etc.).
 
-**Arquivo:** `supabase/functions/generate-daily-warming-news/index.ts`
-**Cron:** `generate-daily-warming-news` agendado em `0 9 * * *` (diariamente às 9h UTC), criado na migration `20260115191524_b3a064cb...sql`.
+Hoje a tabela `form_submissions` não guarda referência ao deal criado, então não há como saber qual cartão atualizar/excluir.
 
-O que ele faz a cada execução:
-- Chama o OpenAI e gera ~20 mensagens novas
-- Insere todas em `warming_content` com `user_id = '00000000-0000-0000-0000-000000000000'` (usuário "sistema") — que é exatamente o filtro usado pela aba **Padrão** em `WarmingContentManager.tsx` (linha 164).
+## Mudanças
 
-Resultado: quando o cliente deleta as mensagens padrão, no dia seguinte às 6h (Brasil) o cron regenera ~20 novas e elas voltam a aparecer na aba "Padrão". A exclusão funciona corretamente (a policy `Authenticated users can delete default warming content` existe), mas não há nada que impeça o cron de repovoar a tabela.
+### 1. Banco (`form_submissions`)
+- Adicionar coluna `deal_id uuid` com FK para `funnel_deals(id) ON DELETE SET NULL`.
+- Índice em `deal_id`.
 
-A geração via botão **"Gerar com IA"** (em `useGenerateWarmingContent`) salva com `user_id = user.id` e vira "Meus Conteúdos" — esses são apagados pelo usuário e **não** retornam, pois nenhum job recria conteúdos por usuário.
+### 2. Edge function `submit-form`
+- Sempre que a submissão criar OU atualizar um `funnel_deals` (fluxo de `lookup_by_lead_number`, `target_funnel_id`, fallback de `lead fields`), gravar o `deal_id` resultante em `form_submissions.deal_id`.
 
-## Solução proposta
+### 3. Hook `useFormSubmissions`
+- Adicionar `deleteSubmission(id)`: busca o `deal_id` da submission e, se existir, deleta o `funnel_deals` correspondente (cascata cuida das mensagens/atividades), depois deleta a `form_submissions`.
+- Ajustar `updateSubmission(id, data)`: após atualizar a submissão, se houver `deal_id`, recalcular `custom_fields` do deal a partir dos campos do form com `mapping_type ∈ {lead_field, new_lead_field}` e fazer `UPDATE funnel_deals SET custom_fields = custom_fields || <novos>` no deal alvo. Campos com `mapping_type = contact_field` atualizam o `contacts` vinculado.
 
-Desativar a geração automática diária de conteúdo padrão. O cliente continua podendo gerar mensagens manualmente pelo botão "Gerar com IA" (que cria como "Meus Conteúdos" e respeita a exclusão).
+### 4. UI (`SubmissionsList.tsx` + `EditSubmissionDialog.tsx`)
+- Nova coluna de ações na tabela com ícone de **lixeira** ao lado do lápis.
+- Botão abre `AlertDialog` confirmando "Excluir resposta e o lead vinculado?".
+- No diálogo de edição, exibir aviso curto: "As alterações também serão aplicadas ao cartão do lead vinculado."
 
-### Passos
+## Detalhes técnicos
 
-1. **Migration** para remover o agendamento:
-   ```sql
-   SELECT cron.unschedule('generate-daily-warming-news');
-   ```
-   (Mantemos o agendamento `auto-pair-warming-pool` intacto.)
+- A propagação no `updateSubmission` é feita no cliente lendo `form_fields` (já disponíveis em `SubmissionsList`) — passar `fields` para o hook ou para a função de update.
+- Submissões antigas sem `deal_id` (criadas antes da migration) continuam funcionando: o delete só remove a submission; o update só altera os dados da submission. Isso é aceitável e não quebra nada.
+- RLS já permite UPDATE/DELETE em `form_submissions` e `funnel_deals` para membros da organização.
 
-2. **Limpar os conteúdos padrão existentes** (opcional, evita que o cliente precise apagar manualmente o que já está na tabela):
-   ```sql
-   DELETE FROM public.warming_content
-   WHERE user_id = '00000000-0000-0000-0000-000000000000';
-   ```
-
-3. **Edge function** `generate-daily-warming-news`: pode ser mantida (não causa mais dano sem o cron) ou deletada. Recomendo **deletar** para evitar reativação acidental.
-
-### Alternativa (caso queira manter o recurso opcional)
-
-Em vez de remover, posso adicionar uma flag `disable_default_seed` por organização e fazer o cron filtrar — mas isso é bem mais código. Recomendo a abordagem de remover, já que o cliente quer que apagado **não volte**.
-
-## Confirmação
-
-Você quer que eu siga com a opção **remover o cron + apagar conteúdos padrão existentes + deletar a edge function**? Ou prefere apenas desabilitar o cron e manter o restante?
+Posso prosseguir?

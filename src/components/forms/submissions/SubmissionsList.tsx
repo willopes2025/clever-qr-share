@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useFormSubmissions, FormField } from "@/hooks/useForms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
@@ -15,6 +15,17 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { EditSubmissionDialog } from "./EditSubmissionDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 interface SubmissionsListProps {
   formId: string;
@@ -28,9 +39,12 @@ interface ColumnFilter {
 }
 
 export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
-  const { submissions, isLoading, updateSubmission } = useFormSubmissions(formId);
+  const { submissions, isLoading, updateSubmission, deleteSubmission } = useFormSubmissions(formId);
   const [filters, setFilters] = useState<ColumnFilter[]>([]);
   const [editingSubmission, setEditingSubmission] = useState<any>(null);
+  const [deletingSubmission, setDeletingSubmission] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
+
 
   const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
 
@@ -299,7 +313,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[90px]"></TableHead>
                 <TableHead className="w-[150px]">Data</TableHead>
                 <TableHead className="w-[150px]">Contato</TableHead>
                 {visibleFields.map((field) => (
@@ -313,10 +327,22 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
               {filteredSubmissions.map((submission) => (
                 <TableRow key={submission.id}>
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingSubmission(submission)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingSubmission(submission)} title="Editar resposta">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => setDeletingSubmission(submission)}
+                        title="Excluir resposta"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
+
                   <TableCell className="text-sm">
                     {formatDateTimeFull(submission.created_at)}
                   </TableCell>
@@ -351,15 +377,64 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         onOpenChange={(open) => { if (!open) setEditingSubmission(null); }}
         submission={editingSubmission}
         fields={fields}
+        hasLinkedDeal={!!editingSubmission?.deal_id}
         onSave={async (id, data) => {
           try {
-            await updateSubmission(id, data);
-            toast.success("Resposta atualizada com sucesso!");
+            await updateSubmission(id, data, fields);
+            toast.success(
+              editingSubmission?.deal_id
+                ? "Resposta e cartão do lead atualizados!"
+                : "Resposta atualizada com sucesso!"
+            );
           } catch {
             toast.error("Erro ao atualizar resposta.");
           }
         }}
       />
+
+      <AlertDialog
+        open={!!deletingSubmission}
+        onOpenChange={(open) => { if (!open) setDeletingSubmission(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir resposta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingSubmission?.deal_id
+                ? "Esta resposta está vinculada a um cartão de lead. Ao excluir, o cartão correspondente também será removido do funil. Esta ação não pode ser desfeita."
+                : "Esta ação não pode ser desfeita. A resposta será removida permanentemente."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deletingSubmission) return;
+                setDeleting(true);
+                try {
+                  await deleteSubmission(deletingSubmission.id);
+                  toast.success(
+                    deletingSubmission.deal_id
+                      ? "Resposta e cartão do lead excluídos."
+                      : "Resposta excluída."
+                  );
+                  setDeletingSubmission(null);
+                } catch {
+                  toast.error("Erro ao excluir resposta.");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };
