@@ -299,3 +299,11 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
     </div>
   );
 };
+
+export const MessageBubble = memo(MessageBubbleComponent, (prev, next) => {
+  if (prev.message !== next.message) return false;
+  if (prev.isOptimistic !== next.isOptimistic) return false;
+  if (prev.instancePhoneNumber !== next.instancePhoneNumber) return false;
+  // ignore callback identity — handlers in parent recreate every render but logically stable
+  return true;
+});
