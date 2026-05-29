@@ -85,6 +85,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
+  const { others: presenceOthers, typingUsers: presenceTypingUsers, notifyTyping } = useConversationPresence(conversation.id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
   // Get the WABA ID for the current conversation's Meta number to filter templates
