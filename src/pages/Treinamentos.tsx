@@ -16,6 +16,11 @@ import { cn } from "@/lib/utils";
 
 const Treinamentos = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const email = user?.email?.toLowerCase() ?? "";
+  if (!ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+    return <Navigate to="/dashboard" replace />;
+  }
   const { completed, toggle, loading } = useTrainingProgress();
   const [imgErrors, setImgErrors] = useState<Set<string>>(new Set());
 
