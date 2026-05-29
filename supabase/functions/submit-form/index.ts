@@ -709,7 +709,8 @@ Deno.serve(async (req: Request) => {
   let handledByLeadLookup = false;
   if (lookupDealId) {
     handledByLeadLookup = true;
-    try {
+    resultingDealId = lookupDealId;
+
       // Decide the target stage:
       // - If form.target_stage_id is set, use it.
       // - Else if form.target_funnel_id matches the deal's funnel, use first stage.
