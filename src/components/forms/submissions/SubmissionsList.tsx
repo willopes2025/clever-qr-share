@@ -15,6 +15,17 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { EditSubmissionDialog } from "./EditSubmissionDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 interface SubmissionsListProps {
   formId: string;
