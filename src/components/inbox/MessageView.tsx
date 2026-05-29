@@ -1533,19 +1533,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     <MessageBubble
                       message={message}
                       isOptimistic={'isOptimistic' in message}
-                      instancePhoneNumber={connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
-                      onReact={(messageId, emoji) => {
-                        sendReaction.mutate({
-                          messageId,
-                          emoji,
-                          conversationId: conversation.id,
-                          instanceId: selectedInstanceId,
-                        });
-                      }}
-                      onReply={(msg) => {
-                        setReplyingTo(msg);
-                        setTimeout(() => textareaRef.current?.focus(), 50);
-                      }}
+                      instancePhoneNumber={instancePhoneNumberForBubble}
+                      onReact={handleBubbleReact}
+                      onReply={handleBubbleReply}
                     />
                   </Fragment>
                 );
