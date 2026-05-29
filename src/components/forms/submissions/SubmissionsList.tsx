@@ -313,7 +313,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[90px]"></TableHead>
                 <TableHead className="w-[150px]">Data</TableHead>
                 <TableHead className="w-[150px]">Contato</TableHead>
                 {visibleFields.map((field) => (
