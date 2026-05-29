@@ -53,7 +53,6 @@ export function useConversationPresence(conversationId: string | null | undefine
       selfRef.current = self;
 
       const channelName = `conversation-presence:${conversationId}`;
-      console.log("[presence] creating channel", channelName, "as", self.user_id, self.full_name);
 
       channel = supabase.channel(channelName, {
         config: { presence: { key: self.user_id } },
@@ -77,7 +76,6 @@ export function useConversationPresence(conversationId: string | null | undefine
             });
           });
         });
-        console.log("[presence] others now =", list.length, list);
         setOthers(list);
         setTypingMap((prev) => {
           const next: typeof prev = {};
@@ -88,19 +86,15 @@ export function useConversationPresence(conversationId: string | null | undefine
 
       channel
         .on("presence", { event: "sync" }, () => {
-          console.log("[presence] sync");
           recomputeOthers();
         })
-        .on("presence", { event: "join" }, ({ key, newPresences }) => {
-          console.log("[presence] join", key, newPresences);
+        .on("presence", { event: "join" }, () => {
           recomputeOthers();
         })
-        .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-          console.log("[presence] leave", key, leftPresences);
+        .on("presence", { event: "leave" }, () => {
           recomputeOthers();
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
-          console.log("[presence] broadcast typing received", payload);
           const p = payload as { user_id: string; is_typing: boolean; full_name?: string; avatar_url?: string | null };
           if (!p?.user_id || p.user_id === self.user_id) return;
 
@@ -134,20 +128,18 @@ export function useConversationPresence(conversationId: string | null | undefine
             });
           }
         })
-        .subscribe(async (status, err) => {
-          console.log("[presence] subscribe status =", status, err ?? "");
+        .subscribe(async (status) => {
           if (status === "SUBSCRIBED" && channel) {
             isSubscribedRef.current = true;
             try {
-              const trackRes = await channel.track({
+              await channel.track({
                 user_id: self.user_id,
                 full_name: self.full_name,
                 avatar_url: self.avatar_url,
                 joined_at: new Date().toISOString(),
               });
-              console.log("[presence] track result =", trackRes);
             } catch (e) {
-              console.error("[presence] track threw", e);
+              console.error("[presence] track failed", e);
             }
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
             isSubscribedRef.current = false;
