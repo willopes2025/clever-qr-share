@@ -710,6 +710,8 @@ Deno.serve(async (req: Request) => {
   if (lookupDealId) {
     handledByLeadLookup = true;
     resultingDealId = lookupDealId;
+    try {
+
 
       // Decide the target stage:
       // - If form.target_stage_id is set, use it.
