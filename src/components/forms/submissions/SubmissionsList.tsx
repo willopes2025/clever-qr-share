@@ -377,15 +377,64 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         onOpenChange={(open) => { if (!open) setEditingSubmission(null); }}
         submission={editingSubmission}
         fields={fields}
+        hasLinkedDeal={!!editingSubmission?.deal_id}
         onSave={async (id, data) => {
           try {
-            await updateSubmission(id, data);
-            toast.success("Resposta atualizada com sucesso!");
+            await updateSubmission(id, data, fields);
+            toast.success(
+              editingSubmission?.deal_id
+                ? "Resposta e cartão do lead atualizados!"
+                : "Resposta atualizada com sucesso!"
+            );
           } catch {
             toast.error("Erro ao atualizar resposta.");
           }
         }}
       />
+
+      <AlertDialog
+        open={!!deletingSubmission}
+        onOpenChange={(open) => { if (!open) setDeletingSubmission(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir resposta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingSubmission?.deal_id
+                ? "Esta resposta está vinculada a um cartão de lead. Ao excluir, o cartão correspondente também será removido do funil. Esta ação não pode ser desfeita."
+                : "Esta ação não pode ser desfeita. A resposta será removida permanentemente."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deletingSubmission) return;
+                setDeleting(true);
+                try {
+                  await deleteSubmission(deletingSubmission.id);
+                  toast.success(
+                    deletingSubmission.deal_id
+                      ? "Resposta e cartão do lead excluídos."
+                      : "Resposta excluída."
+                  );
+                  setDeletingSubmission(null);
+                } catch {
+                  toast.error("Erro ao excluir resposta.");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };
