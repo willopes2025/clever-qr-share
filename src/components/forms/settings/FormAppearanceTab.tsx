@@ -282,18 +282,50 @@ export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="og_image_url">Imagem de Compartilhamento (OG Image)</Label>
-            <Input
-              id="og_image_url"
-              type="url"
-              placeholder="https://..."
-              value={appearance.og_image_url}
-              onChange={(e) => setAppearance({ ...appearance, og_image_url: e.target.value })}
-            />
+            <Label>Imagem de Compartilhamento (OG Image)</Label>
+            {appearance.og_image_url ? (
+              <div className="flex items-center gap-3 p-3 border rounded-md">
+                <img src={appearance.og_image_url} alt="OG" className="h-16 w-16 object-cover rounded bg-muted" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate text-muted-foreground">{appearance.og_image_url}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setAppearance({ ...appearance, og_image_url: '' })}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'og_image_url');
+                    e.target.value = '';
+                  }}
+                />
+                {uploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : (
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {uploading ? 'Enviando...' : 'Clique para enviar PNG, JPEG ou WEBP (máx. 5MB)'}
+                </span>
+              </label>
+            )}
             <p className="text-xs text-muted-foreground">
               Imagem exibida ao compartilhar o formulário nas redes sociais
             </p>
           </div>
+
         </CardContent>
       </Card>
 
