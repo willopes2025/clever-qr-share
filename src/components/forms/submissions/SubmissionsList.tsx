@@ -39,9 +39,12 @@ interface ColumnFilter {
 }
 
 export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
-  const { submissions, isLoading, updateSubmission } = useFormSubmissions(formId);
+  const { submissions, isLoading, updateSubmission, deleteSubmission } = useFormSubmissions(formId);
   const [filters, setFilters] = useState<ColumnFilter[]>([]);
   const [editingSubmission, setEditingSubmission] = useState<any>(null);
+  const [deletingSubmission, setDeletingSubmission] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
+
 
   const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
 
