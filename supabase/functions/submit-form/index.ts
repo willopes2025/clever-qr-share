@@ -894,8 +894,10 @@ Deno.serve(async (req: Request) => {
             }
           }
         } else {
+          resultingDealId = existingDeal.id;
           // Update existing deal with native fields and custom fields
           const dealUpdateData: Record<string, any> = {};
+
           if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
           if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
           
