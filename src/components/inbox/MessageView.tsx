@@ -1550,6 +1550,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
       {/* Input - WhatsApp style */}
       <div className="shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20 px-3 py-2 md:px-4 md:py-3">
+        {presenceTypingUsers.length > 0 && (
+          <UserTypingIndicator users={presenceTypingUsers} />
+        )}
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
