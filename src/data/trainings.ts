@@ -28,7 +28,7 @@ export const trainings: TrainingModule[] = [
   {
     id: "inicio",
     title: "Primeiros passos",
-    description: "Conheça a plataforma e configure seu acesso.",
+    description: "Conheça a plataforma, configure seu acesso e a organização.",
     steps: [
       {
         id: "inicio-1",
@@ -69,6 +69,43 @@ export const trainings: TrainingModule[] = [
         tips: [
           "Use o mesmo fuso horário dos seus clientes principais — assim os relatórios de horário de pico fazem sentido.",
           "Se você atende junto com outras pessoas, coloque foto e nome reais: isso ajuda no controle interno de quem respondeu cada conversa.",
+        ],
+      },
+      {
+        id: "inicio-3",
+        title: "Configurando a organização",
+        description:
+          "Em Configurações > Organização você define os dados que valem para todos os membros: nome da empresa, logo, fuso horário oficial (usado quando o do usuário não estiver definido) e regras gerais. Esse fuso é a fonte da verdade do sistema — campanhas agendadas, automações e relatórios usam ele.",
+        buttons: [
+          { label: "Nome da organização", description: "Aparece no seletor de organização do topo, em e-mails do sistema e em formulários públicos." },
+          { label: "Logo da empresa", description: "Aparece no topo da sidebar e em formulários públicos. Recomendado PNG quadrado com fundo transparente." },
+          { label: "Fuso horário da organização", description: "Fuso padrão (IANA, ex.: America/Sao_Paulo) usado por todo o backend para agendar campanhas e automações." },
+          { label: "Criação automática de lead", description: "Quando ativado, toda nova conversa de WhatsApp já vira um cartão no funil padrão automaticamente." },
+          { label: "Funil padrão", description: "Define em qual funil os novos leads entram quando não há regra mais específica (formulário, campanha)." },
+          { label: "Salvar", description: "Aplica as alterações para todos os membros da organização." },
+        ],
+        tips: [
+          "Só donos (owner) e admins veem e alteram essas configurações.",
+          "Mudar o fuso horário recalcula a exibição de horários em todos os relatórios — combine com a equipe antes.",
+        ],
+      },
+      {
+        id: "inicio-4",
+        title: "Equipe e permissões",
+        description:
+          "Em Configurações > Equipe você convida novos membros, define cargos (owner, admin, atendente) e personaliza permissões por usuário — incluindo a quais instâncias, funis e Inbox cada pessoa tem acesso.",
+        buttons: [
+          { label: "Convidar membro", description: "Envia um convite por e-mail. O membro define a própria senha ao aceitar." },
+          { label: "Cargo (Owner / Admin / Membro)", description: "Owner tem controle total e não pode ser removido. Admins gerenciam quase tudo. Membros têm acesso limitado pelas permissões." },
+          { label: "Permissões personalizadas", description: "Liga/desliga acesso a cada módulo (Inbox, Funis, Campanhas, IA, Financeiro, etc.) por membro." },
+          { label: "Instâncias permitidas", description: "Define quais números de WhatsApp esse membro pode usar para enviar mensagens." },
+          { label: "Funis permitidos", description: "Restringe quais funis o membro consegue ver e editar." },
+          { label: "Remover membro", description: "Tira o acesso imediatamente. O histórico de mensagens enviadas por ele continua preservado." },
+          { label: "Reenviar convite", description: "Útil quando o membro não recebeu ou perdeu o e-mail original." },
+        ],
+        tips: [
+          "Comece com poucas permissões e libere conforme a necessidade — é mais seguro.",
+          "Membros sem instância liberada veem o Inbox vazio, mesmo com permissão de visualização.",
         ],
       },
     ],
@@ -113,6 +150,26 @@ export const trainings: TrainingModule[] = [
         tips: [
           "Mantenha o celular conectado à internet por alguns segundos depois de escanear, para a sessão sincronizar.",
           "Se o QR não for lido após 2 tentativas, reinicie a instância e gere um novo.",
+        ],
+      },
+      {
+        id: "instancias-3",
+        title: "Configurações avançadas da instância",
+        description:
+          "Clicando na engrenagem de cada instância você abre as configurações detalhadas: webhook personalizado, ativar/desativar IA, horário de atendimento, mensagem fora do expediente e atribuição automática. Aqui também ficam as configurações do número oficial Meta (WhatsApp Cloud API).",
+        buttons: [
+          { label: "Renomear instância", description: "Muda o nome exibido. O nome técnico interno (usado pela Evolution API) continua o mesmo." },
+          { label: "Ativar IA", description: "Liga o agente de IA configurado para responder automaticamente nas conversas dessa instância." },
+          { label: "Horário de atendimento", description: "Define em quais dias e horas a IA / automações respondem. Fora desse horário cai uma mensagem padrão." },
+          { label: "Mensagem fora do expediente", description: "Texto enviado automaticamente quando uma mensagem chega fora do horário configurado." },
+          { label: "Webhook personalizado", description: "URL externa (ex.: Make, n8n) que recebe cada evento de mensagem dessa instância." },
+          { label: "Atribuição automática", description: "Define como novos contatos são distribuídos entre os atendentes (round-robin, manual ou por funil)." },
+          { label: "Funil padrão da instância", description: "Funil em que novos contatos dessa instância entram automaticamente." },
+          { label: "Conexão Meta (oficial)", description: "Para instâncias oficiais, mostra o número, phone_number_id e status da aprovação Meta." },
+        ],
+        tips: [
+          "O horário de atendimento usa o fuso da organização — confira antes de ativar.",
+          "Webhooks só recebem eventos depois de salvos; teste com uma mensagem real para validar.",
         ],
       },
     ],
@@ -164,6 +221,175 @@ export const trainings: TrainingModule[] = [
           "Templates oficiais com variáveis precisam que os campos do lead (nome, etc.) estejam preenchidos.",
         ],
       },
+      {
+        id: "inbox-3",
+        title: "Organizando: etiquetas, notas e tarefas",
+        description:
+          "O painel direito da conversa concentra tudo que organiza o atendimento: etiquetas (tags coloridas), notas internas, tarefas vinculadas e o cartão no funil. Use essas ferramentas para que qualquer membro da equipe consiga continuar a conversa sem precisar perguntar 'o que foi combinado?'.",
+        buttons: [
+          { label: "Etiquetas / Tags", description: "Aplique tags coloridas (ex.: VIP, Quente, Reclamação). Servem para filtrar conversas e segmentar listas." },
+          { label: "Adicionar nota interna", description: "Escreve uma observação só visível para a equipe. Não vai para o cliente." },
+          { label: "Criar tarefa", description: "Gera uma tarefa vinculada à conversa, com responsável, prazo e tipo. Aparece no módulo Tarefas e no Calendário." },
+          { label: "Mover no funil", description: "Empurra o cartão do contato para outra etapa do funil sem sair da conversa." },
+          { label: "Transferir conversa", description: "Atribui a conversa a outro membro da equipe. Ele recebe notificação na hora." },
+          { label: "Mesclar conversas", description: "Une duas conversas do mesmo contato (ex.: número antigo + número novo) em uma só, preservando o histórico." },
+          { label: "Encerrar conversa", description: "Marca como resolvida. Pode reabrir a qualquer momento se o cliente voltar a falar." },
+        ],
+        tips: [
+          "Use etiquetas com cor para visualizar rapidamente o tipo de conversa na lista.",
+          "Notas internas suportam @menção para alertar um colega específico.",
+          "Encerrar não bloqueia o contato — ele só sai dos filtros de 'em andamento'.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "funis",
+    title: "Funis (CRM Kanban)",
+    description: "Organize seus leads em etapas visuais e automatize transições.",
+    steps: [
+      {
+        id: "funis-1",
+        title: "Entendendo o Kanban",
+        description:
+          "O módulo Funis mostra cada lead como um cartão em colunas (etapas). Você arrasta o cartão da esquerda para a direita conforme a negociação avança. Cada funil é independente: você pode ter um para Vendas, outro para Suporte, outro para Pós-venda. Tudo respeita as permissões: cada usuário só vê os funis liberados para ele.",
+        buttons: [
+          { label: "Seletor de funil", description: "No topo, alterna entre os funis criados (Vendas, Suporte, etc.)." },
+          { label: "Novo funil", description: "Cria um funil do zero com etapas personalizadas. Você define nome, cor e regras." },
+          { label: "Editar etapas", description: "Adiciona, remove, renomeia e reordena as colunas. Mudanças afetam todos os cartões existentes." },
+          { label: "Filtros de cartões", description: "Filtra por responsável, etiqueta, valor, data, campo personalizado etc." },
+          { label: "Busca", description: "Encontra um cartão por nome do contato, telefone ou conteúdo do campo." },
+          { label: "Visão Kanban / Lista", description: "Alterna entre o quadro de colunas (Kanban) e uma tabela completa (Lista) com mais detalhes." },
+          { label: "Cartão de lead", description: "Mostra nome, foto, etiquetas, valor, último contato e responsável. Clique para abrir o painel completo." },
+          { label: "Arrastar cartão", description: "Segure e arraste de uma coluna para outra. Dispara automaticamente as automações da etapa de destino." },
+        ],
+        tips: [
+          "Mantenha o número de etapas baixo (5 a 8) — funis muito longos viram bagunça visual.",
+          "Cores diferentes nas etapas ajudam a identificar urgência (verde = quente, vermelho = parado).",
+        ],
+      },
+      {
+        id: "funis-2",
+        title: "Cartão de lead e automações",
+        description:
+          "Clicando em um cartão você abre o painel lateral com todas as informações do lead: dados, histórico de WhatsApp, oportunidades, tarefas, notas, atividades e campos personalizados. Cada etapa do funil pode ter automações disparadas na entrada (enviar mensagem, criar tarefa, mover de funil etc.).",
+        buttons: [
+          { label: "Dados do contato", description: "Edita nome, telefone, e-mail, empresa, campos personalizados." },
+          { label: "Conversas", description: "Lista todas as conversas de WhatsApp desse contato. Clique para abrir no Inbox." },
+          { label: "Tarefas", description: "Cria e acompanha tarefas vinculadas a esse lead. Aparecem também no Calendário." },
+          { label: "Notas", description: "Anotações internas da equipe sobre o lead." },
+          { label: "Atividades", description: "Linha do tempo de tudo que aconteceu: mudanças de etapa, mensagens, tarefas concluídas." },
+          { label: "Valor da oportunidade", description: "Número monetário usado para o pipeline financeiro do funil." },
+          { label: "Automações da etapa", description: "Em Editar etapa, configure regras: 'ao entrar nesta etapa, envie a mensagem X', 'crie tarefa Y', 'mova depois de N dias'." },
+          { label: "Mover para outro funil", description: "Transfere o cartão para um funil diferente preservando histórico." },
+          { label: "Mesclar leads", description: "Une dois cartões do mesmo contato (1 contato = 1 telefone; pode ter vários deals)." },
+          { label: "Excluir cartão", description: "Remove a oportunidade. O contato e o histórico de mensagens continuam." },
+        ],
+        tips: [
+          "Use automações de etapa para 'cobrar' leads parados: 'após 3 dias sem mensagem, enviar follow-up'.",
+          "1 Contato pode ter vários cartões (deals). Não duplique contatos só porque mudou de funil.",
+          "Campos personalizados do cartão (deal) são diferentes dos do contato — use deal para dados da venda, contato para dados pessoais.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "contatos",
+    title: "Contatos",
+    description: "Gerencie sua base de contatos, importe CSV e crie campos personalizados.",
+    steps: [
+      {
+        id: "contatos-1",
+        title: "Lista e busca de contatos",
+        description:
+          "Em Contatos você vê toda a base — diferente do Inbox, aparecem aqui inclusive contatos que ainda não trocaram mensagem. Use a busca e os filtros para encontrar grupos específicos (ex.: todos de uma cidade, todos com a tag VIP).",
+        buttons: [
+          { label: "Busca", description: "Procura por nome, telefone ou e-mail. Suporta busca parcial." },
+          { label: "Filtros avançados", description: "Combine múltiplos critérios: etiqueta, cidade, data de cadastro, campo personalizado." },
+          { label: "Novo contato", description: "Abre formulário para cadastrar manualmente. Útil para leads vindos de telefone ou indicação." },
+          { label: "Importar CSV", description: "Sobe um arquivo .csv com vários contatos. O sistema mapeia colunas e importa em lotes de 25 para evitar travadas." },
+          { label: "Exportar", description: "Baixa a lista filtrada em CSV. Útil para backup ou análises externas." },
+          { label: "Edição em massa", description: "Selecione vários contatos e edite etiquetas, campos ou funil de uma vez (em lotes de 50)." },
+          { label: "Mesclar duplicados", description: "Detecta contatos com o mesmo telefone normalizado e permite fundir mantendo o histórico." },
+          { label: "Excluir em massa", description: "Apaga vários contatos selecionados. Operação irreversível, use com cuidado." },
+        ],
+        tips: [
+          "Telefones são normalizados para o formato 55 + DDD + número antes de salvar — não importa o formato do CSV.",
+          "Antes de uma importação grande, faça um teste com 10 linhas para validar o mapeamento das colunas.",
+        ],
+      },
+      {
+        id: "contatos-2",
+        title: "Campos personalizados",
+        description:
+          "Além de nome e telefone, você pode criar quantos campos quiser (data de nascimento, CPF, cidade, plano, vencimento etc.). Eles aparecem na ficha do contato, podem ser usados em variáveis de templates e em filtros de listas de transmissão.",
+        buttons: [
+          { label: "Novo campo personalizado", description: "Em Configurações > Campos personalizados. Defina rótulo, tipo (texto, número, data, hora, seleção, múltipla escolha) e se é obrigatório." },
+          { label: "Tipo de campo", description: "Escolha o tipo certo — datas vão para calendário/automações, números fazem soma em relatórios, seleção limita opções." },
+          { label: "Tornar obrigatório", description: "Bloqueia salvar o contato sem preencher esse campo. Útil para CPF, vencimento etc." },
+          { label: "Editar valor no contato", description: "Na ficha do contato, clique no campo para editar inline. Salva ao perder o foco." },
+          { label: "Usar como variável", description: "Em templates e campanhas, use {{nome_do_campo}} para inserir o valor automaticamente." },
+        ],
+        tips: [
+          "Use o mesmo campo personalizado em todos os lugares (template + filtro + formulário) para manter consistência.",
+          "Campos do tipo data podem disparar automações (ex.: lembrete 5 dias antes do vencimento).",
+        ],
+      },
+    ],
+  },
+  {
+    id: "listas",
+    title: "Listas de Transmissão",
+    description: "Crie listas (estáticas ou dinâmicas) para usar em disparos de campanha.",
+    steps: [
+      {
+        id: "listas-1",
+        title: "Criando uma lista",
+        description:
+          "Uma lista de transmissão agrupa contatos para usar em campanhas. Pode ser estática (você adiciona contatos manualmente) ou dinâmica (definida por filtros — o sistema atualiza sozinha conforme novos contatos batem com os critérios).",
+        buttons: [
+          { label: "Nova lista", description: "Cria uma lista do zero. Você define nome, tipo (estática/dinâmica) e descrição." },
+          { label: "Tipo: Estática", description: "Você adiciona os contatos manualmente. A lista não muda sozinha." },
+          { label: "Tipo: Dinâmica", description: "Você define filtros (ex.: 'tag = VIP E cidade = SP'). A lista se atualiza sozinha conforme novos contatos entram." },
+          { label: "Adicionar filtro", description: "Em listas dinâmicas, define critérios baseados em etiquetas, campos personalizados, instância ou funil." },
+          { label: "Adicionar contatos", description: "Em listas estáticas, abre um seletor para escolher contatos da base ou colar números." },
+          { label: "Ver contatos", description: "Mostra todos os membros atuais da lista, com paginação para listas grandes." },
+          { label: "Histórico de envios", description: "Lista todas as campanhas que usaram essa lista, com data e resultado." },
+          { label: "Duplicar lista", description: "Cria uma cópia para você modificar sem perder a original." },
+        ],
+        tips: [
+          "Listas dinâmicas são desduplicadas automaticamente — o mesmo contato nunca recebe duas vezes na mesma campanha.",
+          "Liste pelos filtros mais restritivos primeiro (a query fica mais rápida).",
+        ],
+      },
+    ],
+  },
+  {
+    id: "templates",
+    title: "Templates de Mensagem",
+    description: "Mensagens prontas reutilizáveis, com variáveis, mídia, áudio TTS e variações por IA.",
+    steps: [
+      {
+        id: "templates-1",
+        title: "Criando templates",
+        description:
+          "Templates são mensagens reutilizáveis usadas no Inbox, em campanhas e em chatbots. Podem ser só texto, ter mídia (imagem, vídeo, documento, áudio), variáveis ({{nome}}, {{vencimento}}) e até variações geradas por IA para evitar texto repetitivo nos disparos.",
+        buttons: [
+          { label: "Novo template", description: "Cria um template do zero. Defina nome, categoria e canal (Evolution ou Meta oficial)." },
+          { label: "Inserir variável", description: "Clica no campo de variáveis para inserir {{nome}}, {{vencimento}} etc. Os valores são preenchidos no envio." },
+          { label: "Anexar mídia", description: "Sobe uma imagem/vídeo/documento que vai junto com o texto. Em mídias, o sistema envia texto primeiro e mídia 2s depois." },
+          { label: "Gerar áudio (TTS)", description: "Converte texto em áudio usando ElevenLabs. Útil para mensagens humanizadas em campanhas." },
+          { label: "Gerar variações com IA", description: "Cria N versões parecidas do texto para alternar nos envios e reduzir risco de bloqueio." },
+          { label: "Pré-visualizar", description: "Mostra como a mensagem fica no WhatsApp do cliente, com variáveis de exemplo." },
+          { label: "Template oficial Meta", description: "Envia o template para aprovação na Meta. Só depois de aprovado pode ser usado em números oficiais." },
+          { label: "Duplicar / Excluir", description: "Duplica para criar variações ou apaga em definitivo." },
+        ],
+        tips: [
+          "Nomes com hífen ou underline ficam mais legíveis em listas (ex.: cobranca_5dias).",
+          "Variáveis vazias caem para um espaço ' ' por padrão — assim você nunca tem 'Olá ,' no envio.",
+          "Templates oficiais Meta precisam de variáveis numeradas ({{1}}, {{2}}) e seguem regras da Meta.",
+        ],
+      },
     ],
   },
   {
@@ -186,6 +412,8 @@ export const trainings: TrainingModule[] = [
           { label: "Janela de horário", description: "Define entre quais horas a campanha pode disparar (ex.: das 9h às 18h). Fora dessa janela ela pausa e retoma no dia seguinte." },
           { label: "Agendar início", description: "Permite começar a campanha em uma data e hora específicas, em vez de imediatamente." },
           { label: "Modo chatbot", description: "Em vez de só uma mensagem, dispara um fluxo de chatbot completo para cada contato da lista." },
+          { label: "Agente de IA da campanha", description: "Liga um agente de IA (gpt-4.1-nano) que pode responder às respostas dos contatos usando a ferramenta send_template." },
+          { label: "Funil de destino dos leads", description: "Define em qual funil/etapa cada contato da campanha vai entrar, para acompanhar as respostas." },
           { label: "Salvar rascunho", description: "Salva a campanha sem começar a enviar — útil para revisar antes." },
           { label: "Iniciar campanha", description: "Confirma e coloca a campanha na fila de envio respeitando as regras configuradas." },
         ],
@@ -193,6 +421,7 @@ export const trainings: TrainingModule[] = [
           "Em números oficiais (Meta), só é possível disparar templates aprovados. Em Evolution, mensagem livre é permitida.",
           "Sempre teste a campanha em uma lista pequena (5–10 contatos) antes do envio em massa.",
           "Variáveis com nome em branco caem para um espaço ' ' por padrão, evitando 'Olá ,'.",
+          "Com várias instâncias selecionadas, o sistema balanceia a carga — bom para volumes maiores.",
         ],
       },
       {
@@ -214,6 +443,395 @@ export const trainings: TrainingModule[] = [
         tips: [
           "Se a taxa de falhas passar de ~10%, pause e revise: pode ser problema no chip ou na lista.",
           "Respostas dos contatos aparecem direto no Inbox, já vinculadas à campanha.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "calendario",
+    title: "Calendário",
+    description: "Visualize e crie tarefas e compromissos em dia, semana ou mês.",
+    steps: [
+      {
+        id: "calendario-1",
+        title: "Visões e navegação",
+        description:
+          "O Calendário mostra todas as tarefas e eventos da sua equipe em três visões: Dia, Semana e Mês. Você pode filtrar por responsável e por tipo de tarefa, e integrar com o Google Calendar para sincronizar nos dois sentidos.",
+        buttons: [
+          { label: "Visão Dia / Semana / Mês", description: "Alterna entre os formatos de visualização. Semana é o padrão na maioria dos times comerciais." },
+          { label: "Navegar (← →)", description: "Avança/recua um dia, semana ou mês, conforme a visão ativa." },
+          { label: "Hoje", description: "Volta direto para a data atual." },
+          { label: "Filtro de responsável", description: "Mostra só as tarefas de um membro específico ou de todos." },
+          { label: "Filtro por tipo de tarefa", description: "Filtra por tipo (Ligar, Visitar, Reunião, etc.). Você cria os tipos em Configurações." },
+          { label: "Integração Google Calendar", description: "Conecta com sua agenda do Google para ver eventos externos no mesmo calendário." },
+          { label: "Card de tarefa", description: "Clique para ver detalhes, editar, marcar como concluída ou abrir o contato relacionado." },
+        ],
+        tips: [
+          "Tarefas vinculadas a um lead/contato aparecem com o nome dele — facilita preparar o atendimento.",
+          "A integração Google é por usuário (cada um conecta a própria agenda em Configurações > Integrações).",
+        ],
+      },
+      {
+        id: "calendario-2",
+        title: "Criando uma tarefa ou evento",
+        description:
+          "Clique em um horário do calendário (ou no botão Nova tarefa) para criar. Você define título, tipo, data/hora, duração, responsável, contato/deal vinculado e mensagem opcional (que pode ser enviada automaticamente no horário).",
+        buttons: [
+          { label: "Título", description: "Resumo curto da tarefa (ex.: 'Ligar para João sobre proposta')." },
+          { label: "Tipo", description: "Categoria da tarefa: Ligação, Reunião, Visita, Follow-up. Cores diferentes ajudam na visão semanal." },
+          { label: "Data e hora", description: "Quando a tarefa começa. Em eventos com duração, defina também o fim." },
+          { label: "Responsável", description: "Quem é dono da tarefa. Ele recebe a notificação no sininho e em e-mail (se configurado)." },
+          { label: "Contato / Deal vinculado", description: "Opcional — conecta a tarefa a um lead. Aparece na ficha do contato e do cartão de funil." },
+          { label: "Mensagem associada", description: "Texto que pode ser enviado para o contato no momento da tarefa (ex.: lembrete de reunião)." },
+          { label: "Repetir", description: "Cria uma série recorrente (diária, semanal, mensal)." },
+          { label: "Salvar", description: "Cria a tarefa e ela aparece na visão de Calendário, em Tarefas e na ficha do contato." },
+        ],
+        tips: [
+          "Use tarefas como follow-up automático após reuniões: ao concluir uma, crie a próxima já na hora.",
+          "Quem é dono do contato e quem é dono da tarefa podem ser pessoas diferentes — útil para gestores acompanharem o time.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "tarefas",
+    title: "Tarefas",
+    description: "Lista unificada de tudo que você e a equipe precisam fazer.",
+    steps: [
+      {
+        id: "tarefas-1",
+        title: "Lista e filtros de tarefas",
+        description:
+          "O módulo Tarefas mostra em formato de lista tudo que está agendado: as suas, as do time, vencidas, do dia, da semana. É o ponto de partida do dia para quem trabalha com follow-up de leads.",
+        buttons: [
+          { label: "Abas (Minhas / Equipe / Vencidas / Hoje)", description: "Filtra rapidamente o que mostrar. 'Vencidas' destaca o que passou do prazo e ainda não foi concluído." },
+          { label: "Filtro de responsável", description: "Quando admin, restringe à pessoa selecionada." },
+          { label: "Filtro de tipo", description: "Mostra só Ligações, só Reuniões etc." },
+          { label: "Nova tarefa", description: "Cria uma tarefa diretamente daqui, sem precisar abrir o calendário." },
+          { label: "Marcar como concluída", description: "Checkbox que finaliza a tarefa. Aparece riscada e sai dos filtros de pendentes." },
+          { label: "Editar", description: "Abre o detalhamento para mudar título, data, responsável, vínculo." },
+          { label: "Abrir contato vinculado", description: "Atalho que leva direto para a ficha do lead/contato da tarefa." },
+          { label: "Excluir", description: "Remove a tarefa em definitivo." },
+        ],
+        tips: [
+          "Comece o dia pela aba 'Hoje' — ela já vem ordenada por horário.",
+          "Vencidas em vermelho são o principal sinal de que um lead está esfriando. Aja sobre elas primeiro.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "chat-interno",
+    title: "Chat Interno",
+    description: "Converse com a equipe sem sair da plataforma.",
+    steps: [
+      {
+        id: "chat-interno-1",
+        title: "Chat 1-a-1 e grupos",
+        description:
+          "O Chat Interno é o WhatsApp da sua equipe, dentro do CRM. Use para tirar dúvidas sobre um lead, repassar uma conversa, ou criar grupos por departamento (Vendas, Suporte). Notificações em tempo real e badges no menu lateral indicam mensagens novas.",
+        buttons: [
+          { label: "Nova conversa", description: "Inicia uma conversa direta com outro membro da equipe." },
+          { label: "Novo grupo", description: "Cria um grupo, escolhe nome e membros. Útil para times grandes ou projetos." },
+          { label: "Lista de conversas", description: "Mostra todas as conversas internas em ordem de atividade. Não lidas aparecem em negrito." },
+          { label: "Campo de mensagem", description: "Texto, emoji e anexos. Suporta @menção para alertar alguém específico." },
+          { label: "Anexar arquivo", description: "Envia imagens, documentos e áudios para a conversa interna." },
+          { label: "Notificações", description: "Cada membro pode silenciar conversas específicas. O badge no menu lateral mostra o total não lido." },
+          { label: "Adicionar membro ao grupo", description: "Em grupos, o admin pode incluir ou remover participantes." },
+          { label: "Sair do grupo", description: "Remove você do grupo. Outros membros continuam com a conversa." },
+        ],
+        tips: [
+          "Use o Chat Interno para alinhamentos rápidos — assim a conversa com o cliente fica limpa de mensagens internas.",
+          "Para registrar algo permanente sobre um lead, prefira Notas internas dentro da conversa do Inbox.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "chatbots",
+    title: "Chatbots",
+    description: "Crie fluxos automatizados de atendimento sem programar.",
+    steps: [
+      {
+        id: "chatbots-1",
+        title: "Construtor de fluxos",
+        description:
+          "O Construtor de Chatbots é visual: você arrasta blocos (mensagem, pergunta, condição, delay, ação) e conecta com setas. Cada fluxo é disparado por um gatilho (palavra-chave, entrada em etapa de funil, campanha em modo chatbot, etc.) e pode ramificar conforme as respostas do contato.",
+        buttons: [
+          { label: "Novo fluxo", description: "Cria um chatbot do zero. Você dá um nome e escolhe o gatilho inicial." },
+          { label: "Bloco Mensagem", description: "Envia texto, mídia ou template ao contato." },
+          { label: "Bloco Pergunta", description: "Faz uma pergunta e captura a resposta em uma variável ou campo personalizado." },
+          { label: "Bloco Condição (if)", description: "Ramifica o fluxo conforme valor da variável, etiqueta, campo do contato etc." },
+          { label: "Bloco Delay", description: "Espera N segundos/minutos/horas/dias antes de seguir. Suporta delays longos com agendamento." },
+          { label: "Bloco Ação", description: "Move o lead no funil, aplica etiqueta, cria tarefa, chama webhook, envia para humano." },
+          { label: "Bloco Template Meta", description: "Envia um template oficial Meta — necessário para abrir conversa fora da janela de 24h." },
+          { label: "Conectar blocos", description: "Arraste a alça de saída de um bloco para a entrada do próximo. Em condições, cada caminho (sim/não) vira uma saída." },
+          { label: "Testar fluxo", description: "Simula a execução com um número de teste sem afetar leads reais." },
+          { label: "Publicar / Despublicar", description: "Liga ou desliga o fluxo. Despublicado, o gatilho deixa de disparar." },
+          { label: "Analytics", description: "Mostra quantos contatos entraram, quantos chegaram em cada bloco e onde abandonaram." },
+        ],
+        tips: [
+          "Fluxos curtos convertem melhor. Se passar de 6–8 perguntas, considere quebrar em dois.",
+          "Para qualificar leads, use o bloco Condição para mover automaticamente o lead 'frio' para um funil de nutrição.",
+          "Sempre coloque um bloco Ação no final para transferir para humano se o cliente pedir.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "ai-agents",
+    title: "Agentes de IA",
+    description: "Configure agentes para responder clientes 24/7 com base no seu negócio.",
+    steps: [
+      {
+        id: "ai-agents-1",
+        title: "Criando um agente",
+        description:
+          "Os Agentes de IA são assistentes que conversam pelo WhatsApp em seu nome. Você define a personalidade, o objetivo (vendas, suporte, qualificação), a base de conhecimento (documentos, FAQs, planilhas) e as ferramentas que ele pode usar (criar tarefa, enviar template, mover de funil).",
+        buttons: [
+          { label: "Novo agente", description: "Cria um agente do zero ou a partir de um template (Vendas, SDR, Atendimento, Cobrança)." },
+          { label: "Template de agente", description: "Modelos prontos com prompt, ferramentas e base de conhecimento pré-configurados." },
+          { label: "Nome e personalidade", description: "Define como o agente se apresenta e o tom (formal, descontraído, técnico)." },
+          { label: "Instruções (prompt)", description: "Texto principal que diz ao agente o que fazer, o que evitar e como agir em casos específicos." },
+          { label: "Base de conhecimento", description: "Sobe documentos (PDF, DOCX, planilha, sites). O agente consulta antes de responder." },
+          { label: "Ferramentas", description: "Liga capacidades como create_task (criar tarefa para humano), send_template (disparar template oficial), mover de funil, agendar." },
+          { label: "Mídia por etapa", description: "Configura quais imagens/vídeos o agente envia em cada etapa do funil." },
+          { label: "Testar agente", description: "Abre um chat de teste para conversar com o agente como se fosse um cliente." },
+          { label: "Correção de mensagem", description: "Quando o agente erra, você corrige a resposta — vira sugestão de treinamento futuro." },
+          { label: "Exportar agente", description: "Gera um JSON com toda a configuração para mover entre organizações ou fazer backup." },
+          { label: "Ativar no funil", description: "Liga o agente em uma etapa específica do funil — ele só responde leads que estão naquela etapa." },
+        ],
+        tips: [
+          "Comece com objetivo bem estreito (ex.: só qualificar lead) — agentes 'fazem tudo' tendem a errar mais.",
+          "Reveja as conversas dos primeiros 7 dias e use a Correção de Mensagem nos pontos fracos.",
+          "Para ações sensíveis (fechar venda, dar desconto) prefira a ferramenta create_task — humano resolve, IA notifica.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "pesquisa-leads",
+    title: "Pesquisa de Leads",
+    description: "Encontre empresas e contatos para prospectar usando dados públicos (CNAE/IBGE).",
+    steps: [
+      {
+        id: "pesquisa-leads-1",
+        title: "Buscando empresas por atividade",
+        description:
+          "Em Pesquisa de Leads você usa filtros do IBGE/CNAE para encontrar empresas reais por atividade econômica, estado, cidade e bairro/distrito. Útil para gerar listas frias de prospecção (ex.: 'todas as óticas em São Paulo').",
+        buttons: [
+          { label: "CNAE / Atividade", description: "Selecione a atividade econômica (ex.: 4774-1/00 - Comércio varejista de artigos de óptica)." },
+          { label: "Estado", description: "Filtra por UF. Necessário para liberar os campos de cidade/distrito." },
+          { label: "Município", description: "Lista carregada dinamicamente do IBGE para o estado escolhido." },
+          { label: "Distrito / Bairro", description: "Refina ainda mais a região da busca." },
+          { label: "Buscar", description: "Executa a consulta e mostra os resultados em tabela paginada." },
+          { label: "Tabela de resultados", description: "Lista nome da empresa, CNPJ, telefone, e-mail, endereço e atividade principal." },
+          { label: "Selecionar tudo / em massa", description: "Marca todos os resultados visíveis ou aplica ações em vários ao mesmo tempo." },
+          { label: "Exportar CSV", description: "Baixa os resultados filtrados em planilha." },
+          { label: "Enviar para funil", description: "Cria automaticamente um cartão no funil escolhido para cada empresa selecionada." },
+          { label: "Importar como contatos", description: "Adiciona os resultados à base de contatos para usar em campanhas." },
+        ],
+        tips: [
+          "Quanto mais específico o CNAE, melhor a qualidade da lista — evita misturar segmentos.",
+          "Antes de disparar campanhas para empresas vindas daqui, valide os telefones (muitos fixos não recebem WhatsApp).",
+        ],
+      },
+      {
+        id: "pesquisa-leads-2",
+        title: "Instagram Scraper",
+        description:
+          "O Instagram Scraper coleta perfis e comentários públicos do Instagram para você prospectar. Pode buscar seguidores de um perfil, quem comentou em um post específico ou perfis por palavra-chave.",
+        buttons: [
+          { label: "Buscar por perfil", description: "Cole o @ ou URL do perfil e o sistema lista os seguidores públicos." },
+          { label: "Buscar por post", description: "Cole a URL do post e o sistema lista quem comentou (com texto do comentário)." },
+          { label: "Buscar por palavra-chave", description: "Encontra perfis cuja bio/nome contém o termo." },
+          { label: "Resultados (tabela)", description: "Mostra @, nome, biografia, seguidores, link e (quando público) telefone/e-mail da bio." },
+          { label: "Filtrar resultados", description: "Reduz a lista por número de seguidores, presença de palavra na bio, link externo etc." },
+          { label: "Exportar CSV", description: "Baixa a lista para uso em outras ferramentas ou armazenamento." },
+          { label: "Importar como contatos", description: "Manda os perfis com telefone direto para a base. Suporte para usar a bio como nota inicial." },
+        ],
+        tips: [
+          "Use com responsabilidade — respeite as regras do Instagram e a LGPD/GDPR.",
+          "Perfis sem telefone público não viram contato com WhatsApp — exporte para abordar por DM.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "aquecimento",
+    title: "Aquecimento de Chip",
+    description: "Aumente a reputação de números novos antes de usar em campanhas.",
+    steps: [
+      {
+        id: "aquecimento-1",
+        title: "Como funciona o aquecimento",
+        description:
+          "O aquecimento simula conversas reais entre os seus próprios chips (pares) e também com um pool de contatos seguros. Mensagens são trocadas em horários e ritmo variados, com conteúdo gerado por IA, para o WhatsApp 'confiar' no número antes de você usá-lo em disparos.",
+        buttons: [
+          { label: "Iniciar aquecimento", description: "Abre o assistente: você escolhe quais instâncias aquecer, intensidade (leve/moderado/forte) e duração." },
+          { label: "Pool de contatos", description: "Lista de números seguros (próprios ou parceiros) que recebem as mensagens. Você adiciona/remove aqui." },
+          { label: "Pares de aquecimento", description: "Define duplas de instâncias que conversam entre si automaticamente." },
+          { label: "Gerar conteúdo IA", description: "Cria assuntos e respostas variados (saudações, perguntas, áudios curtos) usando IA para parecer humano." },
+          { label: "Progresso", description: "Card de cada instância mostra dias de aquecimento, mensagens trocadas, taxa de entrega." },
+          { label: "Log de atividades", description: "Histórico minuto-a-minuto de quem mandou o quê para quem." },
+          { label: "Pausar / Retomar", description: "Suspende o aquecimento sem perder o progresso acumulado." },
+          { label: "Encerrar", description: "Finaliza definitivamente. O número fica disponível para campanhas." },
+        ],
+        tips: [
+          "Aqueça por 7–14 dias antes do primeiro disparo grande. Pular essa etapa é o principal motivo de chips caírem.",
+          "Misturar conversa com pool + pares dá um padrão mais natural.",
+          "Não aqueça e dispare ao mesmo tempo — sobrecarrega o número.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "analise",
+    title: "Análise e Relatórios",
+    description: "Acompanhe desempenho do time, das campanhas e do funil com gráficos e exportações.",
+    steps: [
+      {
+        id: "analise-1",
+        title: "Relatórios disponíveis",
+        description:
+          "O módulo Análise reúne os principais indicadores do sistema: produtividade por atendente, SLA de resposta, conversão por etapa do funil, desempenho de campanhas, mensagens por hora e score de atendimento. Tudo respeitando o fuso da organização e as permissões de cada usuário.",
+        buttons: [
+          { label: "Filtro de período", description: "Hoje, 7/30/90 dias ou intervalo personalizado. Afeta todos os gráficos da tela." },
+          { label: "Filtro de atendente", description: "Restringe os relatórios a uma pessoa do time (para gestores)." },
+          { label: "Filtro de instância", description: "Mostra dados de um número específico de WhatsApp." },
+          { label: "Filtro de funil", description: "Restringe métricas de conversão a um funil escolhido." },
+          { label: "Cards de KPI", description: "Conversas, tempo médio de resposta, taxa de resolução, leads convertidos." },
+          { label: "Gráfico de mensagens por hora", description: "Mostra horários de pico — útil para escalar equipe." },
+          { label: "Score do atendente", description: "Nota composta (velocidade, volume, satisfação) com detalhamento por critério." },
+          { label: "Detalhes do relatório", description: "Clique em um card para abrir a visão detalhada com lista de itens." },
+          { label: "Exportar PDF", description: "Gera um PDF da tela atual com gráficos e tabelas — ideal para reuniões." },
+          { label: "Exportar CSV", description: "Baixa os dados brutos para análises personalizadas em planilha." },
+        ],
+        tips: [
+          "Use o score do atendente em reuniões semanais — destaque pontos fortes antes de cobrar pontos fracos.",
+          "Compare períodos semelhantes (semana vs semana) em vez de períodos com sazonalidade diferente.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "financeiro",
+    title: "Financeiro",
+    description: "Acompanhe cobranças, integração com Asaas e gestão de devedores.",
+    steps: [
+      {
+        id: "financeiro-1",
+        title: "Visão geral financeira",
+        description:
+          "O módulo Financeiro centraliza informações de cobrança dos seus clientes, integrando com o Asaas (boletos, PIX, cartão). Mostra recebido, a receber, atrasos e permite disparar lembretes automáticos antes do vencimento.",
+        buttons: [
+          { label: "Cards de KPI financeiros", description: "Recebido no mês, a receber, em atraso, ticket médio." },
+          { label: "Filtro de período", description: "Define o intervalo das métricas e da listagem de cobranças." },
+          { label: "Lista de cobranças", description: "Mostra cliente, valor, vencimento, status (pago, pendente, atrasado), método." },
+          { label: "Detalhes da cobrança", description: "Clique para abrir histórico, link do boleto, comprovantes e ações." },
+          { label: "Reenviar cobrança", description: "Dispara novamente o WhatsApp ou e-mail com o link de pagamento." },
+          { label: "Sincronizar Asaas", description: "Força atualização do status (paga, atrasada). O sistema também sincroniza automaticamente a cada 2 min." },
+          { label: "Lembretes automáticos", description: "Liga/desliga o envio de lembrete 5 dias antes do vencimento, no dia, e após atraso." },
+          { label: "Devedores", description: "Atalho para a tela dedicada com clientes em atraso, valor acumulado e ações em massa." },
+        ],
+        tips: [
+          "Mantenha o token do Asaas atualizado em Configurações > Integrações — sem ele a sincronização para.",
+          "O lembrete usa o template oficial Meta com variáveis como {{vencimento}} e {{valor}}.",
+        ],
+      },
+      {
+        id: "financeiro-2",
+        title: "Gestão de devedores",
+        description:
+          "A tela de Devedores mostra todos os clientes com parcelas em atraso, ordenados por valor ou dias de atraso. Você pode disparar campanhas de cobrança em massa, criar tarefas para o time ou negociar diretamente pelo Inbox.",
+        buttons: [
+          { label: "Filtro por dias de atraso", description: "Mostra só quem está atrasado há mais/menos de N dias." },
+          { label: "Filtro por valor", description: "Restringe a inadimplentes acima de um valor mínimo." },
+          { label: "Ordenar por valor / atraso", description: "Reorganiza a tabela para priorizar quem deve mais ou está há mais tempo." },
+          { label: "Selecionar em massa", description: "Marca vários devedores para ações em lote (campanha, tarefa, etiqueta)." },
+          { label: "Disparar campanha", description: "Cria uma campanha de cobrança já com a lista dos selecionados pré-preenchida." },
+          { label: "Criar tarefas", description: "Gera uma tarefa de cobrança para cada devedor, distribuída entre o time." },
+          { label: "Abrir conversa", description: "Vai direto para o Inbox no contato escolhido para negociar." },
+          { label: "Exportar", description: "Baixa a lista de devedores em CSV." },
+        ],
+        tips: [
+          "Antes de disparar cobrança em massa, sincronize com o Asaas para evitar cobrar quem já pagou.",
+          "Combine campanha (texto inicial) + tarefas para o time (caso o cliente não responda em X dias).",
+        ],
+      },
+    ],
+  },
+  {
+    id: "webhooks",
+    title: "Webhooks e Integrações",
+    description: "Conecte com Make/n8n/Zapier para integrar com sistemas externos.",
+    steps: [
+      {
+        id: "webhooks-1",
+        title: "Criando uma integração",
+        description:
+          "Os Webhooks permitem que eventos do sistema (nova mensagem, lead criado, etapa do funil mudou, campanha terminou) sejam enviados para um sistema externo via HTTP. Combinado com Make/n8n/Zapier, você integra a plataforma com qualquer outro serviço.",
+        buttons: [
+          { label: "Nova conexão", description: "Cria um webhook. Você dá um nome, escolhe os eventos e cola a URL de destino." },
+          { label: "Eventos disponíveis", description: "Nova mensagem, mensagem enviada, novo contato, novo deal, mudança de etapa, tarefa criada, campanha finalizada etc." },
+          { label: "URL de destino", description: "Endpoint do Make/n8n/Zapier que vai receber os eventos via POST com payload JSON." },
+          { label: "Copiar URL de entrada", description: "Em integrações inversas, mostra a URL para receber dados de fora (criar contato, enviar mensagem)." },
+          { label: "Documentação dos eventos", description: "Painel com exemplos de payload para cada evento — facilita configurar do outro lado." },
+          { label: "Logs", description: "Histórico de envios: data, evento, status HTTP, tempo de resposta e payload enviado." },
+          { label: "Testar webhook", description: "Dispara um evento de exemplo para validar que o destino está respondendo certo." },
+          { label: "Pausar / Ativar", description: "Liga ou desliga sem precisar excluir. Útil em manutenção do sistema externo." },
+        ],
+        tips: [
+          "Sempre teste com o evento real antes de colocar em produção — payloads podem variar entre eventos.",
+          "Se o destino responder com erro 5xx, o sistema reagenda automaticamente algumas vezes.",
+          "Use os logs para depurar — eles mostram exatamente o que foi enviado.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "configuracoes",
+    title: "Configurações gerais",
+    description: "Integrações, campos personalizados, tokens de IA e plano da conta.",
+    steps: [
+      {
+        id: "configuracoes-1",
+        title: "Integrações externas",
+        description:
+          "Em Configurações > Integrações você conecta a plataforma com serviços externos. Cada integração tem o seu próprio fluxo de autenticação (OAuth, token, chave de API).",
+        buttons: [
+          { label: "Google Calendar", description: "Conecta a agenda do Google para ver/editar eventos sincronizados no Calendário." },
+          { label: "Meta (WhatsApp oficial)", description: "Login com Facebook para conectar números oficiais (Cloud API) — habilita disparo de templates em grande volume." },
+          { label: "Meta Messenger / Instagram", description: "Conecta páginas do Facebook e contas do Instagram para receber DMs no Inbox." },
+          { label: "Asaas", description: "Token de API do Asaas para sincronizar cobranças e disparar lembretes automáticos." },
+          { label: "ElevenLabs (TTS)", description: "Chave de API para gerar áudios humanizados de templates." },
+          { label: "Make / n8n / Zapier", description: "Atalho para a tela de Webhooks, onde você cria as conexões." },
+          { label: "Reconectar", description: "Refaz o OAuth caso o token tenha expirado." },
+          { label: "Desconectar", description: "Remove a integração. Pode reconectar depois sem perder o histórico." },
+        ],
+        tips: [
+          "Tokens armazenados ficam criptografados — nem outros admins conseguem ver o valor.",
+          "Sempre reconecte logo após ver o aviso de 'token expirado' — caso contrário, automações começam a falhar silenciosamente.",
+        ],
+      },
+      {
+        id: "configuracoes-2",
+        title: "Tokens de IA e Plano",
+        description:
+          "A plataforma usa créditos (tokens) para chamadas de IA: respostas dos agentes, variações de templates, transcrições, geração de conteúdo no aquecimento. Em Configurações > Tokens de IA você vê o saldo, histórico de consumo e pode comprar pacotes adicionais. Em Assinatura você gerencia o plano da conta.",
+        buttons: [
+          { label: "Saldo de tokens", description: "Quantidade disponível agora. Recarrega no início de cada ciclo do plano." },
+          { label: "Histórico de uso", description: "Tabela com cada chamada de IA: data, tipo (agente, template, transcrição), tokens consumidos." },
+          { label: "Comprar pacote", description: "Adquire tokens avulsos sem mudar de plano. Útil em meses de pico." },
+          { label: "Transferir tokens (admin)", description: "Distribui tokens entre organizações irmãs (em contas com várias empresas)." },
+          { label: "Plano atual", description: "Em Assinatura, mostra o plano vigente, limites (instâncias, membros, mensagens) e renovação." },
+          { label: "Alterar plano", description: "Upgrade ou downgrade. A cobrança proporcional é feita pelo Stripe." },
+          { label: "Histórico de cobranças", description: "Lista todas as faturas, com link para o PDF e status (paga, pendente)." },
+          { label: "Cancelar assinatura", description: "Encerra a renovação automática. O acesso continua até o fim do ciclo pago." },
+        ],
+        tips: [
+          "Configure alerta de saldo baixo de tokens — assim você compra pacote antes do agente parar de responder.",
+          "Mudar de plano não migra histórico — só limites passam a valer a partir do próximo ciclo.",
         ],
       },
     ],
@@ -245,6 +863,26 @@ export const trainings: TrainingModule[] = [
           "Mantenha o formulário curto (3 a 5 campos) — taxas de conversão caem muito a partir do 6º campo.",
           "O campo telefone é normalizado automaticamente (formato 55 + DDD + número).",
           "Se ativar 'criação automática de lead', cada envio já vira oportunidade no funil sem trabalho manual.",
+        ],
+      },
+      {
+        id: "formularios-2",
+        title: "Compartilhando e acompanhando respostas",
+        description:
+          "Depois de publicado, cada formulário tem um link único e uma página de respostas. Você acompanha cada envio em tempo real, filtra por período e exporta tudo em CSV. Cada resposta também cria um cartão no funil escolhido — então fica fácil dar continuidade ao atendimento.",
+        buttons: [
+          { label: "Copiar link público", description: "Copia para área de transferência. Cole em bio, anúncios, QR code, e-mails." },
+          { label: "Gerar QR Code", description: "Cria um QR para o link público — bom para folhetos e mesas de evento." },
+          { label: "Pré-visualizar página pública", description: "Abre como o lead vê. Útil para revisar a aparência antes de divulgar." },
+          { label: "Lista de respostas", description: "Tabela com cada envio: data, contato, valor de cada campo. Clica para abrir o cartão no funil." },
+          { label: "Filtro de período", description: "Restringe a tabela a um intervalo (hoje, semana, mês, personalizado)." },
+          { label: "Exportar respostas", description: "Baixa todas as respostas filtradas em CSV." },
+          { label: "Estatísticas", description: "Mostra envios por dia, taxa de conclusão (se tiver várias etapas) e fontes de tráfego." },
+          { label: "Editar formulário", description: "Atalho para voltar ao construtor e modificar campos ou aparência." },
+        ],
+        tips: [
+          "Mudar campos depois de publicado não afeta respostas antigas, mas pode confundir relatórios — prefira criar uma versão nova.",
+          "Use o filtro de período + exportação para acompanhar campanhas específicas (ex.: respostas dos 7 dias após um anúncio).",
         ],
       },
     ],
