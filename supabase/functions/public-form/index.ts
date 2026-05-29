@@ -331,6 +331,35 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     .slot-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); }
     .slots-loading { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
     .slots-empty { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
+    /* Error popup */
+    .error-popup-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 9999; padding: 1rem; animation: fadeIn 0.15s ease-out;
+    }
+    .error-popup-overlay.visible { display: flex; }
+    .error-popup {
+      background: #fff; border-radius: 14px; max-width: 420px; width: 100%;
+      padding: 1.75rem 1.5rem 1.25rem; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: popIn 0.2s ease-out;
+    }
+    .error-popup-icon {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #fef2f2; color: #ef4444;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem; font-size: 1.75rem; font-weight: 700;
+    }
+    .error-popup h3 { font-size: 1.15rem; font-weight: 600; color: #111; margin-bottom: 0.5rem; }
+    .error-popup p { color: #555; font-size: 0.95rem; margin-bottom: 1.25rem; line-height: 1.45; }
+    .error-popup button {
+      background: var(--primary-color); color: #fff; border: none;
+      padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.95rem;
+      font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    .error-popup button:hover { opacity: 0.9; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
   </style>
 </head>
 <body>
@@ -352,11 +381,32 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     </div>
   </div>
 
+  <div id="error-popup-overlay" class="error-popup-overlay" role="dialog" aria-modal="true">
+    <div class="error-popup">
+      <div class="error-popup-icon">!</div>
+      <h3 id="error-popup-title">Não foi possível enviar</h3>
+      <p id="error-popup-message">Ocorreu um erro ao enviar o formulário.</p>
+      <button type="button" id="error-popup-close">Entendi</button>
+    </div>
+  </div>
+
   <script>
     const form = document.getElementById('public-form');
     const successMessage = document.getElementById('success-message');
     const submitBtn = form.querySelector('.submit-btn');
     const redirectUrl = ${form.redirect_url ? `"${escapeHtml(form.redirect_url)}"` : 'null'};
+    const errorOverlay = document.getElementById('error-popup-overlay');
+    const errorTitleEl = document.getElementById('error-popup-title');
+    const errorMessageEl = document.getElementById('error-popup-message');
+    const errorCloseBtn = document.getElementById('error-popup-close');
+    function showErrorPopup(title, message) {
+      errorTitleEl.textContent = title || 'Não foi possível enviar';
+      errorMessageEl.textContent = message || 'Ocorreu um erro ao enviar o formulário.';
+      errorOverlay.classList.add('visible');
+    }
+    function hideErrorPopup() { errorOverlay.classList.remove('visible'); }
+    errorCloseBtn.addEventListener('click', hideErrorPopup);
+    errorOverlay.addEventListener('click', function(e) { if (e.target === errorOverlay) hideErrorPopup(); });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -384,7 +434,23 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         });
 
         if (!response.ok) {
-          throw new Error('Erro ao enviar formulário');
+          let serverMsg = '';
+          try {
+            const errJson = await response.clone().json();
+            serverMsg = (errJson && (errJson.error || errJson.message)) || '';
+          } catch (_) {
+            try { serverMsg = await response.text(); } catch (_) {}
+          }
+          const isNotFound = response.status === 404 ||
+            /n.o encontrado|not found/i.test(serverMsg || '');
+          const title = isNotFound ? 'Lead/contato não encontrado' : 'Não foi possível enviar';
+          const message = serverMsg && serverMsg.length < 300
+            ? serverMsg
+            : 'Não conseguimos localizar o lead ou contato informado. Verifique os dados e tente novamente.';
+          showErrorPopup(title, message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = '${escapeHtml(form.submit_button_text || 'Enviar')}';
+          return;
         }
 
         form.style.display = 'none';
@@ -400,7 +466,7 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         }
       } catch (error) {
         console.error('Error:', error);
-        alert('Erro ao enviar formulário. Tente novamente.');
+        showErrorPopup('Não foi possível enviar', 'Erro ao enviar formulário. Verifique sua conexão e tente novamente.');
         submitBtn.disabled = false;
         submitBtn.textContent = '${escapeHtml(form.submit_button_text || 'Enviar')}';
       }
