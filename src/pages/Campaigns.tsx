@@ -115,6 +115,12 @@ const Campaigns = () => {
   };
 
   const handleStart = (campaign: Campaign) => {
+    if (!campaign.list_id) {
+      toast.error('Selecione uma lista de transmissão antes de iniciar a campanha.');
+      setEditingCampaign(campaign);
+      setIsFormOpen(true);
+      return;
+    }
     // Meta campaigns (template OR chatbot with Meta number) don't need instance selection
     const isMetaCampaign =
       (campaign.meta_template_id && campaign.meta_phone_number_id) ||
