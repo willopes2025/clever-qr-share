@@ -213,6 +213,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     );
   }, [activeFlows, slashSearchTerm]);
 
+  const totalSlashItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
+
   // Set default instance/meta number ONLY when conversation changes (by id)
   const conversationId = conversation.id;
   const conversationInstanceId = conversation.instance_id;
