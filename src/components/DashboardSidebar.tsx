@@ -91,7 +91,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Sua Conta",
     items: [
-      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos" },
+      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos", restrictedToEmails: RESTRICTED_EMAILS },
       { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
       { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
     ],
