@@ -98,6 +98,7 @@ export const RightSidePanel = ({ conversation, isOpen, onClose }: RightSidePanel
               custom_fields: conversation.contact.custom_fields as Record<string, any> | null,
             }}
             activeTabId={activeTab}
+            contactDisplayId={(conversation.contact as any)?.contact_display_id ?? null}
           />
         )}
 

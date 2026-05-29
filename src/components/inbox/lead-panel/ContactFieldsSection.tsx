@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { InlineFieldCreator } from "@/components/contacts/InlineFieldCreator";
+import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 
 interface ContactFieldsSectionProps {
   contact: {
@@ -36,9 +37,10 @@ interface ContactFieldsSectionProps {
     custom_fields?: Record<string, any> | null;
   };
   activeTabId?: string | null;
+  contactDisplayId?: string | null;
 }
 
-export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSectionProps) => {
+export const ContactFieldsSection = ({ contact, activeTabId, contactDisplayId }: ContactFieldsSectionProps) => {
   const { contactFieldDefinitions, updateContactCustomFields, createField, deleteField } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
   const queryClient = useQueryClient();
@@ -308,6 +310,14 @@ export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSect
         <User className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="text-sm font-semibold text-muted-foreground truncate">Dados do Contato</span>
       </div>
+
+      {/* ID do Contato */}
+      {contactDisplayId && (
+        <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
+          <span className="text-xs font-medium text-foreground/70 shrink-0">ID do Contato</span>
+          <ContactIdBadge displayId={contactDisplayId} size="sm" />
+        </div>
+      )}
 
       {/* Nome Completo - Campo Editável */}
       <div className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/30 transition-colors border-b border-border/40 min-w-0 gap-2">
