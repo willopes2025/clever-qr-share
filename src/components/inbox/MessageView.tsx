@@ -512,77 +512,29 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle slash command navigation
-    if (slashCommandOpen) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        const totalItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
-        setSlashSelectedIndex(prev => 
-          Math.min(prev + 1, totalItems - 1)
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSlashSelectedIndex(prev => Math.max(prev - 1, 0));
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        if (isProcessingSlashRef.current) return;
-        if (slashSelectedIndex < filteredSlashTemplates.length) {
-          handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
-        } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
-          const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
-          if (filteredSlashMetaTemplates[metaIndex]) {
-            handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
-          }
-        } else {
-          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
-          if (filteredSlashFlows[flowIndex]) {
-            handleFlowSelect(filteredSlashFlows[flowIndex]);
-          }
-        }
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setSlashCommandOpen(false);
-        return;
-      }
-    }
-
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setNewMessage(value);
-    if (value.length > 0) notifyTyping();
-
-    
-    // Detect slash command trigger
-    const cursorPos = e.target.selectionStart || 0;
-    const textBeforeCursor = value.substring(0, cursorPos);
-    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/(\w*)$/);
-    
-    if (slashMatch) {
-      setSlashCommandOpen(true);
-      setSlashSearchTerm(slashMatch[1] || "");
-      setSlashSelectedIndex(0);
-    } else {
+  const handleSlashSearchChange = useCallback((searchTerm: string | null) => {
+    if (searchTerm === null) {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
+      return;
     }
-    
-    // Auto-resize
-    e.target.style.height = 'auto';
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-  };
+
+    setSlashCommandOpen(true);
+    setSlashSearchTerm(searchTerm);
+    setSlashSelectedIndex(0);
+  }, []);
+
+  const handleSlashNavigate = useCallback((direction: 1 | -1) => {
+    setSlashSelectedIndex(prev => {
+      if (direction > 0) return Math.min(prev + 1, totalSlashItems - 1);
+      return Math.max(prev - 1, 0);
+    });
+  }, [totalSlashItems]);
+
+  const handleSlashEscape = useCallback(() => {
+    setSlashCommandOpen(false);
+    setSlashSearchTerm("");
+  }, []);
 
   const handleSlashSelect = async (template: MessageTemplate) => {
     if (isProcessingSlashRef.current) return;
