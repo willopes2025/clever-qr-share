@@ -59,11 +59,13 @@ export interface FormSubmission {
   id: string;
   form_id: string;
   contact_id: string | null;
+  deal_id: string | null;
   user_id: string;
   data: Record<string, any>;
   metadata: Record<string, any> | null;
   created_at: string;
 }
+
 
 export interface FormWebhook {
   id: string;
