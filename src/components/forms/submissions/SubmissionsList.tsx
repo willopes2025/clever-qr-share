@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useFormSubmissions, FormField } from "@/hooks/useForms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
