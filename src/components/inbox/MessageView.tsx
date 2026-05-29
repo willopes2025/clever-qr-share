@@ -809,6 +809,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   };
 
+  const handleSlashConfirm = useCallback(() => {
+    if (isProcessingSlashRef.current) return;
+    if (slashSelectedIndex < filteredSlashTemplates.length) {
+      handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+    } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
+      const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
+      if (filteredSlashMetaTemplates[metaIndex]) {
+        handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
+      }
+    } else {
+      const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
+      if (filteredSlashFlows[flowIndex]) {
+        handleFlowSelect(filteredSlashFlows[flowIndex]);
+      }
+    }
+  }, [filteredSlashFlows, filteredSlashMetaTemplates, filteredSlashTemplates, slashSelectedIndex]);
+
   const handleEmojiSelect = (emoji: string) => {
     composerRef.current?.appendValue(emoji);
     composerRef.current?.focus();
