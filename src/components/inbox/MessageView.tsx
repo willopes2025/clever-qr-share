@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
+import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -49,6 +47,7 @@ import { useConversationPresence } from "@/hooks/useConversationPresence";
 import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
+import { MessageComposer, MessageComposerHandle } from "./MessageComposer";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
 import { useMetaTemplates, MetaTemplate } from "@/hooks/useMetaTemplates";
 import { useChatbotFlows, ChatbotFlow } from "@/hooks/useChatbotFlows";
