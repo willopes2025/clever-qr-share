@@ -434,7 +434,23 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         });
 
         if (!response.ok) {
-          throw new Error('Erro ao enviar formulário');
+          let serverMsg = '';
+          try {
+            const errJson = await response.clone().json();
+            serverMsg = (errJson && (errJson.error || errJson.message)) || '';
+          } catch (_) {
+            try { serverMsg = await response.text(); } catch (_) {}
+          }
+          const isNotFound = response.status === 404 ||
+            /n.o encontrado|not found/i.test(serverMsg || '');
+          const title = isNotFound ? 'Lead/contato não encontrado' : 'Não foi possível enviar';
+          const message = serverMsg && serverMsg.length < 300
+            ? serverMsg
+            : 'Não conseguimos localizar o lead ou contato informado. Verifique os dados e tente novamente.';
+          showErrorPopup(title, message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = '${escapeHtml(form.submit_button_text || 'Enviar')}';
+          return;
         }
 
         form.style.display = 'none';
@@ -450,7 +466,7 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
         }
       } catch (error) {
         console.error('Error:', error);
-        alert('Erro ao enviar formulário. Tente novamente.');
+        showErrorPopup('Não foi possível enviar', 'Erro ao enviar formulário. Verifique sua conexão e tente novamente.');
         submitBtn.disabled = false;
         submitBtn.textContent = '${escapeHtml(form.submit_button_text || 'Enviar')}';
       }
