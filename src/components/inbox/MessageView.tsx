@@ -532,6 +532,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setNewMessage(value);
+    if (value.length > 0) notifyTyping();
+
     
     // Detect slash command trigger
     const cursorPos = e.target.selectionStart || 0;
