@@ -12,6 +12,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { PageLoader } from "@/components/PageLoader";
 import { TimezoneBootstrap } from "@/components/TimezoneBootstrap";
+import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 
 
 // Lazy load all pages for code splitting
@@ -72,6 +73,7 @@ const App = () => (
       <AuthProvider>
         <SubscriptionProvider>
           <TimezoneBootstrap />
+          <WhatsNewDialog />
           <TooltipProvider>
             <Toaster />
             <Sonner />
