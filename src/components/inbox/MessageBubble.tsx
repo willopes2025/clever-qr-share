@@ -27,7 +27,7 @@ interface MessageBubbleProps {
   onReply?: (message: InboxMessage) => void;
 }
 
-export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply }: MessageBubbleProps) => {
+const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply }: MessageBubbleProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const isOutbound = message.direction === "outbound";
   const isFailed = message.status === "failed";
