@@ -1686,16 +1686,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           <FormLinkButton
             contactId={conversation.contact_id}
             conversationId={conversation.id}
-            onInsertMessage={(msg) => {
-              setNewMessage(msg);
-              textareaRef.current?.focus();
-              setTimeout(() => {
-                if (textareaRef.current) {
-                  textareaRef.current.style.height = 'auto';
-                  textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
-                }
-              }, 0);
-            }}
+            onInsertMessage={(msg) => composerRef.current?.setValue(msg)}
           />
           
           {/* Phone selector when contact has multiple phones */}
@@ -1731,24 +1722,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             );
           })()}
 
-          {/* Input container - pill style */}
-          <div className="relative flex-1 flex items-center bg-white dark:bg-[#2a3942] rounded-full px-3 py-1">
-            <Textarea
-              ref={textareaRef}
-              placeholder="Digite uma mensagem"
-              value={newMessage}
-              onChange={handleMessageChange}
-              onKeyDown={handleKeyDown}
-              className="w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-[100px] resize-none py-2 text-sm md:text-[15px] placeholder:text-[#667781]"
-              rows={1}
-            />
-          </div>
-
           {!isMobile && (
             <AIAssistantButton
               conversationId={conversation.id}
               onSuggestion={handleAISuggestion}
-              currentMessage={newMessage}
+              getCurrentMessage={() => composerRef.current?.getValue() ?? ""}
             />
           )}
 
@@ -1784,31 +1762,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                onClick={handleSend} 
-                disabled={!newMessage.trim() || !selectedInstanceId || isAutoCorrect}
-                size={isMobile ? "icon" : "default"}
-                className="shrink-0 min-w-[40px] md:min-w-[44px] relative"
-              >
-                {isAutoCorrect ? (
-                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 md:h-5 md:w-5" />
-                )}
-                {autoCorrectEnabled && !isAutoCorrect && (
-                  <SpellCheck className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-primary" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            {autoCorrectEnabled && (
-              <TooltipContent>
-                <p>Correção automática ativada</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
+
+          <MessageComposer
+            ref={composerRef}
+            textareaRef={textareaRef}
+            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
+            isMobile={isMobile}
+            isAutoCorrect={isAutoCorrect}
+            autoCorrectEnabled={autoCorrectEnabled}
+            slashCommandOpen={slashCommandOpen}
+            totalSlashItems={totalSlashItems}
+            onTyping={notifyTyping}
+            onSend={handleSend}
+            onSlashSearchChange={handleSlashSearchChange}
+            onSlashNavigate={handleSlashNavigate}
+            onSlashConfirm={handleSlashConfirm}
+            onSlashEscape={handleSlashEscape}
+          />
         </div>
         
         {!selectedInstanceId && connectedInstances.length > 0 && (
