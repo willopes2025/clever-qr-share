@@ -142,6 +142,11 @@ export const DashboardSidebar = () => {
     if (isLoadingOrg) return [];
     
     return items.filter(item => {
+      // Restrição por email (ex: features em desenvolvimento)
+      if (item.restrictedToEmails && item.restrictedToEmails.length > 0) {
+        const email = user?.email?.toLowerCase() ?? "";
+        if (!item.restrictedToEmails.map(e => e.toLowerCase()).includes(email)) return false;
+      }
       // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
       // Se não tem permissão definida, mostra o item
