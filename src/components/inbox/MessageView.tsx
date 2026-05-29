@@ -98,7 +98,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { profile } = useProfile();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [newMessage, setNewMessage] = useState("");
   const [selectedTargetPhone, setSelectedTargetPhone] = useState<string>("");
   const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
@@ -130,9 +129,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<MessageComposerHandle>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isScrolledToBottom = useRef(true);
   const isProcessingSlashRef = useRef(false);
+
+  // Get connected instances only
+  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
   // Stable refs for MessageBubble callbacks so memoization holds across re-renders.
   const selectedInstanceIdRef = useRef(selectedInstanceId);
@@ -153,7 +156,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
   const handleBubbleReply = useCallback((msg: InboxMessage) => {
     setReplyingTo(msg);
-    setTimeout(() => textareaRef.current?.focus(), 50);
+    setTimeout(() => composerRef.current?.focus(), 50);
   }, []);
 
   const instancePhoneNumberForBubble = useMemo(
@@ -161,9 +164,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedInstanceId, instances]
   );
-
-  // Get connected instances only
-  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
   // Filter active templates for slash commands
   const activeTemplates = useMemo(() => 
