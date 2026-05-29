@@ -25,6 +25,8 @@ const fontOptions = [
 
 export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
   const { updateForm } = useForms();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const [appearance, setAppearance] = useState({
     page_title: form.page_title || '',
     header_text: form.header_text || '',
