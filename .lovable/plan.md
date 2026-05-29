@@ -1,33 +1,42 @@
-# Capacidade por horário no campo Agendamento
+## Diagnóstico
 
-## Situação atual
+As mensagens "Padrão" do **Banco de Conteúdos** (aba `Padrão (0)` na tela de Aquecimento) são inseridas por um cron job diário.
 
-A opção que você descreveu **já existe** no formulário, dentro das configurações do campo "Agendamento", chamada **"Capacidade por horário (pessoas)"** (`max_per_slot`).
+**Arquivo:** `supabase/functions/generate-daily-warming-news/index.ts`
+**Cron:** `generate-daily-warming-news` agendado em `0 9 * * *` (diariamente às 9h UTC), criado na migration `20260115191524_b3a064cb...sql`.
 
-Ela funciona exatamente como você descreveu: o valor é uníssono — vale para todo o calendário daquele campo. A edge function `check-availability` já lê esse valor, conta quantas submissões existem por slot e bloqueia o horário quando a capacidade é atingida.
+O que ele faz a cada execução:
+- Chama o OpenAI e gera ~20 mensagens novas
+- Insere todas em `warming_content` com `user_id = '00000000-0000-0000-0000-000000000000'` (usuário "sistema") — que é exatamente o filtro usado pela aba **Padrão** em `WarmingContentManager.tsx` (linha 164).
 
-Hoje ela aparece como um campo numérico livre (mín. 1), o que pode estar passando despercebido.
+Resultado: quando o cliente deleta as mensagens padrão, no dia seguinte às 6h (Brasil) o cron regenera ~20 novas e elas voltam a aparecer na aba "Padrão". A exclusão funciona corretamente (a policy `Authenticated users can delete default warming content` existe), mas não há nada que impeça o cron de repovoar a tabela.
 
-## Proposta
+A geração via botão **"Gerar com IA"** (em `useGenerateWarmingContent`) salva com `user_id = user.id` e vira "Meus Conteúdos" — esses são apagados pelo usuário e **não** retornam, pois nenhum job recria conteúdos por usuário.
 
-Tornar a opção mais visível e "à prova de erro", trocando o input numérico por um **seletor com opções predefinidas**, já que você descreveu como "selecionar uma opção".
+## Solução proposta
 
-### Mudanças
+Desativar a geração automática diária de conteúdo padrão. O cliente continua podendo gerar mensagens manualmente pelo botão "Gerar com IA" (que cria como "Meus Conteúdos" e respeita a exclusão).
 
-1. **`src/components/forms/builder/FieldProperties.tsx`** — bloco das configurações de agendamento:
-   - Substituir o `<Input type="number">` do `max_per_slot` por um `<Select>` com as opções:
-     - 1 pessoa por horário (padrão — exclusivo)
-     - 2 pessoas
-     - 3 pessoas
-     - 5 pessoas
-     - 10 pessoas
-     - Ilimitado (valor alto, ex. `9999`)
-   - Manter o texto auxiliar explicando que o limite vale para todos os dias/horários do calendário desse formulário.
-   - Renomear o label para algo mais claro: **"Quantos agendamentos por horário"**.
+### Passos
 
-2. **Nada muda no backend** — a edge function `check-availability` já respeita `max_per_slot`, então apenas a UI fica mais clara.
+1. **Migration** para remover o agendamento:
+   ```sql
+   SELECT cron.unschedule('generate-daily-warming-news');
+   ```
+   (Mantemos o agendamento `auto-pair-warming-pool` intacto.)
 
-## Fora do escopo
+2. **Limpar os conteúdos padrão existentes** (opcional, evita que o cliente precise apagar manualmente o que já está na tabela):
+   ```sql
+   DELETE FROM public.warming_content
+   WHERE user_id = '00000000-0000-0000-0000-000000000000';
+   ```
 
-- Limites diferentes por dia da semana ou por horário (você confirmou que a regra é uníssona).
-- Mudanças na lógica de disponibilidade ou no formulário público.
+3. **Edge function** `generate-daily-warming-news`: pode ser mantida (não causa mais dano sem o cron) ou deletada. Recomendo **deletar** para evitar reativação acidental.
+
+### Alternativa (caso queira manter o recurso opcional)
+
+Em vez de remover, posso adicionar uma flag `disable_default_seed` por organização e fazer o cron filtrar — mas isso é bem mais código. Recomendo a abordagem de remover, já que o cliente quer que apagado **não volte**.
+
+## Confirmação
+
+Você quer que eu siga com a opção **remover o cron + apagar conteúdos padrão existentes + deletar a edge function**? Ou prefere apenas desabilitar o cron e manter o restante?
