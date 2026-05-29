@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
 import { Send, Loader2, SpellCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +14,7 @@ export interface MessageComposerHandle {
 }
 
 interface MessageComposerProps {
-  textareaRef: React.RefObject<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement>;
   disabled?: boolean;
   isMobile?: boolean;
   isAutoCorrect?: boolean;
@@ -80,7 +81,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     focus: () => textareaRef.current?.focus(),
   }), [onSlashSearchChange, textareaRef, updateValue]);
 
-  const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     const nextValue = event.target.value;
     valueRef.current = nextValue;
     setValue(nextValue);
@@ -106,7 +107,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     event.target.style.height = `${Math.min(event.target.scrollHeight, 150)}px`;
   };
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashCommandOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
