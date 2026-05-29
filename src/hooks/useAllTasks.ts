@@ -13,9 +13,10 @@ export interface AllTaskItem extends UnifiedTask {
 
 export const useAllTasks = () => {
   const { user } = useAuth();
-  const { organization, checkPermission } = useOrganization();
-  
-  const isOrgAdmin = organization ? checkPermission('manage_settings') : true;
+  const { organization, isAdmin, isOwner } = useOrganization();
+
+  // Admins e owner veem todas as tarefas da organização; membros veem apenas as próprias
+  const isOrgAdmin = organization ? (isAdmin || isOwner) : true;
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['all-tasks', user?.id, isOrgAdmin],
