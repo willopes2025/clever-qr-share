@@ -381,11 +381,32 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     </div>
   </div>
 
+  <div id="error-popup-overlay" class="error-popup-overlay" role="dialog" aria-modal="true">
+    <div class="error-popup">
+      <div class="error-popup-icon">!</div>
+      <h3 id="error-popup-title">Não foi possível enviar</h3>
+      <p id="error-popup-message">Ocorreu um erro ao enviar o formulário.</p>
+      <button type="button" id="error-popup-close">Entendi</button>
+    </div>
+  </div>
+
   <script>
     const form = document.getElementById('public-form');
     const successMessage = document.getElementById('success-message');
     const submitBtn = form.querySelector('.submit-btn');
     const redirectUrl = ${form.redirect_url ? `"${escapeHtml(form.redirect_url)}"` : 'null'};
+    const errorOverlay = document.getElementById('error-popup-overlay');
+    const errorTitleEl = document.getElementById('error-popup-title');
+    const errorMessageEl = document.getElementById('error-popup-message');
+    const errorCloseBtn = document.getElementById('error-popup-close');
+    function showErrorPopup(title, message) {
+      errorTitleEl.textContent = title || 'Não foi possível enviar';
+      errorMessageEl.textContent = message || 'Ocorreu um erro ao enviar o formulário.';
+      errorOverlay.classList.add('visible');
+    }
+    function hideErrorPopup() { errorOverlay.classList.remove('visible'); }
+    errorCloseBtn.addEventListener('click', hideErrorPopup);
+    errorOverlay.addEventListener('click', function(e) { if (e.target === errorOverlay) hideErrorPopup(); });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
