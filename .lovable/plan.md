@@ -1,43 +1,58 @@
-## Problema
+# Corrigir lag ao digitar no campo de mensagem (Inbox)
 
-Com 2 usuários diferentes na mesma conversa, nem os avatares de presença no topo, nem o indicador "está digitando" acima do input aparecem. O código de renderização e o hook `useConversationPresence` existem e estão integrados em `MessageView.tsx` (linhas 88, 535, 1079-1083, 1553-1555), então o problema é no fluxo do canal Realtime (subscribe/presence/broadcast), não na UI.
+## Diagnóstico
 
-## Causa provável
+`src/components/inbox/MessageView.tsx` tem **1875 linhas** e mantém o estado `newMessage` no topo do componente (linha 102). A cada tecla digitada:
 
-O canal `supabase.channel('conversation-presence:<id>')` está sendo criado mas:
-- `subscribe()` pode não estar atingindo `SUBSCRIBED` (sem logs hoje, não dá pra confirmar).
-- `channel.send(...)` em `notifyTyping` dispara antes do canal estar `SUBSCRIBED`, e a mensagem é descartada silenciosamente.
-- `presence sync` pode estar disparando antes do outro usuário rastrear (`track`), sem novo sync depois.
+1. `handleMessageChange` chama `setNewMessage(value)` (linha 534).
+2. O componente inteiro re-renderiza — incluindo a lista de mensagens, bubbles, mídia, presença, sidebar etc.
+3. Em conversas longas (ex.: João Luiz, com histórico grande), esse re-render custa dezenas a centenas de ms por tecla, gerando o atraso visível.
 
-Hoje o hook não tem nenhum `console.log` nem trata `presence join/leave` (só `sync`), o que torna difícil diagnosticar e fragiliza a detecção de novos participantes.
+O `notifyTyping` em si não é o gargalo (tem debounce de 1500ms), mas o `console.log` em todo broadcast e os re-renders pesados amplificam o problema.
 
-## Mudanças
+## Solução
 
-### 1. `src/hooks/useConversationPresence.ts`
+Isolar o composer em um componente filho com **estado local próprio**, para que digitar não re-renderize a árvore inteira do `MessageView`.
 
-- Adicionar logs temporários com prefixo `[presence]`:
-  - Status do `subscribe` (`SUBSCRIBED`, `CHANNEL_ERROR`, `TIMED_OUT`, `CLOSED`).
-  - Erro no `track()` (se `Promise` rejeitar).
-  - Cada `presence sync/join/leave` com a lista resultante.
-  - Cada `broadcast typing` recebido e enviado.
-- Tratar também os eventos `presence join` e `presence leave` (não só `sync`) para atualizar `others` imediatamente quando outro usuário entra.
-- Marcar um `isSubscribedRef` que vira `true` só após `SUBSCRIBED`. `notifyTyping` só envia se `isSubscribedRef.current === true`; caso contrário, ignora (sem enfileirar — typing é efêmero).
-- Garantir que o `track()` só roda depois de `SUBSCRIBED` (já é o caso) e logar se `track` retornar erro.
+### 1. Criar `src/components/inbox/MessageComposer.tsx`
 
-### 2. Nenhuma mudança em UI
+Novo componente memoizado que:
 
-`PresenceAvatars`, `UserTypingIndicator` e `MessageView` continuam iguais — a UI já está correta, o problema é no transporte.
+- Mantém `value` em estado interno (`useState` local), evitando re-render do pai a cada tecla.
+- Recebe via props: `onSend(text)`, `onTypingHint()` (chama `notifyTyping`), `onSlashCommand(query|null)`, `disabled`, `placeholder`, `initialValue` (para limpar/preencher via key/imperative).
+- Encapsula: textarea, botão enviar, emoji picker, anexo, áudio, autocomplete de slash command (UI), `handleKeyDown` (Enter envia).
+- Expõe um `ref` imperativo (`useImperativeHandle`) com `setText(text)`, `insertText(text)`, `clear()`, `focus()` — usado pelo pai para casos como AI sugerir mensagem, template, etc.
+- Envolto em `React.memo` com props estáveis.
 
-### 3. Validação
+### 2. Ajustar `MessageView.tsx`
 
-Após o deploy, abrir a mesma conversa em 2 navegadores com usuários diferentes e checar o console:
-- Esperado: ambos logam `[presence] SUBSCRIBED`, depois `[presence] sync` listando o outro user, e ao digitar, `[presence] broadcast typing sent` / `received`.
-- Se algum desses faltar, o log dirá exatamente onde quebrou (subscribe, presence ou broadcast) e a correção definitiva vem em seguida (ex.: habilitar Realtime, ajustar config do canal, ou usar `presence join` em vez de só `sync`).
+- Remover `useState newMessage` e todas as derivações dependentes da digitação contínua.
+- Substituir o bloco do textarea (~linhas 1749–1810) por `<MessageComposer ref={composerRef} ... />`.
+- Onde hoje se faz `setNewMessage(...)` programaticamente (AI, template, reply, etc.), trocar por `composerRef.current?.setText(...)` ou `insertText`.
+- O botão "enviar" e o disable passam a viver dentro do composer (ele já conhece o texto). `selectedInstanceId` / `hasValidSender` viram props.
+- `handleSend` recebe o texto como argumento vindo do composer, em vez de ler do estado do pai.
 
-Os logs são temporários e serão removidos assim que a causa for confirmada e corrigida.
+### 3. Limpar logs ruidosos do presence
 
-## Fora de escopo
+Em `src/hooks/useConversationPresence.ts`, remover/condicionar os `console.log` de `sync`, `join`, `leave`, `broadcast typing received/sent`, `track result`, `subscribe status`, `creating channel`, `others now`. Eles disparam a cada keystroke remoto e poluem o devtools. Manter apenas warnings de erro real.
 
-- Mudar UI dos avatares/indicador.
-- Mexer em RLS, edge functions ou banco.
-- Persistir presença/digitação no banco.
+## Detalhes técnicos
+
+- O `notifyTyping` continua sendo chamado no `onChange` interno do composer; como o pai não re-renderiza, o custo cai para apenas o re-render do próprio composer (textarea + autocomplete).
+- `useImperativeHandle` é necessário porque hoje várias ações do pai (AI agent, templates, quick replies, slash commands aplicados, reply-to) escrevem no campo. Mantemos esse contrato sem voltar o estado para o pai.
+- Manter compatibilidade com `VoiceRecorder`, `MediaUploadButton`, `EmojiPicker`, `SlashCommandPopup` movendo-os para dentro do composer.
+- Não alterar lógica de envio, presença, realtime ou backend — apenas onde o estado de texto vive.
+
+## Arquivos afetados
+
+- `src/components/inbox/MessageComposer.tsx` (novo)
+- `src/components/inbox/MessageView.tsx` (refator do bloco do composer + remoção do `newMessage` state)
+- `src/hooks/useConversationPresence.ts` (limpar `console.log`)
+
+## Validação
+
+- Digitar rapidamente em uma conversa longa: as letras devem aparecer instantaneamente.
+- Enviar mensagem (Enter e botão), shift+Enter quebra linha.
+- Slash command (`/`) abre popup e insere template.
+- Botões: emoji, anexo, áudio, AI ("Acionar IA") — continuam funcionais.
+- Indicador de "digitando" para o outro usuário continua aparecendo.

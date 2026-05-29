@@ -135,6 +135,34 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const isScrolledToBottom = useRef(true);
   const isProcessingSlashRef = useRef(false);
 
+  // Stable refs for MessageBubble callbacks so memoization holds across re-renders.
+  const selectedInstanceIdRef = useRef(selectedInstanceId);
+  selectedInstanceIdRef.current = selectedInstanceId;
+  const conversationIdRef = useRef(conversation.id);
+  conversationIdRef.current = conversation.id;
+  const sendReactionRef = useRef(sendReaction);
+  sendReactionRef.current = sendReaction;
+
+  const handleBubbleReact = useCallback((messageId: string, emoji: string) => {
+    sendReactionRef.current.mutate({
+      messageId,
+      emoji,
+      conversationId: conversationIdRef.current,
+      instanceId: selectedInstanceIdRef.current,
+    });
+  }, []);
+
+  const handleBubbleReply = useCallback((msg: InboxMessage) => {
+    setReplyingTo(msg);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, []);
+
+  const instancePhoneNumberForBubble = useMemo(
+    () => connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedInstanceId, instances]
+  );
+
   // Get connected instances only
   const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
@@ -1505,19 +1533,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                     <MessageBubble
                       message={message}
                       isOptimistic={'isOptimistic' in message}
-                      instancePhoneNumber={connectedInstances.find(i => i.id === selectedInstanceId)?.phone_number}
-                      onReact={(messageId, emoji) => {
-                        sendReaction.mutate({
-                          messageId,
-                          emoji,
-                          conversationId: conversation.id,
-                          instanceId: selectedInstanceId,
-                        });
-                      }}
-                      onReply={(msg) => {
-                        setReplyingTo(msg);
-                        setTimeout(() => textareaRef.current?.focus(), 50);
-                      }}
+                      instancePhoneNumber={instancePhoneNumberForBubble}
+                      onReact={handleBubbleReact}
+                      onReply={handleBubbleReply}
                     />
                   </Fragment>
                 );

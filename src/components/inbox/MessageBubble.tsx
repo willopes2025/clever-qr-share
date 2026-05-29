@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy, Reply } from "lucide-react";
@@ -27,7 +27,7 @@ interface MessageBubbleProps {
   onReply?: (message: InboxMessage) => void;
 }
 
-export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply }: MessageBubbleProps) => {
+const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, onReact, onReply }: MessageBubbleProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const isOutbound = message.direction === "outbound";
   const isFailed = message.status === "failed";
@@ -299,3 +299,11 @@ export const MessageBubble = ({ message, isOptimistic, instancePhoneNumber, onRe
     </div>
   );
 };
+
+export const MessageBubble = memo(MessageBubbleComponent, (prev, next) => {
+  if (prev.message !== next.message) return false;
+  if (prev.isOptimistic !== next.isOptimistic) return false;
+  if (prev.instancePhoneNumber !== next.instancePhoneNumber) return false;
+  // ignore callback identity — handlers in parent recreate every render but logically stable
+  return true;
+});
