@@ -25,6 +25,8 @@ import { useAsaas } from "@/hooks/useAsaas";
 import { useSsotica } from "@/hooks/useSsotica";
 import { useActivitySession } from "@/hooks/useActivitySession";
 
+const RESTRICTED_EMAILS = ["contato@wideic.com"];
+
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -33,6 +35,7 @@ interface NavItem {
   showBadge?: boolean;
   badgeKey?: string;
   premiumOnly?: boolean;
+  restrictedToEmails?: string[];
 }
 
 interface NavGroup {
