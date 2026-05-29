@@ -627,7 +627,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       
       // Send text automatically if there's content
       if (finalText.trim()) {
-        setNewMessage("");
+        composerRef.current?.clear();
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
@@ -677,7 +677,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
     
     // Template WITHOUT media: keep current behavior (text in input, user sends manually)
-    setNewMessage(finalText);
+    composerRef.current?.setValue(finalText);
     
     // Focus and resize
     textareaRef.current?.focus();
@@ -699,7 +699,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     try {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
-      setNewMessage("");
+      composerRef.current?.clear();
 
       if (!selectedMetaNumberId) {
         toast.error("Selecione um número Meta primeiro");
@@ -775,7 +775,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleFlowSelect = async (flow: ChatbotFlow) => {
     setSlashCommandOpen(false);
     setSlashSearchTerm("");
-    setNewMessage("");
+    composerRef.current?.clear();
 
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
@@ -810,13 +810,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    setNewMessage(prev => prev + emoji);
-    textareaRef.current?.focus();
+    composerRef.current?.appendValue(emoji);
+    composerRef.current?.focus();
   };
 
   const handleAISuggestion = (text: string) => {
-    setNewMessage(text);
-    textareaRef.current?.focus();
+    composerRef.current?.setValue(text);
+    composerRef.current?.focus();
     // Trigger resize after setting text
     setTimeout(() => {
       if (textareaRef.current) {
