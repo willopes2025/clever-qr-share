@@ -37,6 +37,7 @@ export function useConversationPresence(conversationId: string | null | undefine
   const [typingMap, setTypingMap] = useState<Record<string, PresenceUser>>({});
   const channelRef = useRef<RealtimeChannel | null>(null);
   const selfRef = useRef<SelfInfo | null>(null);
+  const isSubscribedRef = useRef<boolean>(false);
   const lastTypingSentRef = useRef<number>(0);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -51,37 +52,55 @@ export function useConversationPresence(conversationId: string | null | undefine
       if (!self || cancelled) return;
       selfRef.current = self;
 
-      channel = supabase.channel(`conversation-presence:${conversationId}`, {
+      const channelName = `conversation-presence:${conversationId}`;
+      console.log("[presence] creating channel", channelName, "as", self.user_id, self.full_name);
+
+      channel = supabase.channel(channelName, {
         config: { presence: { key: self.user_id } },
       });
 
-      channel
-        .on("presence", { event: "sync" }, () => {
-          if (!channel) return;
-          const state = channel.presenceState<PresenceUser>();
-          const list: PresenceUser[] = [];
-          const seen = new Set<string>();
-          Object.values(state).forEach((entries) => {
-            entries.forEach((entry) => {
-              if (!entry?.user_id) return;
-              if (entry.user_id === self.user_id) return;
-              if (seen.has(entry.user_id)) return;
-              seen.add(entry.user_id);
-              list.push({
-                user_id: entry.user_id,
-                full_name: entry.full_name,
-                avatar_url: entry.avatar_url ?? null,
-              });
+      const recomputeOthers = () => {
+        if (!channel) return;
+        const state = channel.presenceState<PresenceUser>();
+        const list: PresenceUser[] = [];
+        const seen = new Set<string>();
+        Object.values(state).forEach((entries) => {
+          entries.forEach((entry) => {
+            if (!entry?.user_id) return;
+            if (entry.user_id === self.user_id) return;
+            if (seen.has(entry.user_id)) return;
+            seen.add(entry.user_id);
+            list.push({
+              user_id: entry.user_id,
+              full_name: entry.full_name,
+              avatar_url: entry.avatar_url ?? null,
             });
           });
-          setOthers(list);
-          setTypingMap((prev) => {
-            const next: typeof prev = {};
-            for (const u of list) if (prev[u.user_id]) next[u.user_id] = prev[u.user_id];
-            return next;
-          });
+        });
+        console.log("[presence] others now =", list.length, list);
+        setOthers(list);
+        setTypingMap((prev) => {
+          const next: typeof prev = {};
+          for (const u of list) if (prev[u.user_id]) next[u.user_id] = prev[u.user_id];
+          return next;
+        });
+      };
+
+      channel
+        .on("presence", { event: "sync" }, () => {
+          console.log("[presence] sync");
+          recomputeOthers();
+        })
+        .on("presence", { event: "join" }, ({ key, newPresences }) => {
+          console.log("[presence] join", key, newPresences);
+          recomputeOthers();
+        })
+        .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+          console.log("[presence] leave", key, leftPresences);
+          recomputeOthers();
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
+          console.log("[presence] broadcast typing received", payload);
           const p = payload as { user_id: string; is_typing: boolean; full_name?: string; avatar_url?: string | null };
           if (!p?.user_id || p.user_id === self.user_id) return;
 
@@ -115,14 +134,23 @@ export function useConversationPresence(conversationId: string | null | undefine
             });
           }
         })
-        .subscribe(async (status) => {
+        .subscribe(async (status, err) => {
+          console.log("[presence] subscribe status =", status, err ?? "");
           if (status === "SUBSCRIBED" && channel) {
-            await channel.track({
-              user_id: self.user_id,
-              full_name: self.full_name,
-              avatar_url: self.avatar_url,
-              joined_at: new Date().toISOString(),
-            });
+            isSubscribedRef.current = true;
+            try {
+              const trackRes = await channel.track({
+                user_id: self.user_id,
+                full_name: self.full_name,
+                avatar_url: self.avatar_url,
+                joined_at: new Date().toISOString(),
+              });
+              console.log("[presence] track result =", trackRes);
+            } catch (e) {
+              console.error("[presence] track threw", e);
+            }
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            isSubscribedRef.current = false;
           }
         });
 
@@ -131,6 +159,7 @@ export function useConversationPresence(conversationId: string | null | undefine
 
     return () => {
       cancelled = true;
+      isSubscribedRef.current = false;
       if (stopTimerRef.current) {
         clearTimeout(stopTimerRef.current);
         stopTimerRef.current = null;
@@ -153,10 +182,18 @@ export function useConversationPresence(conversationId: string | null | undefine
   const notifyTyping = useCallback(() => {
     const ch = channelRef.current;
     const self = selfRef.current;
-    if (!ch || !self) return;
+    if (!ch || !self) {
+      console.log("[presence] notifyTyping skipped: no channel/self");
+      return;
+    }
+    if (!isSubscribedRef.current) {
+      console.log("[presence] notifyTyping skipped: not subscribed yet");
+      return;
+    }
     const now = Date.now();
     if (now - lastTypingSentRef.current > 1500) {
       lastTypingSentRef.current = now;
+      console.log("[presence] broadcast typing sent (true)");
       ch.send({
         type: "broadcast",
         event: "typing",
@@ -171,6 +208,7 @@ export function useConversationPresence(conversationId: string | null | undefine
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
     stopTimerRef.current = setTimeout(() => {
       lastTypingSentRef.current = 0;
+      console.log("[presence] broadcast typing sent (false)");
       ch.send({
         type: "broadcast",
         event: "typing",
