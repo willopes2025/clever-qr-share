@@ -331,6 +331,35 @@ function generateFormHTML(form: any, fields: any[], staticParams: { key: string;
     .slot-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); }
     .slots-loading { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
     .slots-empty { text-align: center; color: #9ca3af; font-size: 0.85rem; padding: 1rem; }
+    /* Error popup */
+    .error-popup-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 9999; padding: 1rem; animation: fadeIn 0.15s ease-out;
+    }
+    .error-popup-overlay.visible { display: flex; }
+    .error-popup {
+      background: #fff; border-radius: 14px; max-width: 420px; width: 100%;
+      padding: 1.75rem 1.5rem 1.25rem; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: popIn 0.2s ease-out;
+    }
+    .error-popup-icon {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #fef2f2; color: #ef4444;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem; font-size: 1.75rem; font-weight: 700;
+    }
+    .error-popup h3 { font-size: 1.15rem; font-weight: 600; color: #111; margin-bottom: 0.5rem; }
+    .error-popup p { color: #555; font-size: 0.95rem; margin-bottom: 1.25rem; line-height: 1.45; }
+    .error-popup button {
+      background: var(--primary-color); color: #fff; border: none;
+      padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.95rem;
+      font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    .error-popup button:hover { opacity: 0.9; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
   </style>
 </head>
 <body>
