@@ -349,11 +349,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const useMetaSender = isMetaConversation && !metaUsingEvoInstance;
   const effectiveInstanceId = metaUsingEvoInstance ? selectedInstanceId : (isMetaConversation ? selectedMetaNumberId : selectedInstanceId);
 
-  const handleSend = async () => {
+  const handleSend = async (messageText?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
-    if (!newMessage.trim() || !hasValidSender) return;
+    const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
+    if (!textToSend || !hasValidSender) return;
 
-    let messageContent = newMessage.trim();
+    let messageContent = textToSend;
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     
     // Se correção automática está ativada, corrigir antes de enviar
@@ -410,7 +411,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     };
     
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    setNewMessage(""); // Clear immediately
+    composerRef.current?.clear();
     
     // Reset textarea height
     if (textareaRef.current) {
@@ -420,7 +421,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     setTimeout(() => scrollToBottom("smooth"), 50);
     
     // Focus back to textarea immediately
-    textareaRef.current?.focus();
+    composerRef.current?.focus();
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
