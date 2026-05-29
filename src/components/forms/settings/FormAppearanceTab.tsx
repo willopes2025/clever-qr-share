@@ -68,6 +68,35 @@ export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
     });
   };
 
+  const handleFileUpload = async (file: File, field: 'logo_url' | 'og_image_url') => {
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+      toast({ title: 'Formato inválido', description: 'Envie um arquivo PNG, JPEG, WEBP ou SVG.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'O tamanho máximo é 5MB.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `${form.id}/${field}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('form-assets').upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('form-assets').getPublicUrl(path);
+      setAppearance((prev) => ({ ...prev, [field]: data.publicUrl }));
+      toast({ title: 'Imagem enviada', description: 'Lembre de salvar para aplicar as alterações.' });
+    } catch (err: any) {
+      toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const hasChanges = JSON.stringify(appearance) !== JSON.stringify({
     page_title: form.page_title || '',
     header_text: form.header_text || '',
