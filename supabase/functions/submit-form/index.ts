@@ -1065,7 +1065,20 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  console.log(`Form submission saved: ${submission.id} for form ${formId}`);
+  // Persist the resulting deal id on the submission so the UI can sync
+  // edits/deletes of the response back to the lead card.
+  if (resultingDealId) {
+    try {
+      await supabase
+        .from('form_submissions')
+        .update({ deal_id: resultingDealId })
+        .eq('id', submission.id);
+    } catch (linkErr) {
+      console.error('Error linking submission to deal:', linkErr);
+    }
+  }
+
+  console.log(`Form submission saved: ${submission.id} for form ${formId} (deal_id=${resultingDealId ?? 'none'})`);
 
     return new Response(
       JSON.stringify({ 
