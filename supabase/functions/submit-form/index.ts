@@ -621,6 +621,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Track which deal (lead card) this submission ends up creating/updating
+    // so we can sync edits/deletes from the Submissions tab back to the card.
+    let resultingDealId: string | null = null;
+
+
+
     // Trigger webhooks (if any configured)
     const { data: webhooks } = await supabase
       .from('form_webhooks')
