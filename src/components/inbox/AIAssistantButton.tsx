@@ -14,6 +14,7 @@ interface AIAssistantButtonProps {
   conversationId: string;
   onSuggestion: (text: string) => void;
   currentMessage?: string;
+  getCurrentMessage?: () => string;
   disabled?: boolean;
 }
 
@@ -26,16 +27,18 @@ const rewriteTones = [
   { id: 'correction', label: 'Correção', description: 'Apenas ortografia e gramática', icon: '✏️' },
 ];
 
-export const AIAssistantButton = ({ conversationId, onSuggestion, currentMessage, disabled }: AIAssistantButtonProps) => {
+export const AIAssistantButton = ({ conversationId, onSuggestion, currentMessage, getCurrentMessage, disabled }: AIAssistantButtonProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<AIAction | null>(null);
   const [result, setResult] = useState<{ action: AIAction; content: string } | null>(null);
   const [showRewriteOptions, setShowRewriteOptions] = useState(false);
   const [rewriteLoading, setRewriteLoading] = useState<string | null>(null);
 
+  const resolveCurrentMessage = () => getCurrentMessage?.() ?? currentMessage ?? "";
+
   const handleAction = async (action: AIAction, tone?: string) => {
     if (action === 'rewrite') {
-      if (!currentMessage?.trim()) {
+      if (!resolveCurrentMessage().trim()) {
         toast.error("Digite uma mensagem primeiro para reescrever");
         return;
       }
@@ -72,7 +75,8 @@ export const AIAssistantButton = ({ conversationId, onSuggestion, currentMessage
   };
 
   const handleRewrite = async (tone: string) => {
-    if (!currentMessage?.trim()) {
+    const messageToRewrite = resolveCurrentMessage();
+    if (!messageToRewrite.trim()) {
       toast.error("Digite uma mensagem primeiro para reescrever");
       return;
     }
@@ -81,7 +85,7 @@ export const AIAssistantButton = ({ conversationId, onSuggestion, currentMessage
 
     try {
       const { data, error } = await supabase.functions.invoke('inbox-ai-assistant', {
-        body: { conversationId, action: 'rewrite', tone, originalMessage: currentMessage }
+        body: { conversationId, action: 'rewrite', tone, originalMessage: messageToRewrite }
       });
 
       if (error) throw error;

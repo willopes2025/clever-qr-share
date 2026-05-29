@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, useCallback, Fragment, useMemo } from "react";
-import { Send, Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, SpellCheck, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
+import { Smartphone, Edit2, Check, X, User, Bot, Pause, Play, Loader2, Sparkles, ArrowRightLeft, MessageSquare, StickyNote, CheckSquare, Users, ArrowLeft, MoreVertical, UserCheck, Cloud, Phone, MailCheck } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { ConversationCardHeader } from "./ConversationCard";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -49,6 +47,7 @@ import { useConversationPresence } from "@/hooks/useConversationPresence";
 import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
+import { MessageComposer, MessageComposerHandle } from "./MessageComposer";
 import { useMessageTemplates, MessageTemplate } from "@/hooks/useMessageTemplates";
 import { useMetaTemplates, MetaTemplate } from "@/hooks/useMetaTemplates";
 import { useChatbotFlows, ChatbotFlow } from "@/hooks/useChatbotFlows";
@@ -99,7 +98,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { profile } = useProfile();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [newMessage, setNewMessage] = useState("");
   const [selectedTargetPhone, setSelectedTargetPhone] = useState<string>("");
   const isMetaConversation = conversation.provider === 'meta';
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>(
@@ -131,9 +129,13 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<MessageComposerHandle>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isScrolledToBottom = useRef(true);
   const isProcessingSlashRef = useRef(false);
+
+  // Get connected instances only
+  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
   // Stable refs for MessageBubble callbacks so memoization holds across re-renders.
   const selectedInstanceIdRef = useRef(selectedInstanceId);
@@ -154,7 +156,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
   const handleBubbleReply = useCallback((msg: InboxMessage) => {
     setReplyingTo(msg);
-    setTimeout(() => textareaRef.current?.focus(), 50);
+    setTimeout(() => composerRef.current?.focus(), 50);
   }, []);
 
   const instancePhoneNumberForBubble = useMemo(
@@ -162,9 +164,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedInstanceId, instances]
   );
-
-  // Get connected instances only
-  const connectedInstances = instances?.filter(i => i.status === 'connected') || [];
 
   // Filter active templates for slash commands
   const activeTemplates = useMemo(() => 
@@ -213,6 +212,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       (flow.description || '').toLowerCase().includes(search)
     );
   }, [activeFlows, slashSearchTerm]);
+
+  const totalSlashItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
 
   // Set default instance/meta number ONLY when conversation changes (by id)
   const conversationId = conversation.id;
@@ -348,11 +349,12 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const useMetaSender = isMetaConversation && !metaUsingEvoInstance;
   const effectiveInstanceId = metaUsingEvoInstance ? selectedInstanceId : (isMetaConversation ? selectedMetaNumberId : selectedInstanceId);
 
-  const handleSend = async () => {
+  const handleSend = async (messageText?: string) => {
     const hasValidSender = useMetaSender ? !!selectedMetaNumberId : !!selectedInstanceId;
-    if (!newMessage.trim() || !hasValidSender) return;
+    const textToSend = (messageText ?? composerRef.current?.getValue() ?? "").trim();
+    if (!textToSend || !hasValidSender) return;
 
-    let messageContent = newMessage.trim();
+    let messageContent = textToSend;
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     
     // Se correção automática está ativada, corrigir antes de enviar
@@ -409,7 +411,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     };
     
     setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    setNewMessage(""); // Clear immediately
+    composerRef.current?.clear();
     
     // Reset textarea height
     if (textareaRef.current) {
@@ -419,7 +421,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     setTimeout(() => scrollToBottom("smooth"), 50);
     
     // Focus back to textarea immediately
-    textareaRef.current?.focus();
+    composerRef.current?.focus();
 
     // Send in background - no await blocking
     const targetPhone = selectedTargetPhone || undefined;
@@ -510,77 +512,29 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle slash command navigation
-    if (slashCommandOpen) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        const totalItems = filteredSlashTemplates.length + filteredSlashMetaTemplates.length + filteredSlashFlows.length;
-        setSlashSelectedIndex(prev => 
-          Math.min(prev + 1, totalItems - 1)
-        );
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSlashSelectedIndex(prev => Math.max(prev - 1, 0));
-        return;
-      }
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        if (isProcessingSlashRef.current) return;
-        if (slashSelectedIndex < filteredSlashTemplates.length) {
-          handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
-        } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
-          const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
-          if (filteredSlashMetaTemplates[metaIndex]) {
-            handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
-          }
-        } else {
-          const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
-          if (filteredSlashFlows[flowIndex]) {
-            handleFlowSelect(filteredSlashFlows[flowIndex]);
-          }
-        }
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setSlashCommandOpen(false);
-        return;
-      }
-    }
-
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setNewMessage(value);
-    if (value.length > 0) notifyTyping();
-
-    
-    // Detect slash command trigger
-    const cursorPos = e.target.selectionStart || 0;
-    const textBeforeCursor = value.substring(0, cursorPos);
-    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/(\w*)$/);
-    
-    if (slashMatch) {
-      setSlashCommandOpen(true);
-      setSlashSearchTerm(slashMatch[1] || "");
-      setSlashSelectedIndex(0);
-    } else {
+  const handleSlashSearchChange = useCallback((searchTerm: string | null) => {
+    if (searchTerm === null) {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
+      return;
     }
-    
-    // Auto-resize
-    e.target.style.height = 'auto';
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-  };
+
+    setSlashCommandOpen(true);
+    setSlashSearchTerm(searchTerm);
+    setSlashSelectedIndex(0);
+  }, []);
+
+  const handleSlashNavigate = useCallback((direction: 1 | -1) => {
+    setSlashSelectedIndex(prev => {
+      if (direction > 0) return Math.min(prev + 1, totalSlashItems - 1);
+      return Math.max(prev - 1, 0);
+    });
+  }, [totalSlashItems]);
+
+  const handleSlashEscape = useCallback(() => {
+    setSlashCommandOpen(false);
+    setSlashSearchTerm("");
+  }, []);
 
   const handleSlashSelect = async (template: MessageTemplate) => {
     if (isProcessingSlashRef.current) return;
@@ -595,9 +549,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       return;
     }
 
-    const cursorPos = textareaRef.current?.selectionStart || newMessage.length;
-    const textBeforeCursor = newMessage.substring(0, cursorPos);
-    const textAfterCursor = newMessage.substring(cursorPos);
+    const currentMessage = composerRef.current?.getValue() ?? "";
+    const cursorPos = textareaRef.current?.selectionStart || currentMessage.length;
+    const textBeforeCursor = currentMessage.substring(0, cursorPos);
+    const textAfterCursor = currentMessage.substring(cursorPos);
     
     // Find where the /command starts
     const slashMatch = textBeforeCursor.match(/(?:^|\s)(\/\w*)$/);
@@ -612,7 +567,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     if (template.ai_prompt) {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
-      setNewMessage("");
+      composerRef.current?.clear();
       
       toast.info("Gerando mensagem com IA...");
       
@@ -637,10 +592,10 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         const prefixText = textBeforeCursor.substring(0, slashStart);
         const finalAiText = prefixText + generatedMessage + textAfterCursor;
 
-        setNewMessage(finalAiText);
+        composerRef.current?.setValue(finalAiText);
         toast.success("Mensagem gerada! Revise e envie.");
         
-        textareaRef.current?.focus();
+        composerRef.current?.focus();
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
@@ -672,7 +627,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
       
       // Send text automatically if there's content
       if (finalText.trim()) {
-        setNewMessage("");
+        composerRef.current?.clear();
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
@@ -722,7 +677,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
     
     // Template WITHOUT media: keep current behavior (text in input, user sends manually)
-    setNewMessage(finalText);
+    composerRef.current?.setValue(finalText);
     
     // Focus and resize
     textareaRef.current?.focus();
@@ -744,7 +699,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     try {
       setSlashCommandOpen(false);
       setSlashSearchTerm("");
-      setNewMessage("");
+      composerRef.current?.clear();
 
       if (!selectedMetaNumberId) {
         toast.error("Selecione um número Meta primeiro");
@@ -820,7 +775,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleFlowSelect = async (flow: ChatbotFlow) => {
     setSlashCommandOpen(false);
     setSlashSearchTerm("");
-    setNewMessage("");
+    composerRef.current?.clear();
 
     if (!selectedInstanceId) {
       toast.error("Selecione uma instância primeiro");
@@ -854,14 +809,31 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
     }
   };
 
+  const handleSlashConfirm = useCallback(() => {
+    if (isProcessingSlashRef.current) return;
+    if (slashSelectedIndex < filteredSlashTemplates.length) {
+      handleSlashSelect(filteredSlashTemplates[slashSelectedIndex]);
+    } else if (slashSelectedIndex < filteredSlashTemplates.length + filteredSlashMetaTemplates.length) {
+      const metaIndex = slashSelectedIndex - filteredSlashTemplates.length;
+      if (filteredSlashMetaTemplates[metaIndex]) {
+        handleMetaTemplateSelect(filteredSlashMetaTemplates[metaIndex]);
+      }
+    } else {
+      const flowIndex = slashSelectedIndex - filteredSlashTemplates.length - filteredSlashMetaTemplates.length;
+      if (filteredSlashFlows[flowIndex]) {
+        handleFlowSelect(filteredSlashFlows[flowIndex]);
+      }
+    }
+  }, [filteredSlashFlows, filteredSlashMetaTemplates, filteredSlashTemplates, slashSelectedIndex]);
+
   const handleEmojiSelect = (emoji: string) => {
-    setNewMessage(prev => prev + emoji);
-    textareaRef.current?.focus();
+    composerRef.current?.appendValue(emoji);
+    composerRef.current?.focus();
   };
 
   const handleAISuggestion = (text: string) => {
-    setNewMessage(text);
-    textareaRef.current?.focus();
+    composerRef.current?.setValue(text);
+    composerRef.current?.focus();
     // Trigger resize after setting text
     setTimeout(() => {
       if (textareaRef.current) {
@@ -1714,16 +1686,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           <FormLinkButton
             contactId={conversation.contact_id}
             conversationId={conversation.id}
-            onInsertMessage={(msg) => {
-              setNewMessage(msg);
-              textareaRef.current?.focus();
-              setTimeout(() => {
-                if (textareaRef.current) {
-                  textareaRef.current.style.height = 'auto';
-                  textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
-                }
-              }, 0);
-            }}
+            onInsertMessage={(msg) => composerRef.current?.setValue(msg)}
           />
           
           {/* Phone selector when contact has multiple phones */}
@@ -1759,24 +1722,28 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             );
           })()}
 
-          {/* Input container - pill style */}
-          <div className="relative flex-1 flex items-center bg-white dark:bg-[#2a3942] rounded-full px-3 py-1">
-            <Textarea
-              ref={textareaRef}
-              placeholder="Digite uma mensagem"
-              value={newMessage}
-              onChange={handleMessageChange}
-              onKeyDown={handleKeyDown}
-              className="w-full bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[36px] max-h-[100px] resize-none py-2 text-sm md:text-[15px] placeholder:text-[#667781]"
-              rows={1}
-            />
-          </div>
+          <MessageComposer
+            ref={composerRef}
+            textareaRef={textareaRef}
+            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
+            isMobile={isMobile}
+            isAutoCorrect={isAutoCorrect}
+            autoCorrectEnabled={autoCorrectEnabled}
+            slashCommandOpen={slashCommandOpen}
+            totalSlashItems={totalSlashItems}
+            onTyping={notifyTyping}
+            onSend={handleSend}
+            onSlashSearchChange={handleSlashSearchChange}
+            onSlashNavigate={handleSlashNavigate}
+            onSlashConfirm={handleSlashConfirm}
+            onSlashEscape={handleSlashEscape}
+          />
 
           {!isMobile && (
             <AIAssistantButton
               conversationId={conversation.id}
               onSuggestion={handleAISuggestion}
-              currentMessage={newMessage}
+              getCurrentMessage={() => composerRef.current?.getValue() ?? ""}
             />
           )}
 
@@ -1812,31 +1779,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
           />
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                onClick={handleSend} 
-                disabled={!newMessage.trim() || !selectedInstanceId || isAutoCorrect}
-                size={isMobile ? "icon" : "default"}
-                className="shrink-0 min-w-[40px] md:min-w-[44px] relative"
-              >
-                {isAutoCorrect ? (
-                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 md:h-5 md:w-5" />
-                )}
-                {autoCorrectEnabled && !isAutoCorrect && (
-                  <SpellCheck className="h-2.5 w-2.5 absolute -top-0.5 -right-0.5 text-primary" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            {autoCorrectEnabled && (
-              <TooltipContent>
-                <p>Correção automática ativada</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
         </div>
         
         {!selectedInstanceId && connectedInstances.length > 0 && (
