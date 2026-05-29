@@ -43,6 +43,9 @@ import { TransferConversationDialog } from "./TransferConversationDialog";
 import { NotesTab } from "./NotesTab";
 import { TasksTab } from "./TasksTab";
 import { InternalChatTab } from "./InternalChatTab";
+import { PresenceAvatars } from "./PresenceAvatars";
+import { UserTypingIndicator } from "./UserTypingIndicator";
+import { useConversationPresence } from "@/hooks/useConversationPresence";
 import { PhoneCallButton } from "./PhoneCallButton";
 import { SlashCommandPopup } from "./SlashCommandPopup";
 import { FormLinkButton } from "./FormLinkButton";
@@ -82,6 +85,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const { notes } = useConversationNotes(conversation.id, conversation.contact_id);
   const { pendingTasks } = useConversationTasks(conversation.id, conversation.contact_id);
   const { messages: internalMessages } = useInternalMessages(conversation.id, conversation.contact_id);
+  const { others: presenceOthers, typingUsers: presenceTypingUsers, notifyTyping } = useConversationPresence(conversation.id);
   const { autoCorrectEnabled } = useMemberAutoCorrect();
   const { templates } = useMessageTemplates();
   // Get the WABA ID for the current conversation's Meta number to filter templates
@@ -528,6 +532,8 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setNewMessage(value);
+    if (value.length > 0) notifyTyping();
+
     
     // Detect slash command trigger
     const cursorPos = e.target.selectionStart || 0;
@@ -1070,6 +1076,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         </div>
         
         <div className="flex items-center gap-1 md:gap-2 shrink-0 flex-wrap justify-end">
+          {presenceOthers.length > 0 && (
+            <div className="mr-1 hidden sm:flex">
+              <PresenceAvatars users={presenceOthers} />
+            </div>
+          )}
           {/* Mark as Read Button */}
           {conversation.unread_count > 0 && onMarkAsRead && (
             <Tooltip>
@@ -1539,6 +1550,9 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
 
       {/* Input - WhatsApp style */}
       <div className="shrink-0 bg-[#f0f2f5] dark:bg-[#202c33] z-20 px-3 py-2 md:px-4 md:py-3">
+        {presenceTypingUsers.length > 0 && (
+          <UserTypingIndicator users={presenceTypingUsers} />
+        )}
         {/* Mobile: Instance selector above input */}
         {isMobile && (
           <div className="mb-2">
