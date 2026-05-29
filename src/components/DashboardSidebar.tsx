@@ -25,6 +25,8 @@ import { useAsaas } from "@/hooks/useAsaas";
 import { useSsotica } from "@/hooks/useSsotica";
 import { useActivitySession } from "@/hooks/useActivitySession";
 
+const RESTRICTED_EMAILS = ["contato@wideic.com"];
+
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -33,6 +35,7 @@ interface NavItem {
   showBadge?: boolean;
   badgeKey?: string;
   premiumOnly?: boolean;
+  restrictedToEmails?: string[];
 }
 
 interface NavGroup {
@@ -88,7 +91,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Sua Conta",
     items: [
-      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos" },
+      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos", restrictedToEmails: RESTRICTED_EMAILS },
       { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
       { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
     ],
@@ -139,6 +142,11 @@ export const DashboardSidebar = () => {
     if (isLoadingOrg) return [];
     
     return items.filter(item => {
+      // Restrição por email (ex: features em desenvolvimento)
+      if (item.restrictedToEmails && item.restrictedToEmails.length > 0) {
+        const email = user?.email?.toLowerCase() ?? "";
+        if (!item.restrictedToEmails.map(e => e.toLowerCase()).includes(email)) return false;
+      }
       // Se não tem organização, permite tudo (usuário individual/legado)
       if (!organization) return true;
       // Se não tem permissão definida, mostra o item

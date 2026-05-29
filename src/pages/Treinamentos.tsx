@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+
+const ALLOWED_EMAILS = ["contato@wideic.com"];
 import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +16,11 @@ import { cn } from "@/lib/utils";
 
 const Treinamentos = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const email = user?.email?.toLowerCase() ?? "";
+  if (!ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+    return <Navigate to="/dashboard" replace />;
+  }
   const { completed, toggle, loading } = useTrainingProgress();
   const [imgErrors, setImgErrors] = useState<Set<string>>(new Set());
 
