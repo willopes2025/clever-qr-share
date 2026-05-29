@@ -327,10 +327,22 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
               {filteredSubmissions.map((submission) => (
                 <TableRow key={submission.id}>
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingSubmission(submission)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingSubmission(submission)} title="Editar resposta">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => setDeletingSubmission(submission)}
+                        title="Excluir resposta"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
+
                   <TableCell className="text-sm">
                     {formatDateTimeFull(submission.created_at)}
                   </TableCell>
