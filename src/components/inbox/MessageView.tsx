@@ -1076,6 +1076,11 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
         </div>
         
         <div className="flex items-center gap-1 md:gap-2 shrink-0 flex-wrap justify-end">
+          {presenceOthers.length > 0 && (
+            <div className="mr-1 hidden sm:flex">
+              <PresenceAvatars users={presenceOthers} />
+            </div>
+          )}
           {/* Mark as Read Button */}
           {conversation.unread_count > 0 && onMarkAsRead && (
             <Tooltip>
