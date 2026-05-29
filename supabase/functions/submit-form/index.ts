@@ -873,7 +873,9 @@ Deno.serve(async (req: Request) => {
           if (dealError) {
             console.error('Error creating deal:', dealError);
           } else {
+            resultingDealId = newDeal.id;
             console.log(`Deal created: ${newDeal.id} for contact ${contactId} in funnel ${form.target_funnel_id}`);
+
             // Trigger on_funnel_enter and on_stage_enter automations for the new deal
             // Single invocation: isNewDeal=true causes the processor to evaluate
             // both on_funnel_enter and on_stage_enter in one pass (prevents duplicate sends).
