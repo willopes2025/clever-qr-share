@@ -5968,6 +5968,27 @@ export type Database = {
           },
         ]
       }
+      training_progress: {
+        Row: {
+          completed_at: string
+          id: string
+          step_id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          step_id: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          step_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_activity_sessions: {
         Row: {
           created_at: string | null

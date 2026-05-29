@@ -51,6 +51,7 @@ const Forms = lazy(() => import("./pages/Forms"));
 const FormBuilder = lazy(() => import("./pages/FormBuilder"));
 const PublicFormPage = lazy(() => import("./pages/PublicFormPage"));
 const Ajuda = lazy(() => import("./pages/Ajuda"));
+const Treinamentos = lazy(() => import("./pages/Treinamentos"));
 const Webhooks = lazy(() => import("./pages/Webhooks"));
 const InternalChat = lazy(() => import("./pages/InternalChat"));
 const Tasks = lazy(() => import("./pages/Tasks"));
@@ -297,6 +298,11 @@ const App = () => (
                   <Route path="/f/:slug/*" element={<PublicFormPage />} />
                   <Route path="/form/:slug/*" element={<PublicFormPage />} />
                   <Route path="/ajuda" element={<Ajuda />} />
+                  <Route path="/treinamentos" element={
+                    <ProtectedRoute>
+                      <Treinamentos />
+                    </ProtectedRoute>
+                  } />
                   <Route path="/webhooks" element={
                     <ProtectedRoute>
                       <NotificationProvider>
