@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, Copy, Reply } from "lucide-react";
