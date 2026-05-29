@@ -3,10 +3,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Upload, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface FormAppearanceTabProps {
   form: Form;
@@ -23,6 +25,8 @@ const fontOptions = [
 
 export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
   const { updateForm } = useForms();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const [appearance, setAppearance] = useState({
     page_title: form.page_title || '',
     header_text: form.header_text || '',
@@ -64,6 +68,35 @@ export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
     });
   };
 
+  const handleFileUpload = async (file: File, field: 'logo_url' | 'og_image_url') => {
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'].includes(file.type)) {
+      toast({ title: 'Formato inválido', description: 'Envie um arquivo PNG, JPEG, WEBP ou SVG.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'O tamanho máximo é 5MB.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `${form.id}/${field}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('form-assets').upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('form-assets').getPublicUrl(path);
+      setAppearance((prev) => ({ ...prev, [field]: data.publicUrl }));
+      toast({ title: 'Imagem enviada', description: 'Lembre de salvar para aplicar as alterações.' });
+    } catch (err: any) {
+      toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const hasChanges = JSON.stringify(appearance) !== JSON.stringify({
     page_title: form.page_title || '',
     header_text: form.header_text || '',
@@ -87,15 +120,47 @@ export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="logo_url">URL do Logo</Label>
-            <Input
-              id="logo_url"
-              type="url"
-              placeholder="https://..."
-              value={appearance.logo_url}
-              onChange={(e) => setAppearance({ ...appearance, logo_url: e.target.value })}
-            />
+            <Label>Logo</Label>
+            {appearance.logo_url ? (
+              <div className="flex items-center gap-3 p-3 border rounded-md">
+                <img src={appearance.logo_url} alt="Logo" className="h-16 w-16 object-contain rounded bg-muted" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate text-muted-foreground">{appearance.logo_url}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setAppearance({ ...appearance, logo_url: '' })}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'logo_url');
+                    e.target.value = '';
+                  }}
+                />
+                {uploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : (
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {uploading ? 'Enviando...' : 'Clique para enviar PNG, JPEG, WEBP ou SVG (máx. 5MB)'}
+                </span>
+              </label>
+            )}
           </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="header_text">Título Principal</Label>
@@ -217,18 +282,50 @@ export const FormAppearanceTab = ({ form }: FormAppearanceTabProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="og_image_url">Imagem de Compartilhamento (OG Image)</Label>
-            <Input
-              id="og_image_url"
-              type="url"
-              placeholder="https://..."
-              value={appearance.og_image_url}
-              onChange={(e) => setAppearance({ ...appearance, og_image_url: e.target.value })}
-            />
+            <Label>Imagem de Compartilhamento (OG Image)</Label>
+            {appearance.og_image_url ? (
+              <div className="flex items-center gap-3 p-3 border rounded-md">
+                <img src={appearance.og_image_url} alt="OG" className="h-16 w-16 object-cover rounded bg-muted" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate text-muted-foreground">{appearance.og_image_url}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setAppearance({ ...appearance, og_image_url: '' })}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'og_image_url');
+                    e.target.value = '';
+                  }}
+                />
+                {uploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                ) : (
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {uploading ? 'Enviando...' : 'Clique para enviar PNG, JPEG ou WEBP (máx. 5MB)'}
+                </span>
+              </label>
+            )}
             <p className="text-xs text-muted-foreground">
               Imagem exibida ao compartilhar o formulário nas redes sociais
             </p>
           </div>
+
         </CardContent>
       </Card>
 
