@@ -124,7 +124,7 @@ export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle, le
             </div>
           )}
           
-          {(dealTitle || leadNumber != null) ? (
+          {(dealTitle || leadNumber != null) && (
             <div className="flex items-center gap-1.5 mt-0.5">
               {leadNumber != null && (
                 <span className="text-xs font-mono text-muted-foreground">#{leadNumber}</span>
@@ -133,10 +133,6 @@ export const LeadPanelHeader = ({ conversation, onClose, isMobile, dealTitle, le
                 <span className="text-xs text-muted-foreground line-clamp-1">{dealTitle}</span>
               )}
             </div>
-          ) : (
-            contactDisplayId && (
-              <ContactIdBadge displayId={contactDisplayId} className="mt-0.5" />
-            )
           )}
         </div>
 

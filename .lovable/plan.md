@@ -1,51 +1,28 @@
-# Presença de usuários e indicador de "digitando" na inbox
+## Objetivo
 
-Objetivo: quando dois ou mais atendentes da mesma organização abrem a mesma conversa, mostrar no topo da conversa quem mais está vendo, e mostrar acima do campo de mensagem quando outro atendente está digitando.
+No painel direito da Inbox, o código exibido abaixo do nome do contato (no header) hoje cai em "código do contato" como fallback quando não há lead no funil. Vamos separar:
 
-Usaremos **Supabase Realtime Presence + Broadcast** por canal de conversa. Sem mudanças de banco — presença é em memória do Realtime.
+- **Topo do card (LeadPanelHeader):** mostrar apenas o código do lead (`#<leadNumber>`) e o título do deal, somente quando existir um lead no funil. Sem fallback para o código do contato.
+- **Seção "Dados do Contato" (ContactFieldsSection):** sempre mostrar o código do contato (`#<contact_display_id>`) como uma linha de campo no topo da lista, com botão de copiar.
 
-## Arquitetura
+## Mudanças
 
-- Canal por conversa: `conversation-presence:<conversationId>`.
-- Cada cliente aberto faz `track({ user_id, full_name, avatar_url, joined_at })`.
-- Evento `broadcast` tipo `typing` é emitido com `{ user_id, is_typing }` enquanto o atendente digita (debounce 1.5s para "parou de digitar").
-- Filtramos o próprio `user_id` para nunca mostrar a si mesmo.
+### 1. `src/components/inbox/lead-panel/LeadPanelHeader.tsx`
+- Remover o bloco de fallback que renderiza `<ContactIdBadge displayId={contactDisplayId} />` quando não há `dealTitle`/`leadNumber`.
+- Manter apenas a linha `#<leadNumber>` + `dealTitle` quando existirem.
+- Remover import não usado de `ContactIdBadge` e da variável `contactDisplayId`.
 
-## Novos arquivos
+### 2. `src/components/inbox/lead-panel/ContactFieldsSection.tsx`
+- Adicionar nova prop opcional `contactDisplayId?: string | null`.
+- Logo após o header "Dados do Contato" (antes do campo "Nome Completo"), adicionar uma linha:
+  - Label: `ID do Contato`
+  - Valor: `<ContactIdBadge displayId={contactDisplayId} size="sm" />` (com botão de copiar já incluso no componente).
+- Renderizar a linha apenas quando `contactDisplayId` existir.
 
-1. `src/hooks/useConversationPresence.ts`
-   - Recebe `conversationId`.
-   - Lê usuário atual + perfil (`profiles.full_name`, `avatar_url`).
-   - Faz `supabase.channel(...).on('presence', ...).on('broadcast', { event: 'typing' }, ...).subscribe()` e `track()` no SUBSCRIBED.
-   - Retorna `{ others: PresenceUser[], typingUsers: PresenceUser[], notifyTyping: () => void }`.
-   - `notifyTyping()` envia broadcast `is_typing:true` e agenda um `is_typing:false` após 1.5s sem novas chamadas.
-   - Cleanup: untrack + removeChannel ao trocar de conversa/desmontar.
-
-2. `src/components/inbox/PresenceAvatars.tsx`
-   - Stack de até 3 avatares pequenos com tooltip "Fulano está vendo este lead".
-   - +N para extras.
-
-3. `src/components/inbox/UserTypingIndicator.tsx`
-   - Avatar pequeno + "Fulano está digitando…" com animação de pontinhos (reaproveita o estilo do `TypingIndicator` atual).
-   - Quando 2+ usuários: "Fulano e Beltrano estão digitando…".
-
-## Edições
-
-- `src/components/inbox/MessageView.tsx`
-  - Chamar `useConversationPresence(conversation.id)`.
-  - No header da conversa (perto do nome do contato): renderizar `<PresenceAvatars users={others} />`.
-  - Acima do input de mensagem (mesma região onde já existe o `TypingIndicator` do contato, mas separado): renderizar `<UserTypingIndicator users={typingUsers} />` quando houver.
-  - No `onChange` do textarea do composer, chamar `notifyTyping()`.
-
-## Detalhes técnicos
-
-- Reusa `supabase` de `@/integrations/supabase/client`.
-- Para nome/avatar do usuário atual: buscar uma única vez de `profiles` (id = auth user). Cache em memória do hook.
-- Throttle do `notifyTyping`: só envia broadcast se passou >1s desde o último envio "true"; sempre reagenda o timer de "false".
-- O canal só assina enquanto a conversa estiver aberta, evitando flood de canais.
-- Não altera DB, RLS, edge functions, nem o `TypingIndicator` existente (que continua representando o contato externo digitando no WhatsApp).
+### 3. `src/components/inbox/RightSidePanel.tsx`
+- Passar `contactDisplayId={(conversation.contact as any)?.contact_display_id}` para `<ContactFieldsSection />`.
 
 ## Fora de escopo
 
-- Indicação na lista de conversas, no kanban e em outras telas (conforme respostas do usuário).
-- Persistência histórica de presença.
+- Não mexer em lógica de dados, queries, ou outros painéis (kanban, lista de leads).
+- Não alterar estilo geral do header além da remoção do fallback.

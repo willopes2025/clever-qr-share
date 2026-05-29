@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { InlineFieldCreator } from "@/components/contacts/InlineFieldCreator";
+import { ContactIdBadge } from "@/components/contacts/ContactIdBadge";
 
 interface ContactFieldsSectionProps {
   contact: {
@@ -36,9 +37,10 @@ interface ContactFieldsSectionProps {
     custom_fields?: Record<string, any> | null;
   };
   activeTabId?: string | null;
+  contactDisplayId?: string | null;
 }
 
-export const ContactFieldsSection = ({ contact, activeTabId }: ContactFieldsSectionProps) => {
+export const ContactFieldsSection = ({ contact, activeTabId, contactDisplayId }: ContactFieldsSectionProps) => {
   const { contactFieldDefinitions, updateContactCustomFields, createField, deleteField } = useCustomFields();
   const { tabs } = useLeadPanelTabs();
   const queryClient = useQueryClient();
