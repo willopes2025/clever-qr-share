@@ -16,10 +16,12 @@ interface EditSubmissionDialogProps {
     contacts?: { name: string | null; phone: string; email: string | null } | null;
   } | null;
   fields: FormField[];
+  hasLinkedDeal?: boolean;
   onSave: (submissionId: string, updatedData: Record<string, any>) => Promise<void>;
 }
 
-export const EditSubmissionDialog = ({ open, onOpenChange, submission, fields, onSave }: EditSubmissionDialogProps) => {
+export const EditSubmissionDialog = ({ open, onOpenChange, submission, fields, hasLinkedDeal, onSave }: EditSubmissionDialogProps) => {
+
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
