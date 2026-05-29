@@ -1722,6 +1722,23 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
             );
           })()}
 
+          <MessageComposer
+            ref={composerRef}
+            textareaRef={textareaRef}
+            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
+            isMobile={isMobile}
+            isAutoCorrect={isAutoCorrect}
+            autoCorrectEnabled={autoCorrectEnabled}
+            slashCommandOpen={slashCommandOpen}
+            totalSlashItems={totalSlashItems}
+            onTyping={notifyTyping}
+            onSend={handleSend}
+            onSlashSearchChange={handleSlashSearchChange}
+            onSlashNavigate={handleSlashNavigate}
+            onSlashConfirm={handleSlashConfirm}
+            onSlashEscape={handleSlashEscape}
+          />
+
           {!isMobile && (
             <AIAssistantButton
               conversationId={conversation.id}
@@ -1761,23 +1778,6 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
           <VoiceRecorder
             onSend={(audioUrl) => handleSendMedia(audioUrl, 'audio')}
             disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
-          />
-
-          <MessageComposer
-            ref={composerRef}
-            textareaRef={textareaRef}
-            disabled={useMetaSender ? !selectedMetaNumberId : !selectedInstanceId}
-            isMobile={isMobile}
-            isAutoCorrect={isAutoCorrect}
-            autoCorrectEnabled={autoCorrectEnabled}
-            slashCommandOpen={slashCommandOpen}
-            totalSlashItems={totalSlashItems}
-            onTyping={notifyTyping}
-            onSend={handleSend}
-            onSlashSearchChange={handleSlashSearchChange}
-            onSlashNavigate={handleSlashNavigate}
-            onSlashConfirm={handleSlashConfirm}
-            onSlashEscape={handleSlashEscape}
           />
         </div>
         
