@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare } from "lucide-react";
+import { LayoutDashboard, QrCode, Send, Users, List, FileText, Settings, LogOut, CreditCard, Shield, MessageSquare, Flame, PanelLeftClose, PanelLeft, BarChart3, Target, ChevronRight, Building2, CalendarDays, Bot, User, Sparkles, Wallet, FileEdit, Glasses, Instagram, Webhook, MessagesSquare, CheckSquare, GraduationCap } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -88,6 +88,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Sua Conta",
     items: [
+      { icon: GraduationCap, label: "Treinamentos", path: "/treinamentos" },
       { icon: CreditCard, label: "Assinatura", path: "/subscription", permission: "manage_subscription" },
       { icon: Settings, label: "Configurações", path: "/settings", permission: "manage_settings" },
     ],
