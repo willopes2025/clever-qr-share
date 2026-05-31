@@ -87,6 +87,8 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
 
   const uploadFile = async (file: File, type: MediaType) => {
     setUploading(true);
+    setStatusLabel('Enviando...');
+
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
