@@ -17,40 +17,37 @@ export const useConversationSearch = (searchTerm: string) => {
     queryFn: async () => {
       if (searchTerm.length < 3) return { ids: [], snippets: {} };
 
-      // Sanitize wildcards to avoid breaking ILIKE
+      // Sanitiza wildcards do ILIKE
       const safe = searchTerm.trim().replace(/[%_]/g, " ");
 
-      // IMPORTANTE: ordenar por mais recente e aumentar o limite.
-      // Sem ORDER BY, o PostgREST retorna linhas arbitrárias e o LIMIT 100
-      // pode descartar todas as mensagens relevantes do usuário (ex.: termos
-      // muito comuns como "curso" que aparecem em centenas de mensagens).
-      const { data, error } = await supabase
-        .from('inbox_messages')
-        .select('conversation_id, content, created_at')
-        .ilike('content', `%${safe}%`)
-        .order('created_at', { ascending: false })
-        .limit(2000);
+      // Usa RPC SECURITY DEFINER para evitar timeout do RLS por linha
+      // (can_access_conversation roda dentro da função, sobre um conjunto
+      // já dedupado por conversa). Retorna até 800 conversas, cada uma
+      // com o trecho da mensagem mais recente que casou com o termo.
+      const { data, error } = await supabase.rpc('search_inbox_messages', {
+        _term: safe,
+        _limit: 800,
+      });
 
       if (error) throw error;
 
-      // Return unique conversation IDs (preserva ordem por recência).
-      // Para cada conversa, guarda o trecho da mensagem mais recente
-      // que casou com o termo — usado para preview estilo WhatsApp.
-      const MAX_IDS = 800;
       const snippets: Record<string, ConversationSearchSnippet> = {};
       const ids: string[] = [];
-      for (const m of data ?? []) {
-        if (!m.conversation_id || snippets[m.conversation_id]) continue;
-        snippets[m.conversation_id] = {
-          content: m.content ?? "",
-          created_at: m.created_at,
+      for (const row of (data ?? []) as Array<{
+        conversation_id: string;
+        content: string | null;
+        created_at: string;
+      }>) {
+        if (!row.conversation_id || snippets[row.conversation_id]) continue;
+        snippets[row.conversation_id] = {
+          content: row.content ?? "",
+          created_at: row.created_at,
         };
-        ids.push(m.conversation_id);
-        if (ids.length >= MAX_IDS) break;
+        ids.push(row.conversation_id);
       }
       return { ids, snippets };
     },
     enabled: searchTerm.length >= 3,
-    staleTime: 30000, // Cache por 30s
+    staleTime: 30000,
   });
 };

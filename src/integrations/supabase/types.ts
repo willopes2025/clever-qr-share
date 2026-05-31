@@ -7305,6 +7305,14 @@ export type Database = {
         Args: { _group_id: string }
         Returns: number
       }
+      search_inbox_messages: {
+        Args: { _limit?: number; _term: string }
+        Returns: {
+          content: string
+          conversation_id: string
+          created_at: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       user_belongs_to_org: {
