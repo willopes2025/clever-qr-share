@@ -711,48 +711,56 @@ Deno.serve(async (req: Request) => {
     handledByLeadLookup = true;
     resultingDealId = lookupDealId;
     try {
-
+      // Determine the effective target funnel.
+      // If form has target_funnel_id, we honor it (cross-funnel move allowed).
+      // Otherwise we stay on the deal's current funnel.
+      const effectiveFunnelId: string = form.target_funnel_id || lookupDealFunnelId;
+      const isCrossFunnel = effectiveFunnelId !== lookupDealFunnelId;
 
       // Decide the target stage:
-      // - If form.target_stage_id is set, use it.
-      // - Else if form.target_funnel_id matches the deal's funnel, use first stage.
-      // - Else keep current stage (just update fields, no move).
+      // - If form.target_stage_id is set AND belongs to effectiveFunnelId, use it.
+      // - Else use the first stage (display_order) of effectiveFunnelId when moving
+      //   (cross-funnel) or when target_funnel_id is explicitly set.
+      // - Else keep current stage.
       let targetStageId: string | null = null;
       if (form.target_stage_id) {
-        targetStageId = form.target_stage_id;
-      } else if (form.target_funnel_id && form.target_funnel_id === lookupDealFunnelId) {
+        const { data: stageCheck } = await supabase
+          .from('funnel_stages')
+          .select('id, funnel_id')
+          .eq('id', form.target_stage_id)
+          .maybeSingle();
+        if (stageCheck && stageCheck.funnel_id === effectiveFunnelId) {
+          targetStageId = form.target_stage_id;
+        } else {
+          console.warn(`[lead lookup] target_stage_id ${form.target_stage_id} does not belong to target funnel ${effectiveFunnelId}; falling back to first stage`);
+        }
+      }
+
+      if (!targetStageId && form.target_funnel_id) {
         const { data: firstStage } = await supabase
           .from('funnel_stages')
           .select('id')
-          .eq('funnel_id', lookupDealFunnelId)
+          .eq('funnel_id', effectiveFunnelId)
           .order('display_order')
           .limit(1)
           .maybeSingle();
         targetStageId = firstStage?.id ?? null;
       }
 
-      // Validate target stage belongs to the deal's funnel (avoid cross-funnel move)
-      if (targetStageId) {
-        const { data: stageCheck } = await supabase
-          .from('funnel_stages')
-          .select('id, funnel_id')
-          .eq('id', targetStageId)
-          .maybeSingle();
-        if (!stageCheck || stageCheck.funnel_id !== lookupDealFunnelId) {
-          console.warn(`Target stage ${targetStageId} does not belong to deal's funnel ${lookupDealFunnelId}; skipping stage move`);
-          targetStageId = null;
-        }
-      }
-
       const dealUpdateData: Record<string, any> = {};
       if (dealNativeFields.value !== undefined) dealUpdateData.value = dealNativeFields.value;
       if (dealNativeFields.title) dealUpdateData.title = dealNativeFields.title;
 
-      const shouldMove = targetStageId && targetStageId !== lookupDealStageId;
+      const shouldMove =
+        !!targetStageId && (isCrossFunnel || targetStageId !== lookupDealStageId);
       if (shouldMove) {
+        if (isCrossFunnel) {
+          dealUpdateData.funnel_id = effectiveFunnelId;
+          console.log(`[lead lookup] Moving deal ${lookupDealId} ACROSS funnels ${lookupDealFunnelId} -> ${effectiveFunnelId}`);
+        }
         dealUpdateData.stage_id = targetStageId;
         dealUpdateData.entered_stage_at = new Date().toISOString();
-        console.log(`[lead lookup] Moving deal ${lookupDealId} from ${lookupDealStageId} to ${targetStageId}`);
+        console.log(`[lead lookup] Moving deal ${lookupDealId} stage ${lookupDealStageId} -> ${targetStageId}`);
       }
 
       if (Object.keys(dealCustomFields).length > 0) {
@@ -777,8 +785,8 @@ Deno.serve(async (req: Request) => {
           await supabase.functions.invoke('process-funnel-automations', {
             body: {
               dealId: lookupDealId,
-              funnelId: lookupDealFunnelId,
-              fromStageId: lookupDealStageId,
+              funnelId: effectiveFunnelId,
+              fromStageId: isCrossFunnel ? null : lookupDealStageId,
               toStageId: targetStageId,
               triggerType: 'on_stage_enter',
             },

@@ -1,40 +1,29 @@
-## Objetivo
-Permitir configurar, no Agente de IA, múltiplas janelas de horário com **dias da semana específicos** por janela (Seg–Dom). Exemplo: Seg–Sex 00–08, Seg–Sex 18–24, Sáb 13–24, Dom 00–24.
+## Problema
 
-## Estado atual
-- Tabela `ai_agent_configs` já possui `active_hours_windows jsonb` (array de `{start, end}`).
-- UI em `AIAgentFormDialog.tsx` já permite múltiplas faixas de hora, **mas sem dia da semana**.
-- Backend `supabase/functions/ai-campaign-agent/index.ts` valida via `isWithinAnyActiveWindow` apenas por hora.
-- Não há migração necessária — o jsonb absorve o novo campo.
+No `submit-form/index.ts`, quando o formulário usa lookup por código do lead (`lookup_by_lead_number`) e o deal encontrado está em um funil **diferente** do `target_funnel_id` configurado no formulário, o código atual:
 
-## Mudanças
+1. Calcula `targetStageId` apenas se `target_stage_id` estiver setado, ou se `target_funnel_id === lookupDealFunnelId` (mesmo funil).
+2. Em seguida valida que o `stage` pertence ao funil atual do deal — se não pertencer, loga `"skipping stage move"` e **não move nada**.
 
-### 1. Estrutura de dados (sem migração)
-Cada janela passa a ser:
-```
-{ start: number, end: number, days: number[] }   // 0=Dom, 1=Seg, ... 6=Sáb
-```
-- Janelas antigas sem `days` são tratadas como **todos os dias** (compat).
+Resultado: lead encontrado pelo código mas que está em outro funil (ex.: fora do "Centro de Saúde Visual") permanece intocado.
 
-### 2. UI — `src/components/ai-agents/AIAgentFormDialog.tsx`
-Para cada faixa adicionar seletor de dias da semana:
-- 7 toggles compactos (D S T Q Q S S) usando `ToggleGroup` (multi).
-- Atalhos: botões "Seg–Sex", "Sáb–Dom", "Todos".
-- Layout por faixa: linha 1 = dias; linha 2 = horário início/fim + remover.
-- Default ao adicionar faixa: `days: [1,2,3,4,5]` (Seg–Sex).
-- Preset inicial quando não há janelas: `[{start:8,end:20,days:[1,2,3,4,5,6,0]}]`.
-- Validação: pelo menos 1 dia selecionado por faixa (senão desabilita salvar com toast).
+## Correção
 
-### 3. Backend — `supabase/functions/ai-campaign-agent/index.ts`
-- `isWithinActiveHours` passa a receber também o dia atual.
-- `isWithinAnyActiveWindow` filtra primeiro por `days` (se ausente, aceita qualquer dia), depois aplica a verificação de hora existente (incluindo a lógica overnight).
-- Resolver dia/hora atuais no **timezone da organização** via `_shared/timezone.ts` (`nowInTimezone` / `resolveOrgTimezone`) — alinhado à regra de timezone do projeto. Passar `organization_id` ao helper.
+Permitir mover o deal entre funis quando o formulário tem `target_funnel_id` definido:
 
-### 4. Tipos
-- Atualizar interface local `active_hours_windows` em `useAIAgentConfig.ts` e na edge function para `{ start: number; end: number; days?: number[] }[]`.
+1. Se `form.target_funnel_id` estiver definido e for diferente de `lookupDealFunnelId`:
+   - Resolver `targetStageId`: usar `form.target_stage_id` (se válido para o `target_funnel_id`); senão buscar o primeiro stage (`display_order`) do `target_funnel_id`.
+   - Atualizar `funnel_deals` setando tanto `funnel_id = form.target_funnel_id` quanto `stage_id = targetStageId` e `entered_stage_at = now()`.
+   - Disparar `process-funnel-automations` com o novo `funnelId` (target) e `fromStageId = lookupDealStageId` (do funil antigo) — ou sem `fromStageId`, já que é troca de funil, para acionar `on_stage_enter` no novo estágio.
 
-## Fora de escopo
-- Não alterar `active_hours_start/end` legados (mantidos para compat).
-- Não mexer em outras superfícies que leem `active_hours_*` (campanhas/funil) — elas continuam usando o fallback por hora; podemos estender depois se você quiser.
+2. Se `form.target_funnel_id` não estiver definido, manter comportamento atual (mover apenas dentro do mesmo funil).
 
-Confirma para eu implementar?
+3. Trocar a validação atual ("stage deve pertencer ao funil do deal") para ("stage deve pertencer ao `target_funnel_id` quando há troca de funil", senão ao funil do deal).
+
+4. Manter atualização de `custom_fields`, `value` e `title` do deal como hoje.
+
+## Arquivo afetado
+
+- `supabase/functions/submit-form/index.ts` — bloco "LOOKUP BY LEAD_NUMBER" (linhas ~706–794).
+
+Sem mudanças de schema, sem mudanças no frontend.
