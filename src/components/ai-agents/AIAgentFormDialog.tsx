@@ -355,6 +355,10 @@ export const AIAgentFormDialog = ({
       toast.error("Nome do agente é obrigatório");
       return;
     }
+    if (activeHoursWindows.some((w) => !Array.isArray(w.days) || w.days.length === 0)) {
+      toast.error("Selecione ao menos um dia da semana em cada faixa de horário");
+      return;
+    }
 
     setIsSaving(true);
     try {
