@@ -1,33 +1,36 @@
 ## Objetivo
 
-Quando o usuário digita um termo no campo de busca do Inbox (ex.: "urgente"), exibir, em cada conversa da lista, um trecho da mensagem que contém o termo — com a palavra destacada — em vez de apenas o `last_message_preview`. Comportamento similar ao WhatsApp Web.
+Quando o usuário digitar algo na busca do Inbox, separar a lista em duas seções visuais:
 
-## O que muda
+1. **Contatos** — conversas cujo match foi por nome / telefone / ID de contato.
+2. **Conversas** — conversas cujo match foi pelo conteúdo das mensagens (com o snippet destacado que já existe).
 
-### 1. `src/hooks/useConversationSearch.ts`
-Hoje retorna apenas `string[]` (IDs de conversa). Passa a retornar também o trecho da mensagem que casou:
+Hoje todos os resultados aparecem misturados ordenados por horário. Sem busca ativa, o comportamento atual (ordenação por hora) é mantido.
 
-- Selecionar `conversation_id, content, created_at` (já seleciona `created_at`, falta `content`).
-- Para cada `conversation_id` único, guardar a **primeira ocorrência** (mensagem mais recente) e expor:
-  - `ids: string[]` (mantém compatibilidade com `useContactSearch` e `missingConversationIds`)
-  - `snippets: Record<conversationId, { content: string; created_at: string }>`
-- Manter o teto `MAX_IDS = 800` e o limite de 2000 linhas.
+## Mudanças
 
-### 2. `src/components/inbox/ConversationList.tsx`
-- Consumir o novo `snippets` do hook.
-- Criar um helper `buildSnippet(content, term)` que:
-  - Localiza o termo (case/diacríticos-insensitive, reaproveitando `normalizeText`).
-  - Recorta uma janela curta ao redor (~40 chars antes / ~60 depois) com `…` quando truncado.
-  - Retorna `{ before, match, after }` para renderização.
-- No bloco da pré-visualização (linhas ~688–696), quando:
-  - `debouncedSearch.length >= 3` **e** existe `snippets[conversation.id]`
-  → renderizar o snippet, com a parte `match` envolvida em `<mark className="bg-primary/20 text-foreground rounded px-0.5">`.
-  - Caso contrário, manter `last_message_preview` como hoje.
-- Manter `truncate` e a mesma tipografia (negrito se `unread_count > 0`).
+Arquivo único: `src/components/inbox/ConversationList.tsx`.
 
-### 3. Sem mudanças de backend
-A busca continua usando `inbox_messages.content` via PostgREST ILIKE. Nenhuma migration, nenhuma edge function alterada.
+1. Logo após o `filteredConversations` (linha ~466), quando `debouncedSearch.trim().length >= 1` (busca ativa), particionar a lista em dois grupos:
+   - `contactMatches`: conversas que batem por nome/telefone/displayId (mesma lógica de `matchesContactSearch` das linhas 320-333) **ou** cujo id está em `matchingContactConvIds` (server-side de contatos).
+   - `messageMatches`: conversas que **não** entraram em `contactMatches` e cujo id está em `matchingConversationIds` (busca por conteúdo de mensagem).
+   - Ambos mantêm a ordenação original (por `last_message_at` desc), garantindo que cada grupo siga a ordem de hora atual.
+
+2. No bloco de render (linhas 547-748), quando a busca está ativa, renderizar dois subgrupos com cabeçalho discreto:
+   ```text
+   ─ Contatos (N) ─
+     [card] [card] ...
+   ─ Conversas (N) ─
+     [card] [card] ...
+   ```
+   - Cabeçalho: `<div className="px-2 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">`.
+   - Só renderiza a seção se tiver pelo menos 1 item.
+   - Card de conversa permanece idêntico (mesmo JSX já existente, extraído para uma função `renderConversationCard(conversation)` interna para evitar duplicação).
+
+3. Sem busca ativa: render permanece exatamente como hoje (um único grupo, sem cabeçalho).
 
 ## Fora de escopo
-- Busca em mídia/legendas separadas, paginação de múltiplos hits por conversa, ou navegação até a mensagem dentro da conversa (pode ser um próximo passo).
-- Mudanças no `useContactSearch` (matches por nome/telefone seguem mostrando `last_message_preview`).
+
+- Nenhuma mudança em `useConversationSearch`, `useContactSearch` ou no RPC `search_inbox_messages`.
+- Nenhuma mudança no snippet com `<mark>` que já funciona.
+- Nenhuma mudança em filtros, tabs (Todas/Não lidas/Arquivadas) ou ordenação dentro de cada grupo.
