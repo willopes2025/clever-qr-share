@@ -714,7 +714,23 @@ export const ConversationList = ({
                               ? "text-foreground font-medium" 
                               : "text-muted-foreground"
                           )}>
-                            {conversation.last_message_preview || "Sem mensagens"}
+                            {(() => {
+                              const snip = debouncedSearch.length >= 3 && searchSnippets[conversation.id]
+                                ? buildSnippet(searchSnippets[conversation.id].content, debouncedSearch)
+                                : null;
+                              if (snip) {
+                                return (
+                                  <>
+                                    {snip.before}
+                                    <mark className="bg-primary/20 text-foreground rounded px-0.5">
+                                      {snip.match}
+                                    </mark>
+                                    {snip.after}
+                                  </>
+                                );
+                              }
+                              return conversation.last_message_preview || "Sem mensagens";
+                            })()}
                           </p>
                         {conversation.unread_count > 0 && (
                           <Badge 
