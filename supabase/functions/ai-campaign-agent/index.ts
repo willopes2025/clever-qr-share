@@ -88,35 +88,37 @@ const formatDateBrazil = (date: Date): string => {
   return formatter.format(date);
 };
 
-// Check if current time is within allowed AI hours
-const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Sao_Paulo',
-    hour: 'numeric',
-    hour12: false,
-  });
-  const currentHour = parseInt(formatter.format(now));
-
-  // Same-day window, e.g. 08 -> 20
+// Check if a given hour falls inside [startHour, endHour] (supports overnight)
+const isHourWithinRange = (currentHour: number, startHour: number, endHour: number): boolean => {
   if (startHour <= endHour) {
     return currentHour >= startHour && currentHour <= endHour;
   }
-
   // Overnight window, e.g. 18 -> 09
   return currentHour >= startHour || currentHour <= endHour;
 };
 
-// Check if current time matches any of the provided active hour windows
+// Legacy single-window check (kept for backwards compatibility), uses timezone if provided
+const isWithinActiveHours = (startHour: number, endHour: number, tz: string = 'America/Sao_Paulo'): boolean => {
+  const { hour } = nowInTimezone(tz);
+  return isHourWithinRange(hour, startHour, endHour);
+};
+
+// Check if current time matches any of the provided active hour windows (with optional day-of-week filter)
 const isWithinAnyActiveWindow = (
-  windows: Array<{ start: number; end: number }> | null | undefined,
+  windows: Array<{ start: number; end: number; days?: number[] }> | null | undefined,
   fallbackStart: number,
   fallbackEnd: number,
+  tz: string = 'America/Sao_Paulo',
 ): boolean => {
+  const { hour, weekday } = nowInTimezone(tz);
   if (!windows || windows.length === 0) {
-    return isWithinActiveHours(fallbackStart, fallbackEnd);
+    return isHourWithinRange(hour, fallbackStart, fallbackEnd);
   }
-  return windows.some((w) => isWithinActiveHours(Number(w.start) || 0, Number(w.end) || 0));
+  return windows.some((w) => {
+    const days = Array.isArray(w.days) && w.days.length > 0 ? w.days.map(Number) : null;
+    if (days && !days.includes(weekday)) return false;
+    return isHourWithinRange(hour, Number(w.start) || 0, Number(w.end) || 0);
+  });
 };
 
 // Check if message contains handoff keywords
