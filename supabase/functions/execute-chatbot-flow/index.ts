@@ -535,6 +535,7 @@ Deno.serve(async (req: Request) => {
             message_type: mediaType, media_url: mediaUrl,
             whatsapp_message_id: result?.key?.id || null,
             sent_at: new Date().toISOString(),
+            sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
           });
           await supabase.from('conversations').update({
