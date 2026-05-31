@@ -543,210 +543,261 @@ export const ConversationList = ({
                     : "Nenhuma conversa ainda"}
             </p>
           </div>
-        ) : (
-          <div className="p-2">
-            {filteredConversations.map((conversation) => (
-              <ConversationContextMenu
-                key={conversation.id}
-                conversationId={conversation.id}
-                isArchived={conversation.status === 'archived'}
-                isPinned={conversation.is_pinned || false}
-                isClosed={conversation.status === 'closed'}
-                contactName={conversation.contact?.name || "Contato Desconhecido"}
-                contactPhone={conversation.contact?.phone || ""}
+        ) : (() => {
+          const renderCard = (conversation: typeof filteredConversations[number]) => (
+            <ConversationContextMenu
+              key={conversation.id}
+              conversationId={conversation.id}
+              isArchived={conversation.status === 'archived'}
+              isPinned={conversation.is_pinned || false}
+              isClosed={conversation.status === 'closed'}
+              contactName={conversation.contact?.name || "Contato Desconhecido"}
+              contactPhone={conversation.contact?.phone || ""}
+            >
+              <div
+                className={cn(
+                  "group w-full flex items-start gap-3 p-3 rounded-xl transition-colors duration-150 text-left mb-1 cursor-pointer",
+                  selectedId === conversation.id
+                    ? "bg-primary/10 border border-primary/20 shadow-sm"
+                    : "hover:bg-muted/50"
+                )}
+                onClick={() => onSelect(conversation)}
               >
-                <div
-                  className={cn(
-                    "group w-full flex items-start gap-3 p-3 rounded-xl transition-colors duration-150 text-left mb-1 cursor-pointer",
-                    selectedId === conversation.id
-                      ? "bg-primary/10 border border-primary/20 shadow-sm"
-                      : "hover:bg-muted/50"
-                  )}
-                  onClick={() => onSelect(conversation)}
-                >
-                    {/* Avatar */}
-                    <div className="relative">
-                      <Avatar className="w-12 h-12 shrink-0">
-                        {conversation.contact?.avatar_url && (
-                          <AvatarImage 
-                            src={conversation.contact.avatar_url} 
-                            alt={conversation.contact?.name || "Contato"} 
-                          />
-                        )}
-                        <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-medium">
-                          {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      {conversation.unread_count > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-card" />
+                  {/* Avatar */}
+                  <div className="relative">
+                    <Avatar className="w-12 h-12 shrink-0">
+                      {conversation.contact?.avatar_url && (
+                        <AvatarImage 
+                          src={conversation.contact.avatar_url} 
+                          alt={conversation.contact?.name || "Contato"} 
+                        />
                       )}
-                      {conversation.is_pinned && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center text-[8px] text-white">📌</span>
+                      <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-medium">
+                        {(conversation.contact?.name || conversation.contact?.phone || "?")[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    {conversation.unread_count > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary rounded-full border-2 border-card" />
+                    )}
+                    {conversation.is_pinned && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center text-[8px] text-white">📌</span>
+                    )}
+                    {/* AI Badge */}
+                    {conversation.ai_handled && !conversation.ai_paused && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="absolute -top-0.5 -left-0.5 w-5 h-5 bg-emerald-500 rounded-full border-2 border-card flex items-center justify-center">
+                            <Bot className="h-3 w-3 text-white" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>IA Atendendo</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {conversation.ai_handoff_requested && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="absolute -top-0.5 -left-0.5 w-5 h-5 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center animate-pulse">
+                            <UserCheck className="h-3 w-3 text-white" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Aguardando Atendente</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className={cn(
+                          "font-medium truncate",
+                          conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
+                        )}>
+                          {conversation.contact?.name || "Contato Desconhecido"}
+                        </span>
+                        <span className={cn(
+                          "text-[11px] whitespace-nowrap shrink-0",
+                          conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
+                        )}>
+                          {formatMessageTime(conversation.last_message_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <ConversationQuickActions
+                          conversationId={conversation.id}
+                          isPinned={conversation.is_pinned || false}
+                          contactName={conversation.contact?.name || "Contato Desconhecido"}
+                          contactPhone={conversation.contact?.phone || ""}
+                          status={conversation.status}
+                        />
+                      </div>
+                    </div>
+                    {/* Contact ID + Phone Number + Provider Badge + Meta Number */}
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <ProviderBadge 
+                        provider={conversation.provider || (conversation.instance_id ? 'evolution' : 'meta')} 
+                        size="sm" 
+                      />
+                      {conversation.contact?.contact_display_id && (
+                        <ContactIdBadge displayId={String(conversation.contact.contact_display_id)} size="sm" />
                       )}
-                      {/* AI Badge */}
-                      {conversation.ai_handled && !conversation.ai_paused && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="absolute -top-0.5 -left-0.5 w-5 h-5 bg-emerald-500 rounded-full border-2 border-card flex items-center justify-center">
-                              <Bot className="h-3 w-3 text-white" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>IA Atendendo</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {conversation.ai_handoff_requested && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="absolute -top-0.5 -left-0.5 w-5 h-5 bg-amber-500 rounded-full border-2 border-card flex items-center justify-center animate-pulse">
-                              <UserCheck className="h-3 w-3 text-white" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>Aguardando Atendente</TooltipContent>
-                        </Tooltip>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatForDisplay(conversation.contact?.phone || "")}
+                      </p>
+                      {conversation.meta_phone_number_id && (
+                        <span className="text-[10px] text-muted-foreground truncate shrink-0">
+                          via {getMetaLabel(conversation.meta_phone_number_id)}
+                        </span>
                       )}
                     </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className={cn(
-                            "font-medium truncate",
-                            conversation.unread_count > 0 ? "text-foreground" : "text-foreground/80"
-                          )}>
-                            {conversation.contact?.name || "Contato Desconhecido"}
-                          </span>
-                          <span className={cn(
-                            "text-[11px] whitespace-nowrap shrink-0",
-                            conversation.unread_count > 0 ? "text-primary font-medium" : "text-muted-foreground"
-                          )}>
-                            {formatMessageTime(conversation.last_message_at)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <ConversationQuickActions
-                            conversationId={conversation.id}
-                            isPinned={conversation.is_pinned || false}
-                            contactName={conversation.contact?.name || "Contato Desconhecido"}
-                            contactPhone={conversation.contact?.phone || ""}
-                            status={conversation.status}
-                          />
-                        </div>
-                      </div>
-                      {/* Contact ID + Phone Number + Provider Badge + Meta Number */}
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <ProviderBadge 
-                          provider={conversation.provider || (conversation.instance_id ? 'evolution' : 'meta')} 
-                          size="sm" 
-                        />
-                        {conversation.contact?.contact_display_id && (
-                          <ContactIdBadge displayId={String(conversation.contact.contact_display_id)} size="sm" />
-                        )}
-                        <p className="text-xs text-muted-foreground truncate">
-                          {formatForDisplay(conversation.contact?.phone || "")}
-                        </p>
-                        {conversation.meta_phone_number_id && (
-                          <span className="text-[10px] text-muted-foreground truncate shrink-0">
-                            via {getMetaLabel(conversation.meta_phone_number_id)}
-                          </span>
-                        )}
-                      </div>
-                      {/* Assigned + SLA Badges */}
-                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                        {/* Assigned To Badge */}
-                        {conversation.assigned_to && (
+                    {/* Assigned + SLA Badges */}
+                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                      {/* Assigned To Badge */}
+                      {conversation.assigned_to && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
+                              <User className="h-2.5 w-2.5" />
+                              {getMemberName(conversation.assigned_to)}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>Responsável: {getMemberName(conversation.assigned_to)}</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {/* SLA Warning Badge */}
+                      {(() => {
+                        const slaStatus = getSLAStatus(conversation);
+                        if (!slaStatus) return null;
+                        return (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] gap-0.5">
-                                <User className="h-2.5 w-2.5" />
-                                {getMemberName(conversation.assigned_to)}
+                              <Badge variant="outline" className={cn("h-4 px-1.5 text-[9px] gap-0.5 border-0 text-white", slaStatus.color)}>
+                                <Clock className="h-2.5 w-2.5" />
                               </Badge>
                             </TooltipTrigger>
-                            <TooltipContent>Responsável: {getMemberName(conversation.assigned_to)}</TooltipContent>
+                            <TooltipContent>{slaStatus.label}</TooltipContent>
                           </Tooltip>
-                        )}
-                        {/* SLA Warning Badge */}
-                        {(() => {
-                          const slaStatus = getSLAStatus(conversation);
-                          if (!slaStatus) return null;
-                          return (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge variant="outline" className={cn("h-4 px-1.5 text-[9px] gap-0.5 border-0 text-white", slaStatus.color)}>
-                                  <Clock className="h-2.5 w-2.5" />
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent>{slaStatus.label}</TooltipContent>
-                            </Tooltip>
-                          );
-                        })()}
-                      </div>
-                      {/* Funnel/Stage Badge */}
-                      {conversation.deal && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1 mb-0.5 max-w-full overflow-hidden">
-                              <Target className="h-3 w-3 shrink-0 text-muted-foreground" />
-                              <span className="text-[10px] text-muted-foreground truncate">
-                                {conversation.deal.funnel_name}
-                              </span>
-                              <Badge 
-                                variant="outline" 
-                                className="h-4 px-1.5 text-[9px] shrink-0 border"
-                                style={{ 
-                                  borderColor: conversation.deal.stage_color || undefined,
-                                  color: conversation.deal.stage_color || undefined
-                                }}
-                              >
-                                {conversation.deal.stage_name}
-                              </Badge>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {conversation.deal.funnel_name} → {conversation.deal.stage_name}
-                          </TooltipContent>
-                        </Tooltip>
+                        );
+                      })()}
+                    </div>
+                    {/* Funnel/Stage Badge */}
+                    {conversation.deal && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-1 mb-0.5 max-w-full overflow-hidden">
+                            <Target className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              {conversation.deal.funnel_name}
+                            </span>
+                            <Badge 
+                              variant="outline" 
+                              className="h-4 px-1.5 text-[9px] shrink-0 border"
+                              style={{ 
+                                borderColor: conversation.deal.stage_color || undefined,
+                                color: conversation.deal.stage_color || undefined
+                              }}
+                            >
+                              {conversation.deal.stage_name}
+                            </Badge>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {conversation.deal.funnel_name} → {conversation.deal.stage_name}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <p className={cn(
+                          "text-sm truncate flex-1 min-w-0",
+                          conversation.unread_count > 0 
+                            ? "text-foreground font-medium" 
+                            : "text-muted-foreground"
+                        )}>
+                          {(() => {
+                            const snip = debouncedSearch.length >= 3 && searchSnippets[conversation.id]
+                              ? buildSnippet(searchSnippets[conversation.id].content, debouncedSearch)
+                              : null;
+                            if (snip) {
+                              return (
+                                <>
+                                  {snip.before}
+                                  <mark className="bg-primary/20 text-foreground rounded px-0.5">
+                                    {snip.match}
+                                  </mark>
+                                  {snip.after}
+                                </>
+                              );
+                            }
+                            return conversation.last_message_preview || "Sem mensagens";
+                          })()}
+                        </p>
+                      {conversation.unread_count > 0 && (
+                        <Badge 
+                          variant="default" 
+                          className="bg-primary text-primary-foreground text-xs px-2 py-0.5 shrink-0 min-w-5 justify-center"
+                        >
+                          {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
+                        </Badge>
                       )}
-                      <div className="flex items-center gap-2">
-                          <p className={cn(
-                            "text-sm truncate flex-1 min-w-0",
-                            conversation.unread_count > 0 
-                              ? "text-foreground font-medium" 
-                              : "text-muted-foreground"
-                          )}>
-                            {(() => {
-                              const snip = debouncedSearch.length >= 3 && searchSnippets[conversation.id]
-                                ? buildSnippet(searchSnippets[conversation.id].content, debouncedSearch)
-                                : null;
-                              if (snip) {
-                                return (
-                                  <>
-                                    {snip.before}
-                                    <mark className="bg-primary/20 text-foreground rounded px-0.5">
-                                      {snip.match}
-                                    </mark>
-                                    {snip.after}
-                                  </>
-                                );
-                              }
-                              return conversation.last_message_preview || "Sem mensagens";
-                            })()}
-                          </p>
-                        {conversation.unread_count > 0 && (
-                          <Badge 
-                            variant="default" 
-                            className="bg-primary text-primary-foreground text-xs px-2 py-0.5 shrink-0 min-w-5 justify-center"
-                          >
-                            {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
-                          </Badge>
-                        )}
-                      </div>
                     </div>
                   </div>
-                </ConversationContextMenu>
-              ))}
-          </div>
-        )}
+                </div>
+              </ConversationContextMenu>
+          );
+
+          const hasSearch = debouncedSearch.trim().length >= 1;
+          if (!hasSearch) {
+            return <div className="p-2">{filteredConversations.map(renderCard)}</div>;
+          }
+
+          const normalizedSearch = normalizeText(debouncedSearch.trim());
+          const searchDigits = debouncedSearch.replace(/\D/g, "");
+          const contactConvIdSet = new Set(matchingContactConvIds);
+
+          const contactMatches: typeof filteredConversations = [];
+          const messageMatches: typeof filteredConversations = [];
+
+          for (const conv of filteredConversations) {
+            const name = conv.contact?.name || "";
+            const phone = conv.contact?.phone || "";
+            const displayId = (conv.contact?.contact_display_id || "").toString();
+            const matchesContact =
+              normalizeText(name).includes(normalizedSearch) ||
+              displayId.toLowerCase().includes(normalizedSearch) ||
+              (searchDigits.length > 0 && phone.replace(/\D/g, "").includes(searchDigits)) ||
+              contactConvIdSet.has(conv.id);
+
+            if (matchesContact) {
+              contactMatches.push(conv);
+            } else {
+              messageMatches.push(conv);
+            }
+          }
+
+          const sectionHeader = (label: string, count: number) => (
+            <div className="px-2 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {label} ({count})
+            </div>
+          );
+
+          return (
+            <div className="p-2">
+              {contactMatches.length > 0 && (
+                <>
+                  {sectionHeader("Contatos", contactMatches.length)}
+                  {contactMatches.map(renderCard)}
+                </>
+              )}
+              {messageMatches.length > 0 && (
+                <>
+                  {sectionHeader("Conversas", messageMatches.length)}
+                  {messageMatches.map(renderCard)}
+                </>
+              )}
+            </div>
+          );
+        })()}
+
       </ScrollArea>
     </div>
   );
