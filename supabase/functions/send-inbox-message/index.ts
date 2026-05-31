@@ -746,15 +746,10 @@ async function handleAIHandoff(
   }
 
   const shouldPauseAI = pauseEmoji && content.includes(pauseEmoji);
-  const shouldResumeAI = resumeEmoji && content.includes(resumeEmoji);
-  const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
-  const hasResumeTextPattern = textPatterns.some(pattern => pattern.test(content));
 
-  if (shouldResumeAI || hasResumeTextPattern) {
-    await supabase.from('conversations').update({
-      ai_paused: false, ai_handoff_requested: false, ai_handoff_reason: null,
-    }).eq('id', conversationId);
-  } else if (shouldPauseAI) {
+  // IA só é retomada manualmente pelo botão "Retomar IA" no inbox.
+  // Qualquer mensagem do atendente pausa a IA até retomada explícita.
+  if (shouldPauseAI) {
     await supabase.from('conversations').update({
       ai_paused: true, ai_handoff_requested: true,
       ai_handoff_reason: `Pausado via emoji ${pauseEmoji}`,
