@@ -1566,6 +1566,7 @@ Deno.serve(async (req: Request) => {
                 direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
                 message_type: 'text', whatsapp_message_id: whatsappMessageId,
                 sent_at: new Date().toISOString(),
+                sent_via_instance_id: resolvedInstanceId,
                 sent_via_chatbot_flow_id: flowId,
               });
               await supabase.from('conversations').update({
