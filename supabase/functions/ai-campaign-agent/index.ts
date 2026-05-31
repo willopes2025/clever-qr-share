@@ -1060,27 +1060,38 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[AI-AGENT] Processing message for conversation ${conversationId}, instanceId: ${instanceId}`);
 
-    // === DEBOUNCE CHECK: Prevent multiple rapid responses ===
-    // Check if agent sent a message very recently (within 15 seconds)
+    // === DEBOUNCE / HUMAN TAKEOVER CHECK ===
+    // Skip if a recent outbound message exists from either:
+    //   - the AI itself within the last 15s (anti-duplicate debounce), or
+    //   - a human operator within the last 10 minutes (human takeover pause).
     if (!manualTrigger) {
-      const { data: recentAgentMessage } = await supabase
+      const { data: recentOutbound } = await supabase
         .from('inbox_messages')
-        .select('created_at')
+        .select('created_at, sent_by_user_id, sent_by_ai_agent_id')
         .eq('conversation_id', conversationId)
         .eq('direction', 'outbound')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
-      
-      if (recentAgentMessage?.created_at) {
-        const lastAgentMessageTime = new Date(recentAgentMessage.created_at).getTime();
-        const now = Date.now();
-        const timeSinceLastAgentMessage = (now - lastAgentMessageTime) / 1000; // in seconds
-        
-        if (timeSinceLastAgentMessage < 15) {
-          console.log(`[AI-AGENT] DEBOUNCE: Agent sent message ${timeSinceLastAgentMessage.toFixed(1)}s ago - skipping to avoid duplicate`);
+        .maybeSingle();
+
+      if (recentOutbound?.created_at) {
+        const ageSeconds = (Date.now() - new Date(recentOutbound.created_at).getTime()) / 1000;
+        const sentByHuman = !!recentOutbound.sent_by_user_id && !recentOutbound.sent_by_ai_agent_id;
+        const HUMAN_PAUSE_SECONDS = 10 * 60; // 10 min — operador assumiu a conversa
+        const AI_DEBOUNCE_SECONDS = 15;
+
+        if (sentByHuman && ageSeconds < HUMAN_PAUSE_SECONDS) {
+          console.log(`[AI-AGENT] HUMAN-TAKEOVER: Operador respondeu há ${ageSeconds.toFixed(1)}s - IA pausada nesta conversa`);
           return new Response(
-            JSON.stringify({ success: false, reason: 'Debounce - recent agent message', timeSinceLastAgentMessage }),
+            JSON.stringify({ success: false, reason: 'Human operator recently active', ageSeconds }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (!sentByHuman && ageSeconds < AI_DEBOUNCE_SECONDS) {
+          console.log(`[AI-AGENT] DEBOUNCE: IA enviou mensagem há ${ageSeconds.toFixed(1)}s - skip para evitar duplicata`);
+          return new Response(
+            JSON.stringify({ success: false, reason: 'Debounce - recent agent message', ageSeconds }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
