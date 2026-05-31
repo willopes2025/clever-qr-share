@@ -325,8 +325,12 @@ export const AIAgentFormDialog = ({
       const loadedWindows = Array.isArray((data as any).active_hours_windows) ? (data as any).active_hours_windows : [];
       setActiveHoursWindows(
         loadedWindows.length > 0
-          ? loadedWindows.map((w: any) => ({ start: Number(w.start) || 0, end: Number(w.end) || 0 }))
-          : [{ start: data.active_hours_start ?? 8, end: data.active_hours_end ?? 20 }]
+          ? loadedWindows.map((w: any) => ({
+              start: Number(w.start) || 0,
+              end: Number(w.end) || 0,
+              days: Array.isArray(w.days) && w.days.length > 0 ? w.days.map((d: any) => Number(d)) : [0, 1, 2, 3, 4, 5, 6],
+            }))
+          : [{ start: data.active_hours_start ?? 8, end: data.active_hours_end ?? 20, days: [0, 1, 2, 3, 4, 5, 6] }]
       );
       setMaxInteractions(data.max_interactions || 15);
       setIsActive(data.is_active ?? false);
