@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveOrgTimezone, nowInTimezone } from "../_shared/timezone.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +24,7 @@ interface AgentConfig {
   response_delay_max: number;
   active_hours_start: number;
   active_hours_end: number;
-  active_hours_windows?: Array<{ start: number; end: number }> | null;
+  active_hours_windows?: Array<{ start: number; end: number; days?: number[] }> | null;
   handoff_keywords: string[];
   is_active: boolean;
   response_mode: 'text' | 'audio' | 'both' | 'adaptive';
@@ -87,35 +88,37 @@ const formatDateBrazil = (date: Date): string => {
   return formatter.format(date);
 };
 
-// Check if current time is within allowed AI hours
-const isWithinActiveHours = (startHour: number, endHour: number): boolean => {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Sao_Paulo',
-    hour: 'numeric',
-    hour12: false,
-  });
-  const currentHour = parseInt(formatter.format(now));
-
-  // Same-day window, e.g. 08 -> 20
+// Check if a given hour falls inside [startHour, endHour] (supports overnight)
+const isHourWithinRange = (currentHour: number, startHour: number, endHour: number): boolean => {
   if (startHour <= endHour) {
     return currentHour >= startHour && currentHour <= endHour;
   }
-
   // Overnight window, e.g. 18 -> 09
   return currentHour >= startHour || currentHour <= endHour;
 };
 
-// Check if current time matches any of the provided active hour windows
+// Legacy single-window check (kept for backwards compatibility), uses timezone if provided
+const isWithinActiveHours = (startHour: number, endHour: number, tz: string = 'America/Sao_Paulo'): boolean => {
+  const { hour } = nowInTimezone(tz);
+  return isHourWithinRange(hour, startHour, endHour);
+};
+
+// Check if current time matches any of the provided active hour windows (with optional day-of-week filter)
 const isWithinAnyActiveWindow = (
-  windows: Array<{ start: number; end: number }> | null | undefined,
+  windows: Array<{ start: number; end: number; days?: number[] }> | null | undefined,
   fallbackStart: number,
   fallbackEnd: number,
+  tz: string = 'America/Sao_Paulo',
 ): boolean => {
+  const { hour, weekday } = nowInTimezone(tz);
   if (!windows || windows.length === 0) {
-    return isWithinActiveHours(fallbackStart, fallbackEnd);
+    return isHourWithinRange(hour, fallbackStart, fallbackEnd);
   }
-  return windows.some((w) => isWithinActiveHours(Number(w.start) || 0, Number(w.end) || 0));
+  return windows.some((w) => {
+    const days = Array.isArray(w.days) && w.days.length > 0 ? w.days.map(Number) : null;
+    if (days && !days.includes(weekday)) return false;
+    return isHourWithinRange(hour, Number(w.start) || 0, Number(w.end) || 0);
+  });
 };
 
 // Check if message contains handoff keywords
@@ -1254,9 +1257,10 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Check if within active hours (only for automatic trigger)
-      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end)) {
-        console.log('[AI-AGENT] Outside active hours');
+      // Check if within active hours (only for automatic trigger) — use org timezone
+      const orgTz = await resolveOrgTimezone(supabase, { userId: conversation.user_id });
+      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end, orgTz)) {
+        console.log('[AI-AGENT] Outside active hours/days for tz', orgTz);
         return new Response(
           JSON.stringify({ success: false, reason: 'Outside active hours' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
