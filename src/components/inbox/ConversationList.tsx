@@ -69,6 +69,26 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+const buildSnippet = (
+  content: string,
+  term: string
+): { before: string; match: string; after: string } | null => {
+  if (!content || !term) return null;
+  const normContent = normalizeText(content);
+  const normTerm = normalizeText(term.trim());
+  if (!normTerm) return null;
+  const idx = normContent.indexOf(normTerm);
+  if (idx < 0) return null;
+  const BEFORE = 40;
+  const AFTER = 80;
+  const start = Math.max(0, idx - BEFORE);
+  const end = Math.min(content.length, idx + normTerm.length + AFTER);
+  const before = (start > 0 ? "…" : "") + content.slice(start, idx);
+  const match = content.slice(idx, idx + normTerm.length);
+  const after = content.slice(idx + normTerm.length, end) + (end < content.length ? "…" : "");
+  return { before, match, after };
+};
+
 type FilterTab = "all" | "unread" | "archived";
 
 export const ConversationList = ({ 
