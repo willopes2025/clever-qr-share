@@ -436,38 +436,19 @@ Deno.serve(async (req) => {
         })
         .eq('id', conversationId);
 
-      // Handle AI handoff logic when human agent sends media
+      // IA só é retomada manualmente pelo botão "Retomar IA" no inbox.
+      // Qualquer mídia enviada por atendente pausa a IA.
       if (senderUserId) {
-        const captionToCheck = caption || '';
-        const okPatterns = ['👍', '✅', '🤖'];
-        const textPatterns = [/\bok\b/i, /\bresumir\s*ia\b/i, /\bativar\s*ia\b/i];
-        
-        const shouldResumeAI = okPatterns.some(emoji => captionToCheck.includes(emoji)) ||
-                               textPatterns.some(pattern => pattern.test(captionToCheck));
+        await supabase
+          .from('conversations')
+          .update({
+            ai_paused: true,
+            ai_handoff_requested: true,
+            ai_handoff_reason: 'Atendente assumiu a conversa',
+          })
+          .eq('id', conversationId);
 
-        if (shouldResumeAI) {
-          await supabase
-            .from('conversations')
-            .update({
-              ai_paused: false,
-              ai_handoff_requested: false,
-              ai_handoff_reason: null,
-            })
-            .eq('id', conversationId);
-          
-          console.log(`[HANDOFF] AI resumed via media caption for conversation ${conversationId}`);
-        } else {
-          await supabase
-            .from('conversations')
-            .update({
-              ai_paused: true,
-              ai_handoff_requested: true,
-              ai_handoff_reason: 'Atendente assumiu a conversa',
-            })
-            .eq('id', conversationId);
-          
-          console.log(`[HANDOFF] AI paused - human (${senderUserId}) sent media to conversation ${conversationId}`);
-        }
+        console.log(`[HANDOFF] AI paused - human (${senderUserId}) sent media to conversation ${conversationId}`);
       }
 
       return new Response(
