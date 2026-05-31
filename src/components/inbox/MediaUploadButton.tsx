@@ -116,6 +116,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
       toast.error("Erro ao enviar arquivo");
     } finally {
       setUploading(false);
+      setStatusLabel('Enviando...');
     }
   };
 
