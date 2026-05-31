@@ -144,7 +144,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
         {uploading ? (
           <div className="flex flex-col items-center justify-center py-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-            <p className="text-sm text-muted-foreground">Enviando...</p>
+            <p className="text-sm text-muted-foreground text-center">{statusLabel}</p>
           </div>
         ) : preview ? (
           <div className="space-y-3">
