@@ -105,8 +105,10 @@ export const ConversationList = ({
   }, [searchTerm]);
   
   // Hook para busca por conteúdo de mensagens
-  const { data: matchingConversationIds = [], isLoading: isSearchingMessages } = useConversationSearch(debouncedSearch);
-  
+  const { data: messageSearchResult, isLoading: isSearchingMessages } = useConversationSearch(debouncedSearch);
+  const matchingConversationIds = messageSearchResult?.ids ?? [];
+  const searchSnippets = messageSearchResult?.snippets ?? {};
+
   // Hook para busca server-side por nome/telefone/ID de contatos
   const { data: matchingContactConvIds = [], isLoading: isSearchingContacts } = useContactSearch(debouncedSearch);
 
