@@ -441,6 +441,7 @@ Deno.serve(async (req: Request) => {
             content: text, direction: 'outbound', status: 'sent',
             message_type: 'text', whatsapp_message_id: whatsappMessageId,
             sent_at: new Date().toISOString(),
+            sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
             sent_via_template_id: currentTemplateId,
             sent_via_meta_template_id: currentMetaTemplateId,
@@ -534,6 +535,7 @@ Deno.serve(async (req: Request) => {
             message_type: mediaType, media_url: mediaUrl,
             whatsapp_message_id: result?.key?.id || null,
             sent_at: new Date().toISOString(),
+            sent_via_instance_id: resolvedInstanceId,
             sent_via_chatbot_flow_id: flowId,
           });
           await supabase.from('conversations').update({
@@ -615,6 +617,7 @@ Deno.serve(async (req: Request) => {
           content: text, direction: 'outbound', status: 'sent',
           message_type: 'interactive', whatsapp_message_id: wid,
           sent_at: new Date().toISOString(),
+          sent_via_instance_id: resolvedInstanceId,
           sent_via_chatbot_flow_id: flowId,
         });
         await supabase.from('conversations').update({
@@ -891,6 +894,7 @@ Deno.serve(async (req: Request) => {
                     whatsapp_message_id: mediaMessageId,
                     error_message: mediaError,
                     sent_at: new Date().toISOString(),
+                    sent_via_instance_id: instanceName ? resolvedInstanceId : null,
                     sent_via_meta_number_id: !instanceName && metaPhoneNumberId ? metaPhoneNumberId : null,
                     sent_via_chatbot_flow_id: flowId,
                     sent_via_template_id: node.data.templateId,
@@ -1459,6 +1463,7 @@ Deno.serve(async (req: Request) => {
                       message_type: 'text',
                       whatsapp_message_id: whatsappMessageId,
                       sent_at: new Date().toISOString(),
+                      sent_via_meta_number_id: phoneNumberId,
                       sent_via_chatbot_flow_id: flowId,
                     });
 
@@ -1561,6 +1566,7 @@ Deno.serve(async (req: Request) => {
                 direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
                 message_type: 'text', whatsapp_message_id: whatsappMessageId,
                 sent_at: new Date().toISOString(),
+                sent_via_instance_id: resolvedInstanceId,
                 sent_via_chatbot_flow_id: flowId,
               });
               await supabase.from('conversations').update({
@@ -1635,6 +1641,7 @@ Deno.serve(async (req: Request) => {
                 direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
                 message_type: 'text', whatsapp_message_id: wid,
                 sent_at: new Date().toISOString(),
+                sent_via_meta_number_id: metaPhoneNumberId,
                 sent_via_chatbot_flow_id: flowId,
               });
             } catch (err) {
