@@ -1641,6 +1641,7 @@ Deno.serve(async (req: Request) => {
                 direction: 'outbound', status: sendFailed ? 'failed' : 'sent',
                 message_type: 'text', whatsapp_message_id: wid,
                 sent_at: new Date().toISOString(),
+                sent_via_meta_number_id: metaPhoneNumberId,
                 sent_via_chatbot_flow_id: flowId,
               });
             } catch (err) {
