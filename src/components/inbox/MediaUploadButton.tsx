@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { compressVideo, WHATSAPP_VIDEO_LIMIT_BYTES } from "@/lib/video-compress";
 
 type MediaType = 'image' | 'document' | 'video';
 
@@ -19,6 +20,7 @@ interface MediaUploadButtonProps {
 export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps) => {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [statusLabel, setStatusLabel] = useState<string>("Enviando...");
   const [preview, setPreview] = useState<{ url: string; type: string; name: string; mediaType: MediaType } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -28,10 +30,11 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (video: 35MB, others: 10MB)
-    const maxSize = type === 'video' ? 35 * 1024 * 1024 : 10 * 1024 * 1024;
+    // Hard ceiling per type (pre-compression for video).
+    // Video: allow up to 200MB raw — we'll compress down to <16MB before sending.
+    const maxSize = type === 'video' ? 200 * 1024 * 1024 : 10 * 1024 * 1024;
     if (file.size > maxSize) {
-      toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '35MB' : '10MB'}.`);
+      toast.error(`Arquivo muito grande. Máximo ${type === 'video' ? '200MB' : '10MB'}.`);
       return;
     }
 
@@ -39,9 +42,9 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
     if (type === 'image' || type === 'video') {
       const reader = new FileReader();
       reader.onload = () => {
-        setPreview({ 
-          url: reader.result as string, 
-          type: file.type, 
+        setPreview({
+          url: reader.result as string,
+          type: file.type,
           name: file.name,
           mediaType: type
         });
@@ -51,12 +54,41 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
       setPreview({ url: '', type: file.type, name: file.name, mediaType: type });
     }
 
-    // Upload file
-    await uploadFile(file, type);
+    // Compress video if needed, then upload
+    let toUpload = file;
+    if (type === 'video' && file.size > WHATSAPP_VIDEO_LIMIT_BYTES) {
+      try {
+        setUploading(true);
+        setStatusLabel('Comprimindo vídeo...');
+        const compressed = await compressVideo(file, {
+          onProgress: (r) => setStatusLabel(`Comprimindo vídeo... ${Math.round(r * 100)}%`),
+        });
+        console.log(`[video-compress] ${file.size} -> ${compressed.size} bytes`);
+        if (compressed.size > WHATSAPP_VIDEO_LIMIT_BYTES) {
+          toast.error('Não foi possível reduzir o vídeo para menos de 16MB. Tente um vídeo mais curto.');
+          setUploading(false);
+          setStatusLabel('Enviando...');
+          clearPreview();
+          return;
+        }
+        toUpload = compressed;
+      } catch (err) {
+        console.error('Video compression error:', err);
+        toast.error('Falha ao comprimir o vídeo. Tente um arquivo menor.');
+        setUploading(false);
+        setStatusLabel('Enviando...');
+        clearPreview();
+        return;
+      }
+    }
+
+    await uploadFile(toUpload, type);
   };
 
   const uploadFile = async (file: File, type: MediaType) => {
     setUploading(true);
+    setStatusLabel('Enviando...');
+
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -84,6 +116,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
       toast.error("Erro ao enviar arquivo");
     } finally {
       setUploading(false);
+      setStatusLabel('Enviando...');
     }
   };
 
@@ -111,7 +144,7 @@ export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps
         {uploading ? (
           <div className="flex flex-col items-center justify-center py-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-            <p className="text-sm text-muted-foreground">Enviando...</p>
+            <p className="text-sm text-muted-foreground text-center">{statusLabel}</p>
           </div>
         ) : preview ? (
           <div className="space-y-3">
