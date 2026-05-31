@@ -1257,9 +1257,10 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // Check if within active hours (only for automatic trigger)
-      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end)) {
-        console.log('[AI-AGENT] Outside active hours');
+      // Check if within active hours (only for automatic trigger) — use org timezone
+      const orgTz = await resolveOrgTimezone(supabase, { userId: conversation.user_id });
+      if (!isWithinAnyActiveWindow(config.active_hours_windows, config.active_hours_start, config.active_hours_end, orgTz)) {
+        console.log('[AI-AGENT] Outside active hours/days for tz', orgTz);
         return new Response(
           JSON.stringify({ success: false, reason: 'Outside active hours' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
