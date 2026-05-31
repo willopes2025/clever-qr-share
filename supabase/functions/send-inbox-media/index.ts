@@ -63,6 +63,37 @@ Deno.serve(async (req) => {
       throw new Error('conversationId, mediaUrl, mediaType and instanceId are required');
     }
 
+    // Validate media size against WhatsApp limits (Meta + Evolution share the same caps)
+    // Refs: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
+    const WA_SIZE_LIMITS: Record<string, number> = {
+      image: 5 * 1024 * 1024,        // 5 MB
+      video: 16 * 1024 * 1024,       // 16 MB
+      audio: 16 * 1024 * 1024,       // 16 MB
+      voice: 16 * 1024 * 1024,       // 16 MB
+      document: 100 * 1024 * 1024,   // 100 MB
+      sticker: 500 * 1024,           // 500 KB
+    };
+    const sizeLimit = WA_SIZE_LIMITS[mediaType as string];
+    if (sizeLimit && typeof mediaUrl === 'string' && /^https?:\/\//i.test(mediaUrl)) {
+      try {
+        const head = await fetch(mediaUrl, { method: 'HEAD' });
+        const lenStr = head.headers.get('content-length');
+        const len = lenStr ? parseInt(lenStr, 10) : 0;
+        if (len > 0 && len > sizeLimit) {
+          const mb = (len / (1024 * 1024)).toFixed(1);
+          const maxMb = (sizeLimit / (1024 * 1024)).toFixed(0);
+          const friendly = `Arquivo de ${mediaType} muito grande (${mb} MB). O WhatsApp aceita no máximo ${maxMb} MB para ${mediaType}.`;
+          console.warn(`[SEND-MEDIA] Rejecting oversized ${mediaType}: ${len} bytes > ${sizeLimit}`);
+          return new Response(
+            JSON.stringify({ success: false, error: friendly }),
+            { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (e) {
+        console.warn('[SEND-MEDIA] Could not HEAD media for size check:', (e as Error).message);
+      }
+    }
+
     console.log(`Sending ${mediaType} to conversation ${conversationId} via instance ${instanceId}`);
 
     // Get conversation with contact info
