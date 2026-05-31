@@ -209,7 +209,7 @@ export const AIAgentFormDialog = ({
             setResponseDelayMax(pendingTemplate.responseDelayMax);
             setActiveHoursStart(pendingTemplate.activeHoursStart);
             setActiveHoursEnd(pendingTemplate.activeHoursEnd);
-            setActiveHoursWindows([{ start: pendingTemplate.activeHoursStart, end: pendingTemplate.activeHoursEnd }]);
+            setActiveHoursWindows([{ start: pendingTemplate.activeHoursStart, end: pendingTemplate.activeHoursEnd, days: [0, 1, 2, 3, 4, 5, 6] }]);
             setMaxInteractions(pendingTemplate.maxInteractions);
             setTemplateType(pendingTemplate.id);
             toast.success("Template personalizado com sucesso!");
