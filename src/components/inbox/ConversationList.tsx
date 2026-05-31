@@ -69,6 +69,26 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+const buildSnippet = (
+  content: string,
+  term: string
+): { before: string; match: string; after: string } | null => {
+  if (!content || !term) return null;
+  const normContent = normalizeText(content);
+  const normTerm = normalizeText(term.trim());
+  if (!normTerm) return null;
+  const idx = normContent.indexOf(normTerm);
+  if (idx < 0) return null;
+  const BEFORE = 40;
+  const AFTER = 80;
+  const start = Math.max(0, idx - BEFORE);
+  const end = Math.min(content.length, idx + normTerm.length + AFTER);
+  const before = (start > 0 ? "…" : "") + content.slice(start, idx);
+  const match = content.slice(idx, idx + normTerm.length);
+  const after = content.slice(idx + normTerm.length, end) + (end < content.length ? "…" : "");
+  return { before, match, after };
+};
+
 type FilterTab = "all" | "unread" | "archived";
 
 export const ConversationList = ({ 
@@ -105,8 +125,10 @@ export const ConversationList = ({
   }, [searchTerm]);
   
   // Hook para busca por conteúdo de mensagens
-  const { data: matchingConversationIds = [], isLoading: isSearchingMessages } = useConversationSearch(debouncedSearch);
-  
+  const { data: messageSearchResult, isLoading: isSearchingMessages } = useConversationSearch(debouncedSearch);
+  const matchingConversationIds = messageSearchResult?.ids ?? [];
+  const searchSnippets = messageSearchResult?.snippets ?? {};
+
   // Hook para busca server-side por nome/telefone/ID de contatos
   const { data: matchingContactConvIds = [], isLoading: isSearchingContacts } = useContactSearch(debouncedSearch);
 
@@ -692,7 +714,23 @@ export const ConversationList = ({
                               ? "text-foreground font-medium" 
                               : "text-muted-foreground"
                           )}>
-                            {conversation.last_message_preview || "Sem mensagens"}
+                            {(() => {
+                              const snip = debouncedSearch.length >= 3 && searchSnippets[conversation.id]
+                                ? buildSnippet(searchSnippets[conversation.id].content, debouncedSearch)
+                                : null;
+                              if (snip) {
+                                return (
+                                  <>
+                                    {snip.before}
+                                    <mark className="bg-primary/20 text-foreground rounded px-0.5">
+                                      {snip.match}
+                                    </mark>
+                                    {snip.after}
+                                  </>
+                                );
+                              }
+                              return conversation.last_message_preview || "Sem mensagens";
+                            })()}
                           </p>
                         {conversation.unread_count > 0 && (
                           <Badge 

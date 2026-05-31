@@ -1,63 +1,33 @@
-## O que está acontecendo
+## Objetivo
 
-Olhei a conversa da Tatiely Maciel (`d5c16f60-7aff-4b37-92c2-a66d896245fc`). Dois problemas distintos:
+Quando o usuário digita um termo no campo de busca do Inbox (ex.: "urgente"), exibir, em cada conversa da lista, um trecho da mensagem que contém o termo — com a palavra destacada — em vez de apenas o `last_message_preview`. Comportamento similar ao WhatsApp Web.
 
-### Problema 1 — Mensagens do chatbot sem badge de origem
-As mensagens enviadas pelos fluxos **"Agendamento de exame de vista"** e **"Confirmação de Exame de Vista"** ficaram com `sent_via_instance_id = NULL` e `sent_via_meta_number_id = NULL` no banco. Por isso o inbox não exibe "via Centro de Saúde Visual" no rodapé.
+## O que muda
 
-Causa: em `supabase/functions/execute-chatbot-flow/index.ts`, todos os `inbox_messages.insert(...)` do caminho Evolution (envio de texto, mídia, botões, listas, etc.) salvam `sent_via_chatbot_flow_id` mas **não** salvam `sent_via_instance_id`, mesmo quando `resolvedInstanceId` está disponível. O caminho Meta já salva `sent_via_meta_number_id` corretamente.
+### 1. `src/hooks/useConversationSearch.ts`
+Hoje retorna apenas `string[]` (IDs de conversa). Passa a retornar também o trecho da mensagem que casou:
 
-### Problema 2 — Disparo saiu pelo "Centro de Saúde Visual" e não pelo "Seven" (Meta) que já vinha sendo usado
-A conversa já tinha histórico Meta (`Seven · +55 27 99824-6204` — `meta_phone_number_id=1094594580394816`). Os dois fluxos do chatbot estão configurados com `instance_id` apontando para a Evolution `Centro de Saúde Visual` (`854edf33-…`).
+- Selecionar `conversation_id, content, created_at` (já seleciona `created_at`, falta `content`).
+- Para cada `conversation_id` único, guardar a **primeira ocorrência** (mensagem mais recente) e expor:
+  - `ids: string[]` (mantém compatibilidade com `useContactSearch` e `missingConversationIds`)
+  - `snippets: Record<conversationId, { content: string; created_at: string }>`
+- Manter o teto `MAX_IDS = 800` e o limite de 2000 linhas.
 
-Pela regra de precedência atual em `execute-chatbot-flow` (linhas 131-156), **o default do fluxo sobrescreve o canal já registrado na conversa**. Resultado: chatbot dispara por Evolution → lead recebe num WhatsApp e responde "1" lá → respostas Meta (Seven) e dispatch Evolution (CSV) ficam misturados na mesma conversa.
+### 2. `src/components/inbox/ConversationList.tsx`
+- Consumir o novo `snippets` do hook.
+- Criar um helper `buildSnippet(content, term)` que:
+  - Localiza o termo (case/diacríticos-insensitive, reaproveitando `normalizeText`).
+  - Recorta uma janela curta ao redor (~40 chars antes / ~60 depois) com `…` quando truncado.
+  - Retorna `{ before, match, after }` para renderização.
+- No bloco da pré-visualização (linhas ~688–696), quando:
+  - `debouncedSearch.length >= 3` **e** existe `snippets[conversation.id]`
+  → renderizar o snippet, com a parte `match` envolvida em `<mark className="bg-primary/20 text-foreground rounded px-0.5">`.
+  - Caso contrário, manter `last_message_preview` como hoje.
+- Manter `truncate` e a mesma tipografia (negrito se `unread_count > 0`).
 
----
+### 3. Sem mudanças de backend
+A busca continua usando `inbox_messages.content` via PostgREST ILIKE. Nenhuma migration, nenhuma edge function alterada.
 
-## Plano
-
-### 1. Corrigir badge de origem (Problema 1)
-
-Em `supabase/functions/execute-chatbot-flow/index.ts`, adicionar `sent_via_instance_id: resolvedInstanceId` em **todos** os inserts de `inbox_messages` do caminho Evolution. Inserts identificados a corrigir:
-
-- texto Evolution (linha ~439)
-- mídia Evolution (linha ~531)
-- botões Evolution `sendButtons` (linha ~613)
-- mídia dentro de nó de pergunta (linha ~883) — ajustar a regra atual `!instanceName && metaPhoneNumberId` para gravar `sent_via_instance_id` quando `instanceName` estiver presente
-- texto pós-validação Evolution (linha ~1453)
-- lista Evolution `sendList` (linha ~1558)
-- resposta Evolution genérica (linha ~1632)
-
-Critério único: se a mensagem saiu por Evolution e existe `resolvedInstanceId`, gravar nele. Se saiu por Meta, manter `sent_via_meta_number_id` como já está.
-
-### 2. Definir o canal de disparo do chatbot (Problema 2)
-
-Precisa de decisão sua antes de mexer. Hoje a regra é:
-
-```text
-1) Override da automação       (manda no card "Acionar Chatbot")
-2) Default do fluxo            (chatbot_flows.instance_id)   ← está vencendo
-3) instance/meta_phone da conversa
-4) Fallback automático
-```
-
-Opções:
-
-**A) Manter como está.** Fluxo sempre dispara pelo número configurado nele, mesmo que a conversa já estivesse rodando em outro canal. Só conserto o badge.
-
-**B) Inverter precedência:** quando a conversa **já tem histórico em outro canal** (Meta ou Evolution diferente), priorizar o canal da conversa em vez do default do fluxo. Override manual da automação continua vencendo de tudo.
-
-**C) Híbrido:** se a conversa já tem `meta_phone_number_id`/`instance_id` ativo nos últimos N dias, priorizar o canal da conversa; caso contrário usar o default do fluxo.
-
-### Arquivos afetados
-
-- `supabase/functions/execute-chatbot-flow/index.ts` (correção do badge sempre; ajuste de precedência se B ou C)
-
-### Não vou mexer agora
-
-- O registro existente da Tatiely não será reescrito retroativamente. A correção vale para novos disparos.
-- Sem alterações em UI/frontend — o badge já é renderizado a partir de `sent_via_instance_id` / `sent_via_meta_number_id`.
-
----
-
-**Preciso da sua escolha sobre o item 2 (A, B ou C) antes de implementar. O item 1 eu já corrijo de qualquer forma.**
+## Fora de escopo
+- Busca em mídia/legendas separadas, paginação de múltiplos hits por conversa, ou navegação até a mensagem dentro da conversa (pode ser um próximo passo).
+- Mudanças no `useContactSearch` (matches por nome/telefone seguem mostrando `last_message_preview`).
