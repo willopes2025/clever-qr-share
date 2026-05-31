@@ -20,6 +20,7 @@ interface MediaUploadButtonProps {
 export const MediaUploadButton = ({ onUpload, disabled }: MediaUploadButtonProps) => {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [statusLabel, setStatusLabel] = useState<string>("Enviando...");
   const [preview, setPreview] = useState<{ url: string; type: string; name: string; mediaType: MediaType } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
