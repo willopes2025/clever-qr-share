@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { compressVideo, WHATSAPP_VIDEO_LIMIT_BYTES } from "@/lib/video-compress";
 
 type MediaType = 'image' | 'document' | 'video';
 
