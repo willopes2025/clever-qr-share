@@ -117,6 +117,8 @@ export function utcToLocalInput(date: Date | string | null | undefined, tz: stri
 // ----------------------------------------------------------------------------
 
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+// ISO datetime SEM fuso (naive). Interpretado como horário local da organização.
+const NAIVE_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 
 type AnyDateInput = Date | string | number | null | undefined;
 
@@ -135,6 +137,21 @@ function toDate(value: AnyDateInput): Date | null {
   if (m) {
     return fromTimezoneToUtc(
       { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) },
+      activeTimezone,
+    );
+  }
+  // Naive datetimes (without tz) are also interpreted as local-to-active-tz wall time.
+  const naive = s.match(NAIVE_DATETIME_RE);
+  if (naive) {
+    return fromTimezoneToUtc(
+      {
+        year: Number(naive[1]),
+        month: Number(naive[2]),
+        day: Number(naive[3]),
+        hour: Number(naive[4]),
+        minute: Number(naive[5]),
+        second: Number(naive[6] || 0),
+      },
       activeTimezone,
     );
   }

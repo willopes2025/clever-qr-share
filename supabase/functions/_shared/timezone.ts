@@ -185,6 +185,9 @@ export function nowInTimezone(tz: string, now: Date = new Date()) {
 // ----------------------------------------------------------------------------
 
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+// ISO datetime SEM fuso horário (naive). Ex: "2026-06-01T09:15:00" ou "2026-06-01 09:15".
+// Deve ser interpretado como horário local da organização, não UTC.
+const NAIVE_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 type AnyDateInput = Date | string | number | null | undefined;
 
 function toDate(value: AnyDateInput, tz: string): Date | null {
@@ -199,6 +202,11 @@ function toDate(value: AnyDateInput, tz: string): Date | null {
   const m = s.match(DATE_ONLY_RE);
   if (m) {
     return parseInTimezone(s, "00:00", tz);
+  }
+  const naive = s.match(NAIVE_DATETIME_RE);
+  if (naive) {
+    const [, y, mo, d, hh, mm] = naive;
+    return parseInTimezone(`${y}-${mo}-${d}`, `${hh}:${mm}`, tz);
   }
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
