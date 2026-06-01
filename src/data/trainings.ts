@@ -204,7 +204,7 @@ export const trainings: TrainingModule[] = [
         id: "inbox-2",
         title: "Enviando mensagens e mídias",
         description:
-          "Na parte inferior da conversa você tem o campo de digitação e os botões de mídia. Além de texto, você pode enviar imagens, vídeos, documentos, áudios e templates oficiais. Use o agendamento para programar uma mensagem para depois.",
+          "Para enviar texto, mídia ou agendar uma mensagem:\n\n1. Com a conversa aberta, clique no **campo de mensagem** na parte inferior.\n2. Digite o texto. Use **Shift+Enter** para quebrar linha e **Enter** para enviar.\n3. Para anexar arquivo, clique no **clipe** e selecione **imagem**, **vídeo**, **documento** ou **áudio** — também pode arrastar e soltar.\n4. Para gravar áudio, segure o ícone de **microfone** e fale. Solte para enviar como mensagem de voz.\n5. Clique no **emoji** para abrir o seletor.\n6. Para usar um template, clique em **Template** e escolha um da lista — variáveis como **{{nome}}** são preenchidas automaticamente.\n7. Para programar o envio, clique em **Agendar envio**, escolha **data** e **hora** e confirme.\n8. Aperte o **avião** (ou **Enter**) para enviar agora.",
         image: "/training/inbox/02.png",
         buttons: [
           { label: "Campo de mensagem", description: "Digite o texto. Aceita quebra de linha com Shift+Enter e variáveis como {{nome}} se vier de um template." },
