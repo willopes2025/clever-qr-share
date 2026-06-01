@@ -640,7 +640,7 @@ export const trainings: TrainingModule[] = [
         id: "pesquisa-leads-2",
         title: "Instagram Scraper",
         description:
-          "O Instagram Scraper coleta perfis e comentários públicos do Instagram para você prospectar. Pode buscar seguidores de um perfil, quem comentou em um post específico ou perfis por palavra-chave.",
+          "Para coletar perfis e comentários públicos do Instagram:\n\n1. Em **Pesquisa de Leads**, abra a aba **Instagram Scraper**.\n2. Escolha o modo de busca:\n  - **Buscar por perfil**: cole o **@** ou **URL** e o sistema lista os seguidores públicos.\n  - **Buscar por post**: cole a **URL do post** e veja quem comentou (com texto do comentário).\n  - **Buscar por palavra-chave**: digite o termo para encontrar perfis cuja **bio/nome** contém ele.\n3. Aperte **Buscar** e aguarde os resultados.\n4. Use **Filtrar resultados** para reduzir por número de seguidores, palavra na bio ou presença de link externo.\n5. Para baixar, clique em **Exportar CSV**.\n6. Para mandar para a base com telefone, clique em **Importar como contatos** — a bio vira **nota inicial**.",
         buttons: [
           { label: "Buscar por perfil", description: "Cole o @ ou URL do perfil e o sistema lista os seguidores públicos." },
           { label: "Buscar por post", description: "Cole a URL do post e o sistema lista quem comentou (com texto do comentário)." },
