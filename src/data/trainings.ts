@@ -272,7 +272,7 @@ export const trainings: TrainingModule[] = [
         id: "funis-2",
         title: "Cartão de lead e automações",
         description:
-          "Clicando em um cartão você abre o painel lateral com todas as informações do lead: dados, histórico de WhatsApp, oportunidades, tarefas, notas, atividades e campos personalizados. Cada etapa do funil pode ter automações disparadas na entrada (enviar mensagem, criar tarefa, mover de funil etc.).",
+          "Para abrir um lead e configurar automações:\n\n1. No quadro do funil, **clique em um cartão** — abrirá o **painel lateral** completo.\n2. Em **Dados do contato**, edite nome, telefone, e-mail, empresa e campos personalizados.\n3. Use as abas **Conversas**, **Tarefas**, **Notas** e **Atividades** para acessar cada parte do histórico.\n4. Preencha o **Valor da oportunidade** para alimentar o pipeline financeiro.\n5. Para configurar automações, volte ao quadro, clique em **Editar etapa** (cabeçalho da coluna).\n6. Em **Automações**, clique em **Adicionar regra** e escolha o gatilho **Ao entrar nesta etapa**.\n7. Selecione a ação: **Enviar mensagem**, **Criar tarefa**, **Mover de funil**, **Aplicar etiqueta**.\n8. Aperte **Salvar**. Para mover o cartão para outro funil, use o botão **Mover para outro funil** dentro do cartão.\n9. Para unir cartões duplicados do mesmo telefone, clique em **Mesclar leads**.",
         buttons: [
           { label: "Dados do contato", description: "Edita nome, telefone, e-mail, empresa, campos personalizados." },
           { label: "Conversas", description: "Lista todas as conversas de WhatsApp desse contato. Clique para abrir no Inbox." },
