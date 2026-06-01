@@ -126,7 +126,7 @@ export const WhatsNewDialog = () => {
     return () => {
       cancelled = true;
     };
-  }, [user, loading, location.pathname]);
+  }, [user, loading]);
 
   const handleClose = () => {
     if (user) {
