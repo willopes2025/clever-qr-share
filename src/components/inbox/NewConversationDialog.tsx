@@ -86,9 +86,18 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
   const findExistingContactByPhone = (phone: string) => {
     if (!contacts) return null;
     return contacts.find(c => {
-      const cDigits = extractDigits(c.phone);
+      const cDigits = extractDigits(c.phone || "");
       return cDigits === phone || cDigits.endsWith(phone) || phone.endsWith(cDigits);
     });
+  };
+
+  const getContactDisplay = (contact: { name?: string | null; phone?: string | null }) => {
+    const label = contact.name?.trim() || contact.phone?.trim() || "Contato sem nome";
+    return {
+      label,
+      initial: label.charAt(0).toUpperCase(),
+      phone: contact.phone?.trim() || "Sem telefone",
+    };
   };
 
   const handleCreateAndChat = async () => {
@@ -148,8 +157,9 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           toast.success("Contato criado e conversa iniciada");
         }
       }
-    } catch (error: any) {
-      if (error?.message?.includes('duplicate') || error?.code === '23505') {
+    } catch (error: unknown) {
+      const typedError = error as { message?: string; code?: string };
+      if (typedError.message?.includes('duplicate') || typedError.code === '23505') {
         // Duplicate - try to find and open existing
         const existingContact = findExistingContactByPhone(fullNumber);
         if (existingContact) {
@@ -307,26 +317,30 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
               </div>
             ) : (
               <div className="space-y-1">
-                {filteredContacts.map((contact) => (
-                  <button
-                    key={contact.id}
-                    onClick={() => handleSelectContact(contact.id)}
-                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
-                    disabled={createConversation.isPending || !selectedInstanceId}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0">
-                      {(contact.name || contact.phone)[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground truncate">
-                        {contact.name || contact.phone}
-                      </p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {contact.phone}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                {filteredContacts.map((contact) => {
+                  const contactDisplay = getContactDisplay(contact);
+
+                  return (
+                    <button
+                      key={contact.id}
+                      onClick={() => handleSelectContact(contact.id)}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                      disabled={createConversation.isPending || !selectedInstanceId}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-medium shrink-0">
+                        {contactDisplay.initial}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">
+                          {contactDisplay.label}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {contactDisplay.phone}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
