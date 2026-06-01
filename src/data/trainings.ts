@@ -156,7 +156,7 @@ export const trainings: TrainingModule[] = [
         id: "instancias-3",
         title: "Configurações avançadas da instância",
         description:
-          "Clicando na engrenagem de cada instância você abre as configurações detalhadas: webhook personalizado, ativar/desativar IA, horário de atendimento, mensagem fora do expediente e atribuição automática. Aqui também ficam as configurações do número oficial Meta (WhatsApp Cloud API).",
+          "Para configurar comportamento avançado de uma instância:\n\n1. Na lista de **Instâncias**, clique no ícone de **engrenagem** (ou nos **três pontinhos**) da instância desejada.\n2. Abrirá o painel de **Configurações da instância**.\n3. Em **Renomear**, ajuste o nome de exibição se precisar.\n4. Ative a opção **Ativar IA** para que o agente configurado responda automaticamente.\n5. Defina o **Horário de atendimento** marcando os dias e o intervalo de horas.\n6. Escreva a **Mensagem fora do expediente** que será enviada automaticamente fora desse horário.\n7. Em **Webhook personalizado**, cole a URL externa (Make/n8n) para receber eventos.\n8. Em **Atribuição automática**, escolha o método (**round-robin**, **manual** ou **por funil**).\n9. Selecione o **Funil padrão da instância** para novos contatos.\n10. Aperte **Salvar** para aplicar.",
         buttons: [
           { label: "Renomear instância", description: "Muda o nome exibido. O nome técnico interno (usado pela Evolution API) continua o mesmo." },
           { label: "Ativar IA", description: "Liga o agente de IA configurado para responder automaticamente nas conversas dessa instância." },
