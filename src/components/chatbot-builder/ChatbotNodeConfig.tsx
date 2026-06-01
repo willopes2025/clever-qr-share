@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { VariableChipsSelector } from "@/components/shared/VariableChipsSelector";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { TemplateMediaUpload, MediaType } from "@/components/templates/TemplateMediaUpload";
+import { ConditionVariablePicker } from "./ConditionVariablePicker";
 
 interface MetaVariableMapping {
   variable_index: number;
