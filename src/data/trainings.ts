@@ -322,7 +322,7 @@ export const trainings: TrainingModule[] = [
         id: "contatos-2",
         title: "Campos personalizados",
         description:
-          "Além de nome e telefone, você pode criar quantos campos quiser (data de nascimento, CPF, cidade, plano, vencimento etc.). Eles aparecem na ficha do contato, podem ser usados em variáveis de templates e em filtros de listas de transmissão.",
+          "Para criar um novo campo personalizado:\n\n1. Vá em **Configurações > Campos personalizados**.\n2. Clique em **Novo campo personalizado** — abrirá um **popup**.\n3. Digite o **Rótulo** (ex.: **CPF**, **Vencimento**, **Cidade**).\n4. Escolha o **Tipo**: **Texto**, **Número**, **Data**, **Hora**, **Seleção** ou **Múltipla escolha**.\n5. Marque **Obrigatório** se o contato não puder ser salvo sem esse dado.\n6. Aperte **Salvar**.\n7. Para preencher, abra a **ficha do contato** e clique no campo — a edição é **inline**, basta sair do campo que salva.\n8. Para usar em templates/campanhas, insira **{{nome_do_campo}}** no texto — o valor é substituído no envio.",
         buttons: [
           { label: "Novo campo personalizado", description: "Em Configurações > Campos personalizados. Defina rótulo, tipo (texto, número, data, hora, seleção, múltipla escolha) e se é obrigatório." },
           { label: "Tipo de campo", description: "Escolha o tipo certo — datas vão para calendário/automações, números fazem soma em relatórios, seleção limita opções." },
