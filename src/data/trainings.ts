@@ -54,7 +54,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-2",
         title: "Configurando seu perfil",
         description:
-          "Em Configurações > Perfil você ajusta seus dados pessoais e as preferências que afetam toda a plataforma. O fuso horário é especialmente importante porque é usado em campanhas agendadas, automações, relatórios e horários de atendimento.",
+          "Para ajustar seus dados pessoais e preferências:\n\n1. Clique no seu **avatar** no canto superior direito e selecione **Configurações**.\n2. Vá na aba **Perfil**.\n3. Clique na **foto** para enviar uma nova imagem.\n4. Preencha **Nome completo**, **Telefone** e confira o **E-mail** de login.\n5. Selecione o **Fuso horário** alinhado ao seu local de trabalho — ele é usado em campanhas, automações e relatórios.\n6. Para trocar a senha, clique em **Alterar senha** e siga o fluxo.\n7. Escolha o **Tema** (claro ou escuro) no topo da tela.\n8. Aperte **Salvar alterações** — sem isso, nada é gravado.",
         image: "/training/inicio/02.png",
         buttons: [
           { label: "Foto de perfil", description: "Clique na imagem para enviar uma nova foto. Ela aparece nas conversas internas e no avatar do topo." },
