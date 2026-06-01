@@ -93,7 +93,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-4",
         title: "Equipe e permissões",
         description:
-          "Em Configurações > Equipe você convida novos membros, define cargos (owner, admin, atendente) e personaliza permissões por usuário — incluindo a quais instâncias, funis e Inbox cada pessoa tem acesso.",
+          "Para convidar e organizar o time:\n\n1. Vá em **Configurações > Equipe**.\n2. Clique em **Convidar membro** no canto superior direito — abrirá um **popup**.\n3. Digite o **e-mail** da pessoa e escolha o **Cargo** (**Owner**, **Admin** ou **Membro**).\n4. Aperte **Enviar convite**. A pessoa recebe um link para definir a própria senha.\n5. Depois que ela aceitar, clique no nome do membro para abrir o painel de **Permissões personalizadas**.\n6. Ative/desative o acesso por módulo (**Inbox**, **Funis**, **Campanhas**, **IA**, **Financeiro**).\n7. Em **Instâncias permitidas**, marque quais números de WhatsApp esse membro pode usar.\n8. Em **Funis permitidos**, restrinja a quais funis ele tem acesso.\n9. Aperte **Salvar**. Para tirar acesso, clique nos **três pontinhos** ao lado do membro e selecione **Remover**.",
         buttons: [
           { label: "Convidar membro", description: "Envia um convite por e-mail. O membro define a própria senha ao aceitar." },
           { label: "Cargo (Owner / Admin / Membro)", description: "Owner tem controle total e não pode ser removido. Admins gerenciam quase tudo. Membros têm acesso limitado pelas permissões." },
