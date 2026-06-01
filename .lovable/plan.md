@@ -1,36 +1,68 @@
 ## Objetivo
 
-Quando o usuário digitar algo na busca do Inbox, separar a lista em duas seções visuais:
+Transformar todas as etapas da aba **Treinamentos** em explicações **passo a passo no formato imperativo**, com **palavras-chave em negrito** (botões, telas, ações). Exemplo do estilo desejado:
 
-1. **Contatos** — conversas cujo match foi por nome / telefone / ID de contato.
-2. **Conversas** — conversas cujo match foi pelo conteúdo das mensagens (com o snippet destacado que já existe).
+> Para conectar uma instância, clique em **Instâncias** no menu lateral. Abrirá um **popup**. Em seguida, clique em **Nova instância**, digite o **nome**, escolha o **tipo** e aperte **Salvar**. Aguarde o **QR Code** e escaneie pelo WhatsApp em **Aparelhos conectados → Conectar um aparelho**.
 
-Hoje todos os resultados aparecem misturados ordenados por horário. Sem busca ativa, o comportamento atual (ordenação por hora) é mantido.
+## O que será alterado
 
-## Mudanças
+### 1. Renderização com negrito (`src/pages/Treinamentos.tsx`)
+Hoje a descrição é renderizada como texto simples (`whitespace-pre-line`), então `**negrito**` apareceria literal. Vou:
+- Criar uma função utilitária `renderRichText(text)` que escapa HTML e converte `**xxx**` em `<strong>` (sem dependência externa, mesmo padrão já usado no `WhatsNewDialog`).
+- Aplicar essa função no `<p>` da descrição da etapa.
+- Suportar também quebras de linha em listas numeradas (`1.`, `2.`, `3.`) para virar uma `<ol>` quando a descrição for uma sequência de passos — opcional, sem mudar visual do resto.
 
-Arquivo único: `src/components/inbox/ConversationList.tsx`.
+### 2. Reescrita do conteúdo (`src/data/trainings.ts`)
+Reescrever a `description` de **cada etapa** de todos os módulos no formato:
 
-1. Logo após o `filteredConversations` (linha ~466), quando `debouncedSearch.trim().length >= 1` (busca ativa), particionar a lista em dois grupos:
-   - `contactMatches`: conversas que batem por nome/telefone/displayId (mesma lógica de `matchesContactSearch` das linhas 320-333) **ou** cujo id está em `matchingContactConvIds` (server-side de contatos).
-   - `messageMatches`: conversas que **não** entraram em `contactMatches` e cujo id está em `matchingConversationIds` (busca por conteúdo de mensagem).
-   - Ambos mantêm a ordenação original (por `last_message_at` desc), garantindo que cada grupo siga a ordem de hora atual.
+- Frase de contexto curta (1 linha).
+- Sequência numerada de passos imperativos: "Clique em **X**…", "Abrirá um **popup**…", "Preencha o **campo Y**…", "Aperte **Salvar**".
+- Negrito sempre em: nomes de botões, nomes de telas/abas, nomes de campos, atalhos e termos de ação.
 
-2. No bloco de render (linhas 547-748), quando a busca está ativa, renderizar dois subgrupos com cabeçalho discreto:
-   ```text
-   ─ Contatos (N) ─
-     [card] [card] ...
-   ─ Conversas (N) ─
-     [card] [card] ...
-   ```
-   - Cabeçalho: `<div className="px-2 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">`.
-   - Só renderiza a seção se tiver pelo menos 1 item.
-   - Card de conversa permanece idêntico (mesmo JSX já existente, extraído para uma função `renderConversationCard(conversation)` interna para evitar duplicação).
+Módulos cobertos (ordem atual mantida):
+1. Primeiros passos (4 etapas)
+2. Instâncias (3 etapas)
+3. Inbox (3 etapas)
+4. Funis (2 etapas)
+5. Contatos (2 etapas)
+6. Listas de transmissão (1 etapa)
+7. Templates (1 etapa)
+8. Campanhas (2 etapas)
+9. Calendário (2 etapas)
+10. Tarefas (1 etapa)
+11. Chat interno (1 etapa)
+12. Chatbots (1 etapa)
+13. AI Agents (1 etapa)
+14. Pesquisa de leads (2 etapas)
+15. Aquecimento (1 etapa)
+16. Análise (1 etapa)
+17. Financeiro (2 etapas)
+18. Webhooks (1 etapa)
+19. Configurações (2 etapas)
+20. Formulários (2 etapas)
 
-3. Sem busca ativa: render permanece exatamente como hoje (um único grupo, sem cabeçalho).
+Os blocos `buttons` e `tips` permanecem como estão (já cumprem outra função: mapa visual e dicas).
 
-## Fora de escopo
+## O que NÃO muda
+- Estrutura de tipos (`TrainingStep`, `TrainingModule`).
+- IDs das etapas (manter progresso já salvo dos usuários).
+- Layout, cards, vídeo, checkboxes, sidebar e demais módulos do sistema.
 
-- Nenhuma mudança em `useConversationSearch`, `useContactSearch` ou no RPC `search_inbox_messages`.
-- Nenhuma mudança no snippet com `<mark>` que já funciona.
-- Nenhuma mudança em filtros, tabs (Todas/Não lidas/Arquivadas) ou ordenação dentro de cada grupo.
+## Detalhes técnicos
+
+`renderRichText` em `Treinamentos.tsx`:
+```ts
+function renderRich(text: string) {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*(.+?)\*\*/g, "<strong class=\"text-foreground font-semibold\">$1</strong>");
+  return { __html: escaped };
+}
+```
+Uso: `<p ... dangerouslySetInnerHTML={renderRich(step.description)} />`. Como o input vem de arquivo fonte controlado (não de usuário), o uso de `dangerouslySetInnerHTML` é seguro.
+
+## Confirmação antes de executar
+
+A reescrita é extensa (~30 etapas). Vou manter o tom atual (didático, em português, sem emojis) e o mesmo nível de detalhe — só mudando para o **formato imperativo numerado com negrito**.
