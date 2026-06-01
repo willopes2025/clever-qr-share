@@ -666,7 +666,7 @@ export const trainings: TrainingModule[] = [
         id: "aquecimento-1",
         title: "Como funciona o aquecimento",
         description:
-          "O aquecimento simula conversas reais entre os seus próprios chips (pares) e também com um pool de contatos seguros. Mensagens são trocadas em horários e ritmo variados, com conteúdo gerado por IA, para o WhatsApp 'confiar' no número antes de você usá-lo em disparos.",
+          "Para aquecer um chip novo antes de campanhas:\n\n1. No menu lateral, clique em **Aquecimento**.\n2. Aperte **Iniciar aquecimento** — abre o assistente.\n3. Selecione as **Instâncias** que quer aquecer.\n4. Escolha a **Intensidade**: **Leve**, **Moderado** ou **Forte**.\n5. Defina a **Duração** em dias (recomendado **7 a 14 dias**).\n6. Em **Pool de contatos**, adicione números seguros (próprios ou parceiros) que vão receber mensagens.\n7. Em **Pares de aquecimento**, defina duplas de instâncias que conversam entre si.\n8. Ative **Gerar conteúdo IA** para variar saudações, perguntas e áudios curtos automaticamente.\n9. Aperte **Iniciar**. Acompanhe pelo **card de progresso** (dias, mensagens, taxa de entrega).\n10. Use **Pausar/Retomar** quando precisar e **Encerrar** quando terminar — o número fica liberado para campanhas.",
         buttons: [
           { label: "Iniciar aquecimento", description: "Abre o assistente: você escolhe quais instâncias aquecer, intensidade (leve/moderado/forte) e duração." },
           { label: "Pool de contatos", description: "Lista de números seguros (próprios ou parceiros) que recebem as mensagens. Você adiciona/remove aqui." },
