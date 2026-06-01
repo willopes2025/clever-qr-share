@@ -502,7 +502,7 @@ export const trainings: TrainingModule[] = [
         id: "tarefas-1",
         title: "Lista e filtros de tarefas",
         description:
-          "O módulo Tarefas mostra em formato de lista tudo que está agendado: as suas, as do time, vencidas, do dia, da semana. É o ponto de partida do dia para quem trabalha com follow-up de leads.",
+          "Para organizar as tarefas do dia:\n\n1. No menu lateral, clique em **Tarefas**.\n2. No topo, use as abas **Minhas**, **Equipe**, **Vencidas** e **Hoje** para filtrar.\n3. Comece pela aba **Hoje** — vem ordenada por horário.\n4. Para criar uma nova, clique em **Nova tarefa** e preencha o formulário.\n5. Para marcar como concluída, clique no **checkbox** ao lado da tarefa.\n6. Para editar, clique no **ícone de lápis** — abre o detalhamento.\n7. Para ir ao lead vinculado, aperte **Abrir contato vinculado**.\n8. Em vencidas (destaque vermelho), clique e atualize a data ou conclua. Tarefas vencidas são o principal sinal de leads esfriando.",
         buttons: [
           { label: "Abas (Minhas / Equipe / Vencidas / Hoje)", description: "Filtra rapidamente o que mostrar. 'Vencidas' destaca o que passou do prazo e ainda não foi concluído." },
           { label: "Filtro de responsável", description: "Quando admin, restringe à pessoa selecionada." },
