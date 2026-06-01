@@ -770,7 +770,7 @@ export const trainings: TrainingModule[] = [
         id: "webhooks-1",
         title: "Criando uma integração",
         description:
-          "Os Webhooks permitem que eventos do sistema (nova mensagem, lead criado, etapa do funil mudou, campanha terminou) sejam enviados para um sistema externo via HTTP. Combinado com Make/n8n/Zapier, você integra a plataforma com qualquer outro serviço.",
+          "Para conectar a plataforma com Make, n8n ou Zapier:\n\n1. No menu lateral, clique em **Webhooks**.\n2. Aperte **Nova conexão** — abrirá um **popup**.\n3. Digite um **Nome** para identificar a integração.\n4. Em **Eventos disponíveis**, marque os que quer enviar: **Nova mensagem**, **Mensagem enviada**, **Novo contato**, **Novo deal**, **Mudança de etapa**, **Tarefa criada**, **Campanha finalizada**.\n5. Em **URL de destino**, cole o endpoint do **Make/n8n/Zapier** que recebe via **POST JSON**.\n6. Aperte **Salvar conexão**.\n7. Clique em **Testar webhook** para disparar um evento de exemplo e validar o destino.\n8. Para receber dados de fora, copie a **URL de entrada** e use no sistema externo.\n9. Acompanhe pelos **Logs**: data, evento, status HTTP, tempo de resposta e payload.\n10. Use **Pausar/Ativar** quando precisar fazer manutenção sem excluir a conexão.",
         buttons: [
           { label: "Nova conexão", description: "Cria um webhook. Você dá um nome, escolhe os eventos e cola a URL de destino." },
           { label: "Eventos disponíveis", description: "Nova mensagem, mensagem enviada, novo contato, novo deal, mudança de etapa, tarefa criada, campanha finalizada etc." },
