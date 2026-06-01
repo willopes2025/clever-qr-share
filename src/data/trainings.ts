@@ -589,6 +589,7 @@ export const trainings: TrainingModule[] = [
         title: "Criando um agente",
         description:
           "Para criar um agente de IA para responder pelo WhatsApp:\n\n1. No menu lateral, clique em **Agentes de IA**.\n2. Aperte **Novo agente** — escolha começar **do zero** ou a partir de um **Template** (Vendas, SDR, Atendimento, Cobrança).\n3. Preencha o **Nome** e descreva a **Personalidade** (formal, descontraído, técnico).\n4. Em **Instruções (prompt)**, escreva o que o agente deve fazer, o que evitar e como agir em casos específicos.\n5. Em **Base de conhecimento**, clique em **Adicionar** e suba **PDF**, **DOCX**, **planilha** ou cole **URL de site**.\n6. Em **Ferramentas**, ative as capacidades: **create_task** (cria tarefa para humano), **send_template** (dispara template), **mover de funil**, **agendar**.\n7. Em **Mídia por etapa**, defina imagens/vídeos que o agente envia em cada etapa do funil.\n8. Clique em **Testar agente** — abre um chat de teste. Converse como se fosse cliente.\n9. Quando errar, use **Correção de mensagem** para registrar a resposta certa.\n10. Para colocar em produção, vá no funil, abra **Editar etapa** e em **Ativar IA** selecione o agente.",
+        image: "/training/ia/01.gif",
         buttons: [
           { label: "Novo agente", description: "Cria um agente do zero ou a partir de um template (Vendas, SDR, Atendimento, Cobrança)." },
           { label: "Template de agente", description: "Modelos prontos com prompt, ferramentas e base de conhecimento pré-configurados." },
