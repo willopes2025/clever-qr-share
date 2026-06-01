@@ -75,7 +75,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-3",
         title: "Configurando a organização",
         description:
-          "Em Configurações > Organização você define os dados que valem para todos os membros: nome da empresa, logo, fuso horário oficial (usado quando o do usuário não estiver definido) e regras gerais. Esse fuso é a fonte da verdade do sistema — campanhas agendadas, automações e relatórios usam ele.",
+          "Para configurar os dados da empresa (visíveis para todos os membros):\n\n1. Abra **Configurações** pelo avatar no topo direito.\n2. Vá na aba **Organização**.\n3. Preencha o **Nome da organização** — ele aparece em e-mails do sistema e no seletor do topo.\n4. Clique em **Logo** para subir a imagem da empresa (PNG quadrado, fundo transparente).\n5. Selecione o **Fuso horário da organização** (ex.: **America/Sao_Paulo**) — é a fonte oficial de horário do backend.\n6. Ative ou desative **Criação automática de lead** para que toda conversa nova vire um cartão no funil padrão.\n7. Escolha o **Funil padrão** que receberá esses leads.\n8. Aperte **Salvar** para aplicar a todos os membros.",
         buttons: [
           { label: "Nome da organização", description: "Aparece no seletor de organização do topo, em e-mails do sistema e em formulários públicos." },
           { label: "Logo da empresa", description: "Aparece no topo da sidebar e em formulários públicos. Recomendado PNG quadrado com fundo transparente." },
