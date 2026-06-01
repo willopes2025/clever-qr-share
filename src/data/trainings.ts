@@ -618,7 +618,7 @@ export const trainings: TrainingModule[] = [
         id: "pesquisa-leads-1",
         title: "Buscando empresas por atividade",
         description:
-          "Em Pesquisa de Leads você usa filtros do IBGE/CNAE para encontrar empresas reais por atividade econômica, estado, cidade e bairro/distrito. Útil para gerar listas frias de prospecção (ex.: 'todas as óticas em São Paulo').",
+          "Para prospectar empresas usando dados do IBGE/CNAE:\n\n1. No menu lateral, clique em **Pesquisa de Leads**.\n2. Em **CNAE / Atividade**, selecione a atividade econômica (ex.: **4774-1/00 - Comércio varejista de artigos de óptica**).\n3. Em **Estado**, escolha a UF — isso libera os filtros seguintes.\n4. Em **Município**, escolha a cidade na lista carregada do IBGE.\n5. (Opcional) Refine com **Distrito / Bairro**.\n6. Aperte **Buscar** — os resultados aparecem em uma **tabela paginada**.\n7. Marque os checkboxes ou use **Selecionar tudo** para escolher os que quer aproveitar.\n8. Para gerar oportunidades, clique em **Enviar para funil** e escolha o funil/etapa.\n9. Para adicionar à base, clique em **Importar como contatos**.\n10. Para baixar a lista, aperte **Exportar CSV**.",
         buttons: [
           { label: "CNAE / Atividade", description: "Selecione a atividade econômica (ex.: 4774-1/00 - Comércio varejista de artigos de óptica)." },
           { label: "Estado", description: "Filtra por UF. Necessário para liberar os campos de cidade/distrito." },
