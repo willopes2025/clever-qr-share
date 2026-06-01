@@ -428,7 +428,7 @@ export const trainings: TrainingModule[] = [
         id: "campanhas-2",
         title: "Acompanhando o envio",
         description:
-          "Depois de iniciada, a campanha mostra em tempo real quantas mensagens foram enviadas, entregues, lidas e falharam. Você pode pausar, retomar, cancelar ou exportar o resultado a qualquer momento.",
+          "Para acompanhar uma campanha em andamento:\n\n1. Em **Disparos**, clique na campanha desejada para abrir o painel.\n2. Acompanhe os **cards de progresso** no topo: **Total**, **Enviadas**, **Entregues**, **Lidas**, **Respondidas** e **Falhas** (tudo em tempo real).\n3. Olhe a **barra de progresso** para ver o percentual e a estimativa de tempo restante.\n4. Para suspender, clique em **Pausar** — a fila não se perde.\n5. Para continuar, aperte **Retomar**.\n6. Para encerrar, clique em **Cancelar** (o restante da fila é descartado).\n7. Para investigar falhas, clique no contato e em **Ver detalhes do erro** — mostra a mensagem exata do provedor.\n8. Depois de corrigir, aperte **Reenviar falhas** para tentar de novo só nos que falharam.\n9. Aperte **Exportar resultados** para baixar um CSV com status de cada destinatário.",
         image: "/training/campanhas/02.png",
         buttons: [
           { label: "Cards de progresso", description: "Mostram: Total, Enviadas, Entregues, Lidas, Respondidas e Falhas. Atualizados em tempo real." },
