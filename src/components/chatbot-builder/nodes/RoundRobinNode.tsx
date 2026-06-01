@@ -1,13 +1,31 @@
 import { Handle, Position, NodeProps } from "@xyflow/react";
 import { RefreshCw, Trash2 } from "lucide-react";
 
+interface RoundRobinOutput {
+  id: string;
+  label: string;
+}
+
 export const RoundRobinNode = ({ data, selected }: NodeProps) => {
-  const members = (data?.members as string[]) || [];
+  // New model: rotate between configured outputs (any downstream branch).
+  // Backward compat: if legacy `members` exists and no `outputs`, derive outputs from members count.
+  const legacyMembers = (data?.members as string[]) || [];
+  let outputs = (data?.outputs as RoundRobinOutput[]) || [];
+  if (outputs.length === 0) {
+    if (legacyMembers.length > 0) {
+      outputs = legacyMembers.map((m, i) => ({ id: `out_${i + 1}`, label: m || `Saída ${i + 1}` }));
+    } else {
+      outputs = [
+        { id: "out_1", label: "Saída 1" },
+        { id: "out_2", label: "Saída 2" },
+      ];
+    }
+  }
 
   return (
     <div
       className={`
-        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[160px] relative
+        px-4 py-3 rounded-xl border-2 bg-card shadow-lg min-w-[200px] relative
         ${selected ? "border-amber-500 ring-2 ring-amber-500/20" : "border-border"}
       `}
     >
@@ -33,16 +51,39 @@ export const RoundRobinNode = ({ data, selected }: NodeProps) => {
         </div>
         <div>
           <span className="font-medium text-sm block">Round Robin</span>
-          {members.length > 0 && (
-            <span className="text-xs text-muted-foreground">{members.length} membros</span>
-          )}
+          <span className="text-xs text-muted-foreground">
+            {outputs.length} {outputs.length === 1 ? "saída" : "saídas"} em rodízio
+          </span>
         </div>
       </div>
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!bg-amber-500 !w-3 !h-3 !border-2 !border-background"
-      />
+
+      {/* Output labels list */}
+      <div className="mt-3 space-y-1">
+        {outputs.map((out, idx) => (
+          <div
+            key={out.id}
+            className="flex items-center justify-between text-xs px-2 py-1 rounded bg-muted/50"
+          >
+            <span className="text-muted-foreground">#{idx + 1}</span>
+            <span className="font-medium truncate ml-2">{out.label || `Saída ${idx + 1}`}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Distribute handles evenly along the bottom */}
+      {outputs.map((out, idx) => {
+        const left = ((idx + 1) / (outputs.length + 1)) * 100;
+        return (
+          <Handle
+            key={out.id}
+            id={out.id}
+            type="source"
+            position={Position.Bottom}
+            style={{ left: `${left}%` }}
+            className="!bg-amber-500 !w-3 !h-3 !border-2 !border-background"
+          />
+        );
+      })}
     </div>
   );
 };

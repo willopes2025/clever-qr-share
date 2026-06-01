@@ -1752,31 +1752,45 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'round_robin': {
-          // Distribute conversation to team members in rotation
-          const members = (node.data?.members as string[]) || [];
-          if (members.length > 0) {
-            // Simple round-robin based on timestamp
-            const index = Math.floor(Date.now() / 1000) % members.length;
-            const assignedMember = members[index];
-            
-            // Try to find the member's user_id from profiles
-            const { data: memberProfile } = await supabase
-              .from('profiles')
-              .select('id')
-              .ilike('full_name', `%${assignedMember}%`)
-              .maybeSingle();
+          // Route ANY outgoing branch in rotation (not only team members).
+          const outgoing = (edges || []).filter((e: any) => e.source_node_id === node.id);
 
-            if (memberProfile) {
-              await supabase
-                .from('conversations')
-                .update({ assigned_to: memberProfile.id })
-                .eq('id', conversationId);
-              console.log(`[FLOW] Round robin assigned to: ${assignedMember} (${memberProfile.id})`);
-            } else {
-              console.log(`[FLOW] Round robin member not found: ${assignedMember}`);
-            }
+          if (outgoing.length === 0) {
+            console.log('[FLOW] Round robin has no outgoing edges, ending branch');
+            currentId = null;
+            break;
           }
-          currentId = getNextNode(node.id);
+
+          // Preserve configured output order when available
+          const configuredOutputs = (node.data?.outputs as Array<{ id: string; label?: string }>) || [];
+          let ordered: any[] = [];
+          if (configuredOutputs.length > 0) {
+            for (const out of configuredOutputs) {
+              const edge = outgoing.find((e: any) => e.source_handle === out.id);
+              if (edge) ordered.push(edge);
+            }
+            // Append any edges not matched (defensive)
+            for (const e of outgoing) {
+              if (!ordered.includes(e)) ordered.push(e);
+            }
+          } else {
+            ordered = outgoing;
+          }
+
+          const lastIndex = typeof node.data?.lastIndex === 'number' ? node.data.lastIndex : -1;
+          const nextIndex = (lastIndex + 1) % ordered.length;
+          const chosen = ordered[nextIndex];
+
+          // Persist counter on the node so rotation survives across executions
+          const newData = { ...(node.data || {}), lastIndex: nextIndex };
+          await supabase
+            .from('chatbot_flow_nodes')
+            .update({ data: newData })
+            .eq('id', node.id);
+          node.data = newData;
+
+          console.log(`[FLOW] Round robin → output ${nextIndex + 1}/${ordered.length} (handle: ${chosen.source_handle || 'default'})`);
+          currentId = chosen.target_node_id || null;
           break;
         }
 

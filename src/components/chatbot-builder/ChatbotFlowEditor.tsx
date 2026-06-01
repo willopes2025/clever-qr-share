@@ -357,7 +357,13 @@ function getDefaultDataForType(type: string): Record<string, any> {
     case 'sub_flow':
       return { targetFlowId: '', flowName: '' };
     case 'round_robin':
-      return { members: [] };
+      return {
+        outputs: [
+          { id: 'out_1', label: 'Saída 1' },
+          { id: 'out_2', label: 'Saída 2' },
+        ],
+        lastIndex: -1,
+      };
     default:
       return {};
   }
