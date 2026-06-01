@@ -302,7 +302,7 @@ export const trainings: TrainingModule[] = [
         id: "contatos-1",
         title: "Lista e busca de contatos",
         description:
-          "Em Contatos você vê toda a base — diferente do Inbox, aparecem aqui inclusive contatos que ainda não trocaram mensagem. Use a busca e os filtros para encontrar grupos específicos (ex.: todos de uma cidade, todos com a tag VIP).",
+          "Para gerenciar sua base completa de contatos:\n\n1. No menu lateral, clique em **Contatos**.\n2. Use o campo **Busca** no topo para procurar por **nome**, **telefone** ou **e-mail**.\n3. Clique em **Filtros avançados** para combinar etiqueta, cidade, data de cadastro ou campo personalizado.\n4. Para cadastrar manualmente, aperte **Novo contato** — abrirá um formulário.\n5. Para importar em massa, clique em **Importar CSV**, selecione o arquivo e **mapeie as colunas**. O sistema importa em **lotes de 25**.\n6. Para editar vários ao mesmo tempo, marque os checkboxes e clique em **Edição em massa** (lotes de 50).\n7. Para unir duplicados, aperte **Mesclar duplicados** — o sistema detecta pelo telefone normalizado.\n8. Para baixar a base, clique em **Exportar** e escolha o formato CSV.",
         buttons: [
           { label: "Busca", description: "Procura por nome, telefone ou e-mail. Suporta busca parcial." },
           { label: "Filtros avançados", description: "Combine múltiplos critérios: etiqueta, cidade, data de cadastro, campo personalizado." },
