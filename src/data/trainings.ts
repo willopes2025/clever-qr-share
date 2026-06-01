@@ -456,7 +456,7 @@ export const trainings: TrainingModule[] = [
         id: "calendario-1",
         title: "Visões e navegação",
         description:
-          "O Calendário mostra todas as tarefas e eventos da sua equipe em três visões: Dia, Semana e Mês. Você pode filtrar por responsável e por tipo de tarefa, e integrar com o Google Calendar para sincronizar nos dois sentidos.",
+          "Para usar o Calendário no dia a dia:\n\n1. No menu lateral, clique em **Calendário**.\n2. No topo, escolha a visão **Dia**, **Semana** ou **Mês**.\n3. Use as **setas ← →** para avançar ou recuar e o botão **Hoje** para voltar à data atual.\n4. Em **Filtro de responsável**, escolha um membro específico ou **Todos**.\n5. Em **Filtro por tipo de tarefa**, filtre por **Ligar**, **Reunião**, **Visita** etc.\n6. Para conectar com sua agenda do Google, clique em **Integração Google Calendar** e siga o login.\n7. Clique em um **card de tarefa** para abrir detalhes, editar, marcar como concluída ou ir ao contato relacionado.",
         buttons: [
           { label: "Visão Dia / Semana / Mês", description: "Alterna entre os formatos de visualização. Semana é o padrão na maioria dos times comerciais." },
           { label: "Navegar (← →)", description: "Avança/recua um dia, semana ou mês, conforme a visão ativa." },
