@@ -42,6 +42,7 @@ import { ButtonsNode } from './nodes/ButtonsNode';
 import { ValidationNode } from './nodes/ValidationNode';
 import { SubFlowNode } from './nodes/SubFlowNode';
 import { RoundRobinNode } from './nodes/RoundRobinNode';
+import { DeletableEdge } from './edges/DeletableEdge';
 
 const nodeTypes = {
   start: StartNode,
@@ -57,6 +58,10 @@ const nodeTypes = {
   validation: ValidationNode,
   sub_flow: SubFlowNode,
   round_robin: RoundRobinNode,
+};
+
+const edgeTypes = {
+  deletable: DeletableEdge,
 };
 
 interface ChatbotFlowEditorProps {
@@ -124,6 +129,7 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
         addEdge(
           {
             ...params,
+            type: 'deletable',
             animated: true,
             markerEnd: { type: MarkerType.ArrowClosed },
           },
@@ -303,6 +309,8 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={{ type: 'deletable', animated: true, markerEnd: { type: MarkerType.ArrowClosed } }}
           deleteKeyCode={['Backspace', 'Delete']}
           fitView
           className="bg-muted/30"
