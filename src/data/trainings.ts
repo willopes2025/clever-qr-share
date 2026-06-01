@@ -139,7 +139,7 @@ export const trainings: TrainingModule[] = [
         id: "instancias-2",
         title: "Escaneando o QR Code",
         description:
-          "Quando você clica em Conectar, abre o modal com o QR Code. No seu celular, abra o WhatsApp > Configurações > Aparelhos conectados > Conectar um aparelho e aponte a câmera para o QR mostrado na tela. Se o QR expirar, basta atualizá-lo.",
+          "Para parear o celular com a instância:\n\n1. Na lista de **Instâncias**, clique em **Conectar** — abrirá um **modal** com o **QR Code**.\n2. No seu celular, abra o **WhatsApp**.\n3. Toque em **Configurações > Aparelhos conectados**.\n4. Aperte **Conectar um aparelho** e aponte a câmera para o **QR Code** na tela do computador.\n5. Aguarde o indicador mudar de **Aguardando leitura** para **Conectado**.\n6. Se o QR ficar cinza ou aparecer aviso de expiração, clique em **Atualizar QR Code** para gerar um novo.\n7. Quando ver **Conectado**, clique no **X** para fechar o modal.",
         image: "/training/instancias/02.png",
         buttons: [
           { label: "QR Code", description: "Imagem que deve ser escaneada pelo WhatsApp do celular. Ele tem validade curta (em geral menos de 1 minuto)." },
