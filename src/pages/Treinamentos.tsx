@@ -155,7 +155,8 @@ const Treinamentos = () => {
                                     src={step.image}
                                     alt={step.title}
                                     className="w-full h-auto"
-                                    loading="lazy"
+                                    loading="eager"
+                                    decoding="sync"
                                     onError={() =>
                                       setImgErrors((prev) => new Set(prev).add(step.id))
                                     }
