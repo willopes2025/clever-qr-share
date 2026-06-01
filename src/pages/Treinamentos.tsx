@@ -168,7 +168,7 @@ const Treinamentos = () => {
                                   <div className="relative">
                                     <div className="absolute inset-0 bg-primary/10 blur-xl rounded-full" />
                                     <div className="relative h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
-                                      <Film className="h-7 w-7 text-primary" />
+                                      <Camera className="h-7 w-7 text-primary" />
                                     </div>
                                   </div>
                                   <div className="space-y-1">
