@@ -543,7 +543,7 @@ export const trainings: TrainingModule[] = [
         title: "Chat 1-a-1 e grupos",
         description:
           "Para conversar com a equipe sem sair da plataforma:\n\n1. No menu lateral, clique em **Chat Interno**.\n2. Para falar com alguém, aperte **Nova conversa**, escolha o membro e clique em **Iniciar**.\n3. Para criar grupo, clique em **Novo grupo**, defina o **nome** e marque os **membros**.\n4. Selecione a conversa na **lista à esquerda** — não lidas aparecem em **negrito** com badge.\n5. No **campo de mensagem**, digite o texto. Use **@menção** para alertar alguém específico.\n6. Para anexar arquivo, clique no **clipe** e escolha imagem, documento ou áudio.\n7. Em grupos, abra os **detalhes** para **Adicionar membro** ou **Sair do grupo**.\n8. O badge no **menu lateral** mostra o total não lido em tempo real.",
-        image: "/training/chat-interno/01.gif",
+        image: "/training/chat/01.gif",
         buttons: [
           { label: "Nova conversa", description: "Inicia uma conversa direta com outro membro da equipe." },
           { label: "Novo grupo", description: "Cria um grupo, escolhe nome e membros. Útil para times grandes ou projetos." },
