@@ -556,7 +556,7 @@ export const trainings: TrainingModule[] = [
         id: "chatbots-1",
         title: "Construtor de fluxos",
         description:
-          "O Construtor de Chatbots é visual: você arrasta blocos (mensagem, pergunta, condição, delay, ação) e conecta com setas. Cada fluxo é disparado por um gatilho (palavra-chave, entrada em etapa de funil, campanha em modo chatbot, etc.) e pode ramificar conforme as respostas do contato.",
+          "Para montar um chatbot visualmente:\n\n1. No menu lateral, clique em **Chatbots**.\n2. Aperte **Novo fluxo** — abrirá o **construtor**.\n3. Dê um **nome** e escolha o **gatilho inicial** (palavra-chave, entrada em etapa de funil, campanha em modo chatbot).\n4. **Arraste** blocos do painel lateral para a tela: **Mensagem**, **Pergunta**, **Condição**, **Delay**, **Ação**, **Template Meta**.\n5. Conecte os blocos arrastando a **alça de saída** de um até a **entrada** do próximo.\n6. Em blocos de **Pergunta**, defina onde salvar a resposta (variável ou campo personalizado).\n7. Em **Condição**, configure os caminhos **Sim** e **Não** baseados em variáveis, etiquetas ou campos.\n8. Aperte **Testar fluxo** e informe um número de teste para simular sem afetar leads reais.\n9. Quando estiver pronto, clique em **Publicar** — para desativar, use **Despublicar**.\n10. Acompanhe o desempenho em **Analytics**: entradas, conclusões e ponto de abandono.",
         buttons: [
           { label: "Novo fluxo", description: "Cria um chatbot do zero. Você dá um nome e escolhe o gatilho inicial." },
           { label: "Bloco Mensagem", description: "Envia texto, mídia ou template ao contato." },
