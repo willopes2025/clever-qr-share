@@ -1,9 +1,22 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+
+// Rotas públicas onde o popup NÃO deve aparecer (mesmo se houver sessão persistida)
+const PUBLIC_ROUTES = ["/", "/login", "/reset-password", "/privacy-policy", "/terms-of-service", "/data-deletion", "/unsubscribe"];
+
+function isPublicPath(pathname: string) {
+  if (PUBLIC_ROUTES.includes(pathname)) return true;
+  if (pathname.startsWith("/f/")) return true; // formulários públicos
+  if (pathname.startsWith("/form/")) return true;
+  if (pathname.startsWith("/public/")) return true;
+  if (pathname.startsWith("/auth/")) return true;
+  return false;
+}
 
 interface ChangelogEntry {
   id: string;
