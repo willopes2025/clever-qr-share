@@ -798,7 +798,7 @@ export const trainings: TrainingModule[] = [
         id: "configuracoes-1",
         title: "Integrações externas",
         description:
-          "Em Configurações > Integrações você conecta a plataforma com serviços externos. Cada integração tem o seu próprio fluxo de autenticação (OAuth, token, chave de API).",
+          "Para conectar serviços externos à plataforma:\n\n1. Abra **Configurações** pelo avatar do topo.\n2. Vá na aba **Integrações**.\n3. Localize a integração desejada e clique em **Conectar**:\n  - **Google Calendar**: login Google para sincronizar agenda.\n  - **Meta (WhatsApp oficial)**: login Facebook para conectar números **Cloud API**.\n  - **Meta Messenger / Instagram**: login Facebook para receber DMs no Inbox.\n  - **Asaas**: cole o **token de API** do Asaas.\n  - **ElevenLabs**: cole a **chave de API** para gerar TTS.\n4. Siga o fluxo de **OAuth** ou cole o **token** conforme pedido.\n5. Aperte **Salvar conexão**.\n6. Quando expirar, aparece o aviso **Token expirado** — clique em **Reconectar** para refazer o login.\n7. Para remover, clique em **Desconectar** (dá para reconectar depois sem perder histórico).",
         buttons: [
           { label: "Google Calendar", description: "Conecta a agenda do Google para ver/editar eventos sincronizados no Calendário." },
           { label: "Meta (WhatsApp oficial)", description: "Login com Facebook para conectar números oficiais (Cloud API) — habilita disparo de templates em grande volume." },
