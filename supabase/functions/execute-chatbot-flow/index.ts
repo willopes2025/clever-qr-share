@@ -1227,20 +1227,71 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'condition': {
-          // AI-based or simple conditions
-          const variable = execution.variables?.[node.data?.variable] || execution.variables?.['_last_input'] || '';
-          const conditionValue = node.data?.value || '';
-          const operator = node.data?.operator || 'contains';
+          // Resolve a variable key against: live system vars > execution vars > deal custom > contact custom > flat lookups
+          const systemVars = getSystemConditionVars();
+          const contactCustomNow = (contact?.custom_fields as Record<string, any>) || {};
+          const dealCustomNow = (activeDeal?.custom_fields as Record<string, any>) || {};
+          const flatLookup: Record<string, any> = {
+            nome: contact?.name || '',
+            primeiro_nome: (contact?.name || '').split(/\s+/)[0] || '',
+            telefone: contact?.phone || '',
+            email: contact?.email || '',
+            valor: activeDeal?.value ?? '',
+            titulo: activeDeal?.title || '',
+            etapa: activeStage?.name || '',
+            funil: activeFunnel?.name || '',
+          };
+          const resolveVar = (key: string): any => {
+            if (!key) return execution.variables?.['_last_input'] ?? '';
+            if (systemVars[key] !== undefined) return systemVars[key];
+            if (execution.variables?.[key] !== undefined) return execution.variables[key];
+            if (flatLookup[key] !== undefined) return flatLookup[key];
+            if (dealCustomNow[key] !== undefined) return dealCustomNow[key];
+            if (contactCustomNow[key] !== undefined) return contactCustomNow[key];
+            return '';
+          };
 
-          let conditionMet = false;
-          switch (operator) {
-            case 'equals': conditionMet = variable.toLowerCase() === conditionValue.toLowerCase(); break;
-            case 'contains': conditionMet = variable.toLowerCase().includes(conditionValue.toLowerCase()); break;
-            case 'not_contains': conditionMet = !variable.toLowerCase().includes(conditionValue.toLowerCase()); break;
-            default: conditionMet = true;
+          const evalSingle = (variable: string, operator: string, expected: string): boolean => {
+            const raw = resolveVar(variable);
+            const left = (raw === null || raw === undefined) ? '' : String(raw);
+            const right = expected ?? '';
+            const l = left.toLowerCase();
+            const r = String(right).toLowerCase();
+            switch (operator) {
+              case 'equals': return l === r;
+              case 'not_equals': return l !== r;
+              case 'contains': return l.includes(r);
+              case 'not_contains': return !l.includes(r);
+              case 'starts_with': return l.startsWith(r);
+              case 'ends_with': return l.endsWith(r);
+              case 'greater_than': return Number(left) > Number(right);
+              case 'less_than': return Number(left) < Number(right);
+              case 'is_empty': return left.trim() === '';
+              case 'is_not_empty': return left.trim() !== '';
+              default: return false;
+            }
+          };
+
+          // Support both legacy single-condition shape and new conditions[] array
+          const list: Array<{ variable: string; operator: string; value: string }> =
+            Array.isArray(node.data?.conditions) && node.data.conditions.length > 0
+              ? node.data.conditions
+              : [{ variable: node.data?.variable || '_last_input', operator: node.data?.operator || 'contains', value: node.data?.value || '' }];
+          const logic = (node.data?.logicOperator || 'and').toLowerCase();
+
+          let conditionMet: boolean;
+          if (logic === 'or') {
+            conditionMet = list.some((c) => evalSingle(c.variable, c.operator, c.value));
+          } else {
+            conditionMet = list.every((c) => evalSingle(c.variable, c.operator, c.value));
           }
 
-          currentId = getNextNode(node.id, conditionMet ? 'true' : 'false');
+          console.log(`[FLOW] condition node ${node.id} -> met=${conditionMet} (${list.length} cond, logic=${logic})`);
+
+          // Try both handle naming conventions (true/false and yes/no)
+          currentId =
+            getNextNode(node.id, conditionMet ? 'true' : 'false') ||
+            getNextNode(node.id, conditionMet ? 'yes' : 'no');
           break;
         }
 
