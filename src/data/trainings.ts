@@ -913,4 +913,45 @@ export const trainings: TrainingModule[] = [
       },
     ],
   },
+  {
+    id: "integracoes",
+    title: "Integrações WhatsApp e Instagram",
+    description: "Conecte sua conta do Instagram e configure integrações com o WhatsApp.",
+    steps: [
+      {
+        id: "integracoes-1",
+        title: "Conectando Instagram",
+        description:
+          "Para conectar sua conta do Instagram:\n\n1. Vá em **Configurações > Integrações**.\n2. Clique em **Instagram** e depois em **Conectar**.\n3. Faça login com suas credenciais do Instagram.\n4. Autorize os acessos necessários.\n5. Selecione a página e a conta do Instagram que deseja conectar.\n6. Aperte **Confirmar** — a integração fica ativa imediatamente.\n7. Mensagens do Instagram passam a aparecer no **Inbox** da plataforma.",
+        image: "/training/integracoes/01.gif",
+        buttons: [
+          { label: "Conectar Instagram", description: "Inicia o fluxo de autorização com a Meta para conectar a conta do Instagram." },
+          { label: "Selecionar página", description: "Escolhe qual página do Facebook/Instagram está vinculada ao número oficial." },
+          { label: "Inbox Instagram", description: "Mensagens diretas do Instagram aparecem no Inbox como uma conversa normal." },
+        ],
+        tips: [
+          "A conta do Instagram precisa estar vinculada a uma página do Facebook e ter a opção de mensagens ativada.",
+          "Se a conexão cair, basta repetir o processo — os dados permanecem salvos.",
+        ],
+      },
+      {
+        id: "integracoes-2",
+        title: "Configurando webhook e tokens",
+        description:
+          "Para configurar webhooks e tokens de integração:\n\n1. Em **Configurações > Integrações**, clique na integração desejada.\n2. Em **Webhook**, copie a URL gerada e cole no painel externo (Make, n8n, Zapier).\n3. Em **Token da API**, clique em **Gerar novo token** se precisar de acesso programático.\n4. Defina o **Scopo** do token (leitura, escrita, admin).\n5. Aperte **Copiar** para usar em integrações externas.\n6. Em **Eventos**, marque quais eventos serão enviados ao webhook (mensagem recebida, lead criado, tarefa concluída).\n7. Teste a integração enviando uma mensagem de teste.\n8. Monitore o status em **Logs de integração**.",
+        image: "/training/integracoes/02.gif",
+        buttons: [
+          { label: "URL do Webhook", description: "Endereço único da organização para receber eventos em plataformas externas como Make, n8n e Zapier." },
+          { label: "Token da API", description: "Chave de acesso para integrações programáticas. Gere novo token quando o anterior vazar." },
+          { label: "Scopo do token", description: "Define permissões: leitura (só consulta), escrita (cria/edita), admin (tudo incluindo deletar)." },
+          { label: "Eventos do webhook", description: "Seleciona quais ações disparam notificações para o endpoint externo." },
+          { label: "Logs de integração", description: "Mostra histórico de chamadas, status HTTP e possíveis erros para depuração." },
+        ],
+        tips: [
+          "Mantenha o token em local seguro — quem tem o token tem acesso aos dados da organização.",
+          "Use Make ou n8n para criar automações avançadas sem precisar de código.",
+        ],
+      },
+    ],
+  },
 ];
