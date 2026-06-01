@@ -108,10 +108,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Load conversation to get instance info
+    // Load conversation to get instance info + status for condition variables
     const { data: conversation } = await supabase
       .from('conversations')
-      .select('id, instance_id, meta_phone_number_id')
+      .select('id, instance_id, meta_phone_number_id, status, assigned_to, unread_count')
       .eq('id', conversationId)
       .single();
 
