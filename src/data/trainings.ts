@@ -694,7 +694,7 @@ export const trainings: TrainingModule[] = [
         id: "analise-1",
         title: "Relatórios disponíveis",
         description:
-          "O módulo Análise reúne os principais indicadores do sistema: produtividade por atendente, SLA de resposta, conversão por etapa do funil, desempenho de campanhas, mensagens por hora e score de atendimento. Tudo respeitando o fuso da organização e as permissões de cada usuário.",
+          "Para consultar relatórios e indicadores:\n\n1. No menu lateral, clique em **Análise**.\n2. No topo, escolha o **Filtro de período** (**Hoje**, **7**, **30**, **90 dias** ou **personalizado**).\n3. (Gestores) Use **Filtro de atendente** para restringir a uma pessoa do time.\n4. (Opcional) Aplique **Filtro de instância** e **Filtro de funil** para fatiar os dados.\n5. Observe os **Cards de KPI**: conversas, tempo médio de resposta, taxa de resolução, leads convertidos.\n6. Analise o **Gráfico de mensagens por hora** para identificar horários de pico.\n7. Confira o **Score do atendente** — clique no nome para ver detalhamento por critério.\n8. Clique em qualquer card para abrir os **Detalhes do relatório**.\n9. Aperte **Exportar PDF** para gerar um documento de reunião ou **Exportar CSV** para análise externa.",
         buttons: [
           { label: "Filtro de período", description: "Hoje, 7/30/90 dias ou intervalo personalizado. Afeta todos os gráficos da tela." },
           { label: "Filtro de atendente", description: "Restringe os relatórios a uma pessoa do time (para gestores)." },
