@@ -890,7 +890,9 @@ Deno.serve(async (req) => {
                 console.log('[META-WEBHOOK] Message saved successfully to inbox_messages');
               }
 
-              // Update conversation (reopen if archived)
+              // Update conversation (reopen if archived) and retarget to the
+              // Meta number that actually received this inbound message so the
+              // inbox UI shows the correct sender for the next reply.
               const { error: convUpdateError } = await supabase
                 .from('conversations')
                 .update({
@@ -899,7 +901,10 @@ Deno.serve(async (req) => {
                   last_message_direction: 'inbound',
                   unread_count: (conversation.unread_count || 0) + 1,
                   updated_at: new Date().toISOString(),
-                  status: 'open'
+                  status: 'open',
+                  provider: 'meta',
+                  meta_phone_number_id: webhookPhoneNumberId,
+                  instance_id: null,
                 })
                 .eq('id', conversation.id);
 
