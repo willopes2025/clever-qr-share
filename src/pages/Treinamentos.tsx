@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
 const ALLOWED_EMAILS = ["contato@wideic.com"];
-import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff, MousePointerClick, Lightbulb, Film } from "lucide-react";
+import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff, MousePointerClick, Lightbulb, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -168,7 +168,7 @@ const Treinamentos = () => {
                                   <div className="relative">
                                     <div className="absolute inset-0 bg-primary/10 blur-xl rounded-full" />
                                     <div className="relative h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
-                                      <Film className="h-7 w-7 text-primary" />
+                                      <Camera className="h-7 w-7 text-primary" />
                                     </div>
                                   </div>
                                   <div className="space-y-1">
