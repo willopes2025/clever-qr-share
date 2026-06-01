@@ -475,7 +475,7 @@ export const trainings: TrainingModule[] = [
         id: "calendario-2",
         title: "Criando uma tarefa ou evento",
         description:
-          "Clique em um horário do calendário (ou no botão Nova tarefa) para criar. Você define título, tipo, data/hora, duração, responsável, contato/deal vinculado e mensagem opcional (que pode ser enviada automaticamente no horário).",
+          "Para criar uma tarefa ou evento:\n\n1. No **Calendário**, **clique em um horário** vago ou aperte **Nova tarefa** no topo direito — abrirá um **popup**.\n2. Digite o **Título** (ex.: **Ligar para João sobre proposta**).\n3. Escolha o **Tipo** (**Ligação**, **Reunião**, **Visita**, **Follow-up**).\n4. Selecione a **Data** e **Hora**. Em eventos com duração, defina também o **fim**.\n5. Em **Responsável**, escolha o membro do time que ficará dono da tarefa.\n6. (Opcional) Vincule um **Contato** ou **Deal** — aparece na ficha do lead.\n7. (Opcional) Em **Mensagem associada**, escreva o texto que será enviado ao contato no horário da tarefa.\n8. Ative **Repetir** para criar série diária, semanal ou mensal.\n9. Aperte **Salvar** — a tarefa aparece no **Calendário**, em **Tarefas** e na ficha do contato.",
         buttons: [
           { label: "Título", description: "Resumo curto da tarefa (ex.: 'Ligar para João sobre proposta')." },
           { label: "Tipo", description: "Categoria da tarefa: Ligação, Reunião, Visita, Follow-up. Cores diferentes ajudam na visão semanal." },
