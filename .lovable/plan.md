@@ -1,68 +1,45 @@
-## Objetivo
+## Plano
 
-Transformar todas as etapas da aba **Treinamentos** em explicações **passo a passo no formato imperativo**, com **palavras-chave em negrito** (botões, telas, ações). Exemplo do estilo desejado:
+Implementar a troca automática do **número/instância da empresa** usado para responder no Inbox, com base na **última mensagem recebida do lead**.
 
-> Para conectar uma instância, clique em **Instâncias** no menu lateral. Abrirá um **popup**. Em seguida, clique em **Nova instância**, digite o **nome**, escolha o **tipo** e aperte **Salvar**. Aguarde o **QR Code** e escaneie pelo WhatsApp em **Aparelhos conectados → Conectar um aparelho**.
+### Comportamento esperado
 
-## O que será alterado
+- Quando uma mensagem **inbound** chegar por outro número da empresa:
+  - Exemplo: conversa estava selecionada em **Brasil Visão Cidadã**.
+  - O lead responde pelo número **Centro de Saúde Visual**.
+  - O sistema passa automaticamente o seletor do topo para **Centro de Saúde Visual**.
+  - A próxima resposta manual, mídia, template ou reação sai por esse número correto.
 
-### 1. Renderização com negrito (`src/pages/Treinamentos.tsx`)
-Hoje a descrição é renderizada como texto simples (`whitespace-pre-line`), então `**negrito**` apareceria literal. Vou:
-- Criar uma função utilitária `renderRichText(text)` que escapa HTML e converte `**xxx**` em `<strong>` (sem dependência externa, mesmo padrão já usado no `WhatsNewDialog`).
-- Aplicar essa função no `<p>` da descrição da etapa.
-- Suportar também quebras de linha em listas numeradas (`1.`, `2.`, `3.`) para virar uma `<ol>` quando a descrição for uma sequência de passos — opcional, sem mudar visual do resto.
+- O usuário ainda poderá trocar manualmente o número no seletor se quiser.
+- A troca automática deve seguir a última origem **recebida do lead**, não a última mensagem enviada pela equipe.
 
-### 2. Reescrita do conteúdo (`src/data/trainings.ts`)
-Reescrever a `description` de **cada etapa** de todos os módulos no formato:
+### Ajustes técnicos
 
-- Frase de contexto curta (1 linha).
-- Sequência numerada de passos imperativos: "Clique em **X**…", "Abrirá um **popup**…", "Preencha o **campo Y**…", "Aperte **Salvar**".
-- Negrito sempre em: nomes de botões, nomes de telas/abas, nomes de campos, atalhos e termos de ação.
+1. **No `MessageView.tsx`**
+   - Calcular a última mensagem `inbound` da conversa.
+   - Detectar sua origem:
+     - `sent_via_instance_id` para WhatsApp Lite/Evolution.
+     - `sent_via_meta_number_id` para WhatsApp Oficial/Meta.
+   - Sincronizar `selectedInstanceId`, `selectedMetaNumberId` e `metaUsingEvoInstance` com essa origem quando ela mudar.
+   - Evitar sobrescrever seleção manual sem necessidade: a automação roda quando a última mensagem recebida muda ou quando a conversa abre.
 
-Módulos cobertos (ordem atual mantida):
-1. Primeiros passos (4 etapas)
-2. Instâncias (3 etapas)
-3. Inbox (3 etapas)
-4. Funis (2 etapas)
-5. Contatos (2 etapas)
-6. Listas de transmissão (1 etapa)
-7. Templates (1 etapa)
-8. Campanhas (2 etapas)
-9. Calendário (2 etapas)
-10. Tarefas (1 etapa)
-11. Chat interno (1 etapa)
-12. Chatbots (1 etapa)
-13. AI Agents (1 etapa)
-14. Pesquisa de leads (2 etapas)
-15. Aquecimento (1 etapa)
-16. Análise (1 etapa)
-17. Financeiro (2 etapas)
-18. Webhooks (1 etapa)
-19. Configurações (2 etapas)
-20. Formulários (2 etapas)
+2. **Persistir a escolha na conversa**
+   - Se a última mensagem inbound veio por WhatsApp Lite, atualizar `conversations.instance_id` e limpar uso Meta quando necessário.
+   - Se veio por Meta, atualizar `conversations.meta_phone_number_id`, `provider = 'meta'` e `instance_id = null`.
+   - Isso mantém o seletor correto também depois de recarregar a página.
 
-Os blocos `buttons` e `tips` permanecem como estão (já cumprem outra função: mapa visual e dicas).
+3. **Corrigir webhook Meta, se necessário**
+   - O webhook Meta já salva `sent_via_meta_number_id` nas mensagens inbound.
+   - Mas o update final da conversa precisa também manter `meta_phone_number_id = webhookPhoneNumberId`, para a conversa ficar apontada para o número Meta que recebeu a última mensagem.
 
-## O que NÃO muda
-- Estrutura de tipos (`TrainingStep`, `TrainingModule`).
-- IDs das etapas (manter progresso já salvo dos usuários).
-- Layout, cards, vídeo, checkboxes, sidebar e demais módulos do sistema.
+4. **Manter compatibilidade com Evolution**
+   - O webhook Evolution já atualiza `conversations.instance_id` para a instância que recebeu a mensagem.
+   - A UI passará a refletir isso automaticamente pela última mensagem inbound.
 
-## Detalhes técnicos
+5. **Feedback visual opcional e discreto**
+   - Manter o seletor atual no topo como fonte visual da decisão.
+   - Se couber sem poluir, adicionar tooltip/label curto indicando que o número selecionado acompanha a última mensagem recebida.
 
-`renderRichText` em `Treinamentos.tsx`:
-```ts
-function renderRich(text: string) {
-  const escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, "<strong class=\"text-foreground font-semibold\">$1</strong>");
-  return { __html: escaped };
-}
-```
-Uso: `<p ... dangerouslySetInnerHTML={renderRich(step.description)} />`. Como o input vem de arquivo fonte controlado (não de usuário), o uso de `dangerouslySetInnerHTML` é seguro.
+### Resultado
 
-## Confirmação antes de executar
-
-A reescrita é extensa (~30 etapas). Vou manter o tom atual (didático, em português, sem emojis) e o mesmo nível de detalhe — só mudando para o **formato imperativo numerado com negrito**.
+O atendente não precisará trocar manualmente de **Brasil Visão Cidadã** para **Centro de Saúde Visual** quando o lead responder em outro número da empresa; a próxima resposta já sairá pelo canal correto.
