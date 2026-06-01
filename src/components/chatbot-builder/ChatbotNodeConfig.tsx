@@ -1551,31 +1551,45 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
           </div>
         );
 
-      case "round_robin":
+      case "round_robin": {
+        type RROutput = { id: string; label: string };
+        const legacyMembers = (data?.members as string[]) || [];
+        let outputs: RROutput[] = (data?.outputs as RROutput[]) || [];
+        if (outputs.length === 0) {
+          outputs =
+            legacyMembers.length > 0
+              ? legacyMembers.map((m, i) => ({ id: `out_${i + 1}`, label: m || `Saída ${i + 1}` }))
+              : [
+                  { id: "out_1", label: "Saída 1" },
+                  { id: "out_2", label: "Saída 2" },
+                ];
+        }
+        const updateOutputs = (next: RROutput[]) => handleChange("outputs", next);
         return (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Membros do Rodízio</Label>
-              {((data?.members as string[]) || []).map((member: string, index: number) => (
-                <div key={index} className="flex gap-2">
+              <Label>Saídas do Rodízio</Label>
+              {outputs.map((out, index) => (
+                <div key={out.id} className="flex gap-2 items-center">
+                  <span className="text-xs text-muted-foreground w-6">#{index + 1}</span>
                   <Input
-                    value={member}
+                    value={out.label}
                     onChange={(e) => {
-                      const members = [...((data?.members as string[]) || [])];
-                      members[index] = e.target.value;
-                      handleChange("members", members);
+                      const next = [...outputs];
+                      next[index] = { ...next[index], label: e.target.value };
+                      updateOutputs(next);
                     }}
-                    placeholder="Nome do membro"
+                    placeholder={`Saída ${index + 1}`}
                     className="h-8 text-sm"
                   />
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0"
+                    disabled={outputs.length <= 2}
                     onClick={() => {
-                      const members = [...((data?.members as string[]) || [])];
-                      members.splice(index, 1);
-                      handleChange("members", members);
+                      const next = outputs.filter((_, i) => i !== index);
+                      updateOutputs(next);
                     }}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -1587,19 +1601,24 @@ export const ChatbotNodeConfig = ({ node, onClose, onUpdate }: ChatbotNodeConfig
                 size="sm"
                 className="w-full"
                 onClick={() => {
-                  const members = [...((data?.members as string[]) || []), ''];
-                  handleChange("members", members);
+                  const nextId = `out_${Date.now()}`;
+                  updateOutputs([
+                    ...outputs,
+                    { id: nextId, label: `Saída ${outputs.length + 1}` },
+                  ]);
                 }}
               >
                 <Plus className="h-3 w-3 mr-1" />
-                Adicionar Membro
+                Adicionar Saída
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              A conversa será distribuída de forma rotativa entre os membros configurados.
+              Conecte cada saída a um nó diferente. A execução será distribuída de forma rotativa
+              entre as saídas conectadas — não apenas para membros.
             </p>
           </div>
         );
+      }
 
       case "end":
         return (
