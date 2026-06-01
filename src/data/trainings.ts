@@ -818,7 +818,7 @@ export const trainings: TrainingModule[] = [
         id: "configuracoes-2",
         title: "Tokens de IA e Plano",
         description:
-          "A plataforma usa créditos (tokens) para chamadas de IA: respostas dos agentes, variações de templates, transcrições, geração de conteúdo no aquecimento. Em Configurações > Tokens de IA você vê o saldo, histórico de consumo e pode comprar pacotes adicionais. Em Assinatura você gerencia o plano da conta.",
+          "Para gerenciar créditos de IA e plano da conta:\n\n1. Abra **Configurações** pelo avatar do topo.\n2. Vá na aba **Tokens de IA**.\n3. Veja o **Saldo de tokens** disponível no topo.\n4. Role até o **Histórico de uso** para conferir cada chamada (agente, template, transcrição) e tokens gastos.\n5. Para adicionar saldo, clique em **Comprar pacote**, escolha o tamanho e finalize o pagamento.\n6. (Admin de várias contas) Aperte **Transferir tokens** para mover saldo entre organizações irmãs.\n7. Para o plano, vá na aba **Assinatura**.\n8. Confira **Plano atual**, **limites** e **data de renovação**.\n9. Para upgrade/downgrade, clique em **Alterar plano** — a cobrança proporcional é feita pelo **Stripe**.\n10. Em **Histórico de cobranças**, baixe as faturas em PDF.\n11. Para parar a renovação, clique em **Cancelar assinatura** — o acesso continua até o fim do ciclo pago.",
         buttons: [
           { label: "Saldo de tokens", description: "Quantidade disponível agora. Recarrega no início de cada ciclo do plano." },
           { label: "Histórico de uso", description: "Tabela com cada chamada de IA: data, tipo (agente, template, transcrição), tokens consumidos." },
