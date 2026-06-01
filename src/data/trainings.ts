@@ -869,7 +869,7 @@ export const trainings: TrainingModule[] = [
         id: "formularios-2",
         title: "Compartilhando e acompanhando respostas",
         description:
-          "Depois de publicado, cada formulário tem um link único e uma página de respostas. Você acompanha cada envio em tempo real, filtra por período e exporta tudo em CSV. Cada resposta também cria um cartão no funil escolhido — então fica fácil dar continuidade ao atendimento.",
+          "Para compartilhar e acompanhar respostas:\n\n1. Em **Formulários**, clique no formulário desejado.\n2. Aperte **Copiar link público** para colar em bio, anúncios, e-mails.\n3. Clique em **Gerar QR Code** se for usar em folhetos, mesas de evento ou flyers.\n4. Aperte **Pré-visualizar página pública** para revisar a aparência antes de divulgar.\n5. Vá na aba **Respostas** para ver a tabela de envios em tempo real.\n6. Use o **Filtro de período** para isolar uma campanha específica.\n7. Clique em uma resposta para abrir o **cartão no funil** já criado automaticamente.\n8. Aperte **Exportar respostas** para baixar CSV de todas as respostas filtradas.\n9. Veja **Estatísticas** para envios por dia e taxa de conclusão.\n10. Para alterar campos, clique em **Editar formulário** — mudanças não afetam respostas antigas, mas podem confundir relatórios, então prefira criar versão nova em mudanças grandes.",
         buttons: [
           { label: "Copiar link público", description: "Copia para área de transferência. Cole em bio, anúncios, QR code, e-mails." },
           { label: "Gerar QR Code", description: "Cria um QR para o link público — bom para folhetos e mesas de evento." },
