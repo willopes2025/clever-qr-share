@@ -34,7 +34,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-1",
         title: "Acessando o painel",
         description:
-          "Depois de fazer login você cai direto no Dashboard. Ele reúne, em uma só tela, o resumo das suas conversas, das campanhas em andamento, das tarefas do dia e dos leads em cada etapa do funil. Use o menu lateral à esquerda para navegar entre os módulos da plataforma e o topo da tela para alternar de organização e acessar o seu perfil.",
+          "Depois de fazer **login**, você cai direto no **Dashboard**. Siga este passo a passo para se ambientar:\n\n1. Observe o **menu lateral à esquerda** — ele dá acesso a todos os módulos (**Inbox**, **Funis**, **Contatos**, **Campanhas**, **Formulários**, **Tarefas**, **Calendário**, **Instâncias**, **IA**).\n2. No topo, use o **seletor de organização** para trocar de empresa quando você tem acesso a mais de uma.\n3. Clique no **sininho** para ver notificações em tempo real (mensagens novas, tarefas atribuídas, alertas).\n4. Clique no seu **avatar** (canto superior direito) para abrir **Perfil**, **Configurações**, **Tema** e **Sair**.\n5. No corpo do Dashboard, clique em qualquer **card de KPI** (Conversas, Leads, Campanhas, Tarefas) para ir direto ao módulo.\n6. Ajuste o **filtro de período** (Hoje, 7 dias, 30 dias, personalizado) para mudar o intervalo dos gráficos.",
         image: "/training/inicio/01.png",
         buttons: [
           { label: "Menu lateral (sidebar)", description: "Lista todos os módulos: Inbox, Funis, Contatos, Campanhas, Formulários, Tarefas, Calendário, Instâncias, IA, etc. Clique no ícone para abrir o módulo." },
@@ -54,7 +54,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-2",
         title: "Configurando seu perfil",
         description:
-          "Em Configurações > Perfil você ajusta seus dados pessoais e as preferências que afetam toda a plataforma. O fuso horário é especialmente importante porque é usado em campanhas agendadas, automações, relatórios e horários de atendimento.",
+          "Para ajustar seus dados pessoais e preferências:\n\n1. Clique no seu **avatar** no canto superior direito e selecione **Configurações**.\n2. Vá na aba **Perfil**.\n3. Clique na **foto** para enviar uma nova imagem.\n4. Preencha **Nome completo**, **Telefone** e confira o **E-mail** de login.\n5. Selecione o **Fuso horário** alinhado ao seu local de trabalho — ele é usado em campanhas, automações e relatórios.\n6. Para trocar a senha, clique em **Alterar senha** e siga o fluxo.\n7. Escolha o **Tema** (claro ou escuro) no topo da tela.\n8. Aperte **Salvar alterações** — sem isso, nada é gravado.",
         image: "/training/inicio/02.png",
         buttons: [
           { label: "Foto de perfil", description: "Clique na imagem para enviar uma nova foto. Ela aparece nas conversas internas e no avatar do topo." },
@@ -75,7 +75,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-3",
         title: "Configurando a organização",
         description:
-          "Em Configurações > Organização você define os dados que valem para todos os membros: nome da empresa, logo, fuso horário oficial (usado quando o do usuário não estiver definido) e regras gerais. Esse fuso é a fonte da verdade do sistema — campanhas agendadas, automações e relatórios usam ele.",
+          "Para configurar os dados da empresa (visíveis para todos os membros):\n\n1. Abra **Configurações** pelo avatar no topo direito.\n2. Vá na aba **Organização**.\n3. Preencha o **Nome da organização** — ele aparece em e-mails do sistema e no seletor do topo.\n4. Clique em **Logo** para subir a imagem da empresa (PNG quadrado, fundo transparente).\n5. Selecione o **Fuso horário da organização** (ex.: **America/Sao_Paulo**) — é a fonte oficial de horário do backend.\n6. Ative ou desative **Criação automática de lead** para que toda conversa nova vire um cartão no funil padrão.\n7. Escolha o **Funil padrão** que receberá esses leads.\n8. Aperte **Salvar** para aplicar a todos os membros.",
         buttons: [
           { label: "Nome da organização", description: "Aparece no seletor de organização do topo, em e-mails do sistema e em formulários públicos." },
           { label: "Logo da empresa", description: "Aparece no topo da sidebar e em formulários públicos. Recomendado PNG quadrado com fundo transparente." },
@@ -93,7 +93,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-4",
         title: "Equipe e permissões",
         description:
-          "Em Configurações > Equipe você convida novos membros, define cargos (owner, admin, atendente) e personaliza permissões por usuário — incluindo a quais instâncias, funis e Inbox cada pessoa tem acesso.",
+          "Para convidar e organizar o time:\n\n1. Vá em **Configurações > Equipe**.\n2. Clique em **Convidar membro** no canto superior direito — abrirá um **popup**.\n3. Digite o **e-mail** da pessoa e escolha o **Cargo** (**Owner**, **Admin** ou **Membro**).\n4. Aperte **Enviar convite**. A pessoa recebe um link para definir a própria senha.\n5. Depois que ela aceitar, clique no nome do membro para abrir o painel de **Permissões personalizadas**.\n6. Ative/desative o acesso por módulo (**Inbox**, **Funis**, **Campanhas**, **IA**, **Financeiro**).\n7. Em **Instâncias permitidas**, marque quais números de WhatsApp esse membro pode usar.\n8. Em **Funis permitidos**, restrinja a quais funis ele tem acesso.\n9. Aperte **Salvar**. Para tirar acesso, clique nos **três pontinhos** ao lado do membro e selecione **Remover**.",
         buttons: [
           { label: "Convidar membro", description: "Envia um convite por e-mail. O membro define a própria senha ao aceitar." },
           { label: "Cargo (Owner / Admin / Membro)", description: "Owner tem controle total e não pode ser removido. Admins gerenciam quase tudo. Membros têm acesso limitado pelas permissões." },
@@ -119,7 +119,7 @@ export const trainings: TrainingModule[] = [
         id: "instancias-1",
         title: "Criando uma nova instância",
         description:
-          "Cada número de WhatsApp conectado à plataforma é chamado de instância. Em Instâncias você vê a lista de todos os números, com o status atual (conectado, desconectado, aguardando QR) e as ações para gerenciar cada um. Para começar a conversar, você precisa criar pelo menos uma instância e conectá-la via QR Code.",
+          "Para conectar um número de WhatsApp à plataforma:\n\n1. No menu lateral, clique em **Instâncias**.\n2. Aperte o botão **Nova Instância** no canto superior direito — abrirá um **popup**.\n3. Digite um **nome amigável** (ex.: **Vendas SP**, **Suporte**).\n4. Escolha o **tipo** de instância (Evolution para chips comuns, Meta para número oficial).\n5. Clique em **Criar**. A instância aparece na lista com o status **Aguardando QR**.\n6. Em seguida, na linha da instância recém-criada, clique em **Conectar / QR Code** para abrir o pareamento.\n7. Acompanhe o **badge de status**: verde = conectado, amarelo = aguardando QR, vermelho = desconectado.",
         image: "/training/instancias/01.png",
         buttons: [
           { label: "Nova Instância", description: "Abre o formulário para cadastrar um novo número. Você dá um nome amigável (ex.: Vendas, Suporte) e a instância é criada já pronta para conectar." },
@@ -139,7 +139,7 @@ export const trainings: TrainingModule[] = [
         id: "instancias-2",
         title: "Escaneando o QR Code",
         description:
-          "Quando você clica em Conectar, abre o modal com o QR Code. No seu celular, abra o WhatsApp > Configurações > Aparelhos conectados > Conectar um aparelho e aponte a câmera para o QR mostrado na tela. Se o QR expirar, basta atualizá-lo.",
+          "Para parear o celular com a instância:\n\n1. Na lista de **Instâncias**, clique em **Conectar** — abrirá um **modal** com o **QR Code**.\n2. No seu celular, abra o **WhatsApp**.\n3. Toque em **Configurações > Aparelhos conectados**.\n4. Aperte **Conectar um aparelho** e aponte a câmera para o **QR Code** na tela do computador.\n5. Aguarde o indicador mudar de **Aguardando leitura** para **Conectado**.\n6. Se o QR ficar cinza ou aparecer aviso de expiração, clique em **Atualizar QR Code** para gerar um novo.\n7. Quando ver **Conectado**, clique no **X** para fechar o modal.",
         image: "/training/instancias/02.png",
         buttons: [
           { label: "QR Code", description: "Imagem que deve ser escaneada pelo WhatsApp do celular. Ele tem validade curta (em geral menos de 1 minuto)." },
@@ -156,7 +156,7 @@ export const trainings: TrainingModule[] = [
         id: "instancias-3",
         title: "Configurações avançadas da instância",
         description:
-          "Clicando na engrenagem de cada instância você abre as configurações detalhadas: webhook personalizado, ativar/desativar IA, horário de atendimento, mensagem fora do expediente e atribuição automática. Aqui também ficam as configurações do número oficial Meta (WhatsApp Cloud API).",
+          "Para configurar comportamento avançado de uma instância:\n\n1. Na lista de **Instâncias**, clique no ícone de **engrenagem** (ou nos **três pontinhos**) da instância desejada.\n2. Abrirá o painel de **Configurações da instância**.\n3. Em **Renomear**, ajuste o nome de exibição se precisar.\n4. Ative a opção **Ativar IA** para que o agente configurado responda automaticamente.\n5. Defina o **Horário de atendimento** marcando os dias e o intervalo de horas.\n6. Escreva a **Mensagem fora do expediente** que será enviada automaticamente fora desse horário.\n7. Em **Webhook personalizado**, cole a URL externa (Make/n8n) para receber eventos.\n8. Em **Atribuição automática**, escolha o método (**round-robin**, **manual** ou **por funil**).\n9. Selecione o **Funil padrão da instância** para novos contatos.\n10. Aperte **Salvar** para aplicar.",
         buttons: [
           { label: "Renomear instância", description: "Muda o nome exibido. O nome técnico interno (usado pela Evolution API) continua o mesmo." },
           { label: "Ativar IA", description: "Liga o agente de IA configurado para responder automaticamente nas conversas dessa instância." },
@@ -183,7 +183,7 @@ export const trainings: TrainingModule[] = [
         id: "inbox-1",
         title: "Visão geral do Inbox",
         description:
-          "O Inbox é dividido em três áreas: à esquerda você vê a lista de conversas (com filtros e busca), no centro o histórico da conversa selecionada e à direita o painel de detalhes do contato (com etiquetas, funil, notas e campos personalizados). Tudo é atualizado em tempo real conforme novas mensagens chegam.",
+          "Para se ambientar com o Inbox:\n\n1. No menu lateral, clique em **Inbox**.\n2. Observe as **três áreas**: à esquerda a **lista de conversas**, no centro o **histórico**, à direita o **painel do contato**.\n3. Use a **caixa de busca** no topo da lista para procurar por **nome**, **telefone** ou **trecho de mensagem**.\n4. Use as abas **Todas / Não lidas / Minhas** para alternar a visualização.\n5. Clique no ícone de **filtros avançados** para combinar instância, etiqueta, funil, responsável ou período.\n6. Clique em uma **conversa** para abri-la no centro.\n7. No **cabeçalho da conversa**, use os botões rápidos: **Atribuir responsável**, **Mover no funil**, **Encerrar**.\n8. No **painel direito**, edite nome, telefone, etiquetas, **campos personalizados** e adicione **notas internas**.",
         image: "/training/inbox/01.png",
         buttons: [
           { label: "Busca de conversas", description: "Procura por nome, telefone ou trecho de mensagem. A busca é feita no servidor, então funciona mesmo em conversas antigas." },
@@ -204,7 +204,7 @@ export const trainings: TrainingModule[] = [
         id: "inbox-2",
         title: "Enviando mensagens e mídias",
         description:
-          "Na parte inferior da conversa você tem o campo de digitação e os botões de mídia. Além de texto, você pode enviar imagens, vídeos, documentos, áudios e templates oficiais. Use o agendamento para programar uma mensagem para depois.",
+          "Para enviar texto, mídia ou agendar uma mensagem:\n\n1. Com a conversa aberta, clique no **campo de mensagem** na parte inferior.\n2. Digite o texto. Use **Shift+Enter** para quebrar linha e **Enter** para enviar.\n3. Para anexar arquivo, clique no **clipe** e selecione **imagem**, **vídeo**, **documento** ou **áudio** — também pode arrastar e soltar.\n4. Para gravar áudio, segure o ícone de **microfone** e fale. Solte para enviar como mensagem de voz.\n5. Clique no **emoji** para abrir o seletor.\n6. Para usar um template, clique em **Template** e escolha um da lista — variáveis como **{{nome}}** são preenchidas automaticamente.\n7. Para programar o envio, clique em **Agendar envio**, escolha **data** e **hora** e confirme.\n8. Aperte o **avião** (ou **Enter**) para enviar agora.",
         image: "/training/inbox/02.png",
         buttons: [
           { label: "Campo de mensagem", description: "Digite o texto. Aceita quebra de linha com Shift+Enter e variáveis como {{nome}} se vier de um template." },
@@ -225,7 +225,7 @@ export const trainings: TrainingModule[] = [
         id: "inbox-3",
         title: "Organizando: etiquetas, notas e tarefas",
         description:
-          "O painel direito da conversa concentra tudo que organiza o atendimento: etiquetas (tags coloridas), notas internas, tarefas vinculadas e o cartão no funil. Use essas ferramentas para que qualquer membro da equipe consiga continuar a conversa sem precisar perguntar 'o que foi combinado?'.",
+          "Para organizar a conversa no painel direito:\n\n1. Com a conversa aberta, olhe o **painel direito**.\n2. Clique em **Etiquetas** para aplicar tags coloridas (ex.: **VIP**, **Quente**, **Reclamação**).\n3. Em **Notas**, clique em **Adicionar nota interna** e escreva — não vai para o cliente. Use **@menção** para alertar um colega.\n4. Em **Tarefas**, clique em **Criar tarefa**, defina **responsável**, **prazo** e **tipo**.\n5. No **cabeçalho da conversa**, clique em **Mover no funil** para empurrar o cartão para outra etapa.\n6. Para passar a conversa a outro atendente, clique em **Transferir conversa** e escolha o membro.\n7. Para unir conversas do mesmo contato (número antigo + novo), clique em **Mesclar conversas**.\n8. Quando resolvida, clique em **Encerrar conversa** — pode reabrir se o cliente voltar a falar.",
         buttons: [
           { label: "Etiquetas / Tags", description: "Aplique tags coloridas (ex.: VIP, Quente, Reclamação). Servem para filtrar conversas e segmentar listas." },
           { label: "Adicionar nota interna", description: "Escreve uma observação só visível para a equipe. Não vai para o cliente." },
@@ -252,7 +252,7 @@ export const trainings: TrainingModule[] = [
         id: "funis-1",
         title: "Entendendo o Kanban",
         description:
-          "O módulo Funis mostra cada lead como um cartão em colunas (etapas). Você arrasta o cartão da esquerda para a direita conforme a negociação avança. Cada funil é independente: você pode ter um para Vendas, outro para Suporte, outro para Pós-venda. Tudo respeita as permissões: cada usuário só vê os funis liberados para ele.",
+          "Para começar a usar o Kanban de funis:\n\n1. No menu lateral, clique em **Funis**.\n2. No **seletor de funil** (topo), escolha o funil desejado ou clique em **Novo funil** para criar um.\n3. Ao criar um funil, dê **nome**, **cor** e clique em **Editar etapas** para definir as colunas.\n4. Em **Editar etapas**, clique em **Adicionar etapa**, escreva o nome e arraste para reordenar.\n5. Alterne entre **Visão Kanban** e **Visão Lista** pelo botão no topo direito.\n6. Use **Filtros** para mostrar só leads de um responsável, etiqueta, valor, data ou campo personalizado.\n7. Use a **Busca** para encontrar um cartão por nome, telefone ou conteúdo.\n8. Para mover um lead, **clique e arraste** o cartão de uma coluna para outra — isso dispara as **automações** da etapa de destino.",
         buttons: [
           { label: "Seletor de funil", description: "No topo, alterna entre os funis criados (Vendas, Suporte, etc.)." },
           { label: "Novo funil", description: "Cria um funil do zero com etapas personalizadas. Você define nome, cor e regras." },
@@ -272,7 +272,7 @@ export const trainings: TrainingModule[] = [
         id: "funis-2",
         title: "Cartão de lead e automações",
         description:
-          "Clicando em um cartão você abre o painel lateral com todas as informações do lead: dados, histórico de WhatsApp, oportunidades, tarefas, notas, atividades e campos personalizados. Cada etapa do funil pode ter automações disparadas na entrada (enviar mensagem, criar tarefa, mover de funil etc.).",
+          "Para abrir um lead e configurar automações:\n\n1. No quadro do funil, **clique em um cartão** — abrirá o **painel lateral** completo.\n2. Em **Dados do contato**, edite nome, telefone, e-mail, empresa e campos personalizados.\n3. Use as abas **Conversas**, **Tarefas**, **Notas** e **Atividades** para acessar cada parte do histórico.\n4. Preencha o **Valor da oportunidade** para alimentar o pipeline financeiro.\n5. Para configurar automações, volte ao quadro, clique em **Editar etapa** (cabeçalho da coluna).\n6. Em **Automações**, clique em **Adicionar regra** e escolha o gatilho **Ao entrar nesta etapa**.\n7. Selecione a ação: **Enviar mensagem**, **Criar tarefa**, **Mover de funil**, **Aplicar etiqueta**.\n8. Aperte **Salvar**. Para mover o cartão para outro funil, use o botão **Mover para outro funil** dentro do cartão.\n9. Para unir cartões duplicados do mesmo telefone, clique em **Mesclar leads**.",
         buttons: [
           { label: "Dados do contato", description: "Edita nome, telefone, e-mail, empresa, campos personalizados." },
           { label: "Conversas", description: "Lista todas as conversas de WhatsApp desse contato. Clique para abrir no Inbox." },
@@ -302,7 +302,7 @@ export const trainings: TrainingModule[] = [
         id: "contatos-1",
         title: "Lista e busca de contatos",
         description:
-          "Em Contatos você vê toda a base — diferente do Inbox, aparecem aqui inclusive contatos que ainda não trocaram mensagem. Use a busca e os filtros para encontrar grupos específicos (ex.: todos de uma cidade, todos com a tag VIP).",
+          "Para gerenciar sua base completa de contatos:\n\n1. No menu lateral, clique em **Contatos**.\n2. Use o campo **Busca** no topo para procurar por **nome**, **telefone** ou **e-mail**.\n3. Clique em **Filtros avançados** para combinar etiqueta, cidade, data de cadastro ou campo personalizado.\n4. Para cadastrar manualmente, aperte **Novo contato** — abrirá um formulário.\n5. Para importar em massa, clique em **Importar CSV**, selecione o arquivo e **mapeie as colunas**. O sistema importa em **lotes de 25**.\n6. Para editar vários ao mesmo tempo, marque os checkboxes e clique em **Edição em massa** (lotes de 50).\n7. Para unir duplicados, aperte **Mesclar duplicados** — o sistema detecta pelo telefone normalizado.\n8. Para baixar a base, clique em **Exportar** e escolha o formato CSV.",
         buttons: [
           { label: "Busca", description: "Procura por nome, telefone ou e-mail. Suporta busca parcial." },
           { label: "Filtros avançados", description: "Combine múltiplos critérios: etiqueta, cidade, data de cadastro, campo personalizado." },
@@ -322,7 +322,7 @@ export const trainings: TrainingModule[] = [
         id: "contatos-2",
         title: "Campos personalizados",
         description:
-          "Além de nome e telefone, você pode criar quantos campos quiser (data de nascimento, CPF, cidade, plano, vencimento etc.). Eles aparecem na ficha do contato, podem ser usados em variáveis de templates e em filtros de listas de transmissão.",
+          "Para criar um novo campo personalizado:\n\n1. Vá em **Configurações > Campos personalizados**.\n2. Clique em **Novo campo personalizado** — abrirá um **popup**.\n3. Digite o **Rótulo** (ex.: **CPF**, **Vencimento**, **Cidade**).\n4. Escolha o **Tipo**: **Texto**, **Número**, **Data**, **Hora**, **Seleção** ou **Múltipla escolha**.\n5. Marque **Obrigatório** se o contato não puder ser salvo sem esse dado.\n6. Aperte **Salvar**.\n7. Para preencher, abra a **ficha do contato** e clique no campo — a edição é **inline**, basta sair do campo que salva.\n8. Para usar em templates/campanhas, insira **{{nome_do_campo}}** no texto — o valor é substituído no envio.",
         buttons: [
           { label: "Novo campo personalizado", description: "Em Configurações > Campos personalizados. Defina rótulo, tipo (texto, número, data, hora, seleção, múltipla escolha) e se é obrigatório." },
           { label: "Tipo de campo", description: "Escolha o tipo certo — datas vão para calendário/automações, números fazem soma em relatórios, seleção limita opções." },
@@ -346,7 +346,7 @@ export const trainings: TrainingModule[] = [
         id: "listas-1",
         title: "Criando uma lista",
         description:
-          "Uma lista de transmissão agrupa contatos para usar em campanhas. Pode ser estática (você adiciona contatos manualmente) ou dinâmica (definida por filtros — o sistema atualiza sozinha conforme novos contatos batem com os critérios).",
+          "Para criar uma lista de transmissão:\n\n1. No menu lateral, clique em **Listas de Transmissão**.\n2. Aperte **Nova lista** no canto superior direito.\n3. Digite o **nome** e uma **descrição** opcional.\n4. Escolha o **tipo**: **Estática** (você adiciona contatos manualmente) ou **Dinâmica** (filtros que atualizam sozinhos).\n5. Se for **Dinâmica**, clique em **Adicionar filtro** e combine critérios (etiqueta, campo personalizado, instância, funil).\n6. Se for **Estática**, clique em **Adicionar contatos**, selecione da base ou cole os números.\n7. Aperte **Salvar lista**.\n8. Depois de salva, use **Ver contatos** para conferir os membros e **Histórico de envios** para ver as campanhas que usaram a lista.",
         buttons: [
           { label: "Nova lista", description: "Cria uma lista do zero. Você define nome, tipo (estática/dinâmica) e descrição." },
           { label: "Tipo: Estática", description: "Você adiciona os contatos manualmente. A lista não muda sozinha." },
@@ -373,7 +373,7 @@ export const trainings: TrainingModule[] = [
         id: "templates-1",
         title: "Criando templates",
         description:
-          "Templates são mensagens reutilizáveis usadas no Inbox, em campanhas e em chatbots. Podem ser só texto, ter mídia (imagem, vídeo, documento, áudio), variáveis ({{nome}}, {{vencimento}}) e até variações geradas por IA para evitar texto repetitivo nos disparos.",
+          "Para criar um template de mensagem:\n\n1. No menu lateral, clique em **Templates**.\n2. Aperte **Novo template**.\n3. Digite o **nome** (ex.: **cobranca_5dias**), escolha **categoria** e **canal** (**Evolution** ou **Meta oficial**).\n4. Escreva o texto. Para inserir variáveis, clique em **Inserir variável** e escolha **{{nome}}**, **{{vencimento}}**, etc.\n5. Para anexar mídia, clique em **Anexar mídia** e suba imagem, vídeo, documento ou áudio.\n6. Para gerar áudio narrado, clique em **Gerar áudio (TTS)** — usa **ElevenLabs**.\n7. Para criar variações, clique em **Gerar variações com IA** e escolha quantas versões quer.\n8. Aperte **Pré-visualizar** para conferir como fica no WhatsApp.\n9. Clique em **Salvar**. Em templates Meta, aperte **Enviar para aprovação** antes de usar.",
         buttons: [
           { label: "Novo template", description: "Cria um template do zero. Defina nome, categoria e canal (Evolution ou Meta oficial)." },
           { label: "Inserir variável", description: "Clica no campo de variáveis para inserir {{nome}}, {{vencimento}} etc. Os valores são preenchidos no envio." },
@@ -401,7 +401,7 @@ export const trainings: TrainingModule[] = [
         id: "campanhas-1",
         title: "Criando uma campanha",
         description:
-          "Em Disparos > Nova Campanha você monta o envio passo a passo: escolhe a(s) instância(s), o template ou mensagem livre, a lista de contatos e as configurações de ritmo (intervalo entre mensagens, janela de horário, agendamento). Quanto mais devagar, menor o risco de bloqueio do chip.",
+          "Para criar uma campanha de disparo em massa:\n\n1. No menu lateral, clique em **Disparos** (ou **Campanhas**).\n2. Aperte **Nova Campanha** — abrirá o assistente.\n3. Digite o **Nome da campanha** (ex.: **Black Friday 2026**).\n4. Em **Instância(s)**, marque um ou mais números — com vários, o sistema distribui a carga automaticamente.\n5. Em **Template / Mensagem**, escolha um template salvo ou escreva mensagem livre.\n6. Em **Lista de contatos**, selecione uma **lista de transmissão** ou faça **upload de CSV**.\n7. Defina o **Intervalo entre envios** (mínimo e máximo em segundos — recomendado **15 a 60s** para Evolution).\n8. Em **Janela de horário**, escolha o intervalo permitido (ex.: **9h às 18h**).\n9. Para programar, ative **Agendar início** e escolha **data** e **hora**.\n10. Opcional: ative **Modo chatbot** ou **Agente de IA** para respostas automáticas.\n11. Selecione o **Funil de destino dos leads** para acompanhar respostas.\n12. Antes de começar, clique em **Salvar rascunho** e revise. Quando estiver pronto, aperte **Iniciar campanha**.",
         image: "/training/campanhas/01.png",
         buttons: [
           { label: "Nome da campanha", description: "Identificação interna — aparece em relatórios e histórico. Use algo descritivo como 'Black Friday 2026'." },
@@ -428,7 +428,7 @@ export const trainings: TrainingModule[] = [
         id: "campanhas-2",
         title: "Acompanhando o envio",
         description:
-          "Depois de iniciada, a campanha mostra em tempo real quantas mensagens foram enviadas, entregues, lidas e falharam. Você pode pausar, retomar, cancelar ou exportar o resultado a qualquer momento.",
+          "Para acompanhar uma campanha em andamento:\n\n1. Em **Disparos**, clique na campanha desejada para abrir o painel.\n2. Acompanhe os **cards de progresso** no topo: **Total**, **Enviadas**, **Entregues**, **Lidas**, **Respondidas** e **Falhas** (tudo em tempo real).\n3. Olhe a **barra de progresso** para ver o percentual e a estimativa de tempo restante.\n4. Para suspender, clique em **Pausar** — a fila não se perde.\n5. Para continuar, aperte **Retomar**.\n6. Para encerrar, clique em **Cancelar** (o restante da fila é descartado).\n7. Para investigar falhas, clique no contato e em **Ver detalhes do erro** — mostra a mensagem exata do provedor.\n8. Depois de corrigir, aperte **Reenviar falhas** para tentar de novo só nos que falharam.\n9. Aperte **Exportar resultados** para baixar um CSV com status de cada destinatário.",
         image: "/training/campanhas/02.png",
         buttons: [
           { label: "Cards de progresso", description: "Mostram: Total, Enviadas, Entregues, Lidas, Respondidas e Falhas. Atualizados em tempo real." },
@@ -456,7 +456,7 @@ export const trainings: TrainingModule[] = [
         id: "calendario-1",
         title: "Visões e navegação",
         description:
-          "O Calendário mostra todas as tarefas e eventos da sua equipe em três visões: Dia, Semana e Mês. Você pode filtrar por responsável e por tipo de tarefa, e integrar com o Google Calendar para sincronizar nos dois sentidos.",
+          "Para usar o Calendário no dia a dia:\n\n1. No menu lateral, clique em **Calendário**.\n2. No topo, escolha a visão **Dia**, **Semana** ou **Mês**.\n3. Use as **setas ← →** para avançar ou recuar e o botão **Hoje** para voltar à data atual.\n4. Em **Filtro de responsável**, escolha um membro específico ou **Todos**.\n5. Em **Filtro por tipo de tarefa**, filtre por **Ligar**, **Reunião**, **Visita** etc.\n6. Para conectar com sua agenda do Google, clique em **Integração Google Calendar** e siga o login.\n7. Clique em um **card de tarefa** para abrir detalhes, editar, marcar como concluída ou ir ao contato relacionado.",
         buttons: [
           { label: "Visão Dia / Semana / Mês", description: "Alterna entre os formatos de visualização. Semana é o padrão na maioria dos times comerciais." },
           { label: "Navegar (← →)", description: "Avança/recua um dia, semana ou mês, conforme a visão ativa." },
@@ -475,7 +475,7 @@ export const trainings: TrainingModule[] = [
         id: "calendario-2",
         title: "Criando uma tarefa ou evento",
         description:
-          "Clique em um horário do calendário (ou no botão Nova tarefa) para criar. Você define título, tipo, data/hora, duração, responsável, contato/deal vinculado e mensagem opcional (que pode ser enviada automaticamente no horário).",
+          "Para criar uma tarefa ou evento:\n\n1. No **Calendário**, **clique em um horário** vago ou aperte **Nova tarefa** no topo direito — abrirá um **popup**.\n2. Digite o **Título** (ex.: **Ligar para João sobre proposta**).\n3. Escolha o **Tipo** (**Ligação**, **Reunião**, **Visita**, **Follow-up**).\n4. Selecione a **Data** e **Hora**. Em eventos com duração, defina também o **fim**.\n5. Em **Responsável**, escolha o membro do time que ficará dono da tarefa.\n6. (Opcional) Vincule um **Contato** ou **Deal** — aparece na ficha do lead.\n7. (Opcional) Em **Mensagem associada**, escreva o texto que será enviado ao contato no horário da tarefa.\n8. Ative **Repetir** para criar série diária, semanal ou mensal.\n9. Aperte **Salvar** — a tarefa aparece no **Calendário**, em **Tarefas** e na ficha do contato.",
         buttons: [
           { label: "Título", description: "Resumo curto da tarefa (ex.: 'Ligar para João sobre proposta')." },
           { label: "Tipo", description: "Categoria da tarefa: Ligação, Reunião, Visita, Follow-up. Cores diferentes ajudam na visão semanal." },
@@ -502,7 +502,7 @@ export const trainings: TrainingModule[] = [
         id: "tarefas-1",
         title: "Lista e filtros de tarefas",
         description:
-          "O módulo Tarefas mostra em formato de lista tudo que está agendado: as suas, as do time, vencidas, do dia, da semana. É o ponto de partida do dia para quem trabalha com follow-up de leads.",
+          "Para organizar as tarefas do dia:\n\n1. No menu lateral, clique em **Tarefas**.\n2. No topo, use as abas **Minhas**, **Equipe**, **Vencidas** e **Hoje** para filtrar.\n3. Comece pela aba **Hoje** — vem ordenada por horário.\n4. Para criar uma nova, clique em **Nova tarefa** e preencha o formulário.\n5. Para marcar como concluída, clique no **checkbox** ao lado da tarefa.\n6. Para editar, clique no **ícone de lápis** — abre o detalhamento.\n7. Para ir ao lead vinculado, aperte **Abrir contato vinculado**.\n8. Em vencidas (destaque vermelho), clique e atualize a data ou conclua. Tarefas vencidas são o principal sinal de leads esfriando.",
         buttons: [
           { label: "Abas (Minhas / Equipe / Vencidas / Hoje)", description: "Filtra rapidamente o que mostrar. 'Vencidas' destaca o que passou do prazo e ainda não foi concluído." },
           { label: "Filtro de responsável", description: "Quando admin, restringe à pessoa selecionada." },
@@ -529,7 +529,7 @@ export const trainings: TrainingModule[] = [
         id: "chat-interno-1",
         title: "Chat 1-a-1 e grupos",
         description:
-          "O Chat Interno é o WhatsApp da sua equipe, dentro do CRM. Use para tirar dúvidas sobre um lead, repassar uma conversa, ou criar grupos por departamento (Vendas, Suporte). Notificações em tempo real e badges no menu lateral indicam mensagens novas.",
+          "Para conversar com a equipe sem sair da plataforma:\n\n1. No menu lateral, clique em **Chat Interno**.\n2. Para falar com alguém, aperte **Nova conversa**, escolha o membro e clique em **Iniciar**.\n3. Para criar grupo, clique em **Novo grupo**, defina o **nome** e marque os **membros**.\n4. Selecione a conversa na **lista à esquerda** — não lidas aparecem em **negrito** com badge.\n5. No **campo de mensagem**, digite o texto. Use **@menção** para alertar alguém específico.\n6. Para anexar arquivo, clique no **clipe** e escolha imagem, documento ou áudio.\n7. Em grupos, abra os **detalhes** para **Adicionar membro** ou **Sair do grupo**.\n8. O badge no **menu lateral** mostra o total não lido em tempo real.",
         buttons: [
           { label: "Nova conversa", description: "Inicia uma conversa direta com outro membro da equipe." },
           { label: "Novo grupo", description: "Cria um grupo, escolhe nome e membros. Útil para times grandes ou projetos." },
@@ -556,7 +556,7 @@ export const trainings: TrainingModule[] = [
         id: "chatbots-1",
         title: "Construtor de fluxos",
         description:
-          "O Construtor de Chatbots é visual: você arrasta blocos (mensagem, pergunta, condição, delay, ação) e conecta com setas. Cada fluxo é disparado por um gatilho (palavra-chave, entrada em etapa de funil, campanha em modo chatbot, etc.) e pode ramificar conforme as respostas do contato.",
+          "Para montar um chatbot visualmente:\n\n1. No menu lateral, clique em **Chatbots**.\n2. Aperte **Novo fluxo** — abrirá o **construtor**.\n3. Dê um **nome** e escolha o **gatilho inicial** (palavra-chave, entrada em etapa de funil, campanha em modo chatbot).\n4. **Arraste** blocos do painel lateral para a tela: **Mensagem**, **Pergunta**, **Condição**, **Delay**, **Ação**, **Template Meta**.\n5. Conecte os blocos arrastando a **alça de saída** de um até a **entrada** do próximo.\n6. Em blocos de **Pergunta**, defina onde salvar a resposta (variável ou campo personalizado).\n7. Em **Condição**, configure os caminhos **Sim** e **Não** baseados em variáveis, etiquetas ou campos.\n8. Aperte **Testar fluxo** e informe um número de teste para simular sem afetar leads reais.\n9. Quando estiver pronto, clique em **Publicar** — para desativar, use **Despublicar**.\n10. Acompanhe o desempenho em **Analytics**: entradas, conclusões e ponto de abandono.",
         buttons: [
           { label: "Novo fluxo", description: "Cria um chatbot do zero. Você dá um nome e escolhe o gatilho inicial." },
           { label: "Bloco Mensagem", description: "Envia texto, mídia ou template ao contato." },
@@ -587,7 +587,7 @@ export const trainings: TrainingModule[] = [
         id: "ai-agents-1",
         title: "Criando um agente",
         description:
-          "Os Agentes de IA são assistentes que conversam pelo WhatsApp em seu nome. Você define a personalidade, o objetivo (vendas, suporte, qualificação), a base de conhecimento (documentos, FAQs, planilhas) e as ferramentas que ele pode usar (criar tarefa, enviar template, mover de funil).",
+          "Para criar um agente de IA para responder pelo WhatsApp:\n\n1. No menu lateral, clique em **Agentes de IA**.\n2. Aperte **Novo agente** — escolha começar **do zero** ou a partir de um **Template** (Vendas, SDR, Atendimento, Cobrança).\n3. Preencha o **Nome** e descreva a **Personalidade** (formal, descontraído, técnico).\n4. Em **Instruções (prompt)**, escreva o que o agente deve fazer, o que evitar e como agir em casos específicos.\n5. Em **Base de conhecimento**, clique em **Adicionar** e suba **PDF**, **DOCX**, **planilha** ou cole **URL de site**.\n6. Em **Ferramentas**, ative as capacidades: **create_task** (cria tarefa para humano), **send_template** (dispara template), **mover de funil**, **agendar**.\n7. Em **Mídia por etapa**, defina imagens/vídeos que o agente envia em cada etapa do funil.\n8. Clique em **Testar agente** — abre um chat de teste. Converse como se fosse cliente.\n9. Quando errar, use **Correção de mensagem** para registrar a resposta certa.\n10. Para colocar em produção, vá no funil, abra **Editar etapa** e em **Ativar IA** selecione o agente.",
         buttons: [
           { label: "Novo agente", description: "Cria um agente do zero ou a partir de um template (Vendas, SDR, Atendimento, Cobrança)." },
           { label: "Template de agente", description: "Modelos prontos com prompt, ferramentas e base de conhecimento pré-configurados." },
@@ -618,7 +618,7 @@ export const trainings: TrainingModule[] = [
         id: "pesquisa-leads-1",
         title: "Buscando empresas por atividade",
         description:
-          "Em Pesquisa de Leads você usa filtros do IBGE/CNAE para encontrar empresas reais por atividade econômica, estado, cidade e bairro/distrito. Útil para gerar listas frias de prospecção (ex.: 'todas as óticas em São Paulo').",
+          "Para prospectar empresas usando dados do IBGE/CNAE:\n\n1. No menu lateral, clique em **Pesquisa de Leads**.\n2. Em **CNAE / Atividade**, selecione a atividade econômica (ex.: **4774-1/00 - Comércio varejista de artigos de óptica**).\n3. Em **Estado**, escolha a UF — isso libera os filtros seguintes.\n4. Em **Município**, escolha a cidade na lista carregada do IBGE.\n5. (Opcional) Refine com **Distrito / Bairro**.\n6. Aperte **Buscar** — os resultados aparecem em uma **tabela paginada**.\n7. Marque os checkboxes ou use **Selecionar tudo** para escolher os que quer aproveitar.\n8. Para gerar oportunidades, clique em **Enviar para funil** e escolha o funil/etapa.\n9. Para adicionar à base, clique em **Importar como contatos**.\n10. Para baixar a lista, aperte **Exportar CSV**.",
         buttons: [
           { label: "CNAE / Atividade", description: "Selecione a atividade econômica (ex.: 4774-1/00 - Comércio varejista de artigos de óptica)." },
           { label: "Estado", description: "Filtra por UF. Necessário para liberar os campos de cidade/distrito." },
@@ -640,7 +640,7 @@ export const trainings: TrainingModule[] = [
         id: "pesquisa-leads-2",
         title: "Instagram Scraper",
         description:
-          "O Instagram Scraper coleta perfis e comentários públicos do Instagram para você prospectar. Pode buscar seguidores de um perfil, quem comentou em um post específico ou perfis por palavra-chave.",
+          "Para coletar perfis e comentários públicos do Instagram:\n\n1. Em **Pesquisa de Leads**, abra a aba **Instagram Scraper**.\n2. Escolha o modo de busca:\n  - **Buscar por perfil**: cole o **@** ou **URL** e o sistema lista os seguidores públicos.\n  - **Buscar por post**: cole a **URL do post** e veja quem comentou (com texto do comentário).\n  - **Buscar por palavra-chave**: digite o termo para encontrar perfis cuja **bio/nome** contém ele.\n3. Aperte **Buscar** e aguarde os resultados.\n4. Use **Filtrar resultados** para reduzir por número de seguidores, palavra na bio ou presença de link externo.\n5. Para baixar, clique em **Exportar CSV**.\n6. Para mandar para a base com telefone, clique em **Importar como contatos** — a bio vira **nota inicial**.",
         buttons: [
           { label: "Buscar por perfil", description: "Cole o @ ou URL do perfil e o sistema lista os seguidores públicos." },
           { label: "Buscar por post", description: "Cole a URL do post e o sistema lista quem comentou (com texto do comentário)." },
@@ -666,7 +666,7 @@ export const trainings: TrainingModule[] = [
         id: "aquecimento-1",
         title: "Como funciona o aquecimento",
         description:
-          "O aquecimento simula conversas reais entre os seus próprios chips (pares) e também com um pool de contatos seguros. Mensagens são trocadas em horários e ritmo variados, com conteúdo gerado por IA, para o WhatsApp 'confiar' no número antes de você usá-lo em disparos.",
+          "Para aquecer um chip novo antes de campanhas:\n\n1. No menu lateral, clique em **Aquecimento**.\n2. Aperte **Iniciar aquecimento** — abre o assistente.\n3. Selecione as **Instâncias** que quer aquecer.\n4. Escolha a **Intensidade**: **Leve**, **Moderado** ou **Forte**.\n5. Defina a **Duração** em dias (recomendado **7 a 14 dias**).\n6. Em **Pool de contatos**, adicione números seguros (próprios ou parceiros) que vão receber mensagens.\n7. Em **Pares de aquecimento**, defina duplas de instâncias que conversam entre si.\n8. Ative **Gerar conteúdo IA** para variar saudações, perguntas e áudios curtos automaticamente.\n9. Aperte **Iniciar**. Acompanhe pelo **card de progresso** (dias, mensagens, taxa de entrega).\n10. Use **Pausar/Retomar** quando precisar e **Encerrar** quando terminar — o número fica liberado para campanhas.",
         buttons: [
           { label: "Iniciar aquecimento", description: "Abre o assistente: você escolhe quais instâncias aquecer, intensidade (leve/moderado/forte) e duração." },
           { label: "Pool de contatos", description: "Lista de números seguros (próprios ou parceiros) que recebem as mensagens. Você adiciona/remove aqui." },
@@ -694,7 +694,7 @@ export const trainings: TrainingModule[] = [
         id: "analise-1",
         title: "Relatórios disponíveis",
         description:
-          "O módulo Análise reúne os principais indicadores do sistema: produtividade por atendente, SLA de resposta, conversão por etapa do funil, desempenho de campanhas, mensagens por hora e score de atendimento. Tudo respeitando o fuso da organização e as permissões de cada usuário.",
+          "Para consultar relatórios e indicadores:\n\n1. No menu lateral, clique em **Análise**.\n2. No topo, escolha o **Filtro de período** (**Hoje**, **7**, **30**, **90 dias** ou **personalizado**).\n3. (Gestores) Use **Filtro de atendente** para restringir a uma pessoa do time.\n4. (Opcional) Aplique **Filtro de instância** e **Filtro de funil** para fatiar os dados.\n5. Observe os **Cards de KPI**: conversas, tempo médio de resposta, taxa de resolução, leads convertidos.\n6. Analise o **Gráfico de mensagens por hora** para identificar horários de pico.\n7. Confira o **Score do atendente** — clique no nome para ver detalhamento por critério.\n8. Clique em qualquer card para abrir os **Detalhes do relatório**.\n9. Aperte **Exportar PDF** para gerar um documento de reunião ou **Exportar CSV** para análise externa.",
         buttons: [
           { label: "Filtro de período", description: "Hoje, 7/30/90 dias ou intervalo personalizado. Afeta todos os gráficos da tela." },
           { label: "Filtro de atendente", description: "Restringe os relatórios a uma pessoa do time (para gestores)." },
@@ -723,7 +723,7 @@ export const trainings: TrainingModule[] = [
         id: "financeiro-1",
         title: "Visão geral financeira",
         description:
-          "O módulo Financeiro centraliza informações de cobrança dos seus clientes, integrando com o Asaas (boletos, PIX, cartão). Mostra recebido, a receber, atrasos e permite disparar lembretes automáticos antes do vencimento.",
+          "Para acompanhar cobranças integradas com o Asaas:\n\n1. No menu lateral, clique em **Financeiro**.\n2. No topo, ajuste o **Filtro de período** para escolher o intervalo.\n3. Observe os **Cards de KPI**: **Recebido no mês**, **A receber**, **Em atraso**, **Ticket médio**.\n4. Role até a **Lista de cobranças** — mostra cliente, valor, vencimento, status e método.\n5. Clique em uma cobrança para abrir **Detalhes** (histórico, link do boleto, comprovantes).\n6. Para enviar de novo, aperte **Reenviar cobrança** — dispara WhatsApp ou e-mail com link.\n7. Para forçar atualização de status, clique em **Sincronizar Asaas** (o sistema também sincroniza a cada **2 min**).\n8. Ative **Lembretes automáticos** para enviar avisos **5 dias antes**, **no dia** e **após atraso**.\n9. Para gerenciar inadimplentes, clique em **Devedores** no topo.",
         buttons: [
           { label: "Cards de KPI financeiros", description: "Recebido no mês, a receber, em atraso, ticket médio." },
           { label: "Filtro de período", description: "Define o intervalo das métricas e da listagem de cobranças." },
@@ -743,7 +743,7 @@ export const trainings: TrainingModule[] = [
         id: "financeiro-2",
         title: "Gestão de devedores",
         description:
-          "A tela de Devedores mostra todos os clientes com parcelas em atraso, ordenados por valor ou dias de atraso. Você pode disparar campanhas de cobrança em massa, criar tarefas para o time ou negociar diretamente pelo Inbox.",
+          "Para agir sobre devedores em massa:\n\n1. Em **Financeiro**, clique no botão **Devedores** no topo.\n2. Use **Filtro por dias de atraso** para mostrar só quem está atrasado há mais/menos de N dias.\n3. Use **Filtro por valor** para focar em quem deve acima de um valor mínimo.\n4. Clique nos cabeçalhos **Valor** ou **Atraso** para reordenar a tabela.\n5. Antes de cobrar em massa, aperte **Sincronizar Asaas** para evitar cobrar quem já pagou.\n6. Marque os **checkboxes** dos devedores e use **Selecionar tudo** se quiser todos.\n7. Para cobrar todos de uma vez, clique em **Disparar campanha** — abre o assistente já com a lista preenchida.\n8. Para distribuir entre o time, aperte **Criar tarefas** — uma tarefa por devedor.\n9. Para negociar caso a caso, clique em **Abrir conversa** ao lado do contato (vai direto ao Inbox).\n10. Para baixar a lista, aperte **Exportar**.",
         buttons: [
           { label: "Filtro por dias de atraso", description: "Mostra só quem está atrasado há mais/menos de N dias." },
           { label: "Filtro por valor", description: "Restringe a inadimplentes acima de um valor mínimo." },
@@ -770,7 +770,7 @@ export const trainings: TrainingModule[] = [
         id: "webhooks-1",
         title: "Criando uma integração",
         description:
-          "Os Webhooks permitem que eventos do sistema (nova mensagem, lead criado, etapa do funil mudou, campanha terminou) sejam enviados para um sistema externo via HTTP. Combinado com Make/n8n/Zapier, você integra a plataforma com qualquer outro serviço.",
+          "Para conectar a plataforma com Make, n8n ou Zapier:\n\n1. No menu lateral, clique em **Webhooks**.\n2. Aperte **Nova conexão** — abrirá um **popup**.\n3. Digite um **Nome** para identificar a integração.\n4. Em **Eventos disponíveis**, marque os que quer enviar: **Nova mensagem**, **Mensagem enviada**, **Novo contato**, **Novo deal**, **Mudança de etapa**, **Tarefa criada**, **Campanha finalizada**.\n5. Em **URL de destino**, cole o endpoint do **Make/n8n/Zapier** que recebe via **POST JSON**.\n6. Aperte **Salvar conexão**.\n7. Clique em **Testar webhook** para disparar um evento de exemplo e validar o destino.\n8. Para receber dados de fora, copie a **URL de entrada** e use no sistema externo.\n9. Acompanhe pelos **Logs**: data, evento, status HTTP, tempo de resposta e payload.\n10. Use **Pausar/Ativar** quando precisar fazer manutenção sem excluir a conexão.",
         buttons: [
           { label: "Nova conexão", description: "Cria um webhook. Você dá um nome, escolhe os eventos e cola a URL de destino." },
           { label: "Eventos disponíveis", description: "Nova mensagem, mensagem enviada, novo contato, novo deal, mudança de etapa, tarefa criada, campanha finalizada etc." },
@@ -798,7 +798,7 @@ export const trainings: TrainingModule[] = [
         id: "configuracoes-1",
         title: "Integrações externas",
         description:
-          "Em Configurações > Integrações você conecta a plataforma com serviços externos. Cada integração tem o seu próprio fluxo de autenticação (OAuth, token, chave de API).",
+          "Para conectar serviços externos à plataforma:\n\n1. Abra **Configurações** pelo avatar do topo.\n2. Vá na aba **Integrações**.\n3. Localize a integração desejada e clique em **Conectar**:\n  - **Google Calendar**: login Google para sincronizar agenda.\n  - **Meta (WhatsApp oficial)**: login Facebook para conectar números **Cloud API**.\n  - **Meta Messenger / Instagram**: login Facebook para receber DMs no Inbox.\n  - **Asaas**: cole o **token de API** do Asaas.\n  - **ElevenLabs**: cole a **chave de API** para gerar TTS.\n4. Siga o fluxo de **OAuth** ou cole o **token** conforme pedido.\n5. Aperte **Salvar conexão**.\n6. Quando expirar, aparece o aviso **Token expirado** — clique em **Reconectar** para refazer o login.\n7. Para remover, clique em **Desconectar** (dá para reconectar depois sem perder histórico).",
         buttons: [
           { label: "Google Calendar", description: "Conecta a agenda do Google para ver/editar eventos sincronizados no Calendário." },
           { label: "Meta (WhatsApp oficial)", description: "Login com Facebook para conectar números oficiais (Cloud API) — habilita disparo de templates em grande volume." },
@@ -818,7 +818,7 @@ export const trainings: TrainingModule[] = [
         id: "configuracoes-2",
         title: "Tokens de IA e Plano",
         description:
-          "A plataforma usa créditos (tokens) para chamadas de IA: respostas dos agentes, variações de templates, transcrições, geração de conteúdo no aquecimento. Em Configurações > Tokens de IA você vê o saldo, histórico de consumo e pode comprar pacotes adicionais. Em Assinatura você gerencia o plano da conta.",
+          "Para gerenciar créditos de IA e plano da conta:\n\n1. Abra **Configurações** pelo avatar do topo.\n2. Vá na aba **Tokens de IA**.\n3. Veja o **Saldo de tokens** disponível no topo.\n4. Role até o **Histórico de uso** para conferir cada chamada (agente, template, transcrição) e tokens gastos.\n5. Para adicionar saldo, clique em **Comprar pacote**, escolha o tamanho e finalize o pagamento.\n6. (Admin de várias contas) Aperte **Transferir tokens** para mover saldo entre organizações irmãs.\n7. Para o plano, vá na aba **Assinatura**.\n8. Confira **Plano atual**, **limites** e **data de renovação**.\n9. Para upgrade/downgrade, clique em **Alterar plano** — a cobrança proporcional é feita pelo **Stripe**.\n10. Em **Histórico de cobranças**, baixe as faturas em PDF.\n11. Para parar a renovação, clique em **Cancelar assinatura** — o acesso continua até o fim do ciclo pago.",
         buttons: [
           { label: "Saldo de tokens", description: "Quantidade disponível agora. Recarrega no início de cada ciclo do plano." },
           { label: "Histórico de uso", description: "Tabela com cada chamada de IA: data, tipo (agente, template, transcrição), tokens consumidos." },
@@ -845,7 +845,7 @@ export const trainings: TrainingModule[] = [
         id: "formularios-1",
         title: "Criando um formulário",
         description:
-          "Em Formulários > Novo, você define o título, os campos (nome, telefone, e-mail, campos personalizados) e o funil de destino. Cada envio gera automaticamente um cartão no funil escolhido, já com os dados preenchidos. O link público pode ser compartilhado em qualquer canal (site, bio, anúncio, QR code).",
+          "Para criar um formulário que vira lead no funil:\n\n1. No menu lateral, clique em **Formulários**.\n2. Aperte **Novo** no canto superior direito.\n3. Digite o **Título do formulário** — ele aparece no cabeçalho da página pública.\n4. Clique em **Adicionar campo** para incluir **Nome**, **Telefone**, **E-mail** ou outros tipos (**Número**, **Data**, **Hora**, **Seleção**, **Múltipla escolha**).\n5. Para editar um campo, clique no **lápis** ao lado — defina rótulo, **Obrigatório**, placeholder e opções.\n6. Para reordenar, **arraste** o ícone à esquerda do campo.\n7. Para remover, clique na **lixeira**.\n8. Em **Funil de destino**, escolha em qual funil e etapa o lead vai cair.\n9. Em **Mensagem de sucesso**, escreva o texto exibido após envio.\n10. Aperte **Salvar** e depois **Publicar**.\n11. Clique em **Copiar** ao lado do **Link público** para compartilhar em sites, bios, anúncios ou QR codes.\n12. Use **Pré-visualizar** para ver como o lead enxerga.",
         image: "/training/formularios/01.png",
         buttons: [
           { label: "Título do formulário", description: "Nome interno e título exibido para o lead. Aparece também no cabeçalho da página pública." },
@@ -869,7 +869,7 @@ export const trainings: TrainingModule[] = [
         id: "formularios-2",
         title: "Compartilhando e acompanhando respostas",
         description:
-          "Depois de publicado, cada formulário tem um link único e uma página de respostas. Você acompanha cada envio em tempo real, filtra por período e exporta tudo em CSV. Cada resposta também cria um cartão no funil escolhido — então fica fácil dar continuidade ao atendimento.",
+          "Para compartilhar e acompanhar respostas:\n\n1. Em **Formulários**, clique no formulário desejado.\n2. Aperte **Copiar link público** para colar em bio, anúncios, e-mails.\n3. Clique em **Gerar QR Code** se for usar em folhetos, mesas de evento ou flyers.\n4. Aperte **Pré-visualizar página pública** para revisar a aparência antes de divulgar.\n5. Vá na aba **Respostas** para ver a tabela de envios em tempo real.\n6. Use o **Filtro de período** para isolar uma campanha específica.\n7. Clique em uma resposta para abrir o **cartão no funil** já criado automaticamente.\n8. Aperte **Exportar respostas** para baixar CSV de todas as respostas filtradas.\n9. Veja **Estatísticas** para envios por dia e taxa de conclusão.\n10. Para alterar campos, clique em **Editar formulário** — mudanças não afetam respostas antigas, mas podem confundir relatórios, então prefira criar versão nova em mudanças grandes.",
         buttons: [
           { label: "Copiar link público", description: "Copia para área de transferência. Cole em bio, anúncios, QR code, e-mails." },
           { label: "Gerar QR Code", description: "Cria um QR para o link público — bom para folhetos e mesas de evento." },
