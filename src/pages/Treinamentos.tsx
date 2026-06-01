@@ -133,9 +133,11 @@ const Treinamentos = () => {
                           </AccordionTrigger>
                           <AccordionContent>
                             <div className="pl-8 space-y-4">
-                              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                                {step.description}
-                              </p>
+                              <p
+                                className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line"
+                                dangerouslySetInnerHTML={{ __html: renderRich(step.description) }}
+                              />
+
 
                               {step.image && !imgFailed && (
                                 <div className="rounded-lg overflow-hidden border bg-muted">
