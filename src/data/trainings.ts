@@ -743,7 +743,7 @@ export const trainings: TrainingModule[] = [
         id: "financeiro-2",
         title: "Gestão de devedores",
         description:
-          "A tela de Devedores mostra todos os clientes com parcelas em atraso, ordenados por valor ou dias de atraso. Você pode disparar campanhas de cobrança em massa, criar tarefas para o time ou negociar diretamente pelo Inbox.",
+          "Para agir sobre devedores em massa:\n\n1. Em **Financeiro**, clique no botão **Devedores** no topo.\n2. Use **Filtro por dias de atraso** para mostrar só quem está atrasado há mais/menos de N dias.\n3. Use **Filtro por valor** para focar em quem deve acima de um valor mínimo.\n4. Clique nos cabeçalhos **Valor** ou **Atraso** para reordenar a tabela.\n5. Antes de cobrar em massa, aperte **Sincronizar Asaas** para evitar cobrar quem já pagou.\n6. Marque os **checkboxes** dos devedores e use **Selecionar tudo** se quiser todos.\n7. Para cobrar todos de uma vez, clique em **Disparar campanha** — abre o assistente já com a lista preenchida.\n8. Para distribuir entre o time, aperte **Criar tarefas** — uma tarefa por devedor.\n9. Para negociar caso a caso, clique em **Abrir conversa** ao lado do contato (vai direto ao Inbox).\n10. Para baixar a lista, aperte **Exportar**.",
         buttons: [
           { label: "Filtro por dias de atraso", description: "Mostra só quem está atrasado há mais/menos de N dias." },
           { label: "Filtro por valor", description: "Restringe a inadimplentes acima de um valor mínimo." },
