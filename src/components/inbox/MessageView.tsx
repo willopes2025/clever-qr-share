@@ -246,6 +246,64 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
+  // Auto-switch the sending number to follow the LAST INBOUND message origin.
+  // If the lead replies through a different company number (e.g. they wrote
+  // to "Centro de Saúde Visual" while the agent had "Brasil Visão Cidadã"
+  // selected), the selector flips automatically so the next reply goes out
+  // through the same number the lead used — avoiding cross-channel replies.
+  const lastSyncedInboundIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+    let lastInbound: InboxMessage | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.direction === 'inbound' && (m.sent_via_meta_number_id || m.sent_via_instance_id)) {
+        lastInbound = m;
+        break;
+      }
+    }
+    if (!lastInbound) return;
+    if (lastSyncedInboundIdRef.current === lastInbound.id) return;
+    lastSyncedInboundIdRef.current = lastInbound.id;
+
+    const inboundMetaId = lastInbound.sent_via_meta_number_id || null;
+    const inboundInstanceId = lastInbound.sent_via_instance_id || null;
+
+    if (inboundMetaId) {
+      const known = metaNumbers.find(n => n.phone_number_id === inboundMetaId);
+      if (!known) return;
+      if (selectedMetaNumberId === inboundMetaId && !metaUsingEvoInstance) return;
+      setSelectedMetaNumberId(inboundMetaId);
+      setMetaUsingEvoInstance(false);
+      supabase
+        .from('conversations')
+        .update({ meta_phone_number_id: inboundMetaId, provider: 'meta', instance_id: null })
+        .eq('id', conversation.id)
+        .then(({ error }) => {
+          if (!error) queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        });
+    } else if (inboundInstanceId) {
+      const known = connectedInstances.find(i => i.id === inboundInstanceId);
+      if (!known) return;
+      if (selectedInstanceId === inboundInstanceId && (!isMetaConversation || metaUsingEvoInstance)) return;
+      setSelectedInstanceId(inboundInstanceId);
+      if (isMetaConversation) setMetaUsingEvoInstance(true);
+      supabase
+        .from('conversations')
+        .update({ instance_id: inboundInstanceId })
+        .eq('id', conversation.id)
+        .then(({ error }) => {
+          if (!error) queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, metaNumbers, instances]);
+
+  // Reset the auto-sync tracker when switching conversations
+  useEffect(() => {
+    lastSyncedInboundIdRef.current = null;
+  }, [conversationId]);
+
   // Persist sender name preference
   useEffect(() => {
     localStorage.setItem('inbox-show-sender-name', showSenderName.toString());
