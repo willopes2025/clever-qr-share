@@ -725,6 +725,7 @@ export const trainings: TrainingModule[] = [
         title: "Visão geral financeira",
         description:
           "Para acompanhar cobranças integradas com o Asaas:\n\n1. No menu lateral, clique em **Financeiro**.\n2. No topo, ajuste o **Filtro de período** para escolher o intervalo.\n3. Observe os **Cards de KPI**: **Recebido no mês**, **A receber**, **Em atraso**, **Ticket médio**.\n4. Role até a **Lista de cobranças** — mostra cliente, valor, vencimento, status e método.\n5. Clique em uma cobrança para abrir **Detalhes** (histórico, link do boleto, comprovantes).\n6. Para enviar de novo, aperte **Reenviar cobrança** — dispara WhatsApp ou e-mail com link.\n7. Para forçar atualização de status, clique em **Sincronizar Asaas** (o sistema também sincroniza a cada **2 min**).\n8. Ative **Lembretes automáticos** para enviar avisos **5 dias antes**, **no dia** e **após atraso**.\n9. Para gerenciar inadimplentes, clique em **Devedores** no topo.",
+        image: "/training/financeiro/01.gif",
         buttons: [
           { label: "Cards de KPI financeiros", description: "Recebido no mês, a receber, em atraso, ticket médio." },
           { label: "Filtro de período", description: "Define o intervalo das métricas e da listagem de cobranças." },
@@ -745,6 +746,7 @@ export const trainings: TrainingModule[] = [
         title: "Gestão de devedores",
         description:
           "Para agir sobre devedores em massa:\n\n1. Em **Financeiro**, clique no botão **Devedores** no topo.\n2. Use **Filtro por dias de atraso** para mostrar só quem está atrasado há mais/menos de N dias.\n3. Use **Filtro por valor** para focar em quem deve acima de um valor mínimo.\n4. Clique nos cabeçalhos **Valor** ou **Atraso** para reordenar a tabela.\n5. Antes de cobrar em massa, aperte **Sincronizar Asaas** para evitar cobrar quem já pagou.\n6. Marque os **checkboxes** dos devedores e use **Selecionar tudo** se quiser todos.\n7. Para cobrar todos de uma vez, clique em **Disparar campanha** — abre o assistente já com a lista preenchida.\n8. Para distribuir entre o time, aperte **Criar tarefas** — uma tarefa por devedor.\n9. Para negociar caso a caso, clique em **Abrir conversa** ao lado do contato (vai direto ao Inbox).\n10. Para baixar a lista, aperte **Exportar**.",
+        image: "/training/financeiro/02.gif",
         buttons: [
           { label: "Filtro por dias de atraso", description: "Mostra só quem está atrasado há mais/menos de N dias." },
           { label: "Filtro por valor", description: "Restringe a inadimplentes acima de um valor mínimo." },
