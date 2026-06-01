@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { VariableChipsSelector } from "@/components/shared/VariableChipsSelector";
 import { useCustomFields } from "@/hooks/useCustomFields";
 import { TemplateMediaUpload, MediaType } from "@/components/templates/TemplateMediaUpload";
+import { ConditionVariablePicker } from "./ConditionVariablePicker";
 
 interface MetaVariableMapping {
   variable_index: number;
@@ -302,36 +303,47 @@ const MultipleConditionsConfig = ({
                 </Button>
               )}
             </div>
-            <Input
-              value={condition.variable}
-              onChange={(e) => updateCondition(condition.id, 'variable', e.target.value)}
-              placeholder="Variável"
-              className="h-8 text-sm"
-            />
-            <Select
-              value={condition.operator}
-              onValueChange={(v) => updateCondition(condition.id, 'operator', v)}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="equals">Igual a</SelectItem>
-                <SelectItem value="not_equals">Diferente de</SelectItem>
-                <SelectItem value="contains">Contém</SelectItem>
-                <SelectItem value="not_contains">Não contém</SelectItem>
-                <SelectItem value="starts_with">Começa com</SelectItem>
-                <SelectItem value="ends_with">Termina com</SelectItem>
-                <SelectItem value="greater_than">Maior que</SelectItem>
-                <SelectItem value="less_than">Menor que</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              value={condition.value}
-              onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
-              placeholder="Valor"
-              className="h-8 text-sm"
-            />
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Variável</Label>
+              <ConditionVariablePicker
+                value={condition.variable}
+                onChange={(v) => updateCondition(condition.id, 'variable', v)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Operador</Label>
+              <Select
+                value={condition.operator}
+                onValueChange={(v) => updateCondition(condition.id, 'operator', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="equals">Igual a</SelectItem>
+                  <SelectItem value="not_equals">Diferente de</SelectItem>
+                  <SelectItem value="contains">Contém</SelectItem>
+                  <SelectItem value="not_contains">Não contém</SelectItem>
+                  <SelectItem value="starts_with">Começa com</SelectItem>
+                  <SelectItem value="ends_with">Termina com</SelectItem>
+                  <SelectItem value="greater_than">Maior que</SelectItem>
+                  <SelectItem value="less_than">Menor que</SelectItem>
+                  <SelectItem value="is_empty">Está vazio</SelectItem>
+                  <SelectItem value="is_not_empty">Não está vazio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {condition.operator !== 'is_empty' && condition.operator !== 'is_not_empty' && (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Valor de comparação</Label>
+                <Input
+                  value={condition.value}
+                  onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
+                  placeholder="Valor"
+                  className="h-8 text-sm"
+                />
+              </div>
+            )}
           </div>
         ))}
         <Button

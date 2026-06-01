@@ -108,10 +108,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Load conversation to get instance info
+    // Load conversation to get instance info + status for condition variables
     const { data: conversation } = await supabase
       .from('conversations')
-      .select('id, instance_id, meta_phone_number_id')
+      .select('id, instance_id, meta_phone_number_id, status, assigned_to, unread_count, provider')
       .eq('id', conversationId)
       .single();
 
@@ -394,6 +394,37 @@ Deno.serve(async (req: Request) => {
           if (contactCustom[key] !== undefined) return formatVarValue(contactCustom[key]);
           return '';
         });
+    };
+
+    // Helper: compute live system variables for conditions (canal, instância, status etc.)
+    const getSystemConditionVars = (): Record<string, any> => {
+      const tz = orgFormatConfig?.timezone || 'America/Sao_Paulo';
+      const now = new Date();
+      const localeOpts: Intl.DateTimeFormatOptions = { timeZone: tz };
+      let nowDate = '';
+      let nowTime = '';
+      let weekday = '';
+      try {
+        nowDate = new Intl.DateTimeFormat('en-CA', { ...localeOpts, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        nowTime = new Intl.DateTimeFormat('en-GB', { ...localeOpts, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+        weekday = new Intl.DateTimeFormat('en-US', { ...localeOpts, weekday: 'long' }).format(now).toLowerCase();
+      } catch { /* ignore */ }
+      const provider = (conversation as any)?.provider || (metaPhoneNumberId ? 'meta' : 'evolution');
+      const channel = provider === 'meta' ? 'whatsapp_meta' : 'whatsapp_evolution';
+      return {
+        _conversation_id: conversation?.id || '',
+        _conversation_status: (conversation as any)?.status || '',
+        _conversation_channel: channel,
+        _conversation_instance_name: instanceName || metaPhoneNumberId || '',
+        _conversation_phone_number: metaPhoneNumberId || instanceName || '',
+        _conversation_assigned_to: (conversation as any)?.assigned_to || '',
+        _conversation_unread_count: (conversation as any)?.unread_count ?? 0,
+        _lead_source: activeFunnel?.name || '',
+        _lead_source_phone: contact?.phone || '',
+        _now_date: nowDate,
+        _now_time: nowTime,
+        _now_weekday: weekday,
+      };
     };
 
     // Per-node send context (so helpers can tag inbox_messages with template / meta-template origin)
@@ -1196,20 +1227,71 @@ Deno.serve(async (req: Request) => {
         }
 
         case 'condition': {
-          // AI-based or simple conditions
-          const variable = execution.variables?.[node.data?.variable] || execution.variables?.['_last_input'] || '';
-          const conditionValue = node.data?.value || '';
-          const operator = node.data?.operator || 'contains';
+          // Resolve a variable key against: live system vars > execution vars > deal custom > contact custom > flat lookups
+          const systemVars = getSystemConditionVars();
+          const contactCustomNow = (contact?.custom_fields as Record<string, any>) || {};
+          const dealCustomNow = (activeDeal?.custom_fields as Record<string, any>) || {};
+          const flatLookup: Record<string, any> = {
+            nome: contact?.name || '',
+            primeiro_nome: (contact?.name || '').split(/\s+/)[0] || '',
+            telefone: contact?.phone || '',
+            email: contact?.email || '',
+            valor: activeDeal?.value ?? '',
+            titulo: activeDeal?.title || '',
+            etapa: activeStage?.name || '',
+            funil: activeFunnel?.name || '',
+          };
+          const resolveVar = (key: string): any => {
+            if (!key) return execution.variables?.['_last_input'] ?? '';
+            if (systemVars[key] !== undefined) return systemVars[key];
+            if (execution.variables?.[key] !== undefined) return execution.variables[key];
+            if (flatLookup[key] !== undefined) return flatLookup[key];
+            if (dealCustomNow[key] !== undefined) return dealCustomNow[key];
+            if (contactCustomNow[key] !== undefined) return contactCustomNow[key];
+            return '';
+          };
 
-          let conditionMet = false;
-          switch (operator) {
-            case 'equals': conditionMet = variable.toLowerCase() === conditionValue.toLowerCase(); break;
-            case 'contains': conditionMet = variable.toLowerCase().includes(conditionValue.toLowerCase()); break;
-            case 'not_contains': conditionMet = !variable.toLowerCase().includes(conditionValue.toLowerCase()); break;
-            default: conditionMet = true;
+          const evalSingle = (variable: string, operator: string, expected: string): boolean => {
+            const raw = resolveVar(variable);
+            const left = (raw === null || raw === undefined) ? '' : String(raw);
+            const right = expected ?? '';
+            const l = left.toLowerCase();
+            const r = String(right).toLowerCase();
+            switch (operator) {
+              case 'equals': return l === r;
+              case 'not_equals': return l !== r;
+              case 'contains': return l.includes(r);
+              case 'not_contains': return !l.includes(r);
+              case 'starts_with': return l.startsWith(r);
+              case 'ends_with': return l.endsWith(r);
+              case 'greater_than': return Number(left) > Number(right);
+              case 'less_than': return Number(left) < Number(right);
+              case 'is_empty': return left.trim() === '';
+              case 'is_not_empty': return left.trim() !== '';
+              default: return false;
+            }
+          };
+
+          // Support both legacy single-condition shape and new conditions[] array
+          const list: Array<{ variable: string; operator: string; value: string }> =
+            Array.isArray(node.data?.conditions) && node.data.conditions.length > 0
+              ? node.data.conditions
+              : [{ variable: node.data?.variable || '_last_input', operator: node.data?.operator || 'contains', value: node.data?.value || '' }];
+          const logic = (node.data?.logicOperator || 'and').toLowerCase();
+
+          let conditionMet: boolean;
+          if (logic === 'or') {
+            conditionMet = list.some((c) => evalSingle(c.variable, c.operator, c.value));
+          } else {
+            conditionMet = list.every((c) => evalSingle(c.variable, c.operator, c.value));
           }
 
-          currentId = getNextNode(node.id, conditionMet ? 'true' : 'false');
+          console.log(`[FLOW] condition node ${node.id} -> met=${conditionMet} (${list.length} cond, logic=${logic})`);
+
+          // Try both handle naming conventions (true/false and yes/no)
+          currentId =
+            getNextNode(node.id, conditionMet ? 'true' : 'false') ||
+            getNextNode(node.id, conditionMet ? 'yes' : 'no');
           break;
         }
 
