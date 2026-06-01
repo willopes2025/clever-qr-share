@@ -92,14 +92,13 @@ function inlineFormat(s: string) {
 
 export const WhatsNewDialog = () => {
   const { user, loading } = useAuth();
-  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
 
   useEffect(() => {
     if (loading) return;
     if (!user) return;
-    if (isPublicPath(location.pathname)) return;
+    if (typeof window !== "undefined" && isPublicPath(window.location.pathname)) return;
     let cancelled = false;
     (async () => {
       try {
