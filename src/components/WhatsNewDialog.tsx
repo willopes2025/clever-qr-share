@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -93,14 +92,13 @@ function inlineFormat(s: string) {
 
 export const WhatsNewDialog = () => {
   const { user, loading } = useAuth();
-  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
 
   useEffect(() => {
     if (loading) return;
     if (!user) return;
-    if (isPublicPath(location.pathname)) return;
+    if (typeof window !== "undefined" && isPublicPath(window.location.pathname)) return;
     let cancelled = false;
     (async () => {
       try {
@@ -128,7 +126,7 @@ export const WhatsNewDialog = () => {
     return () => {
       cancelled = true;
     };
-  }, [user, loading, location.pathname]);
+  }, [user, loading]);
 
   const handleClose = () => {
     if (user) {
