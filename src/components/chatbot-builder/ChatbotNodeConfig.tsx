@@ -111,6 +111,8 @@ interface NodeData {
   targetFlowId?: string;
   // Round robin fields
   members?: string[];
+  outputs?: Array<{ id: string; label: string }>;
+  lastIndex?: number;
   // Buttons / list response routing
   buttons?: Array<{ label: string }>;
   timeoutMinutes?: number;
