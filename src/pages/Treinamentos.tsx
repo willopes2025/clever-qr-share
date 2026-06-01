@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
 const ALLOWED_EMAILS = ["contato@wideic.com"];
-import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff, MousePointerClick, Lightbulb } from "lucide-react";
+import { ArrowLeft, GraduationCap, CheckCircle2, Circle, PlayCircle, ImageOff, MousePointerClick, Lightbulb, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
