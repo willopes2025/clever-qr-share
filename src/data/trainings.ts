@@ -374,6 +374,7 @@ export const trainings: TrainingModule[] = [
         title: "Criando templates",
         description:
           "Para criar um template de mensagem:\n\n1. No menu lateral, clique em **Templates**.\n2. Aperte **Novo template**.\n3. Digite o **nome** (ex.: **cobranca_5dias**), escolha **categoria** e **canal** (**Evolution** ou **Meta oficial**).\n4. Escreva o texto. Para inserir variáveis, clique em **Inserir variável** e escolha **{{nome}}**, **{{vencimento}}**, etc.\n5. Para anexar mídia, clique em **Anexar mídia** e suba imagem, vídeo, documento ou áudio.\n6. Para gerar áudio narrado, clique em **Gerar áudio (TTS)** — usa **ElevenLabs**.\n7. Para criar variações, clique em **Gerar variações com IA** e escolha quantas versões quer.\n8. Aperte **Pré-visualizar** para conferir como fica no WhatsApp.\n9. Clique em **Salvar**. Em templates Meta, aperte **Enviar para aprovação** antes de usar.",
+        image: "/training/templates/01.gif",
         buttons: [
           { label: "Novo template", description: "Cria um template do zero. Defina nome, categoria e canal (Evolution ou Meta oficial)." },
           { label: "Inserir variável", description: "Clica no campo de variáveis para inserir {{nome}}, {{vencimento}} etc. Os valores são preenchidos no envio." },
