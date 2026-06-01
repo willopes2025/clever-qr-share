@@ -401,7 +401,7 @@ export const trainings: TrainingModule[] = [
         id: "campanhas-1",
         title: "Criando uma campanha",
         description:
-          "Em Disparos > Nova Campanha você monta o envio passo a passo: escolhe a(s) instância(s), o template ou mensagem livre, a lista de contatos e as configurações de ritmo (intervalo entre mensagens, janela de horário, agendamento). Quanto mais devagar, menor o risco de bloqueio do chip.",
+          "Para criar uma campanha de disparo em massa:\n\n1. No menu lateral, clique em **Disparos** (ou **Campanhas**).\n2. Aperte **Nova Campanha** — abrirá o assistente.\n3. Digite o **Nome da campanha** (ex.: **Black Friday 2026**).\n4. Em **Instância(s)**, marque um ou mais números — com vários, o sistema distribui a carga automaticamente.\n5. Em **Template / Mensagem**, escolha um template salvo ou escreva mensagem livre.\n6. Em **Lista de contatos**, selecione uma **lista de transmissão** ou faça **upload de CSV**.\n7. Defina o **Intervalo entre envios** (mínimo e máximo em segundos — recomendado **15 a 60s** para Evolution).\n8. Em **Janela de horário**, escolha o intervalo permitido (ex.: **9h às 18h**).\n9. Para programar, ative **Agendar início** e escolha **data** e **hora**.\n10. Opcional: ative **Modo chatbot** ou **Agente de IA** para respostas automáticas.\n11. Selecione o **Funil de destino dos leads** para acompanhar respostas.\n12. Antes de começar, clique em **Salvar rascunho** e revise. Quando estiver pronto, aperte **Iniciar campanha**.",
         image: "/training/campanhas/01.png",
         buttons: [
           { label: "Nome da campanha", description: "Identificação interna — aparece em relatórios e histórico. Use algo descritivo como 'Black Friday 2026'." },
