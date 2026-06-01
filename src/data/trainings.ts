@@ -725,6 +725,7 @@ export const trainings: TrainingModule[] = [
         title: "Visão geral financeira",
         description:
           "Para acompanhar cobranças integradas com o Asaas:\n\n1. No menu lateral, clique em **Financeiro**.\n2. No topo, ajuste o **Filtro de período** para escolher o intervalo.\n3. Observe os **Cards de KPI**: **Recebido no mês**, **A receber**, **Em atraso**, **Ticket médio**.\n4. Role até a **Lista de cobranças** — mostra cliente, valor, vencimento, status e método.\n5. Clique em uma cobrança para abrir **Detalhes** (histórico, link do boleto, comprovantes).\n6. Para enviar de novo, aperte **Reenviar cobrança** — dispara WhatsApp ou e-mail com link.\n7. Para forçar atualização de status, clique em **Sincronizar Asaas** (o sistema também sincroniza a cada **2 min**).\n8. Ative **Lembretes automáticos** para enviar avisos **5 dias antes**, **no dia** e **após atraso**.\n9. Para gerenciar inadimplentes, clique em **Devedores** no topo.",
+        image: "/training/financeiro/01.gif",
         buttons: [
           { label: "Cards de KPI financeiros", description: "Recebido no mês, a receber, em atraso, ticket médio." },
           { label: "Filtro de período", description: "Define o intervalo das métricas e da listagem de cobranças." },
