@@ -252,7 +252,7 @@ export const trainings: TrainingModule[] = [
         id: "funis-1",
         title: "Entendendo o Kanban",
         description:
-          "O módulo Funis mostra cada lead como um cartão em colunas (etapas). Você arrasta o cartão da esquerda para a direita conforme a negociação avança. Cada funil é independente: você pode ter um para Vendas, outro para Suporte, outro para Pós-venda. Tudo respeita as permissões: cada usuário só vê os funis liberados para ele.",
+          "Para começar a usar o Kanban de funis:\n\n1. No menu lateral, clique em **Funis**.\n2. No **seletor de funil** (topo), escolha o funil desejado ou clique em **Novo funil** para criar um.\n3. Ao criar um funil, dê **nome**, **cor** e clique em **Editar etapas** para definir as colunas.\n4. Em **Editar etapas**, clique em **Adicionar etapa**, escreva o nome e arraste para reordenar.\n5. Alterne entre **Visão Kanban** e **Visão Lista** pelo botão no topo direito.\n6. Use **Filtros** para mostrar só leads de um responsável, etiqueta, valor, data ou campo personalizado.\n7. Use a **Busca** para encontrar um cartão por nome, telefone ou conteúdo.\n8. Para mover um lead, **clique e arraste** o cartão de uma coluna para outra — isso dispara as **automações** da etapa de destino.",
         buttons: [
           { label: "Seletor de funil", description: "No topo, alterna entre os funis criados (Vendas, Suporte, etc.)." },
           { label: "Novo funil", description: "Cria um funil do zero com etapas personalizadas. Você define nome, cor e regras." },
