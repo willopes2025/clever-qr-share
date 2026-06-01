@@ -346,7 +346,7 @@ export const trainings: TrainingModule[] = [
         id: "listas-1",
         title: "Criando uma lista",
         description:
-          "Uma lista de transmissão agrupa contatos para usar em campanhas. Pode ser estática (você adiciona contatos manualmente) ou dinâmica (definida por filtros — o sistema atualiza sozinha conforme novos contatos batem com os critérios).",
+          "Para criar uma lista de transmissão:\n\n1. No menu lateral, clique em **Listas de Transmissão**.\n2. Aperte **Nova lista** no canto superior direito.\n3. Digite o **nome** e uma **descrição** opcional.\n4. Escolha o **tipo**: **Estática** (você adiciona contatos manualmente) ou **Dinâmica** (filtros que atualizam sozinhos).\n5. Se for **Dinâmica**, clique em **Adicionar filtro** e combine critérios (etiqueta, campo personalizado, instância, funil).\n6. Se for **Estática**, clique em **Adicionar contatos**, selecione da base ou cole os números.\n7. Aperte **Salvar lista**.\n8. Depois de salva, use **Ver contatos** para conferir os membros e **Histórico de envios** para ver as campanhas que usaram a lista.",
         buttons: [
           { label: "Nova lista", description: "Cria uma lista do zero. Você define nome, tipo (estática/dinâmica) e descrição." },
           { label: "Tipo: Estática", description: "Você adiciona os contatos manualmente. A lista não muda sozinha." },
