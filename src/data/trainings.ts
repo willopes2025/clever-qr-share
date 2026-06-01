@@ -119,7 +119,7 @@ export const trainings: TrainingModule[] = [
         id: "instancias-1",
         title: "Criando uma nova instância",
         description:
-          "Cada número de WhatsApp conectado à plataforma é chamado de instância. Em Instâncias você vê a lista de todos os números, com o status atual (conectado, desconectado, aguardando QR) e as ações para gerenciar cada um. Para começar a conversar, você precisa criar pelo menos uma instância e conectá-la via QR Code.",
+          "Para conectar um número de WhatsApp à plataforma:\n\n1. No menu lateral, clique em **Instâncias**.\n2. Aperte o botão **Nova Instância** no canto superior direito — abrirá um **popup**.\n3. Digite um **nome amigável** (ex.: **Vendas SP**, **Suporte**).\n4. Escolha o **tipo** de instância (Evolution para chips comuns, Meta para número oficial).\n5. Clique em **Criar**. A instância aparece na lista com o status **Aguardando QR**.\n6. Em seguida, na linha da instância recém-criada, clique em **Conectar / QR Code** para abrir o pareamento.\n7. Acompanhe o **badge de status**: verde = conectado, amarelo = aguardando QR, vermelho = desconectado.",
         image: "/training/instancias/01.png",
         buttons: [
           { label: "Nova Instância", description: "Abre o formulário para cadastrar um novo número. Você dá um nome amigável (ex.: Vendas, Suporte) e a instância é criada já pronta para conectar." },
