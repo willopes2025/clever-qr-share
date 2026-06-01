@@ -6,6 +6,7 @@ import {
   Controls,
   MiniMap,
   addEdge,
+  reconnectEdge,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -14,6 +15,7 @@ import {
   Node,
   BackgroundVariant,
   Panel,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { ChatbotFlow, useChatbotFlowNodes, useChatbotFlowEdges } from '@/hooks/useChatbotFlows';
@@ -114,9 +116,54 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
     },
   ];
 
+  const edgeReconnectSuccessful = useRef(true);
+
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
-    [setEdges]
+    (params: Connection) =>
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            animated: true,
+            markerEnd: { type: MarkerType.ArrowClosed },
+          },
+          eds,
+        ),
+      ),
+    [setEdges],
+  );
+
+  // Click on an edge to remove it
+  const onEdgeClick = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.stopPropagation();
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+    },
+    [setEdges],
+  );
+
+  // Drag the end of an edge to reconnect it to a different handle/node
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false;
+  }, []);
+
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      edgeReconnectSuccessful.current = true;
+      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds));
+    },
+    [setEdges],
+  );
+
+  const onReconnectEnd = useCallback(
+    (_: MouseEvent | TouchEvent, edge: Edge) => {
+      // If user dropped the edge end on empty canvas, delete it
+      if (!edgeReconnectSuccessful.current) {
+        setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+      }
+      edgeReconnectSuccessful.current = true;
+    },
+    [setEdges],
   );
 
   const onDrop = useCallback(
@@ -246,11 +293,17 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onEdgeClick={onEdgeClick}
+          onReconnect={onReconnect}
+          onReconnectStart={onReconnectStart}
+          onReconnectEnd={onReconnectEnd}
+          edgesReconnectable={true}
           onDrop={onDrop}
           onDragOver={onDragOver}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
+          deleteKeyCode={['Backspace', 'Delete']}
           fitView
           className="bg-muted/30"
         >
