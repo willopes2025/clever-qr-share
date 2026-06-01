@@ -396,6 +396,37 @@ Deno.serve(async (req: Request) => {
         });
     };
 
+    // Helper: compute live system variables for conditions (canal, instância, status etc.)
+    const getSystemConditionVars = (): Record<string, any> => {
+      const tz = orgFormatConfig?.timezone || 'America/Sao_Paulo';
+      const now = new Date();
+      const localeOpts: Intl.DateTimeFormatOptions = { timeZone: tz };
+      let nowDate = '';
+      let nowTime = '';
+      let weekday = '';
+      try {
+        nowDate = new Intl.DateTimeFormat('en-CA', { ...localeOpts, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        nowTime = new Intl.DateTimeFormat('en-GB', { ...localeOpts, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+        weekday = new Intl.DateTimeFormat('en-US', { ...localeOpts, weekday: 'long' }).format(now).toLowerCase();
+      } catch { /* ignore */ }
+      const provider = (conversation as any)?.provider || (metaPhoneNumberId ? 'meta' : 'evolution');
+      const channel = provider === 'meta' ? 'whatsapp_meta' : 'whatsapp_evolution';
+      return {
+        _conversation_id: conversation?.id || '',
+        _conversation_status: (conversation as any)?.status || '',
+        _conversation_channel: channel,
+        _conversation_instance_name: instanceName || metaPhoneNumberId || '',
+        _conversation_phone_number: metaPhoneNumberId || instanceName || '',
+        _conversation_assigned_to: (conversation as any)?.assigned_to || '',
+        _conversation_unread_count: (conversation as any)?.unread_count ?? 0,
+        _lead_source: activeFunnel?.name || '',
+        _lead_source_phone: contact?.phone || '',
+        _now_date: nowDate,
+        _now_time: nowTime,
+        _now_weekday: weekday,
+      };
+    };
+
     // Per-node send context (so helpers can tag inbox_messages with template / meta-template origin)
     let currentTemplateId: string | null = null;
     let currentMetaTemplateId: string | null = null;
