@@ -157,8 +157,9 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
           toast.success("Contato criado e conversa iniciada");
         }
       }
-    } catch (error: any) {
-      if (error?.message?.includes('duplicate') || error?.code === '23505') {
+    } catch (error: unknown) {
+      const typedError = error as { message?: string; code?: string };
+      if (typedError.message?.includes('duplicate') || typedError.code === '23505') {
         // Duplicate - try to find and open existing
         const existingContact = findExistingContactByPhone(fullNumber);
         if (existingContact) {
