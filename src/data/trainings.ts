@@ -225,7 +225,7 @@ export const trainings: TrainingModule[] = [
         id: "inbox-3",
         title: "Organizando: etiquetas, notas e tarefas",
         description:
-          "O painel direito da conversa concentra tudo que organiza o atendimento: etiquetas (tags coloridas), notas internas, tarefas vinculadas e o cartão no funil. Use essas ferramentas para que qualquer membro da equipe consiga continuar a conversa sem precisar perguntar 'o que foi combinado?'.",
+          "Para organizar a conversa no painel direito:\n\n1. Com a conversa aberta, olhe o **painel direito**.\n2. Clique em **Etiquetas** para aplicar tags coloridas (ex.: **VIP**, **Quente**, **Reclamação**).\n3. Em **Notas**, clique em **Adicionar nota interna** e escreva — não vai para o cliente. Use **@menção** para alertar um colega.\n4. Em **Tarefas**, clique em **Criar tarefa**, defina **responsável**, **prazo** e **tipo**.\n5. No **cabeçalho da conversa**, clique em **Mover no funil** para empurrar o cartão para outra etapa.\n6. Para passar a conversa a outro atendente, clique em **Transferir conversa** e escolha o membro.\n7. Para unir conversas do mesmo contato (número antigo + novo), clique em **Mesclar conversas**.\n8. Quando resolvida, clique em **Encerrar conversa** — pode reabrir se o cliente voltar a falar.",
         buttons: [
           { label: "Etiquetas / Tags", description: "Aplique tags coloridas (ex.: VIP, Quente, Reclamação). Servem para filtrar conversas e segmentar listas." },
           { label: "Adicionar nota interna", description: "Escreve uma observação só visível para a equipe. Não vai para o cliente." },
