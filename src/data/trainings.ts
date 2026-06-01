@@ -845,7 +845,7 @@ export const trainings: TrainingModule[] = [
         id: "formularios-1",
         title: "Criando um formulário",
         description:
-          "Em Formulários > Novo, você define o título, os campos (nome, telefone, e-mail, campos personalizados) e o funil de destino. Cada envio gera automaticamente um cartão no funil escolhido, já com os dados preenchidos. O link público pode ser compartilhado em qualquer canal (site, bio, anúncio, QR code).",
+          "Para criar um formulário que vira lead no funil:\n\n1. No menu lateral, clique em **Formulários**.\n2. Aperte **Novo** no canto superior direito.\n3. Digite o **Título do formulário** — ele aparece no cabeçalho da página pública.\n4. Clique em **Adicionar campo** para incluir **Nome**, **Telefone**, **E-mail** ou outros tipos (**Número**, **Data**, **Hora**, **Seleção**, **Múltipla escolha**).\n5. Para editar um campo, clique no **lápis** ao lado — defina rótulo, **Obrigatório**, placeholder e opções.\n6. Para reordenar, **arraste** o ícone à esquerda do campo.\n7. Para remover, clique na **lixeira**.\n8. Em **Funil de destino**, escolha em qual funil e etapa o lead vai cair.\n9. Em **Mensagem de sucesso**, escreva o texto exibido após envio.\n10. Aperte **Salvar** e depois **Publicar**.\n11. Clique em **Copiar** ao lado do **Link público** para compartilhar em sites, bios, anúncios ou QR codes.\n12. Use **Pré-visualizar** para ver como o lead enxerga.",
         image: "/training/formularios/01.png",
         buttons: [
           { label: "Título do formulário", description: "Nome interno e título exibido para o lead. Aparece também no cabeçalho da página pública." },
