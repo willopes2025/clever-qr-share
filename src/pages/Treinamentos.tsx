@@ -14,6 +14,16 @@ import { trainings } from "@/data/trainings";
 import { useTrainingProgress } from "@/hooks/useTrainingProgress";
 import { cn } from "@/lib/utils";
 
+// Converte **negrito** em <strong> com escape básico de HTML.
+// Conteúdo vem de arquivo fonte controlado (src/data/trainings.ts).
+function renderRich(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>');
+}
+
 const Treinamentos = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
