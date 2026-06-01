@@ -34,7 +34,7 @@ export const trainings: TrainingModule[] = [
         id: "inicio-1",
         title: "Acessando o painel",
         description:
-          "Depois de fazer login você cai direto no Dashboard. Ele reúne, em uma só tela, o resumo das suas conversas, das campanhas em andamento, das tarefas do dia e dos leads em cada etapa do funil. Use o menu lateral à esquerda para navegar entre os módulos da plataforma e o topo da tela para alternar de organização e acessar o seu perfil.",
+          "Depois de fazer **login**, você cai direto no **Dashboard**. Siga este passo a passo para se ambientar:\n\n1. Observe o **menu lateral à esquerda** — ele dá acesso a todos os módulos (**Inbox**, **Funis**, **Contatos**, **Campanhas**, **Formulários**, **Tarefas**, **Calendário**, **Instâncias**, **IA**).\n2. No topo, use o **seletor de organização** para trocar de empresa quando você tem acesso a mais de uma.\n3. Clique no **sininho** para ver notificações em tempo real (mensagens novas, tarefas atribuídas, alertas).\n4. Clique no seu **avatar** (canto superior direito) para abrir **Perfil**, **Configurações**, **Tema** e **Sair**.\n5. No corpo do Dashboard, clique em qualquer **card de KPI** (Conversas, Leads, Campanhas, Tarefas) para ir direto ao módulo.\n6. Ajuste o **filtro de período** (Hoje, 7 dias, 30 dias, personalizado) para mudar o intervalo dos gráficos.",
         image: "/training/inicio/01.png",
         buttons: [
           { label: "Menu lateral (sidebar)", description: "Lista todos os módulos: Inbox, Funis, Contatos, Campanhas, Formulários, Tarefas, Calendário, Instâncias, IA, etc. Clique no ícone para abrir o módulo." },
