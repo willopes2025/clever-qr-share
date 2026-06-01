@@ -6,6 +6,7 @@ import {
   Controls,
   MiniMap,
   addEdge,
+  reconnectEdge,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -14,6 +15,7 @@ import {
   Node,
   BackgroundVariant,
   Panel,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { ChatbotFlow, useChatbotFlowNodes, useChatbotFlowEdges } from '@/hooks/useChatbotFlows';
