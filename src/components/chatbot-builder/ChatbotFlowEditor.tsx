@@ -293,11 +293,17 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onEdgeClick={onEdgeClick}
+          onReconnect={onReconnect}
+          onReconnectStart={onReconnectStart}
+          onReconnectEnd={onReconnectEnd}
+          edgesReconnectable={true}
           onDrop={onDrop}
           onDragOver={onDragOver}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
+          deleteKeyCode={['Backspace', 'Delete']}
           fitView
           className="bg-muted/30"
         >
