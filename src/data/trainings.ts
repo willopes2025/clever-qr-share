@@ -183,7 +183,7 @@ export const trainings: TrainingModule[] = [
         id: "inbox-1",
         title: "Visão geral do Inbox",
         description:
-          "O Inbox é dividido em três áreas: à esquerda você vê a lista de conversas (com filtros e busca), no centro o histórico da conversa selecionada e à direita o painel de detalhes do contato (com etiquetas, funil, notas e campos personalizados). Tudo é atualizado em tempo real conforme novas mensagens chegam.",
+          "Para se ambientar com o Inbox:\n\n1. No menu lateral, clique em **Inbox**.\n2. Observe as **três áreas**: à esquerda a **lista de conversas**, no centro o **histórico**, à direita o **painel do contato**.\n3. Use a **caixa de busca** no topo da lista para procurar por **nome**, **telefone** ou **trecho de mensagem**.\n4. Use as abas **Todas / Não lidas / Minhas** para alternar a visualização.\n5. Clique no ícone de **filtros avançados** para combinar instância, etiqueta, funil, responsável ou período.\n6. Clique em uma **conversa** para abri-la no centro.\n7. No **cabeçalho da conversa**, use os botões rápidos: **Atribuir responsável**, **Mover no funil**, **Encerrar**.\n8. No **painel direito**, edite nome, telefone, etiquetas, **campos personalizados** e adicione **notas internas**.",
         image: "/training/inbox/01.png",
         buttons: [
           { label: "Busca de conversas", description: "Procura por nome, telefone ou trecho de mensagem. A busca é feita no servidor, então funciona mesmo em conversas antigas." },
