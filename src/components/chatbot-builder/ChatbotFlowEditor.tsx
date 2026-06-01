@@ -116,9 +116,54 @@ const ChatbotFlowEditorInner = ({ flow }: ChatbotFlowEditorProps) => {
     },
   ];
 
+  const edgeReconnectSuccessful = useRef(true);
+
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
-    [setEdges]
+    (params: Connection) =>
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            animated: true,
+            markerEnd: { type: MarkerType.ArrowClosed },
+          },
+          eds,
+        ),
+      ),
+    [setEdges],
+  );
+
+  // Click on an edge to remove it
+  const onEdgeClick = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.stopPropagation();
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+    },
+    [setEdges],
+  );
+
+  // Drag the end of an edge to reconnect it to a different handle/node
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false;
+  }, []);
+
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      edgeReconnectSuccessful.current = true;
+      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds));
+    },
+    [setEdges],
+  );
+
+  const onReconnectEnd = useCallback(
+    (_: MouseEvent | TouchEvent, edge: Edge) => {
+      // If user dropped the edge end on empty canvas, delete it
+      if (!edgeReconnectSuccessful.current) {
+        setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+      }
+      edgeReconnectSuccessful.current = true;
+    },
+    [setEdges],
   );
 
   const onDrop = useCallback(
