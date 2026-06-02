@@ -210,6 +210,8 @@ export const AgentPersonalityTab = ({
   setActiveHoursStart,
   activeHoursEnd,
   setActiveHoursEnd,
+  activeHoursWindows,
+  setActiveHoursWindows,
   handoffKeywords,
   setHandoffKeywords,
   responseMode,
