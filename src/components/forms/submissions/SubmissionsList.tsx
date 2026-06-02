@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ptBR } from "date-fns/locale";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { EditSubmissionDialog } from "./EditSubmissionDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -18,6 +21,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+type DateRangeFilter = { from?: Date; to?: Date };
 
 interface SubmissionsListProps {
   formId: string;
@@ -28,12 +33,34 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const { submissions, isLoading, updateSubmission, deleteSubmission } = useFormSubmissions(formId);
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
   const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+  const [dateFilters, setDateFilters] = useState<Record<string, DateRangeFilter>>({});
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null);
   const [editingSubmission, setEditingSubmission] = useState<any>(null);
   const [deletingSubmission, setDeletingSubmission] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
   const visibleFields = fields.filter(f => !["heading", "paragraph", "divider"].includes(f.field_type));
+
+  const isDateColumn = (columnId: string): boolean => {
+    if (columnId === "date") return true;
+    const field = visibleFields.find(f => f.id === columnId);
+    return field?.field_type === "date";
+  };
+
+  const getDateValue = (sub: any, columnId: string): Date | null => {
+    if (columnId === "date") {
+      const d = new Date(sub.created_at);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const field = visibleFields.find(f => f.id === columnId);
+    if (!field) return null;
+    const raw = sub.data?.[columnId] ?? sub.data?.[field.label];
+    if (!raw || typeof raw !== "string") return null;
+    const datePart = raw.split("T")[0];
+    const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  };
 
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
     if (rawValue === undefined || rawValue === null) return "-";
@@ -84,17 +111,36 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     return Array.from(vals).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
   };
 
+
   const filteredSubmissions = useMemo(() => {
     if (!submissions) return [];
-    let result = submissions.filter(sub =>
-      Object.entries(columnFilters).every(([col, values]) => {
+    let result = submissions.filter(sub => {
+      // Date range filters
+      for (const [col, range] of Object.entries(dateFilters)) {
+        if (!range || (!range.from && !range.to)) continue;
+        const v = getDateValue(sub, col);
+        if (!v) return false;
+        if (range.from && v < startOfDay(range.from)) return false;
+        if (range.to && v > endOfDay(range.to)) return false;
+      }
+      // Value filters (non-date columns)
+      return Object.entries(columnFilters).every(([col, values]) => {
         if (!values || values.length === 0) return true;
         return values.includes(getCellValue(sub, col));
-      })
-    );
+      });
+    });
     if (sortConfig) {
       const { columnId, direction } = sortConfig;
+      const dateCol = isDateColumn(columnId);
       result = [...result].sort((a, b) => {
+        if (dateCol) {
+          const av = getDateValue(a, columnId);
+          const bv = getDateValue(b, columnId);
+          const at = av ? av.getTime() : -Infinity;
+          const bt = bv ? bv.getTime() : -Infinity;
+          const cmp = at - bt;
+          return direction === "asc" ? cmp : -cmp;
+        }
         const av = getCellValue(a, columnId);
         const bv = getCellValue(b, columnId);
         const cmp = av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
@@ -102,7 +148,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       });
     }
     return result;
-  }, [submissions, columnFilters, sortConfig, visibleFields]);
+  }, [submissions, columnFilters, dateFilters, sortConfig, visibleFields]);
 
   const toggleFilterValue = (column: string, value: string) => {
     setColumnFilters(prev => {
@@ -121,12 +167,21 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     });
   };
 
+  const clearDateFilter = (column: string) => {
+    setDateFilters(prev => {
+      const next = { ...prev };
+      delete next[column];
+      return next;
+    });
+  };
+
   const selectAll = (column: string) => {
     setColumnFilters(prev => ({ ...prev, [column]: getUniqueValues(column) }));
   };
 
   const clearAll = () => {
     setColumnFilters({});
+    setDateFilters({});
     setSortConfig(null);
   };
 
@@ -135,11 +190,18 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     else setSortConfig({ columnId, direction });
   };
 
-  const hasActiveFilters = Object.values(columnFilters).some(v => v && v.length > 0) || !!sortConfig;
+  const hasActiveFilters =
+    Object.values(columnFilters).some(v => v && v.length > 0) ||
+    Object.values(dateFilters).some(r => r && (r.from || r.to)) ||
+    !!sortConfig;
 
   const renderColumnHeader = (columnId: string, label: string) => {
     const activeValues = columnFilters[columnId] || [];
-    const hasFilter = activeValues.length > 0;
+    const dateRange = dateFilters[columnId];
+    const isDate = isDateColumn(columnId);
+    const hasFilter = isDate
+      ? !!(dateRange && (dateRange.from || dateRange.to))
+      : activeValues.length > 0;
     const isSorted = sortConfig?.columnId === columnId;
     const sortDir = isSorted ? sortConfig!.direction : null;
     const uniqueValues = getUniqueValues(columnId);
@@ -164,7 +226,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
               : <ChevronDown className="h-3 w-3 opacity-50" />)}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="start">
+        <PopoverContent className={cn("p-3", isDate ? "w-auto" : "w-64")} align="start">
           <div className="space-y-3">
             <div className="space-y-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ordenar</p>
@@ -176,7 +238,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                   onClick={() => setSort(columnId, "asc")}
                 >
                   <ArrowUp className="h-3 w-3 mr-1" />
-                  A → Z
+                  {isDate ? "Mais antigo" : "A → Z"}
                 </Button>
                 <Button
                   variant={sortDir === "desc" ? "default" : "outline"}
@@ -185,7 +247,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                   onClick={() => setSort(columnId, "desc")}
                 >
                   <ArrowDown className="h-3 w-3 mr-1" />
-                  Z → A
+                  {isDate ? "Mais recente" : "Z → A"}
                 </Button>
               </div>
               {isSorted && (
@@ -198,51 +260,84 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
             <div className="border-t pt-3 space-y-2">
               <p className="text-sm font-medium">Filtrar por {label}</p>
-              <Input
-                placeholder="Buscar..."
-                value={columnSearch[columnId] || ""}
-                onChange={(e) => setColumnSearch(prev => ({ ...prev, [columnId]: e.target.value }))}
-                className="h-8"
-              />
-              <div className="flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => selectAll(columnId)}
-                >
-                  Selecionar todos
-                </button>
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:underline"
-                  onClick={() => clearColumnFilter(columnId)}
-                >
-                  Limpar
-                </button>
-              </div>
-              <div className="max-h-56 overflow-y-auto border rounded-md">
-                {filteredUnique.length === 0 ? (
-                  <p className="p-2 text-xs text-muted-foreground text-center">Nenhum valor</p>
-                ) : filteredUnique.map(v => {
-                  const checked = activeValues.includes(v);
-                  return (
+
+              {isDate ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {dateRange?.from
+                        ? `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })}${dateRange.to ? ` → ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}` : ""}`
+                        : "Selecione um intervalo"}
+                    </span>
                     <button
-                      key={v}
                       type="button"
-                      onClick={() => toggleFilterValue(columnId, v)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted text-left"
+                      className="text-muted-foreground hover:underline"
+                      onClick={() => clearDateFilter(columnId)}
                     >
-                      <div className={cn(
-                        "flex h-4 w-4 items-center justify-center rounded-sm border border-primary shrink-0",
-                        checked ? "bg-primary text-primary-foreground" : "opacity-50"
-                      )}>
-                        {checked && <Check className="h-3 w-3" />}
-                      </div>
-                      <span className="flex-1 truncate">{v}</span>
+                      Limpar
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+                  <Calendar
+                    mode="range"
+                    locale={ptBR}
+                    selected={dateRange as any}
+                    onSelect={(range: any) =>
+                      setDateFilters(prev => ({ ...prev, [columnId]: { from: range?.from, to: range?.to } }))
+                    }
+                    numberOfMonths={1}
+                    initialFocus
+                    className={cn("p-0 pointer-events-auto")}
+                  />
+                </div>
+              ) : (
+                <>
+                  <Input
+                    placeholder="Buscar..."
+                    value={columnSearch[columnId] || ""}
+                    onChange={(e) => setColumnSearch(prev => ({ ...prev, [columnId]: e.target.value }))}
+                    className="h-8"
+                  />
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      className="text-primary hover:underline"
+                      onClick={() => selectAll(columnId)}
+                    >
+                      Selecionar todos
+                    </button>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:underline"
+                      onClick={() => clearColumnFilter(columnId)}
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto border rounded-md">
+                    {filteredUnique.length === 0 ? (
+                      <p className="p-2 text-xs text-muted-foreground text-center">Nenhum valor</p>
+                    ) : filteredUnique.map(v => {
+                      const checked = activeValues.includes(v);
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => toggleFilterValue(columnId, v)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted text-left"
+                        >
+                          <div className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded-sm border border-primary shrink-0",
+                            checked ? "bg-primary text-primary-foreground" : "opacity-50"
+                          )}>
+                            {checked && <Check className="h-3 w-3" />}
+                          </div>
+                          <span className="flex-1 truncate">{v}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </PopoverContent>

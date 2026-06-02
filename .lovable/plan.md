@@ -1,45 +1,54 @@
-## Plano
+## Problema
 
-Implementar a troca automática do **número/instância da empresa** usado para responder no Inbox, com base na **última mensagem recebida do lead**.
+Hoje, nas respostas de formulários (`SubmissionsList.tsx`), todas as colunas usam o mesmo filtro de lista (busca + checkboxes de valores únicos), inclusive a coluna fixa **Data** (criação da resposta) e campos do formulário do tipo **date**. Isso obriga o usuário a marcar cada data uma a uma, como na imagem enviada.
 
-### Comportamento esperado
+## Objetivo
 
-- Quando uma mensagem **inbound** chegar por outro número da empresa:
-  - Exemplo: conversa estava selecionada em **Brasil Visão Cidadã**.
-  - O lead responde pelo número **Centro de Saúde Visual**.
-  - O sistema passa automaticamente o seletor do topo para **Centro de Saúde Visual**.
-  - A próxima resposta manual, mídia, template ou reação sai por esse número correto.
+Quando a coluna for de data, o popover do cabeçalho deve mostrar:
+- Bloco **Ordenar** (A→Z / Z→A) — mantido igual.
+- Bloco **Filtrar por {label}** com um **calendário em modo intervalo** (Data inicial e Data final), em vez da busca + lista de checkboxes.
 
-- O usuário ainda poderá trocar manualmente o número no seletor se quiser.
-- A troca automática deve seguir a última origem **recebida do lead**, não a última mensagem enviada pela equipe.
+Demais colunas (texto, select, número, etc.) continuam exatamente como estão hoje.
 
-### Ajustes técnicos
+## Mudanças
 
-1. **No `MessageView.tsx`**
-   - Calcular a última mensagem `inbound` da conversa.
-   - Detectar sua origem:
-     - `sent_via_instance_id` para WhatsApp Lite/Evolution.
-     - `sent_via_meta_number_id` para WhatsApp Oficial/Meta.
-   - Sincronizar `selectedInstanceId`, `selectedMetaNumberId` e `metaUsingEvoInstance` com essa origem quando ela mudar.
-   - Evitar sobrescrever seleção manual sem necessidade: a automação roda quando a última mensagem recebida muda ou quando a conversa abre.
+Arquivo único: `src/components/forms/submissions/SubmissionsList.tsx`
 
-2. **Persistir a escolha na conversa**
-   - Se a última mensagem inbound veio por WhatsApp Lite, atualizar `conversations.instance_id` e limpar uso Meta quando necessário.
-   - Se veio por Meta, atualizar `conversations.meta_phone_number_id`, `provider = 'meta'` e `instance_id = null`.
-   - Isso mantém o seletor correto também depois de recarregar a página.
+1. **Detectar colunas de data**
+   - `date` (fixa, `created_at`) → sempre tratada como data.
+   - Campos do formulário cujo `field_type === "date"` → tratadas como data.
+   - Helper `isDateColumn(columnId)`.
 
-3. **Corrigir webhook Meta, se necessário**
-   - O webhook Meta já salva `sent_via_meta_number_id` nas mensagens inbound.
-   - Mas o update final da conversa precisa também manter `meta_phone_number_id = webhookPhoneNumberId`, para a conversa ficar apontada para o número Meta que recebeu a última mensagem.
+2. **Novo estado de filtro de intervalo**
+   - Adicionar `dateFilters: Record<string, { from?: Date; to?: Date }>` ao lado do `columnFilters` atual.
+   - `hasActiveFilters` passa a considerar também `dateFilters`.
+   - `clearAll()` limpa ambos.
 
-4. **Manter compatibilidade com Evolution**
-   - O webhook Evolution já atualiza `conversations.instance_id` para a instância que recebeu a mensagem.
-   - A UI passará a refletir isso automaticamente pela última mensagem inbound.
+3. **Parser de valor para Date**
+   - Para a coluna `date`: usar `submission.created_at` direto.
+   - Para campos `date`: ler `sub.data[field.id]` no formato `YYYY-MM-DD` (ou ISO) e converter para `Date` local (sem timezone shift, igual ao `resolveDisplayValue` atual que faz split em "T").
+   - Helper `getDateValue(sub, columnId): Date | null`.
 
-5. **Feedback visual opcional e discreto**
-   - Manter o seletor atual no topo como fonte visual da decisão.
-   - Se couber sem poluir, adicionar tooltip/label curto indicando que o número selecionado acompanha a última mensagem recebida.
+4. **Aplicação do filtro**
+   - Em `filteredSubmissions`, antes do filtro de checkboxes, aplicar `dateFilters`:
+     - Se `from` definido: manter quando `value >= startOfDay(from)`.
+     - Se `to` definido: manter quando `value <= endOfDay(to)`.
+   - Colunas de data **não** entram mais em `columnFilters` (lista de valores).
 
-### Resultado
+5. **Render do header para colunas de data**
+   - Em `renderColumnHeader`, se `isDateColumn(columnId)`:
+     - Mostrar mesmo bloco **Ordenar**.
+     - Substituir bloco "Filtrar por ..." por componente `<Calendar mode="range" />` do shadcn (`@/components/ui/calendar`, `date-fns/ptBR`) com `selected={dateFilters[columnId]}` e `onSelect` atualizando o estado.
+     - Resumo textual acima do calendário: "01/05/2026 → 04/05/2026" quando houver seleção.
+     - Botão **Limpar** que faz `delete dateFilters[columnId]`.
+   - Ícone do header continua `Filter` quando há intervalo ativo.
 
-O atendente não precisará trocar manualmente de **Brasil Visão Cidadã** para **Centro de Saúde Visual** quando o lead responder em outro número da empresa; a próxima resposta já sairá pelo canal correto.
+6. **Ordenação em colunas de data**
+   - Ajustar `filteredSubmissions` para que, quando ordenando por coluna de data, comparar pelo timestamp do `getDateValue` (não pela string `dd/mm/yyyy`), garantindo ordem cronológica correta.
+
+## Comportamento das demais opções de seleção
+Verificado: hoje todas as outras colunas (texto, select, radio, número, contato) usam corretamente `getUniqueValues` + checkboxes — não precisam de mudança. Apenas as colunas de data estavam usando o filtro errado.
+
+## Não muda
+- Layout geral da tabela, exportação CSV, edição/exclusão de respostas, autenticação ou backend.
+- Filtros das outras colunas.
