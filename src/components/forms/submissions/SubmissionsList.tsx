@@ -2,107 +2,78 @@ import { useState, useMemo } from "react";
 import { useFormSubmissions, FormField } from "@/hooks/useForms";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Download, Filter, Pencil, Plus, X, Check, ChevronsUpDown, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import {
+  Loader2, FileText, Download, Filter, Pencil, X, Check, Trash2,
+  ChevronDown, ArrowUp, ArrowDown, ArrowUpDown,
+} from "lucide-react";
 import { formatDateOnly, formatDateTimeFull } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { EditSubmissionDialog } from "./EditSubmissionDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
 
 interface SubmissionsListProps {
   formId: string;
   fields: FormField[];
 }
 
-interface ColumnFilter {
-  id: string;
-  column: string;
-  values: string[];
-}
-
 export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const { submissions, isLoading, updateSubmission, deleteSubmission } = useFormSubmissions(formId);
-  const [filters, setFilters] = useState<ColumnFilter[]>([]);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
+  const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null);
   const [editingSubmission, setEditingSubmission] = useState<any>(null);
   const [deletingSubmission, setDeletingSubmission] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const visibleFields = fields.filter(f => !["heading", "paragraph", "divider"].includes(f.field_type));
 
-  const visibleFields = fields.filter(f => !['heading', 'paragraph', 'divider'].includes(f.field_type));
-
-  // Resolve option values (e.g. "option1") to their display labels
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
-    if (rawValue === undefined || rawValue === null) return '-';
-
-    // Format date fields to DD/MM/YYYY
-    if (field.field_type === 'date' && typeof rawValue === 'string' && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
-      const datePart = rawValue.split('T')[0];
-      const [y, m, d] = datePart.split('-');
+    if (rawValue === undefined || rawValue === null) return "-";
+    if (field.field_type === "date" && typeof rawValue === "string" && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const datePart = rawValue.split("T")[0];
+      const [y, m, d] = datePart.split("-");
       return `${d}/${m}/${y}`;
     }
-
-    const selectTypes = ['select', 'multi_select', 'radio', 'checkbox'];
+    const selectTypes = ["select", "multi_select", "radio", "checkbox"];
     if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
       const optionMap = new Map(field.options.map(o => [o.value, o.label]));
-
-      if (Array.isArray(rawValue)) {
-        return rawValue.map(v => optionMap.get(v) || v).join(', ');
-      }
-      if (typeof rawValue === 'string') {
-        if (rawValue.startsWith('[')) {
+      if (Array.isArray(rawValue)) return rawValue.map(v => optionMap.get(v) || v).join(", ");
+      if (typeof rawValue === "string") {
+        if (rawValue.startsWith("[")) {
           try {
             const arr = JSON.parse(rawValue);
-            if (Array.isArray(arr)) {
-              return arr.map((v: string) => optionMap.get(v) || v).join(', ');
-            }
-          } catch {}
+            if (Array.isArray(arr)) return arr.map((v: string) => optionMap.get(v) || v).join(", ");
+          } catch { /* ignore */ }
         }
         return optionMap.get(rawValue) || rawValue;
       }
     }
-
-    if (typeof rawValue === 'object') return JSON.stringify(rawValue);
+    if (typeof rawValue === "object") return JSON.stringify(rawValue);
     return String(rawValue);
   };
 
-  // Build column options for filtering
-  const columnOptions = useMemo(() => {
-    const opts: { value: string; label: string }[] = [
-      { value: "date", label: "Data" },
-      { value: "contact", label: "Contato" },
-      ...visibleFields.map(f => ({ value: f.id, label: f.label })),
-    ];
-    return opts;
-  }, [visibleFields]);
+  const columns = useMemo(() => ([
+    { id: "date", label: "Data" },
+    { id: "contact", label: "Contato" },
+    ...visibleFields.map(f => ({ id: f.id, label: f.label })),
+  ]), [visibleFields]);
 
-  // Compute the displayed value for a submission/column
   const getCellValue = (sub: any, column: string): string => {
     if (column === "date") return formatDateOnly(sub.created_at);
     if (column === "contact") return sub.contacts?.name || sub.contacts?.phone || "Anônimo";
     const field = visibleFields.find(f => f.id === column);
-    const raw = sub.data[column] ?? "";
+    const raw = sub.data?.[column] ?? sub.data?.[field?.label ?? ""] ?? "";
     return field ? resolveDisplayValue(field, raw) : (typeof raw === "object" ? JSON.stringify(raw) : String(raw));
   };
 
-  // Get unique values for a given column
   const getUniqueValues = (column: string): string[] => {
     if (!submissions) return [];
     const vals = new Set<string>();
@@ -110,65 +81,192 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
       const v = getCellValue(sub, column);
       if (v && v !== "-") vals.add(v);
     });
-    return Array.from(vals).sort();
+    return Array.from(vals).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
   };
 
-  // Filtered submissions: a submission must match ALL filters; within a filter, ANY of the selected values
   const filteredSubmissions = useMemo(() => {
     if (!submissions) return [];
-    const active = filters.filter(f => f.column && f.values.length > 0);
-    if (active.length === 0) return submissions;
-    return submissions.filter(sub =>
-      active.every(f => {
-        const v = getCellValue(sub, f.column);
-        return f.values.includes(v);
+    let result = submissions.filter(sub =>
+      Object.entries(columnFilters).every(([col, values]) => {
+        if (!values || values.length === 0) return true;
+        return values.includes(getCellValue(sub, col));
       })
     );
-  }, [submissions, filters, visibleFields]);
+    if (sortConfig) {
+      const { columnId, direction } = sortConfig;
+      result = [...result].sort((a, b) => {
+        const av = getCellValue(a, columnId);
+        const bv = getCellValue(b, columnId);
+        const cmp = av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
+        return direction === "asc" ? cmp : -cmp;
+      });
+    }
+    return result;
+  }, [submissions, columnFilters, sortConfig, visibleFields]);
 
-  const addFilter = () => {
-    setFilters(prev => [...prev, { id: crypto.randomUUID(), column: "", values: [] }]);
+  const toggleFilterValue = (column: string, value: string) => {
+    setColumnFilters(prev => {
+      const current = prev[column] || [];
+      const exists = current.includes(value);
+      const next = exists ? current.filter(v => v !== value) : [...current, value];
+      return { ...prev, [column]: next };
+    });
   };
 
-  const updateFilterColumn = (id: string, column: string) => {
-    setFilters(prev => prev.map(f => f.id === id ? { ...f, column, values: [] } : f));
+  const clearColumnFilter = (column: string) => {
+    setColumnFilters(prev => {
+      const next = { ...prev };
+      delete next[column];
+      return next;
+    });
   };
 
-  const toggleFilterValue = (id: string, value: string) => {
-    setFilters(prev => prev.map(f => {
-      if (f.id !== id) return f;
-      const exists = f.values.includes(value);
-      return { ...f, values: exists ? f.values.filter(v => v !== value) : [...f.values, value] };
-    }));
+  const selectAll = (column: string) => {
+    setColumnFilters(prev => ({ ...prev, [column]: getUniqueValues(column) }));
   };
 
-  const removeFilter = (id: string) => {
-    setFilters(prev => prev.filter(f => f.id !== id));
+  const clearAll = () => {
+    setColumnFilters({});
+    setSortConfig(null);
   };
 
-  const clearAll = () => setFilters([]);
+  const setSort = (columnId: string, direction: "asc" | "desc" | null) => {
+    if (direction === null) setSortConfig(null);
+    else setSortConfig({ columnId, direction });
+  };
+
+  const hasActiveFilters = Object.values(columnFilters).some(v => v && v.length > 0) || !!sortConfig;
+
+  const renderColumnHeader = (columnId: string, label: string) => {
+    const activeValues = columnFilters[columnId] || [];
+    const hasFilter = activeValues.length > 0;
+    const isSorted = sortConfig?.columnId === columnId;
+    const sortDir = isSorted ? sortConfig!.direction : null;
+    const uniqueValues = getUniqueValues(columnId);
+    const search = (columnSearch[columnId] || "").toLowerCase();
+    const filteredUnique = search
+      ? uniqueValues.filter(v => v.toLowerCase().includes(search))
+      : uniqueValues;
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto p-0 font-medium hover:bg-transparent flex items-center gap-1"
+          >
+            {label}
+            {sortDir === "asc" && <ArrowUp className="h-3 w-3 text-primary" />}
+            {sortDir === "desc" && <ArrowDown className="h-3 w-3 text-primary" />}
+            {!sortDir && (hasFilter
+              ? <Filter className="h-3 w-3 text-primary" />
+              : <ChevronDown className="h-3 w-3 opacity-50" />)}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3" align="start">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ordenar</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={sortDir === "asc" ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSort(columnId, "asc")}
+                >
+                  <ArrowUp className="h-3 w-3 mr-1" />
+                  A → Z
+                </Button>
+                <Button
+                  variant={sortDir === "desc" ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setSort(columnId, "desc")}
+                >
+                  <ArrowDown className="h-3 w-3 mr-1" />
+                  Z → A
+                </Button>
+              </div>
+              {isSorted && (
+                <Button variant="ghost" size="sm" className="w-full h-7 text-xs" onClick={() => setSort(columnId, null)}>
+                  <ArrowUpDown className="h-3 w-3 mr-1" />
+                  Remover ordenação
+                </Button>
+              )}
+            </div>
+
+            <div className="border-t pt-3 space-y-2">
+              <p className="text-sm font-medium">Filtrar por {label}</p>
+              <Input
+                placeholder="Buscar..."
+                value={columnSearch[columnId] || ""}
+                onChange={(e) => setColumnSearch(prev => ({ ...prev, [columnId]: e.target.value }))}
+                className="h-8"
+              />
+              <div className="flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => selectAll(columnId)}
+                >
+                  Selecionar todos
+                </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:underline"
+                  onClick={() => clearColumnFilter(columnId)}
+                >
+                  Limpar
+                </button>
+              </div>
+              <div className="max-h-56 overflow-y-auto border rounded-md">
+                {filteredUnique.length === 0 ? (
+                  <p className="p-2 text-xs text-muted-foreground text-center">Nenhum valor</p>
+                ) : filteredUnique.map(v => {
+                  const checked = activeValues.includes(v);
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => toggleFilterValue(columnId, v)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted text-left"
+                    >
+                      <div className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded-sm border border-primary shrink-0",
+                        checked ? "bg-primary text-primary-foreground" : "opacity-50"
+                      )}>
+                        {checked && <Check className="h-3 w-3" />}
+                      </div>
+                      <span className="flex-1 truncate">{v}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   const handleExportCSV = () => {
     if (!filteredSubmissions || filteredSubmissions.length === 0) return;
-    const headers = ['Data', 'Contato', ...visibleFields.map(f => f.label)];
+    const headers = ["Data", "Contato", ...visibleFields.map(f => f.label)];
     const rows = filteredSubmissions.map(sub => {
-      const contactName = sub.contacts?.name || sub.contacts?.phone || 'Anônimo';
+      const contactName = sub.contacts?.name || sub.contacts?.phone || "Anônimo";
       const fieldValues = visibleFields.map(f => {
-        const value = sub.data[f.id] ?? sub.data[f.label] ?? '';
+        const value = sub.data[f.id] ?? sub.data[f.label] ?? "";
         return resolveDisplayValue(f, value);
       });
-      return [
-        formatDateTimeFull(sub.created_at),
-        contactName,
-        ...fieldValues,
-      ];
+      return [formatDateTimeFull(sub.created_at), contactName, ...fieldValues];
     });
     const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
-    ].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `respostas-${formId}.csv`;
     link.click();
@@ -202,110 +300,21 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
         <div>
           <h3 className="font-medium">Respostas</h3>
           <p className="text-sm text-muted-foreground">
-            {filteredSubmissions.length} de {submissions.length} resposta{submissions.length !== 1 ? 's' : ''}
+            {filteredSubmissions.length} de {submissions.length} resposta{submissions.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCSV}>
-          <Download className="h-4 w-4 mr-2" />
-          Exportar CSV
-        </Button>
-      </div>
-
-      {/* Filter bar */}
-      <div className="flex items-start gap-2 mb-4 flex-wrap">
-        <div className="flex items-center gap-2 h-9">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Filtros:</span>
-        </div>
-
-        {filters.map((filter) => {
-          const uniqueValues = filter.column ? getUniqueValues(filter.column) : [];
-          const columnLabel = columnOptions.find(c => c.value === filter.column)?.label;
-          return (
-            <div key={filter.id} className="flex items-center gap-1 bg-muted/50 rounded-md p-1 border">
-              <Select value={filter.column} onValueChange={(v) => updateFilterColumn(filter.id, v)}>
-                <SelectTrigger className="w-[180px] h-8 border-0 bg-transparent">
-                  <SelectValue placeholder="Coluna..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {columnOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {filter.column && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 min-w-[200px] justify-between"
-                    >
-                      <span className="truncate text-left">
-                        {filter.values.length === 0
-                          ? `Selecione ${columnLabel?.toLowerCase()}...`
-                          : filter.values.length === 1
-                            ? filter.values[0]
-                            : `${filter.values.length} selecionados`}
-                      </span>
-                      <ChevronsUpDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[280px] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Buscar..." />
-                      <CommandList>
-                        <CommandEmpty>Nenhum valor encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          {uniqueValues.map(v => {
-                            const checked = filter.values.includes(v);
-                            return (
-                              <CommandItem
-                                key={v}
-                                onSelect={() => toggleFilterValue(filter.id, v)}
-                                className="cursor-pointer"
-                              >
-                                <div className={cn(
-                                  "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                  checked ? "bg-primary text-primary-foreground" : "opacity-50"
-                                )}>
-                                  {checked && <Check className="h-3 w-3" />}
-                                </div>
-                                <span className="flex-1 truncate">{v}</span>
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => removeFilter(filter.id)}
-                title="Remover filtro"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          );
-        })}
-
-        <Button variant="outline" size="sm" onClick={addFilter} className="h-9">
-          <Plus className="h-4 w-4 mr-1" />
-          Adicionar filtro
-        </Button>
-
-        {filters.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearAll} className="h-9">
-            Limpar
+        <div className="flex items-center gap-2">
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearAll}>
+              <X className="h-4 w-4 mr-1" />
+              Limpar filtros
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
           </Button>
-        )}
+        </div>
       </div>
 
       <ScrollArea className="w-full">
@@ -314,11 +323,11 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[90px]"></TableHead>
-                <TableHead className="w-[150px]">Data</TableHead>
-                <TableHead className="w-[150px]">Contato</TableHead>
+                <TableHead className="w-[150px]">{renderColumnHeader("date", "Data")}</TableHead>
+                <TableHead className="w-[180px]">{renderColumnHeader("contact", "Contato")}</TableHead>
                 {visibleFields.map((field) => (
                   <TableHead key={field.id} className="min-w-[150px]">
-                    {field.label}
+                    {renderColumnHeader(field.id, field.label)}
                   </TableHead>
                 ))}
               </TableRow>
@@ -342,14 +351,11 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                       </Button>
                     </div>
                   </TableCell>
-
-                  <TableCell className="text-sm">
-                    {formatDateTimeFull(submission.created_at)}
-                  </TableCell>
+                  <TableCell className="text-sm">{formatDateTimeFull(submission.created_at)}</TableCell>
                   <TableCell>
                     {submission.contacts ? (
                       <div>
-                        <p className="font-medium text-sm">{submission.contacts.name || 'Sem nome'}</p>
+                        <p className="font-medium text-sm">{submission.contacts.name || "Sem nome"}</p>
                         <p className="text-xs text-muted-foreground">{submission.contacts.phone}</p>
                       </div>
                     ) : (
@@ -357,7 +363,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                     )}
                   </TableCell>
                   {visibleFields.map((field) => {
-                    const rawValue = submission.data[field.id] ?? submission.data[field.label] ?? '-';
+                    const rawValue = submission.data[field.id] ?? submission.data[field.label] ?? "-";
                     return (
                       <TableCell key={field.id} className="text-sm max-w-[200px] truncate">
                         {resolveDisplayValue(field, rawValue)}
@@ -434,7 +440,6 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 };
