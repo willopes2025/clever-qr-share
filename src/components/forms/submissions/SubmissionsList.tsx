@@ -131,6 +131,44 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     return result;
   }, [submissions, columnFilters, sortConfig, visibleFields]);
 
+  const filteredSubmissions = useMemo(() => {
+    if (!submissions) return [];
+    let result = submissions.filter(sub => {
+      // Date range filters
+      for (const [col, range] of Object.entries(dateFilters)) {
+        if (!range || (!range.from && !range.to)) continue;
+        const v = getDateValue(sub, col);
+        if (!v) return false;
+        if (range.from && v < startOfDay(range.from)) return false;
+        if (range.to && v > endOfDay(range.to)) return false;
+      }
+      // Value filters (non-date columns)
+      return Object.entries(columnFilters).every(([col, values]) => {
+        if (!values || values.length === 0) return true;
+        return values.includes(getCellValue(sub, col));
+      });
+    });
+    if (sortConfig) {
+      const { columnId, direction } = sortConfig;
+      const dateCol = isDateColumn(columnId);
+      result = [...result].sort((a, b) => {
+        if (dateCol) {
+          const av = getDateValue(a, columnId);
+          const bv = getDateValue(b, columnId);
+          const at = av ? av.getTime() : -Infinity;
+          const bt = bv ? bv.getTime() : -Infinity;
+          const cmp = at - bt;
+          return direction === "asc" ? cmp : -cmp;
+        }
+        const av = getCellValue(a, columnId);
+        const bv = getCellValue(b, columnId);
+        const cmp = av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
+        return direction === "asc" ? cmp : -cmp;
+      });
+    }
+    return result;
+  }, [submissions, columnFilters, dateFilters, sortConfig, visibleFields]);
+
   const toggleFilterValue = (column: string, value: string) => {
     setColumnFilters(prev => {
       const current = prev[column] || [];
@@ -148,12 +186,21 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     });
   };
 
+  const clearDateFilter = (column: string) => {
+    setDateFilters(prev => {
+      const next = { ...prev };
+      delete next[column];
+      return next;
+    });
+  };
+
   const selectAll = (column: string) => {
     setColumnFilters(prev => ({ ...prev, [column]: getUniqueValues(column) }));
   };
 
   const clearAll = () => {
     setColumnFilters({});
+    setDateFilters({});
     setSortConfig(null);
   };
 
@@ -162,11 +209,18 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     else setSortConfig({ columnId, direction });
   };
 
-  const hasActiveFilters = Object.values(columnFilters).some(v => v && v.length > 0) || !!sortConfig;
+  const hasActiveFilters =
+    Object.values(columnFilters).some(v => v && v.length > 0) ||
+    Object.values(dateFilters).some(r => r && (r.from || r.to)) ||
+    !!sortConfig;
 
   const renderColumnHeader = (columnId: string, label: string) => {
     const activeValues = columnFilters[columnId] || [];
-    const hasFilter = activeValues.length > 0;
+    const dateRange = dateFilters[columnId];
+    const isDate = isDateColumn(columnId);
+    const hasFilter = isDate
+      ? !!(dateRange && (dateRange.from || dateRange.to))
+      : activeValues.length > 0;
     const isSorted = sortConfig?.columnId === columnId;
     const sortDir = isSorted ? sortConfig!.direction : null;
     const uniqueValues = getUniqueValues(columnId);
