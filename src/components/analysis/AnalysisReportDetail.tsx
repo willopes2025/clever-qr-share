@@ -7,6 +7,10 @@ import { ArrowLeft, Download, Star, AlertCircle, CheckCircle, XCircle, MessageSq
 import { AnalysisReport } from '@/hooks/useAnalysisReports';
 import { formatDateOnly } from '@/lib/date-utils';
 import { AnalysisScoreCard } from './AnalysisScoreCard';
+import { UserPerformanceTab } from './UserPerformanceTab';
+import { FunnelInsightsTab } from './FunnelInsightsTab';
+import { CampaignInsightsTab } from './CampaignInsightsTab';
+import { SLAInsightsTab } from './SLAInsightsTab';
 
 interface AnalysisReportDetailProps {
   report: AnalysisReport;
@@ -126,13 +130,31 @@ export function AnalysisReportDetail({ report, onBack, onExport }: AnalysisRepor
 
       {/* Tabs */}
       <Tabs defaultValue="summary" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="summary">Resumo</TabsTrigger>
+          <TabsTrigger value="users">Por Usuário</TabsTrigger>
+          <TabsTrigger value="funnel">Funil</TabsTrigger>
+          <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
+          <TabsTrigger value="sla">SLA</TabsTrigger>
           <TabsTrigger value="strengths">Pontos Fortes</TabsTrigger>
           <TabsTrigger value="improvements">Melhorias</TabsTrigger>
           <TabsTrigger value="examples">Exemplos</TabsTrigger>
           <TabsTrigger value="conversations">Conversas</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="users">
+          <UserPerformanceTab users={report.user_performance || []} />
+        </TabsContent>
+        <TabsContent value="funnel">
+          <FunnelInsightsTab funnels={report.funnel_performance?.funnels} />
+        </TabsContent>
+        <TabsContent value="campaigns">
+          <CampaignInsightsTab campaigns={report.campaign_performance?.campaigns} />
+        </TabsContent>
+        <TabsContent value="sla">
+          <SLAInsightsTab sla={report.sla_performance || {}} />
+        </TabsContent>
+
 
         <TabsContent value="summary" className="space-y-4">
           <Card>

@@ -5,122 +5,140 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface Message {
-  id: string;
-  conversation_id: string;
-  direction: string;
-  content: string;
-  message_type: string;
-  transcription: string | null;
-  created_at: string;
-  media_url: string | null;
-}
+const LOVABLE_AI_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
-interface Conversation {
-  id: string;
-  contact: {
-    name: string | null;
-    phone: string;
-  };
-  messages: Message[];
-}
+// ---------- Schemas ----------
 
-// Standard report structure schema for tool calling
 const reportSchema = {
   type: "object",
   properties: {
-    overall_score: { type: "number", description: "Nota geral de 0 a 100" },
-    textual_quality_score: { type: "number", description: "Nota de qualidade textual de 0 a 100" },
-    communication_score: { type: "number", description: "Nota de comunicação de 0 a 100" },
-    sales_score: { type: "number", description: "Nota de vendas de 0 a 100" },
-    efficiency_score: { type: "number", description: "Nota de eficiência de 0 a 100" },
-    audio_analysis_score: { type: "number", description: "Nota de análise de áudios de 0 a 100" },
-    executive_summary: { type: "string", description: "Resumo executivo em 3-5 parágrafos" },
+    overall_score: { type: "number" },
+    textual_quality_score: { type: "number" },
+    communication_score: { type: "number" },
+    sales_score: { type: "number" },
+    efficiency_score: { type: "number" },
+    audio_analysis_score: { type: "number" },
+    executive_summary: { type: "string", description: "Resumo executivo em 3-5 parágrafos. Mencione o desempenho geral, principais oportunidades e prioridades." },
     strengths: {
       type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          example: { type: "string" }
-        },
-        required: ["title", "description"]
-      },
-      description: "Até 5 pontos fortes identificados"
+      items: { type: "object", properties: { title: { type: "string" }, description: { type: "string" }, example: { type: "string" } }, required: ["title", "description"] }
     },
     improvements: {
       type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          description: { type: "string" },
-          suggestion: { type: "string" },
-          example: { type: "string" }
-        },
-        required: ["title", "description"]
-      },
-      description: "Até 5 áreas de melhoria"
+      items: { type: "object", properties: { title: { type: "string" }, description: { type: "string" }, suggestion: { type: "string" }, example: { type: "string" } }, required: ["title", "description"] }
     },
-    recommendations: {
-      type: "array",
-      items: { type: "string" },
-      description: "3-5 recomendações acionáveis"
-    },
+    recommendations: { type: "array", items: { type: "string" } },
     highlighted_examples: {
       type: "array",
-      items: {
-        type: "object",
-        properties: {
-          type: { type: "string", enum: ["positive", "negative"] },
-          context: { type: "string" },
-          message: { type: "string" },
-          reason: { type: "string" }
-        },
-        required: ["type", "context", "message", "reason"]
-      },
-      description: "Até 6 exemplos destacados (3 positivos, 3 negativos)"
+      items: { type: "object", properties: { type: { type: "string", enum: ["positive", "negative"] }, context: { type: "string" }, message: { type: "string" }, reason: { type: "string" } }, required: ["type", "context", "message", "reason"] }
     },
     conversation_details: {
       type: "array",
+      items: { type: "object", properties: { contact: { type: "string" }, score: { type: "number" }, summary: { type: "string" }, feedback: { type: "string" } }, required: ["contact", "score", "summary", "feedback"] }
+    }
+  },
+  required: ["overall_score", "textual_quality_score", "communication_score", "sales_score", "efficiency_score", "audio_analysis_score", "executive_summary", "strengths", "improvements", "recommendations", "highlighted_examples", "conversation_details"]
+};
+
+const userPerformanceSchema = {
+  type: "object",
+  properties: {
+    users: {
+      type: "array",
       items: {
         type: "object",
         properties: {
-          contact: { type: "string" },
-          score: { type: "number" },
-          summary: { type: "string" },
-          feedback: { type: "string" }
+          user_id: { type: "string" },
+          name: { type: "string" },
+          overall_score: { type: "number", description: "0-100" },
+          textual_quality_score: { type: "number" },
+          communication_score: { type: "number" },
+          sales_score: { type: "number" },
+          efficiency_score: { type: "number" },
+          audio_analysis_score: { type: "number" },
+          strengths: { type: "array", items: { type: "string" }, description: "Até 3 pontos fortes" },
+          improvements: { type: "array", items: { type: "string" }, description: "Até 3 áreas a melhorar" },
+          coaching_tips: { type: "array", items: { type: "string" }, description: "Até 3 dicas acionáveis de coaching individual" },
+          highlighted_message: { type: "string", description: "Trecho real de mensagem (positivo ou negativo) que ilustre o desempenho" }
         },
-        required: ["contact", "score", "summary", "feedback"]
-      },
-      description: "Detalhes de até 10 conversas analisadas"
+        required: ["user_id", "name", "overall_score", "strengths", "improvements", "coaching_tips"]
+      }
     }
   },
-  required: [
-    "overall_score",
-    "textual_quality_score",
-    "communication_score",
-    "sales_score",
-    "efficiency_score",
-    "audio_analysis_score",
-    "executive_summary",
-    "strengths",
-    "improvements",
-    "recommendations",
-    "highlighted_examples",
-    "conversation_details"
-  ]
+  required: ["users"]
 };
 
-// Helper to clamp scores between 0-100
-function clampScore(score: number | undefined | null): number {
-  if (score === undefined || score === null || isNaN(score)) return 0;
-  return Math.max(0, Math.min(100, Math.round(score)));
+const funnelInsightsSchema = {
+  type: "object",
+  properties: {
+    funnels: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          funnel_id: { type: "string" },
+          name: { type: "string" },
+          bottleneck_stages: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                stage_id: { type: "string" },
+                name: { type: "string" },
+                note: { type: "string", description: "Por que é um gargalo" }
+              },
+              required: ["stage_id", "name", "note"]
+            }
+          },
+          suggestions: { type: "array", items: { type: "string" }, description: "3-5 sugestões acionáveis para melhorar o funil" }
+        },
+        required: ["funnel_id", "name", "bottleneck_stages", "suggestions"]
+      }
+    }
+  },
+  required: ["funnels"]
+};
+
+const campaignInsightsSchema = {
+  type: "object",
+  properties: {
+    campaigns: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          campaign_id: { type: "string" },
+          name: { type: "string" },
+          template_performance: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                template_id: { type: "string" },
+                name: { type: "string" },
+                suggestion: { type: "string" }
+              },
+              required: ["name", "suggestion"]
+            }
+          },
+          suggestions: { type: "array", items: { type: "string" }, description: "3-5 sugestões acionáveis para melhorar essa campanha (horário, copy, segmentação)" }
+        },
+        required: ["campaign_id", "name", "suggestions"]
+      }
+    }
+  },
+  required: ["campaigns"]
+};
+
+// ---------- Helpers ----------
+
+function clampScore(score: any): number {
+  const n = Number(score);
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-// Normalize and validate the analysis result
-function normalizeAnalysisResult(raw: any): any {
+function normalizeAnalysisResult(raw: any) {
   return {
     overall_score: clampScore(raw.overall_score),
     textual_quality_score: clampScore(raw.textual_quality_score),
@@ -129,86 +147,89 @@ function normalizeAnalysisResult(raw: any): any {
     efficiency_score: clampScore(raw.efficiency_score),
     audio_analysis_score: clampScore(raw.audio_analysis_score),
     executive_summary: typeof raw.executive_summary === 'string' ? raw.executive_summary : 'Análise concluída.',
-    strengths: Array.isArray(raw.strengths) ? raw.strengths.slice(0, 5).map((s: any) => ({
-      title: s.title || 'Ponto forte',
-      description: s.description || '',
-      example: s.example || ''
-    })) : [],
-    improvements: Array.isArray(raw.improvements) ? raw.improvements.slice(0, 5).map((i: any) => ({
-      title: i.title || 'Área de melhoria',
-      description: i.description || '',
-      suggestion: i.suggestion || '',
-      example: i.example || ''
-    })) : [],
+    strengths: Array.isArray(raw.strengths) ? raw.strengths.slice(0, 5).map((s: any) => ({ title: s.title || '', description: s.description || '', example: s.example || '' })) : [],
+    improvements: Array.isArray(raw.improvements) ? raw.improvements.slice(0, 5).map((i: any) => ({ title: i.title || '', description: i.description || '', suggestion: i.suggestion || '', example: i.example || '' })) : [],
     recommendations: Array.isArray(raw.recommendations) ? raw.recommendations.slice(0, 5).filter((r: any) => typeof r === 'string') : [],
-    highlighted_examples: Array.isArray(raw.highlighted_examples) ? raw.highlighted_examples.slice(0, 6).map((e: any) => ({
-      type: e.type === 'negative' ? 'negative' : 'positive',
-      context: e.context || '',
-      message: e.message || '',
-      reason: e.reason || ''
-    })) : [],
-    conversation_details: Array.isArray(raw.conversation_details) ? raw.conversation_details.slice(0, 10).map((c: any) => ({
-      contact: c.contact || 'Contato',
-      score: clampScore(c.score),
-      summary: c.summary || '',
-      feedback: c.feedback || ''
-    })) : []
+    highlighted_examples: Array.isArray(raw.highlighted_examples) ? raw.highlighted_examples.slice(0, 6).map((e: any) => ({ type: e.type === 'negative' ? 'negative' : 'positive', context: e.context || '', message: e.message || '', reason: e.reason || '' })) : [],
+    conversation_details: Array.isArray(raw.conversation_details) ? raw.conversation_details.slice(0, 10).map((c: any) => ({ contact: c.contact || 'Contato', score: clampScore(c.score), summary: c.summary || '', feedback: c.feedback || '' })) : []
   };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+async function callLovableAI(payload: any, lovableApiKey: string) {
+  const res = await fetch(LOVABLE_AI_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const t = await res.text();
+    console.error('Lovable AI error', res.status, t);
+    const err: any = new Error('AI gateway error');
+    err.status = res.status;
+    throw err;
   }
+  return await res.json();
+}
+
+function extractToolArgs(aiData: any): any | null {
+  const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    try { return JSON.parse(toolCall.function.arguments); } catch (e) { console.error('parse tool args', e); }
+  }
+  const content = aiData?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') {
+    const match = content.match(/\{[\s\S]*\}/);
+    if (match) { try { return JSON.parse(match[0]); } catch (e) { console.error('parse content', e); } }
+  }
+  return null;
+}
+
+// ---------- Main ----------
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const lovableApiKey = Deno.env.get('OPENAI_API_KEY')!;
-
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
+    if (!authHeader) throw new Error('No authorization header');
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !user) {
-      throw new Error('Invalid token');
-    }
+    if (userError || !user) throw new Error('Invalid token');
 
-    const { periodStart, periodEnd, transcribeAudios = true, tzOffsetMinutes = 180 } = await req.json();
+    const body = await req.json();
+    const {
+      periodStart, periodEnd,
+      transcribeAudios = true,
+      tzOffsetMinutes = 180,
+      userIds = [],
+      funnelIds = [],
+      includeCampaigns = true,
+      includeSla = true,
+    } = body;
 
-    if (!periodStart || !periodEnd) {
-      throw new Error('periodStart and periodEnd are required');
-    }
+    if (!periodStart || !periodEnd) throw new Error('periodStart and periodEnd are required');
 
-    // Calculate UTC timestamps for the full day in user's timezone
-    // tzOffsetMinutes: positive = behind UTC (e.g., Brazil is +180 = UTC-3)
-    // For Brazil (UTC-3): tzOffsetMinutes = 180
-    // To get start of day in user's TZ: we need 00:00 local = 00:00 + offset in UTC
-    const [startYear, startMonth, startDay] = periodStart.split('-').map(Number);
-    const [endYear, endMonth, endDay] = periodEnd.split('-').map(Number);
-    
-    // Create dates at midnight UTC, then adjust for timezone
-    const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay, 0, 0, 0, 0));
-    const endDate = new Date(Date.UTC(endYear, endMonth - 1, endDay, 23, 59, 59, 999));
-    
-    // Adjust for timezone: add offset minutes to get UTC equivalent of local time
+    const [sy, sm, sd] = periodStart.split('-').map(Number);
+    const [ey, em, ed] = periodEnd.split('-').map(Number);
+    const startDate = new Date(Date.UTC(sy, sm - 1, sd, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(ey, em - 1, ed, 23, 59, 59, 999));
     startDate.setUTCMinutes(startDate.getUTCMinutes() + tzOffsetMinutes);
     endDate.setUTCMinutes(endDate.getUTCMinutes() + tzOffsetMinutes);
-    
     const periodStartISO = startDate.toISOString();
     const periodEndISO = endDate.toISOString();
 
-    console.log(`Starting analysis for user ${user.id}`);
-    console.log(`Period: ${periodStart} to ${periodEnd} (local)`);
-    console.log(`UTC range: ${periodStartISO} to ${periodEndISO}`);
+    console.log(`[analyze] user=${user.id} period=${periodStart}..${periodEnd}`);
 
-    // Create the report record first
+    // Create the report record
     const { data: report, error: reportError } = await supabase
       .from('conversation_analysis_reports')
       .insert({
@@ -222,457 +243,512 @@ Deno.serve(async (req) => {
         efficiency_score: 0,
         audio_analysis_score: 0,
         executive_summary: 'Processando análise...',
-        status: 'processing'
+        status: 'processing',
+        analysis_scope: { user_ids: userIds, funnel_ids: funnelIds, include_campaigns: includeCampaigns, include_sla: includeSla },
       })
       .select()
       .single();
+    if (reportError || !report) throw new Error('Failed to create report');
 
-    if (reportError) {
-      console.error('Error creating report:', reportError);
-      throw new Error('Failed to create report');
-    }
+    // Resolve org members visible to this user
+    const { data: orgMembers } = await supabase.rpc('get_organization_member_ids', { _user_id: user.id });
+    const memberIds: string[] = Array.isArray(orgMembers) ? orgMembers.map((x: any) => x.uid ?? x).filter(Boolean) : [user.id];
 
-    console.log(`Report ${report.id} created, fetching messages in period...`);
+    const scopedUserIds = (userIds && userIds.length > 0) ? userIds.filter((id: string) => memberIds.includes(id)) : memberIds;
 
-    // IMPROVED: First fetch messages in the period to find all relevant conversations
-    // This ensures we get conversations even if their last_message_at is outside the period
-    const { data: messagesInPeriod, error: msgPeriodError } = await supabase
-      .from('inbox_messages')
-      .select('conversation_id')
-      .eq('user_id', user.id)
-      .gte('created_at', periodStartISO)
-      .lte('created_at', periodEndISO);
+    console.log(`[analyze] scopedUsers=${scopedUserIds.length}`);
 
-    if (msgPeriodError) {
-      console.error('Error fetching messages in period:', msgPeriodError);
-      throw new Error('Failed to fetch messages');
-    }
+    // Run heavy processing in background so we don't block the request
+    const runAnalysis = async () => {
+      try {
+        // 1. Fetch messages in period for scoped users
+        const { data: messagesInPeriod } = await supabase
+          .from('inbox_messages')
+          .select('conversation_id')
+          .in('user_id', scopedUserIds)
+          .gte('created_at', periodStartISO)
+          .lte('created_at', periodEndISO);
 
-    // Get unique conversation IDs
-    const uniqueConversationIds = [...new Set((messagesInPeriod || []).map(m => m.conversation_id))];
-    console.log(`Found ${uniqueConversationIds.length} conversations with messages in period`);
+        const uniqueConvIds = [...new Set((messagesInPeriod || []).map((m: any) => m.conversation_id))];
+        console.log(`[analyze] conversations=${uniqueConvIds.length}`);
 
-    if (uniqueConversationIds.length === 0) {
-      await supabase
-        .from('conversation_analysis_reports')
-        .update({
-          status: 'completed',
-          executive_summary: 'Nenhuma conversa encontrada no período selecionado.',
-          overall_score: 0
-        })
-        .eq('id', report.id);
+        if (uniqueConvIds.length === 0) {
+          await supabase.from('conversation_analysis_reports').update({
+            status: 'completed',
+            executive_summary: 'Nenhuma conversa encontrada no período selecionado.',
+            overall_score: 0,
+          }).eq('id', report.id);
+          return;
+        }
 
-      return new Response(
-        JSON.stringify({ success: true, reportId: report.id }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+        // 2. Fetch contacts for conversations
+        const { data: conversations } = await supabase
+          .from('conversations')
+          .select('id, user_id, assigned_to, contact:contacts!inner(name, phone)')
+          .in('id', uniqueConvIds);
 
-    // Fetch conversation details with contacts
-    const { data: conversations, error: convError } = await supabase
-      .from('conversations')
-      .select(`
-        id,
-        contact:contacts!inner(name, phone)
-      `)
-      .in('id', uniqueConversationIds);
+        // 3. Fetch ALL messages
+        const { data: allMessages } = await supabase
+          .from('inbox_messages')
+          .select('id, conversation_id, direction, content, message_type, transcription, created_at, media_url, sent_by_user_id, sent_at')
+          .in('conversation_id', uniqueConvIds)
+          .gte('created_at', periodStartISO)
+          .lte('created_at', periodEndISO)
+          .order('created_at', { ascending: true });
 
-    if (convError) {
-      console.error('Error fetching conversations:', convError);
-      throw new Error('Failed to fetch conversations');
-    }
+        const messages = allMessages || [];
 
-    console.log(`Fetched ${conversations?.length || 0} conversation details`);
+        // 4. Transcribe audios if requested
+        let transcribedCount = 0;
+        if (transcribeAudios) {
+          for (const msg of messages) {
+            if ((msg.message_type === 'audio' || msg.message_type === 'ptt') && !msg.transcription && msg.media_url) {
+              try {
+                const res = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ messageId: msg.id, audioUrl: msg.media_url }),
+                });
+                if (res.ok) {
+                  const r = await res.json();
+                  msg.transcription = r.transcription;
+                  transcribedCount++;
+                }
+              } catch (e) { console.error('transcribe fail', e); }
+            }
+          }
+        }
 
-    // Fetch all messages for these conversations in the period
-    const { data: allMessages, error: msgError } = await supabase
-      .from('inbox_messages')
-      .select('id, conversation_id, direction, content, message_type, transcription, created_at, media_url')
-      .in('conversation_id', uniqueConversationIds)
-      .gte('created_at', periodStartISO)
-      .lte('created_at', periodEndISO)
-      .order('created_at', { ascending: true });
+        // 5. Build conversation texts
+        const convsWithMsgs = (conversations || []).map((c: any) => {
+          const contactData = Array.isArray(c.contact) ? c.contact[0] : c.contact;
+          return {
+            id: c.id,
+            user_id: c.assigned_to || c.user_id,
+            contact: contactData,
+            messages: messages.filter(m => m.conversation_id === c.id),
+          };
+        }).filter(c => c.messages.length > 0);
 
-    if (msgError) {
-      console.error('Error fetching messages:', msgError);
-      throw new Error('Failed to fetch messages');
-    }
+        const totalMessages = messages.length;
+        const sentMessages = messages.filter(m => m.direction === 'outbound').length;
+        const receivedMessages = messages.filter(m => m.direction === 'inbound').length;
+        const audioMessages = messages.filter(m => m.message_type === 'audio' || m.message_type === 'ptt').length;
 
-    console.log(`Found ${allMessages?.length || 0} messages`);
+        // 6. Profiles for user names
+        const userIdsInUse = [...new Set(convsWithMsgs.map(c => c.user_id).filter(Boolean))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIdsInUse.length > 0 ? userIdsInUse : ['00000000-0000-0000-0000-000000000000']);
+        const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.full_name || 'Usuário']));
 
-    // Transcribe audio messages if requested
-    let transcribedCount = 0;
-    if (transcribeAudios && allMessages) {
-      for (const msg of allMessages) {
-        if ((msg.message_type === 'audio' || msg.message_type === 'ptt') && !msg.transcription && msg.media_url) {
-          try {
-            console.log(`Transcribing audio message ${msg.id}...`);
-            const transcribeResponse = await fetch(`${supabaseUrl}/functions/v1/transcribe-audio`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                messageId: msg.id,
-                audioUrl: msg.media_url
-              })
+        // 7. Per-user aggregation
+        const userAgg: Record<string, any> = {};
+        for (const uid of userIdsInUse) {
+          userAgg[uid] = {
+            user_id: uid,
+            name: profileMap.get(uid) || 'Usuário',
+            messages_sent: 0,
+            messages_received: 0,
+            conversations_handled: 0,
+            characters_typed: 0,
+            audios_sent: 0,
+            response_times: [] as number[],
+            sample_messages: [] as string[],
+          };
+        }
+
+        for (const conv of convsWithMsgs) {
+          const uid = conv.user_id;
+          if (!uid || !userAgg[uid]) continue;
+          userAgg[uid].conversations_handled++;
+          // First response time
+          const firstInbound = conv.messages.find(m => m.direction === 'inbound');
+          if (firstInbound) {
+            const firstOutboundAfter = conv.messages.find(m => m.direction === 'outbound' && new Date(m.created_at) > new Date(firstInbound.created_at));
+            if (firstOutboundAfter) {
+              const diff = (new Date(firstOutboundAfter.created_at).getTime() - new Date(firstInbound.created_at).getTime()) / 1000;
+              if (diff >= 0 && diff < 86400) userAgg[uid].response_times.push(diff);
+            }
+          }
+          for (const m of conv.messages) {
+            if (m.direction === 'outbound' && m.sent_by_user_id && userAgg[m.sent_by_user_id]) {
+              userAgg[m.sent_by_user_id].messages_sent++;
+              userAgg[m.sent_by_user_id].characters_typed += (m.content || '').length;
+              if (m.message_type === 'audio' || m.message_type === 'ptt') userAgg[m.sent_by_user_id].audios_sent++;
+              if ((m.content || '').length > 30 && userAgg[m.sent_by_user_id].sample_messages.length < 5) {
+                userAgg[m.sent_by_user_id].sample_messages.push((m.content || '').slice(0, 200));
+              }
+            } else if (m.direction === 'inbound') {
+              userAgg[uid].messages_received++;
+            }
+          }
+        }
+
+        for (const uid of Object.keys(userAgg)) {
+          const rt = userAgg[uid].response_times;
+          userAgg[uid].avg_first_response_seconds = rt.length ? Math.round(rt.reduce((a: number, b: number) => a + b, 0) / rt.length) : 0;
+          delete userAgg[uid].response_times;
+        }
+
+        // 8. Funnel data
+        let funnelData: any[] = [];
+        if (funnelIds.length === 0) {
+          const { data: allFunnels } = await supabase.from('funnels').select('id').in('user_id', scopedUserIds);
+          funnelIds.push(...(allFunnels || []).map((f: any) => f.id));
+        }
+        if (funnelIds.length > 0) {
+          const { data: funnels } = await supabase.from('funnels').select('id, name').in('id', funnelIds);
+          for (const f of funnels || []) {
+            const { data: stages } = await supabase.from('funnel_stages').select('id, name, display_order, final_type').eq('funnel_id', f.id).order('display_order');
+            const { data: deals } = await supabase
+              .from('funnel_deals')
+              .select('id, stage_id, value, closed_at, created_at, entered_stage_at')
+              .eq('funnel_id', f.id)
+              .gte('created_at', periodStartISO)
+              .lte('created_at', periodEndISO);
+
+            const stageMap = new Map((stages || []).map((s: any) => [s.id, s]));
+            const dealsByStage: Record<string, any[]> = {};
+            for (const d of deals || []) {
+              if (!dealsByStage[d.stage_id]) dealsByStage[d.stage_id] = [];
+              dealsByStage[d.stage_id].push(d);
+            }
+
+            const wonStages = (stages || []).filter((s: any) => s.final_type === 'won').map((s: any) => s.id);
+            const lostStages = (stages || []).filter((s: any) => s.final_type === 'lost').map((s: any) => s.id);
+
+            const wonCount = (deals || []).filter((d: any) => wonStages.includes(d.stage_id)).length;
+            const lostCount = (deals || []).filter((d: any) => lostStages.includes(d.stage_id)).length;
+            const totalClosed = wonCount + lostCount;
+            const wonRate = totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0;
+
+            const closedDeals = (deals || []).filter((d: any) => d.closed_at);
+            const avgDaysToClose = closedDeals.length
+              ? Math.round(closedDeals.reduce((acc: number, d: any) => acc + ((new Date(d.closed_at).getTime() - new Date(d.created_at).getTime()) / 86400000), 0) / closedDeals.length)
+              : 0;
+
+            const stageStats = (stages || []).map((s: any) => {
+              const stageDeals = dealsByStage[s.id] || [];
+              const avgHours = stageDeals.length
+                ? Math.round(stageDeals.reduce((acc: number, d: any) => {
+                    const start = d.entered_stage_at ? new Date(d.entered_stage_at) : new Date(d.created_at);
+                    return acc + ((Date.now() - start.getTime()) / 3600000);
+                  }, 0) / stageDeals.length)
+                : 0;
+              return { stage_id: s.id, name: s.name, deal_count: stageDeals.length, avg_hours: avgHours, final_type: s.final_type };
             });
 
-            if (transcribeResponse.ok) {
-              const transcribeResult = await transcribeResponse.json();
-              msg.transcription = transcribeResult.transcription;
-              transcribedCount++;
-            }
-          } catch (e) {
-            console.error(`Failed to transcribe message ${msg.id}:`, e);
+            funnelData.push({
+              funnel_id: f.id, name: f.name,
+              total_deals: (deals || []).length,
+              won_count: wonCount, lost_count: lostCount, won_rate: wonRate,
+              avg_days_to_close: avgDaysToClose,
+              stages: stageStats,
+            });
           }
         }
-      }
-    }
 
-    console.log(`Transcribed ${transcribedCount} audio messages`);
+        // 9. Campaigns
+        let campaignData: any[] = [];
+        if (includeCampaigns) {
+          const { data: campaigns } = await supabase
+            .from('campaigns')
+            .select('id, name, total_contacts, sent, delivered, failed, allowed_start_hour, allowed_end_hour, template_id, created_at')
+            .in('user_id', scopedUserIds)
+            .gte('created_at', periodStartISO)
+            .lte('created_at', periodEndISO)
+            .order('created_at', { ascending: false })
+            .limit(10);
 
-    // Group messages by conversation
-    const conversationsWithMessages: Conversation[] = (conversations || []).map(conv => {
-      const contactData = Array.isArray(conv.contact) ? conv.contact[0] : conv.contact;
-      return {
-        id: conv.id,
-        contact: contactData as { name: string | null; phone: string },
-        messages: (allMessages || []).filter(m => m.conversation_id === conv.id)
-      };
-    }).filter(c => c.messages.length > 0); // Only include conversations with messages
-
-    // Count statistics
-    const totalMessages = allMessages?.length || 0;
-    const sentMessages = allMessages?.filter(m => m.direction === 'outbound').length || 0;
-    const receivedMessages = allMessages?.filter(m => m.direction === 'inbound').length || 0;
-    const audioMessages = allMessages?.filter(m => m.message_type === 'audio' || m.message_type === 'ptt').length || 0;
-
-    // Build the analysis prompt
-    const conversationTexts = conversationsWithMessages.slice(0, 30).map(conv => {
-      const messagesText = conv.messages.map(m => {
-        const sender = m.direction === 'outbound' ? 'ATENDENTE' : 'CLIENTE';
-        let content = m.content;
-        if ((m.message_type === 'audio' || m.message_type === 'ptt') && m.transcription) {
-          content = `[ÁUDIO TRANSCRITO]: ${m.transcription}`;
-        } else if (m.message_type === 'audio' || m.message_type === 'ptt') {
-          content = '[ÁUDIO NÃO TRANSCRITO]';
-        } else if (m.message_type === 'image') {
-          content = '[IMAGEM ENVIADA]';
-        } else if (m.message_type === 'document') {
-          content = '[DOCUMENTO ENVIADO]';
-        }
-        return `${sender}: ${content}`;
-      }).join('\n');
-
-      return `--- Conversa com ${conv.contact.name || conv.contact.phone} ---\n${messagesText}`;
-    }).join('\n\n');
-
-    console.log('Calling Lovable AI for analysis with tool calling...');
-
-    // Call AI with tool calling for structured output
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-nano',
-        messages: [
-          {
-            role: 'system',
-            content: `Você é um especialista em análise de qualidade de atendimento ao cliente via WhatsApp.
-
-IMPORTANTE: Você DEVE OBRIGATORIAMENTE chamar a função analyze_conversations para fornecer sua análise. NÃO escreva texto livre. APENAS chame a função com os dados estruturados.
-
-Critérios de avaliação (0-100):
-1. QUALIDADE TEXTUAL: Gramática, ortografia, clareza, pontuação, uso apropriado de emojis
-2. COMUNICAÇÃO: Rapport, personalização, empatia, escuta ativa, cordialidade
-3. VENDAS/PERSUASÃO: Identificação de necessidades, apresentação de soluções, contorno de objeções
-4. EFICIÊNCIA: Tempo de resposta, resolução no primeiro contato, objetividade
-5. ANÁLISE DE ÁUDIO: Qualidade das transcrições, completude das mensagens de voz
-
-Seja específico, use exemplos reais das conversas. Forneça feedback construtivo e acionável.
-Limite: 5 pontos fortes, 5 melhorias, 5 recomendações, 6 exemplos destacados, 10 conversas.
-
-LEMBRE-SE: Chame a função analyze_conversations. NÃO responda com texto.`
-          },
-          {
-            role: 'user',
-            content: `Analise as conversas do período ${periodStart} a ${periodEnd}:
-
-${conversationTexts}
-
-Estatísticas:
-- Total de mensagens: ${totalMessages}
-- Enviadas pelo atendente: ${sentMessages}
-- Recebidas de clientes: ${receivedMessages}
-- Áudios: ${audioMessages}
-
-INSTRUÇÃO FINAL: Use a função analyze_conversations para retornar sua análise estruturada.`
+          for (const c of campaigns || []) {
+            let templateName = '';
+            if (c.template_id) {
+              const { data: tpl } = await supabase.from('message_templates').select('name').eq('id', c.template_id).maybeSingle();
+              templateName = tpl?.name || '';
+            }
+            const sent = c.sent || 0;
+            const delivered = c.delivered || 0;
+            const failed = c.failed || 0;
+            campaignData.push({
+              campaign_id: c.id,
+              name: c.name,
+              sent, delivered, failed,
+              delivery_rate: sent > 0 ? Math.round((delivered / sent) * 100) : 0,
+              fail_rate: sent > 0 ? Math.round((failed / sent) * 100) : 0,
+              allowed_hours: `${c.allowed_start_hour ?? 0}h - ${c.allowed_end_hour ?? 23}h`,
+              template_id: c.template_id,
+              template_name: templateName,
+            });
           }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "analyze_conversations",
-              description: "Gera um relatório estruturado de análise de atendimento. OBRIGATÓRIO usar esta função.",
-              parameters: reportSchema
+        }
+
+        // 10. SLA aggregate
+        let slaSummary: any = {};
+        if (includeSla) {
+          const overdueByUser: Record<string, number> = {};
+          const { data: overdueTasks } = await supabase
+            .from('tasks')
+            .select('id, user_id, due_date, completed_at')
+            .in('user_id', scopedUserIds)
+            .lt('due_date', new Date().toISOString())
+            .is('completed_at', null);
+          for (const t of overdueTasks || []) {
+            overdueByUser[t.user_id] = (overdueByUser[t.user_id] || 0) + 1;
+          }
+
+          const allResponseTimes: number[] = [];
+          let unansweredCount = 0;
+          for (const conv of convsWithMsgs) {
+            const lastMsg = conv.messages[conv.messages.length - 1];
+            if (lastMsg && lastMsg.direction === 'inbound') unansweredCount++;
+            const firstInbound = conv.messages.find(m => m.direction === 'inbound');
+            if (firstInbound) {
+              const firstOut = conv.messages.find(m => m.direction === 'outbound' && new Date(m.created_at) > new Date(firstInbound.created_at));
+              if (firstOut) {
+                const diff = (new Date(firstOut.created_at).getTime() - new Date(firstInbound.created_at).getTime()) / 1000;
+                if (diff >= 0 && diff < 86400) allResponseTimes.push(diff);
+              }
             }
           }
-        ],
-        tool_choice: { type: "function", function: { name: "analyze_conversations" } }
-      }),
-    });
-
-    let analysisResult;
-
-    if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text();
-      console.error('Lovable AI error:', analysisResponse.status, errorText);
-      
-      if (analysisResponse.status === 429) {
-        await supabase
-          .from('conversation_analysis_reports')
-          .update({
-            status: 'error',
-            error_message: 'Limite de requisições excedido. Tente novamente em alguns minutos.'
-          })
-          .eq('id', report.id);
-      } else if (analysisResponse.status === 402) {
-        await supabase
-          .from('conversation_analysis_reports')
-          .update({
-            status: 'error',
-            error_message: 'Créditos de IA insuficientes. Por favor, adicione créditos.'
-          })
-          .eq('id', report.id);
-      } else {
-        await supabase
-          .from('conversation_analysis_reports')
-          .update({
-            status: 'error',
-            error_message: 'Erro ao processar análise com IA. Tente novamente.'
-          })
-          .eq('id', report.id);
-      }
-
-      return new Response(
-        JSON.stringify({ success: false, reportId: report.id, error: 'AI analysis failed' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const aiData = await analysisResponse.json();
-    
-    // Detailed logging for debugging
-    console.log('AI response structure:', JSON.stringify({
-      hasToolCalls: !!aiData.choices?.[0]?.message?.tool_calls,
-      toolCallsCount: aiData.choices?.[0]?.message?.tool_calls?.length || 0,
-      hasContent: !!aiData.choices?.[0]?.message?.content,
-      contentPreview: aiData.choices?.[0]?.message?.content?.substring(0, 150) || null,
-      finishReason: aiData.choices?.[0]?.finish_reason
-    }));
-
-    // Try to get tool call result first (structured output)
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    
-    if (toolCall?.function?.arguments) {
-      try {
-        const rawResult = JSON.parse(toolCall.function.arguments);
-        analysisResult = normalizeAnalysisResult(rawResult);
-        console.log('Successfully parsed tool call response');
-      } catch (e) {
-        console.error('Failed to parse tool call arguments:', e);
-        analysisResult = null;
-      }
-    }
-
-    // Fallback: try to parse regular content if tool call failed
-    if (!analysisResult) {
-      const aiContent = aiData.choices?.[0]?.message?.content;
-      if (aiContent) {
-        console.log('Tool call not found, attempting to extract JSON from content...');
-        try {
-          let jsonContent = aiContent;
-          
-          // Try to extract JSON from markdown code blocks
-          if (jsonContent.includes('```json')) {
-            jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-          } else if (jsonContent.includes('```')) {
-            jsonContent = jsonContent.replace(/```\n?/g, '');
-          }
-          
-          // Try direct parse first
-          try {
-            const rawResult = JSON.parse(jsonContent.trim());
-            analysisResult = normalizeAnalysisResult(rawResult);
-            console.log('Successfully parsed content as direct JSON');
-          } catch {
-            // Try to extract JSON object from anywhere in the text using regex
-            const jsonMatch = aiContent.match(/\{[\s\S]*"overall_score"[\s\S]*"executive_summary"[\s\S]*\}/);
-            if (jsonMatch) {
-              const rawResult = JSON.parse(jsonMatch[0]);
-              analysisResult = normalizeAnalysisResult(rawResult);
-              console.log('Successfully extracted JSON via regex');
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse content:', e);
+          const avgFirst = allResponseTimes.length ? Math.round(allResponseTimes.reduce((a, b) => a + b, 0) / allResponseTimes.length) : 0;
+          slaSummary = {
+            avg_first_response_seconds: avgFirst,
+            unanswered_count: unansweredCount,
+            overdue_tasks_count: (overdueTasks || []).length,
+            by_user: Object.keys(userAgg).map(uid => ({
+              user_id: uid,
+              name: userAgg[uid].name,
+              avg_first_response_seconds: userAgg[uid].avg_first_response_seconds || 0,
+              unanswered_count: 0,
+              overdue_tasks_count: overdueByUser[uid] || 0,
+            })),
+          };
         }
-      }
-    }
 
-    // Retry with simplified prompt if first attempt failed
-    if (!analysisResult) {
-      console.log('First attempt failed, retrying with simplified prompt...');
-      
-      // Use only first 10 conversations for retry
-      const simplifiedTexts = conversationsWithMessages.slice(0, 10).map(conv => {
-        const messagesText = conv.messages.slice(0, 20).map(m => {
-          const sender = m.direction === 'outbound' ? 'ATENDENTE' : 'CLIENTE';
-          let content = m.content?.substring(0, 200) || '';
-          if ((m.message_type === 'audio' || m.message_type === 'ptt') && m.transcription) {
-            content = `[ÁUDIO]: ${m.transcription.substring(0, 150)}`;
-          }
-          return `${sender}: ${content}`;
-        }).join('\n');
-        return `--- ${conv.contact.name || conv.contact.phone} ---\n${messagesText}`;
-      }).join('\n\n');
+        // 11. Build the main conversation text (for general analysis)
+        const conversationTexts = convsWithMsgs.slice(0, 25).map((conv: any) => {
+          const txt = conv.messages.slice(0, 30).map((m: any) => {
+            const sender = m.direction === 'outbound' ? 'ATENDENTE' : 'CLIENTE';
+            let content = m.content || '';
+            if ((m.message_type === 'audio' || m.message_type === 'ptt') && m.transcription) content = `[ÁUDIO]: ${m.transcription}`;
+            else if (m.message_type === 'audio' || m.message_type === 'ptt') content = '[ÁUDIO]';
+            else if (m.message_type === 'image') content = '[IMAGEM]';
+            else if (m.message_type === 'document') content = '[DOC]';
+            return `${sender}: ${content.slice(0, 300)}`;
+          }).join('\n');
+          return `--- ${conv.contact?.name || conv.contact?.phone || 'Contato'} ---\n${txt}`;
+        }).join('\n\n');
 
-      const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${lovableApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4.1-nano',
+        // 12. Build per-user summary text
+        const userSummaryText = Object.values(userAgg).map((u: any) => {
+          const samples = (u.sample_messages || []).slice(0, 3).map((s: string) => `  • "${s}"`).join('\n');
+          return `Usuário ${u.user_id} (${u.name}):
+  - Conversas atendidas: ${u.conversations_handled}
+  - Mensagens enviadas: ${u.messages_sent} (${u.audios_sent} áudios)
+  - Caracteres digitados: ${u.characters_typed}
+  - Tempo médio de 1ª resposta: ${u.avg_first_response_seconds}s
+  - Amostras de mensagens enviadas:
+${samples}`;
+        }).join('\n\n');
+
+        // 13. Build funnel summary text
+        const funnelSummaryText = funnelData.map((f: any) => {
+          const stagesText = f.stages.map((s: any) => `  - Etapa "${s.name}" (id=${s.stage_id}): ${s.deal_count} deals abertos, tempo médio ${s.avg_hours}h${s.final_type ? ` [final=${s.final_type}]` : ''}`).join('\n');
+          return `Funil "${f.name}" (id=${f.funnel_id}):
+  - Total deals no período: ${f.total_deals}
+  - Ganhos: ${f.won_count} | Perdidos: ${f.lost_count} | Taxa de ganho: ${f.won_rate}%
+  - Tempo médio até fechar: ${f.avg_days_to_close} dias
+  - Etapas:
+${stagesText}`;
+        }).join('\n\n');
+
+        const campaignSummaryText = campaignData.map((c: any) => `Campanha "${c.name}" (id=${c.campaign_id}, template="${c.template_name}", template_id=${c.template_id}): ${c.sent} enviadas, ${c.delivered} entregues (${c.delivery_rate}%), ${c.failed} falharam (${c.fail_rate}%), janela ${c.allowed_hours}`).join('\n');
+
+        // 14. Run AI calls in parallel
+        console.log('[analyze] calling AI in parallel...');
+
+        const generalPromise = callLovableAI({
+          model: 'google/gemini-2.5-flash',
           messages: [
-            {
-              role: 'system',
-              content: `Você é um analista de atendimento. OBRIGATÓRIO: Use a função analyze_conversations. NÃO escreva texto.`
-            },
-            {
-              role: 'user',
-              content: `Analise resumidamente (${periodStart} a ${periodEnd}):\n\n${simplifiedTexts}\n\nUse a função analyze_conversations.`
-            }
+            { role: 'system', content: 'Você é um especialista sênior em qualidade de atendimento e vendas via WhatsApp. OBRIGATÓRIO: chame a função analyze_conversations com dados estruturados. Seja específico, use exemplos reais. Critérios 0-100: qualidade textual, comunicação, vendas, eficiência, áudios.' },
+            { role: 'user', content: `Período ${periodStart} a ${periodEnd}\n\n${conversationTexts}\n\nEstatísticas: ${totalMessages} msgs, ${sentMessages} enviadas, ${receivedMessages} recebidas, ${audioMessages} áudios.` },
           ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "analyze_conversations",
-                description: "Retorna análise estruturada. OBRIGATÓRIO.",
-                parameters: reportSchema
-              }
-            }
+          tools: [{ type: 'function', function: { name: 'analyze_conversations', description: 'Análise geral estruturada', parameters: reportSchema } }],
+          tool_choice: { type: 'function', function: { name: 'analyze_conversations' } },
+        }, lovableApiKey).catch(e => { console.error('general AI fail', e); return null; });
+
+        const userPromise = Object.keys(userAgg).length > 0 ? callLovableAI({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'Você é um coach sênior de vendas. Avalie cada usuário individualmente com base nos dados e amostras de mensagens fornecidos. OBRIGATÓRIO chamar a função analyze_users. Dê notas 0-100 realistas (não infle), pontos fortes específicos, áreas de melhoria concretas e dicas de coaching acionáveis e personalizadas.' },
+            { role: 'user', content: `Avalie a performance individual destes ${Object.keys(userAgg).length} usuários no período ${periodStart} a ${periodEnd}:\n\n${userSummaryText}\n\nContexto adicional de conversas amostradas:\n${conversationTexts.slice(0, 8000)}` },
           ],
-          tool_choice: { type: "function", function: { name: "analyze_conversations" } }
-        }),
-      });
+          tools: [{ type: 'function', function: { name: 'analyze_users', description: 'Performance individual', parameters: userPerformanceSchema } }],
+          tool_choice: { type: 'function', function: { name: 'analyze_users' } },
+        }, lovableApiKey).catch(e => { console.error('user AI fail', e); return null; }) : Promise.resolve(null);
 
-      if (retryResponse.ok) {
-        const retryData = await retryResponse.json();
-        console.log('Retry response structure:', JSON.stringify({
-          hasToolCalls: !!retryData.choices?.[0]?.message?.tool_calls,
-          contentPreview: retryData.choices?.[0]?.message?.content?.substring(0, 100) || null
-        }));
+        const funnelPromise = funnelData.length > 0 ? callLovableAI({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'Você é um consultor de processos comerciais. Analise os funis e identifique gargalos reais com sugestões acionáveis. OBRIGATÓRIO chamar analyze_funnel. Use os IDs reais fornecidos.' },
+            { role: 'user', content: `Analise estes funis:\n\n${funnelSummaryText}` },
+          ],
+          tools: [{ type: 'function', function: { name: 'analyze_funnel', description: 'Insights de funil', parameters: funnelInsightsSchema } }],
+          tool_choice: { type: 'function', function: { name: 'analyze_funnel' } },
+        }, lovableApiKey).catch(e => { console.error('funnel AI fail', e); return null; }) : Promise.resolve(null);
 
-        const retryToolCall = retryData.choices?.[0]?.message?.tool_calls?.[0];
-        if (retryToolCall?.function?.arguments) {
-          try {
-            const rawResult = JSON.parse(retryToolCall.function.arguments);
-            analysisResult = normalizeAnalysisResult(rawResult);
-            console.log('Successfully parsed retry tool call response');
-          } catch (e) {
-            console.error('Failed to parse retry tool call:', e);
-          }
-        }
+        const campaignPromise = (includeCampaigns && campaignData.length > 0) ? callLovableAI({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'Você é um especialista em campanhas de WhatsApp em massa. Analise cada campanha e sugira melhorias (copy do template, horário, segmentação). OBRIGATÓRIO chamar analyze_campaigns com os IDs reais.' },
+            { role: 'user', content: `Campanhas do período:\n\n${campaignSummaryText}` },
+          ],
+          tools: [{ type: 'function', function: { name: 'analyze_campaigns', description: 'Insights de campanhas', parameters: campaignInsightsSchema } }],
+          tool_choice: { type: 'function', function: { name: 'analyze_campaigns' } },
+        }, lovableApiKey).catch(e => { console.error('campaign AI fail', e); return null; }) : Promise.resolve(null);
 
-        // Last resort: try regex on retry content
+        const [generalAI, userAI, funnelAI, campaignAI] = await Promise.all([generalPromise, userPromise, funnelPromise, campaignPromise]);
+
+        // Parse results
+        let analysisResult = generalAI ? normalizeAnalysisResult(extractToolArgs(generalAI) || {}) : null;
         if (!analysisResult) {
-          const retryContent = retryData.choices?.[0]?.message?.content;
-          if (retryContent) {
-            const jsonMatch = retryContent.match(/\{[\s\S]*"overall_score"[\s\S]*\}/);
-            if (jsonMatch) {
-              try {
-                const rawResult = JSON.parse(jsonMatch[0]);
-                analysisResult = normalizeAnalysisResult(rawResult);
-                console.log('Successfully extracted JSON from retry via regex');
-              } catch (e) {
-                console.error('Failed to parse retry regex match:', e);
-              }
-            }
-          }
+          analysisResult = normalizeAnalysisResult({
+            overall_score: 0, executive_summary: 'Não foi possível gerar análise geral. Tente novamente.',
+          });
         }
-      }
-    }
 
-    // If all parsing failed, create a basic error response
-    if (!analysisResult) {
-      console.error('All parsing attempts failed');
-      await supabase
-        .from('conversation_analysis_reports')
-        .update({
+        // Per-user merge
+        const userInsights = extractToolArgs(userAI) || { users: [] };
+        const aiUserMap = new Map((userInsights.users || []).map((u: any) => [u.user_id, u]));
+        const userPerformance = Object.values(userAgg).map((u: any) => {
+          const ai = aiUserMap.get(u.user_id) || {} as any;
+          return {
+            user_id: u.user_id,
+            name: u.name,
+            ranking: 0,
+            overall_score: clampScore(ai.overall_score),
+            textual_quality_score: clampScore(ai.textual_quality_score ?? ai.overall_score),
+            communication_score: clampScore(ai.communication_score ?? ai.overall_score),
+            sales_score: clampScore(ai.sales_score ?? ai.overall_score),
+            efficiency_score: clampScore(ai.efficiency_score ?? ai.overall_score),
+            audio_analysis_score: clampScore(ai.audio_analysis_score ?? ai.overall_score),
+            messages_sent: u.messages_sent,
+            messages_received: u.messages_received,
+            conversations_handled: u.conversations_handled,
+            avg_first_response_seconds: u.avg_first_response_seconds || 0,
+            strengths: Array.isArray(ai.strengths) ? ai.strengths.slice(0, 3) : [],
+            improvements: Array.isArray(ai.improvements) ? ai.improvements.slice(0, 3) : [],
+            coaching_tips: Array.isArray(ai.coaching_tips) ? ai.coaching_tips.slice(0, 3) : [],
+            highlighted_message: ai.highlighted_message || '',
+          };
+        }).sort((a, b) => b.overall_score - a.overall_score)
+          .map((u, idx) => ({ ...u, ranking: idx + 1 }));
+
+        // Funnel merge
+        const funnelInsightsArr = extractToolArgs(funnelAI)?.funnels || [];
+        const funnelInsightsMap = new Map(funnelInsightsArr.map((f: any) => [f.funnel_id, f]));
+        const funnelPerformance = {
+          funnels: funnelData.map((f: any) => {
+            const ai = funnelInsightsMap.get(f.funnel_id) as any || {};
+            return {
+              funnel_id: f.funnel_id,
+              name: f.name,
+              total_deals: f.total_deals,
+              won_count: f.won_count,
+              lost_count: f.lost_count,
+              won_rate: f.won_rate,
+              avg_days_to_close: f.avg_days_to_close,
+              bottleneck_stages: f.stages
+                .filter((s: any) => !s.final_type)
+                .sort((a: any, b: any) => b.avg_hours - a.avg_hours)
+                .slice(0, 3)
+                .map((s: any) => {
+                  const aiStage = (ai.bottleneck_stages || []).find((x: any) => x.stage_id === s.stage_id);
+                  return { stage_id: s.stage_id, name: s.name, conversion_rate: 0, avg_hours: s.avg_hours, lost_count: 0, note: aiStage?.note || '' };
+                }),
+              suggestions: Array.isArray(ai.suggestions) ? ai.suggestions.slice(0, 5) : [],
+            };
+          }),
+        };
+
+        // Campaigns merge
+        const campaignInsightsArr = extractToolArgs(campaignAI)?.campaigns || [];
+        const campaignInsightsMap = new Map(campaignInsightsArr.map((c: any) => [c.campaign_id, c]));
+        const campaignPerformance = {
+          campaigns: campaignData.map((c: any) => {
+            const ai = campaignInsightsMap.get(c.campaign_id) as any || {};
+            return {
+              campaign_id: c.campaign_id,
+              name: c.name,
+              sent: c.sent,
+              delivered: c.delivered,
+              failed: c.failed,
+              reply_rate: 0,
+              best_hours: [],
+              template_performance: (ai.template_performance || []).map((t: any) => ({
+                template_id: t.template_id || c.template_id,
+                name: t.name || c.template_name,
+                reply_rate: 0,
+                suggestion: t.suggestion || '',
+              })),
+              suggestions: Array.isArray(ai.suggestions) ? ai.suggestions.slice(0, 5) : [],
+            };
+          }),
+        };
+
+        // Save
+        await supabase.from('conversation_analysis_reports').update({
+          overall_score: analysisResult.overall_score,
+          textual_quality_score: analysisResult.textual_quality_score,
+          communication_score: analysisResult.communication_score,
+          sales_score: analysisResult.sales_score,
+          efficiency_score: analysisResult.efficiency_score,
+          audio_analysis_score: analysisResult.audio_analysis_score,
+          executive_summary: analysisResult.executive_summary,
+          strengths: analysisResult.strengths,
+          improvements: analysisResult.improvements,
+          recommendations: analysisResult.recommendations,
+          highlighted_examples: analysisResult.highlighted_examples,
+          conversation_details: analysisResult.conversation_details,
+          total_conversations: convsWithMsgs.length,
+          total_messages_sent: sentMessages,
+          total_messages_received: receivedMessages,
+          total_audios_analyzed: audioMessages,
+          user_performance: userPerformance,
+          funnel_performance: funnelPerformance,
+          campaign_performance: campaignPerformance,
+          sla_performance: slaSummary,
+          status: 'completed',
+        }).eq('id', report.id);
+
+        console.log(`[analyze] complete report=${report.id}`);
+      } catch (e: any) {
+        console.error('[analyze] background error', e);
+        await supabase.from('conversation_analysis_reports').update({
           status: 'error',
-          error_message: 'Não foi possível gerar a análise padrão. Tente novamente.'
-        })
-        .eq('id', report.id);
+          error_message: e?.status === 429 ? 'Limite de IA excedido. Tente novamente em alguns minutos.'
+            : e?.status === 402 ? 'Créditos de IA insuficientes. Adicione créditos no workspace.'
+            : (e?.message || 'Erro ao processar análise.'),
+        }).eq('id', report.id);
+      }
+    };
 
-      return new Response(
-        JSON.stringify({ success: false, reportId: report.id, error: 'Failed to parse AI response' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update the report with normalized analysis results
-    const { error: updateError } = await supabase
-      .from('conversation_analysis_reports')
-      .update({
-        overall_score: analysisResult.overall_score,
-        textual_quality_score: analysisResult.textual_quality_score,
-        communication_score: analysisResult.communication_score,
-        sales_score: analysisResult.sales_score,
-        efficiency_score: analysisResult.efficiency_score,
-        audio_analysis_score: analysisResult.audio_analysis_score,
-        executive_summary: analysisResult.executive_summary,
-        strengths: analysisResult.strengths,
-        improvements: analysisResult.improvements,
-        recommendations: analysisResult.recommendations,
-        highlighted_examples: analysisResult.highlighted_examples,
-        conversation_details: analysisResult.conversation_details,
-        total_conversations: conversationsWithMessages.length,
-        total_messages_sent: sentMessages,
-        total_messages_received: receivedMessages,
-        total_audios_analyzed: audioMessages,
-        status: 'completed'
-      })
-      .eq('id', report.id);
-
-    if (updateError) {
-      console.error('Error updating report:', updateError);
-      throw new Error('Failed to update report');
-    }
-
-    console.log(`Analysis complete for report ${report.id}`);
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    EdgeRuntime.waitUntil(runAnalysis());
 
     return new Response(
       JSON.stringify({ success: true, reportId: report.id }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in analyze-conversations:', errorMessage);
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Unknown error';
+    console.error('[analyze] error', errorMessage);
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
-      { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
