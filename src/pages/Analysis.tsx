@@ -37,9 +37,15 @@ export default function Analysis() {
   const handleGenerateReport = async () => {
     const periodStart = format(dateRange.from, 'yyyy-MM-dd');
     const periodEnd = format(dateRange.to ?? dateRange.from, 'yyyy-MM-dd');
-    // Send timezone offset so backend can calculate full day correctly
     const tzOffsetMinutes = new Date().getTimezoneOffset();
-    await generateReport(periodStart, periodEnd, transcribeAudios, tzOffsetMinutes);
+    await generateReport({
+      periodStart,
+      periodEnd,
+      transcribeAudios,
+      tzOffsetMinutes,
+      includeCampaigns: true,
+      includeSla: true,
+    });
   };
 
   const handleExportPDF = (report: AnalysisReport) => {
