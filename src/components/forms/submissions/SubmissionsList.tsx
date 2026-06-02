@@ -33,12 +33,34 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const { submissions, isLoading, updateSubmission, deleteSubmission } = useFormSubmissions(formId);
   const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
   const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+  const [dateFilters, setDateFilters] = useState<Record<string, DateRangeFilter>>({});
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null);
   const [editingSubmission, setEditingSubmission] = useState<any>(null);
   const [deletingSubmission, setDeletingSubmission] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
   const visibleFields = fields.filter(f => !["heading", "paragraph", "divider"].includes(f.field_type));
+
+  const isDateColumn = (columnId: string): boolean => {
+    if (columnId === "date") return true;
+    const field = visibleFields.find(f => f.id === columnId);
+    return field?.field_type === "date";
+  };
+
+  const getDateValue = (sub: any, columnId: string): Date | null => {
+    if (columnId === "date") {
+      const d = new Date(sub.created_at);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const field = visibleFields.find(f => f.id === columnId);
+    if (!field) return null;
+    const raw = sub.data?.[columnId] ?? sub.data?.[field.label];
+    if (!raw || typeof raw !== "string") return null;
+    const datePart = raw.split("T")[0];
+    const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  };
 
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
     if (rawValue === undefined || rawValue === null) return "-";
