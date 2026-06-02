@@ -68,6 +68,9 @@ export const FunnelAIDialog = ({
   const [responseDelayMax, setResponseDelayMax] = useState(8);
   const [activeHoursStart, setActiveHoursStart] = useState(8);
   const [activeHoursEnd, setActiveHoursEnd] = useState(20);
+  const [activeHoursWindows, setActiveHoursWindows] = useState<Array<{ start: number; end: number; days: number[] }>>([
+    { start: 8, end: 20, days: [0, 1, 2, 3, 4, 5, 6] },
+  ]);
   const [handoffKeywords, setHandoffKeywords] = useState<string[]>(['atendente', 'humano', 'pessoa']);
   const [responseMode, setResponseMode] = useState<'text' | 'audio' | 'both' | 'adaptive'>('adaptive');
   const [voiceId, setVoiceId] = useState('EXAVITQu4vr4xnSDxMaL');
@@ -102,6 +105,16 @@ export const FunnelAIDialog = ({
       setResponseDelayMax(config.response_delay_max ?? 8);
       setActiveHoursStart(config.active_hours_start ?? 8);
       setActiveHoursEnd(config.active_hours_end ?? 20);
+      const loadedWindows = Array.isArray((config as any).active_hours_windows) ? (config as any).active_hours_windows : [];
+      setActiveHoursWindows(
+        loadedWindows.length > 0
+          ? loadedWindows.map((w: any) => ({
+              start: typeof w.start === 'number' ? w.start : 8,
+              end: typeof w.end === 'number' ? w.end : 20,
+              days: Array.isArray(w.days) ? w.days : [0, 1, 2, 3, 4, 5, 6],
+            }))
+          : [{ start: config.active_hours_start ?? 8, end: config.active_hours_end ?? 20, days: [0, 1, 2, 3, 4, 5, 6] }]
+      );
       setHandoffKeywords(config.handoff_keywords || ['atendente', 'humano', 'pessoa']);
       setResponseMode(config.response_mode || 'text');
       setVoiceId(config.voice_id || 'EXAVITQu4vr4xnSDxMaL');
@@ -147,8 +160,9 @@ export const FunnelAIDialog = ({
         max_interactions: maxInteractions,
         response_delay_min: responseDelayMin,
         response_delay_max: responseDelayMax,
-        active_hours_start: activeHoursStart,
-        active_hours_end: activeHoursEnd,
+        active_hours_start: activeHoursWindows[0]?.start ?? activeHoursStart,
+        active_hours_end: activeHoursWindows[0]?.end ?? activeHoursEnd,
+        active_hours_windows: activeHoursWindows,
         handoff_keywords: handoffKeywords,
         response_mode: responseMode,
         voice_id: voiceId,
@@ -275,6 +289,8 @@ export const FunnelAIDialog = ({
                     setActiveHoursStart={setActiveHoursStart}
                     activeHoursEnd={activeHoursEnd}
                     setActiveHoursEnd={setActiveHoursEnd}
+                    activeHoursWindows={activeHoursWindows}
+                    setActiveHoursWindows={setActiveHoursWindows}
                     handoffKeywords={handoffKeywords}
                     setHandoffKeywords={setHandoffKeywords}
                     responseMode={responseMode}
