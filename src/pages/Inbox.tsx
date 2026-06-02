@@ -53,39 +53,82 @@ const Inbox = () => {
     // Support both 'conversationId' and 'conversation' params for compatibility
     const conversationId = searchParams.get('conversationId') || searchParams.get('conversation');
     const contactId = searchParams.get('contactId');
-    
-    if (conversationId) {
-      const conv = conversations.find(c => c.id === conversationId);
-      if (conv && selectedConversationId !== conv.id) {
-        setSelectedConversationId(conv.id);
-        if (isMobile) setMobileShowMessages(true);
+    if (!conversationId && !contactId) return;
+
+    const openConversation = (conversation: Conversation) => {
+      setFallbackConversation(conversation);
+      setSelectedConversationId(conversation.id);
+      if (isMobile) setMobileShowMessages(true);
+      setSearchParams({});
+    };
+
+    const existingConversation = conversationId
+      ? conversations.find(c => c.id === conversationId)
+      : conversations.find(c => c.contact_id === contactId);
+
+    if (existingConversation) {
+      if (selectedConversationId !== existingConversation.id) {
+        openConversation(existingConversation);
+      } else {
         setSearchParams({});
-      } else if (!conv && selectedConversationId !== conversationId) {
-        // Not in filtered list (instance restriction). Fetch directly so card→inbox works.
-        (async () => {
-          const { supabase } = await import('@/integrations/supabase/client');
+      }
+      return;
+    }
+
+    // If the conversation is not in the current Inbox page/filter, fetch it
+    // directly. For links that only provide a contact, create/open the user's
+    // thread so the chat screen never stays blank after navigation.
+    (async () => {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        let directConversation: Conversation | null = null;
+
+        if (conversationId) {
           const { data } = await supabase
             .from('conversations')
             .select('*, contact:contacts(*)')
             .eq('id', conversationId)
             .maybeSingle();
+          directConversation = data as unknown as Conversation | null;
+        }
+
+        if (!directConversation && contactId) {
+          const { data } = await supabase
+            .from('conversations')
+            .select('*, contact:contacts(*)')
+            .eq('contact_id', contactId)
+            .order('last_message_at', { ascending: false, nullsFirst: false })
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
           if (data) {
-            setFallbackConversation(data as unknown as Conversation);
-            setSelectedConversationId(conversationId);
-            if (isMobile) setMobileShowMessages(true);
-            setSearchParams({});
+            directConversation = data as unknown as Conversation;
+          } else {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const { data: created } = await supabase
+                .from('conversations')
+                .upsert(
+                  { user_id: user.id, contact_id: contactId, instance_id: null },
+                  { onConflict: 'user_id,contact_id' }
+                )
+                .select('*, contact:contacts(*)')
+                .single();
+              directConversation = created as unknown as Conversation | null;
+            }
           }
-        })();
+        }
+
+        if (directConversation) {
+          openConversation(directConversation);
+          refetch();
+        }
+      } catch (e) {
+        console.error('Error opening conversation from URL:', e);
       }
-    } else if (contactId) {
-      const conv = conversations.find(c => c.contact_id === contactId);
-      if (conv && selectedConversationId !== conv.id) {
-        setSelectedConversationId(conv.id);
-        if (isMobile) setMobileShowMessages(true);
-        setSearchParams({});
-      }
-    }
-  }, [conversations, searchParams, setSearchParams, selectedConversationId, isMobile]);
+    })();
+  }, [conversations, searchParams, setSearchParams, selectedConversationId, isMobile, refetch]);
 
   // Keep the selected conversation in sync with updated data
   const selectedConversation = useMemo(() => {

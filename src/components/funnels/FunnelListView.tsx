@@ -1720,11 +1720,11 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem 
                           onClick={() => {
-                            if (deal.conversation_id) {
-                              navigate(`/inbox?conversationId=${deal.conversation_id}`);
-                            } else if (deal.contact_id) {
-                              navigate(`/inbox?contactId=${deal.contact_id}`);
-                            }
+                            const params = new URLSearchParams();
+                            if (deal.conversation_id) params.set('conversationId', deal.conversation_id);
+                            if (deal.contact_id) params.set('contactId', deal.contact_id);
+                            const query = params.toString();
+                            if (query) navigate(`/inbox?${query}`);
                           }}
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
