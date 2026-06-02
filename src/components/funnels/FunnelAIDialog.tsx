@@ -105,6 +105,16 @@ export const FunnelAIDialog = ({
       setResponseDelayMax(config.response_delay_max ?? 8);
       setActiveHoursStart(config.active_hours_start ?? 8);
       setActiveHoursEnd(config.active_hours_end ?? 20);
+      const loadedWindows = Array.isArray((config as any).active_hours_windows) ? (config as any).active_hours_windows : [];
+      setActiveHoursWindows(
+        loadedWindows.length > 0
+          ? loadedWindows.map((w: any) => ({
+              start: typeof w.start === 'number' ? w.start : 8,
+              end: typeof w.end === 'number' ? w.end : 20,
+              days: Array.isArray(w.days) ? w.days : [0, 1, 2, 3, 4, 5, 6],
+            }))
+          : [{ start: config.active_hours_start ?? 8, end: config.active_hours_end ?? 20, days: [0, 1, 2, 3, 4, 5, 6] }]
+      );
       setHandoffKeywords(config.handoff_keywords || ['atendente', 'humano', 'pessoa']);
       setResponseMode(config.response_mode || 'text');
       setVoiceId(config.voice_id || 'EXAVITQu4vr4xnSDxMaL');
