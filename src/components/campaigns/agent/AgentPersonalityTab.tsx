@@ -358,39 +358,127 @@ export const AgentPersonalityTab = ({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Horário de Funcionamento</Label>
-            <div className="flex gap-2 items-center">
-              <Select 
-                value={activeHoursStart.toString()} 
-                onValueChange={(v) => setActiveHoursStart(parseInt(v))}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <SelectItem key={i} value={i.toString()}>
-                      {i.toString().padStart(2, '0')}:00
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-muted-foreground">até</span>
-              <Select 
-                value={activeHoursEnd.toString()} 
-                onValueChange={(v) => setActiveHoursEnd(parseInt(v))}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <SelectItem key={i} value={i.toString()}>
-                      {i.toString().padStart(2, '0')}:00
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {activeHoursWindows && setActiveHoursWindows ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Defina faixas de horário e os dias da semana em que o agente responde. Para faixas que cruzam a meia-noite (ex.: 18h → 02h), divida em duas faixas: 18h–24h e 0h–2h.
+                </p>
+                {activeHoursWindows.map((win, idx) => {
+                  const DAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"];
+                  const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+                  const days = Array.isArray(win.days) ? win.days : [0, 1, 2, 3, 4, 5, 6];
+                  const setDays = (newDays: number[]) => {
+                    setActiveHoursWindows(activeHoursWindows.map((w, i) => i === idx ? { ...w, days: newDays.sort((a, b) => a - b) } : w));
+                  };
+                  const toggleDay = (d: number) => {
+                    setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d]);
+                  };
+                  return (
+                    <div key={idx} className="rounded-lg border p-3 space-y-2 bg-muted/20">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex gap-1">
+                          {DAY_LABELS.map((lbl, d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              title={DAY_NAMES[d]}
+                              onClick={() => toggleDay(d)}
+                              className={`w-8 h-8 rounded-md text-xs font-medium border transition-colors ${days.includes(d) ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-muted"}`}
+                            >
+                              {lbl}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1 ml-auto">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setDays([1, 2, 3, 4, 5])}>Seg–Sex</Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setDays([0, 6])}>Sáb–Dom</Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])}>Todos</Button>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={24}
+                          value={win.start}
+                          onChange={(e) => {
+                            const v = Math.max(0, Math.min(24, parseInt(e.target.value) || 0));
+                            setActiveHoursWindows(activeHoursWindows.map((w, i) => i === idx ? { ...w, start: v } : w));
+                          }}
+                          className="w-20"
+                        />
+                        <span className="text-sm text-muted-foreground">h até</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={24}
+                          value={win.end}
+                          onChange={(e) => {
+                            const v = Math.max(0, Math.min(24, parseInt(e.target.value) || 0));
+                            setActiveHoursWindows(activeHoursWindows.map((w, i) => i === idx ? { ...w, end: v } : w));
+                          }}
+                          className="w-20"
+                        />
+                        <span className="text-sm text-muted-foreground">h</span>
+                        {activeHoursWindows.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="ml-auto text-destructive hover:text-destructive"
+                            onClick={() => setActiveHoursWindows(activeHoursWindows.filter((_, i) => i !== idx))}
+                          >
+                            Remover
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveHoursWindows([...activeHoursWindows, { start: 0, end: 8, days: [1, 2, 3, 4, 5] }])}
+                >
+                  + Adicionar faixa
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <Select 
+                  value={activeHoursStart.toString()} 
+                  onValueChange={(v) => setActiveHoursStart(parseInt(v))}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {i.toString().padStart(2, '0')}:00
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-muted-foreground">até</span>
+                <Select 
+                  value={activeHoursEnd.toString()} 
+                  onValueChange={(v) => setActiveHoursEnd(parseInt(v))}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {i.toString().padStart(2, '0')}:00
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
