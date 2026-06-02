@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+// @ts-ignore - opus-recorder não tem tipos
+import Recorder from "opus-recorder";
 
 interface VoiceRecorderProps {
   onSend: (audioUrl: string) => void;
