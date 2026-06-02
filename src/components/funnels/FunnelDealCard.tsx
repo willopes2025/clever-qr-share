@@ -79,11 +79,10 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
 
   const handleGoToChat = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (deal.conversation_id) {
-      navigate(`/inbox?conversationId=${deal.conversation_id}`);
-    } else if (deal.contact_id) {
-      navigate(`/inbox?contactId=${deal.contact_id}`);
-    }
+    const params = new URLSearchParams();
+    if (deal.conversation_id) params.set('conversationId', deal.conversation_id);
+    if (deal.contact_id) params.set('contactId', deal.contact_id);
+    if (params.size > 0) navigate(`/inbox?${params.toString()}`);
   };
 
   const getTimeInStage = () => {
