@@ -29,6 +29,8 @@ interface AgentPersonalityTabProps {
   setActiveHoursStart: (value: number) => void;
   activeHoursEnd: number;
   setActiveHoursEnd: (value: number) => void;
+  activeHoursWindows?: Array<{ start: number; end: number; days: number[] }>;
+  setActiveHoursWindows?: (value: Array<{ start: number; end: number; days: number[] }>) => void;
   handoffKeywords: string[];
   setHandoffKeywords: (value: string[]) => void;
   responseMode: 'text' | 'audio' | 'both' | 'adaptive';
