@@ -45,7 +45,8 @@ export const VoiceRecorder = ({ onSend, disabled }: VoiceRecorderProps) => {
       });
 
       recorder.ondataavailable = (typedArray: Uint8Array) => {
-        const blob = new Blob([typedArray], { type: "audio/ogg; codecs=opus" });
+        const buf = typedArray.buffer.slice(typedArray.byteOffset, typedArray.byteOffset + typedArray.byteLength);
+        const blob = new Blob([buf], { type: "audio/ogg; codecs=opus" });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
       };
