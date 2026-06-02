@@ -19,6 +19,7 @@ export interface FunnelAIAgentConfig {
   response_delay_max: number;
   active_hours_start: number;
   active_hours_end: number;
+  active_hours_windows?: Array<{ start: number; end: number; days: number[] }> | null;
   handoff_keywords: string[];
   is_active: boolean;
   response_mode: 'text' | 'audio' | 'both' | 'adaptive';
