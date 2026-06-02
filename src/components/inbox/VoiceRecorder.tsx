@@ -19,60 +19,58 @@ export const VoiceRecorder = ({ onSend, disabled }: VoiceRecorderProps) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (audioUrl) URL.revokeObjectURL(audioUrl);
+      if (recorderRef.current) {
+        try { recorderRef.current.close(); } catch {}
+      }
     };
   }, [audioUrl]);
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm'
+      const recorder = new Recorder({
+        encoderPath: "/encoderWorker.min.js",
+        encoderSampleRate: 48000,
+        numberOfChannels: 1,
+        encoderApplication: 2048, // VOIP
+        streamPages: false,
+        encoderFrameSize: 20,
+        resampleQuality: 3,
       });
-      
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-      
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
-      
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+
+      recorder.ondataavailable = (typedArray: Uint8Array) => {
+        const blob = new Blob([typedArray], { type: "audio/ogg; codecs=opus" });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
-        
-        // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
       };
-      
-      mediaRecorder.start();
+
+      recorderRef.current = recorder;
+      await recorder.start();
+
       setIsRecording(true);
       setRecordingTime(0);
-      
       timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        setRecordingTime((prev) => prev + 1);
       }, 1000);
-      
     } catch (error) {
       console.error("Error accessing microphone:", error);
       toast.error("Não foi possível acessar o microfone");
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+  const stopRecording = async () => {
+    if (recorderRef.current && isRecording) {
+      try {
+        await recorderRef.current.stop();
+      } catch (e) {
+        console.error("[VoiceRecorder] stop error:", e);
+      }
       setIsRecording(false);
       if (timerRef.current) {
         clearInterval(timerRef.current);
