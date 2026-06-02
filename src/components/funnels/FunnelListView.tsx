@@ -1723,7 +1723,8 @@ export const FunnelListView = ({ funnel, openDealId, onDealOpened }: FunnelListV
                             const params = new URLSearchParams();
                             if (deal.conversation_id) params.set('conversationId', deal.conversation_id);
                             if (deal.contact_id) params.set('contactId', deal.contact_id);
-                            if (params.size > 0) navigate(`/inbox?${params.toString()}`);
+                            const query = params.toString();
+                            if (query) navigate(`/inbox?${query}`);
                           }}
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />

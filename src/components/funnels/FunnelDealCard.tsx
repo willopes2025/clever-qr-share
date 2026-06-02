@@ -82,7 +82,8 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
     const params = new URLSearchParams();
     if (deal.conversation_id) params.set('conversationId', deal.conversation_id);
     if (deal.contact_id) params.set('contactId', deal.contact_id);
-    if (params.size > 0) navigate(`/inbox?${params.toString()}`);
+    const query = params.toString();
+    if (query) navigate(`/inbox?${query}`);
   };
 
   const getTimeInStage = () => {
