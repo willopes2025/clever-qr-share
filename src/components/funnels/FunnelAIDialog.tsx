@@ -68,6 +68,9 @@ export const FunnelAIDialog = ({
   const [responseDelayMax, setResponseDelayMax] = useState(8);
   const [activeHoursStart, setActiveHoursStart] = useState(8);
   const [activeHoursEnd, setActiveHoursEnd] = useState(20);
+  const [activeHoursWindows, setActiveHoursWindows] = useState<Array<{ start: number; end: number; days: number[] }>>([
+    { start: 8, end: 20, days: [0, 1, 2, 3, 4, 5, 6] },
+  ]);
   const [handoffKeywords, setHandoffKeywords] = useState<string[]>(['atendente', 'humano', 'pessoa']);
   const [responseMode, setResponseMode] = useState<'text' | 'audio' | 'both' | 'adaptive'>('adaptive');
   const [voiceId, setVoiceId] = useState('EXAVITQu4vr4xnSDxMaL');
