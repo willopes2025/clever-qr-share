@@ -111,25 +111,6 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     return Array.from(vals).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
   };
 
-  const filteredSubmissions = useMemo(() => {
-    if (!submissions) return [];
-    let result = submissions.filter(sub =>
-      Object.entries(columnFilters).every(([col, values]) => {
-        if (!values || values.length === 0) return true;
-        return values.includes(getCellValue(sub, col));
-      })
-    );
-    if (sortConfig) {
-      const { columnId, direction } = sortConfig;
-      result = [...result].sort((a, b) => {
-        const av = getCellValue(a, columnId);
-        const bv = getCellValue(b, columnId);
-        const cmp = av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
-        return direction === "asc" ? cmp : -cmp;
-      });
-    }
-    return result;
-  }, [submissions, columnFilters, sortConfig, visibleFields]);
 
   const filteredSubmissions = useMemo(() => {
     if (!submissions) return [];
