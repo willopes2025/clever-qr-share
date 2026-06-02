@@ -2039,13 +2039,16 @@ export type Database = {
       }
       conversation_analysis_reports: {
         Row: {
+          analysis_scope: Json
           audio_analysis_score: number
+          campaign_performance: Json
           communication_score: number
           conversation_details: Json
           created_at: string
           efficiency_score: number
           error_message: string | null
           executive_summary: string
+          funnel_performance: Json
           highlighted_examples: Json
           id: string
           improvements: Json
@@ -2054,6 +2057,7 @@ export type Database = {
           period_start: string
           recommendations: Json
           sales_score: number
+          sla_performance: Json
           status: string
           strengths: Json
           textual_quality_score: number
@@ -2062,15 +2066,19 @@ export type Database = {
           total_messages_received: number
           total_messages_sent: number
           user_id: string
+          user_performance: Json
         }
         Insert: {
+          analysis_scope?: Json
           audio_analysis_score: number
+          campaign_performance?: Json
           communication_score: number
           conversation_details?: Json
           created_at?: string
           efficiency_score: number
           error_message?: string | null
           executive_summary: string
+          funnel_performance?: Json
           highlighted_examples?: Json
           id?: string
           improvements?: Json
@@ -2079,6 +2087,7 @@ export type Database = {
           period_start: string
           recommendations?: Json
           sales_score: number
+          sla_performance?: Json
           status?: string
           strengths?: Json
           textual_quality_score: number
@@ -2087,15 +2096,19 @@ export type Database = {
           total_messages_received?: number
           total_messages_sent?: number
           user_id: string
+          user_performance?: Json
         }
         Update: {
+          analysis_scope?: Json
           audio_analysis_score?: number
+          campaign_performance?: Json
           communication_score?: number
           conversation_details?: Json
           created_at?: string
           efficiency_score?: number
           error_message?: string | null
           executive_summary?: string
+          funnel_performance?: Json
           highlighted_examples?: Json
           id?: string
           improvements?: Json
@@ -2104,6 +2117,7 @@ export type Database = {
           period_start?: string
           recommendations?: Json
           sales_score?: number
+          sla_performance?: Json
           status?: string
           strengths?: Json
           textual_quality_score?: number
@@ -2112,6 +2126,7 @@ export type Database = {
           total_messages_received?: number
           total_messages_sent?: number
           user_id?: string
+          user_performance?: Json
         }
         Relationships: []
       }
