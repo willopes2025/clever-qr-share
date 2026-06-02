@@ -83,12 +83,24 @@ export const NewConversationDialog = ({ onConversationCreated }: NewConversation
     }
   };
 
+  // Compara telefones pelos últimos 10 dígitos (núcleo BR: DDD + número),
+  // ignorando DDI e dígito 9 extra. Evita falsos positivos com `endsWith`
+  // genérico, que pode casar contatos não relacionados (ex.: terminados em 9999).
+  const phoneKey = (phone: string) => {
+    const d = extractDigits(phone);
+    if (d.length < 8) return "";
+    // pega os últimos 10 dígitos; se tiver menos, usa o que tem
+    return d.slice(-10);
+  };
+
   const findExistingContactByPhone = (phone: string) => {
     if (!contacts) return null;
+    const key = phoneKey(phone);
+    if (!key || key.length < 10) return null;
     return contacts.find(c => {
-      const cDigits = extractDigits(c.phone || "");
-      return cDigits === phone || cDigits.endsWith(phone) || phone.endsWith(cDigits);
-    });
+      const cKey = phoneKey(c.phone || "");
+      return cKey && cKey === key;
+    }) || null;
   };
 
   const getContactDisplay = (contact: { name?: string | null; phone?: string | null }) => {
