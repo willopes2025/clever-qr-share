@@ -111,10 +111,25 @@ const Inbox = () => {
     setMobileShowMessages(false);
   };
 
-  const handleConversationCreated = (conversationId: string) => {
+  const handleConversationCreated = async (conversationId: string) => {
     setSelectedConversationId(conversationId);
     if (isMobile) {
       setMobileShowMessages(true);
+    }
+    // Fetch the new conversation directly so the message view can render
+    // immediately, even before the conversations list refetch resolves.
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data } = await supabase
+        .from('conversations')
+        .select('*, contact:contacts(*)')
+        .eq('id', conversationId)
+        .maybeSingle();
+      if (data) {
+        setFallbackConversation(data as unknown as Conversation);
+      }
+    } catch (e) {
+      console.error('Error fetching new conversation:', e);
     }
     refetch();
   };
