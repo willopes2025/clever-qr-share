@@ -226,7 +226,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
               : <ChevronDown className="h-3 w-3 opacity-50" />)}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="start">
+        <PopoverContent className={cn("p-3", isDate ? "w-auto" : "w-64")} align="start">
           <div className="space-y-3">
             <div className="space-y-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ordenar</p>
@@ -238,7 +238,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                   onClick={() => setSort(columnId, "asc")}
                 >
                   <ArrowUp className="h-3 w-3 mr-1" />
-                  A → Z
+                  {isDate ? "Mais antigo" : "A → Z"}
                 </Button>
                 <Button
                   variant={sortDir === "desc" ? "default" : "outline"}
@@ -247,7 +247,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
                   onClick={() => setSort(columnId, "desc")}
                 >
                   <ArrowDown className="h-3 w-3 mr-1" />
-                  Z → A
+                  {isDate ? "Mais recente" : "Z → A"}
                 </Button>
               </div>
               {isSorted && (
@@ -260,51 +260,84 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
             <div className="border-t pt-3 space-y-2">
               <p className="text-sm font-medium">Filtrar por {label}</p>
-              <Input
-                placeholder="Buscar..."
-                value={columnSearch[columnId] || ""}
-                onChange={(e) => setColumnSearch(prev => ({ ...prev, [columnId]: e.target.value }))}
-                className="h-8"
-              />
-              <div className="flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => selectAll(columnId)}
-                >
-                  Selecionar todos
-                </button>
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:underline"
-                  onClick={() => clearColumnFilter(columnId)}
-                >
-                  Limpar
-                </button>
-              </div>
-              <div className="max-h-56 overflow-y-auto border rounded-md">
-                {filteredUnique.length === 0 ? (
-                  <p className="p-2 text-xs text-muted-foreground text-center">Nenhum valor</p>
-                ) : filteredUnique.map(v => {
-                  const checked = activeValues.includes(v);
-                  return (
+
+              {isDate ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {dateRange?.from
+                        ? `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })}${dateRange.to ? ` → ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}` : ""}`
+                        : "Selecione um intervalo"}
+                    </span>
                     <button
-                      key={v}
                       type="button"
-                      onClick={() => toggleFilterValue(columnId, v)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted text-left"
+                      className="text-muted-foreground hover:underline"
+                      onClick={() => clearDateFilter(columnId)}
                     >
-                      <div className={cn(
-                        "flex h-4 w-4 items-center justify-center rounded-sm border border-primary shrink-0",
-                        checked ? "bg-primary text-primary-foreground" : "opacity-50"
-                      )}>
-                        {checked && <Check className="h-3 w-3" />}
-                      </div>
-                      <span className="flex-1 truncate">{v}</span>
+                      Limpar
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+                  <Calendar
+                    mode="range"
+                    locale={ptBR}
+                    selected={dateRange as any}
+                    onSelect={(range: any) =>
+                      setDateFilters(prev => ({ ...prev, [columnId]: { from: range?.from, to: range?.to } }))
+                    }
+                    numberOfMonths={1}
+                    initialFocus
+                    className={cn("p-0 pointer-events-auto")}
+                  />
+                </div>
+              ) : (
+                <>
+                  <Input
+                    placeholder="Buscar..."
+                    value={columnSearch[columnId] || ""}
+                    onChange={(e) => setColumnSearch(prev => ({ ...prev, [columnId]: e.target.value }))}
+                    className="h-8"
+                  />
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      type="button"
+                      className="text-primary hover:underline"
+                      onClick={() => selectAll(columnId)}
+                    >
+                      Selecionar todos
+                    </button>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:underline"
+                      onClick={() => clearColumnFilter(columnId)}
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto border rounded-md">
+                    {filteredUnique.length === 0 ? (
+                      <p className="p-2 text-xs text-muted-foreground text-center">Nenhum valor</p>
+                    ) : filteredUnique.map(v => {
+                      const checked = activeValues.includes(v);
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => toggleFilterValue(columnId, v)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted text-left"
+                        >
+                          <div className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded-sm border border-primary shrink-0",
+                            checked ? "bg-primary text-primary-foreground" : "opacity-50"
+                          )}>
+                            {checked && <Check className="h-3 w-3" />}
+                          </div>
+                          <span className="flex-1 truncate">{v}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </PopoverContent>
