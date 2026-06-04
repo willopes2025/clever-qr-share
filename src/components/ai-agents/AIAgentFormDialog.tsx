@@ -529,7 +529,7 @@ export const AIAgentFormDialog = ({
               </div>
 
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid grid-cols-10 w-full">
+                <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
                   <TabsTrigger value="personality" className="flex items-center gap-1">
                     <Bot className="h-4 w-4" />
                     <span className="hidden sm:inline">Personalidade</span>
