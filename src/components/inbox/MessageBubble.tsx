@@ -5,6 +5,8 @@ import { Check, CheckCheck, Clock, AlertCircle, Loader2, Bot, Smartphone, User, 
 import { InboxMessage } from "@/hooks/useConversations";
 import { MediaMessage } from "./MediaMessage";
 import { LocationMessage } from "./LocationMessage";
+import { AdReplyCard } from "./AdReplyCard";
+
 import { MessageReactionsDisplay, ReactionPicker } from "./MessageReactions";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
