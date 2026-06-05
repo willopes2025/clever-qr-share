@@ -2064,12 +2064,14 @@ async function handleMessagesUpdate(supabase: any, data: any) {
   console.log('handleMessagesUpdate called with:', JSON.stringify(data, null, 2));
   
   // Evolution API sends data directly, not in data.messages array
-  // keyId is the WhatsApp internal ID, messageId is the one we stored
-  const messageId = data.messageId || data.keyId || data.key?.id;
+  // keyId / key.id = WhatsApp internal ID (3EB0...) — this is what we store in whatsapp_message_id
+  // messageId = Evolution's own internal cuid (NOT what we store), so it must NOT take priority
+  const whatsappId = data.keyId || data.key?.id || null;
+  const evolutionInternalId = data.messageId || null;
   const statusString = data.status;
 
-  if (!messageId || !statusString) {
-    console.log('No messageId or status in update data:', { messageId, statusString });
+  if ((!whatsappId && !evolutionInternalId) || !statusString) {
+    console.log('No message identifier or status in update data:', { whatsappId, evolutionInternalId, statusString });
     return;
   }
 
