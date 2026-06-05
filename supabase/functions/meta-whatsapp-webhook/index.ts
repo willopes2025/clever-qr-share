@@ -867,6 +867,24 @@ Deno.serve(async (req) => {
                 };
               }
 
+              // Extract Click-to-WhatsApp ad referral if present
+              let adReply: any = null;
+              const ref = message.referral;
+              if (ref && (ref.headline || ref.source_url || ref.image_url || ref.thumbnail_url || ref.body)) {
+                adReply = {
+                  source: 'ctwa',
+                  headline: ref.headline ?? null,
+                  body: ref.body ?? null,
+                  source_url: ref.source_url ?? null,
+                  source_type: ref.source_type ?? null,
+                  source_id: ref.source_id ?? null,
+                  media_type: ref.media_type ?? null,
+                  thumbnail_url: ref.thumbnail_url ?? ref.image_url ?? ref.video_url ?? null,
+                  ctwa_clid: ref.ctwa_clid ?? null,
+                };
+                console.log('[META-WEBHOOK] CTWA referral detected:', JSON.stringify(adReply));
+              }
+
               // Save message to inbox_messages table (CORRECTED SCHEMA)
               const { error: msgError } = await supabase
                 .from('inbox_messages')
@@ -882,7 +900,9 @@ Deno.serve(async (req) => {
                   created_at: timestamp,
                   sent_via_meta_number_id: webhookPhoneNumberId,
                   quoted_message: quotedMessage,
+                  ad_reply: adReply,
                 });
+
 
               if (msgError) {
                 console.error('[META-WEBHOOK] Error saving message:', msgError);

@@ -106,7 +106,20 @@ export interface InboxMessage {
     from_me?: boolean | null;
     participant?: string | null;
   } | null;
+  // Click-to-WhatsApp ad referral (Facebook/Instagram ads)
+  ad_reply?: {
+    source?: string | null;
+    headline?: string | null;
+    body?: string | null;
+    source_url?: string | null;
+    source_type?: string | null;
+    source_id?: string | null;
+    media_type?: string | null;
+    thumbnail_url?: string | null;
+    ctwa_clid?: string | null;
+  } | null;
 }
+
 
 export const useConversations = () => {
   const { user } = useAuth();
