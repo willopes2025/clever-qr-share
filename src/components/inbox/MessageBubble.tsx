@@ -186,7 +186,12 @@ const MessageBubbleComponent = ({ message, isOptimistic, instancePhoneNumber, on
             isFailed && "border border-red-500/30"
           )}
         >
+          {message.ad_reply && (message.ad_reply.headline || message.ad_reply.source_url || message.ad_reply.thumbnail_url) && (
+            <AdReplyCard adReply={message.ad_reply} isOutbound={isOutbound} />
+          )}
+
           {message.quoted_message && (message.quoted_message.content || message.quoted_message.whatsapp_message_id) && (
+
             <div
               className={cn(
                 "mb-1 rounded-md px-2 py-1.5 border-l-4 text-[12.5px] leading-snug",
