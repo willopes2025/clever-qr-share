@@ -3788,6 +3788,7 @@ export type Database = {
       }
       inbox_messages: {
         Row: {
+          ad_reply: Json | null
           content: string
           conversation_id: string
           created_at: string
@@ -3815,6 +3816,7 @@ export type Database = {
           whatsapp_message_id: string | null
         }
         Insert: {
+          ad_reply?: Json | null
           content: string
           conversation_id: string
           created_at?: string
@@ -3842,6 +3844,7 @@ export type Database = {
           whatsapp_message_id?: string | null
         }
         Update: {
+          ad_reply?: Json | null
           content?: string
           conversation_id?: string
           created_at?: string
