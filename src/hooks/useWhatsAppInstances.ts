@@ -99,8 +99,24 @@ export const useWhatsAppInstances = () => {
         body: { instanceName, forceRecreate, isNotificationOnly },
         headers: await requireAuthHeaders(),
       });
-      if (error) throw error;
-      if (data.error) {
+      if (error) {
+        // Tenta extrair a mensagem real do corpo da resposta (non-2xx)
+        let parsed: { error?: string; code?: string; instanceName?: string } | null = null;
+        try {
+          const ctx = (error as unknown as { context?: Response }).context;
+          if (ctx && typeof ctx.json === 'function') {
+            parsed = await ctx.clone().json();
+          }
+        } catch { /* ignore */ }
+        if (parsed?.error) {
+          const customError = new Error(parsed.error) as Error & { code?: string; instanceName?: string };
+          customError.code = parsed.code;
+          customError.instanceName = parsed.instanceName;
+          throw customError;
+        }
+        throw error;
+      }
+      if (data?.error) {
         const customError = new Error(data.error) as Error & { code?: string; instanceName?: string };
         customError.code = data.code;
         customError.instanceName = data.instanceName;
