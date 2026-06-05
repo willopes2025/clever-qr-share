@@ -2091,9 +2091,11 @@ async function handleMessagesUpdate(supabase: any, data: any) {
   
   const statusUpper = String(statusString).toUpperCase();
   
+  let failReason: string | null = null;
   switch (statusUpper) {
     case 'ERROR':
       statusText = 'failed';
+      failReason = 'WhatsApp rejeitou a mensagem. Verifique a conexão e a qualidade do chip (possível restrição/banimento temporário).';
       break;
     case 'PENDING':
       statusText = 'pending';
@@ -2124,6 +2126,7 @@ async function handleMessagesUpdate(supabase: any, data: any) {
   const updateData: any = { status: statusText };
   if (delivered_at) updateData.delivered_at = delivered_at;
   if (read_at) updateData.read_at = read_at;
+  if (failReason) updateData.error_message = failReason;
 
   // Primary match: by whatsapp_message_id (the WhatsApp wire ID like 3EB0...)
   let updated: any[] | null = null;
