@@ -2118,26 +2118,40 @@ async function handleMessagesUpdate(supabase: any, data: any) {
       else console.log('Unknown status value:', statusString);
   }
 
-  console.log(`Updating message ${messageId} to status ${statusText}`);
+  console.log(`Updating message (whatsappId=${whatsappId}, evoId=${evolutionInternalId}) to status ${statusText}`);
 
   // deno-lint-ignore no-explicit-any
   const updateData: any = { status: statusText };
   if (delivered_at) updateData.delivered_at = delivered_at;
   if (read_at) updateData.read_at = read_at;
 
-  // Update by whatsapp_message_id
-  const { data: updated, error } = await supabase
-    .from('inbox_messages')
-    .update(updateData)
-    .eq('whatsapp_message_id', messageId)
-    .select('id');
+  // Primary match: by whatsapp_message_id (the WhatsApp wire ID like 3EB0...)
+  let updated: any[] | null = null;
+  if (whatsappId) {
+    const { data: u1, error: e1 } = await supabase
+      .from('inbox_messages')
+      .update(updateData)
+      .eq('whatsapp_message_id', whatsappId)
+      .select('id');
+    if (e1) console.error('Error updating by whatsappId:', e1);
+    updated = u1;
+  }
 
-  if (error) {
-    console.error('Error updating message status:', error);
-  } else if (updated && updated.length > 0) {
-    console.log(`Message ${messageId} updated to ${statusText} successfully`);
+  // Fallback: some legacy rows may have stored the Evolution cuid instead
+  if ((!updated || updated.length === 0) && evolutionInternalId) {
+    const { data: u2, error: e2 } = await supabase
+      .from('inbox_messages')
+      .update(updateData)
+      .eq('whatsapp_message_id', evolutionInternalId)
+      .select('id');
+    if (e2) console.error('Error updating by evolutionInternalId:', e2);
+    updated = u2;
+  }
+
+  if (updated && updated.length > 0) {
+    console.log(`Message updated to ${statusText} successfully (matched ${updated.length} row)`);
   } else {
-    console.log(`Message ${messageId} not found in database`);
+    console.log(`Message not found in database (whatsappId=${whatsappId}, evoId=${evolutionInternalId})`);
   }
 }
 
