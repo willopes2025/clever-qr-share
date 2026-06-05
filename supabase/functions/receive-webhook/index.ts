@@ -1472,6 +1472,37 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       console.error('Error extracting quoted message:', e);
     }
 
+    // Extract Click-to-WhatsApp ad referral (externalAdReply from Meta ads)
+    let adReply: any = null;
+    try {
+      const ctxInfoAd =
+        message?.extendedTextMessage?.contextInfo ||
+        message?.imageMessage?.contextInfo ||
+        message?.videoMessage?.contextInfo ||
+        message?.audioMessage?.contextInfo ||
+        message?.documentMessage?.contextInfo ||
+        message?.contextInfo ||
+        msg?.contextInfo ||
+        data?.contextInfo;
+      const ear = ctxInfoAd?.externalAdReply;
+      if (ear && (ear.title || ear.sourceUrl || ear.thumbnailUrl || ear.body)) {
+        adReply = {
+          source: 'ctwa',
+          headline: ear.title ?? null,
+          body: ear.body ?? null,
+          source_url: ear.sourceUrl ?? null,
+          source_type: ear.sourceType ?? null,
+          source_id: ear.sourceId ?? null,
+          media_type: ear.mediaType ?? null,
+          thumbnail_url: ear.thumbnailUrl ?? null,
+          ctwa_clid: ear.ctwaClid ?? ctxInfoAd?.ctwaClid ?? null,
+        };
+        console.log('[CTWA] Detected externalAdReply:', JSON.stringify(adReply));
+      }
+    } catch (e) {
+      console.error('Error extracting externalAdReply:', e);
+    }
+
     // Insert message with media support
     // Note: direction must be 'inbound' or 'outbound' per database constraint
     // Uses upsert with onConflict on whatsapp_message_id to prevent duplicates from race conditions
@@ -1489,7 +1520,9 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         sent_at: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
         sent_via_instance_id: instanceId,
         quoted_message: quotedMessage,
+        ad_reply: adReply,
       });
+
 
     // Check if error is a unique constraint violation (duplicate whatsapp_message_id)
     if (msgError && (msgError.code === '23505' || msgError.message?.includes('unique') || msgError.message?.includes('duplicate'))) {
