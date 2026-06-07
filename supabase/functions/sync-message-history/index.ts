@@ -168,14 +168,20 @@ Deno.serve(async (req) => {
     let totalContacts = 0;
     let totalConversations = 0;
     let chatsWithErrors = 0;
+    let chatsSkippedJid = 0;
+    let chatsSkippedGroup = 0;
+    let chatsSkippedRegex = 0;
+    let chatsProcessed = 0;
+    let sampleLogged = false;
 
     for (const chat of chats) {
       const remoteJid = chat.id || chat.remoteJid;
-      if (!remoteJid) continue;
-      if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') continue;
+      if (!remoteJid) { chatsSkippedJid++; continue; }
+      if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') { chatsSkippedGroup++; continue; }
 
       const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
-      if (!/^\d{8,15}$/.test(phone)) continue;
+      if (!/^\d{8,15}$/.test(phone)) { chatsSkippedRegex++; continue; }
+      chatsProcessed++;
 
       try {
         const messagesResponse = await fetch(
@@ -189,6 +195,11 @@ Deno.serve(async (req) => {
 
         if (!messagesResponse.ok) {
           chatsWithErrors++;
+          if (!sampleLogged) {
+            const errTxt = await messagesResponse.text();
+            console.error(`[SYNC] findMessages ${phone} status=${messagesResponse.status} body=${errTxt.substring(0, 400)}`);
+            sampleLogged = true;
+          }
           continue;
         }
 
