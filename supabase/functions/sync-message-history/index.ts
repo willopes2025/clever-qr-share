@@ -398,7 +398,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[SYNC] Done. messages=${totalMessages} contacts=${totalContacts} conv=${totalConversations} errors=${chatsWithErrors} source=${chatsSource}`);
+    console.log(`[SYNC] Done. messages=${totalMessages} contacts=${totalContacts} conv=${totalConversations} errors=${chatsWithErrors} processed=${chatsProcessed} skippedJid=${chatsSkippedJid} skippedGroup=${chatsSkippedGroup} skippedRegex=${chatsSkippedRegex} source=${chatsSource}`);
+    if (chats.length > 0) {
+      const first = chats[0];
+      console.log(`[SYNC] Chat sample: ${JSON.stringify(first).substring(0, 300)}`);
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -410,6 +414,10 @@ Deno.serve(async (req) => {
         contacts: totalContacts,
         conversations: totalConversations,
         chatsWithErrors,
+        chatsProcessed,
+        chatsSkippedJid,
+        chatsSkippedGroup,
+        chatsSkippedRegex,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
