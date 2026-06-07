@@ -101,13 +101,17 @@ Deno.serve(async (req) => {
         if (contactsResponse.ok) {
           const data = await contactsResponse.json();
           if (Array.isArray(data)) {
-            chats = (data as ChatLike[]).map((c) => ({
-              id: c.id || c.remoteJid,
-              remoteJid: c.id || c.remoteJid,
-              name: c.pushName || c.name,
-            }));
+            // Evolution `id` is an internal cuid. Real WhatsApp JID lives in `remoteJid`/`owner`/`wuid`/`jid`.
+            chats = (data as Array<Record<string, unknown>>)
+              .map((c) => {
+                const candidates = [c.remoteJid, c.owner, c.wuid, c.jid, c.id]
+                  .filter((v): v is string => typeof v === 'string');
+                const jid = candidates.find((v) => v.includes('@')) || '';
+                return { id: jid, remoteJid: jid, name: (c.pushName as string) || (c.name as string) || undefined };
+              })
+              .filter((c) => !!c.remoteJid);
             chatsSource = 'findContacts';
-            console.log(`[SYNC] [B] findContacts returned ${chats.length} entries`);
+            console.log(`[SYNC] [B] findContacts returned ${chats.length} entries with valid JID`);
           }
         } else {
           const errorText = await contactsResponse.text();
