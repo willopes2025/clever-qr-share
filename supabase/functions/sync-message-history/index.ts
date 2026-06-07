@@ -193,14 +193,31 @@ Deno.serve(async (req) => {
         }
 
         const messagesData = await messagesResponse.json();
-        const messages = messagesData.messages || messagesData || [];
-        if (!Array.isArray(messages) || messages.length === 0) continue;
+        // Evolution responses vary by version:
+        //   - older: array directly, or { messages: [...] }
+        //   - newer: { messages: { records: [...], total, currentPage, ... } }
+        let messages: any[] = [];
+        if (Array.isArray(messagesData)) {
+          messages = messagesData;
+        } else if (Array.isArray(messagesData?.messages)) {
+          messages = messagesData.messages;
+        } else if (Array.isArray(messagesData?.messages?.records)) {
+          messages = messagesData.messages.records;
+        } else if (Array.isArray(messagesData?.records)) {
+          messages = messagesData.records;
+        }
+
+        if (messages.length === 0) {
+          console.log(`[SYNC] No messages for ${phone}. Sample keys=${Object.keys(messagesData || {}).join(',')}`);
+          continue;
+        }
 
         const filteredMessages = messages.filter((msg: { messageTimestamp?: number }) => {
           const timestamp = msg.messageTimestamp || 0;
           return timestamp >= startTimestamp;
         });
 
+        console.log(`[SYNC] ${phone}: total=${messages.length} after-date=${filteredMessages.length}`);
         if (filteredMessages.length === 0) continue;
 
         // Contact
