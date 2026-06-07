@@ -101,13 +101,17 @@ Deno.serve(async (req) => {
         if (contactsResponse.ok) {
           const data = await contactsResponse.json();
           if (Array.isArray(data)) {
-            chats = (data as ChatLike[]).map((c) => ({
-              id: c.id || c.remoteJid,
-              remoteJid: c.id || c.remoteJid,
-              name: c.pushName || c.name,
-            }));
+            // Evolution `id` is an internal cuid. Real WhatsApp JID lives in `remoteJid`/`owner`/`wuid`/`jid`.
+            chats = (data as Array<Record<string, unknown>>)
+              .map((c) => {
+                const candidates = [c.remoteJid, c.owner, c.wuid, c.jid, c.id]
+                  .filter((v): v is string => typeof v === 'string');
+                const jid = candidates.find((v) => v.includes('@')) || '';
+                return { id: jid, remoteJid: jid, name: (c.pushName as string) || (c.name as string) || undefined };
+              })
+              .filter((c) => !!c.remoteJid);
             chatsSource = 'findContacts';
-            console.log(`[SYNC] [B] findContacts returned ${chats.length} entries`);
+            console.log(`[SYNC] [B] findContacts returned ${chats.length} entries with valid JID`);
           }
         } else {
           const errorText = await contactsResponse.text();
@@ -168,14 +172,20 @@ Deno.serve(async (req) => {
     let totalContacts = 0;
     let totalConversations = 0;
     let chatsWithErrors = 0;
+    let chatsSkippedJid = 0;
+    let chatsSkippedGroup = 0;
+    let chatsSkippedRegex = 0;
+    let chatsProcessed = 0;
+    let sampleLogged = false;
 
     for (const chat of chats) {
       const remoteJid = chat.id || chat.remoteJid;
-      if (!remoteJid) continue;
-      if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') continue;
+      if (!remoteJid) { chatsSkippedJid++; continue; }
+      if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') { chatsSkippedGroup++; continue; }
 
       const phone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
-      if (!/^\d{8,15}$/.test(phone)) continue;
+      if (!/^\d{8,15}$/.test(phone)) { chatsSkippedRegex++; continue; }
+      chatsProcessed++;
 
       try {
         const messagesResponse = await fetch(
@@ -189,18 +199,40 @@ Deno.serve(async (req) => {
 
         if (!messagesResponse.ok) {
           chatsWithErrors++;
+          if (!sampleLogged) {
+            const errTxt = await messagesResponse.text();
+            console.error(`[SYNC] findMessages ${phone} status=${messagesResponse.status} body=${errTxt.substring(0, 400)}`);
+            sampleLogged = true;
+          }
           continue;
         }
 
         const messagesData = await messagesResponse.json();
-        const messages = messagesData.messages || messagesData || [];
-        if (!Array.isArray(messages) || messages.length === 0) continue;
+        // Evolution responses vary by version:
+        //   - older: array directly, or { messages: [...] }
+        //   - newer: { messages: { records: [...], total, currentPage, ... } }
+        let messages: any[] = [];
+        if (Array.isArray(messagesData)) {
+          messages = messagesData;
+        } else if (Array.isArray(messagesData?.messages)) {
+          messages = messagesData.messages;
+        } else if (Array.isArray(messagesData?.messages?.records)) {
+          messages = messagesData.messages.records;
+        } else if (Array.isArray(messagesData?.records)) {
+          messages = messagesData.records;
+        }
+
+        if (messages.length === 0) {
+          console.log(`[SYNC] No messages for ${phone}. Sample keys=${Object.keys(messagesData || {}).join(',')}`);
+          continue;
+        }
 
         const filteredMessages = messages.filter((msg: { messageTimestamp?: number }) => {
           const timestamp = msg.messageTimestamp || 0;
           return timestamp >= startTimestamp;
         });
 
+        console.log(`[SYNC] ${phone}: total=${messages.length} after-date=${filteredMessages.length}`);
         if (filteredMessages.length === 0) continue;
 
         // Contact
@@ -370,7 +402,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[SYNC] Done. messages=${totalMessages} contacts=${totalContacts} conv=${totalConversations} errors=${chatsWithErrors} source=${chatsSource}`);
+    console.log(`[SYNC] Done. messages=${totalMessages} contacts=${totalContacts} conv=${totalConversations} errors=${chatsWithErrors} processed=${chatsProcessed} skippedJid=${chatsSkippedJid} skippedGroup=${chatsSkippedGroup} skippedRegex=${chatsSkippedRegex} source=${chatsSource}`);
+    if (chats.length > 0) {
+      const first = chats[0];
+      console.log(`[SYNC] Chat sample: ${JSON.stringify(first).substring(0, 300)}`);
+    }
 
     return new Response(JSON.stringify({
       success: true,
@@ -382,6 +418,10 @@ Deno.serve(async (req) => {
         contacts: totalContacts,
         conversations: totalConversations,
         chatsWithErrors,
+        chatsProcessed,
+        chatsSkippedJid,
+        chatsSkippedGroup,
+        chatsSkippedRegex,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
