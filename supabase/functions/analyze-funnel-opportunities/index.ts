@@ -158,45 +158,65 @@ serve(async (req) => {
       if (eligibleDeals.length) {
         const contactIds = [...new Set(eligibleDeals.map((deal: any) => deal.contact_id).filter(Boolean))];
         const contactChunks = chunkArray(contactIds, CONTACT_CHUNK_SIZE);
-        const conversationResponses = await Promise.all(
+
+        // Find contacts that actually REPLIED (inbound message) within the period.
+        // Using conversations.last_message_at would include leads where only the
+        // seller sent a message — that's the bug we're fixing.
+        const inboundResponses = await Promise.all(
           contactChunks.map((contactChunk) =>
             supabaseAdmin
-              .from("conversations")
-              .select("id, contact_id, last_message_at")
-              .in("contact_id", contactChunk)
-              .gte("last_message_at", sinceDate)
-              .order("last_message_at", { ascending: false })
+              .from("inbox_messages")
+              .select("conversation_id, created_at, conversations!inner(contact_id)")
+              .eq("direction", "inbound")
+              .gte("created_at", sinceDate)
+              .in("conversations.contact_id", contactChunk)
+              .order("created_at", { ascending: false })
+              .limit(2000)
           )
         );
 
         const contactConversationMap: Record<string, string> = {};
+        const contactsWithReply = new Set<string>();
         const recentConversationIdSet = new Set<string>();
-        for (const response of conversationResponses) {
+        for (const response of inboundResponses) {
           if (response.error) throw response.error;
-          for (const conversation of response.data || []) {
-            recentConversationIdSet.add(conversation.id);
-            if (!contactConversationMap[conversation.contact_id]) {
-              contactConversationMap[conversation.contact_id] = conversation.id;
+          for (const row of response.data || []) {
+            const contactId = (row as any).conversations?.contact_id;
+            if (!contactId) continue;
+            contactsWithReply.add(contactId);
+            recentConversationIdSet.add(row.conversation_id);
+            if (!contactConversationMap[contactId]) {
+              contactConversationMap[contactId] = row.conversation_id;
             }
           }
         }
 
+        const sinceMs = new Date(sinceDate).getTime();
         for (const deal of eligibleDeals) {
           if (scannedEligibleDealIds.has(deal.id)) continue;
           scannedEligibleDealIds.add(deal.id);
 
+          const contactReplied = contactsWithReply.has(deal.contact_id);
           const hasRecentDealConversation = typeof deal.conversation_id === "string" && recentConversationIdSet.has(deal.conversation_id);
-          const effectiveConversationId = hasRecentDealConversation
-            ? deal.conversation_id
-            : contactConversationMap[deal.contact_id] || null;
+          const effectiveConversationId = contactReplied
+            ? (hasRecentDealConversation ? deal.conversation_id : contactConversationMap[deal.contact_id] || null)
+            : null;
+
           const enrichedDeal = {
             ...deal,
             effective_conversation_id: effectiveConversationId,
+            contact_replied: contactReplied,
           };
 
-          if (effectiveConversationId) {
+          if (contactReplied) {
             prioritizedDeals.push(enrichedDeal);
           } else {
+            // When "include no conversation" is OFF, skip stale leads entirely:
+            // no inbound reply in the window AND deal created before the window.
+            const dealCreatedAt = deal.created_at ? new Date(deal.created_at).getTime() : 0;
+            if (!includeNoConversation && dealCreatedAt < sinceMs) {
+              continue;
+            }
             fallbackDeals.push(enrichedDeal);
           }
         }
