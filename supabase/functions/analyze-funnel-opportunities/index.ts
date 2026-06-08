@@ -338,7 +338,8 @@ serve(async (req) => {
     const analyzableDeals = deals.filter((deal: any) => {
       const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
       if (!includeNoConversation) {
-        return messages.length > 0;
+        // Require at least one inbound reply in the window
+        return messages.some((m: any) => m.direction === "inbound");
       }
       return true;
     });
