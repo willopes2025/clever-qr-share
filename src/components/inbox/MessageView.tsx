@@ -1558,6 +1558,7 @@ export const MessageView = ({ conversation, onBack, onOpenRightPanel, onMarkAsRe
                         provider={originInfo.provider}
                         label={originInfo.label}
                         phoneNumber={originInfo.phone}
+                        originKey={currentOrigin}
                       />
                     )}
                     <MessageBubble

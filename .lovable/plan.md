@@ -1,33 +1,34 @@
-## Problema
+## Objetivo
 
-Na `analyze-funnel-opportunities`, dois bugs fazem a análise não respeitar as configurações:
+Já existe um cabeçalho que aparece entre mensagens quando o número/instância muda no chat (`ConversationCardHeader` em `MessageView.tsx`, linha ~1557). Hoje ele aparece sempre verde (Evolution) ou azul (Meta). Vamos:
 
-### 1. Leads sem resposta entram como "respondidos"
-O filtro de "lead com conversa no período" usa `conversations.last_message_at >= sinceDate`. Mas `last_message_at` é atualizado para qualquer direção — inclusive mensagens que o **vendedor** enviou. Resultado: um lead onde só o vendedor mandou mensagem (sem nenhuma resposta) é classificado como `prioritizedDeals` (com conversa) e analisado como se tivesse interagido. Não existe nenhuma checagem de `direction = 'inbound'`.
+1. Dar a esse divisor um visual de **linha separadora suave animada**, e não só um badge isolado.
+2. Atribuir uma **cor única e estável por instância** (derivada do `instance_id` / `meta_phone_number_id`), para que cada número tenha sua própria cor — facilitando a percepção de qual instância está sendo usada.
 
-### 2. Período configurado não é aplicado ao deal
-- O scan de deals em `funnel_deals` é ordenado por `created_at desc` sobre **todos** os abertos do funil (até 20 páginas × 1000), sem nenhum corte por `opportunity_message_days`. Então deals antiquíssimos sem qualquer atividade entram na pool quando `includeNoConversation` está ligado.
-- Mesmo quando `includeNoConversation = false`, a checagem (`messages.length > 0`) só olha o array de mensagens (limitado a 40 últimas) mas como o `last_message_at` recente já marcou a conversa como elegível, deals sem resposta inbound passam.
+Mudança puramente visual no inbox. Sem alterações em backend, lógica de envio, dados ou esquema.
 
-### 3. Rótulo de direção errado
-No `dealsContext`, o código compara `message.direction === "outgoing"`, mas o banco usa `outbound`/`inbound`. Todas as mensagens vão pra IA rotuladas como `[Cliente]`, distorcendo o score.
+## Mudanças
 
----
+### 1. `src/components/inbox/ConversationCard.tsx` (`ConversationCardHeader`)
+- Adicionar prop opcional `originKey: string` (ex.: `evo:<instance_id>` ou `meta:<phone_number_id>`) usada para gerar cor estável.
+- Trocar o layout: em vez de só um "pill" central, renderizar uma **linha horizontal suave** atravessando a largura, com o pill (ícone + label + telefone) centralizado sobre ela (padrão do `ContactSeparator`/`DateSeparator`).
+- Aplicar animação de entrada `animate-fade-in` (utilitário já existente no projeto) para o efeito suave.
+- Gerar cor estável por instância via hash do `originKey` mapeado para uma paleta de ~10 tokens (emerald, blue, violet, amber, rose, cyan, fuchsia, lime, orange, teal). Para Meta manter o tom azul por padrão (continua sendo "API oficial"), mas variando levemente entre números Meta diferentes via mesmo esquema de hash. Usar classes Tailwind estáticas (mapa pré-definido para evitar purge dinâmico).
+- A linha (`border-t`) usa a cor do divisor com baixa opacidade da cor escolhida; o pill usa fundo `cor/10`, borda `cor/20`, texto `cor-600 dark:cor-400`, mantendo o estilo atual.
 
-## Correção (arquivo único: `supabase/functions/analyze-funnel-opportunities/index.ts`)
+### 2. `src/components/inbox/MessageView.tsx`
+- Passar `originKey={currentOrigin}` para `<ConversationCardHeader>` (linha ~1557). Nenhuma outra alteração.
 
-1. **Substituir a checagem de "conversa recente" por "resposta inbound recente"**
-   - Em vez de buscar `conversations` por `last_message_at`, buscar `inbox_messages` com `direction = 'inbound'` e `created_at >= sinceDate` para os `contact_id` da página.
-   - Construir `contactsWithReply: Set<contactId>` e `contactConversationMap` a partir desse resultado (conversation_id da mensagem inbound mais recente).
-   - Deal vai para `prioritizedDeals` somente se o contato respondeu no período. Caso contrário, `fallbackDeals`.
+### Paleta (mapa fixo)
 
-2. **Aplicar o período ao deal quando `includeNoConversation = false`**
-   - Quando `includeNoConversation` for `false`: ignorar `fallbackDeals` por completo (já é hoje, mas reforçar) e exigir `messages.filter(m => m.direction === 'inbound').length > 0` em `analyzableDeals`.
-   - Adicional: descartar deals cujo `created_at < sinceDate` E sem resposta no período, evitando leads antigos abandonados.
+```text
+emerald | blue | violet | amber | rose | cyan | fuchsia | lime | orange | teal
+```
 
-3. **Corrigir rótulo de direção**
-   - `message.direction === 'outbound' ? 'Vendedor' : 'Cliente'`.
+Função `getOriginColor(originKey)`:
+- hash simples (sum char codes) % paleta.length → índice estável.
+- retorna objeto `{ border, bg, text, line }` com classes Tailwind pré-escritas.
 
-4. **Log adicional** com contagens de `withReply` vs `withoutReply` para confirmar comportamento.
-
-Nenhuma mudança de schema, UI ou outras edge functions. Após o deploy, a próxima análise vai considerar somente leads que efetivamente responderam dentro de `opportunity_message_days` (e respeitar o toggle de "incluir sem conversa").
+### Não muda
+- Cores do `ProviderBadge` (badges pequenos na lista de conversas) ficam como estão para não confundir o significado verde=Lite / azul=API ali.
+- Nenhuma alteração em lógica de envio, instâncias, automação ou banco.
