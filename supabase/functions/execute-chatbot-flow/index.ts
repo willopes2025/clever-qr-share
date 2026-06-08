@@ -1597,6 +1597,7 @@ Deno.serve(async (req: Request) => {
                         contactName,
                         contactPhone,
                         message: notifyMessage,
+                        flowName,
                       },
                       recipientUserId: notifyUserId,
                     }),
