@@ -245,11 +245,13 @@ Deno.serve(async (req: Request) => {
       console.log('[FLOW] Failed to load deal context:', e);
     }
 
-    // Load flow nodes and edges
-    const [{ data: nodes }, { data: edges }] = await Promise.all([
+    // Load flow nodes, edges and flow metadata (name)
+    const [{ data: nodes }, { data: edges }, { data: flowMeta }] = await Promise.all([
       supabase.from('chatbot_flow_nodes').select('*').eq('flow_id', flowId).order('created_at'),
       supabase.from('chatbot_flow_edges').select('*').eq('flow_id', flowId),
+      supabase.from('chatbot_flows').select('name').eq('id', flowId).maybeSingle(),
     ]);
+    const flowName: string = (flowMeta?.name as string) || '';
 
     if (!nodes || nodes.length === 0) {
       return new Response(JSON.stringify({ error: 'Flow has no nodes' }), {
@@ -1595,6 +1597,7 @@ Deno.serve(async (req: Request) => {
                         contactName,
                         contactPhone,
                         message: notifyMessage,
+                        flowName,
                       },
                       recipientUserId: notifyUserId,
                     }),

@@ -119,6 +119,9 @@ Deno.serve(async (req: Request) => {
       instance_disconnect: `⚠️ Instância *${data.instanceName}* desconectou`,
       internal_chat: `💬 *[Chat Interno - ${data.contactName || 'Conversa'}]*\nDe: *${data.senderName}*\n\n${data.message}\n\n_Responda esta mensagem para enviar ao chat interno._`,
       automation_notify: data.message || `🔔 Notificação de automação para *${data.contactName || 'contato'}*`,
+      chatbot_notify: data.message
+        ? `${data.flowName ? `🤖 *Chatbot: ${data.flowName}*\n\n` : ''}${data.message}`
+        : `🤖 Notificação do chatbot${data.flowName ? ` *${data.flowName}*` : ''}${data.contactName ? ` — contato *${data.contactName}*` : ''}`,
     };
 
     const message = notificationMessages[type] || `Notificação: ${type}`;
