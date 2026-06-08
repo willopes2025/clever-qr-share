@@ -358,7 +358,7 @@ serve(async (req) => {
       const contact = contactMap[deal.contact_id] || {};
       const messages = deal.effective_conversation_id ? messagesMap[deal.effective_conversation_id] || [] : [];
       const messagesText = messages
-        .map((message: any) => `[${message.direction === "outgoing" ? "Vendedor" : "Cliente"}]: ${message.content || "(mídia)"}`)
+        .map((message: any) => `[${message.direction === "outbound" ? "Vendedor" : "Cliente"}]: ${message.content || "(mídia)"}`)
         .join("\n");
 
       const customFields: Record<string, any> = {};
