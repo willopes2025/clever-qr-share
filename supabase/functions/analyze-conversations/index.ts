@@ -202,8 +202,6 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) throw new Error('No authorization header');
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) throw new Error('Invalid token');
 
     const body = await req.json();
     const {
@@ -214,7 +212,18 @@ Deno.serve(async (req) => {
       funnelIds = [],
       includeCampaigns = true,
       includeSla = true,
+      _creatorUserId,
     } = body;
+
+    // Allow internal service-role callers (e.g. scheduled-analysis) to act as a given user.
+    let user: { id: string };
+    if (token === supabaseServiceKey && _creatorUserId) {
+      user = { id: _creatorUserId };
+    } else {
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !authUser) throw new Error('Invalid token');
+      user = authUser;
+    }
 
     if (!periodStart || !periodEnd) throw new Error('periodStart and periodEnd are required');
 

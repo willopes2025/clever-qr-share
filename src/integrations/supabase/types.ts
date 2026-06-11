@@ -5148,6 +5148,68 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_analysis_reports: {
+        Row: {
+          created_at: string
+          frequency: string
+          id: string
+          include_campaigns: boolean
+          include_sla: boolean
+          is_active: boolean
+          last_run_at: string | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          recipient_user_ids: string[]
+          send_time: string
+          transcribe_audios: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          frequency: string
+          id?: string
+          include_campaigns?: boolean
+          include_sla?: boolean
+          is_active?: boolean
+          last_run_at?: string | null
+          name: string
+          next_run_at?: string
+          organization_id: string
+          recipient_user_ids?: string[]
+          send_time?: string
+          transcribe_audios?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          frequency?: string
+          id?: string
+          include_campaigns?: boolean
+          include_sla?: boolean
+          is_active?: boolean
+          last_run_at?: string | null
+          name?: string
+          next_run_at?: string
+          organization_id?: string
+          recipient_user_ids?: string[]
+          send_time?: string
+          transcribe_audios?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_analysis_reports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_automation_executions: {
         Row: {
           automation_id: string
