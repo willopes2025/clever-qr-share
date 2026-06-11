@@ -41,10 +41,23 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
   const visibleFields = fields.filter(f => !["heading", "paragraph", "divider"].includes(f.field_type));
 
+  const DATE_FIELD_TYPES = ["date", "datetime", "scheduling", "datetime-local", "time"];
+  const isDateLikeField = (field?: FormField) =>
+    !!field && DATE_FIELD_TYPES.includes(field.field_type);
+
   const isDateColumn = (columnId: string): boolean => {
     if (columnId === "date") return true;
     const field = visibleFields.find(f => f.id === columnId);
-    return field?.field_type === "date" || field?.field_type === "datetime";
+    return isDateLikeField(field);
+  };
+
+  const extractDateString = (raw: any): string | null => {
+    if (!raw) return null;
+    if (typeof raw === "string") return raw;
+    if (typeof raw === "object") {
+      return raw.datetime || raw.date || raw.value || raw.start || null;
+    }
+    return null;
   };
 
   const getDateValue = (sub: any, columnId: string): Date | null => {
@@ -55,24 +68,28 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     const field = visibleFields.find(f => f.id === columnId);
     if (!field) return null;
     const raw = sub.data?.[columnId] ?? sub.data?.[field.label];
-    if (!raw || typeof raw !== "string") return null;
-    const datePart = raw.split("T")[0].split(" ")[0];
+    const str = extractDateString(raw);
+    if (!str) return null;
+    const datePart = str.split("T")[0].split(" ")[0];
     const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return null;
     return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   };
 
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
-    if (rawValue === undefined || rawValue === null) return "-";
-    if ((field.field_type === "date" || field.field_type === "datetime") && typeof rawValue === "string" && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
-      const [datePart, timePartRaw] = rawValue.includes("T") ? rawValue.split("T") : rawValue.split(" ");
-      const [y, m, d] = datePart.split("-");
-      const formatted = `${d}/${m}/${y}`;
-      if (field.field_type === "datetime" && timePartRaw) {
-        const time = timePartRaw.slice(0, 5);
-        return `${formatted} ${time}`;
+    if (rawValue === undefined || rawValue === null || rawValue === "") return "-";
+    if (isDateLikeField(field)) {
+      const str = extractDateString(rawValue);
+      if (str && str.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const [datePart, timePartRaw] = str.includes("T") ? str.split("T") : str.split(" ");
+        const [y, m, d] = datePart.split("-");
+        const formatted = `${d}/${m}/${y}`;
+        if (timePartRaw) {
+          const time = timePartRaw.slice(0, 5);
+          return `${formatted} ${time}`;
+        }
+        return formatted;
       }
-      return formatted;
     }
     const selectTypes = ["select", "multi_select", "radio", "checkbox"];
     if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
