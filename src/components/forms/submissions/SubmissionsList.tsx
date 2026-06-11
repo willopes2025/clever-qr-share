@@ -44,7 +44,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
   const isDateColumn = (columnId: string): boolean => {
     if (columnId === "date") return true;
     const field = visibleFields.find(f => f.id === columnId);
-    return field?.field_type === "date";
+    return field?.field_type === "date" || field?.field_type === "datetime";
   };
 
   const getDateValue = (sub: any, columnId: string): Date | null => {
@@ -56,7 +56,7 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
     if (!field) return null;
     const raw = sub.data?.[columnId] ?? sub.data?.[field.label];
     if (!raw || typeof raw !== "string") return null;
-    const datePart = raw.split("T")[0];
+    const datePart = raw.split("T")[0].split(" ")[0];
     const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return null;
     return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
@@ -64,10 +64,15 @@ export const SubmissionsList = ({ formId, fields }: SubmissionsListProps) => {
 
   const resolveDisplayValue = (field: FormField, rawValue: any): string => {
     if (rawValue === undefined || rawValue === null) return "-";
-    if (field.field_type === "date" && typeof rawValue === "string" && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
-      const datePart = rawValue.split("T")[0];
+    if ((field.field_type === "date" || field.field_type === "datetime") && typeof rawValue === "string" && rawValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const [datePart, timePartRaw] = rawValue.includes("T") ? rawValue.split("T") : rawValue.split(" ");
       const [y, m, d] = datePart.split("-");
-      return `${d}/${m}/${y}`;
+      const formatted = `${d}/${m}/${y}`;
+      if (field.field_type === "datetime" && timePartRaw) {
+        const time = timePartRaw.slice(0, 5);
+        return `${formatted} ${time}`;
+      }
+      return formatted;
     }
     const selectTypes = ["select", "multi_select", "radio", "checkbox"];
     if (selectTypes.includes(field.field_type) && field.options && Array.isArray(field.options)) {
