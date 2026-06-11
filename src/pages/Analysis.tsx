@@ -209,6 +209,8 @@ export default function Analysis() {
           </CardContent>
         </Card>
 
+        <ScheduledReportsCard />
+
         {/* Reports List */}
         <Card>
           <CardHeader>
