@@ -163,7 +163,7 @@ export function ScheduledAnalysisDialog({ open, onOpenChange, schedule }: Props)
                       />
                       <span className="flex-1">
                         {m.profile?.full_name || m.email || "—"}
-                        <span className="text-muted-foreground ml-2">{m.phone}</span>
+                        <span className="text-muted-foreground ml-2">{(m as any).phone || "sem telefone"}</span>
                       </span>
                     </label>
                   ))}
