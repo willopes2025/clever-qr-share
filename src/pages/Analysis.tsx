@@ -20,6 +20,7 @@ import { useSubscription, hasFeatureAccess } from '@/hooks/useSubscription';
 import { AnalysisScoreCard } from '@/components/analysis/AnalysisScoreCard';
 import { AnalysisReportDetail } from '@/components/analysis/AnalysisReportDetail';
 import { generateAnalysisPDF } from '@/lib/pdf-export';
+import { ScheduledReportsCard } from '@/components/analysis/ScheduledReportsCard';
 
 export default function Analysis() {
   const { reports, isLoading, isGenerating, generateReport, deleteReport } = useAnalysisReports();
