@@ -1,34 +1,76 @@
 ## Objetivo
 
-Já existe um cabeçalho que aparece entre mensagens quando o número/instância muda no chat (`ConversationCardHeader` em `MessageView.tsx`, linha ~1557). Hoje ele aparece sempre verde (Evolution) ou azul (Meta). Vamos:
+Permitir que o usuário configure, dentro da página **Análises**, o envio automático do relatório de atendimento em PDF via WhatsApp para um ou mais membros selecionados, com frequência **diária, a cada 7, 15 ou 30 dias**.
 
-1. Dar a esse divisor um visual de **linha separadora suave animada**, e não só um badge isolado.
-2. Atribuir uma **cor única e estável por instância** (derivada do `instance_id` / `meta_phone_number_id`), para que cada número tenha sua própria cor — facilitando a percepção de qual instância está sendo usada.
+## Onde fica a configuração
 
-Mudança puramente visual no inbox. Sem alterações em backend, lógica de envio, dados ou esquema.
+Novo card **"Relatórios Automáticos"** logo abaixo de "Gerar Novo Relatório" na página `src/pages/Analysis.tsx`. Mantém todo o fluxo concentrado num único lugar, sem precisar criar nova rota/sidebar.
 
-## Mudanças
+O card lista os agendamentos existentes e tem um botão "Novo agendamento" que abre um dialog.
 
-### 1. `src/components/inbox/ConversationCard.tsx` (`ConversationCardHeader`)
-- Adicionar prop opcional `originKey: string` (ex.: `evo:<instance_id>` ou `meta:<phone_number_id>`) usada para gerar cor estável.
-- Trocar o layout: em vez de só um "pill" central, renderizar uma **linha horizontal suave** atravessando a largura, com o pill (ícone + label + telefone) centralizado sobre ela (padrão do `ContactSeparator`/`DateSeparator`).
-- Aplicar animação de entrada `animate-fade-in` (utilitário já existente no projeto) para o efeito suave.
-- Gerar cor estável por instância via hash do `originKey` mapeado para uma paleta de ~10 tokens (emerald, blue, violet, amber, rose, cyan, fuchsia, lime, orange, teal). Para Meta manter o tom azul por padrão (continua sendo "API oficial"), mas variando levemente entre números Meta diferentes via mesmo esquema de hash. Usar classes Tailwind estáticas (mapa pré-definido para evitar purge dinâmico).
-- A linha (`border-t`) usa a cor do divisor com baixa opacidade da cor escolhida; o pill usa fundo `cor/10`, borda `cor/20`, texto `cor-600 dark:cor-400`, mantendo o estilo atual.
+## UX do agendamento
 
-### 2. `src/components/inbox/MessageView.tsx`
-- Passar `originKey={currentOrigin}` para `<ConversationCardHeader>` (linha ~1557). Nenhuma outra alteração.
+Dialog `ScheduledAnalysisDialog` com:
 
-### Paleta (mapa fixo)
+- **Nome do agendamento** (texto livre).
+- **Frequência**: Diário · A cada 7 dias · A cada 15 dias · A cada 30 dias.
+- **Horário de envio** (HH:MM, padrão 08:00, no fuso da organização).
+- **Destinatários** (multi-select de membros da organização — usa `useTeamMembers`).
+- **Escopo da análise**: mesma lógica do envio manual (incluir campanhas, SLA, transcrever áudios).
+- **Ativo / Pausado** (switch).
+
+Cada linha da lista mostra: nome, frequência, próximos disparos, destinatários, último envio + botões editar/pausar/excluir/"Enviar agora".
+
+## Modelo de dados (nova tabela)
 
 ```text
-emerald | blue | violet | amber | rose | cyan | fuchsia | lime | orange | teal
+scheduled_analysis_reports
+  id uuid pk
+  organization_id uuid
+  user_id uuid (criador)
+  name text
+  frequency text  -- 'daily' | 'weekly' | 'biweekly' | 'monthly'
+  send_time time  -- hora local da org
+  recipient_user_ids uuid[]  -- membros que recebem
+  include_campaigns bool
+  include_sla bool
+  transcribe_audios bool
+  is_active bool
+  last_run_at timestamptz
+  next_run_at timestamptz
+  created_at / updated_at
 ```
 
-Função `getOriginColor(originKey)`:
-- hash simples (sum char codes) % paleta.length → índice estável.
-- retorna objeto `{ border, bg, text, line }` com classes Tailwind pré-escritas.
+RLS: somente membros da mesma `organization_id` (via `get_organization_member_ids`). GRANT padrão para `authenticated` e `service_role`.
 
-### Não muda
-- Cores do `ProviderBadge` (badges pequenos na lista de conversas) ficam como estão para não confundir o significado verde=Lite / azul=API ali.
-- Nenhuma alteração em lógica de envio, instâncias, automação ou banco.
+## Backend
+
+1. **Edge function `send-scheduled-analysis`**
+   - Recebe `{ schedule_id }`.
+   - Calcula `periodStart`/`periodEnd` conforme frequência (1, 7, 15 ou 30 dias).
+   - Reaproveita `analyze-conversations` para gerar o relatório (insere em `conversation_analysis_reports`) e aguarda conclusão.
+   - Gera o PDF no servidor (porta da lógica de `src/lib/pdf-export.ts` para Deno usando `pdf-lib` ou serializa via `jsPDF` server-side) e faz upload no bucket `inbox-media`.
+   - Para cada `recipient_user_id`: localiza o telefone do membro (`profiles`/`team_members`) e envia o PDF como documento WhatsApp pela instância padrão da organização (mesmo helper usado em campanhas — respeita Evolution/Meta).
+   - Atualiza `last_run_at` e recalcula `next_run_at`.
+
+2. **Cron pg_cron a cada 5 min** (`scheduled_analysis_dispatcher`)
+   - Seleciona schedules com `is_active = true AND next_run_at <= now()` e invoca a edge function via `pg_net`.
+
+## Frontend
+
+- `src/hooks/useScheduledAnalysisReports.ts` — CRUD + "run now".
+- `src/components/analysis/ScheduledReportsCard.tsx` — card na página.
+- `src/components/analysis/ScheduledAnalysisDialog.tsx` — formulário criar/editar.
+- Integra em `src/pages/Analysis.tsx` abaixo do card de geração manual.
+
+## Detalhes técnicos
+
+- Frequências mapeadas para dias: daily=1, weekly=7, biweekly=15, monthly=30. `periodStart = next_run_at - N dias`.
+- `next_run_at` calculado em `America/Sao_Paulo`/timezone da org (`organizations.timezone`) usando helpers existentes.
+- Envio WhatsApp segue regra híbrida `meta:`/`evo:` já usada no projeto; áudio/documento usa MIME `application/pdf` e nome `analise-YYYY-MM-DD.pdf`.
+- PDF reusa o layout atual: extrair função pura `buildAnalysisPdfBytes(report)` em `src/lib/pdf-export.ts` que rode tanto no browser quanto numa versão Deno (via `npm:jspdf`).
+
+## Fora do escopo
+
+- Envio por e-mail ou notificação in-app (foco apenas em WhatsApp, conforme escolha).
+- Edição do conteúdo do PDF (mantém o mesmo formato do botão "Download" atual).
