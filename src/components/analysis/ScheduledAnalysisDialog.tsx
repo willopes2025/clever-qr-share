@@ -70,7 +70,7 @@ export function ScheduledAnalysisDialog({ open, onOpenChange, schedule }: Props)
     }
   }, [schedule, open]);
 
-  const eligibleMembers = (members || []).filter((m) => m.user_id && m.phone && m.status === "active");
+  const eligibleMembers = (members || []).filter((m: any) => m.user_id && m.status === "active");
   const isSaving = create.isPending || update.isPending;
 
   const handleSave = async () => {
