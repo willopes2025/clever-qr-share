@@ -1197,6 +1197,20 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
       continue;
     }
 
+    // If contact ended up with a LID-only phone, enqueue it for background resolution
+    if (useLidAsIdentifier && contact?.id && labelId) {
+      try {
+        await supabase.from('lid_resolution_queue').upsert({
+          contact_id: contact.id,
+          label_id: labelId,
+          instance_id: instanceData?.id ?? null,
+          user_id: userId,
+        }, { onConflict: 'contact_id' });
+      } catch (qErr) {
+        console.warn('[LID] enqueue failed:', (qErr as Error).message);
+      }
+    }
+
     // Find or create conversation - reuse org conversation before creating a new one
     if (!conversation) {
       const { data: existingConversation } = await supabase
