@@ -821,6 +821,123 @@ Deno.serve(async (req) => {
           } catch (e) {
             console.error('[analyze] team productivity fail', e);
           }
+
+          // ---- SLA / Qualidade ----
+          try {
+            const { data: slaRows } = await supabase
+              .from('sla_metrics')
+              .select('conversations_received, conversations_responded, total_first_response_seconds, avg_first_response_seconds, sla_breached_15min, sla_breached_1h, sla_breached_24h')
+              .in('user_id', scopedUserIds)
+              .gte('metric_date', periodStartISO.slice(0, 10))
+              .lte('metric_date', periodEndISO.slice(0, 10));
+            let received = 0, responded = 0, totalRespSec = 0, breach15 = 0, breach1h = 0, breach24h = 0;
+            for (const r of slaRows || []) {
+              received += r.conversations_received || 0;
+              responded += r.conversations_responded || 0;
+              totalRespSec += r.total_first_response_seconds || 0;
+              breach15 += r.sla_breached_15min || 0;
+              breach1h += r.sla_breached_1h || 0;
+              breach24h += r.sla_breached_24h || 0;
+            }
+            const avgFirstRespSec = responded > 0 ? Math.round(totalRespSec / responded) : 0;
+            const responseRate = received > 0 ? Math.round((responded / received) * 100) : 0;
+            const slaCompliance15 = received > 0 ? Math.round(((received - breach15) / received) * 100) : 0;
+            usageMetrics.sla = {
+              conversations_received: received,
+              conversations_responded: responded,
+              response_rate: responseRate,
+              avg_first_response_seconds: avgFirstRespSec,
+              breach_15min: breach15,
+              breach_1h: breach1h,
+              breach_24h: breach24h,
+              sla_compliance_15min: slaCompliance15,
+              unanswered_count: slaSummary?.unanswered_count || 0,
+              overdue_tasks_count: slaSummary?.overdue_tasks_count || 0,
+            };
+          } catch (e) {
+            console.error('[analyze] sla fail', e);
+          }
+
+          // ---- IA & Automação ----
+          try {
+            const [chatbotExecRes, aiTokensRes, aiConvRes] = await Promise.all([
+              supabase.from('chatbot_executions')
+                .select('id, status, completed_at, started_at')
+                .in('user_id', scopedUserIds)
+                .gte('started_at', periodStartISO)
+                .lte('started_at', periodEndISO),
+              supabase.from('ai_token_transactions')
+                .select('amount, type, created_at')
+                .in('user_id', scopedUserIds)
+                .gte('created_at', periodStartISO)
+                .lte('created_at', periodEndISO),
+              supabase.from('conversations')
+                .select('id, ai_handled, ai_interactions_count, ai_handoff_requested')
+                .in('user_id', scopedUserIds)
+                .gte('created_at', periodStartISO)
+                .lte('created_at', periodEndISO),
+            ]);
+            const chatbotExecs = chatbotExecRes.data || [];
+            const aiTokens = aiTokensRes.data || [];
+            const aiConvs = aiConvRes.data || [];
+            const tokensConsumed = aiTokens
+              .filter((t: any) => Number(t.amount) < 0)
+              .reduce((acc: number, t: any) => acc + Math.abs(Number(t.amount || 0)), 0);
+            const aiHandledConvs = aiConvs.filter((c: any) => c.ai_handled).length;
+            const aiInteractionsTotal = aiConvs.reduce((acc: number, c: any) => acc + (c.ai_interactions_count || 0), 0);
+            const handoffRequested = aiConvs.filter((c: any) => c.ai_handoff_requested).length;
+            const chatbotCompleted = chatbotExecs.filter((c: any) => c.status === 'completed').length;
+            const chatbotErrors = chatbotExecs.filter((c: any) => c.status === 'error' || c.status === 'failed').length;
+            const totalConvs = aiConvs.length || 1;
+            usageMetrics.ai_usage = {
+              ai_handled_conversations: aiHandledConvs,
+              human_handled_conversations: aiConvs.length - aiHandledConvs,
+              ai_share_pct: Math.round((aiHandledConvs / totalConvs) * 100),
+              ai_interactions_total: aiInteractionsTotal,
+              handoff_to_human: handoffRequested,
+              tokens_consumed: tokensConsumed,
+              chatbot_executions: chatbotExecs.length,
+              chatbot_completed: chatbotCompleted,
+              chatbot_errors: chatbotErrors,
+              chatbot_completion_rate: chatbotExecs.length > 0 ? Math.round((chatbotCompleted / chatbotExecs.length) * 100) : 0,
+            };
+          } catch (e) {
+            console.error('[analyze] ai usage fail', e);
+          }
+
+          // ---- Campaign performance (resumo agregado) ----
+          try {
+            if (campaignData && campaignData.length > 0) {
+              const sentTotal = campaignData.reduce((a: number, c: any) => a + (c.sent || 0), 0);
+              const deliveredTotal = campaignData.reduce((a: number, c: any) => a + (c.delivered || 0), 0);
+              const failedTotal = campaignData.reduce((a: number, c: any) => a + (c.failed || 0), 0);
+              const detail = campaignData
+                .slice()
+                .sort((a: any, b: any) => (b.sent || 0) - (a.sent || 0))
+                .slice(0, 10)
+                .map((c: any) => ({
+                  name: c.name,
+                  template_name: c.template_name || '',
+                  sent: c.sent || 0,
+                  delivered: c.delivered || 0,
+                  failed: c.failed || 0,
+                  delivery_rate: c.delivery_rate || 0,
+                  fail_rate: c.fail_rate || 0,
+                }));
+              usageMetrics.campaigns = {
+                total_campaigns: campaignData.length,
+                sent_total: sentTotal,
+                delivered_total: deliveredTotal,
+                failed_total: failedTotal,
+                delivery_rate: sentTotal > 0 ? Math.round((deliveredTotal / sentTotal) * 100) : 0,
+                fail_rate: sentTotal > 0 ? Math.round((failedTotal / sentTotal) * 100) : 0,
+                detail,
+              };
+            }
+          } catch (e) {
+            console.error('[analyze] campaign perf fail', e);
+          }
+
         } catch (e) {
           console.error('[analyze] usage metrics fail', e);
         }
