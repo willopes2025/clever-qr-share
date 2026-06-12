@@ -444,6 +444,130 @@ function buildPdf(report: any): Uint8Array {
     }
   }
 
+  // ============== SLA E QUALIDADE ==============
+  const sla = um.sla || {};
+  if (sla.conversations_received || sla.avg_first_response_seconds || sla.unanswered_count) {
+    addSection("SLA e Qualidade do Atendimento");
+    addText(
+      `Conversas recebidas: ${fmtNum(sla.conversations_received || 0)}  |  ` +
+        `Respondidas: ${fmtNum(sla.conversations_responded || 0)} (${sla.response_rate || 0}%)`,
+      10,
+    );
+    addText(
+      `Tempo medio de 1a resposta: ${secondsToHuman(sla.avg_first_response_seconds || 0)}  |  ` +
+        `Cumprimento SLA 15min: ${sla.sla_compliance_15min || 0}%`,
+      10,
+    );
+    addText(
+      `Aguardando resposta agora: ${fmtNum(sla.unanswered_count || 0)}  |  ` +
+        `Tarefas vencidas: ${fmtNum(sla.overdue_tasks_count || 0)}`,
+      10,
+    );
+    yPos += 2;
+
+    // SLA breach bars
+    const slaItems = [
+      { label: "Quebra 15min", value: sla.breach_15min || 0, color: [234, 179, 8] },
+      { label: "Quebra 1h", value: sla.breach_1h || 0, color: [249, 115, 22] },
+      { label: "Quebra 24h", value: sla.breach_24h || 0, color: [239, 68, 68] },
+    ];
+    const maxSla = Math.max(...slaItems.map((s) => s.value), 1);
+    for (const s of slaItems) {
+      addBarRow(s.label, s.value, maxSla, margin, yPos, pageWidth - margin * 2, s.color);
+      yPos += 6;
+    }
+    yPos += 3;
+  }
+
+  // ============== IA E AUTOMACAO ==============
+  const ai = um.ai_usage || {};
+  if (ai.ai_handled_conversations !== undefined || ai.chatbot_executions || ai.tokens_consumed) {
+    addSection("IA e Automacao");
+    addText(
+      `Conversas atendidas pela IA: ${fmtNum(ai.ai_handled_conversations || 0)} (${ai.ai_share_pct || 0}%)  |  ` +
+        `Por humano: ${fmtNum(ai.human_handled_conversations || 0)}`,
+      10,
+    );
+    addText(
+      `Interacoes totais da IA: ${fmtNum(ai.ai_interactions_total || 0)}  |  ` +
+        `Handoff p/ humano: ${fmtNum(ai.handoff_to_human || 0)}`,
+      10,
+    );
+    addText(
+      `Chatbot — Execucoes: ${fmtNum(ai.chatbot_executions || 0)}  |  ` +
+        `Concluidas: ${fmtNum(ai.chatbot_completed || 0)} (${ai.chatbot_completion_rate || 0}%)  |  ` +
+        `Erros: ${fmtNum(ai.chatbot_errors || 0)}`,
+      10,
+    );
+    addText(`Tokens de IA consumidos: ${fmtNum(ai.tokens_consumed || 0)}`, 10);
+    yPos += 2;
+
+    // IA vs Humano (barras comparativas)
+    const totalAH = (ai.ai_handled_conversations || 0) + (ai.human_handled_conversations || 0);
+    if (totalAH > 0) {
+      const maxAH = Math.max(ai.ai_handled_conversations || 0, ai.human_handled_conversations || 0, 1);
+      addBarRow("IA", ai.ai_handled_conversations || 0, maxAH, margin, yPos, pageWidth - margin * 2, [99, 102, 241]);
+      yPos += 6;
+      addBarRow("Humano", ai.human_handled_conversations || 0, maxAH, margin, yPos, pageWidth - margin * 2, [14, 165, 233]);
+      yPos += 6;
+    }
+    yPos += 3;
+  }
+
+  // ============== CAMPANHAS — PERFORMANCE DETALHADA ==============
+  const camp = um.campaigns || {};
+  if (camp.total_campaigns && Array.isArray(camp.detail) && camp.detail.length > 0) {
+    addSection("Campanhas — Performance");
+    addText(
+      `Total de campanhas: ${fmtNum(camp.total_campaigns)}  |  ` +
+        `Enviadas: ${fmtNum(camp.sent_total || 0)}  |  ` +
+        `Entregues: ${fmtNum(camp.delivered_total || 0)} (${camp.delivery_rate || 0}%)  |  ` +
+        `Falharam: ${fmtNum(camp.failed_total || 0)} (${camp.fail_rate || 0}%)`,
+      10,
+    );
+    yPos += 2;
+
+    checkBreak(camp.detail.length * 6 + 15);
+    const cX = {
+      name: margin + 2,
+      sent: margin + 90,
+      delivered: margin + 112,
+      failed: margin + 142,
+      rate: margin + 165,
+    };
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 7, "F");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text("Campanha", cX.name, yPos + 5);
+    doc.text("Enviadas", cX.sent, yPos + 5);
+    doc.text("Entregues", cX.delivered, yPos + 5);
+    doc.text("Falhas", cX.failed, yPos + 5);
+    doc.text("Entrega", cX.rate, yPos + 5);
+    yPos += 8;
+
+    for (const c of camp.detail as any[]) {
+      checkBreak(7);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      const label = (c.name || "—").slice(0, 40);
+      doc.text(label, cX.name, yPos + 3);
+      doc.text(fmtNum(c.sent), cX.sent, yPos + 3);
+      doc.text(`${fmtNum(c.delivered)}`, cX.delivered, yPos + 3);
+      const fc = (c.fail_rate || 0) > 10 ? [239, 68, 68] : [40, 40, 40];
+      doc.setTextColor(fc[0], fc[1], fc[2]);
+      doc.text(`${fmtNum(c.failed)}`, cX.failed, yPos + 3);
+      const dc = (c.delivery_rate || 0) >= 90 ? [34, 197, 94] : (c.delivery_rate || 0) >= 70 ? [234, 179, 8] : [239, 68, 68];
+      doc.setTextColor(dc[0], dc[1], dc[2]);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${c.delivery_rate || 0}%`, cX.rate, yPos + 3);
+      doc.setTextColor(40, 40, 40);
+      yPos += 6;
+    }
+    yPos += 3;
+  }
 
 
   // ============== COMPARATIVO PERIODO ANTERIOR ==============
