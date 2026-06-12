@@ -536,6 +536,202 @@ Deno.serve(async (req) => {
           };
         }
 
+        // 10.5 USAGE METRICS — KPIs operacionais para o relatório executivo
+        let usageMetrics: any = {};
+        try {
+          const periodDurationMs = endDate.getTime() - startDate.getTime();
+          const prevStartISO = new Date(startDate.getTime() - periodDurationMs).toISOString();
+          const prevEndISO = startDate.toISOString();
+
+          // ---- Volume diário e por hora ----
+          const dayMap = new Map<string, { sent: number; received: number }>();
+          const hourMap = new Map<number, number>();
+          const channelMap: Record<string, { sent: number; received: number }> = { evolution: { sent: 0, received: 0 }, meta: { sent: 0, received: 0 } };
+          const typeCounts: Record<string, number> = {};
+          for (const m of messages) {
+            const d = new Date(m.created_at);
+            const dayKey = d.toISOString().slice(0, 10);
+            if (!dayMap.has(dayKey)) dayMap.set(dayKey, { sent: 0, received: 0 });
+            const slot = dayMap.get(dayKey)!;
+            if (m.direction === 'outbound') {
+              slot.sent++;
+              const hour = ((d.getUTCHours() - 3) + 24) % 24;
+              hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
+            } else if (m.direction === 'inbound') {
+              slot.received++;
+            }
+            const t = m.message_type || 'text';
+            typeCounts[t] = (typeCounts[t] || 0) + 1;
+          }
+          const volumeByDay = [...dayMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v }));
+          const hourlyDistribution = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: hourMap.get(h) || 0 }));
+
+          // Channel split via conversations
+          const convChannelMap = new Map<string, 'meta' | 'evolution'>();
+          {
+            const { data: convChannels } = await supabase
+              .from('conversations')
+              .select('id, provider, meta_phone_number_id, instance_id')
+              .in('id', uniqueConvIds);
+            for (const cc of convChannels || []) {
+              const ch = (cc.provider === 'meta' || cc.meta_phone_number_id) ? 'meta' : 'evolution';
+              convChannelMap.set(cc.id, ch as any);
+            }
+          }
+          for (const m of messages) {
+            const ch = convChannelMap.get(m.conversation_id) || 'evolution';
+            if (m.direction === 'outbound') channelMap[ch].sent++;
+            else if (m.direction === 'inbound') channelMap[ch].received++;
+          }
+
+          const audioTotal = audioMessages;
+          const audiosTranscribed = messages.filter(m => (m.message_type === 'audio' || m.message_type === 'ptt') && m.transcription).length;
+          const mediaSent = messages.filter(m => m.direction === 'outbound' && m.message_type && !['text', 'audio', 'ptt'].includes(m.message_type)).length;
+
+          // ---- Leads ----
+          const { data: leadsInPeriod } = await supabase
+            .from('contacts')
+            .select('id, source, created_at')
+            .in('user_id', scopedUserIds)
+            .gte('created_at', periodStartISO)
+            .lte('created_at', periodEndISO);
+          const leadsCount = (leadsInPeriod || []).length;
+          const leadsBySource: Record<string, number> = {};
+          for (const l of leadsInPeriod || []) {
+            const k = (l.source || 'manual').toString();
+            leadsBySource[k] = (leadsBySource[k] || 0) + 1;
+          }
+
+          // Leads sem resposta = conversas cuja última mensagem é inbound
+          let unansweredLeads = 0;
+          for (const conv of convsWithMsgs) {
+            const last = conv.messages[conv.messages.length - 1];
+            if (last && last.direction === 'inbound') unansweredLeads++;
+          }
+
+          // ---- Comercial (agrega de funnelData) ----
+          const wonTotal = funnelData.reduce((a, f) => a + (f.won_count || 0), 0);
+          const lostTotal = funnelData.reduce((a, f) => a + (f.lost_count || 0), 0);
+          const dealsTotal = funnelData.reduce((a, f) => a + (f.total_deals || 0), 0);
+          const conversionRate = (wonTotal + lostTotal) > 0 ? Math.round((wonTotal / (wonTotal + lostTotal)) * 100) : 0;
+
+          // Pipeline aberto + valores ganhos/perdidos
+          let pipelineValue = 0, pipelineCount = 0, wonValue = 0, lostValue = 0;
+          if (funnelIds.length > 0) {
+            const { data: openDeals } = await supabase
+              .from('funnel_deals')
+              .select('value, stage_id')
+              .in('funnel_id', funnelIds);
+            const { data: allStages } = await supabase
+              .from('funnel_stages')
+              .select('id, final_type')
+              .in('funnel_id', funnelIds);
+            const stageType = new Map((allStages || []).map((s: any) => [s.id, s.final_type]));
+            for (const d of openDeals || []) {
+              const ft = stageType.get(d.stage_id);
+              if (!ft) { pipelineValue += Number(d.value || 0); pipelineCount++; }
+            }
+            const { data: closedDealsInPeriod } = await supabase
+              .from('funnel_deals')
+              .select('value, stage_id, closed_at')
+              .in('funnel_id', funnelIds)
+              .gte('closed_at', periodStartISO)
+              .lte('closed_at', periodEndISO);
+            for (const d of closedDealsInPeriod || []) {
+              const ft = stageType.get(d.stage_id);
+              if (ft === 'won') wonValue += Number(d.value || 0);
+              else if (ft === 'lost') lostValue += Number(d.value || 0);
+            }
+          }
+          const avgTicket = wonTotal > 0 ? Math.round(wonValue / wonTotal) : 0;
+
+          // ---- Período anterior (mesma duração) — para comparação ----
+          const [prevMsgsRes, prevLeadsRes] = await Promise.all([
+            supabase
+              .from('inbox_messages')
+              .select('direction, conversation_id')
+              .in('user_id', scopedUserIds)
+              .gte('created_at', prevStartISO)
+              .lt('created_at', prevEndISO),
+            supabase
+              .from('contacts')
+              .select('id', { count: 'exact', head: true })
+              .in('user_id', scopedUserIds)
+              .gte('created_at', prevStartISO)
+              .lt('created_at', prevEndISO),
+          ]);
+          const prevMsgs = prevMsgsRes.data || [];
+          const prevSent = prevMsgs.filter((m: any) => m.direction === 'outbound').length;
+          const prevReceived = prevMsgs.filter((m: any) => m.direction === 'inbound').length;
+          const prevConvs = new Set(prevMsgs.map((m: any) => m.conversation_id)).size;
+          const prevLeads = prevLeadsRes.count || 0;
+
+          let prevWon = 0, prevLost = 0, prevWonValue = 0;
+          if (funnelIds.length > 0) {
+            const { data: prevClosed } = await supabase
+              .from('funnel_deals')
+              .select('value, stage_id')
+              .in('funnel_id', funnelIds)
+              .gte('closed_at', prevStartISO)
+              .lt('closed_at', prevEndISO);
+            const { data: stagesForPrev } = await supabase
+              .from('funnel_stages')
+              .select('id, final_type')
+              .in('funnel_id', funnelIds);
+            const stMap = new Map((stagesForPrev || []).map((s: any) => [s.id, s.final_type]));
+            for (const d of prevClosed || []) {
+              const ft = stMap.get(d.stage_id);
+              if (ft === 'won') { prevWon++; prevWonValue += Number(d.value || 0); }
+              else if (ft === 'lost') prevLost++;
+            }
+          }
+          const prevConversionRate = (prevWon + prevLost) > 0 ? Math.round((prevWon / (prevWon + prevLost)) * 100) : 0;
+
+          const variation = (cur: number, prev: number): number => {
+            if (prev === 0) return cur === 0 ? 0 : 100;
+            return Math.round(((cur - prev) / prev) * 100);
+          };
+
+          usageMetrics = {
+            kpis: {
+              leads: { current: leadsCount, previous: prevLeads, variation: variation(leadsCount, prevLeads) },
+              conversations: { current: convsWithMsgs.length, previous: prevConvs, variation: variation(convsWithMsgs.length, prevConvs) },
+              messages_sent: { current: sentMessages, previous: prevSent, variation: variation(sentMessages, prevSent) },
+              messages_received: { current: receivedMessages, previous: prevReceived, variation: variation(receivedMessages, prevReceived) },
+              deals_won: { current: wonTotal, previous: prevWon, variation: variation(wonTotal, prevWon) },
+              won_value: { current: wonValue, previous: prevWonValue, variation: variation(wonValue, prevWonValue) },
+              conversion_rate: { current: conversionRate, previous: prevConversionRate, variation: conversionRate - prevConversionRate },
+            },
+            volume: {
+              by_day: volumeByDay,
+              by_hour: hourlyDistribution,
+              by_channel: channelMap,
+              by_type: typeCounts,
+              audio_total: audioTotal,
+              audios_transcribed: audiosTranscribed,
+              media_sent: mediaSent,
+            },
+            leads: {
+              total: leadsCount,
+              by_source: leadsBySource,
+              unanswered: unansweredLeads,
+            },
+            commercial: {
+              pipeline_value: pipelineValue,
+              pipeline_count: pipelineCount,
+              deals_total: dealsTotal,
+              won_count: wonTotal,
+              lost_count: lostTotal,
+              won_value: wonValue,
+              lost_value: lostValue,
+              conversion_rate: conversionRate,
+              avg_ticket: avgTicket,
+            },
+          };
+        } catch (e) {
+          console.error('[analyze] usage metrics fail', e);
+        }
+
         // 11. Build the main conversation text (for general analysis)
         const conversationTexts = convsWithMsgs.slice(0, 25).map((conv: any) => {
           const txt = conv.messages.slice(0, 30).map((m: any) => {
