@@ -925,6 +925,7 @@ ${stagesText}`;
           funnel_performance: funnelPerformance,
           campaign_performance: campaignPerformance,
           sla_performance: slaSummary,
+          usage_metrics: usageMetrics,
           status: 'completed',
         }).eq('id', report.id);
 
