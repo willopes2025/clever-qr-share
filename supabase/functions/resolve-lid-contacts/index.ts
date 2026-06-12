@@ -259,40 +259,43 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
   try {
-    // Caller must be system admin OR be invoked with service_role
-    const authHeader = req.headers.get('Authorization') || '';
-    const token = authHeader.replace(/^Bearer\s+/i, '');
-    const isServiceRole = token === SERVICE_ROLE_KEY;
-
-    if (!isServiceRole) {
-      const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
-        global: { headers: { Authorization: authHeader } },
-      });
-      const { data: { user } } = await userClient.auth.getUser();
-      if (!user) {
-        return new Response(JSON.stringify({ error: 'unauthorized' }), {
-          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-      const { data: roleRow } = await admin
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-      if (!roleRow) {
-        return new Response(JSON.stringify({ error: 'forbidden' }), {
-          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
     let mode: 'all' | 'queue' = 'all';
     try {
       const body = await req.json();
       if (body?.mode === 'queue') mode = 'queue';
     } catch (_) { /* no body */ }
+
+    // queue-mode is allowed for the internal cron (no auth required)
+    if (mode !== 'queue') {
+      const authHeader = req.headers.get('Authorization') || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '');
+      const isServiceRole = token === SERVICE_ROLE_KEY;
+
+      if (!isServiceRole) {
+        const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (!user) {
+          return new Response(JSON.stringify({ error: 'unauthorized' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+        const { data: roleRow } = await admin
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'admin')
+          .maybeSingle();
+        if (!roleRow) {
+          return new Response(JSON.stringify({ error: 'forbidden' }), {
+            status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+
 
     const stats = await run(mode);
     return new Response(JSON.stringify({ success: true, mode, stats }), {
