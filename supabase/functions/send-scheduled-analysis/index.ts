@@ -53,14 +53,47 @@ function nextRunAtFor(frequency: string, baseFromUtcIso: string, sendTime: strin
   return new Date(Date.UTC(y, mo, d, hh + 3, mm, 0, 0));
 }
 
+function fmtBRL(v: number): string {
+  if (!v || isNaN(v)) return "R$ 0";
+  if (v >= 1000) return "R$ " + v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  return "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function fmtNum(v: number): string {
+  if (v == null || isNaN(v)) return "0";
+  return Number(v).toLocaleString("pt-BR");
+}
+
+function secondsToHuman(s: number): string {
+  if (!s || s < 0) return "—";
+  if (s < 60) return `${Math.round(s)}s`;
+  if (s < 3600) return `${Math.round(s / 60)}min`;
+  return `${(s / 3600).toFixed(1)}h`;
+}
+
+function sourceLabel(key: string): string {
+  const map: Record<string, string> = {
+    manual: "Manual",
+    campaign: "Campanha",
+    form: "Formulário",
+    import: "Importação",
+    whatsapp: "WhatsApp",
+    webhook: "Webhook",
+    api: "API",
+    chatbot: "Chatbot",
+  };
+  return map[(key || "").toLowerCase()] || (key || "Outro");
+}
+
 function buildPdf(report: any): Uint8Array {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
   let yPos = 20;
 
   const checkBreak = (need: number) => {
-    if (yPos + need > doc.internal.pageSize.getHeight() - margin) {
+    if (yPos + need > pageHeight - margin) {
       doc.addPage();
       yPos = 20;
     }
@@ -69,22 +102,23 @@ function buildPdf(report: any): Uint8Array {
     if (!text) return;
     doc.setFontSize(size);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(40, 40, 40);
     const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
-    checkBreak(lines.length * size * 0.4 + 5);
+    checkBreak(lines.length * size * 0.45 + 5);
     doc.text(lines, margin, yPos);
-    yPos += lines.length * size * 0.4 + 5;
+    yPos += lines.length * size * 0.45 + 4;
   };
   const addSection = (title: string) => {
-    checkBreak(30);
-    yPos += 8;
-    doc.setFillColor(59, 130, 246);
+    checkBreak(20);
+    yPos += 6;
+    doc.setFillColor(30, 41, 59);
     doc.rect(margin, yPos - 5, pageWidth - margin * 2, 10, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text(title, margin + 5, yPos + 2);
     doc.setTextColor(0, 0, 0);
-    yPos += 15;
+    yPos += 14;
   };
   const addScoreBox = (label: string, score: number, x: number, y: number, w: number) => {
     const c = score >= 80 ? [34, 197, 94] : score >= 60 ? [234, 179, 8] : score >= 40 ? [249, 115, 22] : [239, 68, 68];
@@ -100,19 +134,116 @@ function buildPdf(report: any): Uint8Array {
     doc.setTextColor(0, 0, 0);
   };
 
-  // header
-  doc.setFillColor(30, 41, 59);
-  doc.rect(0, 0, pageWidth, 40, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.text("Relatorio de Analise de Atendimento", margin, 25);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Periodo: ${brDate(report.period_start)} - ${brDate(report.period_end)}`, margin, 35);
-  doc.setTextColor(0, 0, 0);
-  yPos = 50;
+  // KPI card with variation arrow
+  const addKpiCard = (
+    x: number, y: number, w: number, h: number,
+    label: string, value: string, variation: number, fmtVariation: (v: number) => string = (v) => `${v > 0 ? "+" : ""}${v}%`,
+  ) => {
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, y, w, h, 2, 2, "FD");
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(label, x + 4, y + 6);
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text(value, x + 4, y + 16);
+    // variation badge
+    const positive = variation >= 0;
+    const c = positive ? [34, 197, 94] : [239, 68, 68];
+    doc.setTextColor(c[0], c[1], c[2]);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    const arrow = positive ? "^" : "v";
+    doc.text(`${arrow} ${fmtVariation(variation)}`, x + 4, y + h - 3);
+    doc.setTextColor(0, 0, 0);
+  };
 
+  // Simple horizontal bar chart row
+  const addBarRow = (label: string, value: number, maxValue: number, x: number, y: number, w: number, color: number[]) => {
+    const labelW = 35;
+    const barAreaW = w - labelW - 25;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text(label, x, y + 3);
+    const pct = maxValue > 0 ? value / maxValue : 0;
+    doc.setFillColor(241, 245, 249);
+    doc.rect(x + labelW, y, barAreaW, 4, "F");
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.rect(x + labelW, y, Math.max(1, barAreaW * pct), 4, "F");
+    doc.text(fmtNum(value), x + labelW + barAreaW + 3, y + 3);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const um = report.usage_metrics || {};
+  const kpis = um.kpis || {};
+  const volume = um.volume || {};
+  const leads = um.leads || {};
+  const commercial = um.commercial || {};
+
+  // ============== PAGE 1: CAPA EXECUTIVA ==============
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 45, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(20);
+  doc.setFont("helvetica", "bold");
+  doc.text("Painel Executivo", margin, 22);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Periodo: ${brDate(report.period_start)} a ${brDate(report.period_end)}`, margin, 32);
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184);
+  doc.text("Comparativo automatico vs. periodo anterior de mesma duracao", margin, 40);
+  doc.setTextColor(0, 0, 0);
+  yPos = 55;
+
+  // KPI cards grid (3 per row)
+  if (kpis && Object.keys(kpis).length > 0) {
+    const cardW = (pageWidth - margin * 2 - 10) / 3;
+    const cardH = 26;
+    const k = kpis;
+    const items = [
+      { label: "Leads recebidos", value: fmtNum(k.leads?.current || 0), v: k.leads?.variation || 0 },
+      { label: "Conversas atendidas", value: fmtNum(k.conversations?.current || 0), v: k.conversations?.variation || 0 },
+      { label: "Mensagens enviadas", value: fmtNum(k.messages_sent?.current || 0), v: k.messages_sent?.variation || 0 },
+      { label: "Mensagens recebidas", value: fmtNum(k.messages_received?.current || 0), v: k.messages_received?.variation || 0 },
+      { label: "Negocios ganhos", value: fmtNum(k.deals_won?.current || 0), v: k.deals_won?.variation || 0 },
+      { label: "Valor ganho", value: fmtBRL(k.won_value?.current || 0), v: k.won_value?.variation || 0 },
+      { label: "Taxa de conversao", value: `${k.conversion_rate?.current || 0}%`, v: k.conversion_rate?.variation || 0, fmt: (v: number) => `${v > 0 ? "+" : ""}${v} pts` },
+      { label: "Pipeline aberto", value: fmtBRL(commercial.pipeline_value || 0), v: 0, hideVar: true },
+      { label: "Ticket medio", value: fmtBRL(commercial.avg_ticket || 0), v: 0, hideVar: true },
+    ];
+    items.forEach((it, idx) => {
+      const col = idx % 3;
+      const row = Math.floor(idx / 3);
+      const x = margin + col * (cardW + 5);
+      const y = yPos + row * (cardH + 5);
+      if (it.hideVar) {
+        // simplified card sem variação
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD");
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(it.label, x + 4, y + 6);
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text(it.value, x + 4, y + 18);
+        doc.setTextColor(0, 0, 0);
+      } else {
+        addKpiCard(x, y, cardW, cardH, it.label, it.value, it.v, it.fmt);
+      }
+    });
+    yPos += Math.ceil(items.length / 3) * (cardH + 5) + 5;
+  }
+
+  // Notas de qualidade da IA
+  addSection("Notas de Qualidade do Atendimento (IA)");
   const bw = (pageWidth - margin * 2 - 25) / 6;
   addScoreBox("Geral", report.overall_score || 0, margin, yPos, bw);
   addScoreBox("Textual", report.textual_quality_score || 0, margin + bw + 5, yPos, bw);
@@ -120,16 +251,149 @@ function buildPdf(report: any): Uint8Array {
   addScoreBox("Vendas", report.sales_score || 0, margin + (bw + 5) * 3, yPos, bw);
   addScoreBox("Eficiencia", report.efficiency_score || 0, margin + (bw + 5) * 4, yPos, bw);
   addScoreBox("Audios", report.audio_analysis_score || 0, margin + (bw + 5) * 5, yPos, bw);
-  yPos += 35;
+  yPos += 32;
 
-  doc.setFontSize(10);
-  doc.text(
-    `Conversas: ${report.total_conversations || 0} | Enviadas: ${report.total_messages_sent || 0} | Recebidas: ${report.total_messages_received || 0} | Audios: ${report.total_audios_analyzed || 0}`,
-    margin,
-    yPos,
-  );
-  yPos += 12;
+  // ============== VOLUME E ATIVIDADE ==============
+  if (volume && Object.keys(volume).length > 0) {
+    addSection("Volume e Atividade");
 
+    // Resumo numerico
+    const ch = volume.by_channel || {};
+    addText(
+      `Mensagens totais: ${fmtNum((kpis.messages_sent?.current || 0) + (kpis.messages_received?.current || 0))}  |  ` +
+        `Enviadas: ${fmtNum(kpis.messages_sent?.current || 0)}  |  Recebidas: ${fmtNum(kpis.messages_received?.current || 0)}`,
+      10,
+    );
+    addText(
+      `Audios: ${fmtNum(volume.audio_total || 0)} (${fmtNum(volume.audios_transcribed || 0)} transcritos)  |  ` +
+        `Midias enviadas: ${fmtNum(volume.media_sent || 0)}`,
+      10,
+    );
+    addText(
+      `Canais — WhatsApp Evolution: ${fmtNum((ch.evolution?.sent || 0) + (ch.evolution?.received || 0))} msgs  |  ` +
+        `WhatsApp Meta: ${fmtNum((ch.meta?.sent || 0) + (ch.meta?.received || 0))} msgs`,
+      10,
+    );
+    yPos += 3;
+
+    // Volume por dia (mini gráfico de barras)
+    const byDay: any[] = Array.isArray(volume.by_day) ? volume.by_day.slice(-14) : [];
+    if (byDay.length > 0) {
+      checkBreak(byDay.length * 6 + 15);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Mensagens por dia (ultimos dias)", margin, yPos);
+      yPos += 5;
+      const maxDay = Math.max(...byDay.map((d: any) => d.sent + d.received), 1);
+      for (const d of byDay) {
+        const label = brDate(d.date).slice(0, 5);
+        addBarRow(label, d.sent + d.received, maxDay, margin, yPos, pageWidth - margin * 2, [59, 130, 246]);
+        yPos += 6;
+      }
+      yPos += 3;
+    }
+
+    // Pico de horário
+    const byHour: any[] = Array.isArray(volume.by_hour) ? volume.by_hour : [];
+    const topHours = byHour.filter((h: any) => h.count > 0).sort((a: any, b: any) => b.count - a.count).slice(0, 5);
+    if (topHours.length > 0) {
+      checkBreak(topHours.length * 6 + 15);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Horarios de pico (envios)", margin, yPos);
+      yPos += 5;
+      const maxH = Math.max(...topHours.map((h: any) => h.count), 1);
+      for (const h of topHours) {
+        addBarRow(`${String(h.hour).padStart(2, "0")}h`, h.count, maxH, margin, yPos, pageWidth - margin * 2, [168, 85, 247]);
+        yPos += 6;
+      }
+      yPos += 3;
+    }
+  }
+
+  // ============== LEADS E CONTATOS ==============
+  if (leads && (leads.total || leads.unanswered || (leads.by_source && Object.keys(leads.by_source).length > 0))) {
+    addSection("Leads e Contatos");
+    addText(`Novos leads no periodo: ${fmtNum(leads.total || 0)}`, 10);
+    addText(`Leads aguardando resposta: ${fmtNum(leads.unanswered || 0)}`, 10);
+
+    const sources = leads.by_source || {};
+    const sourceEntries = Object.entries(sources).sort(([, a]: any, [, b]: any) => b - a);
+    if (sourceEntries.length > 0) {
+      yPos += 2;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Origem dos leads", margin, yPos);
+      yPos += 5;
+      const maxS = Math.max(...sourceEntries.map(([, v]: any) => v), 1);
+      for (const [k, v] of sourceEntries.slice(0, 8)) {
+        addBarRow(sourceLabel(k), v as number, maxS, margin, yPos, pageWidth - margin * 2, [16, 185, 129]);
+        yPos += 6;
+      }
+    }
+  }
+
+  // ============== COMERCIAL ==============
+  if (commercial && (commercial.deals_total || commercial.pipeline_count)) {
+    addSection("Comercial");
+    addText(
+      `Pipeline aberto: ${fmtNum(commercial.pipeline_count || 0)} negocios — ${fmtBRL(commercial.pipeline_value || 0)}`,
+      10,
+    );
+    addText(
+      `Ganhos: ${fmtNum(commercial.won_count || 0)} (${fmtBRL(commercial.won_value || 0)})  |  ` +
+        `Perdidos: ${fmtNum(commercial.lost_count || 0)} (${fmtBRL(commercial.lost_value || 0)})`,
+      10,
+    );
+    addText(
+      `Taxa de conversao: ${commercial.conversion_rate || 0}%  |  Ticket medio: ${fmtBRL(commercial.avg_ticket || 0)}`,
+      10,
+    );
+  }
+
+  // ============== COMPARATIVO PERIODO ANTERIOR ==============
+  if (kpis && Object.keys(kpis).length > 0) {
+    addSection("Comparativo vs. Periodo Anterior");
+    const rows: Array<[string, string, string, number, string?]> = [
+      ["Leads recebidos", fmtNum(kpis.leads?.current || 0), fmtNum(kpis.leads?.previous || 0), kpis.leads?.variation || 0],
+      ["Conversas atendidas", fmtNum(kpis.conversations?.current || 0), fmtNum(kpis.conversations?.previous || 0), kpis.conversations?.variation || 0],
+      ["Mensagens enviadas", fmtNum(kpis.messages_sent?.current || 0), fmtNum(kpis.messages_sent?.previous || 0), kpis.messages_sent?.variation || 0],
+      ["Mensagens recebidas", fmtNum(kpis.messages_received?.current || 0), fmtNum(kpis.messages_received?.previous || 0), kpis.messages_received?.variation || 0],
+      ["Negocios ganhos", fmtNum(kpis.deals_won?.current || 0), fmtNum(kpis.deals_won?.previous || 0), kpis.deals_won?.variation || 0],
+      ["Valor ganho", fmtBRL(kpis.won_value?.current || 0), fmtBRL(kpis.won_value?.previous || 0), kpis.won_value?.variation || 0],
+      ["Taxa conversao", `${kpis.conversion_rate?.current || 0}%`, `${kpis.conversion_rate?.previous || 0}%`, kpis.conversion_rate?.variation || 0, "pts"],
+    ];
+    checkBreak(rows.length * 7 + 10);
+    // header
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 7, "F");
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text("Indicador", margin + 3, yPos + 5);
+    doc.text("Atual", margin + 85, yPos + 5);
+    doc.text("Anterior", margin + 115, yPos + 5);
+    doc.text("Variacao", margin + 150, yPos + 5);
+    yPos += 8;
+    for (const r of rows) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text(r[0], margin + 3, yPos + 4);
+      doc.text(r[1], margin + 85, yPos + 4);
+      doc.text(r[2], margin + 115, yPos + 4);
+      const v = r[3];
+      const unit = r[4] || "%";
+      const c = v >= 0 ? [34, 197, 94] : [239, 68, 68];
+      doc.setTextColor(c[0], c[1], c[2]);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${v > 0 ? "+" : ""}${v}${unit === "pts" ? " pts" : "%"}`, margin + 150, yPos + 4);
+      doc.setTextColor(40, 40, 40);
+      yPos += 6;
+    }
+    yPos += 3;
+  }
+
+  // ============== RESUMO EXECUTIVO IA ==============
   if (report.executive_summary) {
     addSection("Resumo Executivo");
     addText(report.executive_summary);
@@ -144,7 +408,9 @@ function buildPdf(report: any): Uint8Array {
       checkBreak(20);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
+      doc.setTextColor(34, 197, 94);
       doc.text(`+ ${s.title || ""}`, margin, yPos);
+      doc.setTextColor(0, 0, 0);
       yPos += 6;
       addText(s.description || "");
     }
@@ -155,7 +421,9 @@ function buildPdf(report: any): Uint8Array {
       checkBreak(25);
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
+      doc.setTextColor(234, 88, 12);
       doc.text(`! ${im.title || ""}`, margin, yPos);
+      doc.setTextColor(0, 0, 0);
       yPos += 6;
       addText(im.description || "");
       if (im.suggestion) addText(`Sugestao: ${im.suggestion}`, 9);
@@ -174,9 +442,20 @@ function buildPdf(report: any): Uint8Array {
     }
   }
 
+  // Footer com paginação
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Pagina ${i} de ${total}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+  }
+
   const out = doc.output("arraybuffer");
   return new Uint8Array(out);
 }
+
 
 async function waitForReport(
   supabase: ReturnType<typeof createClient>,
