@@ -136,6 +136,34 @@ const Admin = () => {
 
   const { endSession } = useActivitySession();
 
+  const [resolvingLid, setResolvingLid] = useState(false);
+  const handleResolveLid = async () => {
+    if (resolvingLid) return;
+    setResolvingLid(true);
+    toast.info('Resolvendo contatos LID em telefone real… isso pode demorar.');
+    try {
+      const { data, error } = await invokeAdminFunction<{ stats: { scanned: number; resolved: number; merged: number; unresolved: number; errors: number } }>(
+        'resolve-lid-contacts',
+        { body: { mode: 'all' } }
+      );
+      if (error) throw error;
+      const s = data?.stats;
+      if (s) {
+        toast.success(
+          `LIDs varridos: ${s.scanned} • Resolvidos: ${s.resolved} • Mesclados: ${s.merged} • Pendentes: ${s.unresolved}`
+        );
+      } else {
+        toast.success('Execução concluída');
+      }
+    } catch (err) {
+      console.error('resolve-lid-contacts error', err);
+      toast.error('Erro ao resolver LIDs: ' + (err as Error).message);
+    } finally {
+      setResolvingLid(false);
+    }
+  };
+
+
   const handleSignOut = async () => {
     // End activity session before logout
     await endSession();
