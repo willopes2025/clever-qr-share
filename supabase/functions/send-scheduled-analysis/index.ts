@@ -442,6 +442,9 @@ function buildPdf(report: any): Uint8Array {
         9,
       );
     }
+  }
+
+
 
   // ============== COMPARATIVO PERIODO ANTERIOR ==============
   if (kpis && Object.keys(kpis).length > 0) {
