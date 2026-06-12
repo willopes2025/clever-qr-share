@@ -28,8 +28,14 @@ function brDate(iso: string) {
 function normalizePhone(raw: string): string {
   let p = (raw || "").replace(/\D/g, "");
   if (!p) return "";
-  if (!p.startsWith("55")) p = "55" + p;
-  return p;
+  // Remove DDI 55 inicial p/ trabalhar com nacional
+  if (p.startsWith("55") && (p.length === 12 || p.length === 13)) p = p.slice(2);
+  // Se for nacional de 10 dígitos (DDD + 8) e DDD válido, adiciona "9" do celular
+  if (p.length === 10) {
+    const ddd = parseInt(p.slice(0, 2), 10);
+    if (ddd >= 11 && ddd <= 99) p = p.slice(0, 2) + "9" + p.slice(2);
+  }
+  return "55" + p;
 }
 
 function nextRunAtFor(frequency: string, baseFromUtcIso: string, sendTime: string): Date {
