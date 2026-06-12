@@ -306,11 +306,26 @@ const Admin = () => {
             </TabsContent>
 
             {/* Tab Operacional */}
-            <TabsContent value="operacional">
+            <TabsContent value="operacional" className="space-y-6">
+              <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle>Manutenção de Contatos</CardTitle>
+                  <CardDescription>
+                    Resolve contatos identificados apenas por LID (Click-to-WhatsApp Ads),
+                    convertendo para o número de telefone real e mesclando duplicados.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={handleResolveLid} disabled={resolvingLid}>
+                    {resolvingLid ? 'Processando…' : 'Resolver contatos LID'}
+                  </Button>
+                </CardContent>
+              </Card>
               <OwnerOperacional metrics={metrics} loading={metricsLoading} />
             </TabsContent>
           </Tabs>
         </div>
+
 
         {/* Dialogs */}
         <EditSubscriptionDialog
