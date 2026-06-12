@@ -4489,6 +4489,63 @@ export type Database = {
           },
         ]
       }
+      lid_resolution_queue: {
+        Row: {
+          attempts: number
+          contact_id: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          label_id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          resolved_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          contact_id: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          label_id: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          contact_id?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          label_id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lid_resolution_queue_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lid_resolution_queue_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_reactions: {
         Row: {
           conversation_id: string

@@ -136,6 +136,34 @@ const Admin = () => {
 
   const { endSession } = useActivitySession();
 
+  const [resolvingLid, setResolvingLid] = useState(false);
+  const handleResolveLid = async () => {
+    if (resolvingLid) return;
+    setResolvingLid(true);
+    toast.info('Resolvendo contatos LID em telefone real… isso pode demorar.');
+    try {
+      const { data, error } = await invokeAdminFunction<{ stats: { scanned: number; resolved: number; merged: number; unresolved: number; errors: number } }>(
+        'resolve-lid-contacts',
+        { body: { mode: 'all' } }
+      );
+      if (error) throw error;
+      const s = data?.stats;
+      if (s) {
+        toast.success(
+          `LIDs varridos: ${s.scanned} • Resolvidos: ${s.resolved} • Mesclados: ${s.merged} • Pendentes: ${s.unresolved}`
+        );
+      } else {
+        toast.success('Execução concluída');
+      }
+    } catch (err) {
+      console.error('resolve-lid-contacts error', err);
+      toast.error('Erro ao resolver LIDs: ' + (err as Error).message);
+    } finally {
+      setResolvingLid(false);
+    }
+  };
+
+
   const handleSignOut = async () => {
     // End activity session before logout
     await endSession();
@@ -278,11 +306,26 @@ const Admin = () => {
             </TabsContent>
 
             {/* Tab Operacional */}
-            <TabsContent value="operacional">
+            <TabsContent value="operacional" className="space-y-6">
+              <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle>Manutenção de Contatos</CardTitle>
+                  <CardDescription>
+                    Resolve contatos identificados apenas por LID (Click-to-WhatsApp Ads),
+                    convertendo para o número de telefone real e mesclando duplicados.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={handleResolveLid} disabled={resolvingLid}>
+                    {resolvingLid ? 'Processando…' : 'Resolver contatos LID'}
+                  </Button>
+                </CardContent>
+              </Card>
               <OwnerOperacional metrics={metrics} loading={metricsLoading} />
             </TabsContent>
           </Tabs>
         </div>
+
 
         {/* Dialogs */}
         <EditSubscriptionDialog
