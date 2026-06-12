@@ -1,0 +1,1 @@
+ALTER TABLE public.conversation_analysis_reports ADD COLUMN IF NOT EXISTS usage_metrics jsonb NOT NULL DEFAULT '{}'::jsonb;
