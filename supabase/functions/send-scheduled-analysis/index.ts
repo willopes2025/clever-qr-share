@@ -351,6 +351,98 @@ function buildPdf(report: any): Uint8Array {
     );
   }
 
+  // ============== PRODUTIVIDADE DA EQUIPE ==============
+  const team: any[] = Array.isArray(um.team_productivity) ? um.team_productivity : [];
+  if (team.length > 0) {
+    addSection("Produtividade da Equipe");
+
+    // Top destaques
+    const top = team[0];
+    if (top) {
+      addText(
+        `Destaque: ${top.name} — ${fmtNum(top.deals_won || 0)} ganhos (${fmtBRL(top.deals_value || 0)}), ` +
+          `${fmtNum(top.messages_sent || 0)} msgs, ${secondsToHuman(top.work_seconds || 0)} logado`,
+        10,
+      );
+      yPos += 2;
+    }
+
+    // Table header
+    checkBreak(team.length * 6 + 20);
+    const colX = {
+      rank: margin + 2,
+      name: margin + 10,
+      hours: margin + 65,
+      msgs: margin + 88,
+      conv: margin + 108,
+      resp: margin + 124,
+      won: margin + 142,
+      value: margin + 154,
+      tasks: margin + 180,
+    };
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 7, "F");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text("#", colX.rank, yPos + 5);
+    doc.text("Atendente", colX.name, yPos + 5);
+    doc.text("Horas", colX.hours, yPos + 5);
+    doc.text("Msgs", colX.msgs, yPos + 5);
+    doc.text("Conv.", colX.conv, yPos + 5);
+    doc.text("1a Resp", colX.resp, yPos + 5);
+    doc.text("Won", colX.won, yPos + 5);
+    doc.text("Valor", colX.value, yPos + 5);
+    doc.text("Tar.", colX.tasks, yPos + 5);
+    yPos += 8;
+
+    team.forEach((u: any, idx: number) => {
+      checkBreak(7);
+      if (idx % 2 === 1) {
+        doc.setFillColor(250, 251, 253);
+        doc.rect(margin, yPos - 1, pageWidth - margin * 2, 6, "F");
+      }
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text(String(idx + 1), colX.rank, yPos + 3);
+      const nm = (u.name || "—").slice(0, 28);
+      doc.text(nm, colX.name, yPos + 3);
+      doc.text(secondsToHuman(u.work_seconds || 0), colX.hours, yPos + 3);
+      doc.text(fmtNum(u.messages_sent || 0), colX.msgs, yPos + 3);
+      doc.text(fmtNum(u.conversations_handled || 0), colX.conv, yPos + 3);
+      doc.text(secondsToHuman(u.avg_first_response_seconds || 0), colX.resp, yPos + 3);
+      // Won (bold if > 0)
+      if ((u.deals_won || 0) > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(34, 197, 94);
+      }
+      doc.text(fmtNum(u.deals_won || 0), colX.won, yPos + 3);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text(fmtBRL(u.deals_value || 0), colX.value, yPos + 3);
+      doc.text(fmtNum(u.tasks_completed || 0), colX.tasks, yPos + 3);
+      yPos += 6;
+    });
+    yPos += 4;
+
+    // Totais de presença
+    const totals = team.reduce(
+      (acc: any, u: any) => {
+        acc.work += u.work_seconds || 0;
+        acc.brk += u.break_seconds || 0;
+        acc.lunch += u.lunch_seconds || 0;
+        return acc;
+      },
+      { work: 0, brk: 0, lunch: 0 },
+    );
+    if (totals.work + totals.brk + totals.lunch > 0) {
+      addText(
+        `Tempo total da equipe — Trabalho: ${secondsToHuman(totals.work)} | Pausa: ${secondsToHuman(totals.brk)} | Almoco: ${secondsToHuman(totals.lunch)}`,
+        9,
+      );
+    }
+
   // ============== COMPARATIVO PERIODO ANTERIOR ==============
   if (kpis && Object.keys(kpis).length > 0) {
     addSection("Comparativo vs. Periodo Anterior");
