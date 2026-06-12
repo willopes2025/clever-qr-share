@@ -673,14 +673,50 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         .eq('label_id', labelId)
         .single();
       
-      if (existingContactByLid) {
+      if (existingContactByLid && !existingContactByLid.phone?.startsWith('LID_')) {
         phone = existingContactByLid.phone;
         console.log('[LID] Found existing contact by LID, using phone:', phone);
       } else {
-        // Use LID as temporary phone identifier to allow message processing
-        phone = `LID_${labelId}`;
-        useLidAsIdentifier = true;
-        console.log('[LID] No existing contact found, using LID as temporary identifier:', phone);
+        // Try to resolve LID to real phone via Evolution API (findContacts)
+        try {
+          const lookupResp = await fetch(
+            `${evolutionApiUrl}/chat/findContacts/${instanceName}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+              body: JSON.stringify({ where: { lid: `${labelId}@lid` } }),
+            }
+          );
+          if (lookupResp.ok) {
+            const lookupData = await lookupResp.json();
+            const arr = Array.isArray(lookupData) ? lookupData : (lookupData?.contacts ?? lookupData?.data ?? []);
+            for (const c of arr) {
+              const realJid: string | undefined = c?.remoteJid || c?.id || c?.jid;
+              if (realJid && !String(realJid).includes('@lid')) {
+                const candidate = extractPhone(String(realJid));
+                if (isValidPhone(candidate)) {
+                  phone = candidate;
+                  console.log('[LID] Resolved real phone via findContacts:', phone);
+                  break;
+                }
+              }
+            }
+          } else {
+            console.warn('[LID] findContacts lookup status', lookupResp.status);
+          }
+        } catch (lookupErr) {
+          console.warn('[LID] findContacts lookup failed:', (lookupErr as Error).message);
+        }
+
+        if (!isValidPhone(phone)) {
+          if (existingContactByLid) {
+            phone = existingContactByLid.phone;
+          } else {
+            phone = `LID_${labelId}`;
+          }
+          useLidAsIdentifier = true;
+          console.log('[LID] No real phone resolved, using LID as temporary identifier:', phone);
+        }
       }
     }
     
