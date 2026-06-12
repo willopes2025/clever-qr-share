@@ -2065,6 +2065,7 @@ export type Database = {
           total_conversations: number
           total_messages_received: number
           total_messages_sent: number
+          usage_metrics: Json
           user_id: string
           user_performance: Json
         }
@@ -2095,6 +2096,7 @@ export type Database = {
           total_conversations?: number
           total_messages_received?: number
           total_messages_sent?: number
+          usage_metrics?: Json
           user_id: string
           user_performance?: Json
         }
@@ -2125,6 +2127,7 @@ export type Database = {
           total_conversations?: number
           total_messages_received?: number
           total_messages_sent?: number
+          usage_metrics?: Json
           user_id?: string
           user_performance?: Json
         }
