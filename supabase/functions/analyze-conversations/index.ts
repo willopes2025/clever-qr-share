@@ -728,6 +728,99 @@ Deno.serve(async (req) => {
               avg_ticket: avgTicket,
             },
           };
+
+          // ---- Team productivity (per agent) ----
+          try {
+            const teamUserIds = scopedUserIds;
+            const [sessionsRes, dealsClosedRes, tasksDoneRes, profilesAllRes] = await Promise.all([
+              supabase.from('user_activity_sessions')
+                .select('user_id, session_type, duration_seconds, started_at, ended_at')
+                .in('user_id', teamUserIds)
+                .lte('started_at', periodEndISO)
+                .or(`ended_at.is.null,ended_at.gte.${periodStartISO}`),
+              funnelIds.length > 0
+                ? supabase.from('funnel_deals')
+                    .select('user_id, value, stage_id, closed_at')
+                    .in('funnel_id', funnelIds)
+                    .gte('closed_at', periodStartISO)
+                    .lte('closed_at', periodEndISO)
+                : Promise.resolve({ data: [] as any[] }),
+              supabase.from('deal_tasks')
+                .select('user_id, completed_at')
+                .in('user_id', teamUserIds)
+                .gte('completed_at', periodStartISO)
+                .lte('completed_at', periodEndISO),
+              supabase.from('profiles').select('id, full_name')
+                .in('id', teamUserIds.length ? teamUserIds : ['00000000-0000-0000-0000-000000000000']),
+            ]);
+
+            const profileNameMap = new Map((profilesAllRes.data || []).map((p: any) => [p.id, p.full_name || 'Usuário']));
+            const stageTypeAll = new Map<string, string>();
+            if (funnelIds.length > 0) {
+              const { data: stAll } = await supabase.from('funnel_stages').select('id, final_type').in('funnel_id', funnelIds);
+              for (const s of stAll || []) if (s.final_type) stageTypeAll.set(s.id, s.final_type);
+            }
+
+            const perUser: Record<string, any> = {};
+            const ensure = (uid: string, name?: string) => {
+              if (!perUser[uid]) perUser[uid] = {
+                user_id: uid, name: name || profileNameMap.get(uid) || 'Usuário',
+                work_seconds: 0, break_seconds: 0, lunch_seconds: 0,
+                messages_sent: 0, messages_received: 0,
+                conversations_handled: 0, avg_first_response_seconds: 0,
+                deals_won: 0, deals_lost: 0, deals_value: 0,
+                conversion_rate: 0, tasks_completed: 0,
+              };
+              return perUser[uid];
+            };
+
+            const startMs = startDate.getTime();
+            const endMs = endDate.getTime();
+            const nowMs2 = Date.now();
+            for (const s of sessionsRes.data || []) {
+              if (!s.user_id) continue;
+              const u = ensure(s.user_id);
+              const sStart = new Date(s.started_at).getTime();
+              const sEnd = s.ended_at ? new Date(s.ended_at).getTime() : nowMs2;
+              const refStart = Math.max(sStart, startMs);
+              const refEnd = Math.min(sEnd, endMs, nowMs2);
+              const dur = Math.max(0, Math.round((refEnd - refStart) / 1000));
+              if (s.session_type === 'work') u.work_seconds += dur;
+              else if (s.session_type === 'break') u.break_seconds += dur;
+              else if (s.session_type === 'lunch') u.lunch_seconds += dur;
+            }
+            for (const d of ((dealsClosedRes as any).data || [])) {
+              if (!d.user_id) continue;
+              const u = ensure(d.user_id);
+              const ft = stageTypeAll.get(d.stage_id);
+              if (ft === 'won') { u.deals_won++; u.deals_value += Number(d.value || 0); }
+              else if (ft === 'lost') u.deals_lost++;
+            }
+            for (const t of tasksDoneRes.data || []) {
+              if (!t.user_id) continue;
+              ensure(t.user_id).tasks_completed++;
+            }
+            for (const uid of Object.keys(userAgg)) {
+              const u = ensure(uid, userAgg[uid].name);
+              u.messages_sent = userAgg[uid].messages_sent;
+              u.messages_received = userAgg[uid].messages_received;
+              u.conversations_handled = userAgg[uid].conversations_handled;
+              u.avg_first_response_seconds = userAgg[uid].avg_first_response_seconds || 0;
+            }
+            for (const u of Object.values(perUser) as any[]) {
+              const closed = u.deals_won + u.deals_lost;
+              u.conversion_rate = closed > 0 ? Math.round((u.deals_won / closed) * 100) : 0;
+            }
+
+            const teamProductivity = (Object.values(perUser) as any[])
+              .filter((u) => u.messages_sent + u.deals_won + u.work_seconds + u.tasks_completed + u.conversations_handled > 0)
+              .sort((a, b) => (b.deals_value - a.deals_value) || (b.deals_won - a.deals_won) || (b.messages_sent - a.messages_sent))
+              .slice(0, 20);
+
+            usageMetrics.team_productivity = teamProductivity;
+          } catch (e) {
+            console.error('[analyze] team productivity fail', e);
+          }
         } catch (e) {
           console.error('[analyze] usage metrics fail', e);
         }
