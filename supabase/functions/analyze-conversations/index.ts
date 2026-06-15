@@ -591,16 +591,13 @@ Deno.serve(async (req) => {
           // ---- Leads ----
           const { data: leadsInPeriod } = await supabase
             .from('contacts')
-            .select('id, source, created_at')
+            .select('id, created_at')
             .in('user_id', scopedUserIds)
             .gte('created_at', periodStartISO)
             .lte('created_at', periodEndISO);
           const leadsCount = (leadsInPeriod || []).length;
           const leadsBySource: Record<string, number> = {};
-          for (const l of leadsInPeriod || []) {
-            const k = (l.source || 'manual').toString();
-            leadsBySource[k] = (leadsBySource[k] || 0) + 1;
-          }
+
 
           // Leads sem resposta = conversas cuja última mensagem é inbound
           let unansweredLeads = 0;
@@ -734,10 +731,11 @@ Deno.serve(async (req) => {
             const teamUserIds = scopedUserIds;
             const [sessionsRes, dealsClosedRes, tasksDoneRes, profilesAllRes] = await Promise.all([
               supabase.from('user_activity_sessions')
-                .select('user_id, session_type, duration_seconds, started_at, ended_at')
+                .select('user_id, session_type, duration_seconds, started_at, ended_at, last_activity')
                 .in('user_id', teamUserIds)
                 .lte('started_at', periodEndISO)
                 .or(`ended_at.is.null,ended_at.gte.${periodStartISO}`),
+
               funnelIds.length > 0
                 ? supabase.from('funnel_deals')
                     .select('user_id, value, stage_id, closed_at')
@@ -781,14 +779,26 @@ Deno.serve(async (req) => {
               if (!s.user_id) continue;
               const u = ensure(s.user_id);
               const sStart = new Date(s.started_at).getTime();
-              const sEnd = s.ended_at ? new Date(s.ended_at).getTime() : nowMs2;
+              // If session is still open, prefer last_activity to avoid counting idle hours.
+              // Cap any single session at 12h to mitigate forgotten/abandoned sessions.
+              let sEnd: number;
+              if (s.ended_at) {
+                sEnd = new Date(s.ended_at).getTime();
+              } else if (s.last_activity) {
+                sEnd = new Date(s.last_activity).getTime();
+              } else {
+                sEnd = sStart + 30 * 60 * 1000; // assume 30min if no activity tracked
+              }
+              const maxEnd = sStart + 12 * 60 * 60 * 1000;
+              sEnd = Math.min(sEnd, maxEnd, nowMs2);
               const refStart = Math.max(sStart, startMs);
-              const refEnd = Math.min(sEnd, endMs, nowMs2);
+              const refEnd = Math.min(sEnd, endMs);
               const dur = Math.max(0, Math.round((refEnd - refStart) / 1000));
               if (s.session_type === 'work') u.work_seconds += dur;
               else if (s.session_type === 'break') u.break_seconds += dur;
               else if (s.session_type === 'lunch') u.lunch_seconds += dur;
             }
+
             for (const d of ((dealsClosedRes as any).data || [])) {
               if (!d.user_id) continue;
               const u = ensure(d.user_id);
@@ -830,18 +840,33 @@ Deno.serve(async (req) => {
               .in('user_id', scopedUserIds)
               .gte('metric_date', periodStartISO.slice(0, 10))
               .lte('metric_date', periodEndISO.slice(0, 10));
-            let received = 0, responded = 0, totalRespSec = 0, breach15 = 0, breach1h = 0, breach24h = 0;
+            let received = 0, responded = 0, weightedRespSec = 0, weightedDen = 0, breach15 = 0, breach1h = 0, breach24h = 0;
             for (const r of slaRows || []) {
               received += r.conversations_received || 0;
               responded += r.conversations_responded || 0;
-              totalRespSec += r.total_first_response_seconds || 0;
+              // Use per-row avg (bounded) weighted by that row's responded count,
+              // instead of summing total_first_response_seconds which can include unanswered waits.
+              const rowAvg = Number(r.avg_first_response_seconds || 0);
+              const rowResp = Number(r.conversations_responded || 0);
+              if (rowAvg > 0 && rowAvg < 86400 && rowResp > 0) {
+                weightedRespSec += rowAvg * rowResp;
+                weightedDen += rowResp;
+              }
               breach15 += r.sla_breached_15min || 0;
               breach1h += r.sla_breached_1h || 0;
               breach24h += r.sla_breached_24h || 0;
             }
-            const avgFirstRespSec = responded > 0 ? Math.round(totalRespSec / responded) : 0;
-            const responseRate = received > 0 ? Math.round((responded / received) * 100) : 0;
-            const slaCompliance15 = received > 0 ? Math.round(((received - breach15) / received) * 100) : 0;
+            const avgFirstRespSec = weightedDen > 0 ? Math.round(weightedRespSec / weightedDen) : 0;
+
+            // response_rate measures % of received conversations that got a reply.
+            // The sla_metrics table stores "received" (new convs) and "responded" (total replies),
+            // which are not directly comparable — clamp to 100% to avoid nonsense like 750%.
+            const rawResponseRate = received > 0 ? Math.round((responded / received) * 100) : 0;
+            const responseRate = Math.min(100, rawResponseRate);
+            // Compliance = % of answered conversations that beat the 15min SLA.
+            const slaCompliance15 = responded > 0
+              ? Math.max(0, Math.round(((responded - breach15) / responded) * 100))
+              : 0;
             usageMetrics.sla = {
               conversations_received: received,
               conversations_responded: responded,
@@ -854,6 +879,7 @@ Deno.serve(async (req) => {
               unanswered_count: slaSummary?.unanswered_count || 0,
               overdue_tasks_count: slaSummary?.overdue_tasks_count || 0,
             };
+
           } catch (e) {
             console.error('[analyze] sla fail', e);
           }
