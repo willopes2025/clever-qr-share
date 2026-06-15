@@ -189,7 +189,7 @@ async function run(mode: 'all' | 'queue'): Promise<ResolveStats> {
       .select('contact_id')
       .is('resolved_at', null)
       .lt('attempts', 10)
-      .limit(2000);
+      .limit(1000);
     if (qErr) throw new Error(`load queue: ${qErr.message}`);
     const ids = (q || []).map((r) => r.contact_id as string);
     if (ids.length === 0) return stats;
