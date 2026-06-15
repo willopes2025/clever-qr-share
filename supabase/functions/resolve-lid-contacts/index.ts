@@ -193,14 +193,17 @@ async function run(mode: 'all' | 'queue'): Promise<ResolveStats> {
     if (qErr) throw new Error(`load queue: ${qErr.message}`);
     const ids = (q || []).map((r) => r.contact_id as string);
     if (ids.length === 0) return stats;
-    const CHUNK = 100;
+    const CHUNK = 50;
     for (let i = 0; i < ids.length; i += CHUNK) {
       const slice = ids.slice(i, i + CHUNK);
       const { data, error } = await supabase
         .from('contacts')
         .select('id, user_id, phone, label_id, name, custom_fields')
         .in('id', slice);
-      if (error) throw new Error(`load contacts: ${error.message} | code=${(error as any).code} | details=${(error as any).details} | hint=${(error as any).hint}`);
+      if (error) {
+        console.error('[resolve-lid] chunk error', i, JSON.stringify(error));
+        throw new Error(`load contacts: ${error.message || JSON.stringify(error)}`);
+      }
       if (data) list = list.concat(data as LidContact[]);
     }
   } else {
