@@ -827,16 +827,24 @@ Deno.serve(async (req) => {
               .in('user_id', scopedUserIds)
               .gte('metric_date', periodStartISO.slice(0, 10))
               .lte('metric_date', periodEndISO.slice(0, 10));
-            let received = 0, responded = 0, totalRespSec = 0, breach15 = 0, breach1h = 0, breach24h = 0;
+            let received = 0, responded = 0, weightedRespSec = 0, weightedDen = 0, breach15 = 0, breach1h = 0, breach24h = 0;
             for (const r of slaRows || []) {
               received += r.conversations_received || 0;
               responded += r.conversations_responded || 0;
-              totalRespSec += r.total_first_response_seconds || 0;
+              // Use per-row avg (bounded) weighted by that row's responded count,
+              // instead of summing total_first_response_seconds which can include unanswered waits.
+              const rowAvg = Number(r.avg_first_response_seconds || 0);
+              const rowResp = Number(r.conversations_responded || 0);
+              if (rowAvg > 0 && rowAvg < 86400 && rowResp > 0) {
+                weightedRespSec += rowAvg * rowResp;
+                weightedDen += rowResp;
+              }
               breach15 += r.sla_breached_15min || 0;
               breach1h += r.sla_breached_1h || 0;
               breach24h += r.sla_breached_24h || 0;
             }
-            const avgFirstRespSec = responded > 0 ? Math.round(totalRespSec / responded) : 0;
+            const avgFirstRespSec = weightedDen > 0 ? Math.round(weightedRespSec / weightedDen) : 0;
+
             // response_rate measures % of received conversations that got a reply.
             // The sla_metrics table stores "received" (new convs) and "responded" (total replies),
             // which are not directly comparable — clamp to 100% to avoid nonsense like 750%.
