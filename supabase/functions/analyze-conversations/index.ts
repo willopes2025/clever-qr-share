@@ -779,14 +779,26 @@ Deno.serve(async (req) => {
               if (!s.user_id) continue;
               const u = ensure(s.user_id);
               const sStart = new Date(s.started_at).getTime();
-              const sEnd = s.ended_at ? new Date(s.ended_at).getTime() : nowMs2;
+              // If session is still open, prefer last_activity to avoid counting idle hours.
+              // Cap any single session at 12h to mitigate forgotten/abandoned sessions.
+              let sEnd: number;
+              if (s.ended_at) {
+                sEnd = new Date(s.ended_at).getTime();
+              } else if (s.last_activity) {
+                sEnd = new Date(s.last_activity).getTime();
+              } else {
+                sEnd = sStart + 30 * 60 * 1000; // assume 30min if no activity tracked
+              }
+              const maxEnd = sStart + 12 * 60 * 60 * 1000;
+              sEnd = Math.min(sEnd, maxEnd, nowMs2);
               const refStart = Math.max(sStart, startMs);
-              const refEnd = Math.min(sEnd, endMs, nowMs2);
+              const refEnd = Math.min(sEnd, endMs);
               const dur = Math.max(0, Math.round((refEnd - refStart) / 1000));
               if (s.session_type === 'work') u.work_seconds += dur;
               else if (s.session_type === 'break') u.break_seconds += dur;
               else if (s.session_type === 'lunch') u.lunch_seconds += dur;
             }
+
             for (const d of ((dealsClosedRes as any).data || [])) {
               if (!d.user_id) continue;
               const u = ensure(d.user_id);
