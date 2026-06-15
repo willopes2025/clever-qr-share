@@ -591,16 +591,13 @@ Deno.serve(async (req) => {
           // ---- Leads ----
           const { data: leadsInPeriod } = await supabase
             .from('contacts')
-            .select('id, source, created_at')
+            .select('id, created_at')
             .in('user_id', scopedUserIds)
             .gte('created_at', periodStartISO)
             .lte('created_at', periodEndISO);
           const leadsCount = (leadsInPeriod || []).length;
           const leadsBySource: Record<string, number> = {};
-          for (const l of leadsInPeriod || []) {
-            const k = (l.source || 'manual').toString();
-            leadsBySource[k] = (leadsBySource[k] || 0) + 1;
-          }
+
 
           // Leads sem resposta = conversas cuja última mensagem é inbound
           let unansweredLeads = 0;
