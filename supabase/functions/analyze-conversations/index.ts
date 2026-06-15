@@ -731,10 +731,11 @@ Deno.serve(async (req) => {
             const teamUserIds = scopedUserIds;
             const [sessionsRes, dealsClosedRes, tasksDoneRes, profilesAllRes] = await Promise.all([
               supabase.from('user_activity_sessions')
-                .select('user_id, session_type, duration_seconds, started_at, ended_at')
+                .select('user_id, session_type, duration_seconds, started_at, ended_at, last_activity')
                 .in('user_id', teamUserIds)
                 .lte('started_at', periodEndISO)
                 .or(`ended_at.is.null,ended_at.gte.${periodStartISO}`),
+
               funnelIds.length > 0
                 ? supabase.from('funnel_deals')
                     .select('user_id, value, stage_id, closed_at')
