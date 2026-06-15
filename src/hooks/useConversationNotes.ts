@@ -12,6 +12,7 @@ export interface ConversationNote {
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
+  creator_name?: string | null;
 }
 
 export const useConversationNotes = (conversationId: string | null, contactId: string | null) => {
@@ -37,7 +38,21 @@ export const useConversationNotes = (conversationId: string | null, contactId: s
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as ConversationNote[];
+
+      const userIds = Array.from(new Set((data || []).map((n: any) => n.user_id).filter(Boolean)));
+      const profilesMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+        (profiles || []).forEach((p: any) => profilesMap.set(p.id, p.full_name || ''));
+      }
+
+      return (data as any[]).map(n => ({
+        ...n,
+        creator_name: profilesMap.get(n.user_id) || null,
+      })) as ConversationNote[];
     },
     enabled: !!(conversationId || contactId),
   });

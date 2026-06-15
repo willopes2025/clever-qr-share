@@ -300,6 +300,10 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
                 </span>
               )}
             </div>
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground flex-wrap">
+              {task.creator_name && <span>Criado por {task.creator_name}</span>}
+              {task.assignee_name && <span>• Responsável: {task.assignee_name}</span>}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             {!task.completed_at && (
