@@ -305,6 +305,8 @@ export const TasksTab = ({ conversationId, contactId }: TasksTabProps) => {
               {task.assignee_name && <span>• Responsável: {task.assignee_name}</span>}
             </div>
           </div>
+          <div className="flex items-center gap-1">
+            {!task.completed_at && (
               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditing(task)}>
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
