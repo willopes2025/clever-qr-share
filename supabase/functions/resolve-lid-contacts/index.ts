@@ -180,29 +180,42 @@ async function run(mode: 'all' | 'queue'): Promise<ResolveStats> {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const stats: ResolveStats = { scanned: 0, resolved: 0, merged: 0, unresolved: 0, errors: 0 };
 
-  // Load LID contacts
-  let query = supabase
-    .from('contacts')
-    .select('id, user_id, phone, label_id, name, custom_fields')
-    .like('phone', 'LID_%');
+  // Load LID contacts (chunk to avoid URL length limits)
+  let list: LidContact[] = [];
 
   if (mode === 'queue') {
-    const { data: q } = await supabase
+    const { data: q, error: qErr } = await supabase
       .from('lid_resolution_queue')
       .select('contact_id')
       .is('resolved_at', null)
-      .lt('attempts', 10);
-    const ids = (q || []).map((r) => r.contact_id);
+      .lt('attempts', 10)
+      .limit(1000);
+    if (qErr) throw new Error(`load queue: ${qErr.message}`);
+    const ids = (q || []).map((r) => r.contact_id as string);
     if (ids.length === 0) return stats;
-    query = supabase
+    const CHUNK = 50;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK);
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, user_id, phone, label_id, name, custom_fields')
+        .in('id', slice);
+      if (error) {
+        console.error('[resolve-lid] chunk error', i, JSON.stringify(error));
+        throw new Error(`load contacts: ${error.message || JSON.stringify(error)}`);
+      }
+      if (data) list = list.concat(data as LidContact[]);
+    }
+  } else {
+    const { data, error } = await supabase
       .from('contacts')
       .select('id, user_id, phone, label_id, name, custom_fields')
-      .in('id', ids);
+      .like('phone', 'LID_%')
+      .limit(5000);
+    if (error) throw new Error(`load contacts: ${error.message}`);
+    list = (data || []) as LidContact[];
   }
 
-  const { data: contacts, error } = await query;
-  if (error) throw new Error(`load contacts: ${error.message}`);
-  const list = (contacts || []) as LidContact[];
   stats.scanned = list.length;
   if (list.length === 0) return stats;
 
