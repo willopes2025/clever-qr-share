@@ -678,31 +678,51 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
         console.log('[LID] Found existing contact by LID, using phone:', phone);
       } else {
         // Try to resolve LID to real phone via Evolution API (findContacts)
+        // Strategy: fetch ALL contacts (filter by lid is unreliable across Evolution versions)
+        // and look up the matching `lid` entry. Cached per worker instance per instance name.
         try {
-          const lookupResp = await fetch(
-            `${evolutionApiUrl}/chat/findContacts/${instanceName}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-              body: JSON.stringify({ where: { lid: `${labelId}@lid` } }),
-            }
-          );
-          if (lookupResp.ok) {
-            const lookupData = await lookupResp.json();
-            const arr = Array.isArray(lookupData) ? lookupData : (lookupData?.contacts ?? lookupData?.data ?? []);
-            for (const c of arr) {
-              const realJid: string | undefined = c?.remoteJid || c?.id || c?.jid;
-              if (realJid && !String(realJid).includes('@lid')) {
-                const candidate = extractPhone(String(realJid));
-                if (isValidPhone(candidate)) {
-                  phone = candidate;
-                  console.log('[LID] Resolved real phone via findContacts:', phone);
-                  break;
-                }
+          const cacheKey = `lidmap:${instanceName}`;
+          // deno-lint-ignore no-explicit-any
+          const g = globalThis as any;
+          g.__lidCache = g.__lidCache || new Map<string, { ts: number; map: Map<string, string> }>();
+          let entry = g.__lidCache.get(cacheKey) as { ts: number; map: Map<string, string> } | undefined;
+          const now = Date.now();
+          if (!entry || now - entry.ts > 5 * 60 * 1000) {
+            const lookupResp = await fetch(
+              `${evolutionApiUrl}/chat/findContacts/${instanceName}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
+                body: JSON.stringify({ where: {} }),
               }
+            );
+            if (lookupResp.ok) {
+              const lookupData = await lookupResp.json();
+              const arr = Array.isArray(lookupData) ? lookupData : (lookupData?.contacts ?? lookupData?.data ?? []);
+              const map = new Map<string, string>();
+              for (const c of arr) {
+                const lidField: string | undefined = c?.lid || c?.LID;
+                const realJid: string | undefined = c?.remoteJid || c?.id || c?.jid;
+                if (!lidField || !realJid) continue;
+                if (String(realJid).includes('@lid')) continue;
+                const lidId = String(lidField).replace('@lid', '');
+                const realRaw = String(realJid).replace('@s.whatsapp.net', '').replace('@c.us', '');
+                map.set(lidId, realRaw);
+              }
+              entry = { ts: now, map };
+              g.__lidCache.set(cacheKey, entry);
+              console.log(`[LID] cached ${map.size} mappings for ${instanceName}`);
+            } else {
+              console.warn('[LID] findContacts lookup status', lookupResp.status);
             }
-          } else {
-            console.warn('[LID] findContacts lookup status', lookupResp.status);
+          }
+          const real = entry?.map.get(labelId);
+          if (real) {
+            const candidate = extractPhone(real);
+            if (isValidPhone(candidate)) {
+              phone = candidate;
+              console.log('[LID] Resolved real phone from cached map:', phone);
+            }
           }
         } catch (lookupErr) {
           console.warn('[LID] findContacts lookup failed:', (lookupErr as Error).message);
