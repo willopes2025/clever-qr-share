@@ -22,6 +22,8 @@ export interface UnifiedTask {
   contact_id?: string | null;
   deal_id?: string | null;
   deal_title?: string | null;
+  creator_name?: string | null;
+  assignee_name?: string | null;
 }
 
 // Helper to send notification
