@@ -192,7 +192,7 @@ export const NotesTab = ({ conversationId, contactId }: NotesTabProps) => {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      {formatFullDateTimeBR(note.created_at)}
+                      {note.creator_name ? `Por ${note.creator_name} • ` : ''}{formatFullDateTimeBR(note.created_at)}
                     </p>
                   </>
                 )}
