@@ -837,8 +837,15 @@ Deno.serve(async (req) => {
               breach24h += r.sla_breached_24h || 0;
             }
             const avgFirstRespSec = responded > 0 ? Math.round(totalRespSec / responded) : 0;
-            const responseRate = received > 0 ? Math.round((responded / received) * 100) : 0;
-            const slaCompliance15 = received > 0 ? Math.round(((received - breach15) / received) * 100) : 0;
+            // response_rate measures % of received conversations that got a reply.
+            // The sla_metrics table stores "received" (new convs) and "responded" (total replies),
+            // which are not directly comparable — clamp to 100% to avoid nonsense like 750%.
+            const rawResponseRate = received > 0 ? Math.round((responded / received) * 100) : 0;
+            const responseRate = Math.min(100, rawResponseRate);
+            // Compliance = % of answered conversations that beat the 15min SLA.
+            const slaCompliance15 = responded > 0
+              ? Math.max(0, Math.round(((responded - breach15) / responded) * 100))
+              : 0;
             usageMetrics.sla = {
               conversations_received: received,
               conversations_responded: responded,
@@ -851,6 +858,7 @@ Deno.serve(async (req) => {
               unanswered_count: slaSummary?.unanswered_count || 0,
               overdue_tasks_count: slaSummary?.overdue_tasks_count || 0,
             };
+
           } catch (e) {
             console.error('[analyze] sla fail', e);
           }
