@@ -1220,14 +1220,16 @@ async function handleMessagesUpsert(supabase: any, userId: string, instanceId: s
     // If contact ended up with a LID-only phone, enqueue it for background resolution
     if (useLidAsIdentifier && contact?.id && labelId) {
       try {
-        await supabase.from('lid_resolution_queue').upsert({
+        const { error: enqErr } = await supabase.from('lid_resolution_queue').upsert({
           contact_id: contact.id,
           label_id: labelId,
           instance_id: instanceData?.id ?? null,
           user_id: userId,
         }, { onConflict: 'contact_id' });
+        if (enqErr) console.error('[LID] enqueue error:', enqErr.message);
+        else console.log('[LID] enqueued for resolution:', contact.id, labelId);
       } catch (qErr) {
-        console.warn('[LID] enqueue failed:', (qErr as Error).message);
+        console.error('[LID] enqueue exception:', (qErr as Error).message);
       }
     }
 
