@@ -200,7 +200,7 @@ async function run(mode: 'all' | 'queue'): Promise<ResolveStats> {
         .from('contacts')
         .select('id, user_id, phone, label_id, name, custom_fields')
         .in('id', slice);
-      if (error) throw new Error(`load contacts: ${error.message}`);
+      if (error) throw new Error(`load contacts: ${error.message} | code=${(error as any).code} | details=${(error as any).details} | hint=${(error as any).hint}`);
       if (data) list = list.concat(data as LidContact[]);
     }
   } else {
