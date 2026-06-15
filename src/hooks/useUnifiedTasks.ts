@@ -165,7 +165,7 @@ export const useUnifiedTasks = ({ conversationId, contactId, dealId }: UseUnifie
       }
 
       // Sort: pending first, then by due_date, then by created_at
-      return allTasks.sort((a, b) => {
+      const sorted = allTasks.sort((a, b) => {
         // Completed last
         if (a.completed_at && !b.completed_at) return 1;
         if (!a.completed_at && b.completed_at) return -1;
@@ -180,6 +180,24 @@ export const useUnifiedTasks = ({ conversationId, contactId, dealId }: UseUnifie
         // Then by created_at
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
+
+      // Enrich with creator/assignee names
+      const userIds = Array.from(new Set(
+        sorted.flatMap(t => [t.user_id, t.assigned_to]).filter(Boolean) as string[]
+      ));
+      const profilesMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+        (profiles || []).forEach((p: any) => profilesMap.set(p.id, p.full_name || ''));
+      }
+      return sorted.map(t => ({
+        ...t,
+        creator_name: profilesMap.get(t.user_id) || null,
+        assignee_name: t.assigned_to ? (profilesMap.get(t.assigned_to) || null) : null,
+      }));
     },
     enabled: !!(conversationId || contactId || dealId) && !!user,
   });
