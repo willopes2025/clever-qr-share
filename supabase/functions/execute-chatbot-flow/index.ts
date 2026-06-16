@@ -216,9 +216,14 @@ Deno.serve(async (req: Request) => {
     // Load contact info for variable substitution (includes custom_fields)
     const { data: contact } = await supabase
       .from('contacts')
-      .select('id, name, phone, email, custom_fields')
+      .select('id, name, phone, email, custom_fields, label_id')
       .eq('id', contactId)
       .single();
+
+    // LID fallback: when contact has no phone but has a LID, use it as the Evolution recipient (Meta paths still require phone)
+    const evolutionRecipient: string = (contact?.phone && contact.phone.length > 0)
+      ? contact.phone
+      : (contact?.label_id ? `${contact.label_id}@lid` : '');
 
     // Load most recent deal for this contact (for {{valor}}, {{etapa}}, {{funil}}, lead custom fields)
     let activeDeal: any = null;
