@@ -849,20 +849,20 @@ Deno.serve(async (req: Request) => {
                   await new Promise(r => setTimeout(r, 2000));
                 }
 
-                if (hasMedia && contact?.phone) {
+                if (hasMedia && (contact?.phone || evolutionRecipient)) {
                   const mediaType = tpl.media_type as string;
                   let mediaSent = false;
                   let mediaError: string | null = null;
                   let mediaMessageId: string | null = null;
 
                   // Try Evolution API first
-                  if (instanceName) {
+                  if (instanceName && evolutionRecipient) {
                     try {
                       const isAudio = mediaType === 'audio';
                       const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
                       const payload: any = isAudio
-                        ? { number: contact.phone, audio: tpl.media_url }
-                        : { number: contact.phone, mediatype: mediaType, media: tpl.media_url };
+                        ? { number: evolutionRecipient, audio: tpl.media_url }
+                        : { number: evolutionRecipient, mediatype: mediaType, media: tpl.media_url };
 
                       const mediaResp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
                         method: 'POST',
