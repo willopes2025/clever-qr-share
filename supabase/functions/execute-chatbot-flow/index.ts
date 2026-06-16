@@ -589,9 +589,9 @@ Deno.serve(async (req: Request) => {
         } catch (err) {
           console.error('[FLOW] Error sending media via Evolution:', err);
         }
-      } else if (metaPhoneNumberId && metaAccessToken) {
+      } else if (canSendMeta) {
         try {
-          const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+          const formattedPhone = (contact!.phone as string).replace(/[^0-9]/g, '');
           const payload: any = {
             messaging_product: 'whatsapp', recipient_type: 'individual',
             to: formattedPhone, type: mediaType,
