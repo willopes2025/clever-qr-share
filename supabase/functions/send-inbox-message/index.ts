@@ -223,8 +223,11 @@ Deno.serve(async (req) => {
     }
 
     const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null; label_id: string | null } | null;
-    if (!contactData || !contactData.phone) {
+    if (!contactData) {
       throw new Error('Contact not found');
+    }
+    if (!contactData.phone && !contactData.label_id) {
+      throw new Error('Contato sem telefone nem LID — não é possível enviar');
     }
 
     // Check if the user explicitly chose an Evolution instance for this send
@@ -551,14 +554,15 @@ Deno.serve(async (req) => {
     if (instance.status !== 'connected') throw new Error('Instance is not connected');
 
     // Format phone number — use targetPhone if provided
-    const rawPhone = targetPhone || contactData.phone;
+    const rawPhone = targetPhone || contactData.phone || '';
     let phone = rawPhone.replace(/\D/g, '');
     let remoteJid: string;
     
-    const isLabelIdContact = rawPhone.startsWith('LID_') || (contactData.label_id && phone.length > 13);
+    const isLabelIdContact = rawPhone.startsWith('LID_') || (!!contactData.label_id && (!phone || phone.length > 13));
     
     if (isLabelIdContact) {
       const labelId = contactData.label_id || phone;
+      if (!labelId) throw new Error('LID não encontrado para o contato');
       remoteJid = `${labelId}@lid`;
     } else {
       if (phone.length < 10) throw new Error(`Número inválido: ${rawPhone}`);

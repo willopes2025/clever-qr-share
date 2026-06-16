@@ -216,9 +216,14 @@ Deno.serve(async (req: Request) => {
     // Load contact info for variable substitution (includes custom_fields)
     const { data: contact } = await supabase
       .from('contacts')
-      .select('id, name, phone, email, custom_fields')
+      .select('id, name, phone, email, custom_fields, label_id')
       .eq('id', contactId)
       .single();
+
+    // LID fallback: when contact has no phone but has a LID, use it as the Evolution recipient (Meta paths still require phone)
+    const evolutionRecipient: string = (contact?.phone && contact.phone.length > 0)
+      ? contact.phone
+      : (contact?.label_id ? `${contact.label_id}@lid` : '');
 
     // Load most recent deal for this contact (for {{valor}}, {{etapa}}, {{funil}}, lead custom fields)
     let activeDeal: any = null;
@@ -446,13 +451,15 @@ Deno.serve(async (req: Request) => {
     // Helper: send WhatsApp message (supports both Evolution API and Meta Cloud API)
     const META_API_URL = 'https://graph.facebook.com/v21.0';
     const sendMessage = async (text: string) => {
-      if (!contact?.phone) {
-        console.log('[FLOW] Cannot send message - no phone');
+      const canSendEvolution = !!instanceName && !!evolutionRecipient;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      if (!canSendEvolution && !canSendMeta) {
+        console.log('[FLOW] Cannot send message - no phone/LID or no sending channel configured');
         return;
       }
 
       // Prefer Evolution API if available, otherwise use Meta Cloud API
-      if (instanceName) {
+      if (canSendEvolution) {
         try {
           const response = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
             method: 'POST',
@@ -461,7 +468,7 @@ Deno.serve(async (req: Request) => {
               'apikey': evolutionApiKey,
             },
             body: JSON.stringify({
-              number: contact.phone,
+              number: evolutionRecipient,
               text: text,
             }),
           });
@@ -546,14 +553,17 @@ Deno.serve(async (req: Request) => {
       caption?: string,
       filename?: string,
     ) => {
-      if (!contact?.phone || !mediaUrl) return;
-      if (instanceName) {
+      if (!mediaUrl) return;
+      const canSendEvolution = !!instanceName && !!evolutionRecipient;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      if (!canSendEvolution && !canSendMeta) return;
+      if (canSendEvolution) {
         try {
           const isAudio = mediaType === 'audio';
           const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
           const body: any = isAudio
-            ? { number: contact.phone, audio: mediaUrl }
-            : { number: contact.phone, mediatype: mediaType, media: mediaUrl };
+            ? { number: evolutionRecipient, audio: mediaUrl }
+            : { number: evolutionRecipient, mediatype: mediaType, media: mediaUrl };
           if (!isAudio && caption) body.caption = caption;
           if (!isAudio && filename && mediaType === 'document') body.fileName = filename;
           const resp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
@@ -579,9 +589,9 @@ Deno.serve(async (req: Request) => {
         } catch (err) {
           console.error('[FLOW] Error sending media via Evolution:', err);
         }
-      } else if (metaPhoneNumberId && metaAccessToken) {
+      } else if (canSendMeta) {
         try {
-          const formattedPhone = contact.phone.replace(/[^0-9]/g, '');
+          const formattedPhone = (contact!.phone as string).replace(/[^0-9]/g, '');
           const payload: any = {
             messaging_product: 'whatsapp', recipient_type: 'individual',
             to: formattedPhone, type: mediaType,
@@ -621,7 +631,7 @@ Deno.serve(async (req: Request) => {
 
     // Helper: send Evolution interactive buttons (real WhatsApp buttons, no numbered text in body)
     const sendEvolutionButtons = async (text: string, btns: Array<{ label: string }>): Promise<boolean> => {
-      if (!instanceName || !contact?.phone) return false;
+      if (!instanceName || !evolutionRecipient) return false;
       const buttonsPayload = btns.slice(0, 3).map((b, i) => ({
         buttonId: `btn_${i}`,
         buttonText: { displayText: (b.label || `Opção ${i + 1}`).slice(0, 20) },
@@ -632,7 +642,7 @@ Deno.serve(async (req: Request) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
           body: JSON.stringify({
-            number: contact.phone,
+            number: evolutionRecipient,
             title: '',
             description: text,
             footer: '',
@@ -839,20 +849,20 @@ Deno.serve(async (req: Request) => {
                   await new Promise(r => setTimeout(r, 2000));
                 }
 
-                if (hasMedia && contact?.phone) {
+                if (hasMedia && (contact?.phone || evolutionRecipient)) {
                   const mediaType = tpl.media_type as string;
                   let mediaSent = false;
                   let mediaError: string | null = null;
                   let mediaMessageId: string | null = null;
 
                   // Try Evolution API first
-                  if (instanceName) {
+                  if (instanceName && evolutionRecipient) {
                     try {
                       const isAudio = mediaType === 'audio';
                       const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
                       const payload: any = isAudio
-                        ? { number: contact.phone, audio: tpl.media_url }
-                        : { number: contact.phone, mediatype: mediaType, media: tpl.media_url };
+                        ? { number: evolutionRecipient, audio: tpl.media_url }
+                        : { number: evolutionRecipient, mediatype: mediaType, media: tpl.media_url };
 
                       const mediaResp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
                         method: 'POST',
