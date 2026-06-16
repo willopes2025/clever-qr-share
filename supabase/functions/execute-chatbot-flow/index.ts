@@ -553,14 +553,17 @@ Deno.serve(async (req: Request) => {
       caption?: string,
       filename?: string,
     ) => {
-      if (!contact?.phone || !mediaUrl) return;
-      if (instanceName) {
+      if (!mediaUrl) return;
+      const canSendEvolution = !!instanceName && !!evolutionRecipient;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      if (!canSendEvolution && !canSendMeta) return;
+      if (canSendEvolution) {
         try {
           const isAudio = mediaType === 'audio';
           const endpoint = isAudio ? 'sendWhatsAppAudio' : 'sendMedia';
           const body: any = isAudio
-            ? { number: contact.phone, audio: mediaUrl }
-            : { number: contact.phone, mediatype: mediaType, media: mediaUrl };
+            ? { number: evolutionRecipient, audio: mediaUrl }
+            : { number: evolutionRecipient, mediatype: mediaType, media: mediaUrl };
           if (!isAudio && caption) body.caption = caption;
           if (!isAudio && filename && mediaType === 'document') body.fileName = filename;
           const resp = await fetch(`${evolutionApiUrl}/message/${endpoint}/${instanceName}`, {
