@@ -451,13 +451,15 @@ Deno.serve(async (req: Request) => {
     // Helper: send WhatsApp message (supports both Evolution API and Meta Cloud API)
     const META_API_URL = 'https://graph.facebook.com/v21.0';
     const sendMessage = async (text: string) => {
-      if (!contact?.phone) {
-        console.log('[FLOW] Cannot send message - no phone');
+      const canSendEvolution = !!instanceName && !!evolutionRecipient;
+      const canSendMeta = !!metaPhoneNumberId && !!metaAccessToken && !!contact?.phone;
+      if (!canSendEvolution && !canSendMeta) {
+        console.log('[FLOW] Cannot send message - no phone/LID or no sending channel configured');
         return;
       }
 
       // Prefer Evolution API if available, otherwise use Meta Cloud API
-      if (instanceName) {
+      if (canSendEvolution) {
         try {
           const response = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
             method: 'POST',
@@ -466,7 +468,7 @@ Deno.serve(async (req: Request) => {
               'apikey': evolutionApiKey,
             },
             body: JSON.stringify({
-              number: contact.phone,
+              number: evolutionRecipient,
               text: text,
             }),
           });
