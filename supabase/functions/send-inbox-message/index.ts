@@ -223,8 +223,11 @@ Deno.serve(async (req) => {
     }
 
     const contactData = conversation.contact as unknown as { id: string; phone: string; name: string | null; label_id: string | null } | null;
-    if (!contactData || !contactData.phone) {
+    if (!contactData) {
       throw new Error('Contact not found');
+    }
+    if (!contactData.phone && !contactData.label_id) {
+      throw new Error('Contato sem telefone nem LID — não é possível enviar');
     }
 
     // Check if the user explicitly chose an Evolution instance for this send
