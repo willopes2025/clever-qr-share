@@ -631,7 +631,7 @@ Deno.serve(async (req: Request) => {
 
     // Helper: send Evolution interactive buttons (real WhatsApp buttons, no numbered text in body)
     const sendEvolutionButtons = async (text: string, btns: Array<{ label: string }>): Promise<boolean> => {
-      if (!instanceName || !contact?.phone) return false;
+      if (!instanceName || !evolutionRecipient) return false;
       const buttonsPayload = btns.slice(0, 3).map((b, i) => ({
         buttonId: `btn_${i}`,
         buttonText: { displayText: (b.label || `Opção ${i + 1}`).slice(0, 20) },
@@ -642,7 +642,7 @@ Deno.serve(async (req: Request) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
           body: JSON.stringify({
-            number: contact.phone,
+            number: evolutionRecipient,
             title: '',
             description: text,
             footer: '',
