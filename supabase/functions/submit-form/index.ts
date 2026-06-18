@@ -789,6 +789,17 @@ Deno.serve(async (req: Request) => {
         };
       }
 
+      // Merge tracking (UTMs/referrer) into deal — preserves existing keys
+      if (Object.keys(trackingFromForm).length > 0) {
+        const { data: dealTrk } = await supabase
+          .from('funnel_deals')
+          .select('tracking')
+          .eq('id', lookupDealId)
+          .single();
+        const existing = (dealTrk?.tracking as Record<string, any>) || {};
+        dealUpdateData.tracking = { ...trackingFromForm, ...existing };
+      }
+
       if (Object.keys(dealUpdateData).length > 0) {
         await supabase.from('funnel_deals').update(dealUpdateData).eq('id', lookupDealId);
         console.log(`[lead lookup] Updated deal ${lookupDealId}`);
