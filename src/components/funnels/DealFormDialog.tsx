@@ -376,6 +376,11 @@ export const DealFormDialog = ({
               stageId={selectedStageId}
             />
 
+            {/* Origem / Rastreamento (UTMs, anúncios) */}
+            {deal?.tracking && Object.keys(deal.tracking).length > 0 && (
+              <DealTrackingSection tracking={deal.tracking as any} />
+            )}
+
             {/* ssOtica Integration */}
             {deal && (
               <SsoticaDealSection
