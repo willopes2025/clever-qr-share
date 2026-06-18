@@ -28,6 +28,7 @@ import { differenceInHours, differenceInDays, format, isPast, isToday } from "da
 import { ptBR } from "date-fns/locale";
 import { formatDateTimeFull } from "@/lib/date-utils";
 import { formatCustomFieldValue, parseAnyDateValue } from "@/lib/date-utils";
+import { DealTrackingBadge } from "./DealTrackingSection";
 
 interface FunnelDealCardProps {
   deal: FunnelDeal;
