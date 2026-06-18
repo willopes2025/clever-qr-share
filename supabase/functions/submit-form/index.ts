@@ -896,6 +896,11 @@ Deno.serve(async (req: Request) => {
             dealInsertData.custom_fields = dealCustomFields;
             console.log('Adding lead custom fields to deal:', dealCustomFields);
           }
+
+          // Include tracking (UTMs/referrer) — the BEFORE INSERT trigger will fill ad info if conversation is linked
+          if (Object.keys(trackingFromForm).length > 0) {
+            dealInsertData.tracking = trackingFromForm;
+          }
           
           const { data: newDeal, error: dealError } = await supabase
             .from('funnel_deals')
