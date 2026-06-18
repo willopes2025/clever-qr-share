@@ -75,6 +75,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Build tracking object (UTMs / referrer / landing) from staticParams
+    const trackingKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','referrer','landing_url'];
+    const trackingFromForm: Record<string, string> = {};
+    for (const k of trackingKeys) {
+      const v = staticParams[k];
+      if (v !== undefined && v !== null && String(v).length > 0) {
+        trackingFromForm[k] = String(v);
+      }
+    }
+    if (Object.keys(trackingFromForm).length > 0) {
+      trackingFromForm.origin_channel = 'form';
+      trackingFromForm.form_id = formId;
+    }
+
     // Process field mappings to find contact info and lead custom fields
     let contactData: { name?: string; email?: string; phone?: string; custom_fields?: Record<string, any> } = {
       custom_fields: {}
