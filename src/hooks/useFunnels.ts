@@ -59,6 +59,7 @@ export interface FunnelDeal {
   responsible_id?: string | null;
   parent_deal_id?: string | null;
   source_form_id?: string | null;
+  tracking?: Record<string, any> | null;
   contact?: {
     id: string;
     name: string | null;

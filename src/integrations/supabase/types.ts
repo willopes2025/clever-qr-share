@@ -3351,6 +3351,7 @@ export type Database = {
           source_form_id: string | null
           stage_id: string
           title: string | null
+          tracking: Json
           updated_at: string | null
           user_id: string
           value: number | null
@@ -3376,6 +3377,7 @@ export type Database = {
           source_form_id?: string | null
           stage_id: string
           title?: string | null
+          tracking?: Json
           updated_at?: string | null
           user_id: string
           value?: number | null
@@ -3401,6 +3403,7 @@ export type Database = {
           source_form_id?: string | null
           stage_id?: string
           title?: string | null
+          tracking?: Json
           updated_at?: string | null
           user_id?: string
           value?: number | null

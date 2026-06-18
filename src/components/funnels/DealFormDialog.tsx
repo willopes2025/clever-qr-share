@@ -23,6 +23,7 @@ import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
 import { getMissingRequiredFields } from "@/lib/required-fields";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
 import { SsoticaDealSection } from "./SsoticaDealSection";
+import { DealTrackingSection } from "./DealTrackingSection";
 import { NextActionForm, NextActionData } from "./NextActionForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -374,6 +375,11 @@ export const DealFormDialog = ({
               funnelId={selectedFunnelId}
               stageId={selectedStageId}
             />
+
+            {/* Origem / Rastreamento (UTMs, anúncios) */}
+            {deal?.tracking && Object.keys(deal.tracking).length > 0 && (
+              <DealTrackingSection tracking={deal.tracking as any} />
+            )}
 
             {/* ssOtica Integration */}
             {deal && (

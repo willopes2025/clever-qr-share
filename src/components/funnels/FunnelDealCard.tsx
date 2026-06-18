@@ -28,6 +28,7 @@ import { differenceInHours, differenceInDays, format, isPast, isToday } from "da
 import { ptBR } from "date-fns/locale";
 import { formatDateTimeFull } from "@/lib/date-utils";
 import { formatCustomFieldValue, parseAnyDateValue } from "@/lib/date-utils";
+import { DealTrackingBadge } from "./DealTrackingSection";
 
 interface FunnelDealCardProps {
   deal: FunnelDeal;
@@ -333,6 +334,7 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
                   {deal.source}
                 </Badge>
               )}
+              <DealTrackingBadge tracking={deal.tracking as any} />
             </div>
           </CardContent>
         </Card>

@@ -75,6 +75,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Build tracking object (UTMs / referrer / landing) from staticParams
+    const trackingKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','referrer','landing_url'];
+    const trackingFromForm: Record<string, string> = {};
+    for (const k of trackingKeys) {
+      const v = staticParams[k];
+      if (v !== undefined && v !== null && String(v).length > 0) {
+        trackingFromForm[k] = String(v);
+      }
+    }
+    if (Object.keys(trackingFromForm).length > 0) {
+      trackingFromForm.origin_channel = 'form';
+      trackingFromForm.form_id = formId;
+    }
+
     // Process field mappings to find contact info and lead custom fields
     let contactData: { name?: string; email?: string; phone?: string; custom_fields?: Record<string, any> } = {
       custom_fields: {}
@@ -775,6 +789,17 @@ Deno.serve(async (req: Request) => {
         };
       }
 
+      // Merge tracking (UTMs/referrer) into deal — preserves existing keys
+      if (Object.keys(trackingFromForm).length > 0) {
+        const { data: dealTrk } = await supabase
+          .from('funnel_deals')
+          .select('tracking')
+          .eq('id', lookupDealId)
+          .single();
+        const existing = (dealTrk?.tracking as Record<string, any>) || {};
+        dealUpdateData.tracking = { ...trackingFromForm, ...existing };
+      }
+
       if (Object.keys(dealUpdateData).length > 0) {
         await supabase.from('funnel_deals').update(dealUpdateData).eq('id', lookupDealId);
         console.log(`[lead lookup] Updated deal ${lookupDealId}`);
@@ -871,6 +896,11 @@ Deno.serve(async (req: Request) => {
             dealInsertData.custom_fields = dealCustomFields;
             console.log('Adding lead custom fields to deal:', dealCustomFields);
           }
+
+          // Include tracking (UTMs/referrer) — the BEFORE INSERT trigger will fill ad info if conversation is linked
+          if (Object.keys(trackingFromForm).length > 0) {
+            dealInsertData.tracking = trackingFromForm;
+          }
           
           const { data: newDeal, error: dealError } = await supabase
             .from('funnel_deals')
@@ -930,6 +960,16 @@ Deno.serve(async (req: Request) => {
             
             dealUpdateData.custom_fields = mergedDealFields;
           }
+
+          // Merge tracking — existing keys win (don't overwrite the original origin)
+          if (Object.keys(trackingFromForm).length > 0) {
+            const { data: dealTrk } = await supabase
+              .from('funnel_deals')
+              .select('tracking')
+              .eq('id', existingDeal.id)
+              .single();
+            const existing = (dealTrk?.tracking as Record<string, any>) || {};
+            dealUpdateData.tracking = { ...trackingFromForm, ...existing };
           
           if (Object.keys(dealUpdateData).length > 0) {
             await supabase
