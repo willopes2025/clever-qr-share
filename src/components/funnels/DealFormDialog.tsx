@@ -23,6 +23,7 @@ import { useFieldRequiredRules } from "@/hooks/useFieldRequiredRules";
 import { getMissingRequiredFields } from "@/lib/required-fields";
 import { DealCustomFieldsEditor } from "./DealCustomFieldsEditor";
 import { SsoticaDealSection } from "./SsoticaDealSection";
+import { DealTrackingSection } from "./DealTrackingSection";
 import { NextActionForm, NextActionData } from "./NextActionForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
