@@ -334,6 +334,7 @@ export const FunnelDealCard = ({ deal, onDragStart, onDragEnd, isDragging, cardF
                   {deal.source}
                 </Badge>
               )}
+              <DealTrackingBadge tracking={deal.tracking as any} />
             </div>
           </CardContent>
         </Card>
