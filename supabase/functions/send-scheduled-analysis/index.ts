@@ -644,10 +644,100 @@ function buildPdf(report: any): Uint8Array {
       yPos += 6;
     }
     yPos += 3;
+    addCallout(narr.campaigns_commentary);
+
+    // Per-campaign suggestions vindas do report.campaign_performance
+    const campAi: any[] = Array.isArray(report?.campaign_performance?.campaigns) ? report.campaign_performance.campaigns : [];
+    const campWithSugg = campAi.filter((c: any) => Array.isArray(c?.suggestions) && c.suggestions.length > 0);
+    if (campWithSugg.length > 0) {
+      checkBreak(10);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("Sugestões por campanha (IA)", margin, yPos);
+      yPos += 5;
+      for (const c of campWithSugg) {
+        checkBreak(12);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(59, 130, 246);
+        doc.text(`• ${(c.name || "Campanha").slice(0, 60)}`, margin + 2, yPos);
+        yPos += 4;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        for (const s of c.suggestions.slice(0, 3)) {
+          const lines = doc.splitTextToSize(`   – ${s}`, pageWidth - margin * 2 - 6);
+          checkBreak(lines.length * 4 + 1);
+          doc.text(lines, margin + 4, yPos);
+          yPos += lines.length * 4;
+        }
+        yPos += 2;
+      }
+      yPos += 2;
+    }
+  }
+
+  // ============== FUNIS ==============
+  const funnels: any[] = Array.isArray(report?.funnel_performance?.funnels) ? report.funnel_performance.funnels : [];
+  if (funnels.length > 0) {
+    addSection("Funis e Gargalos");
+    for (const f of funnels) {
+      checkBreak(20);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(f.name || "Funil", margin, yPos);
+      yPos += 5;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text(
+        `Deals: ${fmtNum(f.total_deals || 0)}  |  Ganhos: ${fmtNum(f.won_count || 0)}  |  Perdidos: ${fmtNum(f.lost_count || 0)}  |  ` +
+          `Win-rate: ${f.won_rate || 0}%  |  Tempo médio até fechar: ${f.avg_days_to_close || 0}d`,
+        margin,
+        yPos,
+      );
+      yPos += 5;
+      const bottlenecks: any[] = Array.isArray(f.bottleneck_stages) ? f.bottleneck_stages : [];
+      if (bottlenecks.length > 0) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(239, 68, 68);
+        doc.text("Top etapas-gargalo:", margin + 2, yPos);
+        yPos += 4;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        for (const s of bottlenecks.slice(0, 3)) {
+          const txt = `   – ${s.name || "Etapa"} (tempo médio ${s.avg_hours || 0}h)${s.note ? `: ${s.note}` : ""}`;
+          const lines = doc.splitTextToSize(txt, pageWidth - margin * 2 - 4);
+          checkBreak(lines.length * 4 + 1);
+          doc.text(lines, margin + 2, yPos);
+          yPos += lines.length * 4;
+        }
+      }
+      const sugg: string[] = Array.isArray(f.suggestions) ? f.suggestions : [];
+      if (sugg.length > 0) {
+        yPos += 1;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(59, 130, 246);
+        doc.text("Sugestões da IA:", margin + 2, yPos);
+        yPos += 4;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        for (const s of sugg.slice(0, 4)) {
+          const lines = doc.splitTextToSize(`   – ${s}`, pageWidth - margin * 2 - 4);
+          checkBreak(lines.length * 4 + 1);
+          doc.text(lines, margin + 2, yPos);
+          yPos += lines.length * 4;
+        }
+      }
+      yPos += 4;
+    }
+    addCallout(narr.funnel_commentary);
   }
 
 
-  // ============== COMPARATIVO PERIODO ANTERIOR ==============
   if (kpis && Object.keys(kpis).length > 0) {
     addSection("Comparativo vs. Periodo Anterior");
     const rows: Array<[string, string, string, number, string?]> = [
