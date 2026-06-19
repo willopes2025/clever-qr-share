@@ -852,7 +852,8 @@ function buildPdf(report: any): Uint8Array {
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(pc[0], pc[1], pc[2]);
-      doc.text(`Prioridade: ${String(a.priority || "baixa").toUpperCase()}${a.owner_hint ? `  •  Sugerido: ${a.owner_hint}` : ""}`, margin + 8, yPos + 3);
+      const ownerSuffix = a.owner_hint ? "  •  Sugerido: " + a.owner_hint : "";
+      doc.text("Prioridade: " + String(a.priority || "baixa").toUpperCase() + ownerSuffix, margin + 8, yPos + 3);
       yPos += 5;
       doc.setTextColor(40, 40, 40);
       doc.setFont("helvetica", "normal");
