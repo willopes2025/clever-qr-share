@@ -1,88 +1,98 @@
+## Objetivo
 
-## Diagnóstico do PDF atual
+Todo dia, no horário definido (padrão 8h no fuso da organização), o sistema analisa as conversas/negócios dos últimos N dias e gera um PDF com:
 
-O PDF que você enviou (`analise-2026-06-17-...pdf`) tem só 3 páginas porque **a maior parte dele caiu em fallback vazio**:
+- **Lista de leads quentes por etapa do funil**, agrupados por "Objetivo" (configurável).
+- **Resumo da última conversa de cada lead** (bullet points + sinais de compra detectados pela IA).
 
-- Notas da IA: **0/0/0/0/0/0** → a chamada `analyze_conversations` falhou ou voltou sem dados → entrou no fallback `executive_summary = "Análise concluída."` e zerou `strengths` / `improvements` / `recommendations` / `conversation_details`.
-- O builder (`supabase/functions/send-scheduled-analysis/index.ts`) já tem as seções **Resumo Executivo, Recomendações, Pontos Fortes, Áreas de Melhoria, Detalhes por Conversa** — mas elas só renderizam se vierem populadas. Como vieram vazias, o PDF terminou no "Análise concluída".
-- Seções **Funis** (`analyze_funnel`) e **Análise individual por atendente** (`analyze_users`) **nunca são desenhadas no PDF**, mesmo quando a IA retorna dados — só aparecem na UI (`AnalysisReportDetail`, `FunnelInsightsTab`, `UserPerformanceTab`).
-- KPIs são apresentados como números soltos: não há **leitura/narrativa** explicando o que cada bloco significa (ex.: "leads caíram 40% — concentração de queda na quarta às 14h", "Gleycy ficou 41h logada mas só atendeu 1 conversa", etc.).
-- Não há **prioridade** nas recomendações nem **plano de ação**.
+O **gestor** recebe o consolidado por **e-mail** (PDF anexado/link). Cada **vendedor** recebe via **WhatsApp** apenas seus próprios leads (PDF como documento na instância conectada).
 
-## O que vai mudar
+---
 
-### 1. Robustez da IA (resolver o "tudo zero")
-Em `supabase/functions/analyze-conversations/index.ts`:
-- Adicionar **retry** (1 reintento) em cada uma das 4 chamadas paralelas quando vier `null` / `tool_args` vazio.
-- Quando o período tiver pouco volume (ex.: < 20 conversas), encurtar o `conversationTexts` e simplificar o schema para reduzir falha de tool calling.
-- Em vez do fallback "Análise concluída.", gerar um **resumo determinístico** a partir dos KPIs (variação x período anterior, top atendente, principal gargalo de SLA) — assim o PDF nunca mais vai sair "vazio".
-- Logar no `error_message` o motivo real (timeout/tool error) para diagnóstico futuro.
+## Conceito: "Objetivo de Compra"
 
-### 2. Novo prompt: "comentário narrativo por seção"
-Adicionar uma 5ª chamada à IA (`narrate_sections`, também `google/gemini-2.5-flash`, tool calling estruturado) que recebe **todos os agregados** (KPIs + volume + leads + comercial + equipe + SLA + IA + campanhas + comparativo) e devolve um objeto:
+Nova entidade configurável por funil. Cada objetivo = um agrupamento de etapas + um prompt próprio que define o que é "comprador potencial" para aquele contexto.
 
-```
-{
-  executive_kpis_commentary: string,     // 3–5 frases sobre os KPIs do topo
-  volume_commentary: string,              // padrões de horário/dia + alertas
-  leads_commentary: string,               // origens, tempo de espera, riscos
-  commercial_commentary: string,          // pipeline, conversão, ticket
-  team_commentary: string,                // ranking + outliers (ex.: muita hora pouca msg)
-  team_per_user: [{ user_id, note }],     // 1 linha por atendente
-  sla_commentary: string,                 // diagnóstico das quebras
-  ai_commentary: string,                  // eficácia da IA + handoff
-  campaigns_commentary: string,           // o que está performando e o que não
-  funnel_commentary: string,              // gargalos por etapa
-  action_plan: [                          // até 5 ações priorizadas
-    { priority: 'alta'|'media'|'baixa', title, why, how, owner_hint }
-  ]
-}
-```
+Exemplos:
+- **Comprador VIP** → etapas: Proposta, Negociação → prompt: "Identifique leads com ticket alto, urgência e sinais de decisão..."
+- **Recompra** → etapas: Pós-venda → prompt: "Identifique clientes satisfeitos prontos para nova compra..."
+- **Upsell** → etapas: Ativos → prompt: "Identifique clientes que demonstraram interesse em produtos premium..."
 
-Esse texto é salvo em `conversation_analysis_reports.usage_metrics.ai_narrative` (sem mudar schema — é JSONB livre).
+Cada objetivo tem: nome, descrição, funil, etapas incluídas, prompt da IA, score mínimo (0-100), nº máx de leads no relatório, ativo/inativo.
 
-### 3. PDF muito mais rico (`buildPdf` em `send-scheduled-analysis/index.ts`)
+---
 
-Em cada seção existente, adicionar um **callout "Leitura da IA"** logo abaixo dos números — caixa cinza-clara de 4–8 linhas usando o respectivo `*_commentary`.
+## Telas (Frontend)
 
-Seções novas / expandidas:
+### 1. Configuração — em `Analysis` (nova aba "Relatórios Diários")
+- Lista de objetivos cadastrados (cards) + botão "Novo Objetivo".
+- Form: nome, funil, multiselect de etapas, textarea do prompt (com chips de variáveis: `{contato}`, `{ultimas_mensagens}`, `{tempo_etapa}`, `{valor_negocio}`, `{custom_fields}`), slider de score mínimo, limite de leads.
+- Seção "Destinatários":
+  - **Gestores (e-mail)**: multiselect de membros da org → consolidado.
+  - **Vendedores (WhatsApp)**: toggle "enviar para cada responsável" + escolha da instância de envio.
+- Seção "Agendamento": hora local (default 08:00), dias da semana, janela de análise (últimos X dias, default 7).
+- Botão "Gerar prévia agora" (roda on-demand e mostra/baixa o PDF).
 
-| Seção | Hoje | Depois |
-|---|---|---|
-| Capa / KPIs | só cards | + callout "Leitura da IA" + comparativo destacando a maior queda/alta |
-| Volume e Atividade | bars de dia/hora | + comentário (ex.: "70% dos envios entre 10h–15h; sexta cai 35%") |
-| Leads e Contatos | totais + origens | + comentário sobre origens com pior tempo de resposta |
-| Comercial | totais | + comentário + **mini-funil visual** (Pipeline → Ganhos / Perdidos) |
-| Produtividade da Equipe | tabela | + para cada atendente: 1 linha de coach (`team_per_user.note`) e badges de outlier (ex.: "muito tempo logado / poucas msgs") |
-| SLA | barras de quebra | + comentário de diagnóstico e 1–2 ações |
-| IA e Automação | barras IA vs humano | + comentário sobre efetividade e onde houve handoff |
-| **Funis (NOVA)** | não existe no PDF | tabela por funil: deals, win-rate, dias p/ fechar + **top 3 etapas-gargalo** com nota da IA |
-| Campanhas | tabela | + por campanha: 1 linha de recomendação (`analyze_campaigns` já existe, só não é renderizado) |
-| Pontos Fortes / Áreas de Melhoria | bullets | mantém, mas com **fallback** quando vazio (usar `team_commentary` / `sla_commentary`) |
-| **Plano de Ação (NOVO)** | não existe | última seção: até 5 ações priorizadas (alta/média/baixa) com **por que, como, dono sugerido** |
-| Detalhes por Conversa | só se IA preencher | adicionar amostra mínima das 5 conversas com pior tempo de 1ª resposta como fallback |
+### 2. Histórico
+- Tabela com cada execução: data, objetivo, nº de leads encontrados, status email/WhatsApp, link p/ baixar PDF.
 
-Cosméticos:
-- Cabeçalho de seção mantém o estilo azul atual.
-- Callout da IA: fundo `#F1F5F9`, borda lateral azul de 2px, fonte 9pt itálico, prefixo "Leitura da IA —".
-- Plano de ação: cards numerados, bolinha colorida por prioridade.
+---
 
-### 4. Mesmo PDF na UI
-`src/lib/pdf-export.ts` (botão **Download** da página `Analysis`) hoje é uma versão **mais simples** que a do scheduled. Vou unificar: extrair `buildPdf` para um módulo compartilhado client-side (ex.: `src/lib/pdf-analysis.ts`) que o `Analysis.tsx` passa a usar — o PDF exportado manualmente fica igual ao enviado por WhatsApp agendado.
+## Backend
 
-## Arquivos afetados
+### Novas tabelas
+- `buyer_report_objectives` — id, organization_id, funnel_id, name, description, prompt, stage_ids (uuid[]), min_score, max_leads, lookback_days, schedule_time, schedule_days (int[]), enabled, manager_user_ids (uuid[]), send_to_assignee_whatsapp (bool), whatsapp_instance_id, created_at, updated_at.
+- `buyer_report_runs` — id, objective_id, organization_id, executed_at, leads_count, pdf_storage_path, email_status, whatsapp_status, payload (jsonb com resultado da IA), error.
+- Bucket de storage **`buyer-reports`** (privado) para arquivar PDFs com URL assinada.
 
-- `supabase/functions/analyze-conversations/index.ts` — retry, fallback determinístico, nova chamada `narrate_sections`, salva `ai_narrative` em `usage_metrics`.
-- `supabase/functions/send-scheduled-analysis/index.ts` — `buildPdf` ganha callouts, seções de Funis, Campanhas detalhadas, Plano de Ação e per-user coach.
-- `src/lib/pdf-analysis.ts` (novo) — versão client-side do mesmo builder.
-- `src/lib/pdf-export.ts` — passa a delegar para `pdf-analysis.ts`.
-- `src/hooks/useAnalysisReports.ts` — expor o campo `ai_narrative` no tipo (sem migration).
+RLS: ambos por `organization_id` via `get_organization_member_ids`. GRANT padrão para `authenticated` + `service_role`.
 
-## O que **não** vai mudar
+### Edge functions
+1. **`generate-buyer-report`** (core)
+   - Recebe `objective_id`.
+   - Busca negócios das etapas do objetivo nos últimos `lookback_days`.
+   - Para cada deal: pega últimas ~30 mensagens da conversa vinculada, dados do contato, valor, tempo na etapa, custom_fields.
+   - Chama IA (`google/gemini-2.5-flash` via Lovable AI Gateway) **em lotes de 10 leads** com tool calling estruturado retornando `{ score, why_hot, last_conversation_summary[], buying_signals[], suggested_next_step }`.
+   - Filtra por `min_score` e ordena desc; corta em `max_leads`.
+   - Agrupa por etapa.
+   - Gera PDF (jsPDF, mesmo padrão do `pdf-analysis.ts` existente) com: capa (objetivo, período, total), índice por etapa, card por lead (nome, telefone, valor, score com barra colorida, "Por que é quente", "Resumo da última conversa", "Sinais de compra", "Próxima ação sugerida").
+   - Salva PDF no bucket, registra `buyer_report_runs`.
+   - Retorna URL assinada.
 
-- Nenhuma alteração de schema do banco (`ai_narrative` mora em `usage_metrics` JSONB que já existe).
-- Modelos (continua `google/gemini-2.5-flash` via Lovable AI Gateway).
-- Fluxo da UI da página Análise (botões, switches, agendamento).
+2. **`dispatch-buyer-reports`** (scheduler)
+   - Chamada por `pg_cron` a cada hora.
+   - Para cada `buyer_report_objectives` enabled cuja hora local (convertida pelo `resolveOrgTimezone`) bate com agora e o dia está incluído: chama `generate-buyer-report`.
+   - Para cada gestor em `manager_user_ids`: dispara `send-transactional-email` com template `buyer-report-daily` (PDF como link de download assinado válido por 7 dias).
+   - Se `send_to_assignee_whatsapp`: agrupa leads por `assigned_to`/`owner`, gera **um PDF filtrado por vendedor** (reaproveita o motor), e envia via instância WhatsApp escolhida como documento.
 
-## Observação
-Posso, opcionalmente, **rodar 1 backfill** que pega o último relatório vazio e regera só a narrativa (sem re-chamar tudo) — me confirme se quer.
+3. Botão "Gerar prévia agora" chama `generate-buyer-report` direto e baixa o PDF.
+
+### Template de email
+- `supabase/functions/_shared/transactional-email-templates/buyer-report-daily.tsx` — assunto "Leads quentes de hoje — {objetivo}", corpo com nº de leads, top 3 destaques e botão "Baixar PDF completo".
+
+### Cron
+- `pg_cron` rodando `dispatch-buyer-reports` a cada hora (a função decide quais objetivos disparar pelo timezone da org).
+
+---
+
+## Detalhes técnicos
+
+- **IA**: `google/gemini-2.5-flash`, `tool_choice` forçado, schema validado, retry 1x quando vier vazio (padrão já usado em `analyze-conversations`).
+- **Prompt do objetivo** é injetado como `system`; o `user` recebe os dados estruturados de cada batch.
+- **Timezone**: sempre via `resolveOrgTimezone()` no edge e `getActiveTimezone()` no frontend.
+- **WhatsApp**: usa a instância selecionada; envio como documento `.pdf` respeitando a configuração de batch/delay já existente.
+- **Permissões**: só admin/owner da org cria/edita objetivos; vendedor comum vê apenas o histórico de relatórios em que aparece.
+- **Custo**: limite duro `max_leads` (default 50) + janela `lookback_days` (default 7) evitam estouro de tokens.
+
+---
+
+## Entregáveis
+
+1. Migration: tabelas + RLS + GRANTs + bucket privado.
+2. Edge functions: `generate-buyer-report`, `dispatch-buyer-reports`.
+3. Template de e-mail `buyer-report-daily`.
+4. Cron horário em `pg_cron`.
+5. UI: nova aba "Relatórios Diários" em `Analysis` com CRUD de objetivos, prévia e histórico.
+6. Hook `useBuyerReports.ts` para CRUD + trigger de prévia.
+
+Pré-requisitos: infra de e-mail Lovable Cloud ativa (vou configurar domínio se ainda não estiver pronto antes de scaffoldar o template).
