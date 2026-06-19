@@ -110,6 +110,7 @@ export interface AnalysisReport {
     include_campaigns?: boolean;
     include_sla?: boolean;
   };
+  usage_metrics?: Record<string, any>;
 }
 
 export function useAnalysisReports() {
