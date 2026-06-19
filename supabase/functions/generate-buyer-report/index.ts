@@ -277,18 +277,9 @@ async function gatherLeadInputs(
   supabase: ReturnType<typeof createClient>,
   obj: ObjectiveRow,
   assigneeFilter?: string | null,
+  candidateLimit = 60,
 ): Promise<LeadInput[]> {
   const since = new Date(Date.now() - obj.lookback_days * 86400000).toISOString();
-
-  // Find conversations with inbound activity within the window (org-wide)
-  const { data: recentMsgs } = await supabase
-    .from("inbox_messages")
-    .select("conversation_id")
-    .gte("created_at", since)
-    .limit(5000);
-  const activeConvIds = Array.from(
-    new Set((recentMsgs || []).map((m: any) => m.conversation_id).filter(Boolean))
-  );
 
   let q = supabase
     .from("funnel_deals")
@@ -296,18 +287,41 @@ async function gatherLeadInputs(
     .eq("funnel_id", obj.funnel_id)
     .in("stage_id", obj.stage_ids)
     .order("updated_at", { ascending: false })
-    .limit(300);
+    .limit(1000);
 
   if (assigneeFilter) q = q.eq("responsible_id", assigneeFilter);
 
   const { data: rawDeals, error } = await q;
   if (error) throw error;
-  // Keep deals updated in window OR with conversation active in window
-  const activeSet = new Set(activeConvIds);
-  const deals = (rawDeals || []).filter((d: any) =>
-    (d.updated_at && d.updated_at >= since) ||
-    (d.conversation_id && activeSet.has(d.conversation_id))
-  );
+
+  const conversationIds = Array.from(new Set((rawDeals || []).map((d: any) => d.conversation_id).filter(Boolean)));
+  const conversationActivity = new Map<string, string>();
+  for (let i = 0; i < conversationIds.length; i += 200) {
+    const { data: conversations } = await supabase
+      .from("conversations")
+      .select("id, last_message_at, updated_at, created_at")
+      .in("id", conversationIds.slice(i, i + 200));
+    for (const c of conversations || []) {
+      conversationActivity.set((c as any).id, (c as any).last_message_at || (c as any).updated_at || (c as any).created_at);
+    }
+  }
+
+  // Keep deals updated in window OR with conversation active in window, ordered by latest activity.
+  const deals = (rawDeals || [])
+    .map((d: any) => ({
+      ...d,
+      activity_at: [d.updated_at, d.conversation_id ? conversationActivity.get(d.conversation_id) : null]
+        .filter(Boolean)
+        .sort()
+        .at(-1) || d.updated_at,
+    }))
+    .filter((d: any) =>
+      (d.updated_at && d.updated_at >= since) ||
+      (d.conversation_id && conversationActivity.get(d.conversation_id) && conversationActivity.get(d.conversation_id)! >= since)
+    )
+    .sort((a: any, b: any) => String(b.activity_at || "").localeCompare(String(a.activity_at || "")))
+    .slice(0, candidateLimit);
+  console.log(`[buyer-report] selected ${deals.length} candidates from ${(rawDeals || []).length} deals in stages`);
   if (!deals.length) return [];
 
 
