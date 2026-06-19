@@ -134,6 +134,42 @@ function buildPdf(report: any): Uint8Array {
     doc.setTextColor(0, 0, 0);
   };
 
+  // Callout "Leitura da IA" — caixa cinza com borda lateral azul
+  const addCallout = (text: string | undefined | null, label = "Leitura da IA") => {
+    if (!text || typeof text !== "string" || !text.trim()) return;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    const lines = doc.splitTextToSize(text.trim(), pageWidth - margin * 2 - 10);
+    const boxH = lines.length * 4 + 8;
+    checkBreak(boxH + 4);
+    // background
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, yPos, pageWidth - margin * 2, boxH, "F");
+    // left border accent
+    doc.setFillColor(59, 130, 246);
+    doc.rect(margin, yPos, 2, boxH, "F");
+    // label
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 130, 246);
+    doc.text(label.toUpperCase(), margin + 5, yPos + 4);
+    // body
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(40, 40, 40);
+    doc.text(lines, margin + 5, yPos + 8);
+    doc.setTextColor(0, 0, 0);
+    yPos += boxH + 4;
+  };
+
+  // Mini priority pill for action plan
+  const priorityColor = (p: string): number[] => {
+    if (p === "alta") return [239, 68, 68];
+    if (p === "media") return [234, 179, 8];
+    return [100, 116, 139];
+  };
+
+
   // KPI card with variation arrow
   const addKpiCard = (
     x: number, y: number, w: number, h: number,
