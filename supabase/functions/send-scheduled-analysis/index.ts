@@ -370,8 +370,8 @@ function buildPdf(report: any): Uint8Array {
       for (const [k, v] of sourceEntries.slice(0, 8)) {
         addBarRow(sourceLabel(k), v as number, maxS, margin, yPos, pageWidth - margin * 2, [16, 185, 129]);
         yPos += 6;
-      }
     }
+    addCallout(narr.leads_commentary);
   }
 
   // ============== COMERCIAL ==============
