@@ -484,7 +484,39 @@ function buildPdf(report: any): Uint8Array {
         9,
       );
     }
+    addCallout(narr.team_commentary);
+
+    // Coach individual por atendente (narrative.team_per_user)
+    const perUser: any[] = Array.isArray(narr.team_per_user) ? narr.team_per_user : [];
+    if (perUser.length > 0) {
+      const userMap = new Map(team.map((u: any) => [u.user_id, u]));
+      checkBreak(perUser.length * 8 + 10);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("Coach individual (IA)", margin, yPos);
+      yPos += 5;
+      doc.setTextColor(0, 0, 0);
+      for (const p of perUser) {
+        if (!p?.note) continue;
+        const u: any = userMap.get(p.user_id);
+        const nameLabel = u?.name || "Atendente";
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(59, 130, 246);
+        doc.text(`• ${nameLabel}:`, margin + 2, yPos);
+        const labelW = doc.getTextWidth(`• ${nameLabel}: `);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        const noteLines = doc.splitTextToSize(p.note, pageWidth - margin * 2 - labelW - 4);
+        checkBreak(noteLines.length * 4 + 3);
+        doc.text(noteLines, margin + 2 + labelW, yPos);
+        yPos += Math.max(4, noteLines.length * 4) + 2;
+      }
+      yPos += 3;
+    }
   }
+
 
   // ============== SLA E QUALIDADE ==============
   const sla = um.sla || {};
