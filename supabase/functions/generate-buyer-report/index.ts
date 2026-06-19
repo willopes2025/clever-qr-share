@@ -280,20 +280,36 @@ async function gatherLeadInputs(
 ): Promise<LeadInput[]> {
   const since = new Date(Date.now() - obj.lookback_days * 86400000).toISOString();
 
+  // Find conversations with inbound activity within the window (org-wide)
+  const { data: recentMsgs } = await supabase
+    .from("inbox_messages")
+    .select("conversation_id")
+    .gte("created_at", since)
+    .limit(5000);
+  const activeConvIds = Array.from(
+    new Set((recentMsgs || []).map((m: any) => m.conversation_id).filter(Boolean))
+  );
+
   let q = supabase
     .from("funnel_deals")
     .select("id, title, value, custom_fields, contact_id, conversation_id, stage_id, responsible_id, entered_stage_at, updated_at")
     .eq("funnel_id", obj.funnel_id)
     .in("stage_id", obj.stage_ids)
-    .gte("updated_at", since)
     .order("updated_at", { ascending: false })
-    .limit(200);
+    .limit(300);
 
   if (assigneeFilter) q = q.eq("responsible_id", assigneeFilter);
 
-  const { data: deals, error } = await q;
+  const { data: rawDeals, error } = await q;
   if (error) throw error;
-  if (!deals?.length) return [];
+  // Keep deals updated in window OR with conversation active in window
+  const activeSet = new Set(activeConvIds);
+  const deals = (rawDeals || []).filter((d: any) =>
+    (d.updated_at && d.updated_at >= since) ||
+    (d.conversation_id && activeSet.has(d.conversation_id))
+  );
+  if (!deals.length) return [];
+
 
   const stageMap = new Map<string, string>();
   const { data: stages } = await supabase
