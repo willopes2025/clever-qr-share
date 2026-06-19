@@ -310,8 +310,10 @@ async function gatherLeadInputs(
   const contactMap = new Map<string, any>();
   for (const c of contacts || []) contactMap.set((c as any).id, c);
 
-  const inputs: LeadInput[] = [];
-  for (const d of deals as any[]) {
+  // Fetch messages in parallel (concurrency 8) to avoid sequential latency
+  const CONC = 8;
+  const inputs: LeadInput[] = new Array(deals.length);
+  const fetchOne = async (d: any, idx: number) => {
     let msgs: any[] = [];
     if (d.conversation_id) {
       const { data: rows } = await supabase
@@ -329,7 +331,7 @@ async function gatherLeadInputs(
     const enteredAt = d.entered_stage_at ? new Date(d.entered_stage_at) : new Date(d.updated_at);
     const days = Math.max(0, Math.floor((Date.now() - enteredAt.getTime()) / 86400000));
     const c = contactMap.get(d.contact_id);
-    inputs.push({
+    inputs[idx] = {
       deal_id: d.id,
       contact_name: c?.name || d.title || "Sem nome",
       phone: c?.phone || null,
@@ -339,7 +341,10 @@ async function gatherLeadInputs(
       assignee_user_id: d.responsible_id,
       last_messages: msgs,
       custom_fields: d.custom_fields || {},
-    });
+    };
+  };
+  for (let i = 0; i < deals.length; i += CONC) {
+    await Promise.all((deals as any[]).slice(i, i + CONC).map((d, k) => fetchOne(d, i + k)));
   }
   return inputs;
 }
