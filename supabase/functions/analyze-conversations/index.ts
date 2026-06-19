@@ -264,7 +264,8 @@ function buildDeterministicSummary(usageMetrics: any, slaSummary: any, userPerfo
   }
   lines.push('Resumo gerado automaticamente a partir dos indicadores quantitativos do período (a leitura qualitativa da IA não pôde ser concluída).');
   return lines.join(' ');
-}
+
+function extractToolArgs(aiData: any): any | null {
   const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall?.function?.arguments) {
     try { return JSON.parse(toolCall.function.arguments); } catch (e) { console.error('parse tool args', e); }
