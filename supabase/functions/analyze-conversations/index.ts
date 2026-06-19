@@ -130,6 +130,47 @@ const campaignInsightsSchema = {
   required: ["campaigns"]
 };
 
+const narrativeSchema = {
+  type: "object",
+  properties: {
+    executive_kpis_commentary: { type: "string", description: "3-5 frases narrando os KPIs do topo e variações vs período anterior." },
+    volume_commentary: { type: "string", description: "Padrões de horário/dia e alertas de queda ou pico." },
+    leads_commentary: { type: "string", description: "Origens, tempo de espera e leads sem resposta." },
+    commercial_commentary: { type: "string", description: "Pipeline, conversão e ticket — diagnóstico curto." },
+    team_commentary: { type: "string", description: "Visão geral da equipe, destaques e outliers." },
+    team_per_user: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          user_id: { type: "string" },
+          note: { type: "string", description: "1 frase de coach individual baseada em horas logadas vs mensagens vs ganhos." }
+        },
+        required: ["user_id", "note"]
+      }
+    },
+    sla_commentary: { type: "string", description: "Diagnóstico das quebras de SLA." },
+    ai_commentary: { type: "string", description: "Eficácia da IA e handoff para humano." },
+    campaigns_commentary: { type: "string", description: "O que está performando e o que não em campanhas." },
+    funnel_commentary: { type: "string", description: "Principais gargalos por etapa nos funis." },
+    action_plan: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          priority: { type: "string", enum: ["alta", "media", "baixa"] },
+          title: { type: "string" },
+          why: { type: "string", description: "Por que isso importa — citar números." },
+          how: { type: "string", description: "Como executar de forma concreta." },
+          owner_hint: { type: "string", description: "Quem deveria tocar (ex.: 'Gleycy', 'Gestor comercial')." }
+        },
+        required: ["priority", "title", "why", "how"]
+      }
+    }
+  },
+  required: ["executive_kpis_commentary", "action_plan"]
+};
+
 // ---------- Helpers ----------
 
 function clampScore(score: any): number {
@@ -174,6 +215,58 @@ async function callLovableAI(payload: any, lovableApiKey: string) {
   }
   return await res.json();
 }
+
+async function callAIWithRetry(payload: any, lovableApiKey: string, label: string): Promise<any | null> {
+  try {
+    const r = await callLovableAI(payload, lovableApiKey);
+    if (extractToolArgs(r)) return r;
+    console.warn(`[analyze] ${label} returned empty tool args, retrying once...`);
+  } catch (e: any) {
+    console.warn(`[analyze] ${label} first attempt failed:`, e?.message);
+    if (e?.status === 402 || e?.status === 429) throw e;
+  }
+  try {
+    const r2 = await callLovableAI(payload, lovableApiKey);
+    return r2;
+  } catch (e: any) {
+    console.error(`[analyze] ${label} retry failed:`, e?.message);
+    return null;
+  }
+}
+
+function buildDeterministicSummary(usageMetrics: any, slaSummary: any, userPerformance: any[]): string {
+  const k = usageMetrics?.kpis || {};
+  const c = usageMetrics?.commercial || {};
+  const sla = slaSummary || usageMetrics?.sla || {};
+  const lines: string[] = [];
+  const fmtVar = (v: number) => v > 0 ? `+${v}%` : `${v}%`;
+  lines.push(
+    `No período foram registradas ${k.leads?.current ?? 0} novas oportunidades (${fmtVar(k.leads?.variation ?? 0)} vs período anterior), ` +
+    `${k.conversations?.current ?? 0} conversas atendidas (${fmtVar(k.conversations?.variation ?? 0)}) e ` +
+    `${k.messages_sent?.current ?? 0} mensagens enviadas (${fmtVar(k.messages_sent?.variation ?? 0)}).`
+  );
+  if (c.pipeline_count) {
+    lines.push(
+      `O pipeline conta com ${c.pipeline_count} negócios abertos somando R$ ${(c.pipeline_value || 0).toLocaleString('pt-BR')}, ` +
+      `com taxa de conversão de ${c.conversion_rate || 0}% e ticket médio de R$ ${(c.avg_ticket || 0).toLocaleString('pt-BR')}.`
+    );
+  }
+  if (sla.avg_first_response_seconds !== undefined) {
+    const secs = sla.avg_first_response_seconds || 0;
+    const mins = Math.round(secs / 60);
+    lines.push(
+      `Tempo médio de 1ª resposta foi de ${mins} min, com ${sla.sla_compliance_15min ?? 0}% de cumprimento do SLA de 15 minutos e ${sla.unanswered_count ?? 0} conversas ainda aguardando retorno.`
+    );
+  }
+  const topAgent = (userPerformance || []).filter((u: any) => (u.messages_sent || 0) > 0).sort((a: any, b: any) => (b.messages_sent || 0) - (a.messages_sent || 0))[0];
+  if (topAgent) {
+    lines.push(`Destaque operacional: ${topAgent.name} com ${topAgent.messages_sent} mensagens enviadas e ${topAgent.conversations_handled || 0} conversas atendidas.`);
+  }
+  lines.push('Resumo gerado automaticamente a partir dos indicadores quantitativos do período (a leitura qualitativa da IA não pôde ser concluída).');
+  return lines.join(' ');
+}
+
+
 
 function extractToolArgs(aiData: any): any | null {
   const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
@@ -1010,7 +1103,7 @@ ${stagesText}`;
         // 14. Run AI calls in parallel
         console.log('[analyze] calling AI in parallel...');
 
-        const generalPromise = callLovableAI({
+        const generalPromise = callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um especialista sênior em qualidade de atendimento e vendas via WhatsApp. OBRIGATÓRIO: chame a função analyze_conversations com dados estruturados. Seja específico, use exemplos reais. Critérios 0-100: qualidade textual, comunicação, vendas, eficiência, áudios.' },
@@ -1018,9 +1111,9 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_conversations', description: 'Análise geral estruturada', parameters: reportSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_conversations' } },
-        }, lovableApiKey).catch(e => { console.error('general AI fail', e); return null; });
+        }, lovableApiKey, 'general').catch(e => { console.error('general AI fail', e); return null; });
 
-        const userPromise = Object.keys(userAgg).length > 0 ? callLovableAI({
+        const userPromise = Object.keys(userAgg).length > 0 ? callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um coach sênior de vendas. Avalie cada usuário individualmente com base nos dados e amostras de mensagens fornecidos. OBRIGATÓRIO chamar a função analyze_users. Dê notas 0-100 realistas (não infle), pontos fortes específicos, áreas de melhoria concretas e dicas de coaching acionáveis e personalizadas.' },
@@ -1028,9 +1121,9 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_users', description: 'Performance individual', parameters: userPerformanceSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_users' } },
-        }, lovableApiKey).catch(e => { console.error('user AI fail', e); return null; }) : Promise.resolve(null);
+        }, lovableApiKey, 'users').catch(e => { console.error('user AI fail', e); return null; }) : Promise.resolve(null);
 
-        const funnelPromise = funnelData.length > 0 ? callLovableAI({
+        const funnelPromise = funnelData.length > 0 ? callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um consultor de processos comerciais. Analise os funis e identifique gargalos reais com sugestões acionáveis. OBRIGATÓRIO chamar analyze_funnel. Use os IDs reais fornecidos.' },
@@ -1038,9 +1131,9 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_funnel', description: 'Insights de funil', parameters: funnelInsightsSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_funnel' } },
-        }, lovableApiKey).catch(e => { console.error('funnel AI fail', e); return null; }) : Promise.resolve(null);
+        }, lovableApiKey, 'funnel').catch(e => { console.error('funnel AI fail', e); return null; }) : Promise.resolve(null);
 
-        const campaignPromise = (includeCampaigns && campaignData.length > 0) ? callLovableAI({
+        const campaignPromise = (includeCampaigns && campaignData.length > 0) ? callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um especialista em campanhas de WhatsApp em massa. Analise cada campanha e sugira melhorias (copy do template, horário, segmentação). OBRIGATÓRIO chamar analyze_campaigns com os IDs reais.' },
@@ -1048,15 +1141,39 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_campaigns', description: 'Insights de campanhas', parameters: campaignInsightsSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_campaigns' } },
-        }, lovableApiKey).catch(e => { console.error('campaign AI fail', e); return null; }) : Promise.resolve(null);
+        }, lovableApiKey, 'campaigns').catch(e => { console.error('campaign AI fail', e); return null; }) : Promise.resolve(null);
 
-        const [generalAI, userAI, funnelAI, campaignAI] = await Promise.all([generalPromise, userPromise, funnelPromise, campaignPromise]);
+        // Narrative call — comentário por seção + plano de ação (recebe agregados quantitativos)
+        const narrativeInput = {
+          period: { start: periodStart, end: periodEnd },
+          kpis: usageMetrics.kpis,
+          volume: usageMetrics.volume,
+          leads: usageMetrics.leads,
+          commercial: usageMetrics.commercial,
+          team: usageMetrics.team_productivity,
+          sla: usageMetrics.sla,
+          ai: usageMetrics.ai_usage,
+          campaigns: usageMetrics.campaigns,
+        };
+        const narrativePromise = callAIWithRetry({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'Você é um diretor de operações experiente em WhatsApp Sales. Receba indicadores agregados e produza uma LEITURA NARRATIVA por seção do relatório executivo + um plano de ação priorizado (alta/media/baixa). Seja específico citando NÚMEROS REAIS do payload (nunca invente). Tom direto, em português do Brasil, sem jargão. OBRIGATÓRIO chamar a função narrate_sections. Em team_per_user, gere 1 frase por user_id fornecido (foco em outliers: muitas horas + poucas msgs, poucas msgs + alta conversão, etc.). action_plan: 3 a 5 ações.' },
+            { role: 'user', content: `Indicadores do período (JSON):\n\n${JSON.stringify(narrativeInput).slice(0, 18000)}` },
+          ],
+          tools: [{ type: 'function', function: { name: 'narrate_sections', description: 'Leitura narrativa + plano de ação', parameters: narrativeSchema } }],
+          tool_choice: { type: 'function', function: { name: 'narrate_sections' } },
+        }, lovableApiKey, 'narrative').catch(e => { console.error('narrative AI fail', e); return null; });
+
+        const [generalAI, userAI, funnelAI, campaignAI, narrativeAI] = await Promise.all([generalPromise, userPromise, funnelPromise, campaignPromise, narrativePromise]);
 
         // Parse results
         let analysisResult = generalAI ? normalizeAnalysisResult(extractToolArgs(generalAI) || {}) : null;
-        if (!analysisResult) {
+        if (!analysisResult || !analysisResult.executive_summary || analysisResult.executive_summary === 'Análise concluída.') {
+          const fallbackSummary = buildDeterministicSummary(usageMetrics, usageMetrics.sla, []);
           analysisResult = normalizeAnalysisResult({
-            overall_score: 0, executive_summary: 'Não foi possível gerar análise geral. Tente novamente.',
+            ...(analysisResult || {}),
+            executive_summary: fallbackSummary,
           });
         }
 
@@ -1138,6 +1255,17 @@ ${stagesText}`;
             };
           }),
         };
+
+        // Narrative merge -> usageMetrics.ai_narrative
+        const narrative = extractToolArgs(narrativeAI) || null;
+        if (narrative) {
+          usageMetrics.ai_narrative = narrative;
+        }
+
+        // If executive summary fell back to deterministic, enrich it with narrative commentary when available
+        if (narrative?.executive_kpis_commentary && analysisResult.executive_summary?.includes('Resumo gerado automaticamente')) {
+          analysisResult.executive_summary = narrative.executive_kpis_commentary;
+        }
 
         // Save
         await supabase.from('conversation_analysis_reports').update({

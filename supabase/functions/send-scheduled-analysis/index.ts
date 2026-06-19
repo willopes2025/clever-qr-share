@@ -134,6 +134,42 @@ function buildPdf(report: any): Uint8Array {
     doc.setTextColor(0, 0, 0);
   };
 
+  // Callout "Leitura da IA" — caixa cinza com borda lateral azul
+  const addCallout = (text: string | undefined | null, label = "Leitura da IA") => {
+    if (!text || typeof text !== "string" || !text.trim()) return;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    const lines = doc.splitTextToSize(text.trim(), pageWidth - margin * 2 - 10);
+    const boxH = lines.length * 4 + 8;
+    checkBreak(boxH + 4);
+    // background
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, yPos, pageWidth - margin * 2, boxH, "F");
+    // left border accent
+    doc.setFillColor(59, 130, 246);
+    doc.rect(margin, yPos, 2, boxH, "F");
+    // label
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(59, 130, 246);
+    doc.text(label.toUpperCase(), margin + 5, yPos + 4);
+    // body
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(40, 40, 40);
+    doc.text(lines, margin + 5, yPos + 8);
+    doc.setTextColor(0, 0, 0);
+    yPos += boxH + 4;
+  };
+
+  // Mini priority pill for action plan
+  const priorityColor = (p: string): number[] => {
+    if (p === "alta") return [239, 68, 68];
+    if (p === "media") return [234, 179, 8];
+    return [100, 116, 139];
+  };
+
+
   // KPI card with variation arrow
   const addKpiCard = (
     x: number, y: number, w: number, h: number,
@@ -183,6 +219,7 @@ function buildPdf(report: any): Uint8Array {
   const volume = um.volume || {};
   const leads = um.leads || {};
   const commercial = um.commercial || {};
+  const narr = um.ai_narrative || {};
 
   // ============== PAGE 1: CAPA EXECUTIVA ==============
   doc.setFillColor(15, 23, 42);
@@ -240,6 +277,7 @@ function buildPdf(report: any): Uint8Array {
       }
     });
     yPos += Math.ceil(items.length / 3) * (cardH + 5) + 5;
+    addCallout(narr.executive_kpis_commentary);
   }
 
   // Notas de qualidade da IA
@@ -252,6 +290,8 @@ function buildPdf(report: any): Uint8Array {
   addScoreBox("Eficiencia", report.efficiency_score || 0, margin + (bw + 5) * 4, yPos, bw);
   addScoreBox("Audios", report.audio_analysis_score || 0, margin + (bw + 5) * 5, yPos, bw);
   yPos += 32;
+  if (report.executive_summary) addCallout(report.executive_summary, "Resumo da IA");
+
 
   // ============== VOLUME E ATIVIDADE ==============
   if (volume && Object.keys(volume).length > 0) {
@@ -309,6 +349,7 @@ function buildPdf(report: any): Uint8Array {
       }
       yPos += 3;
     }
+    addCallout(narr.volume_commentary);
   }
 
   // ============== LEADS E CONTATOS ==============
@@ -331,6 +372,7 @@ function buildPdf(report: any): Uint8Array {
         yPos += 6;
       }
     }
+    addCallout(narr.leads_commentary);
   }
 
   // ============== COMERCIAL ==============
@@ -349,6 +391,7 @@ function buildPdf(report: any): Uint8Array {
       `Taxa de conversao: ${commercial.conversion_rate || 0}%  |  Ticket medio: ${fmtBRL(commercial.avg_ticket || 0)}`,
       10,
     );
+    addCallout(narr.commercial_commentary);
   }
 
   // ============== PRODUTIVIDADE DA EQUIPE ==============
@@ -442,7 +485,39 @@ function buildPdf(report: any): Uint8Array {
         9,
       );
     }
+    addCallout(narr.team_commentary);
+
+    // Coach individual por atendente (narrative.team_per_user)
+    const perUser: any[] = Array.isArray(narr.team_per_user) ? narr.team_per_user : [];
+    if (perUser.length > 0) {
+      const userMap = new Map(team.map((u: any) => [u.user_id, u]));
+      checkBreak(perUser.length * 8 + 10);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("Coach individual (IA)", margin, yPos);
+      yPos += 5;
+      doc.setTextColor(0, 0, 0);
+      for (const p of perUser) {
+        if (!p?.note) continue;
+        const u: any = userMap.get(p.user_id);
+        const nameLabel = u?.name || "Atendente";
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(59, 130, 246);
+        doc.text(`• ${nameLabel}:`, margin + 2, yPos);
+        const labelW = doc.getTextWidth(`• ${nameLabel}: `);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        const noteLines = doc.splitTextToSize(p.note, pageWidth - margin * 2 - labelW - 4);
+        checkBreak(noteLines.length * 4 + 3);
+        doc.text(noteLines, margin + 2 + labelW, yPos);
+        yPos += Math.max(4, noteLines.length * 4) + 2;
+      }
+      yPos += 3;
+    }
   }
+
 
   // ============== SLA E QUALIDADE ==============
   const sla = um.sla || {};
@@ -477,6 +552,7 @@ function buildPdf(report: any): Uint8Array {
       yPos += 6;
     }
     yPos += 3;
+    addCallout(narr.sla_commentary);
   }
 
   // ============== IA E AUTOMACAO ==============
@@ -512,7 +588,9 @@ function buildPdf(report: any): Uint8Array {
       yPos += 6;
     }
     yPos += 3;
+    addCallout(narr.ai_commentary);
   }
+
 
   // ============== CAMPANHAS — PERFORMANCE DETALHADA ==============
   const camp = um.campaigns || {};
@@ -567,10 +645,100 @@ function buildPdf(report: any): Uint8Array {
       yPos += 6;
     }
     yPos += 3;
+    addCallout(narr.campaigns_commentary);
+
+    // Per-campaign suggestions vindas do report.campaign_performance
+    const campAi: any[] = Array.isArray(report?.campaign_performance?.campaigns) ? report.campaign_performance.campaigns : [];
+    const campWithSugg = campAi.filter((c: any) => Array.isArray(c?.suggestions) && c.suggestions.length > 0);
+    if (campWithSugg.length > 0) {
+      checkBreak(10);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("Sugestões por campanha (IA)", margin, yPos);
+      yPos += 5;
+      for (const c of campWithSugg) {
+        checkBreak(12);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(59, 130, 246);
+        doc.text(`• ${(c.name || "Campanha").slice(0, 60)}`, margin + 2, yPos);
+        yPos += 4;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        for (const s of c.suggestions.slice(0, 3)) {
+          const lines = doc.splitTextToSize(`   – ${s}`, pageWidth - margin * 2 - 6);
+          checkBreak(lines.length * 4 + 1);
+          doc.text(lines, margin + 4, yPos);
+          yPos += lines.length * 4;
+        }
+        yPos += 2;
+      }
+      yPos += 2;
+    }
+  }
+
+  // ============== FUNIS ==============
+  const funnels: any[] = Array.isArray(report?.funnel_performance?.funnels) ? report.funnel_performance.funnels : [];
+  if (funnels.length > 0) {
+    addSection("Funis e Gargalos");
+    for (const f of funnels) {
+      checkBreak(20);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text(f.name || "Funil", margin, yPos);
+      yPos += 5;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text(
+        `Deals: ${fmtNum(f.total_deals || 0)}  |  Ganhos: ${fmtNum(f.won_count || 0)}  |  Perdidos: ${fmtNum(f.lost_count || 0)}  |  ` +
+          `Win-rate: ${f.won_rate || 0}%  |  Tempo médio até fechar: ${f.avg_days_to_close || 0}d`,
+        margin,
+        yPos,
+      );
+      yPos += 5;
+      const bottlenecks: any[] = Array.isArray(f.bottleneck_stages) ? f.bottleneck_stages : [];
+      if (bottlenecks.length > 0) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(239, 68, 68);
+        doc.text("Top etapas-gargalo:", margin + 2, yPos);
+        yPos += 4;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        for (const s of bottlenecks.slice(0, 3)) {
+          const txt = `   – ${s.name || "Etapa"} (tempo médio ${s.avg_hours || 0}h)${s.note ? `: ${s.note}` : ""}`;
+          const lines = doc.splitTextToSize(txt, pageWidth - margin * 2 - 4);
+          checkBreak(lines.length * 4 + 1);
+          doc.text(lines, margin + 2, yPos);
+          yPos += lines.length * 4;
+        }
+      }
+      const sugg: string[] = Array.isArray(f.suggestions) ? f.suggestions : [];
+      if (sugg.length > 0) {
+        yPos += 1;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(59, 130, 246);
+        doc.text("Sugestões da IA:", margin + 2, yPos);
+        yPos += 4;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        for (const s of sugg.slice(0, 4)) {
+          const lines = doc.splitTextToSize(`   – ${s}`, pageWidth - margin * 2 - 4);
+          checkBreak(lines.length * 4 + 1);
+          doc.text(lines, margin + 2, yPos);
+          yPos += lines.length * 4;
+        }
+      }
+      yPos += 4;
+    }
+    addCallout(narr.funnel_commentary);
   }
 
 
-  // ============== COMPARATIVO PERIODO ANTERIOR ==============
   if (kpis && Object.keys(kpis).length > 0) {
     addSection("Comparativo vs. Periodo Anterior");
     const rows: Array<[string, string, string, number, string?]> = [
@@ -660,6 +828,61 @@ function buildPdf(report: any): Uint8Array {
       if (c.feedback) addText(`Feedback: ${c.feedback}`, 8);
     }
   }
+
+  // ============== PLANO DE AÇÃO ==============
+  const actions: any[] = Array.isArray(narr.action_plan) ? narr.action_plan : [];
+  if (actions.length > 0) {
+    addSection("Plano de Ação (IA)");
+    const order: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+    const sorted = [...actions].sort((a: any, b: any) => {
+      const av = order[a.priority] !== undefined ? order[a.priority] : 3;
+      const bv = order[b.priority] !== undefined ? order[b.priority] : 3;
+      return av - bv;
+    });
+    for (let idx = 0; idx < sorted.length; idx++) {
+      const a: any = sorted[idx];
+      checkBreak(28);
+      const pc = priorityColor(a.priority || "baixa");
+      doc.setFillColor(pc[0], pc[1], pc[2]);
+      doc.circle(margin + 3, yPos + 2, 1.8, "F");
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      const title = String(idx + 1) + ". " + (a.title || "");
+      const titleLines = doc.splitTextToSize(title, pageWidth - margin * 2 - 10);
+      doc.text(titleLines, margin + 8, yPos + 3);
+      yPos += titleLines.length * 5 + 1;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(pc[0], pc[1], pc[2]);
+      const ownerSuffix = a.owner_hint ? "  •  Sugerido: " + a.owner_hint : "";
+      doc.text("Prioridade: " + String(a.priority || "baixa").toUpperCase() + ownerSuffix, margin + 8, yPos + 3);
+      yPos += 5;
+      doc.setTextColor(40, 40, 40);
+      doc.setFont("helvetica", "normal");
+      if (a.why) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Por que:", margin + 8, yPos + 3);
+        doc.setFont("helvetica", "normal");
+        const whyLines = doc.splitTextToSize(a.why, pageWidth - margin * 2 - 20);
+        doc.text(whyLines, margin + 22, yPos + 3);
+        yPos += Math.max(4, whyLines.length * 4) + 1;
+      }
+      if (a.how) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Como:", margin + 8, yPos + 3);
+        doc.setFont("helvetica", "normal");
+        const howLines = doc.splitTextToSize(a.how, pageWidth - margin * 2 - 20);
+        doc.text(howLines, margin + 22, yPos + 3);
+        yPos += Math.max(4, howLines.length * 4) + 1;
+      }
+      yPos += 4;
+    }
+  }
+
+
 
   // Footer com paginação
   const total = doc.getNumberOfPages();
