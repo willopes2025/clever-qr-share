@@ -120,7 +120,18 @@ export function BuyerReportsTab() {
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="outline" onClick={() => generatePreview.mutate(o.id)}
+                          <Button size="sm" variant="outline" onClick={async () => {
+                            const popup = window.open('', '_blank');
+                            try {
+                              const data: any = await generatePreview.mutateAsync(o.id);
+                              if (data?.pdf_url) {
+                                if (popup && !popup.closed) popup.location.href = data.pdf_url;
+                                else window.location.href = data.pdf_url;
+                              } else if (popup && !popup.closed) popup.close();
+                            } catch {
+                              if (popup && !popup.closed) popup.close();
+                            }
+                          }}
                             disabled={generatePreview.isPending}>
                             {generatePreview.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                             <span className="ml-1 hidden sm:inline">Prévia</span>
