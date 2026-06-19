@@ -833,22 +833,24 @@ function buildPdf(report: any): Uint8Array {
   if (actions.length > 0) {
     addSection("Plano de Ação (IA)");
     const order: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
-    const sorted = [...actions].sort((a, b) => (order[a.priority] ?? 3) - (order[b.priority] ?? 3));
-    sorted.forEach((a, idx) => {
+    const sorted = [...actions].sort((a: any, b: any) => {
+      const av = order[a.priority] !== undefined ? order[a.priority] : 3;
+      const bv = order[b.priority] !== undefined ? order[b.priority] : 3;
+      return av - bv;
+    });
+    for (let idx = 0; idx < sorted.length; idx++) {
+      const a: any = sorted[idx];
       checkBreak(28);
       const pc = priorityColor(a.priority || "baixa");
-      // priority pill
       doc.setFillColor(pc[0], pc[1], pc[2]);
       doc.circle(margin + 3, yPos + 2, 1.8, "F");
-      // number + title
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(15, 23, 42);
-      const title = `${idx + 1}. ${a.title || ""}`;
+      const title = String(idx + 1) + ". " + (a.title || "");
       const titleLines = doc.splitTextToSize(title, pageWidth - margin * 2 - 10);
       doc.text(titleLines, margin + 8, yPos + 3);
       yPos += titleLines.length * 5 + 1;
-      // priority + owner badge line
       doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(pc[0], pc[1], pc[2]);
@@ -860,7 +862,7 @@ function buildPdf(report: any): Uint8Array {
       if (a.why) {
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.text("Por quê:", margin + 8, yPos + 3);
+        doc.text("Por que:", margin + 8, yPos + 3);
         doc.setFont("helvetica", "normal");
         const whyLines = doc.splitTextToSize(a.why, pageWidth - margin * 2 - 20);
         doc.text(whyLines, margin + 22, yPos + 3);
@@ -876,7 +878,7 @@ function buildPdf(report: any): Uint8Array {
         yPos += Math.max(4, howLines.length * 4) + 1;
       }
       yPos += 4;
-    });
+    }
   }
 
 
