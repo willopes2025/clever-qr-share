@@ -277,6 +277,7 @@ function buildPdf(report: any): Uint8Array {
       }
     });
     yPos += Math.ceil(items.length / 3) * (cardH + 5) + 5;
+    addCallout(narr.executive_kpis_commentary);
   }
 
   // Notas de qualidade da IA
@@ -289,6 +290,8 @@ function buildPdf(report: any): Uint8Array {
   addScoreBox("Eficiencia", report.efficiency_score || 0, margin + (bw + 5) * 4, yPos, bw);
   addScoreBox("Audios", report.audio_analysis_score || 0, margin + (bw + 5) * 5, yPos, bw);
   yPos += 32;
+  if (report.executive_summary) addCallout(report.executive_summary, "Resumo da IA");
+
 
   // ============== VOLUME E ATIVIDADE ==============
   if (volume && Object.keys(volume).length > 0) {
