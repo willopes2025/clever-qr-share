@@ -95,10 +95,12 @@ export function useBuyerReportObjectives() {
         body: { objective_id: objectiveId },
       });
       if (error) throw error;
-      if (data?.pdf_url) window.open(data.pdf_url, '_blank');
       return data;
     },
-    onSuccess: (d: any) => toast.success(`Relatório gerado: ${d.leads_count} leads quentes`),
+    onSuccess: (d: any) => {
+      toast.success(`Relatório gerado: ${d.leads_count} leads quentes`);
+      qc.invalidateQueries({ queryKey: ['buyer-report-runs'] });
+    },
     onError: (e: any) => toast.error(e.message || 'Erro ao gerar'),
   });
 
@@ -134,10 +136,19 @@ export function useBuyerReportRuns(objectiveId?: string) {
 }
 
 export async function downloadBuyerReport(path: string) {
-  const { data, error } = await supabase.storage.from('buyer-reports').createSignedUrl(path, 60 * 60);
-  if (error) {
+  const popup = window.open('', '_blank');
+
+  const openPdf = (url: string) => {
+    if (popup && !popup.closed) popup.location.href = url;
+    else window.location.href = url;
+  };
+
+  try {
+    const { data, error } = await supabase.storage.from('buyer-reports').createSignedUrl(path, 60 * 60);
+    if (error || !data?.signedUrl) throw error || new Error('Link não retornado');
+    openPdf(data.signedUrl);
+  } catch (error) {
+    if (popup && !popup.closed) popup.close();
     toast.error('Não foi possível gerar o link');
-    return;
   }
-  window.open(data.signedUrl, '_blank');
 }
