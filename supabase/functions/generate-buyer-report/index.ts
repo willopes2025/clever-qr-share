@@ -408,11 +408,10 @@ Deno.serve(async (req) => {
     const { data: org } = await supabase
       .from("organizations").select("name").eq("id", (obj as any).organization_id).maybeSingle();
 
-    // 1. Gather candidate leads (cap to avoid timeout: max 3x max_leads, hard ceiling 60)
-    const allInputs = await gatherLeadInputs(supabase, obj as any, assigneeUserId);
     const cap = Math.min(60, Math.max(20, (obj as any).max_leads * 3));
-    // Prioritize leads with recent activity (already ordered by updated_at desc) and trim
-    const inputs = allInputs.slice(0, cap);
+    // 1. Gather candidate leads (cap to avoid timeout: max 3x max_leads, hard ceiling 60)
+    const inputs = await gatherLeadInputs(supabase, obj as any, assigneeUserId, cap);
+    const allInputs = inputs;
     console.log(`[buyer-report] ${allInputs.length} candidates, analyzing top ${inputs.length}`);
 
     // 2. Analyze in parallel batches of 8 (concurrency limited to 4)
