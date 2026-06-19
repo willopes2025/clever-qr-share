@@ -349,6 +349,7 @@ function buildPdf(report: any): Uint8Array {
       }
       yPos += 3;
     }
+    addCallout(narr.volume_commentary);
   }
 
   // ============== LEADS E CONTATOS ==============
