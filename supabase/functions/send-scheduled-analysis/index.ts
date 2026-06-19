@@ -551,6 +551,7 @@ function buildPdf(report: any): Uint8Array {
       yPos += 6;
     }
     yPos += 3;
+    addCallout(narr.sla_commentary);
   }
 
   // ============== IA E AUTOMACAO ==============
