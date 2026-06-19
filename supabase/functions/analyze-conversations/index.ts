@@ -1253,6 +1253,17 @@ ${stagesText}`;
           }),
         };
 
+        // Narrative merge -> usageMetrics.ai_narrative
+        const narrative = extractToolArgs(narrativeAI) || null;
+        if (narrative) {
+          usageMetrics.ai_narrative = narrative;
+        }
+
+        // If executive summary fell back to deterministic, enrich it with narrative commentary when available
+        if (narrative?.executive_kpis_commentary && analysisResult.executive_summary?.includes('Resumo gerado automaticamente')) {
+          analysisResult.executive_summary = narrative.executive_kpis_commentary;
+        }
+
         // Save
         await supabase.from('conversation_analysis_reports').update({
           overall_score: analysisResult.overall_score,
