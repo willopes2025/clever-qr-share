@@ -21,6 +21,7 @@ import { AnalysisScoreCard } from '@/components/analysis/AnalysisScoreCard';
 import { AnalysisReportDetail } from '@/components/analysis/AnalysisReportDetail';
 import { generateAnalysisPDF } from '@/lib/pdf-export';
 import { ScheduledReportsCard } from '@/components/analysis/ScheduledReportsCard';
+import { BuyerReportsTab } from '@/components/analysis/BuyerReportsTab';
 
 export default function Analysis() {
   const { reports, isLoading, isGenerating, generateReport, deleteReport } = useAnalysisReports();
@@ -113,6 +114,16 @@ export default function Analysis() {
             </p>
           </div>
         </div>
+
+        <Tabs defaultValue="reports" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="reports">Relatórios de Atendimento</TabsTrigger>
+            <TabsTrigger value="buyers">🔥 Leads Quentes (Diário)</TabsTrigger>
+          </TabsList>
+          <TabsContent value="buyers">
+            <BuyerReportsTab />
+          </TabsContent>
+          <TabsContent value="reports" className="space-y-6">
 
         {/* Generate Report Card */}
         <Card>
@@ -320,6 +331,8 @@ export default function Analysis() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
