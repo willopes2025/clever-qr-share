@@ -130,6 +130,47 @@ const campaignInsightsSchema = {
   required: ["campaigns"]
 };
 
+const narrativeSchema = {
+  type: "object",
+  properties: {
+    executive_kpis_commentary: { type: "string", description: "3-5 frases narrando os KPIs do topo e variações vs período anterior." },
+    volume_commentary: { type: "string", description: "Padrões de horário/dia e alertas de queda ou pico." },
+    leads_commentary: { type: "string", description: "Origens, tempo de espera e leads sem resposta." },
+    commercial_commentary: { type: "string", description: "Pipeline, conversão e ticket — diagnóstico curto." },
+    team_commentary: { type: "string", description: "Visão geral da equipe, destaques e outliers." },
+    team_per_user: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          user_id: { type: "string" },
+          note: { type: "string", description: "1 frase de coach individual baseada em horas logadas vs mensagens vs ganhos." }
+        },
+        required: ["user_id", "note"]
+      }
+    },
+    sla_commentary: { type: "string", description: "Diagnóstico das quebras de SLA." },
+    ai_commentary: { type: "string", description: "Eficácia da IA e handoff para humano." },
+    campaigns_commentary: { type: "string", description: "O que está performando e o que não em campanhas." },
+    funnel_commentary: { type: "string", description: "Principais gargalos por etapa nos funis." },
+    action_plan: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          priority: { type: "string", enum: ["alta", "media", "baixa"] },
+          title: { type: "string" },
+          why: { type: "string", description: "Por que isso importa — citar números." },
+          how: { type: "string", description: "Como executar de forma concreta." },
+          owner_hint: { type: "string", description: "Quem deveria tocar (ex.: 'Gleycy', 'Gestor comercial')." }
+        },
+        required: ["priority", "title", "why", "how"]
+      }
+    }
+  },
+  required: ["executive_kpis_commentary", "action_plan"]
+};
+
 // ---------- Helpers ----------
 
 function clampScore(score: any): number {
