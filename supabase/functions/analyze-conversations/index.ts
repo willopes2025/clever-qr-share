@@ -216,7 +216,55 @@ async function callLovableAI(payload: any, lovableApiKey: string) {
   return await res.json();
 }
 
-function extractToolArgs(aiData: any): any | null {
+async function callAIWithRetry(payload: any, lovableApiKey: string, label: string): Promise<any | null> {
+  try {
+    const r = await callLovableAI(payload, lovableApiKey);
+    if (extractToolArgs(r)) return r;
+    console.warn(`[analyze] ${label} returned empty tool args, retrying once...`);
+  } catch (e: any) {
+    console.warn(`[analyze] ${label} first attempt failed:`, e?.message);
+    if (e?.status === 402 || e?.status === 429) throw e;
+  }
+  try {
+    const r2 = await callLovableAI(payload, lovableApiKey);
+    return r2;
+  } catch (e: any) {
+    console.error(`[analyze] ${label} retry failed:`, e?.message);
+    return null;
+  }
+}
+
+function buildDeterministicSummary(usageMetrics: any, slaSummary: any, userPerformance: any[]): string {
+  const k = usageMetrics?.kpis || {};
+  const c = usageMetrics?.commercial || {};
+  const sla = slaSummary || usageMetrics?.sla || {};
+  const lines: string[] = [];
+  const fmtVar = (v: number) => v > 0 ? `+${v}%` : `${v}%`;
+  lines.push(
+    `No período foram registradas ${k.leads?.current ?? 0} novas oportunidades (${fmtVar(k.leads?.variation ?? 0)} vs período anterior), ` +
+    `${k.conversations?.current ?? 0} conversas atendidas (${fmtVar(k.conversations?.variation ?? 0)}) e ` +
+    `${k.messages_sent?.current ?? 0} mensagens enviadas (${fmtVar(k.messages_sent?.variation ?? 0)}).`
+  );
+  if (c.pipeline_count) {
+    lines.push(
+      `O pipeline conta com ${c.pipeline_count} negócios abertos somando R$ ${(c.pipeline_value || 0).toLocaleString('pt-BR')}, ` +
+      `com taxa de conversão de ${c.conversion_rate || 0}% e ticket médio de R$ ${(c.avg_ticket || 0).toLocaleString('pt-BR')}.`
+    );
+  }
+  if (sla.avg_first_response_seconds !== undefined) {
+    const secs = sla.avg_first_response_seconds || 0;
+    const mins = Math.round(secs / 60);
+    lines.push(
+      `Tempo médio de 1ª resposta foi de ${mins} min, com ${sla.sla_compliance_15min ?? 0}% de cumprimento do SLA de 15 minutos e ${sla.unanswered_count ?? 0} conversas ainda aguardando retorno.`
+    );
+  }
+  const topAgent = (userPerformance || []).filter((u: any) => (u.messages_sent || 0) > 0).sort((a: any, b: any) => (b.messages_sent || 0) - (a.messages_sent || 0))[0];
+  if (topAgent) {
+    lines.push(`Destaque operacional: ${topAgent.name} com ${topAgent.messages_sent} mensagens enviadas e ${topAgent.conversations_handled || 0} conversas atendidas.`);
+  }
+  lines.push('Resumo gerado automaticamente a partir dos indicadores quantitativos do período (a leitura qualitativa da IA não pôde ser concluída).');
+  return lines.join(' ');
+}
   const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall?.function?.arguments) {
     try { return JSON.parse(toolCall.function.arguments); } catch (e) { console.error('parse tool args', e); }
