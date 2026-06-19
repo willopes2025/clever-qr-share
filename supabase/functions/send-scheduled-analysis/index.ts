@@ -828,6 +828,58 @@ function buildPdf(report: any): Uint8Array {
     }
   }
 
+  // ============== PLANO DE AÇÃO ==============
+  const actions: any[] = Array.isArray(narr.action_plan) ? narr.action_plan : [];
+  if (actions.length > 0) {
+    addSection("Plano de Ação (IA)");
+    const order: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+    const sorted = [...actions].sort((a, b) => (order[a.priority] ?? 3) - (order[b.priority] ?? 3));
+    sorted.forEach((a, idx) => {
+      checkBreak(28);
+      const pc = priorityColor(a.priority || "baixa");
+      // priority pill
+      doc.setFillColor(pc[0], pc[1], pc[2]);
+      doc.circle(margin + 3, yPos + 2, 1.8, "F");
+      // number + title
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      const title = `${idx + 1}. ${a.title || ""}`;
+      const titleLines = doc.splitTextToSize(title, pageWidth - margin * 2 - 10);
+      doc.text(titleLines, margin + 8, yPos + 3);
+      yPos += titleLines.length * 5 + 1;
+      // priority + owner badge line
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(pc[0], pc[1], pc[2]);
+      doc.text(`Prioridade: ${String(a.priority || "baixa").toUpperCase()}${a.owner_hint ? `  •  Sugerido: ${a.owner_hint}` : ""}`, margin + 8, yPos + 3);
+      yPos += 5;
+      doc.setTextColor(40, 40, 40);
+      doc.setFont("helvetica", "normal");
+      if (a.why) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Por quê:", margin + 8, yPos + 3);
+        doc.setFont("helvetica", "normal");
+        const whyLines = doc.splitTextToSize(a.why, pageWidth - margin * 2 - 20);
+        doc.text(whyLines, margin + 22, yPos + 3);
+        yPos += Math.max(4, whyLines.length * 4) + 1;
+      }
+      if (a.how) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Como:", margin + 8, yPos + 3);
+        doc.setFont("helvetica", "normal");
+        const howLines = doc.splitTextToSize(a.how, pageWidth - margin * 2 - 20);
+        doc.text(howLines, margin + 22, yPos + 3);
+        yPos += Math.max(4, howLines.length * 4) + 1;
+      }
+      yPos += 4;
+    });
+  }
+
+
+
   // Footer com paginação
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
