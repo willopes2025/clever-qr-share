@@ -390,6 +390,7 @@ function buildPdf(report: any): Uint8Array {
       `Taxa de conversao: ${commercial.conversion_rate || 0}%  |  Ticket medio: ${fmtBRL(commercial.avg_ticket || 0)}`,
       10,
     );
+    addCallout(narr.commercial_commentary);
   }
 
   // ============== PRODUTIVIDADE DA EQUIPE ==============
