@@ -310,8 +310,10 @@ async function gatherLeadInputs(
   const contactMap = new Map<string, any>();
   for (const c of contacts || []) contactMap.set((c as any).id, c);
 
-  const inputs: LeadInput[] = [];
-  for (const d of deals as any[]) {
+  // Fetch messages in parallel (concurrency 8) to avoid sequential latency
+  const CONC = 8;
+  const inputs: LeadInput[] = new Array(deals.length);
+  const fetchOne = async (d: any, idx: number) => {
     let msgs: any[] = [];
     if (d.conversation_id) {
       const { data: rows } = await supabase
@@ -329,7 +331,7 @@ async function gatherLeadInputs(
     const enteredAt = d.entered_stage_at ? new Date(d.entered_stage_at) : new Date(d.updated_at);
     const days = Math.max(0, Math.floor((Date.now() - enteredAt.getTime()) / 86400000));
     const c = contactMap.get(d.contact_id);
-    inputs.push({
+    inputs[idx] = {
       deal_id: d.id,
       contact_name: c?.name || d.title || "Sem nome",
       phone: c?.phone || null,
@@ -339,7 +341,10 @@ async function gatherLeadInputs(
       assignee_user_id: d.responsible_id,
       last_messages: msgs,
       custom_fields: d.custom_fields || {},
-    });
+    };
+  };
+  for (let i = 0; i < deals.length; i += CONC) {
+    await Promise.all((deals as any[]).slice(i, i + CONC).map((d, k) => fetchOne(d, i + k)));
   }
   return inputs;
 }
@@ -373,26 +378,39 @@ Deno.serve(async (req) => {
     const { data: org } = await supabase
       .from("organizations").select("name").eq("id", (obj as any).organization_id).maybeSingle();
 
-    // 1. Gather candidate leads
-    const inputs = await gatherLeadInputs(supabase, obj as any, assigneeUserId);
-    console.log(`[buyer-report] ${inputs.length} candidate leads`);
+    // 1. Gather candidate leads (cap to avoid timeout: max 3x max_leads, hard ceiling 60)
+    const allInputs = await gatherLeadInputs(supabase, obj as any, assigneeUserId);
+    const cap = Math.min(60, Math.max(20, (obj as any).max_leads * 3));
+    // Prioritize leads with recent activity (already ordered by updated_at desc) and trim
+    const inputs = allInputs.slice(0, cap);
+    console.log(`[buyer-report] ${allInputs.length} candidates, analyzing top ${inputs.length}`);
 
-    // 2. Analyze in batches of 10
+    // 2. Analyze in parallel batches of 8 (concurrency limited to 4)
+    const BATCH_SIZE = 8;
+    const CONCURRENCY = 4;
+    const batches: LeadInput[][] = [];
+    for (let i = 0; i < inputs.length; i += BATCH_SIZE) {
+      batches.push(inputs.slice(i, i + BATCH_SIZE));
+    }
+    const slimify = (b: LeadInput) => ({
+      deal_id: b.deal_id,
+      contact_name: b.contact_name,
+      stage_name: b.stage_name,
+      value: b.value,
+      days_in_stage: b.days_in_stage,
+      last_messages: b.last_messages.slice(-10),
+      custom_fields: b.custom_fields,
+    });
     const all: LeadAnalysis[] = [];
-    for (let i = 0; i < inputs.length; i += 10) {
-      const batch = inputs.slice(i, i + 10);
-      // Minify last_messages for the AI call
-      const slim = batch.map(b => ({
-        deal_id: b.deal_id,
-        contact_name: b.contact_name,
-        stage_name: b.stage_name,
-        value: b.value,
-        days_in_stage: b.days_in_stage,
-        last_messages: b.last_messages.slice(-15),
-        custom_fields: b.custom_fields,
-      }));
-      const part = await analyzeBatch((obj as any).prompt, slim as any);
-      all.push(...part);
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      const slice = batches.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        slice.map(b => analyzeBatch((obj as any).prompt, b.map(slimify) as any).catch(err => {
+          console.error("[buyer-report] batch failed", err);
+          return [] as LeadAnalysis[];
+        }))
+      );
+      for (const r of results) all.push(...r);
     }
 
     // 3. Merge + filter + sort
