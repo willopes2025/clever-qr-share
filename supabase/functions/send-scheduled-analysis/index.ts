@@ -219,6 +219,7 @@ function buildPdf(report: any): Uint8Array {
   const volume = um.volume || {};
   const leads = um.leads || {};
   const commercial = um.commercial || {};
+  const narr = um.ai_narrative || {};
 
   // ============== PAGE 1: CAPA EXECUTIVA ==============
   doc.setFillColor(15, 23, 42);
