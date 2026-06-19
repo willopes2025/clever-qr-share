@@ -15,7 +15,8 @@ import {
   BuyerReportObjective,
 } from '@/hooks/useBuyerReports';
 import { useFunnels } from '@/hooks/useFunnels';
-import { useOrganization, useTeamMembers } from '@/hooks/useOrganization';
+import { useOrganization } from '@/hooks/useOrganization';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { Plus, Edit, Trash2, Play, Download, Flame, Calendar, Loader2 } from 'lucide-react';
 import { formatFullDateTimeBR } from '@/lib/date-utils';
@@ -40,7 +41,8 @@ export function BuyerReportsTab() {
   const { objectives, isLoading, upsert, remove, generatePreview, runNow } = useBuyerReportObjectives();
   const { data: runs = [] } = useBuyerReportRuns();
   const { funnels = [] } = useFunnels({ includeDeals: false });
-  const { organization, members = [] } = useOrganization();
+  const { organization } = useOrganization();
+  const { members = [] } = useTeamMembers();
   const { instances = [] } = useWhatsAppInstances();
   const [editing, setEditing] = useState<Partial<BuyerReportObjective> | null>(null);
 
