@@ -1083,6 +1083,160 @@ export type Database = {
           },
         ]
       }
+      buyer_report_objectives: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          enabled: boolean
+          funnel_id: string
+          id: string
+          last_run_at: string | null
+          lookback_days: number
+          manager_user_ids: string[]
+          max_leads: number
+          min_score: number
+          name: string
+          next_run_at: string | null
+          organization_id: string
+          prompt: string
+          schedule_days: number[]
+          schedule_time: string
+          send_to_assignee_whatsapp: boolean
+          stage_ids: string[]
+          updated_at: string
+          whatsapp_instance_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          enabled?: boolean
+          funnel_id: string
+          id?: string
+          last_run_at?: string | null
+          lookback_days?: number
+          manager_user_ids?: string[]
+          max_leads?: number
+          min_score?: number
+          name: string
+          next_run_at?: string | null
+          organization_id: string
+          prompt: string
+          schedule_days?: number[]
+          schedule_time?: string
+          send_to_assignee_whatsapp?: boolean
+          stage_ids?: string[]
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          enabled?: boolean
+          funnel_id?: string
+          id?: string
+          last_run_at?: string | null
+          lookback_days?: number
+          manager_user_ids?: string[]
+          max_leads?: number
+          min_score?: number
+          name?: string
+          next_run_at?: string | null
+          organization_id?: string
+          prompt?: string
+          schedule_days?: number[]
+          schedule_time?: string
+          send_to_assignee_whatsapp?: boolean
+          stage_ids?: string[]
+          updated_at?: string
+          whatsapp_instance_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buyer_report_objectives_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buyer_report_objectives_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buyer_report_objectives_whatsapp_instance_id_fkey"
+            columns: ["whatsapp_instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buyer_report_runs: {
+        Row: {
+          created_at: string
+          email_status: string | null
+          error: string | null
+          executed_at: string
+          id: string
+          leads_count: number
+          objective_id: string
+          organization_id: string
+          payload: Json
+          pdf_storage_path: string | null
+          triggered_by: string | null
+          whatsapp_status: string | null
+        }
+        Insert: {
+          created_at?: string
+          email_status?: string | null
+          error?: string | null
+          executed_at?: string
+          id?: string
+          leads_count?: number
+          objective_id: string
+          organization_id: string
+          payload?: Json
+          pdf_storage_path?: string | null
+          triggered_by?: string | null
+          whatsapp_status?: string | null
+        }
+        Update: {
+          created_at?: string
+          email_status?: string | null
+          error?: string | null
+          executed_at?: string
+          id?: string
+          leads_count?: number
+          objective_id?: string
+          organization_id?: string
+          payload?: Json
+          pdf_storage_path?: string | null
+          triggered_by?: string | null
+          whatsapp_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buyer_report_runs_objective_id_fkey"
+            columns: ["objective_id"]
+            isOneToOne: false
+            referencedRelation: "buyer_report_objectives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buyer_report_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_integrations: {
         Row: {
           access_token: string | null
