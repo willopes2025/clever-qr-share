@@ -1100,7 +1100,7 @@ ${stagesText}`;
         // 14. Run AI calls in parallel
         console.log('[analyze] calling AI in parallel...');
 
-        const generalPromise = callLovableAI({
+        const generalPromise = callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um especialista sênior em qualidade de atendimento e vendas via WhatsApp. OBRIGATÓRIO: chame a função analyze_conversations com dados estruturados. Seja específico, use exemplos reais. Critérios 0-100: qualidade textual, comunicação, vendas, eficiência, áudios.' },
@@ -1108,9 +1108,9 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_conversations', description: 'Análise geral estruturada', parameters: reportSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_conversations' } },
-        }, lovableApiKey).catch(e => { console.error('general AI fail', e); return null; });
+        }, lovableApiKey, 'general').catch(e => { console.error('general AI fail', e); return null; });
 
-        const userPromise = Object.keys(userAgg).length > 0 ? callLovableAI({
+        const userPromise = Object.keys(userAgg).length > 0 ? callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um coach sênior de vendas. Avalie cada usuário individualmente com base nos dados e amostras de mensagens fornecidos. OBRIGATÓRIO chamar a função analyze_users. Dê notas 0-100 realistas (não infle), pontos fortes específicos, áreas de melhoria concretas e dicas de coaching acionáveis e personalizadas.' },
@@ -1118,9 +1118,9 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_users', description: 'Performance individual', parameters: userPerformanceSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_users' } },
-        }, lovableApiKey).catch(e => { console.error('user AI fail', e); return null; }) : Promise.resolve(null);
+        }, lovableApiKey, 'users').catch(e => { console.error('user AI fail', e); return null; }) : Promise.resolve(null);
 
-        const funnelPromise = funnelData.length > 0 ? callLovableAI({
+        const funnelPromise = funnelData.length > 0 ? callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um consultor de processos comerciais. Analise os funis e identifique gargalos reais com sugestões acionáveis. OBRIGATÓRIO chamar analyze_funnel. Use os IDs reais fornecidos.' },
@@ -1128,9 +1128,9 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_funnel', description: 'Insights de funil', parameters: funnelInsightsSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_funnel' } },
-        }, lovableApiKey).catch(e => { console.error('funnel AI fail', e); return null; }) : Promise.resolve(null);
+        }, lovableApiKey, 'funnel').catch(e => { console.error('funnel AI fail', e); return null; }) : Promise.resolve(null);
 
-        const campaignPromise = (includeCampaigns && campaignData.length > 0) ? callLovableAI({
+        const campaignPromise = (includeCampaigns && campaignData.length > 0) ? callAIWithRetry({
           model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: 'Você é um especialista em campanhas de WhatsApp em massa. Analise cada campanha e sugira melhorias (copy do template, horário, segmentação). OBRIGATÓRIO chamar analyze_campaigns com os IDs reais.' },
@@ -1138,15 +1138,39 @@ ${stagesText}`;
           ],
           tools: [{ type: 'function', function: { name: 'analyze_campaigns', description: 'Insights de campanhas', parameters: campaignInsightsSchema } }],
           tool_choice: { type: 'function', function: { name: 'analyze_campaigns' } },
-        }, lovableApiKey).catch(e => { console.error('campaign AI fail', e); return null; }) : Promise.resolve(null);
+        }, lovableApiKey, 'campaigns').catch(e => { console.error('campaign AI fail', e); return null; }) : Promise.resolve(null);
 
-        const [generalAI, userAI, funnelAI, campaignAI] = await Promise.all([generalPromise, userPromise, funnelPromise, campaignPromise]);
+        // Narrative call — comentário por seção + plano de ação (recebe agregados quantitativos)
+        const narrativeInput = {
+          period: { start: periodStart, end: periodEnd },
+          kpis: usageMetrics.kpis,
+          volume: usageMetrics.volume,
+          leads: usageMetrics.leads,
+          commercial: usageMetrics.commercial,
+          team: usageMetrics.team_productivity,
+          sla: usageMetrics.sla,
+          ai: usageMetrics.ai_usage,
+          campaigns: usageMetrics.campaigns,
+        };
+        const narrativePromise = callAIWithRetry({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: 'Você é um diretor de operações experiente em WhatsApp Sales. Receba indicadores agregados e produza uma LEITURA NARRATIVA por seção do relatório executivo + um plano de ação priorizado (alta/media/baixa). Seja específico citando NÚMEROS REAIS do payload (nunca invente). Tom direto, em português do Brasil, sem jargão. OBRIGATÓRIO chamar a função narrate_sections. Em team_per_user, gere 1 frase por user_id fornecido (foco em outliers: muitas horas + poucas msgs, poucas msgs + alta conversão, etc.). action_plan: 3 a 5 ações.' },
+            { role: 'user', content: `Indicadores do período (JSON):\n\n${JSON.stringify(narrativeInput).slice(0, 18000)}` },
+          ],
+          tools: [{ type: 'function', function: { name: 'narrate_sections', description: 'Leitura narrativa + plano de ação', parameters: narrativeSchema } }],
+          tool_choice: { type: 'function', function: { name: 'narrate_sections' } },
+        }, lovableApiKey, 'narrative').catch(e => { console.error('narrative AI fail', e); return null; });
+
+        const [generalAI, userAI, funnelAI, campaignAI, narrativeAI] = await Promise.all([generalPromise, userPromise, funnelPromise, campaignPromise, narrativePromise]);
 
         // Parse results
         let analysisResult = generalAI ? normalizeAnalysisResult(extractToolArgs(generalAI) || {}) : null;
-        if (!analysisResult) {
+        if (!analysisResult || !analysisResult.executive_summary || analysisResult.executive_summary === 'Análise concluída.') {
+          const fallbackSummary = buildDeterministicSummary(usageMetrics, usageMetrics.sla, []);
           analysisResult = normalizeAnalysisResult({
-            overall_score: 0, executive_summary: 'Não foi possível gerar análise geral. Tente novamente.',
+            ...(analysisResult || {}),
+            executive_summary: fallbackSummary,
           });
         }
 
