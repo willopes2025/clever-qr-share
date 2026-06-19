@@ -587,7 +587,9 @@ function buildPdf(report: any): Uint8Array {
       yPos += 6;
     }
     yPos += 3;
+    addCallout(narr.ai_commentary);
   }
+
 
   // ============== CAMPANHAS — PERFORMANCE DETALHADA ==============
   const camp = um.campaigns || {};
