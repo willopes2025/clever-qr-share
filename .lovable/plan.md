@@ -1,57 +1,88 @@
-## Objetivo
-Eliminar contatos identificados por `LID_xxxxx` na plataforma: converter os 732 existentes em telefone real (formato `55DDDNNNNNNNN`) e garantir que novos leads vindos de "Click-to-WhatsApp Ads" entrem já com o número correto.
 
-## Situação atual
-- 732 contatos com `phone` no formato `LID_<label_id>` (todos têm `label_id` preenchido).
-- O webhook `receive-webhook` já tenta extrair o número real do `remoteJidAlt`/`participant`. Quando não consegue, salva como `LID_…` como fallback temporário e tenta promover para telefone real nas mensagens seguintes (linhas 1019-1040 do `index.ts`).
-- O problema é que muitos contatos vindos de anúncios nunca trazem o `remoteJidAlt`, então ficam presos no LID para sempre.
+## Diagnóstico do PDF atual
 
----
+O PDF que você enviou (`analise-2026-06-17-...pdf`) tem só 3 páginas porque **a maior parte dele caiu em fallback vazio**:
 
-## Etapa 1 — Backfill dos 732 contatos existentes
+- Notas da IA: **0/0/0/0/0/0** → a chamada `analyze_conversations` falhou ou voltou sem dados → entrou no fallback `executive_summary = "Análise concluída."` e zerou `strengths` / `improvements` / `recommendations` / `conversation_details`.
+- O builder (`supabase/functions/send-scheduled-analysis/index.ts`) já tem as seções **Resumo Executivo, Recomendações, Pontos Fortes, Áreas de Melhoria, Detalhes por Conversa** — mas elas só renderizam se vierem populadas. Como vieram vazias, o PDF terminou no "Análise concluída".
+- Seções **Funis** (`analyze_funnel`) e **Análise individual por atendente** (`analyze_users`) **nunca são desenhadas no PDF**, mesmo quando a IA retorna dados — só aparecem na UI (`AnalysisReportDetail`, `FunnelInsightsTab`, `UserPerformanceTab`).
+- KPIs são apresentados como números soltos: não há **leitura/narrativa** explicando o que cada bloco significa (ex.: "leads caíram 40% — concentração de queda na quarta às 14h", "Gleycy ficou 41h logada mas só atendeu 1 conversa", etc.).
+- Não há **prioridade** nas recomendações nem **plano de ação**.
 
-Criar nova edge function `resolve-lid-contacts` (admin-only) que:
+## O que vai mudar
 
-1. Carrega todos os contatos com `phone LIKE 'LID_%'` agrupados por `user_id` (dono da instância).
-2. Para cada instância Evolution ativa do dono, chama `POST {EVOLUTION_API_URL}/chat/findContacts/{instance}` para obter o cadastro completo. A resposta da Evolution traz, para cada contato salvo no aparelho, tanto o JID real (`@s.whatsapp.net`) quanto o `lid` correspondente — é a única forma confiável de mapear LID ↔ telefone.
-3. Monta um índice `label_id → telefone real` e atualiza cada contato:
-   - Normaliza o telefone (`55` + DDD + número, regras de `normalizePhone`).
-   - Se já existir outro contato com aquele telefone real na mesma organização, faz **merge**: move `conversations`, `inbox_messages`, `funnel_deals`, `conversation_tasks`, `contact_activity_log`, `contact_tags` para o contato existente e apaga o duplicado LID.
-   - Se não existir, apenas atualiza `phone` (mantém `label_id` para auditoria).
-4. Para LIDs que a Evolution não souber resolver (contato nunca trocou mensagem confirmada com a instância), tenta fallback: ler `remoteJidAlt` da última mensagem armazenada via Evolution (`/chat/findMessages/{instance}` com `where.key.remoteJid = '<lid>@lid'`). Os que continuarem sem telefone ficam marcados em `custom_fields.lid_unresolved = true` para revisão manual.
-5. Gera um relatório em JSON com: total resolvidos, total merged, total não-resolvidos.
+### 1. Robustez da IA (resolver o "tudo zero")
+Em `supabase/functions/analyze-conversations/index.ts`:
+- Adicionar **retry** (1 reintento) em cada uma das 4 chamadas paralelas quando vier `null` / `tool_args` vazio.
+- Quando o período tiver pouco volume (ex.: < 20 conversas), encurtar o `conversationTexts` e simplificar o schema para reduzir falha de tool calling.
+- Em vez do fallback "Análise concluída.", gerar um **resumo determinístico** a partir dos KPIs (variação x período anterior, top atendente, principal gargalo de SLA) — assim o PDF nunca mais vai sair "vazio".
+- Logar no `error_message` o motivo real (timeout/tool error) para diagnóstico futuro.
 
-A função é disparada pela página de admin com um botão "Resolver contatos LID" (admin do sistema apenas, via `has_role(uid,'admin')`).
+### 2. Novo prompt: "comentário narrativo por seção"
+Adicionar uma 5ª chamada à IA (`narrate_sections`, também `google/gemini-2.5-flash`, tool calling estruturado) que recebe **todos os agregados** (KPIs + volume + leads + comercial + equipe + SLA + IA + campanhas + comparativo) e devolve um objeto:
 
-## Etapa 2 — Prevenir novos `LID_` no `receive-webhook`
+```
+{
+  executive_kpis_commentary: string,     // 3–5 frases sobre os KPIs do topo
+  volume_commentary: string,              // padrões de horário/dia + alertas
+  leads_commentary: string,               // origens, tempo de espera, riscos
+  commercial_commentary: string,          // pipeline, conversão, ticket
+  team_commentary: string,                // ranking + outliers (ex.: muita hora pouca msg)
+  team_per_user: [{ user_id, note }],     // 1 linha por atendente
+  sla_commentary: string,                 // diagnóstico das quebras
+  ai_commentary: string,                  // eficácia da IA + handoff
+  campaigns_commentary: string,           // o que está performando e o que não
+  funnel_commentary: string,              // gargalos por etapa
+  action_plan: [                          // até 5 ações priorizadas
+    { priority: 'alta'|'media'|'baixa', title, why, how, owner_hint }
+  ]
+}
+```
 
-Alterações em `supabase/functions/receive-webhook/index.ts` no bloco que hoje cai em `useLidAsIdentifier = true` (linhas 663-685):
+Esse texto é salvo em `conversation_analysis_reports.usage_metrics.ai_narrative` (sem mudar schema — é JSONB livre).
 
-1. **Antes de criar `LID_xxx`**, chamar de forma síncrona `POST /chat/findContacts/{instance}` filtrando por `lid` (Evolution v2 aceita `where: { lid: '<labelId>@lid' }`). Se vier `remoteJid` real → usar como telefone normal.
-2. Fallback secundário: `GET /chat/whatsappNumbers/{instance}` informando o LID, que retorna o JID resolvido em algumas versões.
-3. Se ambos falharem, manter a lógica atual (cria `LID_<labelId>`), porém também enfileira um job (insert em nova tabela `lid_resolution_queue` com `label_id`, `instance_id`, `attempts`) para o cron rodar a Etapa 1 sobre ele a cada 30 min, até resolver ou atingir 10 tentativas.
-4. Quando uma mensagem futura chegar trazendo `remoteJidAlt` real para um contato `LID_…`, manter o upgrade já existente (linha 1022) — sem mudança.
+### 3. PDF muito mais rico (`buildPdf` em `send-scheduled-analysis/index.ts`)
 
-## Etapa 3 — Agendamento periódico
+Em cada seção existente, adicionar um **callout "Leitura da IA"** logo abaixo dos números — caixa cinza-clara de 4–8 linhas usando o respectivo `*_commentary`.
 
-- Criar cron `pg_cron` que invoca `resolve-lid-contacts` (modo "fila apenas") a cada 30 min para varrer a tabela `lid_resolution_queue` recém-criada. Sem necessidade de admin manual após a primeira execução em massa.
+Seções novas / expandidas:
 
----
+| Seção | Hoje | Depois |
+|---|---|---|
+| Capa / KPIs | só cards | + callout "Leitura da IA" + comparativo destacando a maior queda/alta |
+| Volume e Atividade | bars de dia/hora | + comentário (ex.: "70% dos envios entre 10h–15h; sexta cai 35%") |
+| Leads e Contatos | totais + origens | + comentário sobre origens com pior tempo de resposta |
+| Comercial | totais | + comentário + **mini-funil visual** (Pipeline → Ganhos / Perdidos) |
+| Produtividade da Equipe | tabela | + para cada atendente: 1 linha de coach (`team_per_user.note`) e badges de outlier (ex.: "muito tempo logado / poucas msgs") |
+| SLA | barras de quebra | + comentário de diagnóstico e 1–2 ações |
+| IA e Automação | barras IA vs humano | + comentário sobre efetividade e onde houve handoff |
+| **Funis (NOVA)** | não existe no PDF | tabela por funil: deals, win-rate, dias p/ fechar + **top 3 etapas-gargalo** com nota da IA |
+| Campanhas | tabela | + por campanha: 1 linha de recomendação (`analyze_campaigns` já existe, só não é renderizado) |
+| Pontos Fortes / Áreas de Melhoria | bullets | mantém, mas com **fallback** quando vazio (usar `team_commentary` / `sla_commentary`) |
+| **Plano de Ação (NOVO)** | não existe | última seção: até 5 ações priorizadas (alta/média/baixa) com **por que, como, dono sugerido** |
+| Detalhes por Conversa | só se IA preencher | adicionar amostra mínima das 5 conversas com pior tempo de 1ª resposta como fallback |
 
-## Detalhes técnicos
-- **Nova tabela** `lid_resolution_queue` em `public` com `id`, `contact_id`, `label_id`, `instance_id`, `user_id`, `attempts`, `last_attempt_at`, `resolved_at`, `created_at`. RLS: leitura/gravação apenas para `service_role`; admins podem ler via `has_role(uid,'admin')`. GRANTs padrão para `service_role`.
-- **Merge** de contatos no Etapa 1 reaproveita o padrão do hook `useMergeDeals` no client — porém aqui é server-side, dentro da edge function, em transação por contato (`update` em ordem fixa para evitar violar FK `conversations.contact_id`).
-- **Normalização** usa a mesma `normalizePhone` já definida no webhook (extraída para `supabase/functions/_shared/phone.ts` para ser reusada).
-- **Evolution endpoint** `POST /chat/findContacts/{instance}`: enviado `{ where: {} }` retorna lista completa; usamos paginação se a instância tiver muitos contatos.
-- Sem mudanças em UI além do botão admin "Resolver contatos LID" em `src/pages/Admin.tsx` com toast de progresso e contador final.
+Cosméticos:
+- Cabeçalho de seção mantém o estilo azul atual.
+- Callout da IA: fundo `#F1F5F9`, borda lateral azul de 2px, fonte 9pt itálico, prefixo "Leitura da IA —".
+- Plano de ação: cards numerados, bolinha colorida por prioridade.
 
-## Entregáveis
-1. Migration: tabela `lid_resolution_queue` + GRANTs + RLS + cron.
-2. `supabase/functions/_shared/phone.ts` (extração da `normalizePhone`).
-3. `supabase/functions/resolve-lid-contacts/index.ts` (backfill + processamento de fila).
-4. Patch em `supabase/functions/receive-webhook/index.ts` (resolução síncrona + enfileiramento).
-5. Botão admin em `src/pages/Admin.tsx`.
+### 4. Mesmo PDF na UI
+`src/lib/pdf-export.ts` (botão **Download** da página `Analysis`) hoje é uma versão **mais simples** que a do scheduled. Vou unificar: extrair `buildPdf` para um módulo compartilhado client-side (ex.: `src/lib/pdf-analysis.ts`) que o `Analysis.tsx` passa a usar — o PDF exportado manualmente fica igual ao enviado por WhatsApp agendado.
 
-## Riscos
-- A Evolution só conhece o LID se o número já estiver no cadastro do aparelho. Para contatos vindos apenas de anúncio sem nunca terem virado contato salvo, o telefone só aparece quando o usuário responder; nesses casos o upgrade automático já existente (Etapa 2 item 4) resolverá quando o `remoteJidAlt` chegar.
-- Merge apaga o contato LID — todos os históricos são preservados ao serem reapontados para o contato real antes da exclusão.
+## Arquivos afetados
+
+- `supabase/functions/analyze-conversations/index.ts` — retry, fallback determinístico, nova chamada `narrate_sections`, salva `ai_narrative` em `usage_metrics`.
+- `supabase/functions/send-scheduled-analysis/index.ts` — `buildPdf` ganha callouts, seções de Funis, Campanhas detalhadas, Plano de Ação e per-user coach.
+- `src/lib/pdf-analysis.ts` (novo) — versão client-side do mesmo builder.
+- `src/lib/pdf-export.ts` — passa a delegar para `pdf-analysis.ts`.
+- `src/hooks/useAnalysisReports.ts` — expor o campo `ai_narrative` no tipo (sem migration).
+
+## O que **não** vai mudar
+
+- Nenhuma alteração de schema do banco (`ai_narrative` mora em `usage_metrics` JSONB que já existe).
+- Modelos (continua `google/gemini-2.5-flash` via Lovable AI Gateway).
+- Fluxo da UI da página Análise (botões, switches, agendamento).
+
+## Observação
+Posso, opcionalmente, **rodar 1 backfill** que pega o último relatório vazio e regera só a narrativa (sem re-chamar tudo) — me confirme se quer.
